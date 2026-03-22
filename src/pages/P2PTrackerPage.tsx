@@ -519,26 +519,27 @@ export default function P2PTrackerPage() {
       </div>
 
       {/* ── Order Book: Sell + Buy ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Card className="border-border/50">
+          <CardHeader className="pb-1 pt-3 px-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-display flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-destructive" />
+              <CardTitle className="text-[13px] font-semibold flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5" style={{ color: 'hsl(var(--success, 142 76% 36%))' }} />
                 Sell Offers
               </CardTitle>
-              <Badge variant="destructive" className="text-xs">Highest first</Badge>
+              <Badge className="text-[10px] px-2 py-0.5" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>Highest first · ✓ fits your stock</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Trader</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-right">Min</TableHead>
-                  <TableHead className="text-right">Max</TableHead>
-                  <TableHead>Methods</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Trader</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Price</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Methods</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-center w-8">✓</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -546,51 +547,55 @@ export default function P2PTrackerPage() {
                   const maxAvail = Math.max(...(snapshot.sellOffers?.map(x => x.available) || [1]));
                   const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
                   return (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs font-medium whitespace-nowrap">
+                    <TableRow key={i} className="h-8">
+                      <TableCell className="text-[13px] font-medium whitespace-nowrap py-1.5">
                         {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <span className="font-bold font-mono text-sm text-destructive">{o.price.toFixed(2)}</span>
-                          <div className="w-10 h-1.5 rounded bg-muted overflow-hidden">
-                            <div className="h-full bg-destructive/70 rounded" style={{ width: `${depthPct}%` }} />
+                      <TableCell className="py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold font-mono text-[13px]">{o.price.toFixed(2)}</span>
+                          <div className="w-12 h-1.5 rounded bg-muted overflow-hidden">
+                            <div className="h-full rounded" style={{ width: `${depthPct}%`, background: 'hsl(var(--success, 142 76% 36%))' }} />
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{o.methods.join(', ')}</TableCell>
+                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
+                      <TableCell className="text-[12px] text-muted-foreground py-1.5">{o.methods.join(' ')}</TableCell>
+                      <TableCell className="text-center py-1.5">
+                        <span style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>✓</span>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {!snapshot.sellOffers?.length && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No sell offers</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No sell offers</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
+        <Card className="border-border/50">
+          <CardHeader className="pb-1 pt-3 px-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-display flex items-center gap-2">
-                <TrendingDown className="h-4 w-4" style={{ color: 'hsl(var(--success, 142 76% 36%))' }} />
+              <CardTitle className="text-[13px] font-semibold flex items-center gap-1.5">
+                <TrendingDown className="h-3.5 w-3.5 text-destructive" />
                 Restock Offers
               </CardTitle>
-              <Badge className="text-xs" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>Cheapest first</Badge>
+              <Badge variant="destructive" className="text-[10px] px-2 py-0.5">Cheapest first</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Trader</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-right">Min</TableHead>
-                  <TableHead className="text-right">Max</TableHead>
-                  <TableHead>Methods</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Trader</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Price</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Methods</TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-center w-8">✓</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -598,26 +603,29 @@ export default function P2PTrackerPage() {
                   const maxAvail = Math.max(...(snapshot.buyOffers?.map(x => x.available) || [1]));
                   const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
                   return (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs font-medium whitespace-nowrap">
+                    <TableRow key={i} className="h-8">
+                      <TableCell className="text-[13px] font-medium whitespace-nowrap py-1.5">
                         {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <span className="font-bold font-mono text-sm" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{o.price.toFixed(2)}</span>
-                          <div className="w-10 h-1.5 rounded bg-muted overflow-hidden">
-                            <div className="h-full rounded" style={{ width: `${depthPct}%`, background: 'hsl(var(--success, 142 76% 36%) / 0.7)' }} />
+                      <TableCell className="py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold font-mono text-[13px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{o.price.toFixed(2)}</span>
+                          <div className="w-12 h-1.5 rounded bg-muted overflow-hidden">
+                            <div className="h-full bg-destructive/70 rounded" style={{ width: `${depthPct}%` }} />
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{o.methods.join(', ')}</TableCell>
+                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
+                      <TableCell className="text-[12px] text-muted-foreground py-1.5">{o.methods.join(' ')}</TableCell>
+                      <TableCell className="text-center py-1.5">
+                        <span className="text-muted-foreground">—</span>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {!snapshot.buyOffers?.length && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No buy offers</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No buy offers</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
