@@ -258,6 +258,46 @@ export default function P2PTrackerPage() {
     return dailySummaries.filter(d => d.date >= cutoff);
   }, [dailySummaries, historyRange]);
 
+  // Weekly band stats
+  const weeklyStats = useMemo(() => {
+    const now = new Date();
+    const startOfThisWeek = new Date(now);
+    startOfThisWeek.setDate(now.getDate() - now.getDay());
+    startOfThisWeek.setHours(0, 0, 0, 0);
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    const thisWeekStr = startOfThisWeek.toISOString().slice(0, 10);
+    const lastWeekStr = startOfLastWeek.toISOString().slice(0, 10);
+
+    const thisWeekDays = dailySummaries.filter(d => d.date >= thisWeekStr);
+    const lastWeekDays = dailySummaries.filter(d => d.date >= lastWeekStr && d.date < thisWeekStr);
+
+    const avgOf = (days: DaySummary[], fn: (d: DaySummary) => number | null) => {
+      const vals = days.map(fn).filter((v): v is number => v !== null && v > 0);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    };
+
+    return {
+      sell: {
+        thisWeek: avgOf(thisWeekDays, d => (d.highSell + (d.lowSell ?? d.highSell)) / 2),
+        lastWeek: avgOf(lastWeekDays, d => (d.highSell + (d.lowSell ?? d.highSell)) / 2),
+        thisWeekHigh: thisWeekDays.length ? Math.max(...thisWeekDays.map(d => d.highSell)) : null,
+        lastWeekHigh: lastWeekDays.length ? Math.max(...lastWeekDays.map(d => d.highSell)) : null,
+        thisWeekPolls: thisWeekDays.reduce((s, d) => s + d.polls, 0),
+        lastWeekPolls: lastWeekDays.reduce((s, d) => s + d.polls, 0),
+      },
+      buy: {
+        thisWeek: avgOf(thisWeekDays, d => (d.highBuy + (d.lowBuy ?? d.highBuy)) / 2),
+        lastWeek: avgOf(lastWeekDays, d => (d.highBuy + (d.lowBuy ?? d.highBuy)) / 2),
+        thisWeekLow: thisWeekDays.length ? Math.min(...thisWeekDays.filter(d => d.lowBuy != null).map(d => d.lowBuy!)) : null,
+        lastWeekLow: lastWeekDays.length ? Math.min(...lastWeekDays.filter(d => d.lowBuy != null).map(d => d.lowBuy!)) : null,
+        thisWeekPolls: thisWeekDays.reduce((s, d) => s + d.polls, 0),
+        lastWeekPolls: lastWeekDays.reduce((s, d) => s + d.polls, 0),
+      },
+    };
+  }, [dailySummaries]);
+
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
