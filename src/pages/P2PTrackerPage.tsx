@@ -643,7 +643,7 @@ export default function P2PTrackerPage() {
                   );
                 })}
                 {!snapshot.buyOffers?.length && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">No restock offers</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">{t('p2pNoRestockOffers')}</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
