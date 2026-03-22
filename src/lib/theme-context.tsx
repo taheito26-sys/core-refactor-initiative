@@ -756,6 +756,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [draft, setDraft] = useState<AppSettings>(loadSavedSettings);
   const [dirty, setDirty] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>(loadLogs);
+  const [cloudPrefsLoaded, setCloudPrefsLoaded] = useState(false);
   const logsRef = useRef(logs);
   const settingsRef = useRef(draft);
   logsRef.current = logs;
@@ -824,7 +825,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pushLog]);
 
-  // Load all Google Fonts on mount
+  // Load all Google Fonts on mount + load cloud preferences
   useEffect(() => {
     applyThemeToDOM(saved);
     const fonts = [...new Set(LAYOUTS.map(l => l.font).concat(FONTS))];
@@ -832,6 +833,29 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     link.rel = 'stylesheet';
     link.href = `https://fonts.googleapis.com/css2?${fonts.map(f => `family=${f.replace(/ /g, '+')}:wght@300;400;500;600;700;800`).join('&')}&display=swap`;
     document.head.appendChild(link);
+
+    // Load preferences from cloud
+    import('./tracker-sync').then(({ loadPreferencesFromCloud }) => {
+      loadPreferencesFromCloud().then((cloudPrefs) => {
+        setCloudPrefsLoaded(true);
+        if (!cloudPrefs) return;
+        // Merge cloud prefs with defaults, cloud wins
+        const merged = { ...DEFAULT_SETTINGS, ...cloudPrefs } as AppSettings;
+        // Validate layout exists
+        if (!LAYOUTS.find(l => l.id === merged.layout)) {
+          merged.layout = DEFAULT_SETTINGS.layout;
+          merged.theme = DEFAULT_SETTINGS.theme;
+        }
+        setSaved(merged);
+        setDraft(merged);
+        setDirty(false);
+        localStorage.setItem('tracker_settings', JSON.stringify(merged));
+        applyThemeToDOM(merged);
+        pushLog('info', 'Preferences loaded from cloud');
+      }).catch(() => {
+        setCloudPrefsLoaded(true);
+      });
+    });
   }, []);
 
   // Auto-save timer ref
