@@ -42,29 +42,16 @@ export default function P2PTrackerPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      if (getDemoMode() || market !== 'qatar') {
-        // Demo mode for all markets; live API only supports Qatar currently
-        const demo = generateP2PHistory(market);
-        setSnapshot(demo.snapshot);
-        setHistory(demo.history);
-        setLastUpdate(new Date().toISOString());
-      } else {
-        try {
-          const [s, h] = await Promise.all([p2p.latest(market), p2p.history(market)]);
-          setSnapshot(s);
-          setHistory(Array.isArray(h) ? h : []);
-          setLastUpdate(new Date().toISOString());
-        } catch {
-          // Fallback to demo data if API fails
-          const demo = generateP2PHistory(market);
-          setSnapshot(demo.snapshot);
-          setHistory(demo.history);
-          setLastUpdate(new Date().toISOString());
-        }
-      }
+      const [s, h] = await Promise.all([p2p.latest(market), p2p.history(market)]);
+      setSnapshot(s);
+      setHistory(Array.isArray(h) ? h : []);
+      setLastUpdate(new Date().toISOString());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load P2P data';
       toast.error(msg);
+      // Set empty snapshot so page still renders
+      setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
+      setHistory([]);
     } finally {
       setLoading(false);
     }

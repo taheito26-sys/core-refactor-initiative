@@ -27,7 +27,7 @@ export default function OrdersPage() {
   const t = useT();
   const navigate = useNavigate();
 
-  const initial = useMemo(() => createDemoState({
+  const initial = useMemo(() => createEmptyState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
