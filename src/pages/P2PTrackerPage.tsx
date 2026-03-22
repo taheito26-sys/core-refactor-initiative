@@ -50,7 +50,7 @@ export default function P2PTrackerPage() {
       const msg = err instanceof Error ? err.message : 'Failed to load P2P data';
       toast.error(msg);
       // Set empty snapshot so page still renders
-      setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
+      setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, sellDepth: 0, buyDepth: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
       setHistory([]);
     } finally {
       setLoading(false);
