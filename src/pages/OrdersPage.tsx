@@ -27,15 +27,12 @@ export default function OrdersPage() {
   const t = useT();
   const navigate = useNavigate();
 
-  const initial = useMemo(() => createEmptyState({
+  const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
     currency: settings.currency,
-  }), []);
-
-  const [state, setState] = useState<TrackerState>(initial.state);
-  const [derived, setDerived] = useState(initial.derived);
+  });
 
   const [saleDate, setSaleDate] = useState(nowInput());
   const [saleMode, setSaleMode] = useState<'USDT' | 'QAR'>('USDT');
