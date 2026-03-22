@@ -424,6 +424,9 @@ export default function VaultPage() {
     clearTrackerStorage(localStorage);
     localStorage.setItem('tracker_data_cleared', 'true');
     await clearTrackerVaultDb();
+    // Also clear cloud state
+    const emptyState = { batches: [], trades: [], customers: [], cashQAR: 0, cashOwner: '', currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } };
+    void saveTrackerStateNow(emptyState as unknown as TrackerState);
     toast.success(t.lang === 'ar' ? 'تم مسح البيانات — جاري إعادة التحميل…' : 'Data cleared — reloading…');
     setTimeout(() => window.location.reload(), 500);
   };
