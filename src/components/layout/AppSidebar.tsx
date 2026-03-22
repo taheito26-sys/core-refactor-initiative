@@ -194,9 +194,9 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
         </Link>
         <button
           onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[0.85em] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-destructive transition-colors"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[11px] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-destructive transition-colors"
         >
-          <LogOut className="h-[1.1em] w-[1.1em] shrink-0" />
+          <LogOut className="h-3.5 w-3.5 shrink-0" />
           {!collapsed && <span>{t('signOut')}</span>}
         </button>
       </div>
