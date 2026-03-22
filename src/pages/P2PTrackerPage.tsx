@@ -375,7 +375,7 @@ export default function P2PTrackerPage() {
   if (!snapshot) return null;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-3 p-3">
       {/* ── Header: Market Tabs + Controls ── */}
       <div className="flex flex-wrap items-center gap-3">
         <Tabs value={market} onValueChange={(v) => { setMarket(v as MarketId); setCalcRate(''); }}>
