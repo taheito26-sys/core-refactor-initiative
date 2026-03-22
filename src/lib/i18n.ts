@@ -40,6 +40,7 @@ const translations = {
   vault: { en: 'Vault', ar: 'الخزنة' },
   audit: { en: 'Audit', ar: 'السجل' },
   settings: { en: 'Settings', ar: 'الإعدادات' },
+  admin: { en: 'Admin', ar: 'المشرف' },
   notifications: { en: 'Notifications', ar: 'الإشعارات' },
   logout: { en: 'Logout', ar: 'تسجيل خروج' },
 

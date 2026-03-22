@@ -17,12 +17,14 @@ import {
   X,
   MoreHorizontal,
   Store,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import { useState } from 'react';
+import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 
 interface NavItem {
   labelKey: string;
@@ -91,6 +93,36 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
         <span className="mobile-bottom-nav__label">More</span>
       </button>
     </nav>
+  );
+}
+function AdminNavSection({ collapsed, isActive, isMobile, onMobileClose }: { collapsed: boolean; isActive: (p: string) => boolean; isMobile: boolean; onMobileClose?: () => void }) {
+  const { data: isAdmin } = useIsAdmin();
+  const t = useT();
+  if (!isAdmin) return null;
+  return (
+    <div className="mb-2">
+      {!collapsed && (
+        <div className="px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
+          {t('admin') || 'Admin'}
+        </div>
+      )}
+      <ul className="space-y-0.5 px-2">
+        <li>
+          <Link
+            to="/admin/approvals"
+            onClick={isMobile ? onMobileClose : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
+              'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+              isActive('/admin/approvals') && 'bg-sidebar-accent text-sidebar-primary font-medium'
+            )}
+          >
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            {!collapsed && <span>{t('approvals') || 'Approvals'}</span>}
+          </Link>
+        </li>
+      </ul>
+    </div>
   );
 }
 
@@ -177,6 +209,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       <div className="flex-1 overflow-y-auto py-2">
         <NavSection title={t('trading')} items={tradingNav} />
         <NavSection title={t('network')} items={networkNav} />
+        <AdminNavSection collapsed={collapsed} isActive={isActive} isMobile={isMobile} onMobileClose={onMobileClose} />
       </div>
 
       {/* Footer */}
