@@ -882,6 +882,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setSaved(next);
         setDirty(false);
         pushLog('info', 'Auto-saved settings');
+        // Sync preferences to cloud
+        import('./tracker-sync').then(({ savePreferencesToCloud }) => {
+          savePreferencesToCloud(next as unknown as Record<string, unknown>);
+        });
       }, 800);
     }
   }, [draft, pushLog]);
@@ -891,6 +895,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setSaved(draft);
     setDirty(false);
     pushLog('info', 'Settings saved');
+    // Sync preferences to cloud immediately
+    import('./tracker-sync').then(({ savePreferencesNow }) => {
+      void savePreferencesNow(draft as unknown as Record<string, unknown>);
+    });
   }, [draft, pushLog]);
 
   const discard = useCallback(() => {
