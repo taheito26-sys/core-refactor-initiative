@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { createDemoState } from '@/lib/tracker-demo-data';
+import { createEmptyState } from '@/lib/tracker-state';
 import {
   fmtU,
   fmtP,
@@ -35,7 +35,7 @@ export default function StockPage() {
   const { settings, update } = useTheme();
   const t = useT();
 
-  const initial = useMemo(() => createDemoState({
+  const initial = useMemo(() => createEmptyState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createDemoState } from '@/lib/tracker-demo-data';
+import { createEmptyState } from '@/lib/tracker-state';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
@@ -27,7 +27,7 @@ export default function OrdersPage() {
   const t = useT();
   const navigate = useNavigate();
 
-  const initial = useMemo(() => createDemoState({
+  const initial = useMemo(() => createEmptyState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
