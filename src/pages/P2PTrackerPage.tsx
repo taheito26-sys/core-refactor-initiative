@@ -524,7 +524,7 @@ export default function P2PTrackerPage() {
             {profitIfSold && (
               <div className="border-t border-[var(--line)] px-4 py-3">
                 <div className="text-[11px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} Profit if sold now: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
+                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
                 </div>
                 <div className="mt-0.5 text-[10px] text-muted-foreground">
                   {profitIfSold.stock.toFixed(3)} USDT · WACOP {profitIfSold.wacop.toFixed(4)} {ccy}
