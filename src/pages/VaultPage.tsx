@@ -208,6 +208,7 @@ export default function VaultPage() {
       const sk = findTrackerStorageKey(localStorage);
       localStorage.removeItem('tracker_data_cleared');
       localStorage.setItem(sk, JSON.stringify(snap.state));
+      await saveTrackerStateNow(snap.state as TrackerState);
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة' : '✓ Restored from local snapshot');
       window.location.reload();
     } catch (e: any) {
