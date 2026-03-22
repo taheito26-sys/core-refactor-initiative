@@ -121,7 +121,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
                 isActive(item.path) && 'bg-sidebar-accent text-sidebar-primary font-medium'
               )}
             >
-              <item.icon className="h-[1.1em] w-[1.1em] shrink-0" />
+              <item.icon className="h-3.5 w-3.5 shrink-0" />
               {!collapsed && <span className="truncate">{t(item.labelKey as any) || item.fallback}</span>}
             </Link>
           </li>
