@@ -500,14 +500,6 @@ export default function P2PTrackerPage() {
               <span className="text-xs text-muted-foreground">Buy Depth</span>
               <span className="font-bold font-mono text-sm">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <Button size="sm" variant="destructive" onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>
-                Apply Sell Rate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>
-                Apply Buy Rate
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>
