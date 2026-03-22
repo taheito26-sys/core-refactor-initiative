@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { createEmptyState } from '@/lib/tracker-state';
+import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtQ, fmtU, fmtP, fmtPct, fmtQWithUnit,
 } from '@/lib/tracker-helpers';
@@ -10,12 +10,12 @@ import '@/styles/tracker.css';
 export default function CalendarPage() {
   const { settings } = useTheme();
   const t = useT();
-  const { state, derived } = useMemo(() => createEmptyState({
+  const { state, derived } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
     currency: settings.currency,
-  }), [settings.lowStockThreshold, settings.priceAlertThreshold, settings.range, settings.currency]);
+  });
   const [cal, setCal] = useState(state.cal);
 
   const mnKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'] as const;

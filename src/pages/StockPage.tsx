@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { createEmptyState } from '@/lib/tracker-state';
+import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU,
   fmtP,
@@ -35,15 +35,12 @@ export default function StockPage() {
   const { settings, update } = useTheme();
   const t = useT();
 
-  const initial = useMemo(() => createEmptyState({
+  const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
     currency: settings.currency,
-  }), []);
-
-  const [state, setState] = useState<TrackerState>(initial.state);
-  const [derived, setDerived] = useState(initial.derived);
+  });
 
   const [batchDate, setBatchDate] = useState(nowInput());
   const [batchMode, setBatchMode] = useState<'QAR' | 'USDT'>('QAR');
@@ -68,11 +65,6 @@ export default function StockPage() {
   const [editNote, setEditNote] = useState('');
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
-
-  const applyState = (next: TrackerState) => {
-    setState(next);
-    setDerived(computeFIFO(next.batches, next.trades));
-  };
 
   useEffect(() => {
     const next: TrackerState = {

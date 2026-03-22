@@ -20,6 +20,8 @@ import {
   saveAutoBackupToStorage,
   saveCloudUrlToStorage,
 } from '@/lib/tracker-backup';
+import { saveTrackerStateNow } from '@/lib/tracker-sync';
+import type { TrackerState } from '@/lib/tracker-helpers';
 
 const CLOUD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyhMi7Eg2ww94tidtIhHEwjaKPsoYK-jsVGHPWIsMu-XUjgZgLuffP5_5Ka90DBrqguOw/exec';
 
@@ -206,6 +208,7 @@ export default function VaultPage() {
       const sk = findTrackerStorageKey(localStorage);
       localStorage.removeItem('tracker_data_cleared');
       localStorage.setItem(sk, JSON.stringify(snap.state));
+      await saveTrackerStateNow(snap.state as unknown as TrackerState);
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة' : '✓ Restored from local snapshot');
       window.location.reload();
     } catch (e: any) {
@@ -304,6 +307,7 @@ export default function VaultPage() {
         const sk = findTrackerStorageKey(localStorage);
         localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
+        await saveTrackerStateNow(normalized as unknown as TrackerState);
         toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة من السحابة' : '✓ Restored from cloud');
         setTimeout(() => window.location.reload(), 500);
       } else {
@@ -394,6 +398,7 @@ export default function VaultPage() {
         const sk = findTrackerStorageKey(localStorage);
         localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
+        void saveTrackerStateNow(normalized as unknown as TrackerState);
         setImportStatus('success');
         setImportMsg(t.lang === 'ar' 
           ? `✓ تم الاستيراد: ${tradeCount} صفقة، ${batchCount} دفعة` 
@@ -419,6 +424,9 @@ export default function VaultPage() {
     clearTrackerStorage(localStorage);
     localStorage.setItem('tracker_data_cleared', 'true');
     await clearTrackerVaultDb();
+    // Also clear cloud state
+    const emptyState = { batches: [], trades: [], customers: [], cashQAR: 0, cashOwner: '', currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } };
+    void saveTrackerStateNow(emptyState as unknown as TrackerState);
     toast.success(t.lang === 'ar' ? 'تم مسح البيانات — جاري إعادة التحميل…' : 'Data cleared — reloading…');
     setTimeout(() => window.location.reload(), 500);
   };

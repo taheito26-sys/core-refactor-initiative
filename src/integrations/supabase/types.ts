@@ -468,6 +468,30 @@ export type Database = {
         }
         Relationships: []
       }
+      tracker_snapshots: {
+        Row: {
+          created_at: string
+          id: string
+          state: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

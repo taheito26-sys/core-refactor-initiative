@@ -1,4 +1,4 @@
-// Production-ready tracker state bootstrap — loads imported/local state first
+// Production-ready tracker state bootstrap — loads imported/local state first, then cloud
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
 import { getCurrentTrackerState } from './tracker-backup';
 
@@ -27,8 +27,11 @@ function loadStoredTrackerState(): Partial<TrackerState> | null {
   return candidate;
 }
 
-export function createEmptyState(overrides?: StateOverrides): { state: TrackerState; derived: DerivedState } {
-  const stored = loadStoredTrackerState();
+/** Build a TrackerState from a source (local or cloud), with overrides */
+export function buildStateFrom(
+  stored: Partial<TrackerState> | null,
+  overrides?: StateOverrides,
+): { state: TrackerState; derived: DerivedState } {
   const now = new Date();
 
   const state: TrackerState = {
@@ -52,4 +55,25 @@ export function createEmptyState(overrides?: StateOverrides): { state: TrackerSt
 
   const derived = computeFIFO(state.batches, state.trades);
   return { state, derived };
+}
+
+/** Pick the richer source between local and cloud state */
+export function mergeLocalAndCloud(
+  local: Partial<TrackerState> | null,
+  cloud: Partial<TrackerState> | null,
+): Partial<TrackerState> | null {
+  if (!cloud && !local) return null;
+  if (!cloud) return local;
+  if (!local) return cloud;
+
+  const localCount = (local.trades?.length ?? 0) + (local.batches?.length ?? 0) + (local.customers?.length ?? 0);
+  const cloudCount = (cloud.trades?.length ?? 0) + (cloud.batches?.length ?? 0) + (cloud.customers?.length ?? 0);
+
+  // Use whichever has more data
+  return cloudCount >= localCount ? cloud : local;
+}
+
+export function createEmptyState(overrides?: StateOverrides): { state: TrackerState; derived: DerivedState } {
+  const stored = loadStoredTrackerState();
+  return buildStateFrom(stored, overrides);
 }
