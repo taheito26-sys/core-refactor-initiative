@@ -462,72 +462,57 @@ export default function P2PTrackerPage() {
       </div>
 
       {/* ── Price History + Market Info ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Price History Bars */}
-        <Card>
-          <CardHeader className="pb-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Price History — source repo style: large values right-aligned */}
+        <Card className="border-border/50">
+          <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-display flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
-                Price History
-              </CardTitle>
-              <Badge variant="secondary" className="text-xs">{last24hHistory.length} pts · 24h</Badge>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">SELL AVG</span>
+              <span className="font-bold font-mono text-2xl">{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(1) : '—'}</span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1.5">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SELL AVG</div>
-              <div className="flex items-end gap-1">
-                {priceBarData.sellBars.map((pct, i) => (
-                  <div key={i} className="flex-1 bg-destructive/80 rounded-sm" style={{ height: `${Math.max(3, pct * 0.24)}px` }} />
-                ))}
-                <span className="ml-2 font-bold font-mono text-base">{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(1) : '—'}</span>
-              </div>
+            <div className="flex items-end gap-0.5 h-6">
+              {priceBarData.sellBars.map((pct, i) => (
+                <div key={i} className="flex-1 bg-destructive/70 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px` }} />
+              ))}
             </div>
-            <div className="space-y-1.5">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">BUY AVG</div>
-              <div className="flex items-end gap-1">
-                {priceBarData.buyBars.map((pct, i) => (
-                  <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.24)}px`, background: 'hsl(var(--success, 142 76% 36%))' }} />
-                ))}
-                <span className="ml-2 font-bold font-mono text-base">{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">BUY AVG</span>
+              <span className="font-bold font-mono text-2xl" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
             </div>
-            <div className="flex gap-2">
-              <Badge variant="outline" className={`font-mono text-xs ${priceBarData.sellChange >= 0 ? 'text-destructive border-destructive/30' : ''}`}>
+            <div className="flex items-end gap-0.5 h-6">
+              {priceBarData.buyBars.map((pct, i) => (
+                <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px`, background: 'hsl(var(--success, 142 76% 36%))' }} />
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Badge variant="outline" className="font-mono text-[11px] px-2 py-0.5">
                 Sell {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}
               </Badge>
-              <Badge variant="outline" className="font-mono text-xs" style={{ color: priceBarData.buyChange >= 0 ? 'hsl(var(--success, 142 76% 36%))' : undefined }}>
+              <Badge variant="outline" className="font-mono text-[11px] px-2 py-0.5">
                 Buy {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}
               </Badge>
             </div>
           </CardContent>
         </Card>
 
-        {/* Market Info */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <ArrowUpDown className="h-4 w-4 text-primary" />
-              Market Info
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
-              <span className="text-xs text-muted-foreground">Sell Avg (Top 5)</span>
-              <span className="font-bold font-mono text-sm text-destructive">{sellAvg.toFixed(4)} {ccy}</span>
+        {/* Market Info — source repo style */}
+        <Card className="border-border/50">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <span className="text-[13px] text-muted-foreground">Sell Avg (Top 5)</span>
+              <span className="font-bold font-mono text-[15px]">{sellAvg.toFixed(4)} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
-              <span className="text-xs text-muted-foreground">Buy Avg (Top 5)</span>
-              <span className="font-bold font-mono text-sm" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <span className="text-[13px] text-muted-foreground">Buy Avg (Top 5)</span>
+              <span className="font-bold font-mono text-[15px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
-              <span className="text-xs text-muted-foreground">Sell Depth</span>
-              <span className="font-bold font-mono text-sm">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <span className="text-[13px] text-muted-foreground">Sell Depth</span>
+              <span className="font-mono text-[13px]">{snapshot.sellDepth.toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT</span>
             </div>
-            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
-              <span className="text-xs text-muted-foreground">Buy Depth</span>
-              <span className="font-bold font-mono text-sm">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-[13px] text-muted-foreground">Buy Depth</span>
+              <span className="font-mono text-[13px]">{snapshot.buyDepth.toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT</span>
             </div>
           </CardContent>
         </Card>
