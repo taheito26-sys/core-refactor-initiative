@@ -137,11 +137,6 @@ function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-const chartConfig = {
-  sellAvg: { label: 'Sell', color: 'hsl(var(--destructive))' },
-  buyAvg: { label: 'Buy', color: 'hsl(var(--success, 142 76% 36%))' },
-};
-
 // ── Component ──
 export default function P2PTrackerPage() {
   const [market, setMarket] = useState<MarketId>('qatar');
