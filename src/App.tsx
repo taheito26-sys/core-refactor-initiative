@@ -23,7 +23,7 @@ import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 import OnboardingPage from "./pages/merchant/OnboardingPage";
 
 // Placeholder pages (will be replaced in later phases)
-const DashboardPage = createPlaceholderPage('Dashboard', 'Trading overview and key metrics');
+import DashboardPage from './pages/DashboardPage';
 const OrdersPage = createPlaceholderPage('Orders', 'Manage your trades and orders');
 const StockPage = createPlaceholderPage('Stock', 'Inventory and stock management');
 const CalendarPage = createPlaceholderPage('Calendar', 'Schedule and events');
