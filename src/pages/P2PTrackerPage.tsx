@@ -484,7 +484,7 @@ export default function P2PTrackerPage() {
               ))}
             </div>
             <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">Buy Avg</span>
+              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
               <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
             </div>
             <div className="flex items-end gap-1 h-8">
