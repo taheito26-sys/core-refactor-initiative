@@ -553,107 +553,119 @@ export default function P2PTrackerPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-        <div className="tracker-root panel">
-          <div className="panel-head" style={{ padding: '10px 14px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--good)' }}>↑ Sell Offers</h2>
-            <span className="pill good">Highest first · ✓ fits your stock</span>
-          </div>
-          <div className="tableWrap" style={{ border: 'none', borderTop: '1px solid var(--line)', borderRadius: 0 }}>
-            <Table className="table-fixed">
+        <Card className="border-border/50">
+          <CardHeader className="pb-1 pt-2.5 px-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[11px] font-semibold flex items-center gap-1.5" style={{ color: 'var(--good)' }}>
+                <TrendingUp className="h-3 w-3" />
+                Sell Offers
+              </CardTitle>
+              <Badge className="text-[8px] px-1.5 py-0.5" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>Highest first · ✓ fits your stock</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[25%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Trader</TableHead>
-                  <TableHead className="w-[18%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Price</TableHead>
-                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Min</TableHead>
-                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Max</TableHead>
-                  <TableHead className="w-[23%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Methods</TableHead>
-                  <TableHead className="w-[6%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-center">✓</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Trader</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Price</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Methods</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Trades</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-center w-6">✓</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {snapshot.sellOffers?.map((o, i) => {
                   const depthPct = sellOffersMaxAvailable > 0 ? Math.min(100, (o.available / sellOffersMaxAvailable) * 100) : 0;
                   return (
-                    <TableRow key={`sell-offer-${i}`}>
-                      <TableCell className="py-3 text-[12px] font-extrabold whitespace-normal break-words leading-tight">
-                        {i === 0 && <span className="mr-1 text-yellow-400">★</span>}
-                        {o.nick}
+                    <TableRow key={`sell-${i}`} className="h-7">
+                      <TableCell className="text-[11px] font-medium whitespace-nowrap py-1">
+                        {i === 0 && <span className="text-yellow-500 mr-0.5">★</span>}{o.nick}
                       </TableCell>
-                      <TableCell className="py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--good)' }}>{o.price.toFixed(2)}</span>
-                          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--line2)' }}>
-                            <div className="h-full rounded-full" style={{ width: `${depthPct}%`, background: 'var(--good)' }} />
+                      <TableCell className="py-1">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold font-mono text-[11px]">{o.price.toFixed(2)}</span>
+                          <div className="w-10 h-1 rounded bg-muted overflow-hidden">
+                            <div className="h-full rounded" style={{ width: `${depthPct}%`, background: 'hsl(var(--success, 142 76% 36%))' }} />
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="py-3 text-right font-mono text-[12px]">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="py-3 text-right font-mono text-[12px]">{formatOfferLimit(o.max)}</TableCell>
-                      <TableCell className="py-3 text-[11px] text-muted-foreground whitespace-normal break-words leading-tight">{o.methods.join(' ') || '—'}</TableCell>
-                      <TableCell className="py-3 text-center text-[14px]" style={{ color: 'var(--good)' }}>✓</TableCell>
+                      <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
+                      <TableCell className="text-[10px] text-muted-foreground py-1">{dedupeSimplified(o.methods).join(' ')}</TableCell>
+                      <TableCell className="text-right font-mono text-[10px] text-muted-foreground py-1">{o.trades > 0 ? o.trades.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-center py-1">
+                        <span className="text-[12px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>✓</span>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {!snapshot.sellOffers?.length && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No sell offers</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">No sell offers</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="tracker-root panel">
-          <div className="panel-head" style={{ padding: '10px 14px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bad)' }}>↓ Restock Offers</h2>
-            <span className="pill bad">Cheapest first</span>
-          </div>
-          <div className="tableWrap" style={{ border: 'none', borderTop: '1px solid var(--line)', borderRadius: 0 }}>
-            <Table className="table-fixed">
+        <Card className="border-border/50">
+          <CardHeader className="pb-1 pt-2.5 px-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[11px] font-semibold flex items-center gap-1.5 text-destructive">
+                <TrendingDown className="h-3 w-3" />
+                Restock Offers
+              </CardTitle>
+              <Badge variant="destructive" className="text-[8px] px-1.5 py-0.5">Cheapest first</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[25%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Trader</TableHead>
-                  <TableHead className="w-[18%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Price</TableHead>
-                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Min</TableHead>
-                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Max</TableHead>
-                  <TableHead className="w-[23%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Methods</TableHead>
-                  <TableHead className="w-[6%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-center">✓</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Trader</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Price</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Methods</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Trades</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-center w-6">✓</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {snapshot.buyOffers?.map((o, i) => {
                   const depthPct = buyOffersMaxAvailable > 0 ? Math.min(100, (o.available / buyOffersMaxAvailable) * 100) : 0;
                   return (
-                    <TableRow key={`buy-offer-${i}`}>
-                      <TableCell className="py-3 text-[12px] font-extrabold whitespace-normal break-words leading-tight">
-                        {i === 0 && <span className="mr-1 text-yellow-400">★</span>}
-                        {o.nick}
+                    <TableRow key={`buy-${i}`} className="h-7">
+                      <TableCell className="text-[11px] font-medium whitespace-nowrap py-1">
+                        {i === 0 && <span className="text-yellow-500 mr-0.5">★</span>}{o.nick}
                       </TableCell>
-                      <TableCell className="py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--bad)' }}>{o.price.toFixed(2)}</span>
-                          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--line2)' }}>
-                            <div className="h-full rounded-full" style={{ width: `${depthPct}%`, background: 'var(--bad)' }} />
+                      <TableCell className="py-1">
+                        <div className="flex items-center gap-1">
+                          <span className="font-bold font-mono text-[11px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{o.price.toFixed(2)}</span>
+                          <div className="w-10 h-1 rounded bg-muted overflow-hidden">
+                            <div className="h-full bg-destructive/70 rounded" style={{ width: `${depthPct}%` }} />
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="py-3 text-right font-mono text-[12px]">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="py-3 text-right font-mono text-[12px]">{formatOfferLimit(o.max)}</TableCell>
-                      <TableCell className="py-3 text-[11px] text-muted-foreground whitespace-normal break-words leading-tight">{o.methods.join(' ') || '—'}</TableCell>
-                      <TableCell className="py-3 text-center text-[14px] text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
+                      <TableCell className="text-[10px] text-muted-foreground py-1">{dedupeSimplified(o.methods).join(' ')}</TableCell>
+                      <TableCell className="text-right font-mono text-[10px] text-muted-foreground py-1">{o.trades > 0 ? o.trades.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-center py-1">
+                        <span className="text-[12px] text-muted-foreground">—</span>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 {!snapshot.buyOffers?.length && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No restock offers</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">No restock offers</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── Historical Averages (collapsible) ── */}
