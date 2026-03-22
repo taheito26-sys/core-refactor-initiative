@@ -313,18 +313,8 @@ export default function P2PTrackerPage() {
     }
   }, [sellAvg]);
 
-  const targetMarginValue = Math.max(0, parseFloat(targetMargin) || 0);
 
-  const advisor = useMemo(() => {
-    if (!profitIfSold) return null;
-    const targetPrice = profitIfSold.wacop * (1 + targetMarginValue / 100);
-    return {
-      avgPrice: profitIfSold.wacop,
-      targetPrice,
-      sellReady: sellAvg >= targetPrice,
-      restockAboveCost: buyAvg > profitIfSold.wacop,
-    };
-  }, [profitIfSold, targetMarginValue, sellAvg, buyAvg]);
+
 
   const priceBarData = useMemo(() => {
     if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
