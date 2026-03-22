@@ -20,6 +20,8 @@ import {
   saveAutoBackupToStorage,
   saveCloudUrlToStorage,
 } from '@/lib/tracker-backup';
+import { saveTrackerStateNow } from '@/lib/tracker-sync';
+import type { TrackerState } from '@/lib/tracker-helpers';
 
 const CLOUD_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyhMi7Eg2ww94tidtIhHEwjaKPsoYK-jsVGHPWIsMu-XUjgZgLuffP5_5Ka90DBrqguOw/exec';
 
