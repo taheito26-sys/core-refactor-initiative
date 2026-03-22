@@ -541,9 +541,9 @@ export default function P2PTrackerPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-[11px] font-semibold flex items-center gap-1.5" style={{ color: 'var(--good)' }}>
                 <TrendingUp className="h-3 w-3" />
-                Sell Offers
+                {t('p2pSellOffers')}
               </CardTitle>
-              <Badge className="text-[8px] px-1.5 py-0.5" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>Highest first · ✓ fits your stock</Badge>
+              <Badge className="text-[8px] px-1.5 py-0.5" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>{t('p2pHighestFirst')}</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
