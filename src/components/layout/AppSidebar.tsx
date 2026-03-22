@@ -20,29 +20,31 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
+import { useT } from '@/lib/i18n';
 import { useState } from 'react';
 
 interface NavItem {
-  label: string;
+  labelKey: string;
+  fallback: string;
   icon: LucideIcon;
   path: string;
 }
 
 export const tradingNav: NavItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Orders', icon: ArrowLeftRight, path: '/trading/orders' },
-  { label: 'Stock', icon: Wallet, path: '/trading/stock' },
-  { label: 'Calendar', icon: Calendar, path: '/trading/calendar' },
-  { label: 'P2P Tracker', icon: TrendingUp, path: '/trading/p2p' },
-  { label: 'CRM', icon: UserCircle, path: '/crm' },
+  { labelKey: 'dashboard', fallback: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { labelKey: 'orders', fallback: 'Orders', icon: ArrowLeftRight, path: '/trading/orders' },
+  { labelKey: 'stock', fallback: 'Stock', icon: Wallet, path: '/trading/stock' },
+  { labelKey: 'calendar', fallback: 'Calendar', icon: Calendar, path: '/trading/calendar' },
+  { labelKey: 'p2pTracker', fallback: 'P2P Market', icon: TrendingUp, path: '/trading/p2p' },
+  { labelKey: 'crm', fallback: 'CRM', icon: UserCircle, path: '/crm' },
 ];
 
 export const networkNav: NavItem[] = [
-  { label: 'Network', icon: Users, path: '/network' },
-  { label: 'Deals', icon: Briefcase, path: '/deals' },
-  { label: 'Analytics', icon: BarChart3, path: '/analytics' },
-  { label: 'Vault', icon: CloudUpload, path: '/trading/vault' },
-  { label: 'Settings', icon: Settings, path: '/settings' },
+  { labelKey: 'network', fallback: 'Network', icon: Users, path: '/network' },
+  { labelKey: 'deals', fallback: 'Deals', icon: Briefcase, path: '/deals' },
+  { labelKey: 'analytics', fallback: 'Analytics', icon: BarChart3, path: '/analytics' },
+  { labelKey: 'vault', fallback: 'Vault', icon: CloudUpload, path: '/trading/vault' },
+  { labelKey: 'settings', fallback: 'Settings', icon: Settings, path: '/settings' },
 ];
 
 type AppSidebarProps = {
@@ -53,6 +55,7 @@ type AppSidebarProps = {
 
 export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   const location = useLocation();
+  const t = useT();
   const primaryNav = [
     tradingNav[0], // Dashboard
     tradingNav[1], // Orders
@@ -76,14 +79,11 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
             <span className="mobile-bottom-nav__icon-wrap">
               <item.icon className="mobile-bottom-nav__icon" />
             </span>
-            <span className="mobile-bottom-nav__label">{item.label}</span>
+            <span className="mobile-bottom-nav__label">{t(item.labelKey as any) || item.fallback}</span>
           </Link>
         );
       })}
-      <button
-        onClick={onMoreClick}
-        className="mobile-bottom-nav__item"
-      >
+      <button onClick={onMoreClick} className="mobile-bottom-nav__item">
         <span className="mobile-bottom-nav__icon-wrap">
           <MoreHorizontal className="mobile-bottom-nav__icon" />
         </span>
@@ -97,6 +97,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { merchantProfile, logout } = useAuth();
+  const t = useT();
 
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + '/');
@@ -121,7 +122,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
               )}
             >
               <item.icon className="h-[1.1em] w-[1.1em] shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              {!collapsed && <span className="truncate">{t(item.labelKey as any) || item.fallback}</span>}
             </Link>
           </li>
         ))}
@@ -173,8 +174,8 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-2">
-        <NavSection title="Trading" items={tradingNav} />
-        <NavSection title="Network" items={networkNav} />
+        <NavSection title={t('trading')} items={tradingNav} />
+        <NavSection title={t('network')} items={networkNav} />
       </div>
 
       {/* Footer */}
@@ -189,14 +190,14 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
           )}
         >
           <Bell className="h-[1.1em] w-[1.1em] shrink-0" />
-          {!collapsed && <span>Notifications</span>}
+          {!collapsed && <span>{t('notifications')}</span>}
         </Link>
         <button
           onClick={logout}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[0.85em] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-destructive transition-colors"
         >
           <LogOut className="h-[1.1em] w-[1.1em] shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
+          {!collapsed && <span>{t('signOut')}</span>}
         </button>
       </div>
     </aside>

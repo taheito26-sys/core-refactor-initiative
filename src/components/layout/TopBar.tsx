@@ -1,9 +1,10 @@
 import { useLocation } from 'react-router-dom';
 import { useMemo } from 'react';
-import { Menu, Globe } from 'lucide-react';
+import { Menu, Bell, Users, TrendingUp } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
+import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
@@ -27,7 +28,7 @@ const RANGES = [
   { id: 'today', label: '1D' },
   { id: '7d', label: '7D' },
   { id: '30d', label: '30D' },
-  { id: 'all', label: 'All' },
+  { id: 'all', label: 'ALL' },
 ] as const;
 
 type TopBarProps = {
@@ -38,36 +39,26 @@ type TopBarProps = {
 export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const location = useLocation();
   const { settings, update } = useTheme();
+  const { merchantProfile, logout } = useAuth();
   const t = useT();
   const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-background/95 backdrop-blur-sm px-4">
+    <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-3 py-1.5">
       {isMobile && onMenuClick && (
-        <button
-          onClick={onMenuClick}
-          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
-        >
-          <Menu className="h-[1.2em] w-[1.2em]" />
+        <button onClick={onMenuClick} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
+          <Menu className="h-4 w-4" />
         </button>
       )}
-      <div className="flex-1 min-w-0">
-        <h1 className="text-[0.9em] font-bold text-foreground font-display leading-tight truncate">
-          {meta.title}
-        </h1>
-        <p className="text-[0.7em] text-muted-foreground leading-tight truncate">
-          {meta.subtitle}
-        </p>
-      </div>
 
       {/* ── Period Toggle ── */}
-      <div className="hidden md:flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
         {RANGES.map(r => (
           <button
             key={r.id}
             onClick={() => update({ range: r.id as any })}
             className={cn(
-              'px-2 py-0.5 rounded text-[0.65em] font-semibold transition-all',
+              'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
               settings.range === r.id
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -79,13 +70,13 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       </div>
 
       {/* ── Currency Toggle ── */}
-      <div className="hidden md:flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
         {(['QAR', 'USDT'] as const).map(c => (
           <button
             key={c}
             onClick={() => update({ currency: c })}
             className={cn(
-              'px-2 py-0.5 rounded text-[0.65em] font-semibold transition-all',
+              'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
               settings.currency === c
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -96,17 +87,59 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         ))}
       </div>
 
-      {/* ── Language Toggle ── */}
-      <button
-        onClick={() => update({ language: settings.language === 'en' ? 'ar' : 'en' })}
-        className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-[0.65em] font-semibold text-muted-foreground transition-all"
-        title={settings.language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
-      >
-        <Globe className="w-[0.9em] h-[0.9em]" />
-        {settings.language === 'en' ? 'AR' : 'EN'}
-      </button>
-
+      {/* ── Activity ── */}
       <ActivityCenter />
+
+      {/* ── Spacer ── */}
+      <div className="flex-1" />
+
+      {/* ── Language Toggle ── */}
+      <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+        <button
+          onClick={() => update({ language: 'ar' })}
+          className={cn(
+            'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
+            settings.language === 'ar'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {t('arabic')}
+        </button>
+        <button
+          onClick={() => update({ language: 'en' })}
+          className={cn(
+            'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
+            settings.language === 'en'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {t('english')}
+        </button>
+      </div>
+
+      {/* ── Sync indicator ── */}
+      <div className="hidden md:flex items-center gap-1">
+        <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-[11px] text-emerald-500 font-medium">{t('synced')}</span>
+      </div>
+
+      {/* ── User info ── */}
+      {merchantProfile && (
+        <div className="hidden md:flex flex-col items-end">
+          <span className="text-[11px] font-semibold text-foreground leading-tight">{merchantProfile.display_name}</span>
+          <span className="text-[9px] text-muted-foreground leading-tight">{t('clientId')}: {merchantProfile.merchant_id.slice(0, 5)}</span>
+        </div>
+      )}
+
+      {/* ── Sign out ── */}
+      <button
+        onClick={logout}
+        className="hidden md:block px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 text-[11px] font-semibold text-muted-foreground transition-all"
+      >
+        {t('signOut')}
+      </button>
     </header>
   );
 }
