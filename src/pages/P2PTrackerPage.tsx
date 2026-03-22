@@ -676,15 +676,15 @@ export default function P2PTrackerPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Sell High</TableHead>
-                    <TableHead className="text-right">Sell Low</TableHead>
-                    <TableHead className="text-right">Sell Avg</TableHead>
-                    <TableHead className="text-right">Buy High</TableHead>
-                    <TableHead className="text-right">Buy Low</TableHead>
-                    <TableHead className="text-right">Buy Avg</TableHead>
-                    <TableHead className="text-right">Spread</TableHead>
-                    <TableHead className="text-right">Polls</TableHead>
+                     <TableHead>{t('date')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSellHigh')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSellLow')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSellAvg')}</TableHead>
+                     <TableHead className="text-right">{t('p2pBuyHigh')}</TableHead>
+                     <TableHead className="text-right">{t('p2pBuyLow')}</TableHead>
+                     <TableHead className="text-right">{t('p2pBuyAvg')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSpreadLabel')}</TableHead>
+                     <TableHead className="text-right">{t('p2pPolls')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
