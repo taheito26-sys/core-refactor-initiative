@@ -656,8 +656,8 @@ export default function P2PTrackerPage() {
         <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowHistory(!showHistory)}>
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-display flex items-center gap-2">
-              {showHistory ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              Historical Averages
+               {showHistory ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+               {t('p2pHistoricalAverages')}
             </CardTitle>
             <div className="flex items-center gap-2">
               {showHistory && (
