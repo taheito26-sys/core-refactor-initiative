@@ -17,12 +17,14 @@ import {
   X,
   MoreHorizontal,
   Store,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import { useState } from 'react';
+import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 
 interface NavItem {
   labelKey: string;
