@@ -79,7 +79,7 @@ function parseOffers(raw: BinanceP2POffer[]) {
   return raw.map((o) => ({
     price: parseFloat(o.adv.price),
     min: parseFloat(o.adv.minSingleTransAmount),
-    max: parseFloat(o.adv.maxSingleTransOrderAmount),
+    max: parseFloat(o.adv.maxSingleTransAmount || "0"),
     available: parseFloat(o.adv.surplusAmount),
     nick: o.advertiser.nickName,
     methods: o.adv.tradeMethods.map((m) => m.tradeMethodName || m.identifier),
