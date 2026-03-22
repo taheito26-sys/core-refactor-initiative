@@ -382,6 +382,60 @@ export default function P2PTrackerPage() {
         <Badge variant="outline" className="font-mono text-xs">{currentMarket.pair}</Badge>
       </div>
 
+      {/* ── 2 Big KPI Bands (Weekly Summary) ── */}
+      <div className="tracker-root" style={{ background: 'transparent' }}>
+        <div className="kpi-band-grid">
+          {/* SELL BAND */}
+          <div className="kpi-band">
+            <div className="kpi-band-title">Sell Rate Summary</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">This Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--bad)' }}>
+                  {weeklyStats.sell.thisWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  High {weeklyStats.sell.thisWeekHigh?.toFixed(3) || '—'} · {weeklyStats.sell.thisWeekPolls} polls
+                </div>
+              </div>
+              <div>
+                <div className="kpi-period">Last Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--bad)', opacity: 0.7 }}>
+                  {weeklyStats.sell.lastWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  High {weeklyStats.sell.lastWeekHigh?.toFixed(3) || '—'} · {weeklyStats.sell.lastWeekPolls} polls
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* BUY BAND */}
+          <div className="kpi-band">
+            <div className="kpi-band-title">Buy Rate Summary</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">This Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>
+                  {weeklyStats.buy.thisWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  Low {weeklyStats.buy.thisWeekLow?.toFixed(3) || '—'} · {weeklyStats.buy.thisWeekPolls} polls
+                </div>
+              </div>
+              <div>
+                <div className="kpi-period">Last Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--good)', opacity: 0.7 }}>
+                  {weeklyStats.buy.lastWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  Low {weeklyStats.buy.lastWeekLow?.toFixed(3) || '—'} · {weeklyStats.buy.lastWeekPolls} polls
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── KPI Cards (tracker.css – exact source repo sizing) ── */}
       <div className="tracker-root" style={{ background: 'transparent' }}>
         <div className="kpis" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
