@@ -282,9 +282,9 @@ export default function P2PTrackerPage() {
   // PROFIT IF SOLD NOW: reads tracker state from localStorage
   const profitIfSold = useMemo(() => {
     try {
-      const raw = localStorage.getItem('p2p_tracker_state');
-      if (!raw) return null;
-      const state: TrackerState = JSON.parse(raw);
+      const stateRaw = getCurrentTrackerState(localStorage);
+      if (!stateRaw || !Array.isArray(stateRaw.batches) || !(stateRaw.batches as any[]).length) return null;
+      const state = stateRaw as unknown as TrackerState;
       if (!state.batches?.length) return null;
       const derived = computeFIFO(state.batches, state.trades || []);
       const stock = totalStock(derived);
