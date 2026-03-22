@@ -8,12 +8,14 @@ import type { P2PSnapshot, P2PHistoryPoint, P2POffer } from '@/types/domain';
 import '@/styles/tracker.css';
 
 type CalcMode = 'sell' | 'buy' | 'target';
-type MarketId = 'qatar' | 'uae' | 'egypt';
+type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria';
 
 const MARKETS: { id: MarketId; label: string; labelAr: string; currency: string; pair: string }[] = [
   { id: 'qatar', label: 'Qatar', labelAr: 'قطر', currency: 'QAR', pair: 'USDT/QAR' },
   { id: 'uae', label: 'UAE', labelAr: 'الإمارات', currency: 'AED', pair: 'USDT/AED' },
   { id: 'egypt', label: 'Egypt', labelAr: 'مصر', currency: 'EGP', pair: 'USDT/EGP' },
+  { id: 'ksa', label: 'KSA', labelAr: 'السعودية', currency: 'SAR', pair: 'USDT/SAR' },
+  { id: 'syria', label: 'Syria', labelAr: 'سوريا', currency: 'SYP', pair: 'USDT/SYP' },
 ];
 
 export default function P2PTrackerPage() {
