@@ -116,7 +116,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
               to={item.path}
               onClick={isMobile ? onMobileClose : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-[0.85em] transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
                 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                 isActive(item.path) && 'bg-sidebar-accent text-sidebar-primary font-medium'
               )}
