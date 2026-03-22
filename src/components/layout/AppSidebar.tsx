@@ -95,8 +95,38 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     </nav>
   );
 }
+function AdminNavSection({ collapsed, isActive, isMobile, onMobileClose }: { collapsed: boolean; isActive: (p: string) => boolean; isMobile: boolean; onMobileClose?: () => void }) {
+  const { data: isAdmin } = useIsAdmin();
+  const t = useT();
+  if (!isAdmin) return null;
+  return (
+    <div className="mb-2">
+      {!collapsed && (
+        <div className="px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
+          {t('admin') || 'Admin'}
+        </div>
+      )}
+      <ul className="space-y-0.5 px-2">
+        <li>
+          <Link
+            to="/admin/approvals"
+            onClick={isMobile ? onMobileClose : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
+              'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+              isActive('/admin/approvals') && 'bg-sidebar-accent text-sidebar-primary font-medium'
+            )}
+          >
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            {!collapsed && <span>{t('approvals') || 'Approvals'}</span>}
+          </Link>
+        </li>
+      </ul>
+    </div>
+  );
+}
 
-export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose }: AppSidebarProps) {
+
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { merchantProfile, logout } = useAuth();
