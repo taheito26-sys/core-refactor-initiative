@@ -397,7 +397,7 @@ export default function P2PTrackerPage() {
 
         <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="gap-1.5 h-8 text-[11px]">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('p2pRefresh')}
         </Button>
 
         <Button
@@ -407,12 +407,12 @@ export default function P2PTrackerPage() {
           className="gap-1.5 h-8 text-[11px]"
         >
           <span className={`h-2 w-2 rounded-full ${autoRefresh ? 'bg-green-400 animate-pulse' : 'bg-muted-foreground'}`} />
-          Auto-refresh
+          {t('p2pAutoRefresh')}
         </Button>
 
         {lastUpdate && (
           <span className="text-[11px] text-muted-foreground">
-            Updated {new Date(lastUpdate).toLocaleTimeString()}
+            {t('p2pUpdated')} {new Date(lastUpdate).toLocaleTimeString()}
           </span>
         )}
 
