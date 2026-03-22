@@ -422,46 +422,46 @@ export default function P2PTrackerPage() {
       <div className="tracker-root" style={{ background: 'transparent' }}>
         <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
           <div className="kpi-card">
-            <div className="kpi-lbl">BEST SELL</div>
+            <div className="kpi-lbl">{t('p2pBestSell')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Top sell {ccy}</div>
+            <div className="kpi-sub">{t('p2pTopSell')} {ccy}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">SELL AVG (TOP 5)</div>
+            <div className="kpi-lbl">{t('p2pSellAvgTop5')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(2) || '—'}</div>
             <div className="kpi-sub" style={{ color: 'var(--good)' }}>
-              {snapshot.spreadPct ? `+${snapshot.spreadPct.toFixed(2)}% spread` : 'Live weighted average'}
+              {snapshot.spreadPct ? `+${snapshot.spreadPct.toFixed(2)}% ${t('p2pSpreadLabel').toLowerCase()}` : t('p2pLiveWeightedAvg')}
             </div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">BEST RESTOCK</div>
+            <div className="kpi-lbl">{t('p2pBestRestock')}</div>
             <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestBuy?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Cheapest restock {ccy}</div>
+            <div className="kpi-sub">{t('p2pCheapestRestock')} {ccy}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">SPREAD</div>
+            <div className="kpi-lbl">{t('p2pSpread')}</div>
             <div className="kpi-val" style={{ color: snapshot.spread != null && snapshot.spread > 0 ? 'var(--good)' : 'var(--bad)' }}>
               {snapshot.spread != null ? snapshot.spread.toFixed(4) : '—'}
             </div>
-            <div className="kpi-sub">{snapshot.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : 'No data'}</div>
+            <div className="kpi-sub">{snapshot.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : t('p2pNoData')}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">TODAY HIGH SELL</div>
+            <div className="kpi-lbl">{t('p2pTodayHighSell')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.highSell.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Low {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} polls</div>
+            <div className="kpi-sub">{t('p2pLow')} {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} {t('p2pPolls').toLowerCase()}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">TODAY LOW BUY</div>
+            <div className="kpi-lbl">{t('p2pTodayLowBuy')}</div>
             <div className="kpi-val" style={{ color: 'var(--bad)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">High {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
+            <div className="kpi-sub">{t('p2pHigh')} {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
           </div>
           {profitIfSold && (
             <div className="kpi-card">
-              <div className="kpi-lbl">PROFIT IF SOLD NOW</div>
+              <div className="kpi-lbl">{t('p2pProfitIfSoldNow')}</div>
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                 {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
               </div>
-              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · cost basis</div>
+              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · {t('p2pCostBasis')}</div>
             </div>
           )}
         </div>
