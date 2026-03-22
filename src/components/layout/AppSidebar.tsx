@@ -155,7 +155,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
         )}
         {isMobile && (
           <button onClick={onMobileClose} className="p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60">
-            <X className="h-[1.1em] w-[1.1em]" />
+            <X className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
