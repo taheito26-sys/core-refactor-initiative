@@ -526,7 +526,7 @@ export default function P2PTrackerPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{o.methods.join(', ')}</TableCell>
                     </TableRow>
                   );
