@@ -41,7 +41,7 @@ export const networkNav: NavItem[] = [
   { label: 'Network', icon: Users, path: '/network' },
   { label: 'Deals', icon: Briefcase, path: '/deals' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
-  { label: 'Vault', icon: CloudUpload, path: '/vault' },
+  { label: 'Vault', icon: CloudUpload, path: '/trading/vault' },
   { label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
