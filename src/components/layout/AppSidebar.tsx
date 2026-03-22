@@ -140,7 +140,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       <div className="flex items-center justify-between px-3 py-4 border-b border-sidebar-border">
         {!collapsed && (
           <span className="font-display text-sm font-bold text-sidebar-foreground tracking-tight">
-            TRACKER
+            P2P Tracker
           </span>
         )}
         {!isMobile && (

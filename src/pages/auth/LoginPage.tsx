@@ -38,7 +38,7 @@ export default function LoginPage() {
             <TrendingUp className="h-6 w-6 text-primary" />
           </div>
           <CardTitle className="text-2xl">Sign In</CardTitle>
-          <CardDescription>Access your TRACKER platform account</CardDescription>
+          <CardDescription>Access your P2P Tracker account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

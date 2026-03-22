@@ -49,6 +49,52 @@ interface DaySummary {
   polls: number;
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function toOffer(value: unknown): P2POffer | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const source = value as Record<string, unknown>;
+  const price = toFiniteNumber(source.price);
+  if (price === null) return null;
+
+  return {
+    price,
+    min: toFiniteNumber(source.min) ?? 0,
+    max: toFiniteNumber(source.max) ?? 0,
+    nick: typeof source.nick === 'string' && source.nick.trim() ? source.nick : 'Unknown trader',
+    methods: Array.isArray(source.methods)
+      ? source.methods.filter((method): method is string => typeof method === 'string' && method.trim().length > 0)
+      : [],
+    available: toFiniteNumber(source.available) ?? 0,
+  };
+}
+
+function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
+  const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+
+  return {
+    ts: toFiniteNumber(source.ts) ?? (fetchedAt ? new Date(fetchedAt).getTime() : Date.now()),
+    sellAvg: toFiniteNumber(source.sellAvg),
+    buyAvg: toFiniteNumber(source.buyAvg),
+    bestSell: toFiniteNumber(source.bestSell),
+    bestBuy: toFiniteNumber(source.bestBuy),
+    spread: toFiniteNumber(source.spread),
+    spreadPct: toFiniteNumber(source.spreadPct),
+    sellDepth: toFiniteNumber(source.sellDepth) ?? 0,
+    buyDepth: toFiniteNumber(source.buyDepth) ?? 0,
+    sellOffers: Array.isArray(source.sellOffers) ? source.sellOffers.map(toOffer).filter((offer): offer is P2POffer => offer !== null) : [],
+    buyOffers: Array.isArray(source.buyOffers) ? source.buyOffers.map(toOffer).filter((offer): offer is P2POffer => offer !== null) : [],
+  };
+}
+
 // ── Markets ──
 type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey';
 
@@ -118,15 +164,7 @@ export default function P2PTrackerPage() {
       .maybeSingle();
 
     if (latestRow?.data) {
-      const d = latestRow.data as any;
-      setSnapshot({
-        ts: d.ts || new Date(latestRow.fetched_at).getTime(),
-        sellAvg: d.sellAvg ?? null, buyAvg: d.buyAvg ?? null,
-        bestSell: d.bestSell ?? null, bestBuy: d.bestBuy ?? null,
-        spread: d.spread ?? null, spreadPct: d.spreadPct ?? null,
-        sellDepth: d.sellDepth ?? 0, buyDepth: d.buyDepth ?? 0,
-        sellOffers: d.sellOffers ?? [], buyOffers: d.buyOffers ?? [],
-      });
+      setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at));
     } else {
       setSnapshot(EMPTY_SNAPSHOT);
     }
@@ -140,11 +178,13 @@ export default function P2PTrackerPage() {
       .order('fetched_at', { ascending: true });
 
     setHistory((histRows || []).map((row: any) => {
-      const d = row.data as any;
+      const normalized = toSnapshot(row.data, row.fetched_at);
       return {
-        ts: d.ts || new Date(row.fetched_at).getTime(),
-        sellAvg: d.sellAvg ?? null, buyAvg: d.buyAvg ?? null,
-        spread: d.spread ?? null, spreadPct: d.spreadPct ?? null,
+        ts: normalized.ts,
+        sellAvg: normalized.sellAvg,
+        buyAvg: normalized.buyAvg,
+        spread: normalized.spread,
+        spreadPct: normalized.spreadPct,
       };
     }));
     setLastUpdate(new Date().toISOString());
@@ -430,10 +470,10 @@ export default function P2PTrackerPage() {
                         {i === 0 && <span className="text-yellow-500 mr-1">★</span>}
                         {o.nick}
                       </td>
-                      <td className="p-2 text-right font-bold text-green-500">{o.price.toFixed(2)}</td>
-                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.min.toLocaleString()}</td>
-                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.max.toLocaleString()}</td>
-                      <td className="p-2 text-xs text-muted-foreground">{o.methods?.slice(0, 2).join(', ')}</td>
+                       <td className="p-2 text-right font-bold text-green-500">{o.price.toFixed(2)}</td>
+                       <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</td>
+                       <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</td>
+                       <td className="p-2 text-xs text-muted-foreground">{o.methods.length ? o.methods.slice(0, 2).join(', ') : '—'}</td>
                     </tr>
                   ))}
                   {(!snapshot?.buyOffers?.length) && (
@@ -475,10 +515,10 @@ export default function P2PTrackerPage() {
                         {i === 0 && <span className="text-yellow-500 mr-1">★</span>}
                         {o.nick}
                       </td>
-                      <td className="p-2 text-right font-bold text-red-500">{o.price.toFixed(2)}</td>
-                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.min.toLocaleString()}</td>
-                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.max.toLocaleString()}</td>
-                      <td className="p-2 text-xs text-muted-foreground">{o.methods?.slice(0, 2).join(', ')}</td>
+                       <td className="p-2 text-right font-bold text-red-500">{o.price.toFixed(2)}</td>
+                       <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</td>
+                       <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</td>
+                       <td className="p-2 text-xs text-muted-foreground">{o.methods.length ? o.methods.slice(0, 2).join(', ') : '—'}</td>
                     </tr>
                   ))}
                   {(!snapshot?.sellOffers?.length) && (
