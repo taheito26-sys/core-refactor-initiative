@@ -43,14 +43,62 @@ export default function P2PTrackerPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, h] = await Promise.all([p2p.latest(market), p2p.history(market)]);
-      setSnapshot(s);
-      setHistory(Array.isArray(h) ? h : []);
+      // Fetch latest snapshot from database
+      const { data: latestRow, error: latestErr } = await supabase
+        .from('p2p_snapshots')
+        .select('*')
+        .eq('market', market)
+        .order('fetched_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestErr) throw latestErr;
+
+      if (latestRow?.data) {
+        const d = latestRow.data as any;
+        setSnapshot({
+          ts: d.ts || new Date(latestRow.fetched_at).getTime(),
+          sellAvg: d.sellAvg ?? 0,
+          buyAvg: d.buyAvg ?? 0,
+          bestSell: d.bestSell ?? 0,
+          bestBuy: d.bestBuy ?? 0,
+          spread: d.spread ?? 0,
+          spreadPct: d.spreadPct ?? 0,
+          sellDepth: d.sellDepth ?? 0,
+          buyDepth: d.buyDepth ?? 0,
+          sellOffers: d.sellOffers ?? [],
+          buyOffers: d.buyOffers ?? [],
+        });
+      } else {
+        setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, sellDepth: 0, buyDepth: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
+      }
+
+      // Fetch history (last 15 days of snapshots)
+      const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: histRows, error: histErr } = await supabase
+        .from('p2p_snapshots')
+        .select('data, fetched_at')
+        .eq('market', market)
+        .gte('fetched_at', cutoff)
+        .order('fetched_at', { ascending: true });
+
+      if (histErr) throw histErr;
+
+      const historyPts: P2PHistoryPoint[] = (histRows || []).map((row: any) => {
+        const d = row.data as any;
+        return {
+          ts: d.ts || new Date(row.fetched_at).getTime(),
+          sellAvg: d.sellAvg ?? null,
+          buyAvg: d.buyAvg ?? null,
+          spread: d.spread ?? null,
+          spreadPct: d.spreadPct ?? null,
+        };
+      });
+      setHistory(historyPts);
       setLastUpdate(new Date().toISOString());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load P2P data';
       toast.error(msg);
-      // Set empty snapshot so page still renders
       setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, sellDepth: 0, buyDepth: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
       setHistory([]);
     } finally {
