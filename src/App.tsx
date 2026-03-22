@@ -4,12 +4,12 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/features/auth/auth-context";
+import { AuthProvider } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
+import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
-import { Loader2 } from "lucide-react";
 
 // Auth pages
 import LoginPage from "./pages/auth/LoginPage";
@@ -25,18 +25,20 @@ import OnboardingPage from "./pages/merchant/OnboardingPage";
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
 
-// Placeholder pages (will be replaced in later phases)
+// Core pages (exact repo copies)
 import DashboardPage from './pages/DashboardPage';
 import OrdersPage from './pages/OrdersPage';
 import StockPage from './pages/StockPage';
-const CalendarPage = createPlaceholderPage('Calendar', 'Schedule and events');
 import P2PTrackerPage from './pages/P2PTrackerPage';
+import VaultPage from './pages/VaultPage';
+import SettingsPage from './pages/SettingsPage';
+
+// Placeholder pages (will be replaced in later phases)
+const CalendarPage = createPlaceholderPage('Calendar', 'Schedule and events');
 const CRMPage = createPlaceholderPage('CRM', 'Customer relationship management');
 const NetworkPage = createPlaceholderPage('Network', 'Merchant directory and connections');
 const DealsPage = createPlaceholderPage('Deals', 'Deal pipeline management');
 const AnalyticsPage = createPlaceholderPage('Analytics', 'Performance analytics and insights');
-const VaultPage = createPlaceholderPage('Vault', 'Secure document storage');
-const SettingsPage = createPlaceholderPage('Settings', 'Account and platform settings');
 const NotificationsPage = createPlaceholderPage('Notifications', 'Activity and alerts');
 const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
 const InvitationsPage = createPlaceholderPage('Invitations', 'Manage invitations');
@@ -84,80 +86,84 @@ class RouteErrorBoundary extends React.Component<
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <RouteErrorBoundary>
-            <Routes>
-              {/* Auth — public */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/verify-email" element={<VerifyEmailPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <RouteErrorBoundary>
+              <Routes>
+                {/* Auth — public */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Pending approval — requires auth but not profile */}
-              <Route path="/pending-approval" element={
-                <AuthGuard><PendingApprovalPage /></AuthGuard>
-              } />
-              <Route path="/account-rejected" element={
-                <AuthGuard><AccountRejectedPage /></AuthGuard>
-              } />
+                {/* Pending approval — requires auth but not profile */}
+                <Route path="/pending-approval" element={
+                  <AuthGuard><PendingApprovalPage /></AuthGuard>
+                } />
+                <Route path="/account-rejected" element={
+                  <AuthGuard><AccountRejectedPage /></AuthGuard>
+                } />
 
-              {/* Onboarding — requires auth */}
-              <Route path="/onboarding" element={
-                <AuthGuard><OnboardingPage /></AuthGuard>
-              } />
+                {/* Onboarding — requires auth */}
+                <Route path="/onboarding" element={
+                  <AuthGuard><OnboardingPage /></AuthGuard>
+                } />
 
-              {/* App Shell — requires auth + approved profile + merchant profile */}
-              <Route element={
-                <AuthGuard>
-                  <ProfileGuard>
-                    <AppLayout />
-                  </ProfileGuard>
-                </AuthGuard>
-              }>
-                {/* Trading */}
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/trading/orders" element={<OrdersPage />} />
-                <Route path="/trading/stock" element={<StockPage />} />
-                <Route path="/trading/calendar" element={<CalendarPage />} />
-                <Route path="/trading/p2p" element={<P2PTrackerPage />} />
-                <Route path="/crm" element={<CRMPage />} />
+                {/* App Shell — requires auth + approved profile + merchant profile */}
+                <Route element={
+                  <AuthGuard>
+                    <ProfileGuard>
+                      <AppLayout />
+                    </ProfileGuard>
+                  </AuthGuard>
+                }>
+                  {/* Trading */}
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/trading/orders" element={<OrdersPage />} />
+                  <Route path="/trading/stock" element={<StockPage />} />
+                  <Route path="/trading/calendar" element={<CalendarPage />} />
+                  <Route path="/trading/p2p" element={<P2PTrackerPage />} />
+                  <Route path="/trading/vault" element={<VaultPage />} />
+                  <Route path="/crm" element={<CRMPage />} />
 
-                {/* Network */}
-                <Route path="/network" element={<NetworkPage />} />
-                <Route path="/network/:relationshipId" element={<RelationshipWorkspace />} />
+                  {/* Network */}
+                  <Route path="/network" element={<NetworkPage />} />
+                  <Route path="/network/:relationshipId" element={<RelationshipWorkspace />} />
 
-                {/* Supporting */}
-                <Route path="/deals" element={<DealsPage />} />
-                <Route path="/analytics" element={<AnalyticsPage />} />
-                <Route path="/vault" element={<VaultPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
-                <Route path="/messages" element={<MessagesPage />} />
-                <Route path="/invitations" element={<InvitationsPage />} />
-                <Route path="/approvals" element={<ApprovalsPage />} />
-                <Route path="/admin/approvals" element={<AdminApprovalsPage />} />
-                <Route path="/relationships" element={<RelationshipsPage />} />
-              </Route>
+                  {/* Supporting */}
+                  <Route path="/deals" element={<DealsPage />} />
+                  <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route path="/messages" element={<MessagesPage />} />
+                  <Route path="/invitations" element={<InvitationsPage />} />
+                  <Route path="/approvals" element={<ApprovalsPage />} />
+                  <Route path="/admin/approvals" element={<AdminApprovalsPage />} />
+                  <Route path="/relationships" element={<RelationshipsPage />} />
+                </Route>
 
-              {/* Root redirect */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                {/* Root redirect */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-              {/* Legacy redirects from repo */}
-              <Route path="/trading" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/merchant" element={<Navigate to="/network" replace />} />
-              <Route path="/merchant/*" element={<Navigate to="/network" replace />} />
+                {/* Legacy redirects */}
+                <Route path="/trading" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/merchant" element={<Navigate to="/network" replace />} />
+                <Route path="/merchant/*" element={<Navigate to="/network" replace />} />
+                <Route path="/vault" element={<Navigate to="/trading/vault" replace />} />
+                <Route path="/p2p" element={<Navigate to="/trading/p2p" replace />} />
 
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </RouteErrorBoundary>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+                {/* Catch-all */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </RouteErrorBoundary>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
