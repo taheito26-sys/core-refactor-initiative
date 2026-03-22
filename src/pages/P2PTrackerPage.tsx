@@ -418,7 +418,7 @@ export default function P2PTrackerPage() {
               <Badge variant="secondary" className="text-xs">{last24hHistory.length} pts · 24h</Badge>
             </div>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-3">
             <div className="space-y-1.5">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SELL AVG</div>
               <div className="flex items-end gap-1">
