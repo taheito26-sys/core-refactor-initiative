@@ -22,6 +22,8 @@ interface P2POffer {
   nick: string;
   methods: string[];
   available: number;
+  trades: number;
+  completion: number;
 }
 
 interface P2PSnapshot {
