@@ -493,8 +493,8 @@ export default function P2PTrackerPage() {
               ))}
             </div>
             <div className="flex gap-2 pt-1">
-              <span className="pill">Sell {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
-              <span className="pill">Buy {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
+              <span className="pill">{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
+              <span className="pill">{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
             </div>
           </div>
         </div>
