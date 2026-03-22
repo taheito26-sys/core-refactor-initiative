@@ -53,10 +53,34 @@ interface MarketConfig {
   seed: number;
 }
 
+const NICKS_KSA = [
+  'RiyadhOTC', 'JeddahTrader', 'KSAExchange', 'MeccaCrypto',
+  'MadinaP2P', 'DammamTrader', 'GulfKnight', 'SaudiOTC',
+  'TabukExchange', 'KhobarP2P', 'NajdTrader', 'HijazCrypto',
+];
+
+const NICKS_SY = [
+  'DamascusOTC', 'AleppoTrader', 'SyriaP2P', 'HomsExchange',
+  'LatakiaCrypto', 'ShamTrader', 'LevanteOTC', 'SyriaCrypto',
+  'PalmyraP2P', 'HamaTrader', 'DeirEzzorOTC', 'TartousExchange',
+];
+
+const METHODS_KSA = [
+  'Bank Transfer', 'Al Rajhi Bank', 'SNB', 'Riyad Bank',
+  'STC Pay', 'Alinma Bank', 'Cash in Person', 'Al Ahli Bank',
+];
+
+const METHODS_SY = [
+  'Bank Transfer', 'Syriatel Cash', 'MTN Cash', 'Western Union',
+  'Cash in Person', 'Al Baraka Bank', 'Bemo Bank', 'Hawala',
+];
+
 const MARKET_CONFIGS: Record<string, MarketConfig> = {
   qatar: { nicks: NICKS_QA, methods: METHODS_QA, baseSell: 3.79, baseBuy: 3.72, minSell: 3.75, maxSell: 3.85, seed: 42 },
   uae: { nicks: NICKS_AE, methods: METHODS_AE, baseSell: 3.68, baseBuy: 3.62, minSell: 3.63, maxSell: 3.73, seed: 99 },
   egypt: { nicks: NICKS_EG, methods: METHODS_EG, baseSell: 49.5, baseBuy: 48.8, minSell: 48.0, maxSell: 51.0, seed: 77 },
+  ksa: { nicks: NICKS_KSA, methods: METHODS_KSA, baseSell: 3.76, baseBuy: 3.70, minSell: 3.72, maxSell: 3.82, seed: 55 },
+  syria: { nicks: NICKS_SY, methods: METHODS_SY, baseSell: 14500, baseBuy: 14200, minSell: 14000, maxSell: 15000, seed: 33 },
 };
 
 function seededRandom(seed: number): () => number {
