@@ -66,11 +66,6 @@ export default function StockPage() {
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
 
-  const applyState = (next: TrackerState) => {
-    setState(next);
-    setDerived(computeFIFO(next.batches, next.trades));
-  };
-
   useEffect(() => {
     const next: TrackerState = {
       ...state,
