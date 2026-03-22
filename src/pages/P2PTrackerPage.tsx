@@ -11,6 +11,8 @@ import { RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronRight } from '
 import { format } from 'date-fns';
 import { computeFIFO, totalStock, getWACOP, stockCostQAR, type TrackerState } from '@/lib/tracker-helpers';
 import { getCurrentTrackerState } from '@/lib/tracker-backup';
+import { useT } from '@/lib/i18n';
+import '@/styles/tracker.css';
 import '@/styles/tracker.css';
 
 // ── Types ──
