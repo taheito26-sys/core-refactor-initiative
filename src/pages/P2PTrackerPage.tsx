@@ -405,66 +405,73 @@ export default function P2PTrackerPage() {
         </div>
       </div>
 
-      {/* ── Rate Trend Chart + Market Summary ── */}
+      {/* ── Price History + Market Info ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Chart */}
+        {/* Price History Bars */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-display">Rate Trend (24h)</CardTitle>
-              <Badge variant="secondary" className="text-xs">{last24hHistory.length} pts</Badge>
+              <CardTitle className="text-sm font-display flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                Price History
+              </CardTitle>
+              <Badge variant="secondary" className="text-xs">{last24hHistory.length} pts · 24h</Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            {chartData.length > 1 ? (
-              <ChartContainer config={chartConfig} className="h-[200px] w-full">
-                <AreaChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="time" className="text-xs" tick={{ fontSize: 10 }} />
-                  <YAxis domain={['auto', 'auto']} className="text-xs" tick={{ fontSize: 10 }} width={50} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="sellAvg" stroke="var(--color-sellAvg)" fill="var(--color-sellAvg)" fillOpacity={0.1} strokeWidth={2} />
-                  <Area type="monotone" dataKey="buyAvg" stroke="var(--color-buyAvg)" fill="var(--color-buyAvg)" fillOpacity={0.1} strokeWidth={2} />
-                </AreaChart>
-              </ChartContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Not enough data points yet. Rates will appear here as snapshots accumulate.
-              </p>
-            )}
+          <CardContent className="space-y-5">
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SELL AVG</div>
+              <div className="flex items-end gap-1">
+                {priceBarData.sellBars.map((pct, i) => (
+                  <div key={i} className="flex-1 bg-destructive/80 rounded-sm" style={{ height: `${Math.max(4, pct * 0.32)}px` }} />
+                ))}
+                <span className="ml-2 font-bold font-mono text-base">{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(1) : '—'}</span>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">BUY AVG</div>
+              <div className="flex items-end gap-1">
+                {priceBarData.buyBars.map((pct, i) => (
+                  <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(4, pct * 0.32)}px`, background: 'hsl(var(--success, 142 76% 36%))' }} />
+                ))}
+                <span className="ml-2 font-bold font-mono text-base">{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Badge variant="outline" className={`font-mono text-xs ${priceBarData.sellChange >= 0 ? 'text-destructive border-destructive/30' : ''}`}>
+                Sell {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}
+              </Badge>
+              <Badge variant="outline" className="font-mono text-xs" style={{ color: priceBarData.buyChange >= 0 ? 'hsl(var(--success, 142 76% 36%))' : undefined }}>
+                Buy {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Market Summary */}
+        {/* Market Info */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-display flex items-center gap-2">
               <ArrowUpDown className="h-4 w-4 text-primary" />
-              Market Summary
+              Market Info
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-destructive" />
-                <span className="text-sm text-muted-foreground">Sell Avg (Top 5)</span>
-              </div>
+              <span className="text-sm text-muted-foreground">Sell Avg (Top 5)</span>
               <span className="font-bold font-mono text-destructive">{sellAvg.toFixed(4)} {ccy}</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-success" />
-                <span className="text-sm text-muted-foreground">Buy Avg (Top 5)</span>
-              </div>
-              <span className="font-bold font-mono text-success">{buyAvg.toFixed(4)} {ccy}</span>
+              <span className="text-sm text-muted-foreground">Buy Avg (Top 5)</span>
+              <span className="font-bold font-mono" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border border-border">
               <span className="text-sm text-muted-foreground">Sell Depth</span>
-              <span className="font-bold font-mono">{snapshot.sellDepth.toLocaleString()} USDT</span>
+              <span className="font-bold font-mono">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border border-border">
               <span className="text-sm text-muted-foreground">Buy Depth</span>
-              <span className="font-bold font-mono">{snapshot.buyDepth.toLocaleString()} USDT</span>
+              <span className="font-bold font-mono">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-1">
               <Button size="sm" variant="destructive" onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>
@@ -480,7 +487,6 @@ export default function P2PTrackerPage() {
 
       {/* ── Order Book: Sell + Buy ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Sell Offers */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -492,114 +498,99 @@ export default function P2PTrackerPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-auto max-h-[400px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                     <TableHead>Trader</TableHead>
-                     <TableHead className="text-right">Price</TableHead>
-                     <TableHead className="text-right">Available</TableHead>
-                     <TableHead className="text-right">Min</TableHead>
-                     <TableHead className="text-right">Max</TableHead>
-                     <TableHead>Methods</TableHead>
-                   </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                   {snapshot.sellOffers?.slice(0, 10).map((o, i) => {
-                     const maxAvail = Math.max(...(snapshot.sellOffers?.map(x => x.available) || [1]));
-                     const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
-                     return (
-                       <TableRow key={i}>
-                         <TableCell className="text-xs font-medium">
-                           {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
-                         </TableCell>
-                         <TableCell className="text-right">
-                           <span className="font-bold font-mono text-sm text-destructive">{o.price.toFixed(2)}</span>
-                         </TableCell>
-                         <TableCell className="text-right">
-                           <div className="flex items-center justify-end gap-2">
-                             <span className="font-mono text-xs">{o.available.toLocaleString()}</span>
-                             <div className="w-12 h-1.5 rounded bg-muted overflow-hidden">
-                               <div className="h-full bg-destructive/70 rounded" style={{ width: `${depthPct}%` }} />
-                             </div>
-                           </div>
-                         </TableCell>
-                         <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                         <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
-                         <TableCell className="text-xs text-muted-foreground">{o.methods.slice(0, 2).join(', ')}</TableCell>
-                       </TableRow>
-                    );
-                  })}
-                  {!snapshot.sellOffers?.length && (
-                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No sell offers available</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Trader</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Min</TableHead>
+                  <TableHead className="text-right">Max</TableHead>
+                  <TableHead>Methods</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {snapshot.sellOffers?.map((o, i) => {
+                  const maxAvail = Math.max(...(snapshot.sellOffers?.map(x => x.available) || [1]));
+                  const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
+                  return (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs font-medium whitespace-nowrap">
+                        {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-bold font-mono text-sm text-destructive">{o.price.toFixed(2)}</span>
+                          <div className="w-10 h-1.5 rounded bg-muted overflow-hidden">
+                            <div className="h-full bg-destructive/70 rounded" style={{ width: `${depthPct}%` }} />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{o.methods.join(', ')}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                {!snapshot.sellOffers?.length && (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No sell offers</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
 
-        {/* Buy/Restock Offers */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-display flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-success" />
+                <TrendingDown className="h-4 w-4" style={{ color: 'hsl(var(--success, 142 76% 36%))' }} />
                 Restock Offers
               </CardTitle>
-              <Badge className="text-xs bg-emerald-600/20 text-emerald-500 border-emerald-600/30">Cheapest first</Badge>
+              <Badge className="text-xs" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>Cheapest first</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-auto max-h-[400px]">
-              <Table>
-                <TableHeader>
-                   <TableRow>
-                     <TableHead>Trader</TableHead>
-                     <TableHead className="text-right">Price</TableHead>
-                     <TableHead className="text-right">Available</TableHead>
-                     <TableHead className="text-right">Min</TableHead>
-                     <TableHead className="text-right">Max</TableHead>
-                     <TableHead>Methods</TableHead>
-                   </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                   {snapshot.buyOffers?.slice(0, 10).map((o, i) => {
-                     const maxAvail = Math.max(...(snapshot.buyOffers?.map(x => x.available) || [1]));
-                     const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
-                     return (
-                       <TableRow key={i}>
-                         <TableCell className="text-xs font-medium">
-                           {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
-                         </TableCell>
-                         <TableCell className="text-right">
-                           <span className="font-bold font-mono text-sm text-emerald-500">{o.price.toFixed(2)}</span>
-                         </TableCell>
-                         <TableCell className="text-right">
-                           <div className="flex items-center justify-end gap-2">
-                             <span className="font-mono text-xs">{o.available.toLocaleString()}</span>
-                             <div className="w-12 h-1.5 rounded bg-muted overflow-hidden">
-                               <div className="h-full bg-emerald-500/70 rounded" style={{ width: `${depthPct}%` }} />
-                             </div>
-                           </div>
-                         </TableCell>
-                         <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                         <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
-                         <TableCell className="text-xs text-muted-foreground">{o.methods.slice(0, 2).join(', ')}</TableCell>
-                       </TableRow>
-                    );
-                  })}
-                  {!snapshot.buyOffers?.length && (
-                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No buy offers available</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Trader</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Min</TableHead>
+                  <TableHead className="text-right">Max</TableHead>
+                  <TableHead>Methods</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {snapshot.buyOffers?.map((o, i) => {
+                  const maxAvail = Math.max(...(snapshot.buyOffers?.map(x => x.available) || [1]));
+                  const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
+                  return (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs font-medium whitespace-nowrap">
+                        {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-bold font-mono text-sm" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{o.price.toFixed(2)}</span>
+                          <div className="w-10 h-1.5 rounded bg-muted overflow-hidden">
+                            <div className="h-full rounded" style={{ width: `${depthPct}%`, background: 'hsl(var(--success, 142 76% 36%) / 0.7)' }} />
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{o.methods.join(', ')}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                {!snapshot.buyOffers?.length && (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No buy offers</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
-
-      {/* ── Calculator ── */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
