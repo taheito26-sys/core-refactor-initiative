@@ -278,6 +278,25 @@ export default function P2PTrackerPage() {
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
+  // PROFIT IF SOLD NOW: reads tracker state from localStorage
+  const profitIfSold = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('p2p_tracker_state');
+      if (!raw) return null;
+      const state: TrackerState = JSON.parse(raw);
+      if (!state.batches?.length) return null;
+      const derived = computeFIFO(state.batches, state.trades || []);
+      const stock = totalStock(derived);
+      if (stock <= 0) return null;
+      const wacop = getWACOP(derived);
+      const costBasis = stockCostQAR(derived);
+      if (!wacop || wacop <= 0) return null;
+      const revenue = stock * sellAvg;
+      const profit = revenue - costBasis;
+      return { stock, costBasis, wacop, profit };
+    } catch { return null; }
+  }, [sellAvg]);
+
   // Calculator
   useEffect(() => {
     if (snapshot) {
