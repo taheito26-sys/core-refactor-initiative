@@ -8,14 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, TrendingUp, TrendingDown, ArrowUpDown, ChevronDown, ChevronRight, Calculator } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, ArrowUpDown, ChevronDown, ChevronRight, Calculator, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 import '@/styles/tracker.css';
 
 // ── Types ──
