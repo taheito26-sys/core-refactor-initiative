@@ -179,6 +179,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       <div className="flex-1 overflow-y-auto py-2">
         <NavSection title={t('trading')} items={tradingNav} />
         <NavSection title={t('network')} items={networkNav} />
+        <AdminNavSection collapsed={collapsed} isActive={isActive} isMobile={isMobile} onMobileClose={onMobileClose} />
       </div>
 
       {/* Footer */}
