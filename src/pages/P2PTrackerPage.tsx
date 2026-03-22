@@ -1,48 +1,115 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { computeDailySummaries } from '@/lib/p2p-utils';
-import { useT } from '@/lib/i18n';
+import { TrendingUp, TrendingDown, RefreshCw, Activity, Clock } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import type { P2PSnapshot, P2PHistoryPoint, P2POffer } from '@/types/domain';
-import '@/styles/tracker.css';
 
-type CalcMode = 'sell' | 'buy' | 'target';
+// ── Types ──
+interface P2POffer {
+  price: number;
+  min: number;
+  max: number;
+  nick: string;
+  methods: string[];
+  available: number;
+}
+
+interface P2PSnapshot {
+  ts: number;
+  sellAvg: number | null;
+  buyAvg: number | null;
+  bestSell: number | null;
+  bestBuy: number | null;
+  spread: number | null;
+  spreadPct: number | null;
+  sellDepth: number;
+  buyDepth: number;
+  sellOffers: P2POffer[];
+  buyOffers: P2POffer[];
+}
+
+interface P2PHistoryPoint {
+  ts: number;
+  sellAvg: number | null;
+  buyAvg: number | null;
+  spread: number | null;
+  spreadPct: number | null;
+}
+
+interface DaySummary {
+  date: string;
+  highSell: number;
+  lowSell: number | null;
+  highBuy: number;
+  lowBuy: number | null;
+  polls: number;
+}
+
+// ── Markets ──
 type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey';
 
-const MARKETS: { id: MarketId; label: string; labelAr: string; currency: string; pair: string }[] = [
-  { id: 'qatar', label: 'Qatar', labelAr: 'قطر', currency: 'QAR', pair: 'USDT/QAR' },
-  { id: 'uae', label: 'UAE', labelAr: 'الإمارات', currency: 'AED', pair: 'USDT/AED' },
-  { id: 'egypt', label: 'Egypt', labelAr: 'مصر', currency: 'EGP', pair: 'USDT/EGP' },
-  { id: 'ksa', label: 'KSA', labelAr: 'السعودية', currency: 'SAR', pair: 'USDT/SAR' },
-  { id: 'syria', label: 'Syria', labelAr: 'سوريا', currency: 'SYP', pair: 'USDT/SYP' },
-  { id: 'turkey', label: 'Turkey', labelAr: 'تركيا', currency: 'TRY', pair: 'USDT/TRY' },
+const MARKETS: { id: MarketId; label: string; currency: string; currencySymbol: string }[] = [
+  { id: 'qatar', label: 'Qatar', currency: 'QAR', currencySymbol: 'ق.ر' },
+  { id: 'uae', label: 'UAE', currency: 'AED', currencySymbol: 'د.إ' },
+  { id: 'egypt', label: 'Egypt', currency: 'EGP', currencySymbol: 'ج.م' },
+  { id: 'ksa', label: 'KSA', currency: 'SAR', currencySymbol: 'ر.س' },
+  { id: 'syria', label: 'Syria', currency: 'SYP', currencySymbol: 'ل.س' },
+  { id: 'turkey', label: 'Turkey', currency: 'TRY', currencySymbol: '₺' },
 ];
 
+// ── Helpers ──
+function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
+  const byDate = new Map<string, DaySummary>();
+  for (const pt of history) {
+    const date = new Date(pt.ts).toISOString().slice(0, 10);
+    let day = byDate.get(date);
+    if (!day) {
+      day = { date, highSell: 0, lowSell: null, highBuy: 0, lowBuy: null, polls: 0 };
+      byDate.set(date, day);
+    }
+    if (pt.sellAvg != null) {
+      day.highSell = Math.max(day.highSell, pt.sellAvg);
+      day.lowSell = day.lowSell === null ? pt.sellAvg : Math.min(day.lowSell, pt.sellAvg);
+    }
+    if (pt.buyAvg != null) {
+      day.highBuy = Math.max(day.highBuy, pt.buyAvg);
+      day.lowBuy = day.lowBuy === null ? pt.buyAvg : Math.min(day.lowBuy, pt.buyAvg);
+    }
+    day.polls++;
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+const EMPTY_SNAPSHOT: P2PSnapshot = {
+  ts: Date.now(), sellAvg: null, buyAvg: null, bestSell: null, bestBuy: null,
+  spread: null, spreadPct: null, sellDepth: 0, buyDepth: 0, sellOffers: [], buyOffers: [],
+};
+
+// ── Component ──
 export default function P2PTrackerPage() {
-  const t = useT();
   const [market, setMarket] = useState<MarketId>('qatar');
   const [snapshot, setSnapshot] = useState<P2PSnapshot | null>(null);
   const [history, setHistory] = useState<P2PHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
 
-  // Position Advisor state
-  const [avPrice, setAvPrice] = useState(3.7375);
-  const [targetMargin] = useState(2); // 2%
-
   // Calculator
-  const [calcMode, setCalcMode] = useState<CalcMode>('sell');
+  const [calcMode, setCalcMode] = useState<'sell' | 'buy'>('sell');
   const [calcAmount, setCalcAmount] = useState('1000');
   const [calcRate, setCalcRate] = useState('');
 
-  const currentMarket = MARKETS.find(m => m.id === market) || MARKETS[0];
+  const currentMarket = MARKETS.find(m => m.id === market)!;
 
+  // ── Data Loading ──
   const loadFromDb = useCallback(async () => {
-    // Fetch latest snapshot from database
-    const { data: latestRow, error: latestErr } = await supabase
+    const { data: latestRow } = await supabase
       .from('p2p_snapshots')
       .select('*')
       .eq('market', market)
@@ -50,544 +117,490 @@ export default function P2PTrackerPage() {
       .limit(1)
       .maybeSingle();
 
-    if (latestErr) throw latestErr;
-
     if (latestRow?.data) {
       const d = latestRow.data as any;
       setSnapshot({
         ts: d.ts || new Date(latestRow.fetched_at).getTime(),
-        sellAvg: d.sellAvg ?? 0,
-        buyAvg: d.buyAvg ?? 0,
-        bestSell: d.bestSell ?? 0,
-        bestBuy: d.bestBuy ?? 0,
-        spread: d.spread ?? 0,
-        spreadPct: d.spreadPct ?? 0,
-        sellDepth: d.sellDepth ?? 0,
-        buyDepth: d.buyDepth ?? 0,
-        sellOffers: d.sellOffers ?? [],
-        buyOffers: d.buyOffers ?? [],
+        sellAvg: d.sellAvg ?? null, buyAvg: d.buyAvg ?? null,
+        bestSell: d.bestSell ?? null, bestBuy: d.bestBuy ?? null,
+        spread: d.spread ?? null, spreadPct: d.spreadPct ?? null,
+        sellDepth: d.sellDepth ?? 0, buyDepth: d.buyDepth ?? 0,
+        sellOffers: d.sellOffers ?? [], buyOffers: d.buyOffers ?? [],
       });
     } else {
-      setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, sellDepth: 0, buyDepth: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
+      setSnapshot(EMPTY_SNAPSHOT);
     }
 
-    // Fetch history (last 15 days of snapshots)
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: histRows, error: histErr } = await supabase
+    const { data: histRows } = await supabase
       .from('p2p_snapshots')
       .select('data, fetched_at')
       .eq('market', market)
       .gte('fetched_at', cutoff)
       .order('fetched_at', { ascending: true });
 
-    if (histErr) throw histErr;
-
-    const historyPts: P2PHistoryPoint[] = (histRows || []).map((row: any) => {
+    setHistory((histRows || []).map((row: any) => {
       const d = row.data as any;
       return {
         ts: d.ts || new Date(row.fetched_at).getTime(),
-        sellAvg: d.sellAvg ?? null,
-        buyAvg: d.buyAvg ?? null,
-        spread: d.spread ?? null,
-        spreadPct: d.spreadPct ?? null,
+        sellAvg: d.sellAvg ?? null, buyAvg: d.buyAvg ?? null,
+        spread: d.spread ?? null, spreadPct: d.spreadPct ?? null,
       };
-    });
-    setHistory(historyPts);
+    }));
     setLastUpdate(new Date().toISOString());
   }, [market]);
 
-  const load = useCallback(async () => {
+  const scrapeAndLoad = useCallback(async () => {
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      await fetch(`https://${projectId}.supabase.co/functions/v1/p2p-scraper?market=${market}`);
+    } catch {
+      console.warn('Scraper call failed, loading cached data');
+    }
+    await loadFromDb();
+  }, [market, loadFromDb]);
+
+  const load = useCallback(async (scrape = false) => {
     setLoading(true);
     try {
-      // Scrape fresh data from Binance via edge function, then load from DB
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      try {
-        await fetch(
-          `https://${projectId}.supabase.co/functions/v1/p2p-scraper?market=${market}`,
-          { method: 'GET' }
-        );
-      } catch {
-        // Scrape failure is non-fatal — we still load whatever is in DB
-        console.warn('P2P scraper call failed, loading cached data');
+      if (scrape) {
+        await scrapeAndLoad();
+      } else {
+        await loadFromDb();
       }
-      await loadFromDb();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to load P2P data';
-      toast.error(msg);
-      setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, sellDepth: 0, buyDepth: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
+      toast.error(err instanceof Error ? err.message : 'Failed to load P2P data');
+      setSnapshot(EMPTY_SNAPSHOT);
       setHistory([]);
     } finally {
       setLoading(false);
     }
-  }, [market, loadFromDb]);
-
-  useEffect(() => { load(); }, [load]);
+  }, [loadFromDb, scrapeAndLoad]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(load, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, load]);
+    load(false);
+  }, [load]);
 
-  // Today's summary from history
-  const todaySummary = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayPts = history.filter(h => new Date(h.ts).toISOString().slice(0, 10) === todayStr);
-    if (!todayPts.length) return null;
-    return {
-      highSell: Math.max(...todayPts.map(p => p.sellAvg ?? 0)),
-      lowSell: Math.min(...todayPts.filter(p => p.sellAvg != null).map(p => p.sellAvg!)),
-      highBuy: Math.max(...todayPts.map(p => p.buyAvg ?? 0)),
-      lowBuy: Math.min(...todayPts.filter(p => p.buyAvg != null).map(p => p.buyAvg!)),
-      polls: todayPts.length,
-    };
-  }, [history]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+    toast.success('Rates refreshed');
+  };
 
-  const last24hHistory = useMemo(() => {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    return history.filter(h => h.ts >= cutoff);
-  }, [history]);
-
-  const priceBarData = useMemo(() => {
-    const maxPoints = 80;
-    const step = Math.max(1, Math.floor(last24hHistory.length / maxPoints));
-    return last24hHistory.filter((_, i) => i % step === 0 || i === last24hHistory.length - 1);
-  }, [last24hHistory]);
+  // ── Derived data ──
+  const sellAvg = snapshot?.sellAvg ?? 0;
+  const buyAvg = snapshot?.buyAvg ?? 0;
+  const hasData = snapshot && (sellAvg > 0 || buyAvg > 0);
 
   const dailySummaries = useMemo(() => computeDailySummaries(history), [history]);
-
   const filteredSummaries = useMemo(() => {
     const days = historyRange === '15d' ? 15 : 7;
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     return dailySummaries.filter(d => d.date >= cutoff);
   }, [dailySummaries, historyRange]);
 
-  const targetPrice = useMemo(() => avPrice * (1 + targetMargin / 100), [avPrice, targetMargin]);
-  const sellAvg = snapshot?.sellAvg ?? 0;
-  const buyAvg = snapshot?.buyAvg ?? 0;
-  const isBelowTarget = sellAvg < targetPrice;
-  const gap = targetPrice - sellAvg;
-  const isGoodRestock = buyAvg < avPrice;
-
-  const userStock = 8545.83;
-  const userCash = 25000;
-
-  const profitIfSold = useMemo(() => {
-    if (!snapshot?.sellAvg) return null;
-    const revenue = userStock * snapshot.sellAvg;
-    const cost = userStock * avPrice;
-    return Math.round(revenue - cost);
-  }, [snapshot, avPrice]);
+  // Calculator
+  useEffect(() => {
+    if (snapshot) {
+      if (calcMode === 'sell' && snapshot.sellAvg) setCalcRate(snapshot.sellAvg.toFixed(4));
+      if (calcMode === 'buy' && snapshot.buyAvg) setCalcRate(snapshot.buyAvg.toFixed(4));
+    }
+  }, [snapshot, calcMode]);
 
   const calcResult = useMemo(() => {
     const amt = parseFloat(calcAmount) || 0;
-    const rate = parseFloat(calcRate) || (calcMode === 'sell' ? sellAvg : buyAvg);
+    const rate = parseFloat(calcRate) || 0;
     if (!amt || !rate) return null;
-    if (calcMode === 'sell') return { qar: amt * rate, usdt: amt, rate };
-    if (calcMode === 'buy') return { qar: amt * rate, usdt: amt, rate };
-    return { qar: amt * rate, usdt: amt, rate };
-  }, [calcAmount, calcRate, calcMode, sellAvg, buyAvg]);
+    return { localAmount: amt * rate, usdt: amt, rate };
+  }, [calcAmount, calcRate]);
 
-  useEffect(() => {
-    if (snapshot) {
-      if (calcMode === 'sell' && !calcRate) setCalcRate(snapshot.sellAvg?.toFixed(2) || '');
-      if (calcMode === 'buy' && !calcRate) setCalcRate(snapshot.buyAvg?.toFixed(2) || '');
-    }
-  }, [snapshot, calcMode, calcRate]);
+  // ── Price bar data (last 24h) ──
+  const last24hHistory = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return history.filter(h => h.ts >= cutoff);
+  }, [history]);
 
-  const sellChange = useMemo(() => {
-    if (last24hHistory.length < 2) return 0;
-    const prev = last24hHistory[last24hHistory.length - 2];
-    const curr = last24hHistory[last24hHistory.length - 1];
-    return Math.round(((curr.sellAvg ?? 0) - (prev.sellAvg ?? 0)) * 1000) / 1000;
+  const priceBarData = useMemo(() => {
+    const maxPoints = 60;
+    const step = Math.max(1, Math.floor(last24hHistory.length / maxPoints));
+    return last24hHistory.filter((_, i) => i % step === 0 || i === last24hHistory.length - 1);
   }, [last24hHistory]);
 
-  const buyChange = useMemo(() => {
-    if (last24hHistory.length < 2) return 0;
-    const prev = last24hHistory[last24hHistory.length - 2];
-    const curr = last24hHistory[last24hHistory.length - 1];
-    return Math.round(((curr.buyAvg ?? 0) - (prev.buyAvg ?? 0)) * 1000) / 1000;
-  }, [last24hHistory]);
-
-  const fitsStock = (o: P2POffer) => o.min <= userStock * o.price && o.max >= o.min;
-  const fitsCash = (o: P2POffer) => o.min <= userCash;
-
+  // ── Render ──
   if (loading && !snapshot) {
     return (
-      <div className="tracker-root" style={{ padding: 10 }}>
-        <div className="empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          <div className="empty-t">{t.lang === 'ar' ? 'جاري تحميل بيانات P2P…' : 'Loading P2P data…'}</div>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  if (!snapshot) return null;
-
   const ccy = currentMarket.currency;
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 10 }}>
-      {/* ── Status Bar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        {/* Market selector */}
-        <div className="tracker-seg" style={{ marginRight: 4 }}>
+    <div className="space-y-4 p-4">
+      {/* ── Market Tabs + Refresh ── */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1 flex-wrap">
           {MARKETS.map(m => (
-            <button
+            <Button
               key={m.id}
-              className={market === m.id ? 'active' : ''}
+              variant={market === m.id ? 'default' : 'outline'}
+              size="sm"
               onClick={() => { setMarket(m.id); setCalcRate(''); }}
             >
-              {t.isRTL ? m.labelAr : m.label}
-            </button>
+              {m.label} ({m.currency})
+            </Button>
           ))}
         </div>
-
-        <button className="btn" onClick={load} disabled={loading} style={{ gap: 6 }}>
-          <span>🔄</span> {t.lang === 'ar' ? 'تحديث' : 'Refresh'}
-        </button>
-        {lastUpdate && (
-          <span className="muted" style={{ fontSize: 11 }}>
-            {t.lang === 'ar' ? 'آخر تحديث' : 'Updated'} {new Date(lastUpdate).toLocaleTimeString()}
-          </span>
-        )}
-        <span className="pill good" style={{ cursor: 'pointer' }} onClick={() => setAutoRefresh(!autoRefresh)}>
-          ● {autoRefresh ? (t.lang === 'ar' ? 'المراقبة نشطة' : 'Backend · 24h monitoring active') : (t.lang === 'ar' ? 'مراقبة 24 ساعة' : 'Backend · 24h monitoring')}
-        </span>
-        {snapshot.spread != null && snapshot.spreadPct != null && (
-          <span className="pill warn">
-            {t.lang === 'ar' ? 'الفارق' : 'Spread'} {snapshot.spread.toFixed(3)} ({snapshot.spreadPct.toFixed(2)}%)
-          </span>
-        )}
-        {isBelowTarget && (
-          <span className="pill bad">⚠ {t.lang === 'ar' ? 'أقل من الهدف' : 'Below target'}</span>
-        )}
-        <span className="pill" style={{ fontWeight: 700 }}>{currentMarket.pair}</span>
-      </div>
-
-      {/* ── 6 KPI Cards ── */}
-      <div className="kpis" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', marginBottom: 10 }}>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t.lang === 'ar' ? 'أفضل بيع' : 'BEST SELL'}</div>
-          <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub">{t.lang === 'ar' ? `أعلى عرض ${ccy}` : `Top offer ${ccy}`}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t.lang === 'ar' ? 'متوسط البيع (أعلى 5)' : 'SELL AVG (TOP 5)'}</div>
-          <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.sellAvg?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub" style={{ color: 'var(--bad)' }}>
-            {snapshot.sellAvg && avPrice ? `+${((snapshot.sellAvg / avPrice - 1) * 100).toFixed(2)}% ${t.lang === 'ar' ? 'مقابل متوسط السعر' : 'vs Av Price'}` : ''}
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t.lang === 'ar' ? 'أفضل شراء' : 'BEST RESTOCK'}</div>
-          <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestBuy?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub" style={{ color: 'var(--good)' }}>
-            {snapshot.bestBuy && snapshot.bestBuy < avPrice ? (t.lang === 'ar' ? '✓ أقل من متوسط السعر' : '✓ Below Av Price') : ''}
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t.lang === 'ar' ? 'الربح إذا بعت الآن' : 'PROFIT IF SOLD NOW'}</div>
-          <div className="kpi-val" style={{ color: profitIfSold && profitIfSold > 0 ? 'var(--good)' : 'var(--bad)' }}>
-            {profitIfSold != null ? `${profitIfSold > 0 ? '+' : ''}${profitIfSold} ${ccy}` : '—'}
-          </div>
-          <div className="kpi-sub">{userStock.toLocaleString()} USDT @ {t.lang === 'ar' ? 'السوق' : 'market'}</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t.lang === 'ar' ? 'أعلى بيع اليوم' : 'TODAY HIGH SELL'}</div>
-          <div className="kpi-val">{todaySummary?.highSell.toFixed(2) || '—'}</div>
-          <div className="kpi-sub">
-            {t.lang === 'ar' ? 'أدنى' : 'Low'} {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} {t.lang === 'ar' ? 'استطلاع' : 'polls'}
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t.lang === 'ar' ? 'أدنى شراء اليوم' : 'TODAY LOW BUY'}</div>
-          <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
-          <div className="kpi-sub">{t.lang === 'ar' ? 'أعلى' : 'High'} {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
-        </div>
-      </div>
-
-      {/* ── Price History + Position Advisor (2 col) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-        {/* Price History — 24h only */}
-        <div className="panel">
-          <div className="panel-head">
-            <h2>📊 {t.lang === 'ar' ? 'سجل الأسعار' : 'Price History'}</h2>
-            <span className="pill">{last24hHistory.length} {t.lang === 'ar' ? 'نقطة' : 'pts'} · 24h</span>
-          </div>
-          <div className="panel-body">
-            {/* SELL AVG bars — RED for sell */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
-                {t.lang === 'ar' ? 'متوسط البيع' : 'SELL AVG'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 1, height: 28 }}>
-                  {priceBarData.map((pt, i) => {
-                    const minS = Math.min(...priceBarData.map(p => p.sellAvg ?? 3.7));
-                    const maxS = Math.max(...priceBarData.map(p => p.sellAvg ?? 3.85));
-                    const range = maxS - minS || 0.01;
-                    const h = 6 + ((pt.sellAvg ?? minS) - minS) / range * 22;
-                    return <div key={i} style={{ flex: 1, minWidth: 2, height: h, background: 'var(--bad)', borderRadius: 1, opacity: 0.8 }} />;
-                  })}
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--bad)', minWidth: 40, textAlign: 'right' }}>
-                  {snapshot.sellAvg?.toFixed(1)}
-                </span>
-              </div>
-            </div>
-            {/* BUY AVG bars — GREEN for buy */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>
-                {t.lang === 'ar' ? 'متوسط الشراء' : 'BUY AVG'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 1, height: 28 }}>
-                  {priceBarData.map((pt, i) => {
-                    const minB = Math.min(...priceBarData.map(p => p.buyAvg ?? 3.7));
-                    const maxB = Math.max(...priceBarData.map(p => p.buyAvg ?? 3.78));
-                    const range = maxB - minB || 0.01;
-                    const h = 6 + ((pt.buyAvg ?? minB) - minB) / range * 22;
-                    return <div key={i} style={{ flex: 1, minWidth: 2, height: h, background: 'var(--good)', borderRadius: 1, opacity: 0.8 }} />;
-                  })}
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--good)', minWidth: 40, textAlign: 'right' }}>
-                  {snapshot.buyAvg?.toFixed(3)}
-                </span>
-              </div>
-            </div>
-            {/* Change badges */}
-            <div style={{ display: 'flex', gap: 6 }}>
-              <span className={`pill ${sellChange >= 0 ? 'bad' : 'good'}`}>
-                {t.lang === 'ar' ? 'بيع' : 'Sell'} {sellChange >= 0 ? '+' : ''}{sellChange.toFixed(3)}
-              </span>
-              <span className={`pill ${buyChange <= 0 ? 'good' : 'bad'}`}>
-                {t.lang === 'ar' ? 'شراء' : 'Buy'} {buyChange >= 0 ? '+' : ''}{buyChange.toFixed(3)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Position Advisor */}
-        <div className="panel">
-          <div className="panel-head">
-            <h2>🎯 {t.lang === 'ar' ? 'مستشار المركز' : 'Position Advisor'}</h2>
-            <button className="btn" style={{ fontSize: 10, padding: '3px 10px' }}>{t.lang === 'ar' ? 'مراقبة' : 'Monitor'}</button>
-          </div>
-          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid var(--line)' }}>
-              <span className="muted" style={{ fontSize: 11 }}>{t.lang === 'ar' ? 'متوسط سعرك' : 'Your Av Price'}</span>
-              <span style={{ fontWeight: 800, fontSize: 14 }}>{avPrice.toFixed(4)} {ccy}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid var(--line)' }}>
-              <span className="muted" style={{ fontSize: 11 }}>{t.lang === 'ar' ? `الهدف (هامش ${targetMargin}%)` : `Target (${targetMargin}% margin)`}</span>
-              <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--good)' }}>{targetPrice.toFixed(5)} {ccy}</span>
-            </div>
-
-            {isBelowTarget && (
-              <div style={{ padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid color-mix(in srgb, var(--warn) 40%, transparent)', background: 'color-mix(in srgb, var(--warn) 8%, transparent)' }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--warn)' }}>⚠ {t.lang === 'ar' ? 'انتظر — أقل من الهدف' : 'Hold — below target'}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.lang === 'ar' ? 'الفجوة' : 'Gap'}: {gap.toFixed(5)} · {t.lang === 'ar' ? 'تحتاج' : 'need'} {targetPrice.toFixed(5)}</div>
-              </div>
-            )}
-            {!isBelowTarget && (
-              <div style={{ padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid color-mix(in srgb, var(--good) 40%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)' }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--good)' }}>✓ {t.lang === 'ar' ? 'فوق الهدف — فرصة بيع' : 'Above target — sell opportunity'}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.lang === 'ar' ? 'متوسط البيع' : 'Sell avg'} {sellAvg.toFixed(3)} &gt; {t.lang === 'ar' ? 'الهدف' : 'target'} {targetPrice.toFixed(5)}</div>
-              </div>
-            )}
-            {isGoodRestock && (
-              <div style={{ padding: '8px 10px', borderRadius: 'var(--lt-radius-sm)', border: '1px solid color-mix(in srgb, var(--good) 40%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)' }}>
-                <div style={{ fontWeight: 800, fontSize: 12, color: 'var(--good)' }}>✓ {t.lang === 'ar' ? 'فرصة تعبئة جيدة' : 'Good restock opportunity'}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.lang === 'ar' ? 'متوسط الشراء' : 'Buy avg'} {buyAvg.toFixed(3)} &lt; {t.lang === 'ar' ? 'متوسط السعر — يحسن قاعدة التكلفة' : 'Av Price — improves cost base'}</div>
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
-              <button className="btn" style={{ justifyContent: 'center' }} onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>
-                {t.lang === 'ar' ? 'تطبيق سعر البيع' : 'Apply Sell Rate'}
-              </button>
-              <button className="btn secondary" style={{ justifyContent: 'center' }} onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>
-                {t.lang === 'ar' ? 'تطبيق سعر الشراء' : 'Apply Buy Rate'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Sell Offers + Restock Offers (2 col) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-        {/* Sell Offers — RED color theme */}
-        <div className="panel">
-          <div className="panel-head">
-            <h2 style={{ color: 'var(--bad)' }}>↑ {t.lang === 'ar' ? 'عروض البيع' : 'Sell Offers'}</h2>
-            <span className="pill bad">{t.lang === 'ar' ? 'الأعلى أولاً · ✓ يناسب مخزونك' : 'Highest first · ✓ fits your stock'}</span>
-          </div>
-          <div className="panel-body" style={{ padding: 0 }}>
-            <div className="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t.lang === 'ar' ? 'التاجر' : 'TRADER'}</th>
-                    <th>{t.lang === 'ar' ? 'السعر' : 'PRICE'}</th>
-                    <th>{t.lang === 'ar' ? 'الحد الأدنى' : 'MIN'}</th>
-                    <th>{t.lang === 'ar' ? 'الحد الأقصى' : 'MAX'}</th>
-                    <th>{t.lang === 'ar' ? 'الطرق' : 'METHODS'}</th>
-                    <th>✓</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {snapshot.sellOffers?.slice(0, 10).map((o, i) => {
-                    const maxPrice = snapshot.sellOffers?.[0]?.price || 1;
-                    const depthPct = Math.min(100, (o.price / maxPrice) * 100);
-                    return (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 700, fontSize: 11 }}>
-                          {i === 0 && '★ '}{o.nick}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontWeight: 800, color: 'var(--bad)', fontSize: 12 }}>{o.price.toFixed(2)}</span>
-                            <div style={{ width: 50, height: 5, borderRadius: 3, background: 'rgba(255,255,255,.07)', overflow: 'hidden' }}>
-                              <div style={{ width: `${depthPct}%`, height: '100%', background: 'var(--bad)', borderRadius: 3 }} />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="mono r">{o.min.toLocaleString()}</td>
-                        <td className="mono r">{o.max.toLocaleString()}</td>
-                        <td style={{ fontSize: 10 }}>{o.methods.slice(0, 2).join('  ')}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          {fitsStock(o) ? <span className="good">✓</span> : <span className="muted">—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Restock Offers — GREEN color theme */}
-        <div className="panel">
-          <div className="panel-head">
-            <h2 style={{ color: 'var(--good)' }}>↓ {t.lang === 'ar' ? 'عروض الشراء' : 'Restock Offers'}</h2>
-            <span className="pill good">{t.lang === 'ar' ? 'الأرخص أولاً · ✓ يناسب رصيدك' : 'Cheapest first · ✓ fits your cash'}</span>
-          </div>
-          <div className="panel-body" style={{ padding: 0 }}>
-            <div className="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t.lang === 'ar' ? 'التاجر' : 'TRADER'}</th>
-                    <th>{t.lang === 'ar' ? 'السعر' : 'PRICE'}</th>
-                    <th>{t.lang === 'ar' ? 'الحد الأدنى' : 'MIN'}</th>
-                    <th>{t.lang === 'ar' ? 'الحد الأقصى' : 'MAX'}</th>
-                    <th>{t.lang === 'ar' ? 'الطرق' : 'METHODS'}</th>
-                    <th>✓</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {snapshot.buyOffers?.slice(0, 10).map((o, i) => {
-                    const minPrice = snapshot.buyOffers?.[0]?.price || 1;
-                    const maxP = snapshot.buyOffers?.[snapshot.buyOffers.length - 1]?.price || 1;
-                    const range = maxP - minPrice || 0.01;
-                    const depthPct = Math.min(100, ((o.price - minPrice) / range) * 100);
-                    return (
-                      <tr key={i}>
-                        <td style={{ fontWeight: 700, fontSize: 11 }}>
-                          {i === 0 && '★ '}{o.nick}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontWeight: 800, color: 'var(--good)', fontSize: 12 }}>{o.price.toFixed(2)}</span>
-                            <div style={{ width: 50, height: 5, borderRadius: 3, background: 'rgba(255,255,255,.07)', overflow: 'hidden' }}>
-                              <div style={{ width: `${100 - depthPct}%`, height: '100%', background: 'var(--good)', borderRadius: 3 }} />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="mono r">{o.min.toLocaleString()}</td>
-                        <td className="mono r">{o.max.toLocaleString()}</td>
-                        <td style={{ fontSize: 10 }}>{o.methods.slice(0, 2).join('  ')}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          {fitsCash(o) ? <span className="good">✓</span> : <span className="muted">—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Calculator ── */}
-      <div className="panel" style={{ marginBottom: 10 }}>
-        <div className="panel-head">
-          <h2>🧮 {t.lang === 'ar' ? 'الآلة الحاسبة' : 'Calculator'}</h2>
-          <div className="modeToggle">
-            <button className={calcMode === 'sell' ? 'active' : ''} onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>{t.lang === 'ar' ? 'بيع' : 'Sell'}</button>
-            <button className={calcMode === 'buy' ? 'active' : ''} onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>{t.lang === 'ar' ? 'شراء' : 'Buy'}</button>
-            <button className={calcMode === 'target' ? 'active' : ''} onClick={() => { setCalcMode('target'); setCalcRate(targetPrice.toFixed(4)); }}>{t.lang === 'ar' ? 'مستهدف' : 'Target'}</button>
-          </div>
-        </div>
-        <div className="panel-body">
-          <div className="g2tight" style={{ marginBottom: 8 }}>
-            <div className="field2">
-              <span className="lbl">{t.lang === 'ar' ? 'المبلغ (USDT)' : 'Amount (USDT)'}</span>
-              <div className="inputBox">
-                <input type="number" value={calcAmount} onChange={e => setCalcAmount(e.target.value)} placeholder="1000" />
-              </div>
-            </div>
-            <div className="field2">
-              <span className="lbl">{t.lang === 'ar' ? `السعر (${ccy})` : `Rate (${ccy})`}</span>
-              <div className="inputBox">
-                <input type="number" step="0.001" value={calcRate} onChange={e => setCalcRate(e.target.value)} placeholder="3.80" />
-              </div>
-            </div>
-          </div>
-          {calcResult && (
-            <div className="bannerRow">
-              <span className="bLbl">{calcMode === 'buy' ? (t.lang === 'ar' ? 'التكلفة' : 'Cost') : (t.lang === 'ar' ? 'الإيراد' : 'Revenue')}</span>
-              <span className="bVal">{calcResult.qar.toFixed(2)} {ccy}</span>
-              <span className="bSpacer" />
-              <span className="bPill">@ {calcResult.rate.toFixed(3)}</span>
-            </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          {lastUpdate && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {new Date(lastUpdate).toLocaleTimeString()}
+            </span>
           )}
         </div>
       </div>
 
-      {/* ── Historical Averages (collapsible) ── */}
-      <div className="panel">
-        <div className="panel-head" style={{ cursor: 'pointer' }} onClick={() => setShowHistory(!showHistory)}>
-          <h2>📅 {t.lang === 'ar' ? 'المتوسطات التاريخية' : 'Historical Averages'}</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {showHistory && (
-              <div className="tracker-seg">
-                <button className={historyRange === '7d' ? 'active' : ''} onClick={e => { e.stopPropagation(); setHistoryRange('7d'); }}>7D</button>
-                <button className={historyRange === '15d' ? 'active' : ''} onClick={e => { e.stopPropagation(); setHistoryRange('15d'); }}>15D</button>
+      {/* ── Rate Cards (Buy + Sell) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Buy USDT Card */}
+        <Card className="border-green-500/30 bg-green-500/5 relative overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Buy USDT at
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-green-500">
+                {hasData ? buyAvg.toFixed(4) : '—'}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {currentMarket.currencySymbol}/USDT
+              </span>
+            </div>
+            <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
+              <span>Best: {snapshot?.bestBuy?.toFixed(4) ?? '—'}</span>
+              <span>Depth: {snapshot?.buyDepth?.toLocaleString() ?? '0'} USDT</span>
+            </div>
+            <TrendingUp className="absolute right-4 bottom-4 h-16 w-16 text-green-500/10" />
+          </CardContent>
+        </Card>
+
+        {/* Sell USDT Card */}
+        <Card className="border-red-500/30 bg-red-500/5 relative overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Sell USDT at
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-red-500">
+                {hasData ? sellAvg.toFixed(4) : '—'}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {currentMarket.currencySymbol}/USDT
+              </span>
+            </div>
+            <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
+              <span>Best: {snapshot?.bestSell?.toFixed(4) ?? '—'}</span>
+              <span>Depth: {snapshot?.sellDepth?.toLocaleString() ?? '0'} USDT</span>
+            </div>
+            <TrendingDown className="absolute right-4 bottom-4 h-16 w-16 text-red-500/10" />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Spread Info ── */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Spread</span>
               </div>
-            )}
-            <span className="pill">{showHistory ? '▼' : '▶'} {filteredSummaries.length} {t.lang === 'ar' ? 'يوم' : 'days'}</span>
+              <span className="text-lg font-bold">
+                {snapshot?.spread != null ? snapshot.spread.toFixed(4) : '—'} {ccy}
+              </span>
+              <Badge variant={snapshot?.spreadPct != null && Math.abs(snapshot.spreadPct) < 2 ? 'default' : 'destructive'}>
+                {snapshot?.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : '—'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-green-500 border-green-500/30">
+                <div className="h-2 w-2 rounded-full bg-green-500 mr-1 animate-pulse" />
+                {hasData ? 'Live' : 'No data'}
+              </Badge>
+              <span className="text-xs text-muted-foreground">USDT/{ccy}</span>
+            </div>
           </div>
-        </div>
-        {showHistory && (
-          <div className="panel-body" style={{ padding: 0 }}>
-            <div className="tableWrap">
-              <table>
+        </CardContent>
+      </Card>
+
+      {/* ── 24h Price Trend ── */}
+      {priceBarData.length > 2 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              📊 24h Price Trend
+              <Badge variant="outline">{last24hHistory.length} pts</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {/* Sell bars */}
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-1">SELL AVG</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 flex items-end gap-[1px] h-7">
+                    {priceBarData.map((pt, i) => {
+                      const vals = priceBarData.map(p => p.sellAvg ?? 0).filter(v => v > 0);
+                      const minS = Math.min(...vals); const maxS = Math.max(...vals);
+                      const range = maxS - minS || 0.01;
+                      const h = 4 + ((pt.sellAvg ?? minS) - minS) / range * 24;
+                      return <div key={i} className="flex-1 min-w-[2px] rounded-sm bg-red-500/80" style={{ height: h }} />;
+                    })}
+                  </div>
+                  <span className="text-sm font-bold text-red-500 min-w-[50px] text-right">
+                    {sellAvg.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+              {/* Buy bars */}
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-1">BUY AVG</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 flex items-end gap-[1px] h-7">
+                    {priceBarData.map((pt, i) => {
+                      const vals = priceBarData.map(p => p.buyAvg ?? 0).filter(v => v > 0);
+                      const minB = Math.min(...vals); const maxB = Math.max(...vals);
+                      const range = maxB - minB || 0.01;
+                      const h = 4 + ((pt.buyAvg ?? minB) - minB) / range * 24;
+                      return <div key={i} className="flex-1 min-w-[2px] rounded-sm bg-green-500/80" style={{ height: h }} />;
+                    })}
+                  </div>
+                  <span className="text-sm font-bold text-green-500 min-w-[50px] text-right">
+                    {buyAvg.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Order Book Preview ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Buy Orders */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-green-500 flex items-center gap-2">
+              <TrendingDown className="h-4 w-4" />
+              Buy Orders (Top 10)
+              <Badge variant="outline" className="text-green-500 border-green-500/30">
+                Cheapest first
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr>
-                    <th>{t.lang === 'ar' ? 'التاريخ' : 'DATE'}</th>
-                    <th>{t.lang === 'ar' ? 'أعلى بيع' : 'SELL HIGH'}</th>
-                    <th>{t.lang === 'ar' ? 'أدنى بيع' : 'SELL LOW'}</th>
-                    <th>{t.lang === 'ar' ? 'متوسط بيع' : 'SELL AVG'}</th>
-                    <th>{t.lang === 'ar' ? 'أعلى شراء' : 'BUY HIGH'}</th>
-                    <th>{t.lang === 'ar' ? 'أدنى شراء' : 'BUY LOW'}</th>
-                    <th>{t.lang === 'ar' ? 'متوسط شراء' : 'BUY AVG'}</th>
-                    <th>{t.lang === 'ar' ? 'الفارق' : 'SPREAD'}</th>
-                    <th>{t.lang === 'ar' ? 'استطلاعات' : 'POLLS'}</th>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-2 text-xs text-muted-foreground font-medium">Trader</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Price</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Min</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Max</th>
+                    <th className="text-left p-2 text-xs text-muted-foreground font-medium">Methods</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(snapshot?.buyOffers ?? []).slice(0, 10).map((o, i) => (
+                    <tr key={i} className="border-b border-border/50 hover:bg-muted/20">
+                      <td className="p-2 font-medium text-xs">
+                        {i === 0 && <span className="text-yellow-500 mr-1">★</span>}
+                        {o.nick}
+                      </td>
+                      <td className="p-2 text-right font-bold text-green-500">{o.price.toFixed(2)}</td>
+                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.min.toLocaleString()}</td>
+                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.max.toLocaleString()}</td>
+                      <td className="p-2 text-xs text-muted-foreground">{o.methods?.slice(0, 2).join(', ')}</td>
+                    </tr>
+                  ))}
+                  {(!snapshot?.buyOffers?.length) && (
+                    <tr><td colSpan={5} className="p-4 text-center text-muted-foreground text-xs">No buy offers available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Sell Orders */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-red-500 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Sell Orders (Top 10)
+              <Badge variant="outline" className="text-red-500 border-red-500/30">
+                Highest first
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-2 text-xs text-muted-foreground font-medium">Trader</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Price</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Min</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Max</th>
+                    <th className="text-left p-2 text-xs text-muted-foreground font-medium">Methods</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(snapshot?.sellOffers ?? []).slice(0, 10).map((o, i) => (
+                    <tr key={i} className="border-b border-border/50 hover:bg-muted/20">
+                      <td className="p-2 font-medium text-xs">
+                        {i === 0 && <span className="text-yellow-500 mr-1">★</span>}
+                        {o.nick}
+                      </td>
+                      <td className="p-2 text-right font-bold text-red-500">{o.price.toFixed(2)}</td>
+                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.min.toLocaleString()}</td>
+                      <td className="p-2 text-right text-muted-foreground font-mono text-xs">{o.max.toLocaleString()}</td>
+                      <td className="p-2 text-xs text-muted-foreground">{o.methods?.slice(0, 2).join(', ')}</td>
+                    </tr>
+                  ))}
+                  {(!snapshot?.sellOffers?.length) && (
+                    <tr><td colSpan={5} className="p-4 text-center text-muted-foreground text-xs">No sell offers available</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Calculator ── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            🧮 Calculator
+            <div className="flex gap-1 ml-auto">
+              <Button
+                variant={calcMode === 'sell' ? 'default' : 'outline'}
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => setCalcMode('sell')}
+              >
+                Sell
+              </Button>
+              <Button
+                variant={calcMode === 'buy' ? 'default' : 'outline'}
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => setCalcMode('buy')}
+              >
+                Buy
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Amount (USDT)</Label>
+              <Input
+                type="number"
+                value={calcAmount}
+                onChange={e => setCalcAmount(e.target.value)}
+                placeholder="1000"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Rate ({ccy})</Label>
+              <Input
+                type="number"
+                step="0.001"
+                value={calcRate}
+                onChange={e => setCalcRate(e.target.value)}
+                placeholder="3.80"
+              />
+            </div>
+          </div>
+          {calcResult && (
+            <div className="mt-3 p-3 rounded-lg bg-muted/50 flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                {calcMode === 'buy' ? 'Cost' : 'Revenue'}
+              </span>
+              <span className="text-lg font-bold">
+                {calcResult.localAmount.toFixed(2)} {ccy}
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Historical Averages (collapsible) ── */}
+      <Card>
+        <CardHeader
+          className="pb-2 cursor-pointer select-none"
+          onClick={() => setShowHistory(!showHistory)}
+        >
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              📅 Historical Averages
+            </span>
+            <div className="flex items-center gap-2">
+              {showHistory && (
+                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                  <Button
+                    variant={historyRange === '7d' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setHistoryRange('7d')}
+                  >
+                    7D
+                  </Button>
+                  <Button
+                    variant={historyRange === '15d' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setHistoryRange('15d')}
+                  >
+                    15D
+                  </Button>
+                </div>
+              )}
+              <Badge variant="outline">
+                {showHistory ? '▼' : '▶'} {filteredSummaries.length} days
+              </Badge>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        {showHistory && (
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-2 text-xs text-muted-foreground font-medium">Date</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Sell High</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Sell Low</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Buy High</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Buy Low</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Spread</th>
+                    <th className="text-right p-2 text-xs text-muted-foreground font-medium">Polls</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -596,25 +609,26 @@ export default function P2PTrackerPage() {
                     const avgBuy = (d.highBuy + (d.lowBuy ?? d.highBuy)) / 2;
                     const spread = avgSell - avgBuy;
                     return (
-                      <tr key={d.date}>
-                        <td className="mono">{d.date}</td>
-                        <td className="mono r bad">{d.highSell.toFixed(3)}</td>
-                        <td className="mono r" style={{ color: 'color-mix(in srgb, var(--bad) 60%, var(--muted))' }}>{d.lowSell?.toFixed(3) ?? '—'}</td>
-                        <td className="mono r bad" style={{ fontWeight: 800 }}>{avgSell.toFixed(3)}</td>
-                        <td className="mono r good">{d.highBuy.toFixed(3)}</td>
-                        <td className="mono r" style={{ color: 'color-mix(in srgb, var(--good) 60%, var(--muted))' }}>{d.lowBuy?.toFixed(3) ?? '—'}</td>
-                        <td className="mono r good" style={{ fontWeight: 800 }}>{avgBuy.toFixed(3)}</td>
-                        <td className="mono r warn">{spread.toFixed(3)}</td>
-                        <td className="mono r muted">{d.polls}</td>
+                      <tr key={d.date} className="border-b border-border/50 hover:bg-muted/20">
+                        <td className="p-2 font-mono text-xs">{d.date}</td>
+                        <td className="p-2 text-right font-mono text-xs text-red-500">{d.highSell.toFixed(3)}</td>
+                        <td className="p-2 text-right font-mono text-xs text-red-400/60">{d.lowSell?.toFixed(3) ?? '—'}</td>
+                        <td className="p-2 text-right font-mono text-xs text-green-500">{d.highBuy.toFixed(3)}</td>
+                        <td className="p-2 text-right font-mono text-xs text-green-400/60">{d.lowBuy?.toFixed(3) ?? '—'}</td>
+                        <td className="p-2 text-right font-mono text-xs text-yellow-500">{spread.toFixed(3)}</td>
+                        <td className="p-2 text-right font-mono text-xs text-muted-foreground">{d.polls}</td>
                       </tr>
                     );
                   })}
+                  {filteredSummaries.length === 0 && (
+                    <tr><td colSpan={7} className="p-4 text-center text-muted-foreground text-xs">No historical data yet</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
-          </div>
+          </CardContent>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
