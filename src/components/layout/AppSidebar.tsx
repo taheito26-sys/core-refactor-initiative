@@ -126,7 +126,7 @@ function AdminNavSection({ collapsed, isActive, isMobile, onMobileClose }: { col
   );
 }
 
-
+export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose }: AppSidebarProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { merchantProfile, logout } = useAuth();
