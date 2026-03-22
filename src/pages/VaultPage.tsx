@@ -398,6 +398,7 @@ export default function VaultPage() {
         const sk = findTrackerStorageKey(localStorage);
         localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
+        await saveTrackerStateNow(normalized as TrackerState);
         setImportStatus('success');
         setImportMsg(t.lang === 'ar' 
           ? `✓ تم الاستيراد: ${tradeCount} صفقة، ${batchCount} دفعة` 
