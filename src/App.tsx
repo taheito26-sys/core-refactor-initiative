@@ -129,13 +129,14 @@ const App = () => (
                   <Route path="/trading/p2p" element={<P2PTrackerPage />} />
                   <Route path="/trading/vault" element={<VaultPage />} />
                   <Route path="/crm" element={<CRMPage />} />
+                  <Route path="/merchants" element={<MerchantsPage />} />
 
                   {/* Network */}
                   <Route path="/network" element={<NetworkPage />} />
                   <Route path="/network/:relationshipId" element={<RelationshipWorkspace />} />
 
                   {/* Supporting */}
-                  <Route path="/deals" element={<DealsPage />} />
+                  <Route path="/deals" element={<Navigate to="/network?tab=deals" replace />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
