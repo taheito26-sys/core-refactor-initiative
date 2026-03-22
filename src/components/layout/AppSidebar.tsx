@@ -150,7 +150,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
             onClick={() => setCollapsed(!collapsed)}
             className="p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60"
           >
-            <ChevronLeft className={cn('h-[1.1em] w-[1.1em] transition-transform', collapsed && 'ltr:rotate-180 rtl:rotate-0', !collapsed && 'rtl:rotate-180')} />
+            <ChevronLeft className={cn('h-3.5 w-3.5 transition-transform', collapsed && 'ltr:rotate-180 rtl:rotate-0', !collapsed && 'rtl:rotate-180')} />
           </button>
         )}
         {isMobile && (
