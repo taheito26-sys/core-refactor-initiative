@@ -163,10 +163,10 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       {/* Merchant info */}
       {!collapsed && merchantProfile && (
         <div className="px-3 py-3 border-b border-sidebar-border">
-          <div className="text-[0.75em] font-medium text-sidebar-foreground truncate">
+          <div className="text-[11px] font-medium text-sidebar-foreground truncate">
             {merchantProfile.display_name}
           </div>
-          <div className="text-[0.625em] text-sidebar-foreground/50 truncate">
+          <div className="text-[9px] text-sidebar-foreground/50 truncate">
             @{merchantProfile.nickname}
           </div>
         </div>
