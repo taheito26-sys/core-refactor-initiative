@@ -265,17 +265,49 @@ export default function P2PTrackerPage() {
     return { local: amt * rate, usdt: amt, rate };
   }, [calcAmount, calcRate, calcMode, sellAvg, buyAvg]);
 
-  // Chart data
-  const chartData = useMemo(() => {
-    const maxPoints = 60;
-    const step = Math.max(1, Math.floor(last24hHistory.length / maxPoints));
-    return last24hHistory
-      .filter((_, i) => i % step === 0 || i === last24hHistory.length - 1)
-      .map(pt => ({
-        time: format(new Date(pt.ts), 'HH:mm'),
-        sellAvg: pt.sellAvg,
-        buyAvg: pt.buyAvg,
-      }));
+  // Price history bar data
+  const priceBarData = useMemo(() => {
+    if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
+    const sellPts = last24hHistory.filter(p => p.sellAvg != null).map(p => p.sellAvg!);
+    const buyPts = last24hHistory.filter(p => p.buyAvg != null).map(p => p.buyAvg!);
+    const sellLatest = sellPts.length ? sellPts[sellPts.length - 1] : 0;
+    const buyLatest = buyPts.length ? buyPts[buyPts.length - 1] : 0;
+    const sellFirst = sellPts.length ? sellPts[0] : sellLatest;
+    const buyFirst = buyPts.length ? buyPts[0] : buyLatest;
+    const sellChange = sellLatest - sellFirst;
+    const buyChange = buyLatest - buyFirst;
+
+    // Create ~12 bars from history
+    const numBars = 12;
+    const makeBarArray = (pts: number[]) => {
+      if (!pts.length) return Array(numBars).fill(0);
+      const step = Math.max(1, Math.floor(pts.length / numBars));
+      const bars: number[] = [];
+      for (let i = 0; i < pts.length && bars.length < numBars; i += step) {
+        bars.push(pts[i]);
+      }
+      while (bars.length < numBars) bars.push(pts[pts.length - 1]);
+      return bars;
+    };
+
+    const sellMin = sellPts.length ? Math.min(...sellPts) : 0;
+    const sellMax = sellPts.length ? Math.max(...sellPts) : 1;
+    const buyMin = buyPts.length ? Math.min(...buyPts) : 0;
+    const buyMax = buyPts.length ? Math.max(...buyPts) : 1;
+
+    const normalize = (vals: number[], min: number, max: number) => {
+      const range = max - min || 0.01;
+      return vals.map(v => Math.max(5, ((v - min) / range) * 100));
+    };
+
+    return {
+      sellBars: normalize(makeBarArray(sellPts), sellMin, sellMax),
+      buyBars: normalize(makeBarArray(buyPts), buyMin, buyMax),
+      sellLatest,
+      buyLatest,
+      sellChange,
+      buyChange,
+    };
   }, [last24hHistory]);
 
   const ccy = currentMarket.currency;
