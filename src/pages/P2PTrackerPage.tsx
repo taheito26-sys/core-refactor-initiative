@@ -457,21 +457,21 @@ export default function P2PTrackerPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Sell Avg (Top 5)</span>
-              <span className="font-bold font-mono text-destructive">{sellAvg.toFixed(4)} {ccy}</span>
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Sell Avg (Top 5)</span>
+              <span className="font-bold font-mono text-sm text-destructive">{sellAvg.toFixed(4)} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Buy Avg (Top 5)</span>
-              <span className="font-bold font-mono" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Buy Avg (Top 5)</span>
+              <span className="font-bold font-mono text-sm" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Sell Depth</span>
-              <span className="font-bold font-mono">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Sell Depth</span>
+              <span className="font-bold font-mono text-sm">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Buy Depth</span>
-              <span className="font-bold font-mono">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Buy Depth</span>
+              <span className="font-bold font-mono text-sm">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-1">
               <Button size="sm" variant="destructive" onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>
