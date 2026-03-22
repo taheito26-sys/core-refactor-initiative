@@ -666,7 +666,7 @@ export default function P2PTrackerPage() {
                   <Button size="sm" variant={historyRange === '15d' ? 'default' : 'ghost'} onClick={e => { e.stopPropagation(); setHistoryRange('15d'); }}>15D</Button>
                 </div>
               )}
-              <Badge variant="secondary" className="text-xs">{filteredSummaries.length} days</Badge>
+              <Badge variant="secondary" className="text-xs">{filteredSummaries.length} {t('p2pDays')}</Badge>
             </div>
           </div>
         </CardHeader>
