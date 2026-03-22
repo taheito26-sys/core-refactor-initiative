@@ -586,7 +586,7 @@ export default function P2PTrackerPage() {
                   );
                 })}
                 {!snapshot.sellOffers?.length && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">No sell offers</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">{t('p2pNoSellOffers')}</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
