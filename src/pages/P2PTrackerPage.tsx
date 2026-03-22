@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, TrendingUp, TrendingDown, ArrowUpDown, ChevronDown, ChevronRight, Calculator, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
+import { computeFIFO, totalStock, getWACOP, stockCostQAR, type TrackerState } from '@/lib/tracker-helpers';
 import '@/styles/tracker.css';
 
 // ── Types ──
@@ -81,18 +82,45 @@ function toOffer(value: unknown): P2POffer | null {
 
 function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const ts = toFiniteNumber(source.ts) ?? (fetchedAt ? new Date(fetchedAt).getTime() : Date.now());
+
+  // Detect pre-fix data: if sellAvg < buyAvg, the data has sell/buy swapped
+  const rawSellAvg = toFiniteNumber(source.sellAvg);
+  const rawBuyAvg = toFiniteNumber(source.buyAvg);
+  const isSwapped = rawSellAvg != null && rawBuyAvg != null && rawSellAvg < rawBuyAvg;
+
+  const sellOffersRaw = Array.isArray(source.sellOffers) ? source.sellOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [];
+  const buyOffersRaw = Array.isArray(source.buyOffers) ? source.buyOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [];
+
+  if (isSwapped) {
+    // Swap everything: old data had sell/buy reversed
+    return {
+      ts,
+      sellAvg: rawBuyAvg,
+      buyAvg: rawSellAvg,
+      bestSell: toFiniteNumber(source.bestBuy),
+      bestBuy: toFiniteNumber(source.bestSell),
+      spread: rawBuyAvg != null && rawSellAvg != null ? rawBuyAvg - rawSellAvg : null,
+      spreadPct: rawBuyAvg != null && rawSellAvg != null && rawSellAvg > 0 ? ((rawBuyAvg - rawSellAvg) / rawSellAvg) * 100 : null,
+      sellDepth: toFiniteNumber(source.buyDepth) ?? 0,
+      buyDepth: toFiniteNumber(source.sellDepth) ?? 0,
+      sellOffers: buyOffersRaw.sort((a, b) => b.price - a.price),
+      buyOffers: sellOffersRaw.sort((a, b) => a.price - b.price),
+    };
+  }
+
   return {
-    ts: toFiniteNumber(source.ts) ?? (fetchedAt ? new Date(fetchedAt).getTime() : Date.now()),
-    sellAvg: toFiniteNumber(source.sellAvg),
-    buyAvg: toFiniteNumber(source.buyAvg),
+    ts,
+    sellAvg: rawSellAvg,
+    buyAvg: rawBuyAvg,
     bestSell: toFiniteNumber(source.bestSell),
     bestBuy: toFiniteNumber(source.bestBuy),
     spread: toFiniteNumber(source.spread),
     spreadPct: toFiniteNumber(source.spreadPct),
     sellDepth: toFiniteNumber(source.sellDepth) ?? 0,
     buyDepth: toFiniteNumber(source.buyDepth) ?? 0,
-    sellOffers: Array.isArray(source.sellOffers) ? source.sellOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [],
-    buyOffers: Array.isArray(source.buyOffers) ? source.buyOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [],
+    sellOffers: sellOffersRaw,
+    buyOffers: buyOffersRaw,
   };
 }
 
@@ -250,6 +278,25 @@ export default function P2PTrackerPage() {
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
+  // PROFIT IF SOLD NOW: reads tracker state from localStorage
+  const profitIfSold = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('p2p_tracker_state');
+      if (!raw) return null;
+      const state: TrackerState = JSON.parse(raw);
+      if (!state.batches?.length) return null;
+      const derived = computeFIFO(state.batches, state.trades || []);
+      const stock = totalStock(derived);
+      if (stock <= 0) return null;
+      const wacop = getWACOP(derived);
+      const costBasis = stockCostQAR(derived);
+      if (!wacop || wacop <= 0) return null;
+      const revenue = stock * sellAvg;
+      const profit = revenue - costBasis;
+      return { stock, costBasis, wacop, profit };
+    } catch { return null; }
+  }, [sellAvg]);
+
   // Calculator
   useEffect(() => {
     if (snapshot) {
@@ -365,7 +412,7 @@ export default function P2PTrackerPage() {
 
       {/* ── KPI Cards (tracker.css – exact source repo sizing) ── */}
       <div className="tracker-root" style={{ background: 'transparent' }}>
-        <div className="kpis" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
+        <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
           <div className="kpi-card">
             <div className="kpi-lbl">BEST SELL</div>
             <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
@@ -402,6 +449,15 @@ export default function P2PTrackerPage() {
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
             <div className="kpi-sub">High {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
           </div>
+          {profitIfSold && (
+            <div className="kpi-card">
+              <div className="kpi-lbl">PROFIT IF SOLD NOW</div>
+              <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
+              </div>
+              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · {ccy} cost basis</div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -472,14 +528,6 @@ export default function P2PTrackerPage() {
             <div className="flex items-center justify-between p-2 rounded-lg border border-border">
               <span className="text-xs text-muted-foreground">Buy Depth</span>
               <span className="font-bold font-mono text-sm">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <Button size="sm" variant="destructive" onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>
-                Apply Sell Rate
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>
-                Apply Buy Rate
-              </Button>
             </div>
           </CardContent>
         </Card>
