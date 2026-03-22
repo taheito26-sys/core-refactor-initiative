@@ -17,7 +17,7 @@ function titleFromPath(pathname: string): { title: string; subtitle: string } {
   if (pathname === '/vault') return { title: 'Vault', subtitle: 'Document storage' };
   if (pathname === '/settings') return { title: 'Settings', subtitle: 'Account preferences' };
   if (pathname === '/notifications') return { title: 'Notifications', subtitle: 'Activity feed' };
-  return { title: 'TRACKER', subtitle: 'P2P Trading Platform' };
+  return { title: 'P2P Tracker', subtitle: 'P2P Trading Platform' };
 }
 
 type TopBarProps = {

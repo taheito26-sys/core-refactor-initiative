@@ -1,0 +1,8 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="120" fill="#A31212"/>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="#C61C1C"/>
+  <path d="M113 154C113 129.147 133.147 109 158 109H354C378.853 109 399 129.147 399 154V358C399 382.853 378.853 403 354 403H158C133.147 403 113 382.853 113 358V154Z" fill="#8E0F0F"/>
+  <path d="M160 153H352" stroke="#FDE8E8" stroke-width="10" stroke-linecap="round" opacity="0.65"/>
+  <path d="M160 359H352" stroke="#FDE8E8" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
+  <text x="256" y="286" text-anchor="middle" font-family="JetBrains Mono, ui-monospace, monospace" font-size="118" font-weight="800" letter-spacing="-8" fill="#FFF5F5">P2P</text>
+</svg>
