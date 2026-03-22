@@ -66,6 +66,16 @@ function toFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+function simplifyMethod(m: string): string {
+  const lower = m.toLowerCase();
+  if (lower.includes('bank') || lower.includes('transfer') || lower.includes('iban') || lower.includes('wire') || lower.includes('swift') || lower.includes('sepa')) return 'Bank';
+  return 'Cash';
+}
+
+function dedupeSimplified(methods: string[]): string[] {
+  return [...new Set(methods.map(simplifyMethod))];
+}
+
 function toOffer(value: unknown): P2POffer | null {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
@@ -80,6 +90,8 @@ function toOffer(value: unknown): P2POffer | null {
       ? source.methods.filter((m): m is string => typeof m === 'string' && m.trim().length > 0)
       : [],
     available: toFiniteNumber(source.available) ?? 0,
+    trades: toFiniteNumber(source.trades) ?? 0,
+    completion: toFiniteNumber(source.completion) ?? 0,
   };
 }
 
