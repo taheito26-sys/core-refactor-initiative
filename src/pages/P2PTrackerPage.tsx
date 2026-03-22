@@ -533,37 +533,39 @@ export default function P2PTrackerPage() {
             <div className="overflow-auto max-h-[400px]">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Trader</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Min</TableHead>
-                    <TableHead className="text-right">Max</TableHead>
-                    <TableHead>Methods</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {snapshot.buyOffers?.slice(0, 10).map((o, i) => {
-                    const minPrice = snapshot.buyOffers?.[0]?.price || 1;
-                    const maxP = snapshot.buyOffers?.[snapshot.buyOffers.length - 1]?.price || 1;
-                    const range = maxP - minPrice || 0.01;
-                    const depthPct = Math.min(100, ((o.price - minPrice) / range) * 100);
-                    return (
-                      <TableRow key={i}>
-                        <TableCell className="text-xs font-medium">
-                          {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="font-bold font-mono text-sm text-emerald-500">{o.price.toFixed(2)}</span>
-                            <div className="w-10 h-1 rounded bg-muted overflow-hidden">
-                              <div className="h-full bg-emerald-500 rounded" style={{ width: `${100 - depthPct}%` }} />
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                        <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{o.methods.slice(0, 2).join(', ')}</TableCell>
-                      </TableRow>
+                   <TableRow>
+                     <TableHead>Trader</TableHead>
+                     <TableHead className="text-right">Price</TableHead>
+                     <TableHead className="text-right">Available</TableHead>
+                     <TableHead className="text-right">Min</TableHead>
+                     <TableHead className="text-right">Max</TableHead>
+                     <TableHead>Methods</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {snapshot.buyOffers?.slice(0, 10).map((o, i) => {
+                     const maxAvail = Math.max(...(snapshot.buyOffers?.map(x => x.available) || [1]));
+                     const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
+                     return (
+                       <TableRow key={i}>
+                         <TableCell className="text-xs font-medium">
+                           {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
+                         </TableCell>
+                         <TableCell className="text-right">
+                           <span className="font-bold font-mono text-sm text-emerald-500">{o.price.toFixed(2)}</span>
+                         </TableCell>
+                         <TableCell className="text-right">
+                           <div className="flex items-center justify-end gap-2">
+                             <span className="font-mono text-xs">{o.available.toLocaleString()}</span>
+                             <div className="w-12 h-1.5 rounded bg-muted overflow-hidden">
+                               <div className="h-full bg-emerald-500/70 rounded" style={{ width: `${depthPct}%` }} />
+                             </div>
+                           </div>
+                         </TableCell>
+                         <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                         <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
+                         <TableCell className="text-xs text-muted-foreground">{o.methods.slice(0, 2).join(', ')}</TableCell>
+                       </TableRow>
                     );
                   })}
                   {!snapshot.buyOffers?.length && (
