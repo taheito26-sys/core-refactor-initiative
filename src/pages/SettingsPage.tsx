@@ -127,6 +127,67 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* ── Language / Currency / Period ── */}
+        <Card className="glass">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-display">🌐 {t('language')} · {t('currency')} · {t('dateRange')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label className="text-xs mb-2 block">{t('language')}</Label>
+              <div className="flex gap-1.5">
+                {(['en', 'ar'] as const).map(lang => (
+                  <button
+                    key={lang}
+                    onClick={() => update({ language: lang })}
+                    className={cn(
+                      'px-3 py-1.5 rounded text-xs border transition-all',
+                      draft.language === lang ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
+                    )}
+                  >
+                    {lang === 'en' ? t('english') : t('arabic')}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-2 block">{t('currency')}</Label>
+              <div className="flex gap-1.5">
+                {(['QAR', 'USDT'] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => update({ currency: c })}
+                    className={cn(
+                      'px-3 py-1.5 rounded text-xs border transition-all',
+                      draft.currency === c ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs mb-2 block">{t('dateRange')}</Label>
+              <div className="flex gap-1.5">
+                {([{ id: 'today', label: '1 Day' }, { id: '7d', label: '7 Days' }, { id: '30d', label: '30 Days' }, { id: 'all', label: 'All' }] as const).map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => update({ range: r.id as any })}
+                    className={cn(
+                      'px-3 py-1.5 rounded text-xs border transition-all',
+                      draft.range === r.id ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Default: 7 Days</p>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* ── Trading Config ── */}
           <Card className="glass">
