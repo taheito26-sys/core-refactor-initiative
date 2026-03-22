@@ -90,8 +90,10 @@ function buildSnapshot(
   sellRaw: BinanceP2POffer[],
   buyRaw: BinanceP2POffer[]
 ) {
-  const sellOffers = parseOffers(sellRaw).sort((a, b) => b.price - a.price);
-  const buyOffers = parseOffers(buyRaw).sort((a, b) => a.price - b.price);
+  // sellRaw = Binance SELL ads = people selling USDT = YOUR restock source
+  // buyRaw = Binance BUY ads = people buying USDT = YOUR sell targets
+  const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);   // highest first
+  const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);   // cheapest first
 
   const top5Sell = sellOffers.slice(0, 5);
   const top5Buy = buyOffers.slice(0, 5);
