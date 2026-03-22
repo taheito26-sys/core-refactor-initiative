@@ -82,6 +82,8 @@ function parseOffers(raw: BinanceP2POffer[]) {
     max: parseFloat(o.adv.maxSingleTransAmount || "0"),
     available: parseFloat(o.adv.surplusAmount),
     nick: o.advertiser.nickName,
+    trades: o.advertiser.monthOrderCount || 0,
+    completion: o.advertiser.monthFinishRate || 0,
     methods: o.adv.tradeMethods.map((m) => m.tradeMethodName || m.identifier),
   }));
 }
