@@ -412,7 +412,7 @@ export default function P2PTrackerPage() {
 
       {/* ── KPI Cards (tracker.css – exact source repo sizing) ── */}
       <div className="tracker-root" style={{ background: 'transparent' }}>
-        <div className="kpis" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
+        <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
           <div className="kpi-card">
             <div className="kpi-lbl">BEST SELL</div>
             <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
@@ -449,6 +449,15 @@ export default function P2PTrackerPage() {
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
             <div className="kpi-sub">High {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
           </div>
+          {profitIfSold && (
+            <div className="kpi-card">
+              <div className="kpi-lbl">PROFIT IF SOLD NOW</div>
+              <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
+              </div>
+              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · {ccy} cost basis</div>
+            </div>
+          )}
         </div>
       </div>
 
