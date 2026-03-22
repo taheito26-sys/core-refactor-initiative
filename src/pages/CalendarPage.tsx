@@ -13,7 +13,9 @@ export default function CalendarPage() {
   const { state, derived } = useMemo(() => createEmptyState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
-  }), [settings.lowStockThreshold, settings.priceAlertThreshold]);
+    range: settings.range,
+    currency: settings.currency,
+  }), [settings.lowStockThreshold, settings.priceAlertThreshold, settings.range, settings.currency]);
   const [cal, setCal] = useState(state.cal);
 
   const mnKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'] as const;

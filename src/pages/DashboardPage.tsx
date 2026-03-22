@@ -19,15 +19,17 @@ export default function DashboardPage() {
   const { state, derived } = useMemo(() => createEmptyState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
-  }), [settings.lowStockThreshold, settings.priceAlertThreshold]);
+    range: settings.range,
+    currency: settings.currency,
+  }), [settings.lowStockThreshold, settings.priceAlertThreshold, settings.range, settings.currency]);
 
   const d1 = kpiFor(state, derived, 'today');
   const d7 = kpiFor(state, derived, '7d');
-  const dR = kpiFor(state, derived, state.range);
+  const dR = kpiFor(state, derived, settings.range);
   const stk = totalStock(derived);
   const stCost = stockCostQAR(derived);
   const wacop = getWACOP(derived);
-  const rLabel = rangeLabel(state.range);
+  const rLabel = rangeLabel(settings.range);
 
   const allTrades = state.trades.filter(t => !t.voided);
   const allMargins = allTrades.map(t => {
