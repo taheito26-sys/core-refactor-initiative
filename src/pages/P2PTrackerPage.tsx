@@ -475,7 +475,7 @@ export default function P2PTrackerPage() {
           </div>
           <div className="panel-body" style={{ padding: '14px 18px 18px', minHeight: 220, display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">Sell Avg</span>
+              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
               <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(3) : '—'}</span>
             </div>
             <div className="flex items-end gap-1 h-8">
