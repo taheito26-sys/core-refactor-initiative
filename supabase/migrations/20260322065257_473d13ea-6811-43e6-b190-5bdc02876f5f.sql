@@ -1,0 +1,1 @@
+UPDATE profiles SET status = 'approved', approved_at = now() WHERE user_id = 'd9acf3c1-c650-4c0c-8eba-13b992026ea0';
