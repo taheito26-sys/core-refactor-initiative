@@ -501,7 +501,7 @@ export default function P2PTrackerPage() {
 
         <div className="tracker-root panel">
           <div className="panel-head" style={{ padding: '8px 12px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>📋 Market Info</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>{t('p2pMarketInfo')}</h2>
             <span className="pill" style={{ fontSize: 9 }}>{currentMarket.pair}</span>
           </div>
           <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
