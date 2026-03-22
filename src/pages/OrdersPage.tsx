@@ -96,11 +96,6 @@ export default function OrdersPage() {
 
   useEffect(() => { reloadMerchantData(); }, [reloadMerchantData]);
 
-  const applyState = (next: TrackerState) => {
-    setState(next);
-    setDerived(computeFIFO(next.batches, next.trades));
-  };
-
   useEffect(() => {
     const next: TrackerState = { ...state, range: settings.range, currency: settings.currency,
       settings: { ...state.settings, lowStockThreshold: settings.lowStockThreshold, priceAlertThreshold: settings.priceAlertThreshold }
