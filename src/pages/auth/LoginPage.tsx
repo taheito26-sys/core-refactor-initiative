@@ -80,6 +80,11 @@ export default function LoginPage() {
               Sign up
             </Link>
           </p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            <Link to="/admin/approvals" className="text-primary hover:underline">
+              Admin Panel
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>
