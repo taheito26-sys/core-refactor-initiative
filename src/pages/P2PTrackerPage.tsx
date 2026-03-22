@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { p2p } from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 import { computeDailySummaries } from '@/lib/p2p-utils';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
@@ -7,7 +7,7 @@ import type { P2PSnapshot, P2PHistoryPoint, P2POffer } from '@/types/domain';
 import '@/styles/tracker.css';
 
 type CalcMode = 'sell' | 'buy' | 'target';
-type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria';
+type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey';
 
 const MARKETS: { id: MarketId; label: string; labelAr: string; currency: string; pair: string }[] = [
   { id: 'qatar', label: 'Qatar', labelAr: 'قطر', currency: 'QAR', pair: 'USDT/QAR' },
@@ -15,6 +15,7 @@ const MARKETS: { id: MarketId; label: string; labelAr: string; currency: string;
   { id: 'egypt', label: 'Egypt', labelAr: 'مصر', currency: 'EGP', pair: 'USDT/EGP' },
   { id: 'ksa', label: 'KSA', labelAr: 'السعودية', currency: 'SAR', pair: 'USDT/SAR' },
   { id: 'syria', label: 'Syria', labelAr: 'سوريا', currency: 'SYP', pair: 'USDT/SYP' },
+  { id: 'turkey', label: 'Turkey', labelAr: 'تركيا', currency: 'TRY', pair: 'USDT/TRY' },
 ];
 
 export default function P2PTrackerPage() {
