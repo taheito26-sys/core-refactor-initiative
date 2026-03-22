@@ -22,6 +22,9 @@ import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 // Onboarding
 import OnboardingPage from "./pages/merchant/OnboardingPage";
 
+// Admin
+import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
+
 // Placeholder pages (will be replaced in later phases)
 import DashboardPage from './pages/DashboardPage';
 const OrdersPage = createPlaceholderPage('Orders', 'Manage your trades and orders');
