@@ -324,7 +324,7 @@ export default function NetworkPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('from') || 'From'}</th>
+                        <th>{t('fromLabel') || 'From'}</th>
                         <th>{t('message') || 'Message'}</th>
                         <th>{t('status')}</th>
                         <th>{t('date')}</th>
@@ -369,7 +369,7 @@ export default function NetworkPage() {
                     <table>
                       <thead>
                         <tr>
-                          <th>{t('to') || 'To'}</th>
+                          <th>{t('toLabel') || 'To'}</th>
                           <th>{t('message') || 'Message'}</th>
                           <th>{t('status')}</th>
                           <th>{t('date')}</th>

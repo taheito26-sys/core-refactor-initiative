@@ -434,7 +434,7 @@ export default function MerchantsPage() {
                       <div className="kpi-cell-val">{totalAgreements}</div>
                     </div>
                     <div>
-                      <div className="kpi-period">{t('active') || 'ACTIVE'}</div>
+                      <div className="kpi-period">{t('activeLabel') || 'ACTIVE'}</div>
                       <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{activeAgreements}</div>
                     </div>
                   </div>
@@ -502,7 +502,7 @@ export default function MerchantsPage() {
                 <div><strong>{t('ratio') || 'Ratio'}:</strong> {selectedTemplate.ratioDisplay}</div>
                 <div><strong>{t('dealType') || 'Deal Type'}:</strong> {selectedTemplate.dealType}</div>
                 {selectedTemplate.defaults.settlement_period && (
-                  <div><strong>{t('settlement') || 'Settlement'}:</strong> {selectedTemplate.defaults.settlement_period}</div>
+                  <div><strong>{t('settlementLabel') || 'Settlement'}:</strong> {selectedTemplate.defaults.settlement_period}</div>
                 )}
               </div>
               <p className="text-xs text-muted-foreground italic">
@@ -545,7 +545,7 @@ export default function MerchantsPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('template') || 'Template'}</label>
+              <label className="text-xs font-medium text-muted-foreground">{t('templateLabel') || 'Template'}</label>
               <select
                 className="w-full mt-1 rounded border border-input bg-background px-3 py-2 text-sm"
                 value={agreementTemplateId}
