@@ -19,23 +19,6 @@ import {
   Store,
   type LucideIcon,
 } from 'lucide-react';
-  ArrowLeftRight,
-  Wallet,
-  TrendingUp,
-  Users,
-  Briefcase,
-  BarChart3,
-  Settings,
-  Bell,
-  LogOut,
-  ChevronLeft,
-  Calendar,
-  UserCircle,
-  CloudUpload,
-  X,
-  MoreHorizontal,
-  type LucideIcon,
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
