@@ -81,18 +81,45 @@ function toOffer(value: unknown): P2POffer | null {
 
 function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const ts = toFiniteNumber(source.ts) ?? (fetchedAt ? new Date(fetchedAt).getTime() : Date.now());
+
+  // Detect pre-fix data: if sellAvg < buyAvg, the data has sell/buy swapped
+  const rawSellAvg = toFiniteNumber(source.sellAvg);
+  const rawBuyAvg = toFiniteNumber(source.buyAvg);
+  const isSwapped = rawSellAvg != null && rawBuyAvg != null && rawSellAvg < rawBuyAvg;
+
+  const sellOffersRaw = Array.isArray(source.sellOffers) ? source.sellOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [];
+  const buyOffersRaw = Array.isArray(source.buyOffers) ? source.buyOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [];
+
+  if (isSwapped) {
+    // Swap everything: old data had sell/buy reversed
+    return {
+      ts,
+      sellAvg: rawBuyAvg,
+      buyAvg: rawSellAvg,
+      bestSell: toFiniteNumber(source.bestBuy),
+      bestBuy: toFiniteNumber(source.bestSell),
+      spread: rawBuyAvg != null && rawSellAvg != null ? rawBuyAvg - rawSellAvg : null,
+      spreadPct: rawBuyAvg != null && rawSellAvg != null && rawSellAvg > 0 ? ((rawBuyAvg - rawSellAvg) / rawSellAvg) * 100 : null,
+      sellDepth: toFiniteNumber(source.buyDepth) ?? 0,
+      buyDepth: toFiniteNumber(source.sellDepth) ?? 0,
+      sellOffers: buyOffersRaw.sort((a, b) => b.price - a.price),
+      buyOffers: sellOffersRaw.sort((a, b) => a.price - b.price),
+    };
+  }
+
   return {
-    ts: toFiniteNumber(source.ts) ?? (fetchedAt ? new Date(fetchedAt).getTime() : Date.now()),
-    sellAvg: toFiniteNumber(source.sellAvg),
-    buyAvg: toFiniteNumber(source.buyAvg),
+    ts,
+    sellAvg: rawSellAvg,
+    buyAvg: rawBuyAvg,
     bestSell: toFiniteNumber(source.bestSell),
     bestBuy: toFiniteNumber(source.bestBuy),
     spread: toFiniteNumber(source.spread),
     spreadPct: toFiniteNumber(source.spreadPct),
     sellDepth: toFiniteNumber(source.sellDepth) ?? 0,
     buyDepth: toFiniteNumber(source.buyDepth) ?? 0,
-    sellOffers: Array.isArray(source.sellOffers) ? source.sellOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [],
-    buyOffers: Array.isArray(source.buyOffers) ? source.buyOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [],
+    sellOffers: sellOffersRaw,
+    buyOffers: buyOffersRaw,
   };
 }
 
