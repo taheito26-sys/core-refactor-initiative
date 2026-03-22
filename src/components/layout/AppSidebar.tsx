@@ -184,12 +184,12 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
           to="/notifications"
           onClick={isMobile ? onMobileClose : undefined}
           className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-[0.85em] transition-colors',
+            'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
             'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
             isActive('/notifications') && 'bg-sidebar-accent text-sidebar-primary font-medium'
           )}
         >
-          <Bell className="h-[1.1em] w-[1.1em] shrink-0" />
+          <Bell className="h-3.5 w-3.5 shrink-0" />
           {!collapsed && <span>{t('notifications')}</span>}
         </Link>
         <button
