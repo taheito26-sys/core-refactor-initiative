@@ -1,5 +1,1 @@
 project_id = "dozmqtzlinfqjrropipb"
-
-[functions.p2p-cron]
-schedule = "*/5 * * * *"
-verify_jwt = false
