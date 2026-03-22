@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,7 +12,7 @@ import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function OnboardingPage() {
-  const { refreshProfile, userId } = useAuth();
+  const { refreshProfile, userId, merchantProfile, isLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -24,6 +24,12 @@ export default function OnboardingPage() {
     default_currency: 'USDT',
     bio: '',
   });
+
+  useEffect(() => {
+    if (!isLoading && merchantProfile) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isLoading, merchantProfile, navigate]);
 
   const checkNickname = async (nick: string) => {
     if (nick.length < 3) { setNicknameStatus('idle'); return; }
@@ -66,7 +72,15 @@ export default function OnboardingPage() {
       toast.success('Merchant profile created!');
       navigate('/dashboard');
     } catch (err: unknown) {
+      await refreshProfile();
       const message = err instanceof Error ? err.message : 'Failed to create profile';
+
+      if (message.toLowerCase().includes('duplicate') || message.includes('409')) {
+        toast.info('Merchant profile already exists. Redirecting to dashboard.');
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+
       toast.error(message);
     } finally {
       setLoading(false);
