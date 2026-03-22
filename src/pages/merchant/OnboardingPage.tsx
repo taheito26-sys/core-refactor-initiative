@@ -115,7 +115,7 @@ export default function OnboardingPage() {
                   className="pr-8"
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                  {nicknameStatus === 'available' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                  {nicknameStatus === 'available' && <CheckCircle2 className="h-4 w-4 text-success" />}
                   {nicknameStatus === 'taken' && <XCircle className="h-4 w-4 text-destructive" />}
                 </div>
               </div>
