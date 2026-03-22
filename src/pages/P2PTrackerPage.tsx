@@ -278,6 +278,14 @@ export default function P2PTrackerPage() {
 
   const ccy = currentMarket.currency;
 
+  // ── KPI derivations ──
+  const todaySummary = dailySummaries.length > 0 ? dailySummaries[dailySummaries.length - 1] : null;
+  const todayHighSell = todaySummary?.highSell ?? null;
+  const todayLowSell = todaySummary?.lowSell ?? null;
+  const todayHighBuy = todaySummary?.highBuy ?? null;
+  const todayLowBuy = todaySummary?.lowBuy ?? null;
+  const todayPolls = todaySummary?.polls ?? 0;
+
   return (
     <div className="space-y-4 p-4">
       {/* ── Market Tabs + Refresh ── */}
@@ -306,6 +314,81 @@ export default function P2PTrackerPage() {
             </span>
           )}
         </div>
+      </div>
+
+      {/* ── KPI Banner ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <Card className="bg-card/80 border-border/50">
+          <CardContent className="p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Best Sell</div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              {snapshot?.bestSell?.toFixed(2) ?? '—'}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Top offer {ccy}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 border-border/50">
+          <CardContent className="p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Sell Avg (Top 5)</div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              {sellAvg > 0 ? sellAvg.toFixed(2) : '—'}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              {snapshot?.spreadPct != null ? (
+                <span className={snapshot.spreadPct >= 0 ? 'text-green-500' : 'text-red-500'}>
+                  {snapshot.spreadPct >= 0 ? '+' : ''}{snapshot.spreadPct.toFixed(2)}% vs {ccy} cost basis
+                </span>
+              ) : `avg ${ccy}`}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 border-border/50">
+          <CardContent className="p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Best Restock</div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              {snapshot?.bestBuy?.toFixed(2) ?? '—'}
+            </div>
+            <div className="text-[10px] text-muted-foreground">Lowest buy {ccy}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 border-border/50">
+          <CardContent className="p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Spread</div>
+            <div className={`text-2xl font-bold mt-1 ${snapshot?.spread != null && snapshot.spread > 0 ? 'text-green-500' : 'text-foreground'}`}>
+              {snapshot?.spread != null ? `${snapshot.spread.toFixed(4)}` : '—'}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              {snapshot?.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : 'No data'}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 border-border/50">
+          <CardContent className="p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Today High Sell</div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              {todayHighSell != null && todayHighSell > 0 ? todayHighSell.toFixed(2) : '—'}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Low {todayLowSell?.toFixed(2) ?? '—'} · {todayPolls} polls
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/80 border-border/50">
+          <CardContent className="p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Today Low Buy</div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              {todayLowBuy != null ? todayLowBuy.toFixed(2) : '—'}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              High {todayHighBuy != null && todayHighBuy > 0 ? todayHighBuy.toFixed(2) : '—'}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── Rate Cards (Buy + Sell) ── */}
