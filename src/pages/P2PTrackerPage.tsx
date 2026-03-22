@@ -506,19 +506,19 @@ export default function P2PTrackerPage() {
           </div>
           <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Sell Avg (Top 5)</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pSellAvgTop5Label')}</span>
               <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(4) || '—'} {ccy}</span>
             </div>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Buy Avg (Top 5)</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pBuyAvgTop5Label')}</span>
               <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg?.toFixed(4) || '—'} {ccy}</span>
             </div>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Sell Depth</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pSellDepth')}</span>
               <span className="font-mono text-[13px] font-extrabold text-muted-foreground">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Buy Depth</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pBuyDepth')}</span>
               <span className="font-mono text-[13px] font-extrabold text-muted-foreground">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             {profitIfSold && (
