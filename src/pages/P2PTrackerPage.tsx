@@ -598,9 +598,9 @@ export default function P2PTrackerPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-[11px] font-semibold flex items-center gap-1.5 text-destructive">
                 <TrendingDown className="h-3 w-3" />
-                Restock Offers
+                {t('p2pRestockOffers')}
               </CardTitle>
-              <Badge variant="destructive" className="text-[8px] px-1.5 py-0.5">Cheapest first</Badge>
+              <Badge variant="destructive" className="text-[8px] px-1.5 py-0.5">{t('p2pCheapestFirst')}</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
