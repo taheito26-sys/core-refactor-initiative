@@ -12,7 +12,7 @@ interface BinanceP2POffer {
     price: string;
     surplusAmount: string;
     minSingleTransAmount: string;
-    maxSingleTransOrderAmount: string;
+    maxSingleTransAmount: string;
     tradeMethods: { identifier: string; tradeMethodName: string }[];
   };
   advertiser: {
