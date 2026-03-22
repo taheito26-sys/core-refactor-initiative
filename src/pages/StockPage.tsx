@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { createDemoState } from '@/lib/tracker-demo-data';
+import { createEmptyState } from '@/lib/tracker-state';
 import {
   fmtU,
   fmtP,
