@@ -307,6 +307,7 @@ export default function VaultPage() {
         const sk = findTrackerStorageKey(localStorage);
         localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
+        await saveTrackerStateNow(normalized as TrackerState);
         toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة من السحابة' : '✓ Restored from cloud');
         setTimeout(() => window.location.reload(), 500);
       } else {
