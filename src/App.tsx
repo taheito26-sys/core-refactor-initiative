@@ -22,6 +22,9 @@ import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 // Onboarding
 import OnboardingPage from "./pages/merchant/OnboardingPage";
 
+// Admin
+import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
+
 // Placeholder pages (will be replaced in later phases)
 import DashboardPage from './pages/DashboardPage';
 const OrdersPage = createPlaceholderPage('Orders', 'Manage your trades and orders');
@@ -136,6 +139,7 @@ const App = () => (
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/invitations" element={<InvitationsPage />} />
                 <Route path="/approvals" element={<ApprovalsPage />} />
+                <Route path="/admin/approvals" element={<AdminApprovalsPage />} />
                 <Route path="/relationships" element={<RelationshipsPage />} />
               </Route>
 
