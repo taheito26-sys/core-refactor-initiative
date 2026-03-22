@@ -48,14 +48,14 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
           onClick={onMenuClick}
           className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-[1.2em] w-[1.2em]" />
         </button>
       )}
       <div className="flex-1 min-w-0">
-        <h1 className="text-sm font-bold text-foreground font-display leading-tight truncate">
+        <h1 className="text-[0.9em] font-bold text-foreground font-display leading-tight truncate">
           {meta.title}
         </h1>
-        <p className="text-[11px] text-muted-foreground leading-tight truncate">
+        <p className="text-[0.7em] text-muted-foreground leading-tight truncate">
           {meta.subtitle}
         </p>
       </div>
@@ -67,7 +67,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             key={r.id}
             onClick={() => update({ range: r.id as any })}
             className={cn(
-              'px-2 py-0.5 rounded text-[10px] font-semibold transition-all',
+              'px-2 py-0.5 rounded text-[0.65em] font-semibold transition-all',
               settings.range === r.id
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -85,7 +85,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             key={c}
             onClick={() => update({ currency: c })}
             className={cn(
-              'px-2 py-0.5 rounded text-[10px] font-semibold transition-all',
+              'px-2 py-0.5 rounded text-[0.65em] font-semibold transition-all',
               settings.currency === c
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -99,10 +99,10 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       {/* ── Language Toggle ── */}
       <button
         onClick={() => update({ language: settings.language === 'en' ? 'ar' : 'en' })}
-        className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-[10px] font-semibold text-muted-foreground transition-all"
+        className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-[0.65em] font-semibold text-muted-foreground transition-all"
         title={settings.language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
       >
-        <Globe className="w-3 h-3" />
+        <Globe className="w-[0.9em] h-[0.9em]" />
         {settings.language === 'en' ? 'AR' : 'EN'}
       </button>
 

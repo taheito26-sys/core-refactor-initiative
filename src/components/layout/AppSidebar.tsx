@@ -104,7 +104,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
   const NavSection = ({ title, items }: { title: string; items: NavItem[] }) => (
     <div className="mb-2">
       {!collapsed && (
-        <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
+        <div className="px-3 py-2 text-[0.625em] font-bold uppercase tracking-wider text-sidebar-foreground/50">
           {title}
         </div>
       )}
@@ -115,12 +115,12 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
               to={item.path}
               onClick={isMobile ? onMobileClose : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-[0.85em] transition-colors',
                 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                 isActive(item.path) && 'bg-sidebar-accent text-sidebar-primary font-medium'
               )}
             >
-              <item.icon className="h-4 w-4 shrink-0" />
+              <item.icon className="h-[1.1em] w-[1.1em] shrink-0" />
               {!collapsed && <span className="truncate">{item.label}</span>}
             </Link>
           </li>
@@ -132,14 +132,15 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
   const sidebarContent = (
     <aside
       className={cn(
-        'flex flex-col bg-sidebar border-r border-sidebar-border h-full transition-all duration-200',
+        'flex flex-col bg-sidebar border-sidebar-border h-full transition-all duration-200',
+        'ltr:border-r rtl:border-l',
         collapsed ? 'w-[60px]' : 'w-[220px]'
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-4 border-b border-sidebar-border">
         {!collapsed && (
-          <span className="font-display text-sm font-bold text-sidebar-foreground tracking-tight">
+          <span className="font-display text-[0.85em] font-bold text-sidebar-foreground tracking-tight">
             P2P Tracker
           </span>
         )}
@@ -148,12 +149,12 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
             onClick={() => setCollapsed(!collapsed)}
             className="p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60"
           >
-            <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
+            <ChevronLeft className={cn('h-[1.1em] w-[1.1em] transition-transform', collapsed && 'ltr:rotate-180 rtl:rotate-0', !collapsed && 'rtl:rotate-180')} />
           </button>
         )}
         {isMobile && (
           <button onClick={onMobileClose} className="p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60">
-            <X className="h-4 w-4" />
+            <X className="h-[1.1em] w-[1.1em]" />
           </button>
         )}
       </div>
@@ -161,10 +162,10 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       {/* Merchant info */}
       {!collapsed && merchantProfile && (
         <div className="px-3 py-3 border-b border-sidebar-border">
-          <div className="text-xs font-medium text-sidebar-foreground truncate">
+          <div className="text-[0.75em] font-medium text-sidebar-foreground truncate">
             {merchantProfile.display_name}
           </div>
-          <div className="text-[10px] text-sidebar-foreground/50 truncate">
+          <div className="text-[0.625em] text-sidebar-foreground/50 truncate">
             @{merchantProfile.nickname}
           </div>
         </div>
@@ -182,19 +183,19 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
           to="/notifications"
           onClick={isMobile ? onMobileClose : undefined}
           className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+            'flex items-center gap-3 rounded-lg px-3 py-2 text-[0.85em] transition-colors',
             'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
             isActive('/notifications') && 'bg-sidebar-accent text-sidebar-primary font-medium'
           )}
         >
-          <Bell className="h-4 w-4 shrink-0" />
+          <Bell className="h-[1.1em] w-[1.1em] shrink-0" />
           {!collapsed && <span>Notifications</span>}
         </Link>
         <button
           onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-destructive transition-colors"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[0.85em] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-destructive transition-colors"
         >
-          <LogOut className="h-4 w-4 shrink-0" />
+          <LogOut className="h-[1.1em] w-[1.1em] shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </button>
       </div>
@@ -213,8 +214,9 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       )}
       <div
         className={cn(
-          'fixed left-0 top-0 z-50 h-full transition-transform duration-200',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed top-0 z-50 h-full transition-transform duration-200',
+          'ltr:left-0 rtl:right-0',
+          mobileOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full'
         )}
       >
         {sidebarContent}
