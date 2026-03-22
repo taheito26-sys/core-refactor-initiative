@@ -7,14 +7,40 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { Loader2 } from "lucide-react";
 
+// Auth pages
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import PendingApprovalPage from "./pages/auth/PendingApprovalPage";
 import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
+
+// Onboarding
+import OnboardingPage from "./pages/merchant/OnboardingPage";
+
+// Placeholder pages (will be replaced in later phases)
+const DashboardPage = createPlaceholderPage('Dashboard', 'Trading overview and key metrics');
+const OrdersPage = createPlaceholderPage('Orders', 'Manage your trades and orders');
+const StockPage = createPlaceholderPage('Stock', 'Inventory and stock management');
+const CalendarPage = createPlaceholderPage('Calendar', 'Schedule and events');
+const P2PTrackerPage = createPlaceholderPage('P2P Tracker', 'Live P2P market rates');
+const CRMPage = createPlaceholderPage('CRM', 'Customer relationship management');
+const NetworkPage = createPlaceholderPage('Network', 'Merchant directory and connections');
+const DealsPage = createPlaceholderPage('Deals', 'Deal pipeline management');
+const AnalyticsPage = createPlaceholderPage('Analytics', 'Performance analytics and insights');
+const VaultPage = createPlaceholderPage('Vault', 'Secure document storage');
+const SettingsPage = createPlaceholderPage('Settings', 'Account and platform settings');
+const NotificationsPage = createPlaceholderPage('Notifications', 'Activity and alerts');
+const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
+const InvitationsPage = createPlaceholderPage('Invitations', 'Manage invitations');
+const ApprovalsPage = createPlaceholderPage('Approvals', 'Pending approvals');
+const RelationshipsPage = createPlaceholderPage('Relationships', 'Manage relationships');
+const RelationshipWorkspace = createPlaceholderPage('Workspace', 'Relationship workspace');
+
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,41 +79,6 @@ class RouteErrorBoundary extends React.Component<
   }
 }
 
-/** Placeholder for dashboard — will be replaced in Phase 3 */
-function DashboardPlaceholder() {
-  const { email, profile, merchantProfile, logout } = useAuth();
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-8">
-      <div className="text-center space-y-4 max-w-md">
-        <h1 className="text-2xl font-bold text-foreground">Welcome to TRACKER</h1>
-        <p className="text-muted-foreground">Signed in as {email}</p>
-        <p className="text-sm text-muted-foreground">
-          Profile status: {profile?.status ?? 'none'} | 
-          Merchant: {merchantProfile?.display_name ?? 'Not set up'}
-        </p>
-        <button
-          onClick={logout}
-          className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-sm"
-        >
-          Sign Out
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** Onboarding placeholder — will be replaced in Phase 3 */
-function OnboardingPlaceholder() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-8">
-      <div className="text-center space-y-4">
-        <h1 className="text-2xl font-bold text-foreground">Merchant Onboarding</h1>
-        <p className="text-muted-foreground">Onboarding page will be built in Phase 3.</p>
-      </div>
-    </div>
-  );
-}
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -97,13 +88,13 @@ const App = () => (
         <AuthProvider>
           <RouteErrorBoundary>
             <Routes>
-              {/* Auth pages — public */}
+              {/* Auth — public */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Pending approval — requires auth but not approval */}
+              {/* Pending approval — requires auth but not profile */}
               <Route path="/pending-approval" element={
                 <AuthGuard><PendingApprovalPage /></AuthGuard>
               } />
@@ -111,22 +102,50 @@ const App = () => (
                 <AuthGuard><AccountRejectedPage /></AuthGuard>
               } />
 
-              {/* Onboarding — requires auth + approved profile but no merchant profile */}
+              {/* Onboarding — requires auth */}
               <Route path="/onboarding" element={
-                <AuthGuard><OnboardingPlaceholder /></AuthGuard>
+                <AuthGuard><OnboardingPage /></AuthGuard>
               } />
 
-              {/* App shell — requires auth + approved profile + merchant profile */}
-              <Route path="/dashboard" element={
+              {/* App Shell — requires auth + approved profile + merchant profile */}
+              <Route element={
                 <AuthGuard>
                   <ProfileGuard>
-                    <DashboardPlaceholder />
+                    <AppLayout />
                   </ProfileGuard>
                 </AuthGuard>
-              } />
+              }>
+                {/* Trading */}
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/trading/orders" element={<OrdersPage />} />
+                <Route path="/trading/stock" element={<StockPage />} />
+                <Route path="/trading/calendar" element={<CalendarPage />} />
+                <Route path="/trading/p2p" element={<P2PTrackerPage />} />
+                <Route path="/crm" element={<CRMPage />} />
+
+                {/* Network */}
+                <Route path="/network" element={<NetworkPage />} />
+                <Route path="/network/:relationshipId" element={<RelationshipWorkspace />} />
+
+                {/* Supporting */}
+                <Route path="/deals" element={<DealsPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/vault" element={<VaultPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/messages" element={<MessagesPage />} />
+                <Route path="/invitations" element={<InvitationsPage />} />
+                <Route path="/approvals" element={<ApprovalsPage />} />
+                <Route path="/relationships" element={<RelationshipsPage />} />
+              </Route>
 
               {/* Root redirect */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+              {/* Legacy redirects from repo */}
+              <Route path="/trading" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/merchant" element={<Navigate to="/network" replace />} />
+              <Route path="/merchant/*" element={<Navigate to="/network" replace />} />
 
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
