@@ -569,7 +569,7 @@ export default function P2PTrackerPage() {
                     );
                   })}
                   {!snapshot.buyOffers?.length && (
-                    <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No buy offers available</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No buy offers available</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
