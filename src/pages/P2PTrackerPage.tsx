@@ -607,12 +607,12 @@ export default function P2PTrackerPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Trader</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Price</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Methods</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Trades</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pTrader')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pPrice')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMin')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMax')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pMethods')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pTrades')}</TableHead>
                   <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-center w-6">✓</TableHead>
                 </TableRow>
               </TableHeader>
