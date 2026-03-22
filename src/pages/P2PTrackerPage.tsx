@@ -258,6 +258,46 @@ export default function P2PTrackerPage() {
     return dailySummaries.filter(d => d.date >= cutoff);
   }, [dailySummaries, historyRange]);
 
+  // Weekly band stats
+  const weeklyStats = useMemo(() => {
+    const now = new Date();
+    const startOfThisWeek = new Date(now);
+    startOfThisWeek.setDate(now.getDate() - now.getDay());
+    startOfThisWeek.setHours(0, 0, 0, 0);
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    const thisWeekStr = startOfThisWeek.toISOString().slice(0, 10);
+    const lastWeekStr = startOfLastWeek.toISOString().slice(0, 10);
+
+    const thisWeekDays = dailySummaries.filter(d => d.date >= thisWeekStr);
+    const lastWeekDays = dailySummaries.filter(d => d.date >= lastWeekStr && d.date < thisWeekStr);
+
+    const avgOf = (days: DaySummary[], fn: (d: DaySummary) => number | null) => {
+      const vals = days.map(fn).filter((v): v is number => v !== null && v > 0);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    };
+
+    return {
+      sell: {
+        thisWeek: avgOf(thisWeekDays, d => (d.highSell + (d.lowSell ?? d.highSell)) / 2),
+        lastWeek: avgOf(lastWeekDays, d => (d.highSell + (d.lowSell ?? d.highSell)) / 2),
+        thisWeekHigh: thisWeekDays.length ? Math.max(...thisWeekDays.map(d => d.highSell)) : null,
+        lastWeekHigh: lastWeekDays.length ? Math.max(...lastWeekDays.map(d => d.highSell)) : null,
+        thisWeekPolls: thisWeekDays.reduce((s, d) => s + d.polls, 0),
+        lastWeekPolls: lastWeekDays.reduce((s, d) => s + d.polls, 0),
+      },
+      buy: {
+        thisWeek: avgOf(thisWeekDays, d => (d.highBuy + (d.lowBuy ?? d.highBuy)) / 2),
+        lastWeek: avgOf(lastWeekDays, d => (d.highBuy + (d.lowBuy ?? d.highBuy)) / 2),
+        thisWeekLow: thisWeekDays.length ? Math.min(...thisWeekDays.filter(d => d.lowBuy != null).map(d => d.lowBuy!)) : null,
+        lastWeekLow: lastWeekDays.length ? Math.min(...lastWeekDays.filter(d => d.lowBuy != null).map(d => d.lowBuy!)) : null,
+        thisWeekPolls: thisWeekDays.reduce((s, d) => s + d.polls, 0),
+        lastWeekPolls: lastWeekDays.reduce((s, d) => s + d.polls, 0),
+      },
+    };
+  }, [dailySummaries]);
+
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
@@ -340,6 +380,60 @@ export default function P2PTrackerPage() {
         )}
 
         <Badge variant="outline" className="font-mono text-xs">{currentMarket.pair}</Badge>
+      </div>
+
+      {/* ── 2 Big KPI Bands (Weekly Summary) ── */}
+      <div className="tracker-root" style={{ background: 'transparent' }}>
+        <div className="kpi-band-grid">
+          {/* SELL BAND */}
+          <div className="kpi-band">
+            <div className="kpi-band-title">Sell Rate Summary</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">This Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--bad)' }}>
+                  {weeklyStats.sell.thisWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  High {weeklyStats.sell.thisWeekHigh?.toFixed(3) || '—'} · {weeklyStats.sell.thisWeekPolls} polls
+                </div>
+              </div>
+              <div>
+                <div className="kpi-period">Last Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--bad)', opacity: 0.7 }}>
+                  {weeklyStats.sell.lastWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  High {weeklyStats.sell.lastWeekHigh?.toFixed(3) || '—'} · {weeklyStats.sell.lastWeekPolls} polls
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* BUY BAND */}
+          <div className="kpi-band">
+            <div className="kpi-band-title">Buy Rate Summary</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">This Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>
+                  {weeklyStats.buy.thisWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  Low {weeklyStats.buy.thisWeekLow?.toFixed(3) || '—'} · {weeklyStats.buy.thisWeekPolls} polls
+                </div>
+              </div>
+              <div>
+                <div className="kpi-period">Last Week</div>
+                <div className="kpi-cell-val" style={{ color: 'var(--good)', opacity: 0.7 }}>
+                  {weeklyStats.buy.lastWeek?.toFixed(3) || '—'}
+                </div>
+                <div className="kpi-cell-sub">
+                  Low {weeklyStats.buy.lastWeekLow?.toFixed(3) || '—'} · {weeklyStats.buy.lastWeekPolls} polls
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── KPI Cards (tracker.css – exact source repo sizing) ── */}
