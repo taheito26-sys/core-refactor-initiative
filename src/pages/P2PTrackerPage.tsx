@@ -456,7 +456,7 @@ export default function P2PTrackerPage() {
               Market Info
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             <div className="flex items-center justify-between p-3 rounded-lg border border-border">
               <span className="text-sm text-muted-foreground">Sell Avg (Top 5)</span>
               <span className="font-bold font-mono text-destructive">{sellAvg.toFixed(4)} {ccy}</span>
