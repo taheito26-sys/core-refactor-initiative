@@ -27,8 +27,8 @@ import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
 
 // Placeholder pages (will be replaced in later phases)
 import DashboardPage from './pages/DashboardPage';
-const OrdersPage = createPlaceholderPage('Orders', 'Manage your trades and orders');
-const StockPage = createPlaceholderPage('Stock', 'Inventory and stock management');
+import OrdersPage from './pages/OrdersPage';
+import StockPage from './pages/StockPage';
 const CalendarPage = createPlaceholderPage('Calendar', 'Schedule and events');
 import P2PTrackerPage from './pages/P2PTrackerPage';
 const CRMPage = createPlaceholderPage('CRM', 'Customer relationship management');
