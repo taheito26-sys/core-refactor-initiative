@@ -35,15 +35,12 @@ export default function StockPage() {
   const { settings, update } = useTheme();
   const t = useT();
 
-  const initial = useMemo(() => createEmptyState({
+  const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
     currency: settings.currency,
-  }), []);
-
-  const [state, setState] = useState<TrackerState>(initial.state);
-  const [derived, setDerived] = useState(initial.derived);
+  });
 
   const [batchDate, setBatchDate] = useState(nowInput());
   const [batchMode, setBatchMode] = useState<'QAR' | 'USDT'>('QAR');
