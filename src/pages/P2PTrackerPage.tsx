@@ -470,8 +470,8 @@ export default function P2PTrackerPage() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
         <div className="tracker-root panel">
           <div className="panel-head" style={{ padding: '10px 14px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>📊 Price History</h2>
-            <span className="pill">{last24hHistory.length} pts · 24h</span>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{t('p2pPriceHistory')}</h2>
+            <span className="pill">{last24hHistory.length} {t('p2pPts24h')}</span>
           </div>
           <div className="panel-body" style={{ padding: '14px 18px 18px', minHeight: 220, display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div className="flex items-start justify-between gap-3">
