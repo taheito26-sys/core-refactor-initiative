@@ -36,8 +36,8 @@ import SettingsPage from './pages/SettingsPage';
 // Placeholder pages (will be replaced in later phases)
 import CalendarPage from './pages/CalendarPage';
 import CRMPage from './pages/CRMPage';
-const NetworkPage = createPlaceholderPage('Network', 'Merchant directory and connections');
-const DealsPage = createPlaceholderPage('Deals', 'Deal pipeline management');
+import MerchantsPage from './pages/MerchantsPage';
+import NetworkPage from './pages/NetworkPage';
 const AnalyticsPage = createPlaceholderPage('Analytics', 'Performance analytics and insights');
 const NotificationsPage = createPlaceholderPage('Notifications', 'Activity and alerts');
 const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
