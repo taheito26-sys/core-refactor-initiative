@@ -40,62 +40,77 @@ export default function P2PTrackerPage() {
 
   const currentMarket = MARKETS.find(m => m.id === market) || MARKETS[0];
 
+  const loadFromDb = useCallback(async () => {
+    // Fetch latest snapshot from database
+    const { data: latestRow, error: latestErr } = await supabase
+      .from('p2p_snapshots')
+      .select('*')
+      .eq('market', market)
+      .order('fetched_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestErr) throw latestErr;
+
+    if (latestRow?.data) {
+      const d = latestRow.data as any;
+      setSnapshot({
+        ts: d.ts || new Date(latestRow.fetched_at).getTime(),
+        sellAvg: d.sellAvg ?? 0,
+        buyAvg: d.buyAvg ?? 0,
+        bestSell: d.bestSell ?? 0,
+        bestBuy: d.bestBuy ?? 0,
+        spread: d.spread ?? 0,
+        spreadPct: d.spreadPct ?? 0,
+        sellDepth: d.sellDepth ?? 0,
+        buyDepth: d.buyDepth ?? 0,
+        sellOffers: d.sellOffers ?? [],
+        buyOffers: d.buyOffers ?? [],
+      });
+    } else {
+      setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, sellDepth: 0, buyDepth: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
+    }
+
+    // Fetch history (last 15 days of snapshots)
+    const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: histRows, error: histErr } = await supabase
+      .from('p2p_snapshots')
+      .select('data, fetched_at')
+      .eq('market', market)
+      .gte('fetched_at', cutoff)
+      .order('fetched_at', { ascending: true });
+
+    if (histErr) throw histErr;
+
+    const historyPts: P2PHistoryPoint[] = (histRows || []).map((row: any) => {
+      const d = row.data as any;
+      return {
+        ts: d.ts || new Date(row.fetched_at).getTime(),
+        sellAvg: d.sellAvg ?? null,
+        buyAvg: d.buyAvg ?? null,
+        spread: d.spread ?? null,
+        spreadPct: d.spreadPct ?? null,
+      };
+    });
+    setHistory(historyPts);
+    setLastUpdate(new Date().toISOString());
+  }, [market]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch latest snapshot from database
-      const { data: latestRow, error: latestErr } = await supabase
-        .from('p2p_snapshots')
-        .select('*')
-        .eq('market', market)
-        .order('fetched_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (latestErr) throw latestErr;
-
-      if (latestRow?.data) {
-        const d = latestRow.data as any;
-        setSnapshot({
-          ts: d.ts || new Date(latestRow.fetched_at).getTime(),
-          sellAvg: d.sellAvg ?? 0,
-          buyAvg: d.buyAvg ?? 0,
-          bestSell: d.bestSell ?? 0,
-          bestBuy: d.bestBuy ?? 0,
-          spread: d.spread ?? 0,
-          spreadPct: d.spreadPct ?? 0,
-          sellDepth: d.sellDepth ?? 0,
-          buyDepth: d.buyDepth ?? 0,
-          sellOffers: d.sellOffers ?? [],
-          buyOffers: d.buyOffers ?? [],
-        });
-      } else {
-        setSnapshot({ buyAvg: 0, sellAvg: 0, bestBuy: 0, bestSell: 0, spread: 0, spreadPct: 0, sellDepth: 0, buyDepth: 0, buyOffers: [], sellOffers: [], ts: Date.now() });
+      // Scrape fresh data from Binance via edge function, then load from DB
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      try {
+        await fetch(
+          `https://${projectId}.supabase.co/functions/v1/p2p-scraper?market=${market}`,
+          { method: 'GET' }
+        );
+      } catch {
+        // Scrape failure is non-fatal — we still load whatever is in DB
+        console.warn('P2P scraper call failed, loading cached data');
       }
-
-      // Fetch history (last 15 days of snapshots)
-      const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: histRows, error: histErr } = await supabase
-        .from('p2p_snapshots')
-        .select('data, fetched_at')
-        .eq('market', market)
-        .gte('fetched_at', cutoff)
-        .order('fetched_at', { ascending: true });
-
-      if (histErr) throw histErr;
-
-      const historyPts: P2PHistoryPoint[] = (histRows || []).map((row: any) => {
-        const d = row.data as any;
-        return {
-          ts: d.ts || new Date(row.fetched_at).getTime(),
-          sellAvg: d.sellAvg ?? null,
-          buyAvg: d.buyAvg ?? null,
-          spread: d.spread ?? null,
-          spreadPct: d.spreadPct ?? null,
-        };
-      });
-      setHistory(historyPts);
-      setLastUpdate(new Date().toISOString());
+      await loadFromDb();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load P2P data';
       toast.error(msg);
@@ -104,7 +119,7 @@ export default function P2PTrackerPage() {
     } finally {
       setLoading(false);
     }
-  }, [market]);
+  }, [market, loadFromDb]);
 
   useEffect(() => { load(); }, [load]);
 
