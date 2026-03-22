@@ -744,6 +744,10 @@ function applyThemeToDOM(settings: AppSettings) {
   // Global font application
   document.body.style.fontFamily = `'${settings.ledgerFont}', sans-serif`;
   document.body.style.fontSize = `${lfsClamped}px`;
+
+  // RTL support
+  root.dir = settings.language === 'ar' ? 'rtl' : 'ltr';
+  root.lang = settings.language;
 }
 
 // ── Provider ──
