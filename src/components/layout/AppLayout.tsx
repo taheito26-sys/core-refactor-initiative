@@ -3,13 +3,16 @@ import { useState } from 'react';
 import { AppSidebar, MobileBottomNav } from './AppSidebar';
 import { TopBar } from './TopBar';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTheme } from '@/lib/theme-context';
 
 export function AppLayout() {
   const isMobile = useIsMobile();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { settings } = useTheme();
+  const isRTL = settings.language === 'ar';
 
   return (
-    <div className="app-shell flex h-dvh overflow-hidden">
+    <div className="app-shell flex h-dvh overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Desktop sidebar */}
       {!isMobile && <AppSidebar />}
 
