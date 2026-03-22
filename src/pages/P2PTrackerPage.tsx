@@ -510,47 +510,38 @@ export default function P2PTrackerPage() {
 
         <div className="tracker-root panel">
           <div className="panel-head" style={{ padding: '8px 12px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>🎯 Position Advisor</h2>
-            <span className="pill good" style={{ fontSize: 9 }}>Computed from real data</span>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>📋 Market Info</h2>
+            <span className="pill" style={{ fontSize: 9 }}>{currentMarket.pair}</span>
           </div>
           <div className="panel-body" style={{ padding: '10px 14px 14px', minHeight: 180, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="flex items-center justify-between rounded-[8px] border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5">
-              <span className="text-[11px] text-muted-foreground">Your Av Price</span>
-              <span className="font-mono text-[14px] font-extrabold">{advisor ? `${advisor.avgPrice.toFixed(4)} ${ccy}` : '—'}</span>
-            </div>
-            <div className="flex items-center justify-between rounded-[8px] border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5 gap-4">
-              <span className="text-[11px] text-muted-foreground">Target margin (manual %)</span>
-              <Input
-                type="number"
-                step="0.1"
-                value={targetMargin}
-                onChange={(e) => setTargetMargin(e.target.value)}
-                className="h-7 w-16 text-right font-mono text-[11px]"
-              />
+              <span className="text-[11px] text-muted-foreground">Sell Depth</span>
+              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellDepth.toLocaleString()} USDT</span>
             </div>
             <div className="flex items-center justify-between rounded-[8px] border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5">
-              <span className="text-[11px] text-muted-foreground">Target price ({targetMarginValue}% margin)</span>
-              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--good)' }}>{advisor ? `${advisor.targetPrice.toFixed(5)} ${ccy}` : '—'}</span>
+              <span className="text-[11px] text-muted-foreground">Buy Depth</span>
+              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyDepth.toLocaleString()} USDT</span>
             </div>
-            <div className="rounded-[6px] border px-3 py-2.5" style={{ borderColor: 'color-mix(in srgb, var(--good) 45%, transparent)', background: 'color-mix(in srgb, var(--good) 12%, transparent)' }}>
-              <div className="text-[11px] font-extrabold" style={{ color: 'var(--good)' }}>
-                {advisor?.sellReady ? '✓ Good time to sell' : '• Wait for better sell price'}
-              </div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground">
-                {advisor ? `Sell avg ${sellAvg.toFixed(3)} ${advisor.sellReady ? '≥' : '<'} target ${advisor.targetPrice.toFixed(5)}` : 'Import stock data to enable advice'}
-              </div>
+            <div className="flex items-center justify-between rounded-[8px] border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5">
+              <span className="text-[11px] text-muted-foreground">Sell Offers</span>
+              <span className="font-mono text-[14px] font-extrabold">{snapshot.sellOffers.length}</span>
             </div>
-            <div className="rounded-[6px] border px-3 py-2.5" style={{ borderColor: 'color-mix(in srgb, var(--warn) 45%, transparent)', background: 'color-mix(in srgb, var(--warn) 12%, transparent)' }}>
-              <div className="text-[11px] font-extrabold" style={{ color: 'var(--warn)' }}>
-                {advisor?.restockAboveCost ? '⚠ Restock above avg cost' : '✓ Restock below avg cost'}
-              </div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground">
-                {advisor ? (advisor.restockAboveCost ? 'Would raise avg cost' : 'Would improve cost basis') : 'Import stock data to enable advice'}
-              </div>
+            <div className="flex items-center justify-between rounded-[8px] border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5">
+              <span className="text-[11px] text-muted-foreground">Buy Offers</span>
+              <span className="font-mono text-[14px] font-extrabold">{snapshot.buyOffers.length}</span>
             </div>
+            {profitIfSold && (
+              <div className="rounded-[6px] border px-3 py-2.5" style={{ borderColor: 'color-mix(in srgb, var(--good) 45%, transparent)', background: 'color-mix(in srgb, var(--good) 12%, transparent)' }}>
+                <div className="text-[11px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                  {profitIfSold.profit >= 0 ? '✓' : '✗'} Profit if sold now: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {profitIfSold.stock.toFixed(3)} USDT · WACOP {profitIfSold.wacop.toFixed(4)} {ccy}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
         <Card className="border-border/50">
