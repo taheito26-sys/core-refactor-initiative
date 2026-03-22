@@ -194,6 +194,7 @@ export default function P2PTrackerPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
+  const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
 
