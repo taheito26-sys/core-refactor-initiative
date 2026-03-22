@@ -41,8 +41,8 @@ export const tradingNav: NavItem[] = [
 ];
 
 export const networkNav: NavItem[] = [
+  { labelKey: 'theMerchants', fallback: 'The Merchants', icon: Store, path: '/merchants' },
   { labelKey: 'network', fallback: 'Network', icon: Users, path: '/network' },
-  { labelKey: 'deals', fallback: 'Deals', icon: Briefcase, path: '/deals' },
   { labelKey: 'analytics', fallback: 'Analytics', icon: BarChart3, path: '/analytics' },
   { labelKey: 'vault', fallback: 'Vault', icon: CloudUpload, path: '/trading/vault' },
   { labelKey: 'settings', fallback: 'Settings', icon: Settings, path: '/settings' },
