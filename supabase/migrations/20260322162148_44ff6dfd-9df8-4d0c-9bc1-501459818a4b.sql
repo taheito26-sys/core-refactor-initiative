@@ -1,0 +1,1 @@
+ALTER TABLE public.tracker_snapshots ADD COLUMN preferences jsonb NOT NULL DEFAULT '{}'::jsonb;
