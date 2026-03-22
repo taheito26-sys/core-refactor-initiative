@@ -11,6 +11,8 @@ import { RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronRight } from '
 import { format } from 'date-fns';
 import { computeFIFO, totalStock, getWACOP, stockCostQAR, type TrackerState } from '@/lib/tracker-helpers';
 import { getCurrentTrackerState } from '@/lib/tracker-backup';
+import { useT } from '@/lib/i18n';
+import '@/styles/tracker.css';
 import '@/styles/tracker.css';
 
 // ── Types ──
@@ -192,6 +194,7 @@ export default function P2PTrackerPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
+  const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
 
@@ -394,7 +397,7 @@ export default function P2PTrackerPage() {
 
         <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="gap-1.5 h-8 text-[11px]">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('p2pRefresh')}
         </Button>
 
         <Button
@@ -404,12 +407,12 @@ export default function P2PTrackerPage() {
           className="gap-1.5 h-8 text-[11px]"
         >
           <span className={`h-2 w-2 rounded-full ${autoRefresh ? 'bg-green-400 animate-pulse' : 'bg-muted-foreground'}`} />
-          Auto-refresh
+          {t('p2pAutoRefresh')}
         </Button>
 
         {lastUpdate && (
           <span className="text-[11px] text-muted-foreground">
-            Updated {new Date(lastUpdate).toLocaleTimeString()}
+            {t('p2pUpdated')} {new Date(lastUpdate).toLocaleTimeString()}
           </span>
         )}
 
@@ -419,46 +422,46 @@ export default function P2PTrackerPage() {
       <div className="tracker-root" style={{ background: 'transparent' }}>
         <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
           <div className="kpi-card">
-            <div className="kpi-lbl">BEST SELL</div>
+            <div className="kpi-lbl">{t('p2pBestSell')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Top sell {ccy}</div>
+            <div className="kpi-sub">{t('p2pTopSell')} {ccy}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">SELL AVG (TOP 5)</div>
+            <div className="kpi-lbl">{t('p2pSellAvgTop5')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(2) || '—'}</div>
             <div className="kpi-sub" style={{ color: 'var(--good)' }}>
-              {snapshot.spreadPct ? `+${snapshot.spreadPct.toFixed(2)}% spread` : 'Live weighted average'}
+              {snapshot.spreadPct ? `+${snapshot.spreadPct.toFixed(2)}% ${t('p2pSpreadLabel').toLowerCase()}` : t('p2pLiveWeightedAvg')}
             </div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">BEST RESTOCK</div>
+            <div className="kpi-lbl">{t('p2pBestRestock')}</div>
             <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestBuy?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Cheapest restock {ccy}</div>
+            <div className="kpi-sub">{t('p2pCheapestRestock')} {ccy}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">SPREAD</div>
+            <div className="kpi-lbl">{t('p2pSpread')}</div>
             <div className="kpi-val" style={{ color: snapshot.spread != null && snapshot.spread > 0 ? 'var(--good)' : 'var(--bad)' }}>
               {snapshot.spread != null ? snapshot.spread.toFixed(4) : '—'}
             </div>
-            <div className="kpi-sub">{snapshot.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : 'No data'}</div>
+            <div className="kpi-sub">{snapshot.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : t('p2pNoData')}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">TODAY HIGH SELL</div>
+            <div className="kpi-lbl">{t('p2pTodayHighSell')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.highSell.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Low {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} polls</div>
+            <div className="kpi-sub">{t('p2pLow')} {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} {t('p2pPolls').toLowerCase()}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">TODAY LOW BUY</div>
+            <div className="kpi-lbl">{t('p2pTodayLowBuy')}</div>
             <div className="kpi-val" style={{ color: 'var(--bad)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">High {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
+            <div className="kpi-sub">{t('p2pHigh')} {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
           </div>
           {profitIfSold && (
             <div className="kpi-card">
-              <div className="kpi-lbl">PROFIT IF SOLD NOW</div>
+              <div className="kpi-lbl">{t('p2pProfitIfSoldNow')}</div>
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                 {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
               </div>
-              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · cost basis</div>
+              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · {t('p2pCostBasis')}</div>
             </div>
           )}
         </div>
@@ -467,12 +470,12 @@ export default function P2PTrackerPage() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
         <div className="tracker-root panel">
           <div className="panel-head" style={{ padding: '10px 14px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>📊 Price History</h2>
-            <span className="pill">{last24hHistory.length} pts · 24h</span>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{t('p2pPriceHistory')}</h2>
+            <span className="pill">{last24hHistory.length} {t('p2pPts24h')}</span>
           </div>
           <div className="panel-body" style={{ padding: '14px 18px 18px', minHeight: 220, display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">Sell Avg</span>
+              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
               <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(3) : '—'}</span>
             </div>
             <div className="flex items-end gap-1 h-8">
@@ -481,7 +484,7 @@ export default function P2PTrackerPage() {
               ))}
             </div>
             <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">Buy Avg</span>
+              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
               <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
             </div>
             <div className="flex items-end gap-1 h-8">
@@ -490,38 +493,38 @@ export default function P2PTrackerPage() {
               ))}
             </div>
             <div className="flex gap-2 pt-1">
-              <span className="pill">Sell {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
-              <span className="pill">Buy {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
+              <span className="pill">{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
+              <span className="pill">{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
             </div>
           </div>
         </div>
 
         <div className="tracker-root panel">
           <div className="panel-head" style={{ padding: '8px 12px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>📋 Market Info</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>{t('p2pMarketInfo')}</h2>
             <span className="pill" style={{ fontSize: 9 }}>{currentMarket.pair}</span>
           </div>
           <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Sell Avg (Top 5)</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pSellAvgTop5Label')}</span>
               <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(4) || '—'} {ccy}</span>
             </div>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Buy Avg (Top 5)</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pBuyAvgTop5Label')}</span>
               <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg?.toFixed(4) || '—'} {ccy}</span>
             </div>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Sell Depth</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pSellDepth')}</span>
               <span className="font-mono text-[13px] font-extrabold text-muted-foreground">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-[11px] text-muted-foreground">Buy Depth</span>
+              <span className="text-[11px] text-muted-foreground">{t('p2pBuyDepth')}</span>
               <span className="font-mono text-[13px] font-extrabold text-muted-foreground">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             {profitIfSold && (
               <div className="border-t border-[var(--line)] px-4 py-3">
                 <div className="text-[11px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} Profit if sold now: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
+                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
                 </div>
                 <div className="mt-0.5 text-[10px] text-muted-foreground">
                   {profitIfSold.stock.toFixed(3)} USDT · WACOP {profitIfSold.wacop.toFixed(4)} {ccy}
@@ -538,21 +541,21 @@ export default function P2PTrackerPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-[11px] font-semibold flex items-center gap-1.5" style={{ color: 'var(--good)' }}>
                 <TrendingUp className="h-3 w-3" />
-                Sell Offers
+                {t('p2pSellOffers')}
               </CardTitle>
-              <Badge className="text-[8px] px-1.5 py-0.5" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>Highest first · ✓ fits your stock</Badge>
+              <Badge className="text-[8px] px-1.5 py-0.5" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>{t('p2pHighestFirst')}</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Trader</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Price</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Methods</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Trades</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pTrader')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pPrice')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMin')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMax')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pMethods')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pTrades')}</TableHead>
                   <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-center w-6">✓</TableHead>
                 </TableRow>
               </TableHeader>
@@ -583,7 +586,7 @@ export default function P2PTrackerPage() {
                   );
                 })}
                 {!snapshot.sellOffers?.length && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">No sell offers</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">{t('p2pNoSellOffers')}</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -595,21 +598,21 @@ export default function P2PTrackerPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-[11px] font-semibold flex items-center gap-1.5 text-destructive">
                 <TrendingDown className="h-3 w-3" />
-                Restock Offers
+                {t('p2pRestockOffers')}
               </CardTitle>
-              <Badge variant="destructive" className="text-[8px] px-1.5 py-0.5">Cheapest first</Badge>
+              <Badge variant="destructive" className="text-[8px] px-1.5 py-0.5">{t('p2pCheapestFirst')}</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Trader</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Price</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">Methods</TableHead>
-                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Trades</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pTrader')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pPrice')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMin')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMax')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pMethods')}</TableHead>
+                  <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pTrades')}</TableHead>
                   <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-center w-6">✓</TableHead>
                 </TableRow>
               </TableHeader>
@@ -640,7 +643,7 @@ export default function P2PTrackerPage() {
                   );
                 })}
                 {!snapshot.buyOffers?.length && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">No restock offers</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-[10px]">{t('p2pNoRestockOffers')}</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -653,8 +656,8 @@ export default function P2PTrackerPage() {
         <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowHistory(!showHistory)}>
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-display flex items-center gap-2">
-              {showHistory ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              Historical Averages
+               {showHistory ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+               {t('p2pHistoricalAverages')}
             </CardTitle>
             <div className="flex items-center gap-2">
               {showHistory && (
@@ -663,7 +666,7 @@ export default function P2PTrackerPage() {
                   <Button size="sm" variant={historyRange === '15d' ? 'default' : 'ghost'} onClick={e => { e.stopPropagation(); setHistoryRange('15d'); }}>15D</Button>
                 </div>
               )}
-              <Badge variant="secondary" className="text-xs">{filteredSummaries.length} days</Badge>
+              <Badge variant="secondary" className="text-xs">{filteredSummaries.length} {t('p2pDays')}</Badge>
             </div>
           </div>
         </CardHeader>
@@ -673,15 +676,15 @@ export default function P2PTrackerPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Sell High</TableHead>
-                    <TableHead className="text-right">Sell Low</TableHead>
-                    <TableHead className="text-right">Sell Avg</TableHead>
-                    <TableHead className="text-right">Buy High</TableHead>
-                    <TableHead className="text-right">Buy Low</TableHead>
-                    <TableHead className="text-right">Buy Avg</TableHead>
-                    <TableHead className="text-right">Spread</TableHead>
-                    <TableHead className="text-right">Polls</TableHead>
+                     <TableHead>{t('date')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSellHigh')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSellLow')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSellAvg')}</TableHead>
+                     <TableHead className="text-right">{t('p2pBuyHigh')}</TableHead>
+                     <TableHead className="text-right">{t('p2pBuyLow')}</TableHead>
+                     <TableHead className="text-right">{t('p2pBuyAvg')}</TableHead>
+                     <TableHead className="text-right">{t('p2pSpreadLabel')}</TableHead>
+                     <TableHead className="text-right">{t('p2pPolls')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
