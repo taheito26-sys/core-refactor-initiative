@@ -105,7 +105,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
   const NavSection = ({ title, items }: { title: string; items: NavItem[] }) => (
     <div className="mb-2">
       {!collapsed && (
-        <div className="px-3 py-2 text-[0.625em] font-bold uppercase tracking-wider text-sidebar-foreground/50">
+        <div className="px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
           {title}
         </div>
       )}
