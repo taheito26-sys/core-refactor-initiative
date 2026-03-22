@@ -25,6 +25,12 @@ export default function OnboardingPage() {
     bio: '',
   });
 
+  useEffect(() => {
+    if (!isLoading && merchantProfile) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isLoading, merchantProfile, navigate]);
+
   const checkNickname = async (nick: string) => {
     if (nick.length < 3) { setNicknameStatus('idle'); return; }
     setNicknameStatus('checking');
@@ -66,7 +72,15 @@ export default function OnboardingPage() {
       toast.success('Merchant profile created!');
       navigate('/dashboard');
     } catch (err: unknown) {
+      await refreshProfile();
       const message = err instanceof Error ? err.message : 'Failed to create profile';
+
+      if (message.toLowerCase().includes('duplicate') || message.includes('409')) {
+        toast.info('Merchant profile already exists. Redirecting to dashboard.');
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+
       toast.error(message);
     } finally {
       setLoading(false);

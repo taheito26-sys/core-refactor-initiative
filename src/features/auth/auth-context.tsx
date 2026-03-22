@@ -53,61 +53,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
 
-  const refreshProfile = useCallback(async () => {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    if (!currentUser) {
+  const loadUserProfiles = useCallback(async (currentUserId?: string | null) => {
+    const resolvedUserId = currentUserId ?? (await supabase.auth.getUser()).data.user?.id ?? null;
+
+    if (!resolvedUserId) {
       setProfile(null);
       setMerchantProfile(null);
       return;
     }
 
-    // Fetch profile
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-    setProfile(profileData as Profile | null);
+    const [{ data: profileData }, { data: merchantData }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', resolvedUserId)
+        .maybeSingle(),
+      supabase
+        .from('merchant_profiles')
+        .select('*')
+        .eq('user_id', resolvedUserId)
+        .maybeSingle(),
+    ]);
 
-    // Fetch merchant profile
-    const { data: merchantData } = await supabase
-      .from('merchant_profiles')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
+    setProfile(profileData as Profile | null);
     setMerchantProfile(merchantData as MerchantProfile | null);
   }, []);
 
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
+  const refreshProfile = useCallback(async () => {
+    await loadUserProfiles();
+  }, [loadUserProfiles]);
 
-        if (newSession?.user) {
-          // Use setTimeout to avoid Supabase client deadlock
-          setTimeout(() => refreshProfile(), 0);
-        } else {
-          setProfile(null);
-          setMerchantProfile(null);
-        }
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncAuthState = async (newSession: Session | null) => {
+      if (!isMounted) return;
+
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      if (newSession?.user) {
+        await loadUserProfiles(newSession.user.id);
+      } else {
+        setProfile(null);
+        setMerchantProfile(null);
+      }
+
+      if (isMounted) {
         setIsLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        void syncAuthState(newSession);
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      setUser(existingSession?.user ?? null);
-      if (existingSession?.user) {
-        refreshProfile();
-      }
-      setIsLoading(false);
+    void supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      void syncAuthState(existingSession);
     });
 
-    return () => subscription.unsubscribe();
-  }, [refreshProfile]);
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [loadUserProfiles]);
 
   const login = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
