@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { p2p } from '@/lib/api';
-import { computeDailySummaries } from '@/lib/p2p-demo-data';
+import { computeDailySummaries } from '@/lib/p2p-utils';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
 import type { P2PSnapshot, P2PHistoryPoint, P2POffer } from '@/types/domain';
