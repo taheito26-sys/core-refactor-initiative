@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createEmptyState } from '@/lib/tracker-state';
+import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtQWithUnit, fmtU, fmtQ, fmtPct, fmtP,
   kpiFor, totalStock, stockCostQAR, getWACOP,
@@ -16,12 +16,12 @@ export default function DashboardPage() {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
-  const { state, derived } = useMemo(() => createEmptyState({
+  const { state, derived } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
     currency: settings.currency,
-  }), [settings.lowStockThreshold, settings.priceAlertThreshold, settings.range, settings.currency]);
+  });
 
   const d1 = kpiFor(state, derived, 'today');
   const d7 = kpiFor(state, derived, '7d');
