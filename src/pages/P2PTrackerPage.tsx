@@ -137,8 +137,6 @@ const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[]
   { id: 'turkey', label: 'Turkey', currency: 'TRY', pair: 'USDT/TRY' },
 ];
 
-type CalcMode = 'sell' | 'buy';
-
 const EMPTY_SNAPSHOT: P2PSnapshot = {
   ts: Date.now(), sellAvg: null, buyAvg: null, bestSell: null, bestBuy: null,
   spread: null, spreadPct: null, sellDepth: 0, buyDepth: 0, sellOffers: [], buyOffers: [],
@@ -166,6 +164,11 @@ function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function formatOfferLimit(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '∞';
+  return value.toLocaleString();
+}
+
 // ── Component ──
 export default function P2PTrackerPage() {
   const [market, setMarket] = useState<MarketId>('qatar');
@@ -176,9 +179,7 @@ export default function P2PTrackerPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
-  const [calcMode, setCalcMode] = useState<CalcMode>('sell');
-  const [calcAmount, setCalcAmount] = useState('1000');
-  const [calcRate, setCalcRate] = useState('');
+  const [targetMargin, setTargetMargin] = useState('2');
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
 
@@ -279,7 +280,6 @@ export default function P2PTrackerPage() {
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
-  // PROFIT IF SOLD NOW: reads tracker state from localStorage
   const profitIfSold = useMemo(() => {
     try {
       const stateRaw = getCurrentTrackerState(localStorage);
@@ -295,25 +295,24 @@ export default function P2PTrackerPage() {
       const revenue = stock * sellAvg;
       const profit = revenue - costBasis;
       return { stock, costBasis, wacop, profit };
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }, [sellAvg]);
 
-  // Calculator
-  useEffect(() => {
-    if (snapshot) {
-      if (calcMode === 'sell' && !calcRate) setCalcRate(snapshot.sellAvg?.toFixed(2) || '');
-      if (calcMode === 'buy' && !calcRate) setCalcRate(snapshot.buyAvg?.toFixed(2) || '');
-    }
-  }, [snapshot, calcMode, calcRate]);
+  const targetMarginValue = Math.max(0, parseFloat(targetMargin) || 0);
 
-  const calcResult = useMemo(() => {
-    const amt = parseFloat(calcAmount) || 0;
-    const rate = parseFloat(calcRate) || (calcMode === 'sell' ? sellAvg : buyAvg);
-    if (!amt || !rate) return null;
-    return { local: amt * rate, usdt: amt, rate };
-  }, [calcAmount, calcRate, calcMode, sellAvg, buyAvg]);
+  const advisor = useMemo(() => {
+    if (!profitIfSold) return null;
+    const targetPrice = profitIfSold.wacop * (1 + targetMarginValue / 100);
+    return {
+      avgPrice: profitIfSold.wacop,
+      targetPrice,
+      sellReady: sellAvg >= targetPrice,
+      restockAboveCost: buyAvg > profitIfSold.wacop,
+    };
+  }, [profitIfSold, targetMarginValue, sellAvg, buyAvg]);
 
-  // Price history bar data
   const priceBarData = useMemo(() => {
     if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
     const sellPts = last24hHistory.filter(p => p.sellAvg != null).map(p => p.sellAvg!);
@@ -325,15 +324,12 @@ export default function P2PTrackerPage() {
     const sellChange = sellLatest - sellFirst;
     const buyChange = buyLatest - buyFirst;
 
-    // Create ~12 bars from history
     const numBars = 12;
     const makeBarArray = (pts: number[]) => {
       if (!pts.length) return Array(numBars).fill(0);
       const step = Math.max(1, Math.floor(pts.length / numBars));
       const bars: number[] = [];
-      for (let i = 0; i < pts.length && bars.length < numBars; i += step) {
-        bars.push(pts[i]);
-      }
+      for (let i = 0; i < pts.length && bars.length < numBars; i += step) bars.push(pts[i]);
       while (bars.length < numBars) bars.push(pts[pts.length - 1]);
       return bars;
     };
@@ -358,9 +354,17 @@ export default function P2PTrackerPage() {
     };
   }, [last24hHistory]);
 
+  const sellOffersMaxAvailable = useMemo(
+    () => Math.max(...(snapshot?.sellOffers.map((offer) => offer.available) || [1])),
+    [snapshot?.sellOffers],
+  );
+  const buyOffersMaxAvailable = useMemo(
+    () => Math.max(...(snapshot?.buyOffers.map((offer) => offer.available) || [1])),
+    [snapshot?.buyOffers],
+  );
+
   const ccy = currentMarket.currency;
 
-  // ── Loading state ──
   if (loading && !snapshot) {
     return (
       <div className="space-y-4 p-4">
@@ -376,18 +380,17 @@ export default function P2PTrackerPage() {
   if (!snapshot) return null;
 
   return (
-    <div className="space-y-3 p-3">
-      {/* ── Header: Market Tabs + Controls ── */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Tabs value={market} onValueChange={(v) => { setMarket(v as MarketId); setCalcRate(''); }}>
+    <div className="space-y-2 p-2 md:p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Tabs value={market} onValueChange={(v) => setMarket(v as MarketId)}>
           <TabsList>
             {MARKETS.map(m => (
-              <TabsTrigger key={m.id} value={m.id} className="text-xs">{m.label}</TabsTrigger>
+              <TabsTrigger key={m.id} value={m.id} className="text-[11px] px-3">{m.label}</TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
 
-        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="gap-1.5 h-8 text-[11px]">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
@@ -396,58 +399,55 @@ export default function P2PTrackerPage() {
           variant={autoRefresh ? 'default' : 'outline'}
           size="sm"
           onClick={() => setAutoRefresh(!autoRefresh)}
-          className="gap-1.5 text-xs"
+          className="gap-1.5 h-8 text-[11px]"
         >
           <span className={`h-2 w-2 rounded-full ${autoRefresh ? 'bg-green-400 animate-pulse' : 'bg-muted-foreground'}`} />
           Auto-refresh
         </Button>
 
         {lastUpdate && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             Updated {new Date(lastUpdate).toLocaleTimeString()}
           </span>
         )}
 
-        <Badge variant="outline" className="font-mono text-xs">{currentMarket.pair}</Badge>
+        <Badge variant="outline" className="font-mono text-[11px]">{currentMarket.pair}</Badge>
       </div>
 
-      {/* ── KPI Cards (tracker.css – exact source repo sizing) ── */}
       <div className="tracker-root" style={{ background: 'transparent' }}>
         <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
           <div className="kpi-card">
             <div className="kpi-lbl">BEST SELL</div>
-            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Top offer {ccy}</div>
+            <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
+            <div className="kpi-sub">Top sell {ccy}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">SELL AVG (TOP 5)</div>
-            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.sellAvg?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub" style={{ color: 'var(--bad)' }}>
-              {snapshot.spreadPct ? `+${snapshot.spreadPct.toFixed(2)}% spread` : ''}
+            <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(2) || '—'}</div>
+            <div className="kpi-sub" style={{ color: 'var(--good)' }}>
+              {snapshot.spreadPct ? `+${snapshot.spreadPct.toFixed(2)}% spread` : 'Live weighted average'}
             </div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">BEST RESTOCK</div>
-            <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestBuy?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">Cheapest buy {ccy}</div>
+            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestBuy?.toFixed(2) || '—'}</div>
+            <div className="kpi-sub">Cheapest restock {ccy}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">SPREAD</div>
             <div className="kpi-val" style={{ color: snapshot.spread != null && snapshot.spread > 0 ? 'var(--good)' : 'var(--bad)' }}>
-              {snapshot.spread != null ? `${snapshot.spread.toFixed(4)}` : '—'}
+              {snapshot.spread != null ? snapshot.spread.toFixed(4) : '—'}
             </div>
             <div className="kpi-sub">{snapshot.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : 'No data'}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">TODAY HIGH SELL</div>
-            <div className="kpi-val">{todaySummary?.highSell.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">
-              Low {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} polls
-            </div>
+            <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.highSell.toFixed(2) || '—'}</div>
+            <div className="kpi-sub">Low {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} polls</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">TODAY LOW BUY</div>
-            <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
+            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
             <div className="kpi-sub">High {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
           </div>
           {profitIfSold && (
@@ -456,217 +456,191 @@ export default function P2PTrackerPage() {
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                 {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
               </div>
-              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · {ccy} cost basis</div>
+              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · cost basis</div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Price History + Market Info ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Price History — source repo style: large values right-aligned */}
-        <Card className="border-border/50">
-          <CardContent className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">SELL AVG</span>
-              <span className="font-bold font-mono text-2xl">{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(1) : '—'}</span>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+        <div className="tracker-root panel">
+          <div className="panel-head" style={{ padding: '10px 14px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>📊 Price History</h2>
+            <span className="pill">{last24hHistory.length} pts · 24h</span>
+          </div>
+          <div className="panel-body" style={{ padding: '14px 18px 18px', minHeight: 220, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-[12px] font-extrabold tracking-[0.14em] uppercase muted">Sell Avg</span>
+              <span className="font-mono text-[18px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(3) : '—'}</span>
             </div>
-            <div className="flex items-end gap-0.5 h-6">
+            <div className="flex items-end gap-1 h-10">
               {priceBarData.sellBars.map((pct, i) => (
-                <div key={i} className="flex-1 bg-destructive/70 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px` }} />
+                <div key={`sell-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.32)}px`, background: 'color-mix(in srgb, var(--good) 82%, transparent)' }} />
               ))}
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">BUY AVG</span>
-              <span className="font-bold font-mono text-2xl" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-[12px] font-extrabold tracking-[0.14em] uppercase muted">Buy Avg</span>
+              <span className="font-mono text-[18px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
             </div>
-            <div className="flex items-end gap-0.5 h-6">
+            <div className="flex items-end gap-1 h-10">
               {priceBarData.buyBars.map((pct, i) => (
-                <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px`, background: 'hsl(var(--success, 142 76% 36%))' }} />
+                <div key={`buy-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.32)}px`, background: 'color-mix(in srgb, var(--bad) 82%, transparent)' }} />
               ))}
             </div>
             <div className="flex gap-2 pt-1">
-              <Badge variant="outline" className="font-mono text-[11px] px-2 py-0.5">
-                Sell {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}
-              </Badge>
-              <Badge variant="outline" className="font-mono text-[11px] px-2 py-0.5">
-                Buy {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}
-              </Badge>
+              <span className="pill">Sell {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
+              <span className="pill">Buy {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Market Info — source repo style */}
-        <Card className="border-border/50">
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-[13px] text-muted-foreground">Sell Avg (Top 5)</span>
-              <span className="font-bold font-mono text-[15px]">{sellAvg.toFixed(4)} {ccy}</span>
+        <div className="tracker-root panel">
+          <div className="panel-head" style={{ padding: '10px 14px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🎯 Position Advisor</h2>
+            <span className="pill good">Computed from real data</span>
+          </div>
+          <div className="panel-body" style={{ padding: '14px 18px 18px', minHeight: 220, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="flex items-center justify-between rounded-[10px] border border-[var(--line)] bg-[var(--panel2)] px-4 py-3">
+              <span className="text-[13px] text-muted-foreground">Your Av Price</span>
+              <span className="font-mono text-[16px] font-extrabold">{advisor ? `${advisor.avgPrice.toFixed(4)} ${ccy}` : '—'}</span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-[13px] text-muted-foreground">Buy Avg (Top 5)</span>
-              <span className="font-bold font-mono text-[15px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
+            <div className="flex items-center justify-between rounded-[10px] border border-[var(--line)] bg-[var(--panel2)] px-4 py-3 gap-4">
+              <span className="text-[13px] text-muted-foreground">Target margin (manual %)</span>
+              <Input
+                type="number"
+                step="0.1"
+                value={targetMargin}
+                onChange={(e) => setTargetMargin(e.target.value)}
+                className="h-8 w-20 text-right font-mono"
+              />
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-[13px] text-muted-foreground">Sell Depth</span>
-              <span className="font-mono text-[13px]">{snapshot.sellDepth.toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT</span>
+            <div className="flex items-center justify-between rounded-[10px] border border-[var(--line)] bg-[var(--panel2)] px-4 py-3">
+              <span className="text-[13px] text-muted-foreground">Target price ({targetMarginValue}% margin)</span>
+              <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--good)' }}>{advisor ? `${advisor.targetPrice.toFixed(5)} ${ccy}` : '—'}</span>
             </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-[13px] text-muted-foreground">Buy Depth</span>
-              <span className="font-mono text-[13px]">{snapshot.buyDepth.toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT</span>
+            <div className="rounded-[8px] border px-4 py-3" style={{ borderColor: 'color-mix(in srgb, var(--good) 45%, transparent)', background: 'color-mix(in srgb, var(--good) 12%, transparent)' }}>
+              <div className="text-[13px] font-extrabold" style={{ color: 'var(--good)' }}>
+                {advisor?.sellReady ? '✓ Good time to sell' : '• Wait for better sell price'}
+              </div>
+              <div className="mt-1 text-[12px] text-muted-foreground">
+                {advisor ? `Sell avg ${sellAvg.toFixed(3)} ${advisor.sellReady ? '≥' : '<'} target ${advisor.targetPrice.toFixed(5)}` : 'Import stock data to enable advice'}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="rounded-[8px] border px-4 py-3" style={{ borderColor: 'color-mix(in srgb, var(--warn) 45%, transparent)', background: 'color-mix(in srgb, var(--warn) 12%, transparent)' }}>
+              <div className="text-[13px] font-extrabold" style={{ color: 'var(--warn)' }}>
+                {advisor?.restockAboveCost ? '⚠ Restock above avg cost' : '✓ Restock below avg cost'}
+              </div>
+              <div className="mt-1 text-[12px] text-muted-foreground">
+                {advisor ? (advisor.restockAboveCost ? 'Would raise avg cost' : 'Would improve cost basis') : 'Import stock data to enable advice'}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── Order Book: Sell + Buy ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Card className="border-border/50">
-          <CardHeader className="pb-1 pt-3 px-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-[13px] font-semibold flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5" style={{ color: 'hsl(var(--success, 142 76% 36%))' }} />
-                Sell Offers
-              </CardTitle>
-              <Badge className="text-[10px] px-2 py-0.5" style={{ background: 'hsl(var(--success, 142 76% 36%) / 0.15)', color: 'hsl(var(--success, 142 76% 36%))' }}>Highest first · ✓ fits your stock</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+        <div className="tracker-root panel">
+          <div className="panel-head" style={{ padding: '10px 14px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--good)' }}>↑ Sell Offers</h2>
+            <span className="pill good">Highest first · ✓ fits your stock</span>
+          </div>
+          <div className="tableWrap" style={{ border: 'none', borderTop: '1px solid var(--line)', borderRadius: 0 }}>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Trader</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Price</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Methods</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-center w-8">✓</TableHead>
+                  <TableHead className="w-[25%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Trader</TableHead>
+                  <TableHead className="w-[18%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Price</TableHead>
+                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Min</TableHead>
+                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Max</TableHead>
+                  <TableHead className="w-[23%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Methods</TableHead>
+                  <TableHead className="w-[6%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-center">✓</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {snapshot.sellOffers?.map((o, i) => {
-                  const maxAvail = Math.max(...(snapshot.sellOffers?.map(x => x.available) || [1]));
-                  const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
+                  const depthPct = sellOffersMaxAvailable > 0 ? Math.min(100, (o.available / sellOffersMaxAvailable) * 100) : 0;
                   return (
-                    <TableRow key={i} className="h-8">
-                      <TableCell className="text-[13px] font-medium whitespace-nowrap py-1.5">
-                        {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
+                    <TableRow key={`sell-offer-${i}`}>
+                      <TableCell className="py-3 text-[12px] font-extrabold whitespace-normal break-words leading-tight">
+                        {i === 0 && <span className="mr-1 text-yellow-400">★</span>}
+                        {o.nick}
                       </TableCell>
-                      <TableCell className="py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold font-mono text-[13px]">{o.price.toFixed(2)}</span>
-                          <div className="w-12 h-1.5 rounded bg-muted overflow-hidden">
-                            <div className="h-full rounded" style={{ width: `${depthPct}%`, background: 'hsl(var(--success, 142 76% 36%))' }} />
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--good)' }}>{o.price.toFixed(2)}</span>
+                          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--line2)' }}>
+                            <div className="h-full rounded-full" style={{ width: `${depthPct}%`, background: 'var(--good)' }} />
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
-                      <TableCell className="text-[12px] text-muted-foreground py-1.5">{o.methods.join(' ')}</TableCell>
-                      <TableCell className="text-center py-1.5">
-                        <span style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>✓</span>
-                      </TableCell>
+                      <TableCell className="py-3 text-right font-mono text-[12px]">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="py-3 text-right font-mono text-[12px]">{formatOfferLimit(o.max)}</TableCell>
+                      <TableCell className="py-3 text-[11px] text-muted-foreground whitespace-normal break-words leading-tight">{o.methods.join(' ') || '—'}</TableCell>
+                      <TableCell className="py-3 text-center text-[14px]" style={{ color: 'var(--good)' }}>✓</TableCell>
                     </TableRow>
                   );
                 })}
                 {!snapshot.sellOffers?.length && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No sell offers</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No sell offers</TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="border-border/50">
-          <CardHeader className="pb-1 pt-3 px-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-[13px] font-semibold flex items-center gap-1.5">
-                <TrendingDown className="h-3.5 w-3.5 text-destructive" />
-                Restock Offers
-              </CardTitle>
-              <Badge variant="destructive" className="text-[10px] px-2 py-0.5">Cheapest first</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
+        <div className="tracker-root panel">
+          <div className="panel-head" style={{ padding: '10px 14px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--bad)' }}>↓ Restock Offers</h2>
+            <span className="pill bad">Cheapest first</span>
+          </div>
+          <div className="tableWrap" style={{ border: 'none', borderTop: '1px solid var(--line)', borderRadius: 0 }}>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Trader</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Price</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Min</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-right">Max</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold">Methods</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-center w-8">✓</TableHead>
+                  <TableHead className="w-[25%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Trader</TableHead>
+                  <TableHead className="w-[18%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Price</TableHead>
+                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Min</TableHead>
+                  <TableHead className="w-[14%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-right">Max</TableHead>
+                  <TableHead className="w-[23%] text-[10px] uppercase tracking-[0.16em] font-extrabold">Methods</TableHead>
+                  <TableHead className="w-[6%] text-[10px] uppercase tracking-[0.16em] font-extrabold text-center">✓</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {snapshot.buyOffers?.map((o, i) => {
-                  const maxAvail = Math.max(...(snapshot.buyOffers?.map(x => x.available) || [1]));
-                  const depthPct = maxAvail > 0 ? Math.min(100, (o.available / maxAvail) * 100) : 0;
+                  const depthPct = buyOffersMaxAvailable > 0 ? Math.min(100, (o.available / buyOffersMaxAvailable) * 100) : 0;
                   return (
-                    <TableRow key={i} className="h-8">
-                      <TableCell className="text-[13px] font-medium whitespace-nowrap py-1.5">
-                        {i === 0 && <span className="text-yellow-500 mr-1">★</span>}{o.nick}
+                    <TableRow key={`buy-offer-${i}`}>
+                      <TableCell className="py-3 text-[12px] font-extrabold whitespace-normal break-words leading-tight">
+                        {i === 0 && <span className="mr-1 text-yellow-400">★</span>}
+                        {o.nick}
                       </TableCell>
-                      <TableCell className="py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold font-mono text-[13px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{o.price.toFixed(2)}</span>
-                          <div className="w-12 h-1.5 rounded bg-muted overflow-hidden">
-                            <div className="h-full bg-destructive/70 rounded" style={{ width: `${depthPct}%` }} />
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--bad)' }}>{o.price.toFixed(2)}</span>
+                          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--line2)' }}>
+                            <div className="h-full rounded-full" style={{ width: `${depthPct}%`, background: 'var(--bad)' }} />
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-[13px] py-1.5">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
-                      <TableCell className="text-[12px] text-muted-foreground py-1.5">{o.methods.join(' ')}</TableCell>
-                      <TableCell className="text-center py-1.5">
-                        <span className="text-muted-foreground">—</span>
-                      </TableCell>
+                      <TableCell className="py-3 text-right font-mono text-[12px]">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="py-3 text-right font-mono text-[12px]">{formatOfferLimit(o.max)}</TableCell>
+                      <TableCell className="py-3 text-[11px] text-muted-foreground whitespace-normal break-words leading-tight">{o.methods.join(' ') || '—'}</TableCell>
+                      <TableCell className="py-3 text-center text-[14px] text-muted-foreground">—</TableCell>
                     </TableRow>
                   );
                 })}
                 {!snapshot.buyOffers?.length && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No buy offers</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No restock offers</TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <Calculator className="h-4 w-4 text-primary" />
-              Calculator
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button size="sm" variant={calcMode === 'sell' ? 'default' : 'ghost'} onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>Sell</Button>
-              <Button size="sm" variant={calcMode === 'buy' ? 'default' : 'ghost'} onClick={() => { setCalcMode('buy'); setCalcRate(buyAvg.toFixed(2)); }}>Buy</Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Amount (USDT)</label>
-              <Input type="number" value={calcAmount} onChange={e => setCalcAmount(e.target.value)} placeholder="1000" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rate ({ccy})</label>
-              <Input type="number" step="0.001" value={calcRate} onChange={e => setCalcRate(e.target.value)} placeholder="3.80" />
-            </div>
-          </div>
-          {calcResult && (
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/25 bg-primary/5">
-              <span className="text-sm text-muted-foreground font-medium">{calcMode === 'buy' ? 'Cost' : 'Revenue'}</span>
-              <span className="font-bold font-mono text-lg text-primary">{calcResult.local.toFixed(2)} {ccy}</span>
-              <span className="flex-1" />
-              <Badge variant="outline" className="font-mono">@ {calcResult.rate.toFixed(3)}</Badge>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* ── Historical Averages (collapsible) ── */}
       <Card>
