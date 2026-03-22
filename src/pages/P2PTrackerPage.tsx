@@ -423,7 +423,7 @@ export default function P2PTrackerPage() {
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SELL AVG</div>
               <div className="flex items-end gap-1">
                 {priceBarData.sellBars.map((pct, i) => (
-                  <div key={i} className="flex-1 bg-destructive/80 rounded-sm" style={{ height: `${Math.max(4, pct * 0.32)}px` }} />
+                  <div key={i} className="flex-1 bg-destructive/80 rounded-sm" style={{ height: `${Math.max(3, pct * 0.24)}px` }} />
                 ))}
                 <span className="ml-2 font-bold font-mono text-base">{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(1) : '—'}</span>
               </div>
