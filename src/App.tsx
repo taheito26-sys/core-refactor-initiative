@@ -30,7 +30,7 @@ import DashboardPage from './pages/DashboardPage';
 const OrdersPage = createPlaceholderPage('Orders', 'Manage your trades and orders');
 const StockPage = createPlaceholderPage('Stock', 'Inventory and stock management');
 const CalendarPage = createPlaceholderPage('Calendar', 'Schedule and events');
-const P2PTrackerPage = createPlaceholderPage('P2P Tracker', 'Live P2P market rates');
+import P2PTrackerPage from './pages/P2PTrackerPage';
 const CRMPage = createPlaceholderPage('CRM', 'Customer relationship management');
 const NetworkPage = createPlaceholderPage('Network', 'Merchant directory and connections');
 const DealsPage = createPlaceholderPage('Deals', 'Deal pipeline management');
