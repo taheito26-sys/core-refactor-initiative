@@ -418,12 +418,12 @@ export default function P2PTrackerPage() {
               <Badge variant="secondary" className="text-xs">{last24hHistory.length} pts · 24h</Badge>
             </div>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-3">
             <div className="space-y-1.5">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SELL AVG</div>
               <div className="flex items-end gap-1">
                 {priceBarData.sellBars.map((pct, i) => (
-                  <div key={i} className="flex-1 bg-destructive/80 rounded-sm" style={{ height: `${Math.max(4, pct * 0.32)}px` }} />
+                  <div key={i} className="flex-1 bg-destructive/80 rounded-sm" style={{ height: `${Math.max(3, pct * 0.24)}px` }} />
                 ))}
                 <span className="ml-2 font-bold font-mono text-base">{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(1) : '—'}</span>
               </div>
@@ -432,7 +432,7 @@ export default function P2PTrackerPage() {
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">BUY AVG</div>
               <div className="flex items-end gap-1">
                 {priceBarData.buyBars.map((pct, i) => (
-                  <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(4, pct * 0.32)}px`, background: 'hsl(var(--success, 142 76% 36%))' }} />
+                  <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.24)}px`, background: 'hsl(var(--success, 142 76% 36%))' }} />
                 ))}
                 <span className="ml-2 font-bold font-mono text-base">{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
               </div>
@@ -456,22 +456,22 @@ export default function P2PTrackerPage() {
               Market Info
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Sell Avg (Top 5)</span>
-              <span className="font-bold font-mono text-destructive">{sellAvg.toFixed(4)} {ccy}</span>
+          <CardContent className="space-y-2">
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Sell Avg (Top 5)</span>
+              <span className="font-bold font-mono text-sm text-destructive">{sellAvg.toFixed(4)} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Buy Avg (Top 5)</span>
-              <span className="font-bold font-mono" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Buy Avg (Top 5)</span>
+              <span className="font-bold font-mono text-sm" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{buyAvg.toFixed(4)} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Sell Depth</span>
-              <span className="font-bold font-mono">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Sell Depth</span>
+              <span className="font-bold font-mono text-sm">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-              <span className="text-sm text-muted-foreground">Buy Depth</span>
-              <span className="font-bold font-mono">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
+            <div className="flex items-center justify-between p-2 rounded-lg border border-border">
+              <span className="text-xs text-muted-foreground">Buy Depth</span>
+              <span className="font-bold font-mono text-sm">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-1">
               <Button size="sm" variant="destructive" onClick={() => { setCalcMode('sell'); setCalcRate(sellAvg.toFixed(2)); }}>
@@ -526,7 +526,7 @@ export default function P2PTrackerPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{o.methods.join(', ')}</TableCell>
                     </TableRow>
                   );
@@ -578,7 +578,7 @@ export default function P2PTrackerPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '—'}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{o.max > 0 ? o.max.toLocaleString() : '∞'}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{o.methods.join(', ')}</TableCell>
                     </TableRow>
                   );
