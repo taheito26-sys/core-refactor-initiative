@@ -5,28 +5,66 @@ export function num(v: any, def = 0): number {
   return isNaN(n) ? def : n;
 }
 
+// ── Centralized number formatting ──────────────────────────────────
+// Rule: TRUNCATION everywhere (not rounding) for consistency.
+
+/**
+ * Truncate a number to `dp` decimal places without rounding.
+ * e.g. trunc4(3.73234) → 3.7323
+ */
+function truncateToDP(n: number, dp: number): number {
+  const factor = Math.pow(10, dp);
+  return Math.trunc(n * factor) / factor;
+}
+
+/**
+ * Format a PRICE value: max 4 decimal places, truncated, no trailing zeros.
+ * Examples: 3 → "3", 3.7 → "3.7", 3.7300 → "3.73", 3.73234 → "3.7323"
+ */
+export function fmtPrice(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  const truncated = truncateToDP(n, 4);
+  // Use toFixed(4) then strip trailing zeros
+  let s = truncated.toFixed(4);
+  // Remove trailing zeros after decimal point
+  if (s.includes('.')) {
+    s = s.replace(/0+$/, '').replace(/\.$/, '');
+  }
+  return s;
+}
+
+/**
+ * Format a TOTAL/aggregate value: whole number (truncated), with thousands separators.
+ * Examples: 7790.00 → "7,790", 1250.75 → "1,250"
+ */
+export function fmtTotal(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  const truncated = Math.trunc(n);
+  return truncated.toLocaleString(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+}
+
 export function fmtU(n: number, dp = 2): string {
   if (!Number.isFinite(n)) return '—';
-  return n.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Math.max(0, dp),
-  });
+  // dp === 0 → total formatting (whole number, truncated)
+  if (dp === 0) return fmtTotal(n);
+  // Otherwise → price formatting (max 4dp, truncated, no trailing zeros)
+  return fmtPrice(n);
 }
 
 export function fmtQ(v: number): string {
   const x = num(v, 0);
-  return x.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' QAR';
+  return fmtTotal(x) + ' QAR';
 }
 
 export function fmtQRaw(v: number): string {
   const x = num(v, 0);
-  return x.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return fmtTotal(x);
 }
 
 export function fmtP(n: number): string {
   const x = num(n, 0);
   if (!Number.isFinite(x)) return '—';
-  return x.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 });
+  return fmtPrice(x);
 }
 
 export function fmtPct(n: number): string {
@@ -53,9 +91,9 @@ export function fmtQWithUnit(qarAmount: number, currency = 'QAR', wacop: number 
   const q = num(qarAmount);
   if (!Number.isFinite(q)) return '—';
   if (currency === 'USDT' && wacop && wacop > 0) {
-    return fmtU(q / wacop) + ' USDT';
+    return fmtPrice(q / wacop) + ' USDT';
   }
-  return fmtQRaw(q) + ' QAR';
+  return fmtTotal(q) + ' QAR';
 }
 
 export function esc(s: any): string {

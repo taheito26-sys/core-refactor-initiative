@@ -3,8 +3,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 
+import { fmtTotal, fmtPrice } from '@/lib/tracker-helpers';
+
 const formatCurrency = (val: number) =>
-  val >= 1000 ? `$${(val / 1000).toFixed(1)}K` : `$${val.toLocaleString()}`;
+  val >= 1000 ? `$${fmtPrice(val / 1000)}K` : `$${fmtTotal(val)}`;
 
 export function StatsGrid() {
   const { data, isLoading } = useDashboardStats();

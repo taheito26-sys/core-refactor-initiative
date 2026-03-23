@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtQWithUnit, fmtU, fmtQ, fmtPct, fmtP,
+  fmtTotal, fmtPrice,
   kpiFor, totalStock, stockCostQAR, getWACOP,
   rangeLabel, num, startOfDay,
 } from '@/lib/tracker-helpers';
@@ -149,7 +150,7 @@ export default function DashboardPage() {
         {payload.map((p: any, i: number) => (
           <div key={i} style={{ color: p.color, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
             <span>{p.name}</span>
-            <span className="mono" style={{ fontWeight: 700 }}>{Number(p.value).toLocaleString()} QAR</span>
+            <span className="mono" style={{ fontWeight: 700 }}>{fmtTotal(Number(p.value))} QAR</span>
           </div>
         ))}
       </div>
@@ -235,7 +236,7 @@ export default function DashboardPage() {
           <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{wacop ? fmtP(wacop) + ' QAR' : t('noStock')}</div>
           <div className="kpi-sub">
             {(() => {
-              const sp = wacop && p2pAvgs.avgSell ? ((p2pAvgs.avgSell - wacop) / wacop * 100).toFixed(2) : null;
+              const sp = wacop && p2pAvgs.avgSell ? fmtPrice((p2pAvgs.avgSell - wacop) / wacop * 100) : null;
               return sp !== null
                 ? <span className={Number(sp) >= 0 ? 'good' : 'bad'} style={{ fontWeight: 700 }}>{Number(sp) >= 0 ? '+' : ''}{sp}% vs P2P</span>
                 : t('sellAboveAvPrice');
@@ -306,7 +307,7 @@ export default function DashboardPage() {
             <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>💰</span>
           </div>
           <div className="kpi-lbl">{t('merchantExposure')}</div>
-          <div className="kpi-val" style={{ fontSize: 17 }}>${merchantExposure.toLocaleString()}</div>
+          <div className="kpi-val" style={{ fontSize: 17 }}>${fmtTotal(merchantExposure)}</div>
           <div className="kpi-sub">{activeDeals.length} {t('activeDeals')}</div>
         </div>
         <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/analytics')}>
@@ -314,7 +315,7 @@ export default function DashboardPage() {
             <span className="kpi-badge" style={badgeStyle(merchantPnL >= 0 ? 'good' : 'bad')}>P&L</span>
           </div>
           <div className="kpi-lbl">{t('merchantRealizedPnl')}</div>
-          <div className={`kpi-val ${merchantPnL >= 0 ? 'good' : 'bad'}`}>${merchantPnL.toLocaleString()}</div>
+          <div className={`kpi-val ${merchantPnL >= 0 ? 'good' : 'bad'}`}>${fmtTotal(merchantPnL)}</div>
           <div className="kpi-sub">
             {settlementAlert.overdue > 0 && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>{settlementAlert.overdue} {t('overdue')}</span>}
             {settlementAlert.due > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700, marginLeft: 6 }}>{settlementAlert.due} {t('due')}</span>}

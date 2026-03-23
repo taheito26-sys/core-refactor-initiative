@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AdminOrdersMirror } from './AdminOrdersMirror';
 import { AdminStockMirror } from './AdminStockMirror';
+import { fmtTotal } from '@/lib/tracker-helpers';
 import {
   useAdminUserDeals,
   useAdminUserSettlements,
@@ -251,7 +252,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                   {deals.map((d: any) => (
                     <TableRow key={d.id}>
                       <TableCell className="text-xs font-medium">{d.title}</TableCell>
-                      <TableCell className="text-xs">{Number(d.amount).toLocaleString()} {d.currency}</TableCell>
+                      <TableCell className="text-xs">{fmtTotal(Number(d.amount))} {d.currency}</TableCell>
                       <TableCell><Badge variant="secondary" className="text-[10px]">{d.deal_type}</Badge></TableCell>
                       <TableCell><Badge variant={d.status === 'voided' ? 'destructive' : 'outline'} className="text-[10px]">{d.status}</Badge></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{format(new Date(d.created_at), 'MMM d, yyyy')}</TableCell>
@@ -297,7 +298,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                   {settlements.map((s: any) => (
                     <TableRow key={s.id}>
                       <TableCell className="text-xs font-mono">{s.deal_id.slice(0, 8)}</TableCell>
-                      <TableCell className="text-xs">{Number(s.amount).toLocaleString()}</TableCell>
+                      <TableCell className="text-xs">{fmtTotal(Number(s.amount))}</TableCell>
                       <TableCell className="text-xs">{s.currency}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{format(new Date(s.created_at), 'MMM d, yyyy')}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{s.notes ?? '—'}</TableCell>

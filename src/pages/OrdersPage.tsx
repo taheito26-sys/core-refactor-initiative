@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
+  fmtPrice, fmtTotal,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
@@ -1333,7 +1334,7 @@ export default function OrdersPage() {
                                   {rel?.counterparty?.display_name || '—'} · {partnerPct != null ? `${partnerPct}%/${100 - partnerPct}%` : '—'}
                                 </div>
                               </div>
-                              <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{deal.amount.toLocaleString()} {deal.currency}</div>
+                              <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{fmtTotal(deal.amount)} {deal.currency}</div>
                             </div>
                             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                               <button className="btn" style={{ fontSize: 10, padding: '4px 12px' }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
