@@ -507,10 +507,11 @@ export default function OrdersPage() {
     setEditingDealId(deal.id);
     setEditDealTitle(deal.title || '');
     setEditDealAmount(String(deal.amount || 0));
-    setEditDealQty(String((deal.metadata as any)?.quantity ?? deal.amount ?? ''));
-    setEditDealSell(String((deal.metadata as any)?.sell_price ?? ''));
-    setEditDealFee(String((deal.metadata as any)?.fee ?? '0'));
-    setEditDealNote(String((deal.metadata as any)?.note ?? ''));
+    const meta = parseDealMeta(deal.notes);
+    setEditDealQty(meta.quantity || String(deal.amount || ''));
+    setEditDealSell(meta.sell_price || '');
+    setEditDealFee(meta.fee || '0');
+    setEditDealNote(meta.note || '');
   };
 
   const saveDealEdit = async () => {
