@@ -1049,13 +1049,33 @@ export default function OrdersPage() {
                 <div className="g2tight">
                   <div className="field2">
                     <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} /></div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
                   </div>
                   <div className="field2">
                     <div className="lbl">{t('sellPriceLabel')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={e => setSaleSell(e.target.value)} /></div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
                   </div>
                 </div>
+
+                {priceMode === 'manual' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('buyPrice') || 'Buy Price'}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                    </div>
+                  </div>
+                )}
+
+                {priceMode === 'fifo' && (
+                  <div className="field2">
+                    <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                  </div>
+                )}
 
                 <div className="field2">
                   <div className="lbl">{t('buyerName')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
