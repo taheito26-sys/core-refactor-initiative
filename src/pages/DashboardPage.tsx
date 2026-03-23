@@ -234,7 +234,7 @@ export default function DashboardPage() {
           <div className="kpi-lbl">{t('cashAvailable')}</div>
           <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(num(state.cashQAR, 0))}</div>
           <div className="kpi-sub" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }}>{t('manageCash')}</button>
+            <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }} onClick={() => setShowCashBox(true)}>{t('manageCash')}</button>
             <span className="muted" style={{ fontSize: 10 }}>{state.cashOwner ? `${t('owner')}: ${state.cashOwner}` : `${t('owner')}: —`}</span>
           </div>
         </div>
