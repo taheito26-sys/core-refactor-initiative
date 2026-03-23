@@ -1,11 +1,12 @@
 import { useLocation } from 'react-router-dom';
-import { useMemo } from 'react';
-import { Menu, Bell, Users, TrendingUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Menu, Bell, Users, TrendingUp, User } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
+import { UserProfileModal } from '@/features/profile/UserProfileModal';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
   if (pathname === '/dashboard') return { title: t('dashboard'), subtitle: t('dashboardSub') };
@@ -41,6 +42,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const { merchantProfile, logout } = useAuth();
   const t = useT();
   const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-3 py-1.5">
@@ -126,10 +128,13 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
       {/* ── User info ── */}
       {merchantProfile && (
-        <div className="hidden md:flex flex-col items-end">
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="hidden md:flex flex-col items-end cursor-pointer hover:opacity-80 transition-opacity"
+        >
           <span className="text-[11px] font-semibold text-foreground leading-tight">{merchantProfile.display_name}</span>
           <span className="text-[9px] text-muted-foreground leading-tight">{t('clientId')}: {merchantProfile.merchant_id.slice(0, 5)}</span>
-        </div>
+        </button>
       )}
 
       {/* ── Sign out ── */}
@@ -139,6 +144,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       >
         {t('signOut')}
       </button>
+
+      <UserProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
   );
 }

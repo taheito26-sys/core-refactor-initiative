@@ -54,8 +54,20 @@ export default function MerchantsPage() {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const { data: settlementOverview } = useSettlementOverview();
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from('merchant_messages')
+      .select('id', { count: 'exact', head: true })
+      .neq('sender_id', userId)
+      .is('read_at', null)
+      .then(({ count }) => setUnreadChatCount(count || 0));
+  }, [userId]);
 
   const handleOpenRelationship = useCallback((relationshipId: string) => {
     setActiveRelId(relationshipId);
@@ -266,7 +278,7 @@ export default function MerchantsPage() {
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
-    { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬' },
+    { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬', badge: unreadChatCount > 0 ? unreadChatCount : undefined },
   ];
 
   return (
