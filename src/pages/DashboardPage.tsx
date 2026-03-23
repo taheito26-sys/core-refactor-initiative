@@ -364,7 +364,7 @@ export default function DashboardPage() {
           <div className="panel-body" style={{ height: 170, position: 'relative' }}>
             {profitPerTradeData.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                <span className="muted" style={{ fontSize: 11 }}>{t('noTrades') || 'No trades yet'}</span>
+                <span className="muted" style={{ fontSize: 11 }}>{t('noTradesYet')}</span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
