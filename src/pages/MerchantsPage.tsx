@@ -284,9 +284,6 @@ export default function MerchantsPage() {
                   <div style={{ fontSize: 12, fontWeight: 700 }}>{t('merchantAgreements') || 'Merchant Agreements'}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{filteredAgreements.length} {t('total') || 'total'}</div>
                 </div>
-                <button className="btn" onClick={() => setShowAgreementDialog(true)}>
-                  + {t('newAgreement') || 'New Agreement'}
-                </button>
               </div>
 
               {filteredAgreements.length === 0 ? (
