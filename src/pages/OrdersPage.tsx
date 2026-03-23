@@ -189,8 +189,18 @@ export default function OrdersPage() {
   const rLabel = rangeLabel(state.range);
   const query = (settings.searchQuery || '').trim().toLowerCase();
 
+  const cancelledDealIds = useMemo(() => new Set(
+    allMerchantDeals.filter(d => d.status === 'cancelled' || d.status === 'voided').map(d => d.id)
+  ), [allMerchantDeals]);
+
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
-  const list = useMemo(() => allTrades.filter(t => inRange(t.ts, state.range) && t.approvalStatus !== 'cancelled'), [allTrades, state.range]);
+  const list = useMemo(() => allTrades.filter(t => {
+    if (!inRange(t.ts, state.range)) return false;
+    if (t.approvalStatus === 'cancelled') return false;
+    // Hide trades whose linked merchant deal was cancelled/voided
+    if (t.linkedDealId && cancelledDealIds.has(t.linkedDealId)) return false;
+    return true;
+  }), [allTrades, state.range, cancelledDealIds]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
