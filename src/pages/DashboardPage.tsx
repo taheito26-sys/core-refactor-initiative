@@ -46,8 +46,8 @@ export default function DashboardPage() {
   const [pendingApprovals, setPendingApprovals] = useState<MerchantApproval[]>([]);
 
   useEffect(() => {
-    api.deals.list().then(r => setMerchantDeals(r.deals)).catch(() => {});
-    api.approvals.inbox().then(r => setPendingApprovals(r.approvals.filter(a => a.status === 'pending'))).catch(() => {});
+    supabase.from('merchant_deals').select('*').then(({ data }) => setMerchantDeals((data || []) as any));
+    supabase.from('merchant_approvals').select('*').eq('status', 'pending').then(({ data }) => setPendingApprovals((data || []) as any));
   }, []);
 
   const activeDeals = merchantDeals.filter(d => d.status === 'approved');
