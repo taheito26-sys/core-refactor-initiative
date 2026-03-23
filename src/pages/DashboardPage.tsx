@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
-  const { state, derived } = useTrackerState({
+  const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
