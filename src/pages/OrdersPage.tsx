@@ -459,52 +459,59 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === tradeId);
     if (!tr) return;
 
-    if (tr.approvalStatus === 'pending_approval') {
-      // Creator can cancel directly before approval
-      const nextTrades = state.trades.map(t =>
-        t.id === tradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
-      );
-      applyState({ ...state, trades: nextTrades });
-      toast.success(t('tradeCancelled'));
-    } else if (tr.approvalStatus === 'approved') {
-      // After approval, need cancellation request
-      setCancelTradeId(tradeId);
+    // If trade has a linked deal, cancel on server
+    if (tr.linkedDealId) {
+      try {
+        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
+        if (error) throw error;
+        await reloadMerchantData();
+        toast.success(t('tradeCancelled'));
+      } catch (err: any) { toast.error(err.message); return; }
     }
-  };
 
-  const submitCancellationRequest = () => {
-    if (!cancelTradeId) return;
-    const nextTrades = state.trades.map(t =>
-      t.id === cancelTradeId ? { ...t, approvalStatus: 'cancellation_pending' as LinkedTradeStatus, cancellationRequestedBy: userId || '' } : t
-    );
-    applyState({ ...state, trades: nextTrades });
-    setCancelTradeId(null);
-    toast.success(t('cancellationRequestSent'));
-  };
-
-  // Approve an incoming partner trade (from the incoming tab)
-  const approveIncomingTrade = (tradeId: string) => {
-    const nextTrades = state.trades.map(t =>
-      t.id === tradeId ? { ...t, approvalStatus: 'approved' as LinkedTradeStatus } : t
-    );
-    applyState({ ...state, trades: nextTrades });
-    toast.success(t('tradeApproved'));
-  };
-
-  const rejectIncomingTrade = (tradeId: string) => {
-    const nextTrades = state.trades.map(t =>
-      t.id === tradeId ? { ...t, approvalStatus: 'rejected' as LinkedTradeStatus } : t
-    );
-    applyState({ ...state, trades: nextTrades });
-    toast.success(t('tradeRejected'));
-  };
-
-  const approveCancellation = (tradeId: string) => {
+    // Also update local trade state
     const nextTrades = state.trades.map(t =>
       t.id === tradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
     applyState({ ...state, trades: nextTrades });
+    if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
+  };
+
+  const submitCancellationRequest = async () => {
+    if (!cancelTradeId) return;
+    const tr = state.trades.find(x => x.id === cancelTradeId);
+    if (tr?.linkedDealId) {
+      try {
+        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
+        if (error) throw error;
+        await reloadMerchantData();
+      } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
+    }
+    const nextTrades = state.trades.map(t =>
+      t.id === cancelTradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+    );
+    applyState({ ...state, trades: nextTrades });
+    setCancelTradeId(null);
     toast.success(t('tradeCancelled'));
+  };
+
+  // Server-side approve/reject for incoming merchant deals
+  const approveIncomingDeal = async (dealId: string) => {
+    try {
+      const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', dealId);
+      if (error) throw error;
+      await reloadMerchantData();
+      toast.success(t('tradeApproved'));
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const rejectIncomingDeal = async (dealId: string) => {
+    try {
+      const { error } = await supabase.from('merchant_deals').update({ status: 'rejected' }).eq('id', dealId);
+      if (error) throw error;
+      await reloadMerchantData();
+      toast.success(t('tradeRejected'));
+    } catch (err: any) { toast.error(err.message); }
   };
 
   // ─── Merchant Deal Edit/Delete Handlers ───────────────────────────
