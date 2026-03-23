@@ -427,7 +427,7 @@ export default function MerchantsPage() {
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
                                 <button className="rowBtn" onClick={() => setActiveRelId(r.id)}>
-                                  {t('open') || 'Open'}
+                                  Open
                                 </button>
                                 <button className="rowBtn" onClick={() => navigate('/orders')}>
                                   {t('orders') || 'Orders'}
