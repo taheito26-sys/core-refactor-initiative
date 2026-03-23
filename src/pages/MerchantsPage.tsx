@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'templates' | 'agreements' | 'analytics';
+type MerchantTab = 'relationships' | 'agreements' | 'analytics';
 
 interface AgreementRow {
   id: string;
