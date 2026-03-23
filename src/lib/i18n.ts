@@ -871,6 +871,27 @@ const translations = {
   sentInvites: { en: 'Sent Invitations', ar: 'الدعوات المرسلة' },
   settlementLabel: { en: 'Settlement', ar: 'التسوية' },
   message: { en: 'Message', ar: 'رسالة' },
+
+  // ── Settlement & P&L Distribution (Task 3-4) ──
+  settlements: { en: 'Settlements', ar: 'التسويات' },
+  submitSettlementAction: { en: 'Submit Settlement', ar: 'تقديم تسوية' },
+  approveSettlementAction: { en: 'Approve', ar: 'موافقة' },
+  rejectSettlementAction: { en: 'Reject', ar: 'رفض' },
+  profitDistribution: { en: 'P&L Distribution', ar: 'توزيع الأرباح والخسائر' },
+  partnerShare: { en: 'Partner Share', ar: 'حصة الشريك' },
+  merchantShare: { en: 'Your Share', ar: 'حصتك' },
+  totalSettled: { en: 'Total Settled', ar: 'إجمالي المسوّى' },
+  netOutstanding: { en: 'Net Outstanding', ar: 'صافي المتبقي' },
+  youOwePartner: { en: 'You owe partner', ar: 'أنت مدين للشريك' },
+  partnerOwesYou: { en: 'Partner owes you', ar: 'الشريك مدين لك' },
+  allSettled: { en: 'All settled', ar: 'الكل مسوّى' },
+  chat: { en: 'Chat', ar: 'المحادثة' },
+  typeMessageChat: { en: 'Type a message...', ar: 'اكتب رسالة...' },
+  sendMessage: { en: 'Send', ar: 'إرسال' },
+  noMessagesChat: { en: 'No messages yet', ar: 'لا توجد رسائل بعد' },
+  allocationBase: { en: 'Allocation Base', ar: 'أساس التوزيع' },
+  saleEconomics: { en: 'Sale Economics', ar: 'اقتصاديات البيع' },
+  pnl: { en: 'P&L', ar: 'الأرباح/الخسائر' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
