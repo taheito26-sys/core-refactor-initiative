@@ -398,6 +398,35 @@ export default function OrdersPage() {
 
         if (error) throw error;
 
+        // Per-order settlement period creation
+        const dealCadence = (tmpl as any)?.defaults?.settlement_period || 'monthly';
+        if (dealCadence === 'per_order' && data?.id) {
+          const partnerPct = (tmpl as any).defaults?.counterparty_share_pct ?? (tmpl as any).defaults?.partner_ratio ?? 0;
+          const rev = baseTrade.amountUSDT * sell;
+          const netProfit = rev - fifoCost - fee;
+          const partnerAmt = tmpl.family === 'profit_share'
+            ? netProfit * (partnerPct / 100)
+            : rev * (partnerPct / 100);
+
+          await supabase.from('settlement_periods').insert({
+            deal_id: data.id,
+            relationship_id: linkedRelId,
+            cadence: 'per_order',
+            period_key: `order:${baseTrade.id}`,
+            period_start: new Date(ts).toISOString(),
+            period_end: new Date(ts).toISOString(),
+            due_at: new Date(ts + 86400000).toISOString(),
+            trade_count: 1,
+            gross_volume: rev,
+            total_cost: fifoCost,
+            net_profit: netProfit,
+            total_fees: fee,
+            partner_amount: partnerAmt,
+            merchant_amount: rev - partnerAmt,
+            status: 'due',
+          } as any);
+        }
+
         const persistedTrade: Trade = {
           ...baseTrade,
           linkedDealId: data?.id,
