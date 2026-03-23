@@ -525,9 +525,28 @@ export type Database = {
         Args: { _deal_id: string; _reason: string; _updates: Json }
         Returns: Json
       }
+      admin_correct_tracker: {
+        Args: {
+          _entity_id: string
+          _entity_type: string
+          _reason: string
+          _target_user_id: string
+          _updates: Json
+        }
+        Returns: undefined
+      }
       admin_system_stats: { Args: never; Returns: Json }
       admin_void_deal: {
         Args: { _deal_id: string; _reason: string }
+        Returns: undefined
+      }
+      admin_void_tracker_entity: {
+        Args: {
+          _entity_id: string
+          _entity_type: string
+          _reason: string
+          _target_user_id: string
+        }
         Returns: undefined
       }
       current_merchant_id: { Args: never; Returns: string }
