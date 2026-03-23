@@ -22,6 +22,21 @@ const nowInput = () => new Date().toISOString().slice(0, 16);
 const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
+/** Parse pipe-separated key:value metadata from deal.notes */
+function parseDealMeta(notes: string | null | undefined): Record<string, string> {
+  if (!notes) return {};
+  const meta: Record<string, string> = {};
+  notes.split('|').forEach(seg => {
+    const idx = seg.indexOf(':');
+    if (idx > 0) {
+      const key = seg.slice(0, idx).trim();
+      const val = seg.slice(idx + 1).trim();
+      meta[key] = val;
+    }
+  });
+  return meta;
+}
+
 export default function OrdersPage() {
   const { settings } = useTheme();
   const { userId, merchantProfile } = useAuth();
