@@ -348,7 +348,54 @@ export default function MerchantsPage() {
             </>
           )}
 
-          {/* ═══ ANALYTICS TAB ═══ */}
+          {/* ═══ LEDGER TAB ═══ */}
+          {tab === 'ledger' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>📒 {t('cancelledDeals')}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cancelledDealsDesc')}</div>
+                </div>
+                <span className="pill">{filteredLedger.length}</span>
+              </div>
+
+              {filteredLedger.length === 0 ? (
+                <div className="empty">
+                  <div className="empty-t">{t('noCancelledDeals')}</div>
+                  <div className="empty-s">{t('ledgerClean')}</div>
+                </div>
+              ) : (
+                <div className="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{t('title') || 'Title'}</th>
+                        <th>{t('merchant') || 'Merchant'}</th>
+                        <th>{t('type') || 'Type'}</th>
+                        <th className="r">{t('amount')}</th>
+                        <th>{t('cancelledOn')}</th>
+                        <th>{t('date')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredLedger.map(a => (
+                        <tr key={a.id} style={{ opacity: 0.7 }}>
+                          <td style={{ fontWeight: 700, fontSize: 11 }}>{a.title}</td>
+                          <td style={{ fontSize: 10 }}>{a.counterparty_name}</td>
+                          <td style={{ fontSize: 10 }}>{dealTypeLabel(a.deal_type)}</td>
+                          <td className="mono r">{fmtU(a.amount)} {a.currency}</td>
+                          <td>{statusPill(a.status)}</td>
+                          <td className="mono" style={{ fontSize: 10 }}>{new Date(a.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+
           {tab === 'analytics' && (
             <>
               <div style={{ marginBottom: 4 }}>
