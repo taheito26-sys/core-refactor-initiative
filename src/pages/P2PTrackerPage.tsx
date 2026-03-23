@@ -479,32 +479,35 @@ export default function P2PTrackerPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
         <div className="tracker-root panel">
-          <div className="panel-head" style={{ padding: '10px 14px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{t('p2pPriceHistory')}</h2>
-            <span className="pill">{last24hHistory.length} {t('p2pPts24h')}</span>
+          <div className="panel-head" style={{ padding: '8px 12px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>{t('p2pPriceHistory')}</h2>
+            <span className="pill" style={{ fontSize: 9 }}>
+              {last24hHistory.length} {t('p2pPts24h')}
+              {autoRefresh && <> · {Math.floor(nextRefreshIn / 60)}:{String(nextRefreshIn % 60).padStart(2, '0')}</>}
+            </span>
           </div>
-          <div className="panel-body" style={{ padding: '10px 14px 14px', minHeight: 176, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
-              <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(3) : '—'}</span>
+          <div className="panel-body" style={{ padding: '8px 12px 12px', minHeight: 150, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
+              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(3) : '—'}</span>
             </div>
-            <div className="flex items-end gap-1 h-6">
+            <div className="flex items-end gap-1 h-5">
               {priceBarData.sellBars.map((pct, i) => (
-                <div key={`sell-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.28)}px`, background: 'color-mix(in srgb, var(--good) 82%, transparent)' }} />
+                <div key={`sell-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px`, background: 'color-mix(in srgb, var(--good) 82%, transparent)' }} />
               ))}
             </div>
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
-              <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
+              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
             </div>
-            <div className="flex items-end gap-1 h-6">
+            <div className="flex items-end gap-1 h-5">
               {priceBarData.buyBars.map((pct, i) => (
-                <div key={`buy-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.28)}px`, background: 'color-mix(in srgb, var(--bad) 82%, transparent)' }} />
+                <div key={`buy-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px`, background: 'color-mix(in srgb, var(--bad) 82%, transparent)' }} />
               ))}
             </div>
-            <div className="flex gap-2 pt-1">
-              <span className="pill">{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
-              <span className="pill">{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
+            <div className="flex gap-2">
+              <span className="pill" style={{ fontSize: 9 }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
+              <span className="pill" style={{ fontSize: 9 }}>{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
             </div>
           </div>
         </div>
