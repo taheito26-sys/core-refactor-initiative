@@ -37,7 +37,7 @@ import SettingsPage from './pages/SettingsPage';
 import CalendarPage from './pages/CalendarPage';
 import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
-import NetworkPage from './pages/NetworkPage';
+
 const AnalyticsPage = createPlaceholderPage('Analytics', 'Performance analytics and insights');
 const NotificationsPage = createPlaceholderPage('Notifications', 'Activity and alerts');
 const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
