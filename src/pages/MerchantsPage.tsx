@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
