@@ -37,7 +37,7 @@ import SettingsPage from './pages/SettingsPage';
 import CalendarPage from './pages/CalendarPage';
 import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
-import NetworkPage from './pages/NetworkPage';
+
 const AnalyticsPage = createPlaceholderPage('Analytics', 'Performance analytics and insights');
 const NotificationsPage = createPlaceholderPage('Notifications', 'Activity and alerts');
 const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
@@ -131,12 +131,8 @@ const App = () => (
                   <Route path="/crm" element={<CRMPage />} />
                   <Route path="/merchants" element={<MerchantsPage />} />
 
-                  {/* Network */}
-                  <Route path="/network" element={<NetworkPage />} />
-                  <Route path="/network/:relationshipId" element={<RelationshipWorkspace />} />
-
                   {/* Supporting */}
-                  <Route path="/deals" element={<Navigate to="/network?tab=deals" replace />} />
+                  <Route path="/deals" element={<Navigate to="/merchants" replace />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
@@ -152,8 +148,10 @@ const App = () => (
 
                 {/* Legacy redirects */}
                 <Route path="/trading" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/merchant" element={<Navigate to="/network" replace />} />
-                <Route path="/merchant/*" element={<Navigate to="/network" replace />} />
+                <Route path="/merchant" element={<Navigate to="/merchants" replace />} />
+                <Route path="/merchant/*" element={<Navigate to="/merchants" replace />} />
+                <Route path="/network" element={<Navigate to="/merchants" replace />} />
+                <Route path="/network/*" element={<Navigate to="/merchants" replace />} />
                 <Route path="/vault" element={<Navigate to="/trading/vault" replace />} />
                 <Route path="/p2p" element={<Navigate to="/trading/p2p" replace />} />
 
