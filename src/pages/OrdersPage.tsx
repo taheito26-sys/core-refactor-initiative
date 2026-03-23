@@ -192,15 +192,25 @@ export default function OrdersPage() {
   const cancelledDealIds = useMemo(() => new Set(
     allMerchantDeals.filter(d => d.status === 'cancelled' || (d.status as string) === 'voided').map(d => d.id)
   ), [allMerchantDeals]);
+  const cancelledLocalTradeIds = useMemo(() => new Set(
+    allMerchantDeals
+      .filter(d => d.status === 'cancelled' || (d.status as string) === 'voided')
+      .map(d => parseDealMeta(d.notes).local_trade)
+      .filter(Boolean)
+  ), [allMerchantDeals]);
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
   const list = useMemo(() => allTrades.filter(t => {
     if (!inRange(t.ts, state.range)) return false;
-    if (t.approvalStatus === 'cancelled') return false;
-    // Hide trades whose linked merchant deal was cancelled/voided
+    if (t.approvalStatus === 'cancelled' || t.voided) return false;
     if (t.linkedDealId && cancelledDealIds.has(t.linkedDealId)) return false;
+    if (cancelledLocalTradeIds.has(t.id)) return false;
+    if ((t.approvalStatus === 'pending_approval' || t.approvalStatus === 'approved' || t.approvalStatus === 'rejected') && !t.linkedDealId) {
+      const matchedServerDeal = allMerchantDeals.some(d => parseDealMeta(d.notes).local_trade === t.id && d.created_by === userId && d.status !== 'cancelled' && (d.status as string) !== 'voided');
+      if (!matchedServerDeal) return false;
+    }
     return true;
-  }), [allTrades, state.range, cancelledDealIds]);
+  }), [allTrades, state.range, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, userId]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
