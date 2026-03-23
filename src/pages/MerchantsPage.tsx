@@ -253,11 +253,11 @@ export default function MerchantsPage() {
     [relationships, activeRelId]
   );
 
+  const overdueCount = settlementOverview?.overdueCount || 0;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
-    { key: 'ledger', label: t('ledger') || 'Ledger', icon: '📒' },
-    
+    { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
   ];
 
   return (
