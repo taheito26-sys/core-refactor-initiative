@@ -54,8 +54,20 @@ export default function MerchantsPage() {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const { data: settlementOverview } = useSettlementOverview();
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from('merchant_messages')
+      .select('id', { count: 'exact', head: true })
+      .neq('sender_id', userId)
+      .is('read_at', null)
+      .then(({ count }) => setUnreadChatCount(count || 0));
+  }, [userId]);
 
   const handleOpenRelationship = useCallback((relationshipId: string) => {
     setActiveRelId(relationshipId);
