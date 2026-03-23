@@ -22,6 +22,8 @@ import {
   useAdminUserProfile,
   useAdminCorrectDeal,
   useAdminVoidDeal,
+  useAdminCorrectTracker,
+  useAdminVoidTrackerEntity,
 } from '../hooks/useAdminWorkspace';
 
 interface Props {
@@ -38,6 +40,8 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const { data: tracker } = useAdminUserTracker(userId);
   const correctDeal = useAdminCorrectDeal();
   const voidDeal = useAdminVoidDeal();
+  const correctTracker = useAdminCorrectTracker();
+  const voidTrackerEntity = useAdminVoidTrackerEntity();
 
   const [editDeal, setEditDeal] = useState<any | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -45,6 +49,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const [editReason, setEditReason] = useState('');
   const [voidTarget, setVoidTarget] = useState<any | null>(null);
   const [voidReason, setVoidReason] = useState('');
+
+  // Tracker edit state
+  const [editEntity, setEditEntity] = useState<{ type: 'batch' | 'trade'; data: any } | null>(null);
+  const [editEntityQty, setEditEntityQty] = useState('');
+  const [editEntityPrice, setEditEntityPrice] = useState('');
+  const [editEntityReason, setEditEntityReason] = useState('');
+  const [voidEntity, setVoidEntity] = useState<{ type: 'batch' | 'trade'; data: any } | null>(null);
+  const [voidEntityReason, setVoidEntityReason] = useState('');
 
   const trackerState = tracker?.state as any;
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
@@ -80,6 +92,42 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
       setVoidTarget(null);
     } catch {
       toast({ title: 'Error', description: 'Failed to void deal.', variant: 'destructive' });
+    }
+  };
+
+  const handleCorrectEntity = async () => {
+    if (!editEntity || !editEntityReason.trim()) return;
+    try {
+      const updates: Record<string, unknown> = {};
+      if (editEntity.type === 'batch') {
+        if (editEntityQty) updates.qty = Number(editEntityQty);
+        if (editEntityPrice) updates.price = Number(editEntityPrice);
+      } else {
+        if (editEntityQty) updates.amountUSDT = Number(editEntityQty);
+        if (editEntityPrice) updates.sellPriceQAR = Number(editEntityPrice);
+      }
+      await correctTracker.mutateAsync({
+        targetUserId: userId, entityType: editEntity.type, entityId: editEntity.data.id,
+        updates, reason: editEntityReason.trim(),
+      });
+      toast({ title: `${editEntity.type} corrected`, description: 'Audit log recorded.' });
+      setEditEntity(null);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to correct record.', variant: 'destructive' });
+    }
+  };
+
+  const handleVoidEntity = async () => {
+    if (!voidEntity || !voidEntityReason.trim()) return;
+    try {
+      await voidTrackerEntity.mutateAsync({
+        targetUserId: userId, entityType: voidEntity.type, entityId: voidEntity.data.id,
+        reason: voidEntityReason.trim(),
+      });
+      toast({ title: `${voidEntity.type} voided`, description: 'Audit log recorded.' });
+      setVoidEntity(null);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to void record.', variant: 'destructive' });
     }
   };
 
@@ -233,16 +281,39 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                             <TableHead className="text-xs">Qty</TableHead>
                             <TableHead className="text-xs">Price</TableHead>
                             <TableHead className="text-xs">Date</TableHead>
+                            <TableHead className="text-xs">Status</TableHead>
+                            <TableHead className="text-xs text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {batches.slice(0, 50).map((b: any) => (
-                            <TableRow key={b.id}>
+                            <TableRow key={b.id} className={b.voided ? 'opacity-40' : ''}>
                               <TableCell className="text-xs font-mono">{String(b.id).slice(0, 8)}</TableCell>
                               <TableCell className="text-xs">{b.qty}</TableCell>
                               <TableCell className="text-xs">{b.price}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">
                                 {b.ts ? format(new Date(b.ts), 'MMM d, yyyy') : '—'}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {b.voided ? <Badge variant="destructive" className="text-[10px]">voided</Badge> : <Badge variant="outline" className="text-[10px]">active</Badge>}
+                              </TableCell>
+                              <TableCell className="text-right space-x-1">
+                                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => {
+                                  setEditEntity({ type: 'batch', data: b });
+                                  setEditEntityQty(String(b.qty ?? ''));
+                                  setEditEntityPrice(String(b.price ?? ''));
+                                  setEditEntityReason('');
+                                }}>
+                                  <Edit className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                {!b.voided && (
+                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={() => {
+                                    setVoidEntity({ type: 'batch', data: b });
+                                    setVoidEntityReason('');
+                                  }}>
+                                    <Ban className="h-3 w-3 mr-1" /> Void
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -262,20 +333,43 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                           <TableRow>
                             <TableHead className="text-xs">ID</TableHead>
                             <TableHead className="text-xs">Qty</TableHead>
-                            <TableHead className="text-xs">Price</TableHead>
+                            <TableHead className="text-xs">Sell Price</TableHead>
                             <TableHead className="text-xs">Customer</TableHead>
                             <TableHead className="text-xs">Date</TableHead>
+                            <TableHead className="text-xs">Status</TableHead>
+                            <TableHead className="text-xs text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {trades.slice(0, 50).map((t: any) => (
-                            <TableRow key={t.id}>
+                            <TableRow key={t.id} className={t.voided ? 'opacity-40' : ''}>
                               <TableCell className="text-xs font-mono">{String(t.id).slice(0, 8)}</TableCell>
-                              <TableCell className="text-xs">{t.qty}</TableCell>
-                              <TableCell className="text-xs">{t.price}</TableCell>
+                              <TableCell className="text-xs">{t.amountUSDT ?? t.qty}</TableCell>
+                              <TableCell className="text-xs">{t.sellPriceQAR ?? t.price}</TableCell>
                               <TableCell className="text-xs">{t.customer ?? '—'}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">
                                 {t.ts ? format(new Date(t.ts), 'MMM d, yyyy') : '—'}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {t.voided ? <Badge variant="destructive" className="text-[10px]">voided</Badge> : <Badge variant="outline" className="text-[10px]">active</Badge>}
+                              </TableCell>
+                              <TableCell className="text-right space-x-1">
+                                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => {
+                                  setEditEntity({ type: 'trade', data: t });
+                                  setEditEntityQty(String(t.amountUSDT ?? t.qty ?? ''));
+                                  setEditEntityPrice(String(t.sellPriceQAR ?? t.price ?? ''));
+                                  setEditEntityReason('');
+                                }}>
+                                  <Edit className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                {!t.voided && (
+                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={() => {
+                                    setVoidEntity({ type: 'trade', data: t });
+                                    setVoidEntityReason('');
+                                  }}>
+                                    <Ban className="h-3 w-3 mr-1" /> Void
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -330,6 +424,58 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
             <Button variant="outline" size="sm" onClick={() => setVoidTarget(null)}>Cancel</Button>
             <Button variant="destructive" size="sm" onClick={handleVoid} disabled={!voidReason.trim() || voidDeal.isPending}>
               {voidDeal.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Confirm Void
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tracker Entity Dialog */}
+      <Dialog open={!!editEntity} onOpenChange={(open) => !open && setEditEntity(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-sm">Correct {editEntity?.type === 'batch' ? 'Batch' : 'Trade'}</DialogTitle>
+            <DialogDescription className="text-xs">Changes are audited and permanent.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Quantity' : 'Amount (USDT)'}</Label>
+              <Input type="number" value={editEntityQty} onChange={e => setEditEntityQty(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Buy Price' : 'Sell Price (QAR)'}</Label>
+              <Input type="number" value={editEntityPrice} onChange={e => setEditEntityPrice(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">Reason (required)</Label>
+              <Textarea value={editEntityReason} onChange={e => setEditEntityReason(e.target.value)} placeholder="Why is this correction needed?" className="text-sm min-h-[60px]" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditEntity(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleCorrectEntity} disabled={!editEntityReason.trim() || correctTracker.isPending}>
+              {correctTracker.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Save Correction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Void Tracker Entity Dialog */}
+      <Dialog open={!!voidEntity} onOpenChange={(open) => !open && setVoidEntity(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-sm">Void {voidEntity?.type === 'batch' ? 'Batch' : 'Trade'}</DialogTitle>
+            <DialogDescription className="text-xs">This will mark the record as voided. This action is audited.</DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label className="text-xs">Reason (required)</Label>
+            <Textarea value={voidEntityReason} onChange={e => setVoidEntityReason(e.target.value)} placeholder="Why is this record being voided?" className="text-sm min-h-[60px]" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setVoidEntity(null)}>Cancel</Button>
+            <Button variant="destructive" size="sm" onClick={handleVoidEntity} disabled={!voidEntityReason.trim() || voidTrackerEntity.isPending}>
+              {voidTrackerEntity.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               Confirm Void
             </Button>
           </DialogFooter>
