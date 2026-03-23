@@ -174,6 +174,14 @@ export function DealsTab({ relationshipId, agreements }: Props) {
               </select>
             </div>
             <div>
+              <Label className="text-xs">{t('settlementCadence')}</Label>
+              <select value={cadence} onChange={e => setCadence(e.target.value)} className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
+                <option value="monthly">📅 {t('monthly')}</option>
+                <option value="weekly">📆 {t('weekly')}</option>
+                <option value="per_order">⚡ {t('perTrade')}</option>
+              </select>
+            </div>
+            <div>
               <Label className="text-xs">{t('notes')}</Label>
               <Input value={notes} onChange={e => setNotes(e.target.value)} className="text-xs" placeholder={t('noteOptional')} />
             </div>
