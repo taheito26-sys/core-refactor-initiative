@@ -39,7 +39,7 @@ import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
 
 const AnalyticsPage = createPlaceholderPage('Analytics', 'Performance analytics and insights');
-const NotificationsPage = createPlaceholderPage('Notifications', 'Activity and alerts');
+import NotificationsPage from './pages/NotificationsPage';
 const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
 const InvitationsPage = createPlaceholderPage('Invitations', 'Manage invitations');
 const ApprovalsPage = createPlaceholderPage('Approvals', 'Pending approvals');
