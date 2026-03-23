@@ -359,6 +359,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {showCashBox && (
+        <CashBoxManager
+          currentCash={num(state.cashQAR, 0)}
+          currentOwner={state.cashOwner || ''}
+          onSave={handleCashSave}
+          onClose={() => setShowCashBox(false)}
+        />
+      )}
     </div>
   );
 }
