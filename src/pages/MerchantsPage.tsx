@@ -11,7 +11,7 @@ import { RelationshipDrawer } from '@/features/merchants/components/Relationship
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'inbox' | 'ledger';
+type MerchantTab = 'relationships' | 'inbox' | 'settlements';
 
 interface AgreementRow {
   id: string;
