@@ -27,7 +27,7 @@ export function notificationRoute(n: Notification): string {
     case 'merchant':
       return '/merchants';
     case 'message':
-      return '/merchants';
+      return '/merchants?tab=chat';
     default:
       return '/dashboard';
   }
