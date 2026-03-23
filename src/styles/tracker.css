@@ -371,9 +371,8 @@
   padding: 16px; overflow-y: auto;
   animation: slideInRight .25s ease;
 }
-/* Ensure dialogs/sheets inside drawer render above it */
-.rel-drawer [data-radix-portal] { z-index: 200; }
-.rel-drawer ~ [data-radix-portal] { z-index: 200; }
+/* Ensure Radix dialogs render above the drawer (z-91) */
+[data-radix-portal] { z-index: 200 !important; }
 @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
