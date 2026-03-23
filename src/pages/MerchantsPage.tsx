@@ -274,41 +274,7 @@ export default function MerchantsPage() {
             </>
           )}
 
-          {/* ═══ TEMPLATES TAB ═══ */}
-          {tab === 'templates' && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('agreementTemplates') || 'Agreement Templates'}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('reusableFinancialRules') || 'Reusable financial rule definitions'}</div>
-                </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
-                {AGREEMENT_TEMPLATES.map(tpl => (
-                  <div
-                    key={tpl.id}
-                    className="kpi-band"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => { setSelectedTemplate(tpl); setShowTemplateDialog(true); }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700 }}>{tpl.icon} {tpl.label[settings.language as 'en' | 'ar'] || tpl.label.en}</span>
-                      <span className={`pill ${tpl.accent === 'brand' ? '' : 'good'}`} style={{ fontSize: 9 }}>
-                        {tpl.ratioDisplay}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>
-                      {tpl.description[settings.language as 'en' | 'ar'] || tpl.description.en}
-                    </div>
-                    <div style={{ fontSize: 9, color: 'var(--muted2)' }}>
-                      {tpl.family === 'profit_share' ? '🤝 Profit Share' : '📊 Sales Deal'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
 
           {/* ═══ AGREEMENTS TAB ═══ */}
           {tab === 'agreements' && (
