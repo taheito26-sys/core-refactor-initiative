@@ -8,7 +8,7 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'agreements' | 'analytics';
+type MerchantTab = 'relationships' | 'agreements' | 'ledger' | 'analytics';
 
 interface AgreementRow {
   id: string;
@@ -109,12 +109,25 @@ export default function MerchantsPage() {
       )
     : relationships;
 
-  const filteredAgreements = search
-    ? agreements.filter(a =>
-        a.title.toLowerCase().includes(search.toLowerCase()) ||
-        a.counterparty_name?.toLowerCase().includes(search.toLowerCase())
-      )
-    : agreements;
+  // Cancelled deals for ledger (moved up so filteredLedger can reference it)
+  const cancelledDeals = useMemo(() => agreements.filter(a => a.status === 'cancelled'), [agreements]);
+
+  const filteredAgreements = useMemo(() => {
+    const active = agreements.filter(a => a.status !== 'cancelled');
+    if (!search) return active;
+    return active.filter(a =>
+      a.title.toLowerCase().includes(search.toLowerCase()) ||
+      a.counterparty_name?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [agreements, search]);
+
+  const filteredLedger = useMemo(() => {
+    if (!search) return cancelledDeals;
+    return cancelledDeals.filter(a =>
+      a.title.toLowerCase().includes(search.toLowerCase()) ||
+      a.counterparty_name?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [cancelledDeals, search]);
 
   const statusPill = (status: string) => {
     const cls = status === 'active' || status === 'approved' ? 'good'
@@ -165,9 +178,11 @@ export default function MerchantsPage() {
   const pendingAgreements = agreements.filter(a => a.status === 'pending').length;
   const totalExposure = agreements.filter(a => a.status === 'active').reduce((s, a) => s + a.amount, 0);
 
+
   const tabs: { key: MerchantTab; label: string; icon: string }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'agreements', label: t('agreements') || 'Agreements', icon: '🤝' },
+    { key: 'ledger', label: t('ledger') || 'Ledger', icon: '📒' },
     { key: 'analytics', label: t('analytics'), icon: '📊' },
   ];
 
@@ -333,7 +348,54 @@ export default function MerchantsPage() {
             </>
           )}
 
-          {/* ═══ ANALYTICS TAB ═══ */}
+          {/* ═══ LEDGER TAB ═══ */}
+          {tab === 'ledger' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>📒 {t('cancelledDeals')}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cancelledDealsDesc')}</div>
+                </div>
+                <span className="pill">{filteredLedger.length}</span>
+              </div>
+
+              {filteredLedger.length === 0 ? (
+                <div className="empty">
+                  <div className="empty-t">{t('noCancelledDeals')}</div>
+                  <div className="empty-s">{t('ledgerClean')}</div>
+                </div>
+              ) : (
+                <div className="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{t('title') || 'Title'}</th>
+                        <th>{t('merchant') || 'Merchant'}</th>
+                        <th>{t('type') || 'Type'}</th>
+                        <th className="r">{t('amount')}</th>
+                        <th>{t('cancelledOn')}</th>
+                        <th>{t('date')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredLedger.map(a => (
+                        <tr key={a.id} style={{ opacity: 0.7 }}>
+                          <td style={{ fontWeight: 700, fontSize: 11 }}>{a.title}</td>
+                          <td style={{ fontSize: 10 }}>{a.counterparty_name}</td>
+                          <td style={{ fontSize: 10 }}>{dealTypeLabel(a.deal_type)}</td>
+                          <td className="mono r">{fmtU(a.amount)} {a.currency}</td>
+                          <td>{statusPill(a.status)}</td>
+                          <td className="mono" style={{ fontSize: 10 }}>{new Date(a.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+
           {tab === 'analytics' && (
             <>
               <div style={{ marginBottom: 4 }}>
