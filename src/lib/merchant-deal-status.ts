@@ -1,17 +1,22 @@
 // ─── Merchant Deal Status State Machine ─────────────────────────────
-// Only two statuses exist: pending and approved.
-// The only valid forward transition is pending → approved.
+// Canonical statuses: pending, approved, rejected, cancelled
+// Valid transitions:
+//   pending  → approved | rejected | cancelled
+//   approved → cancelled
+//   rejected → (terminal)
+//   cancelled → (terminal)
 
-export type MerchantDealStatus = 'pending' | 'approved';
+export type MerchantDealStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export const DEAL_STATUS_TRANSITIONS: Record<MerchantDealStatus, readonly MerchantDealStatus[]> = {
-  pending: ['approved'],
-  approved: [],
+  pending: ['approved', 'rejected', 'cancelled'],
+  approved: ['cancelled'],
+  rejected: [],
+  cancelled: [],
 };
 
 /**
  * Returns allowed next states for a given deal status.
- * pending → [approved], approved → []
  */
 export function getAllowedDealStatusTransitions(status: MerchantDealStatus): MerchantDealStatus[] {
   return [...(DEAL_STATUS_TRANSITIONS[status] || [])];
@@ -19,10 +24,13 @@ export function getAllowedDealStatusTransitions(status: MerchantDealStatus): Mer
 
 /**
  * Normalizes a status string to MerchantDealStatus.
- * Returns 'approved' if status === 'approved', else 'pending'.
+ * Maps known statuses; defaults unknown to 'pending'.
  */
 export function normalizeDealStatus(status: string | null | undefined): MerchantDealStatus {
-  return status === 'approved' ? 'approved' : 'pending';
+  if (status === 'approved') return 'approved';
+  if (status === 'rejected') return 'rejected';
+  if (status === 'cancelled') return 'cancelled';
+  return 'pending';
 }
 
 /**
