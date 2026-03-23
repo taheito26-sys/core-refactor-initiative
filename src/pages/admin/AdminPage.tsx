@@ -64,6 +64,9 @@ export default function AdminPage() {
           <TabsTrigger value="approvals" className="text-xs gap-1">
             <CheckCircle className="h-3.5 w-3.5" /> Approvals
           </TabsTrigger>
+          <TabsTrigger value="notifications" className="text-xs gap-1">
+            <Bell className="h-3.5 w-3.5" /> Notifications
+          </TabsTrigger>
           <TabsTrigger value="audit" className="text-xs gap-1">
             <FileText className="h-3.5 w-3.5" /> Audit Log
           </TabsTrigger>
