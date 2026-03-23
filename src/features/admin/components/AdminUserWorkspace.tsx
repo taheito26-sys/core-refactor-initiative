@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { format } from 'date-fns';
-import { ArrowLeft, Edit, Ban, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit, Ban, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,6 +63,55 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const trackerState = tracker?.state as any;
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
   const trades = Array.isArray(trackerState?.trades) ? trackerState.trades : [];
+
+  const exportCSV = useCallback((filename: string, headers: string[], rows: string[][]) => {
+    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Exported', description: `${filename} downloaded.` });
+  }, [toast]);
+
+  const exportDeals = () => {
+    if (!deals?.length) return;
+    exportCSV(`deals_${userId.slice(0,8)}.csv`,
+      ['ID','Title','Amount','Currency','Type','Status','Created','Notes'],
+      deals.map((d: any) => [d.id, d.title, d.amount, d.currency, d.deal_type, d.status, d.created_at, d.notes ?? ''])
+    );
+  };
+
+  const exportSettlements = () => {
+    if (!settlements?.length) return;
+    exportCSV(`settlements_${userId.slice(0,8)}.csv`,
+      ['ID','Deal ID','Amount','Currency','Date','Notes'],
+      settlements.map((s: any) => [s.id, s.deal_id, s.amount, s.currency, s.created_at, s.notes ?? ''])
+    );
+  };
+
+  const exportTrades = () => {
+    if (!trades.length) return;
+    exportCSV(`trades_${userId.slice(0,8)}.csv`,
+      ['ID','Amount USDT','Sell Price QAR','Customer','Date','Voided'],
+      trades.map((t: any) => [t.id, t.amountUSDT ?? t.qty ?? '', t.sellPriceQAR ?? t.price ?? '', t.customer ?? '', t.ts ? new Date(t.ts).toISOString() : '', t.voided ? 'yes' : 'no'])
+    );
+  };
+
+  const exportBatches = () => {
+    if (!batches.length) return;
+    exportCSV(`batches_${userId.slice(0,8)}.csv`,
+      ['ID','Qty','Price','Supplier','Date','Voided'],
+      batches.map((b: any) => [b.id, b.qty, b.price, b.supplier ?? '', b.ts ? new Date(b.ts).toISOString() : '', b.voided ? 'yes' : 'no'])
+    );
+  };
+
+  const exportAll = () => {
+    exportDeals();
+    exportSettlements();
+    exportTrades();
+    exportBatches();
+  };
 
   const openEdit = (deal: any) => {
     setEditDeal(deal);
@@ -135,11 +184,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
-        <h2 className="text-lg font-semibold text-foreground">
+        <h2 className="text-lg font-semibold text-foreground flex-1">
           User Workspace — {profile?.display_name || userId.slice(0, 8)}
         </h2>
+        <Button variant="outline" size="sm" className="text-xs gap-1" onClick={exportAll}>
+          <Download className="h-3 w-3" /> Export All CSV
+        </Button>
       </div>
 
       {/* Profile card */}
@@ -175,6 +227,11 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         </TabsContent>
 
         <TabsContent value="deals" className="mt-3">
+          <div className="flex justify-end mb-2">
+            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportDeals} disabled={!deals?.length}>
+              <Download className="h-3 w-3" /> CSV
+            </Button>
+          </div>
           {dealsLoading ? <Skeleton className="h-32" /> : !deals?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">No deals.</p>
           ) : (
@@ -217,6 +274,11 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         </TabsContent>
 
         <TabsContent value="settlements" className="mt-3">
+          <div className="flex justify-end mb-2">
+            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportSettlements} disabled={!settlements?.length}>
+              <Download className="h-3 w-3" /> CSV
+            </Button>
+          </div>
           {!settlements?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">No settlements.</p>
           ) : (
@@ -281,6 +343,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
             <p className="text-sm text-muted-foreground text-center py-6">No tracker data.</p>
           ) : (
             <div className="space-y-4">
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportBatches} disabled={!batches.length}>
+                  <Download className="h-3 w-3" /> Batches CSV
+                </Button>
+                <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportTrades} disabled={!trades.length}>
+                  <Download className="h-3 w-3" /> Trades CSV
+                </Button>
+              </div>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm">Batches ({batches.length})</CardTitle></CardHeader>
                 <CardContent className="p-0">
