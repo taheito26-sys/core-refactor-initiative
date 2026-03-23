@@ -1,9 +1,11 @@
 import { useT } from '@/lib/i18n';
+import { useAuth } from '@/features/auth/auth-context';
 import { DealsTab } from './DealsTab';
 import { SettlementTab } from './SettlementTab';
 import { ProfitDistributionPanel } from './ProfitDistributionPanel';
+import { CapitalPoolPanel } from './CapitalPoolPanel';
 import { ChatTab } from './ChatTab';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import '@/styles/tracker.css';
 
 interface AgreementRow {
@@ -16,6 +18,7 @@ interface AgreementRow {
   status: string;
   created_at: string;
   counterparty_name?: string;
+  settlement_cadence?: string;
 }
 
 interface RelationshipDrawerProps {
@@ -33,20 +36,34 @@ interface RelationshipDrawerProps {
   onClose: () => void;
 }
 
-type DrawerTab = 'deals' | 'settlements' | 'pnl' | 'chat';
+type DrawerTab = 'deals' | 'settlements' | 'pnl' | 'capital' | 'chat';
 
 export function RelationshipDrawer({ relationship, agreements, onClose }: RelationshipDrawerProps) {
   const t = useT();
+  const { merchantProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<DrawerTab>('deals');
 
-  const relDeals = agreements
-    .filter(a => a.relationship_id === relationship.id && a.status !== 'cancelled')
-    .map(d => ({ id: d.id, title: d.title }));
+  const relDeals = useMemo(() =>
+    agreements
+      .filter(a => a.relationship_id === relationship.id && a.status !== 'cancelled')
+      .map(d => ({
+        id: d.id,
+        title: d.title,
+        deal_type: d.deal_type,
+        settlement_cadence: d.settlement_cadence || 'monthly',
+        amount: d.amount,
+        created_at: d.created_at,
+      })),
+    [agreements, relationship.id]
+  );
+
+  const isPartner = merchantProfile?.merchant_id !== relationship.merchant_a_id;
 
   const tabs: { key: DrawerTab; label: string; icon: string }[] = [
     { key: 'deals', label: t('dealsLabel'), icon: '📋' },
     { key: 'settlements', label: t('settlements'), icon: '💰' },
     { key: 'pnl', label: t('pnl'), icon: '📊' },
+    { key: 'capital', label: t('capitalTab'), icon: '🏦' },
     { key: 'chat', label: t('chatTab'), icon: '💬' },
   ];
 
@@ -75,18 +92,18 @@ export function RelationshipDrawer({ relationship, agreements, onClose }: Relati
         </div>
 
         {/* Tab bar */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 12, overflowX: 'auto' }}>
           {tabs.map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
               style={{
-                padding: '8px 16px', fontSize: 11, fontWeight: activeTab === key ? 700 : 500,
+                padding: '8px 12px', fontSize: 10, fontWeight: activeTab === key ? 700 : 500,
                 color: activeTab === key ? 'var(--brand)' : 'var(--muted)',
                 borderBottom: activeTab === key ? '2px solid var(--brand)' : '2px solid transparent',
                 background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer',
                 transition: 'all 0.15s',
-                display: 'flex', alignItems: 'center', gap: 4,
+                display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
               }}
             >
               {icon} {label}
@@ -110,6 +127,26 @@ export function RelationshipDrawer({ relationship, agreements, onClose }: Relati
           )}
           {activeTab === 'pnl' && (
             <ProfitDistributionPanel relationshipId={relationship.id} />
+          )}
+          {activeTab === 'capital' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {relDeals.length === 0 ? (
+                <div className="empty">
+                  <div className="empty-t">{t('noDeals')}</div>
+                </div>
+              ) : (
+                relDeals.map(d => (
+                  <CapitalPoolPanel
+                    key={d.id}
+                    dealId={d.id}
+                    dealAmount={d.amount}
+                    dealTitle={d.title}
+                    relationshipId={relationship.id}
+                    isPartner={isPartner}
+                  />
+                ))
+              )}
+            </div>
           )}
           {activeTab === 'chat' && (
             <ChatTab relationshipId={relationship.id} />
