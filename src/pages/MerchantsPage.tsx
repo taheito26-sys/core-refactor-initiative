@@ -276,7 +276,6 @@ export default function MerchantsPage() {
   const overdueCount = settlementOverview?.overdueCount || 0;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
-    { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
     { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬', badge: unreadChatCount > 0 ? unreadChatCount : undefined },
   ];
