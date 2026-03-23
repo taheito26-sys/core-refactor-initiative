@@ -87,7 +87,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
       if (error) throw error;
       toast.success(t('dealCreated') || 'Deal created');
       setShowForm(false);
-      setTitle(''); setAmount(''); setNotes('');
+      setTitle(''); setAmount(''); setNotes(''); setCadence('monthly');
     } catch (err: any) {
       toast.error(err.message);
     } finally {
