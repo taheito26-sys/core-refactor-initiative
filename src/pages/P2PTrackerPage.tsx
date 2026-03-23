@@ -191,7 +191,8 @@ export default function P2PTrackerPage() {
   const [history, setHistory] = useState<P2PHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [nextRefreshIn, setNextRefreshIn] = useState(300);
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
   const t = useT();
