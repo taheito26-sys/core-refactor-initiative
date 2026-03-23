@@ -372,6 +372,7 @@ const translations = {
   rejected: { en: 'Rejected', ar: 'تم الرفض' },
   failedLoadNetwork: { en: 'Failed to load network data', ar: 'فشل تحميل بيانات الشبكة' },
   enterMin2Chars: { en: 'Enter at least 2 characters', ar: 'أدخل حرفين على الأقل' },
+  noResults: { en: 'No merchants found', ar: 'لم يتم العثور على تجار' },
 
   // ── Relationship Workspace ──
   workspace: { en: 'Workspace', ar: 'مساحة العمل' },
