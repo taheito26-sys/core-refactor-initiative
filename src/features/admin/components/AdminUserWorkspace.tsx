@@ -333,20 +333,43 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                           <TableRow>
                             <TableHead className="text-xs">ID</TableHead>
                             <TableHead className="text-xs">Qty</TableHead>
-                            <TableHead className="text-xs">Price</TableHead>
+                            <TableHead className="text-xs">Sell Price</TableHead>
                             <TableHead className="text-xs">Customer</TableHead>
                             <TableHead className="text-xs">Date</TableHead>
+                            <TableHead className="text-xs">Status</TableHead>
+                            <TableHead className="text-xs text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {trades.slice(0, 50).map((t: any) => (
-                            <TableRow key={t.id}>
+                            <TableRow key={t.id} className={t.voided ? 'opacity-40' : ''}>
                               <TableCell className="text-xs font-mono">{String(t.id).slice(0, 8)}</TableCell>
-                              <TableCell className="text-xs">{t.qty}</TableCell>
-                              <TableCell className="text-xs">{t.price}</TableCell>
+                              <TableCell className="text-xs">{t.amountUSDT ?? t.qty}</TableCell>
+                              <TableCell className="text-xs">{t.sellPriceQAR ?? t.price}</TableCell>
                               <TableCell className="text-xs">{t.customer ?? '—'}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">
                                 {t.ts ? format(new Date(t.ts), 'MMM d, yyyy') : '—'}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {t.voided ? <Badge variant="destructive" className="text-[10px]">voided</Badge> : <Badge variant="outline" className="text-[10px]">active</Badge>}
+                              </TableCell>
+                              <TableCell className="text-right space-x-1">
+                                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => {
+                                  setEditEntity({ type: 'trade', data: t });
+                                  setEditEntityQty(String(t.amountUSDT ?? t.qty ?? ''));
+                                  setEditEntityPrice(String(t.sellPriceQAR ?? t.price ?? ''));
+                                  setEditEntityReason('');
+                                }}>
+                                  <Edit className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                {!t.voided && (
+                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={() => {
+                                    setVoidEntity({ type: 'trade', data: t });
+                                    setVoidEntityReason('');
+                                  }}>
+                                    <Ban className="h-3 w-3 mr-1" /> Void
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
