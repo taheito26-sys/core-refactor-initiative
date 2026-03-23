@@ -184,11 +184,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
-        <h2 className="text-lg font-semibold text-foreground">
+        <h2 className="text-lg font-semibold text-foreground flex-1">
           User Workspace — {profile?.display_name || userId.slice(0, 8)}
         </h2>
+        <Button variant="outline" size="sm" className="text-xs gap-1" onClick={exportAll}>
+          <Download className="h-3 w-3" /> Export All CSV
+        </Button>
       </div>
 
       {/* Profile card */}
