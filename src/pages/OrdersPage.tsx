@@ -43,7 +43,15 @@ export default function OrdersPage() {
   const [buyerId, setBuyerId] = useState('');
   const [useStock, setUseStock] = useState(true);
   const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
+  const [manualBuyPrice, setManualBuyPrice] = useState('');
+  const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
+
+  // Numeric-only handler: allows digits, one dot, and leading minus
+  const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v === '' || /^-?\d*\.?\d*$/.test(v)) setter(v);
+  };
 
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
   const [addBuyerOpen, setAddBuyerOpen] = useState(false);
@@ -186,13 +194,21 @@ export default function OrdersPage() {
     const ts = new Date(saleDate).getTime();
     const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
-    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
+    const fee = parseFloat(saleFee) || 0;
+    if (priceMode === 'manual') {
+      const buyP = parseFloat(manualBuyPrice) || 0;
+      const rev = amountUSDT * sell;
+      const cost = amountUSDT * buyP;
+      const net = rev - cost - fee;
+      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net };
+    }
+    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = amountUSDT * sell;
     const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
-    const net = calc?.ok ? rev - cost : NaN;
+    const net = calc?.ok ? rev - cost - fee : NaN;
     return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
-  }, [saleAmount, saleDate, saleMode, saleSell, state.batches, state.trades]);
+  }, [saleAmount, saleDate, saleMode, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
@@ -280,7 +296,7 @@ export default function OrdersPage() {
     // Build trade with agreement fields if merchant-linked
     const tmpl = selectedTemplateId ? AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId) : null;
     const trade: Trade = {
-      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       linkedRelId: merchantOrderEnabled ? linkedRelId || undefined : undefined,
       agreementFamily: tmpl?.family,
       agreementTemplateId: tmpl?.id,
@@ -1041,13 +1057,33 @@ export default function OrdersPage() {
                 <div className="g2tight">
                   <div className="field2">
                     <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={e => setSaleAmount(e.target.value)} /></div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
                   </div>
                   <div className="field2">
                     <div className="lbl">{t('sellPriceLabel')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={e => setSaleSell(e.target.value)} /></div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
                   </div>
                 </div>
+
+                {priceMode === 'manual' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('buyPrice') || 'Buy Price'}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                    </div>
+                  </div>
+                )}
+
+                {priceMode === 'fifo' && (
+                  <div className="field2">
+                    <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                  </div>
+                )}
 
                 <div className="field2">
                   <div className="lbl">{t('buyerName')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
@@ -1355,18 +1391,18 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={e => setEditQty(e.target.value)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t('sellPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={e => setEditSell(e.target.value)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={numericOnly(setEditSell)} disabled={isApproved} /></div>
                 </div>
               </div>
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('feeQarLabel')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={e => setEditFee(e.target.value)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={numericOnly(setEditFee)} disabled={isApproved} /></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6, gap: 10 }}>
                   <input type="checkbox" id="editUsesStockChk" checked={editUsesStock} onChange={e => setEditUsesStock(e.target.checked)} disabled={isApproved} style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer', flexShrink: 0, marginBottom: 2 }} />
@@ -1472,17 +1508,17 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={e => setEditDealQty(e.target.value)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={numericOnly(setEditDealQty)} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t('sellPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={e => setEditDealSell(e.target.value)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={numericOnly(setEditDealSell)} /></div>
                 </div>
               </div>
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('feeQarLabel')}</div>
-                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={e => setEditDealFee(e.target.value)} /></div>
+                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={numericOnly(setEditDealFee)} /></div>
               </div>
 
               <div className="field2" style={{ marginBottom: 16 }}>
