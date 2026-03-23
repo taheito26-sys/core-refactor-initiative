@@ -929,6 +929,26 @@ const translations = {
   sendToPartner: { en: 'Send to partner', ar: 'إرسال للشريك' },
   addToCapitalPool: { en: 'Add to capital pool', ar: 'إضافة لمجمع رأس المال' },
   exceedsPoolBalance: { en: 'Amount exceeds pool balance', ar: 'المبلغ يتجاوز رصيد المجمع' },
+
+  // ── Settlement Revision (Problems 1-5) ──
+  settleThisTradeNow: { en: 'Settle this trade immediately', ar: 'تسوية هذه الصفقة فوراً' },
+  takeProfit: { en: 'Take Profit', ar: 'أخذ الربح' },
+  addToCapital: { en: 'Add to Capital', ar: 'إضافة لرأس المال' },
+  waitingForMerchantToSettle: { en: 'Waiting for merchant to settle', ar: 'بانتظار تسوية التاجر' },
+  waitingForLenderDecision: { en: 'Waiting for lender to decide', ar: 'بانتظار قرار المقرض' },
+  capitalTransfer: { en: 'Capital Transfer', ar: 'تحويل رأس مال' },
+  capitalIn: { en: 'Capital In', ar: 'رأس مال وارد' },
+  capitalReturn: { en: 'Capital Return', ar: 'إرجاع رأس مال' },
+  lenderToOperator: { en: 'Lender → Operator', ar: 'المقرض → المشغل' },
+  operatorToLender: { en: 'Operator → Lender', ar: 'المشغل → المقرض' },
+  costBasisQar: { en: 'Cost Basis (QAR/USDT)', ar: 'سعر التكلفة (ريال/USDT)' },
+  totalCostQar: { en: 'Total Cost', ar: 'التكلفة الإجمالية' },
+  direction: { en: 'Direction', ar: 'الاتجاه' },
+  balanceLedger: { en: 'Balance Ledger', ar: 'سجل الرصيد' },
+  totalLent: { en: 'Total Lent', ar: 'إجمالي المُقرض' },
+  netBalanceLabel: { en: 'Net Balance', ar: 'صافي الرصيد' },
+  perDealCapital: { en: 'Per-Deal Capital', ar: 'رأس المال لكل صفقة' },
+  transactionHistory: { en: 'Transaction History', ar: 'سجل المعاملات' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

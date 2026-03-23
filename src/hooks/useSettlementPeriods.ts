@@ -62,15 +62,28 @@ export function useSettlementPeriods(relationshipId: string) {
 }
 
 /**
- * Sync settlement periods: generates missing periods for weekly/monthly deals
- * and updates status on existing unsettled periods.
+ * Sync settlement periods: generates missing periods for weekly/monthly deals,
+ * aggregates real trade economics into each period, and updates status.
  */
 export function useSyncSettlementPeriods(relationshipId: string) {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (deals: { id: string; settlement_cadence: Cadence; created_at: string }[]) => {
+    mutationFn: async (input: {
+      deals: { id: string; settlement_cadence: Cadence; created_at: string }[];
+      trades: Array<{
+        id: string;
+        ts: number;
+        linkedDealId?: string;
+        amountUSDT: number;
+        sellPriceQAR: number;
+        feeQAR: number;
+        voided: boolean;
+      }>;
+      tradeCalc: Map<string, any>;
+    }) => {
       const now = new Date();
+      const { deals, trades, tradeCalc } = input;
 
       for (const deal of deals) {
         if (deal.settlement_cadence === 'per_order') continue;
@@ -82,36 +95,86 @@ export function useSyncSettlementPeriods(relationshipId: string) {
           .select('period_key, id, status, settled_amount')
           .eq('deal_id', deal.id);
 
-        const existingKeys = new Set((existing || []).map((e: any) => e.period_key));
+        const existingMap = new Map((existing || []).map((e: any) => [e.period_key, e]));
 
-        const toInsert = periods
-          .filter(p => !existingKeys.has(p.key))
-          .map(p => ({
-            deal_id: deal.id,
-            relationship_id: relationshipId,
-            cadence: deal.settlement_cadence,
-            period_key: p.key,
-            period_start: p.start.toISOString(),
-            period_end: p.end.toISOString(),
-            due_at: p.dueAt.toISOString(),
-            status: computePeriodStatus(p.end, false, now),
-            trade_count: 0,
-            gross_volume: 0, total_cost: 0, net_profit: 0, total_fees: 0,
-            partner_amount: 0, merchant_amount: 0, settled_amount: 0,
-          }));
+        // Find local trades linked to this deal
+        const linkedTrades = trades.filter(t => !t.voided && t.linkedDealId === deal.id);
 
-        if (toInsert.length > 0) {
-          await supabase.from('settlement_periods').insert(toInsert as any);
+        // Fetch deal metadata once per deal for share computation
+        const { data: dealMeta } = await supabase
+          .from('merchant_deals')
+          .select('deal_type, metadata, notes')
+          .eq('id', deal.id)
+          .single();
+
+        let partnerPct = 0;
+        if (dealMeta) {
+          const meta = (dealMeta.metadata && Object.keys(dealMeta.metadata).length > 0)
+            ? dealMeta.metadata
+            : {};
+          partnerPct = Number(
+            (meta as any).partner_ratio ?? (meta as any).counterparty_share_pct ?? 0
+          );
         }
 
-        // Update status on unsettled periods
-        for (const ep of (existing || []) as any[]) {
-          if (ep.status === 'settled') continue;
-          const period = periods.find(p => p.key === ep.period_key);
-          if (!period) continue;
-          const newStatus = computePeriodStatus(period.end, Number(ep.settled_amount) > 0, now);
-          if (newStatus !== ep.status) {
-            await supabase.from('settlement_periods').update({ status: newStatus } as any).eq('id', ep.id);
+        for (const period of periods) {
+          const periodStart = period.start.getTime();
+          const periodEnd = period.end.getTime();
+
+          const periodTrades = linkedTrades.filter(t => t.ts >= periodStart && t.ts <= periodEnd);
+
+          let grossVolume = 0;
+          let totalCost = 0;
+          let totalFees = 0;
+          let netProfit = 0;
+
+          for (const t of periodTrades) {
+            const rev = t.amountUSDT * t.sellPriceQAR;
+            const calc = tradeCalc.get(t.id);
+            const cost = calc?.ok ? calc.slices.reduce((s, sl) => s + sl.cost, 0) : 0;
+            grossVolume += rev;
+            totalCost += cost;
+            totalFees += t.feeQAR;
+            netProfit += calc?.ok ? calc.netQAR : (rev - cost - t.feeQAR);
+          }
+
+          const allocationBase = dealMeta?.deal_type === 'partnership' ? netProfit : grossVolume;
+          const partnerAmount = allocationBase * (partnerPct / 100);
+          const merchantAmount = allocationBase - partnerAmount;
+
+          const ep = existingMap.get(period.key);
+
+          if (!ep) {
+            await supabase.from('settlement_periods').insert({
+              deal_id: deal.id,
+              relationship_id: relationshipId,
+              cadence: deal.settlement_cadence,
+              period_key: period.key,
+              period_start: period.start.toISOString(),
+              period_end: period.end.toISOString(),
+              due_at: period.dueAt.toISOString(),
+              status: computePeriodStatus(period.end, false, now),
+              trade_count: periodTrades.length,
+              gross_volume: grossVolume,
+              total_cost: totalCost,
+              net_profit: netProfit,
+              total_fees: totalFees,
+              partner_amount: partnerAmount,
+              merchant_amount: merchantAmount,
+              settled_amount: 0,
+            } as any);
+          } else if (ep.status !== 'settled') {
+            const newStatus = computePeriodStatus(period.end, Number(ep.settled_amount) > 0, now);
+            await supabase.from('settlement_periods').update({
+              trade_count: periodTrades.length,
+              gross_volume: grossVolume,
+              total_cost: totalCost,
+              net_profit: netProfit,
+              total_fees: totalFees,
+              partner_amount: partnerAmount,
+              merchant_amount: merchantAmount,
+              status: newStatus,
+            } as any).eq('id', ep.id);
           }
         }
       }

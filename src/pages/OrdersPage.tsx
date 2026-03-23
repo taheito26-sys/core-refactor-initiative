@@ -92,6 +92,7 @@ export default function OrdersPage() {
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing'>('my');
 
   // Cancellation request dialog
@@ -409,7 +410,7 @@ export default function OrdersPage() {
             ? netProfit * (partnerPct / 100)
             : rev * (partnerPct / 100);
 
-          await supabase.from('settlement_periods').insert({
+          const { data: periodData } = await supabase.from('settlement_periods').insert({
             deal_id: data.id,
             relationship_id: linkedRelId,
             cadence: 'per_order',
@@ -424,8 +425,24 @@ export default function OrdersPage() {
             total_fees: fee,
             partner_amount: partnerAmt,
             merchant_amount: rev - partnerAmt,
-            status: 'due',
-          } as any);
+            status: settleImmediately ? 'settled' : 'due',
+            resolution: settleImmediately ? 'payout' : null,
+            resolved_by: settleImmediately ? userId : null,
+            resolved_at: settleImmediately ? new Date().toISOString() : null,
+            settled_amount: settleImmediately ? partnerAmt : 0,
+          } as any).select('id').single();
+
+          if (settleImmediately && periodData?.id) {
+            await supabase.from('merchant_settlements').insert({
+              deal_id: data.id,
+              relationship_id: linkedRelId,
+              amount: partnerAmt,
+              currency: 'USDT',
+              settled_by: userId!,
+              notes: `Immediate settlement for order ${baseTrade.id}`,
+              status: 'pending',
+            } as any);
+          }
         }
 
         const persistedTrade: Trade = {
@@ -1202,6 +1219,7 @@ export default function OrdersPage() {
                         const nextEnabled = e.target.checked;
                         setMerchantOrderEnabled(nextEnabled);
                         if (!nextEnabled) {
+                          setSettleImmediately(false);
                           setLinkedRelId('');
                           setSelectedTemplateId(null);
                         }
@@ -1264,6 +1282,23 @@ export default function OrdersPage() {
                     </>
                   )}
                 </div>
+
+                {/* Settle immediately option (Sales Deal + per_order cadence only) */}
+                {merchantOrderEnabled && (() => {
+                  const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId);
+                  if (!tmpl || tmpl.family !== 'sales_deal') return null;
+                  return (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={settleImmediately}
+                        onChange={e => setSettleImmediately(e.target.checked)}
+                        style={{ accentColor: 'var(--brand)' }}
+                      />
+                      {t('settleThisTradeNow')}
+                    </label>
+                  );
+                })()}
 
                 {/* Allocation Preview - enhanced with icons when partner linked */}
                 {allocationPreview && (

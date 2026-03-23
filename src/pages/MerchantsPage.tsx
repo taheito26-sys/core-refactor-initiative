@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
+import { useTrackerState } from '@/lib/useTrackerState';
 import '@/styles/tracker.css';
 
 type MerchantTab = 'relationships' | 'settlements' | 'chat';
@@ -54,6 +55,7 @@ export default function MerchantsPage() {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const { data: settlementOverview } = useSettlementOverview();
+  const { state: trackerState, derived: trackerDerived } = useTrackerState({});
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
@@ -572,6 +574,8 @@ export default function MerchantsPage() {
           relationship={activeRelationship}
           agreements={agreements}
           onClose={() => setActiveRelId(null)}
+          trackerTrades={trackerState.trades}
+          tradeCalc={trackerDerived.tradeCalc}
         />
       )}
     </div>
