@@ -245,24 +245,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* P2P Average Buy/Sell + Cash Position */}
+      {/* Cash · Buying Power · Net Position · Stock Cost Est */}
       <div className="kpis" style={{ marginTop: 0 }}>
-        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/p2p')}>
-          <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>P2P</span>
-          </div>
-          <div className="kpi-lbl">{t('p2pAvgSell')}</div>
-          <div className="kpi-val" style={{ color: 'var(--good)', fontSize: 17 }}>{p2pAvgs.avgSell ? fmtP(p2pAvgs.avgSell) + ' QAR' : '—'}</div>
-          <div className="kpi-sub">{t('avgFromTrades')}</div>
-        </div>
-        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/p2p')}>
-          <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--bad)', borderColor: 'color-mix(in srgb,var(--bad) 30%,transparent)', background: 'color-mix(in srgb,var(--bad) 10%,transparent)' }}>P2P</span>
-          </div>
-          <div className="kpi-lbl">{t('p2pAvgBuy')}</div>
-          <div className="kpi-val" style={{ color: 'var(--bad)', fontSize: 17 }}>{p2pAvgs.avgBuy ? fmtP(p2pAvgs.avgBuy) + ' QAR' : '—'}</div>
-          <div className="kpi-sub">{t('avgFromBatches')}</div>
-        </div>
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>{t('cash')}</span>
@@ -276,51 +260,27 @@ export default function DashboardPage() {
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge good" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>{t('net')}</span>
+            <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>@{t('avPrice')}</span>
+          </div>
+          <div className="kpi-lbl">{t('buyingPower')}</div>
+          <div className="kpi-val" style={{ color: 'var(--t5)' }}>{wacop && num(state.cashQAR, 0) > 0 ? fmtU(num(state.cashQAR, 0) / wacop, 0) + ' USDT' : t('setCash')}</div>
+          <div className="kpi-sub">{wacop ? `@ ${fmtP(wacop)} QAR` : t('addBatchesFirst')}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-head">
+            <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>{t('net')}</span>
           </div>
           <div className="kpi-lbl">{t('netPosition')}</div>
           <div className="kpi-val good">{fmtQWithUnit(stCost + num(state.cashQAR, 0))}</div>
           <div className="kpi-sub">{t('stock')} {fmtQWithUnit(stCost)} + {t('cash')} {fmtQWithUnit(num(state.cashQAR, 0))}</div>
         </div>
-      </div>
-
-      {/* ── Merchant Deal KPIs ── */}
-      <div className="kpis" style={{ marginTop: 0 }}>
-        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/deals')}>
+        <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>🤝</span>
+            <span className="kpi-badge" style={{ color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{state.batches.length} batch</span>
           </div>
-          <div className="kpi-lbl">{t('activeMerchantDeals')}</div>
-          <div className="kpi-val" style={{ color: 'var(--brand)' }}>{activeDeals.length}</div>
-          <div className="kpi-sub">{merchantDeals.length} {t('totalDealsLabel')}</div>
-        </div>
-        <div className="kpi-card" style={{ cursor: pendingApprovals.length > 0 ? 'pointer' : undefined }} onClick={() => pendingApprovals.length > 0 && navigate('/approvals')}>
-          <div className="kpi-head">
-            <span className="kpi-badge" style={badgeStyle(pendingApprovals.length > 0 ? 'bad' : 'good')}>{pendingApprovals.length > 0 ? '⚠' : '✓'}</span>
-          </div>
-          <div className="kpi-lbl">{t('pendingMerchantApprovals')}</div>
-          <div className={`kpi-val ${pendingApprovals.length > 0 ? 'bad' : 'good'}`}>{pendingApprovals.length}</div>
-          <div className="kpi-sub">{pendingApprovals.length > 0 ? t('actionNeeded') : t('allClear')}</div>
-        </div>
-        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/deals')}>
-          <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>💰</span>
-          </div>
-          <div className="kpi-lbl">{t('merchantExposure')}</div>
-          <div className="kpi-val" style={{ fontSize: 17 }}>${fmtTotal(merchantExposure)}</div>
-          <div className="kpi-sub">{activeDeals.length} {t('activeDeals')}</div>
-        </div>
-        <div className="kpi-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/analytics')}>
-          <div className="kpi-head">
-            <span className="kpi-badge" style={badgeStyle(merchantPnL >= 0 ? 'good' : 'bad')}>P&L</span>
-          </div>
-          <div className="kpi-lbl">{t('merchantRealizedPnl')}</div>
-          <div className={`kpi-val ${merchantPnL >= 0 ? 'good' : 'bad'}`}>${fmtTotal(merchantPnL)}</div>
-          <div className="kpi-sub">
-            {settlementAlert.overdue > 0 && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>{settlementAlert.overdue} {t('overdue')}</span>}
-            {settlementAlert.due > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700, marginLeft: 6 }}>{settlementAlert.due} {t('due')}</span>}
-            {settlementAlert.overdue === 0 && settlementAlert.due === 0 && <span>{t('allClear')}</span>}
-          </div>
+          <div className="kpi-lbl">{t('stockCostEst')}</div>
+          <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtQWithUnit(stCost)}</div>
+          <div className="kpi-sub">{t('avPrice')} {wacop ? fmtP(wacop) + ' QAR' : '—'}</div>
         </div>
       </div>
 
