@@ -644,7 +644,20 @@ export default function MerchantsPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+
+      {/* ─── RELATIONSHIP DRAWER ─── */}
+      {activeRelId && (() => {
+        const rel = relationships.find(r => r.id === activeRelId);
+        if (!rel) return null;
+        return (
+          <RelationshipDrawer
+            relationship={rel}
+            agreements={agreements}
+            onClose={() => setActiveRelId(null)}
+          />
+        );
+      })()}
+    </div>
             </>
           )}
         </>
