@@ -582,7 +582,7 @@ export default function MerchantsPage() {
             <>
               <div style={{ marginBottom: 4 }}>
                 <div style={{ fontSize: 12, fontWeight: 700 }}>{t('merchantAnalytics') || 'Merchant Analytics'}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('overviewOfRelationships') || 'Overview of relationships & activity'}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('overviewOfAgreements') || 'Overview of relationships & activity'}</div>
               </div>
 
               <div className="kpi-band-grid">
