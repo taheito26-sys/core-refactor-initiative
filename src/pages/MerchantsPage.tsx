@@ -8,6 +8,7 @@ import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
+import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import '@/styles/tracker.css';
 
