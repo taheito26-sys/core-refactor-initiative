@@ -843,18 +843,20 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
-                                {isDraft && (
+                                {(deal.status === 'pending' || isDraft) && (
                                   <>
                                     <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={async () => {
                                       try {
-                                        await api.deals.update(deal.id, { status: 'active' });
+                                        const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', deal.id);
+                                        if (error) throw error;
                                         await reloadMerchantData();
                                         toast.success(t('tradeApproved'));
                                       } catch (err: any) { toast.error(err.message); }
                                     }}>{t('approve')}</button>
                                     <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={async () => {
                                       try {
-                                        await api.deals.update(deal.id, { status: 'cancelled' });
+                                        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', deal.id);
+                                        if (error) throw error;
                                         await reloadMerchantData();
                                         toast.success(t('tradeRejected'));
                                       } catch (err: any) { toast.error(err.message); }
