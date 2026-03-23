@@ -128,10 +128,13 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
       {/* ── User info ── */}
       {merchantProfile && (
-        <div className="hidden md:flex flex-col items-end">
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="hidden md:flex flex-col items-end cursor-pointer hover:opacity-80 transition-opacity"
+        >
           <span className="text-[11px] font-semibold text-foreground leading-tight">{merchantProfile.display_name}</span>
           <span className="text-[9px] text-muted-foreground leading-tight">{t('clientId')}: {merchantProfile.merchant_id.slice(0, 5)}</span>
-        </div>
+        </button>
       )}
 
       {/* ── Sign out ── */}
@@ -141,6 +144,8 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
       >
         {t('signOut')}
       </button>
+
+      <UserProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
   );
 }
