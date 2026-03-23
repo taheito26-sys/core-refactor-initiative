@@ -40,6 +40,8 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const { data: tracker } = useAdminUserTracker(userId);
   const correctDeal = useAdminCorrectDeal();
   const voidDeal = useAdminVoidDeal();
+  const correctTracker = useAdminCorrectTracker();
+  const voidTrackerEntity = useAdminVoidTrackerEntity();
 
   const [editDeal, setEditDeal] = useState<any | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -47,6 +49,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const [editReason, setEditReason] = useState('');
   const [voidTarget, setVoidTarget] = useState<any | null>(null);
   const [voidReason, setVoidReason] = useState('');
+
+  // Tracker edit state
+  const [editEntity, setEditEntity] = useState<{ type: 'batch' | 'trade'; data: any } | null>(null);
+  const [editEntityQty, setEditEntityQty] = useState('');
+  const [editEntityPrice, setEditEntityPrice] = useState('');
+  const [editEntityReason, setEditEntityReason] = useState('');
+  const [voidEntity, setVoidEntity] = useState<{ type: 'batch' | 'trade'; data: any } | null>(null);
+  const [voidEntityReason, setVoidEntityReason] = useState('');
 
   const trackerState = tracker?.state as any;
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
