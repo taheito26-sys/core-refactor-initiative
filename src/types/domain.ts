@@ -143,6 +143,7 @@ export interface MerchantDeal {
 
 // ─── Approvals ──────────────────────────────────────────────────────
 export type ApprovalType =
+  | 'deal_create'
   | 'settlement_submit'
   | 'profit_record_submit'
   | 'capital_adjustment'
