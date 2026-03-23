@@ -150,9 +150,9 @@ export default function OrdersPage() {
 
   useEffect(() => { reloadMerchantData(); }, [reloadMerchantData]);
 
-  // Real-time listener for merchant_deals changes
+  // Real-time listeners for merchant_deals and merchant_approvals changes
   useEffect(() => {
-    const channel = supabase
+    const dealsChannel = supabase
       .channel('merchant-deals-realtime')
       .on(
         'postgres_changes',
@@ -161,7 +161,19 @@ export default function OrdersPage() {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    const approvalsChannel = supabase
+      .channel('merchant-approvals-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'merchant_approvals' },
+        () => { reloadMerchantData(); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(dealsChannel);
+      supabase.removeChannel(approvalsChannel);
+    };
   }, [reloadMerchantData]);
 
   useEffect(() => {
