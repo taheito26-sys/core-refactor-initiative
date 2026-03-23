@@ -319,7 +319,7 @@ export default function OrdersPage() {
           amount,
           currency,
           status: 'pending',
-          created_by: user!.id,
+          created_by: userId!,
           notes: noteLines,
         });
 
