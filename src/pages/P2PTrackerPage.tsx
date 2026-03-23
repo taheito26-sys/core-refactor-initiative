@@ -181,7 +181,15 @@ function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
 
 function formatOfferLimit(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '∞';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
   return value.toLocaleString();
+}
+
+function effectiveMax(offer: P2POffer): number {
+  const availableFiat = offer.available * offer.price;
+  if (offer.max > 0 && offer.max < availableFiat) return offer.max;
+  return availableFiat;
 }
 
 // ── Component ──
