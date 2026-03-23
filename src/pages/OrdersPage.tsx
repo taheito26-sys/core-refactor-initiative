@@ -42,6 +42,7 @@ export default function OrdersPage() {
   const [buyerName, setBuyerName] = useState('');
   const [buyerId, setBuyerId] = useState('');
   const [useStock, setUseStock] = useState(true);
+  const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
   const [saleMessage, setSaleMessage] = useState('');
 
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
