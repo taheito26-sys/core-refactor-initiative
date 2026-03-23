@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'inbox' | 'ledger' | 'analytics';
+type MerchantTab = 'relationships' | 'inbox' | 'ledger';
 
 interface AgreementRow {
   id: string;
@@ -236,11 +236,6 @@ export default function MerchantsPage() {
     return cfg ? `${cfg.icon} ${cfg.label}` : dt;
   };
 
-  // Analytics — relationship-focused
-  const totalRelationships = relationships.length;
-  const activeRelationships = relationships.filter(r => r.status === 'active').length;
-  const totalDeals = agreements.filter(a => a.status !== 'cancelled').length;
-  const pendingDeals = agreements.filter(a => a.status === 'pending').length;
 
   const inboxCount = invites.filter(i => i.status === 'pending' && i.is_incoming).length;
 
@@ -248,7 +243,7 @@ export default function MerchantsPage() {
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
     { key: 'ledger', label: t('ledger') || 'Ledger', icon: '📒' },
-    { key: 'analytics', label: t('analytics'), icon: '📊' },
+    
   ];
 
   return (
@@ -582,71 +577,6 @@ export default function MerchantsPage() {
             </>
           )}
 
-          {/* ═══ ANALYTICS TAB ═══ */}
-          {tab === 'analytics' && (
-            <>
-              <div style={{ marginBottom: 4 }}>
-                <div style={{ fontSize: 12, fontWeight: 700 }}>{t('merchantAnalytics') || 'Merchant Analytics'}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('overviewOfAgreements') || 'Overview of relationships & activity'}</div>
-              </div>
-
-              <div className="kpi-band-grid">
-                <div className="kpi-band">
-                  <div className="kpi-band-title">{t('relationships') || 'RELATIONSHIPS'}</div>
-                  <div className="kpi-band-cols">
-                    <div>
-                      <div className="kpi-period">{t('total') || 'TOTAL'}</div>
-                      <div className="kpi-cell-val">{totalRelationships}</div>
-                    </div>
-                    <div>
-                      <div className="kpi-period">{t('activeLabel') || 'ACTIVE'}</div>
-                      <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{activeRelationships}</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="kpi-band">
-                  <div className="kpi-band-title">{t('deals') || 'DEALS'}</div>
-                  <div className="kpi-band-cols">
-                    <div>
-                      <div className="kpi-period">{t('total') || 'TOTAL'}</div>
-                      <div className="kpi-cell-val">{totalDeals}</div>
-                    </div>
-                    <div>
-                      <div className="kpi-period">{t('pending') || 'PENDING'}</div>
-                      <div className="kpi-cell-val" style={{ color: 'var(--warn)' }}>{pendingDeals}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6 }}>{t('relationshipBreakdown') || 'Relationship Breakdown'}</div>
-                <div className="tableWrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t('merchant') || 'Merchant'}</th>
-                        <th className="r">{t('deals') || 'Deals'}</th>
-                        <th>{t('status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {relationships.map(r => {
-                        const relDeals = agreements.filter(a => a.relationship_id === r.id && a.status !== 'cancelled');
-                        return (
-                          <tr key={r.id}>
-                            <td style={{ fontWeight: 700, fontSize: 11 }}>{r.counterparty_name}</td>
-                            <td className="mono r">{relDeals.length}</td>
-                            <td>{statusPill(r.status)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          )}
         </>
       )}
 
