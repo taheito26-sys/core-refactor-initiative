@@ -4,15 +4,11 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { fmtU, fmtDate } from '@/lib/tracker-helpers';
-import { AGREEMENT_TEMPLATES, type AgreementTemplate } from '@/lib/deal-templates';
-import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
-import { isSupportedDealType } from '@/types/domain';
-import type { MerchantDeal, MerchantRelationship } from '@/types/domain';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'templates' | 'agreements' | 'analytics';
+type MerchantTab = 'relationships' | 'agreements' | 'analytics';
 
 interface AgreementRow {
   id: string;
@@ -38,16 +34,7 @@ export default function MerchantsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  // Template creation
-  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<AgreementTemplate | null>(null);
 
-  // Agreement creation
-  const [showAgreementDialog, setShowAgreementDialog] = useState(false);
-  const [agreementTitle, setAgreementTitle] = useState('');
-  const [agreementAmount, setAgreementAmount] = useState('');
-  const [agreementRelId, setAgreementRelId] = useState('');
-  const [agreementTemplateId, setAgreementTemplateId] = useState('');
 
   useEffect(() => {
     loadData();
@@ -142,40 +129,7 @@ export default function MerchantsPage() {
     return cfg ? `${cfg.icon} ${cfg.label}` : dt;
   };
 
-  const handleCreateAgreement = async () => {
-    if (!agreementRelId || !agreementTitle || !agreementAmount || !agreementTemplateId) {
-      toast.error(t('fillAllFields') || 'Fill all required fields');
-      return;
-    }
-    const tpl = AGREEMENT_TEMPLATES.find(t => t.id === agreementTemplateId);
-    if (!tpl) return;
 
-    try {
-      const { error } = await supabase.from('merchant_deals').insert({
-        relationship_id: agreementRelId,
-        title: agreementTitle,
-        amount: parseFloat(agreementAmount),
-        deal_type: tpl.dealType,
-        status: 'pending',
-        created_by: userId!,
-        currency: 'USDT',
-        notes: JSON.stringify({
-          template_id: tpl.id,
-          agreement_snapshot: tpl.defaults,
-        }),
-      });
-      if (error) throw error;
-      toast.success(t('agreementCreated') || 'Agreement created');
-      setShowAgreementDialog(false);
-      setAgreementTitle('');
-      setAgreementAmount('');
-      setAgreementRelId('');
-      setAgreementTemplateId('');
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create agreement');
-    }
-  };
 
   const handleArchiveAgreement = async (id: string) => {
     try {
@@ -213,7 +167,6 @@ export default function MerchantsPage() {
 
   const tabs: { key: MerchantTab; label: string; icon: string }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
-    { key: 'templates', label: t('templates') || 'Templates', icon: '📋' },
     { key: 'agreements', label: t('agreements') || 'Agreements', icon: '🤝' },
     { key: 'analytics', label: t('analytics'), icon: '📊' },
   ];
@@ -317,41 +270,7 @@ export default function MerchantsPage() {
             </>
           )}
 
-          {/* ═══ TEMPLATES TAB ═══ */}
-          {tab === 'templates' && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('agreementTemplates') || 'Agreement Templates'}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('reusableFinancialRules') || 'Reusable financial rule definitions'}</div>
-                </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
-                {AGREEMENT_TEMPLATES.map(tpl => (
-                  <div
-                    key={tpl.id}
-                    className="kpi-band"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => { setSelectedTemplate(tpl); setShowTemplateDialog(true); }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700 }}>{tpl.icon} {tpl.label[settings.language as 'en' | 'ar'] || tpl.label.en}</span>
-                      <span className={`pill ${tpl.accent === 'brand' ? '' : 'good'}`} style={{ fontSize: 9 }}>
-                        {tpl.ratioDisplay}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>
-                      {tpl.description[settings.language as 'en' | 'ar'] || tpl.description.en}
-                    </div>
-                    <div style={{ fontSize: 9, color: 'var(--muted2)' }}>
-                      {tpl.family === 'profit_share' ? '🤝 Profit Share' : '📊 Sales Deal'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
 
           {/* ═══ AGREEMENTS TAB ═══ */}
           {tab === 'agreements' && (
@@ -361,9 +280,6 @@ export default function MerchantsPage() {
                   <div style={{ fontSize: 12, fontWeight: 700 }}>{t('merchantAgreements') || 'Merchant Agreements'}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{filteredAgreements.length} {t('total') || 'total'}</div>
                 </div>
-                <button className="btn" onClick={() => setShowAgreementDialog(true)}>
-                  + {t('newAgreement') || 'New Agreement'}
-                </button>
               </div>
 
               {filteredAgreements.length === 0 ? (
@@ -488,105 +404,6 @@ export default function MerchantsPage() {
         </>
       )}
 
-      {/* ─── TEMPLATE DETAIL DIALOG ─── */}
-      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{selectedTemplate?.icon} {selectedTemplate?.label[(settings.language as 'en' | 'ar')] || selectedTemplate?.label.en}</DialogTitle>
-          </DialogHeader>
-          {selectedTemplate && (
-            <div className="space-y-3 text-sm">
-              <p className="text-muted-foreground">{selectedTemplate.description[(settings.language as 'en' | 'ar')] || selectedTemplate.description.en}</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><strong>{t('family') || 'Family'}:</strong> {selectedTemplate.family === 'profit_share' ? 'Profit Share' : 'Sales Deal'}</div>
-                <div><strong>{t('ratio') || 'Ratio'}:</strong> {selectedTemplate.ratioDisplay}</div>
-                <div><strong>{t('dealType') || 'Deal Type'}:</strong> {selectedTemplate.dealType}</div>
-                {selectedTemplate.defaults.settlement_period && (
-                  <div><strong>{t('settlementLabel') || 'Settlement'}:</strong> {selectedTemplate.defaults.settlement_period}</div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground italic">
-                {selectedTemplate.helperText[(settings.language as 'en' | 'ar')] || selectedTemplate.helperText.en}
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            <button className="btn" onClick={() => {
-              if (selectedTemplate) {
-                setAgreementTemplateId(selectedTemplate.id);
-                setShowTemplateDialog(false);
-                setShowAgreementDialog(true);
-              }
-            }}>
-              {t('useTemplate') || 'Use Template'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── CREATE AGREEMENT DIALOG ─── */}
-      <Dialog open={showAgreementDialog} onOpenChange={setShowAgreementDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>🤝 {t('newAgreement') || 'New Agreement'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('selectMerchant') || 'Select Merchant'}</label>
-              <select
-                className="w-full mt-1 rounded border border-input bg-background px-3 py-2 text-sm"
-                value={agreementRelId}
-                onChange={e => setAgreementRelId(e.target.value)}
-              >
-                <option value="">— {t('chooseMerchant') || 'Choose merchant'} —</option>
-                {relationships.map(r => (
-                  <option key={r.id} value={r.id}>{r.counterparty_name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('templateLabel') || 'Template'}</label>
-              <select
-                className="w-full mt-1 rounded border border-input bg-background px-3 py-2 text-sm"
-                value={agreementTemplateId}
-                onChange={e => setAgreementTemplateId(e.target.value)}
-              >
-                <option value="">— {t('chooseTemplate') || 'Choose template'} —</option>
-                {AGREEMENT_TEMPLATES.map(tpl => (
-                  <option key={tpl.id} value={tpl.id}>{tpl.label.en} ({tpl.ratioDisplay})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('title') || 'Title'}</label>
-              <input
-                className="w-full mt-1 rounded border border-input bg-background px-3 py-2 text-sm"
-                value={agreementTitle}
-                onChange={e => setAgreementTitle(e.target.value)}
-                placeholder={t('agreementTitlePlaceholder') || 'e.g. Q1 Profit Share with Ali'}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('amount')}</label>
-              <input
-                type="number"
-                className="w-full mt-1 rounded border border-input bg-background px-3 py-2 text-sm"
-                value={agreementAmount}
-                onChange={e => setAgreementAmount(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <button className="btn secondary" onClick={() => setShowAgreementDialog(false)}>
-              {t('cancel') || 'Cancel'}
-            </button>
-            <button className="btn" onClick={handleCreateAgreement}>
-              {t('createAgreement') || 'Create Agreement'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
