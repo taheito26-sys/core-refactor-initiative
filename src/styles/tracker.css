@@ -152,7 +152,7 @@
 .tracker-root .prev-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 3px 0; font-size: calc(12px * var(--ui-scale,1)); }
 
 /* ── LAYOUTS ── */
-.tracker-root .twoColPage { display: grid; grid-template-columns: minmax(0,1fr) minmax(280px,320px); gap: 10px; align-items: start; }
+.tracker-root .twoColPage { display: grid; grid-template-columns: minmax(0,1fr) minmax(240px,280px); gap: 10px; align-items: start; }
 .tracker-root .dash-bottom { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; align-items: start; }
 
 /* ── EMPTY ── */
