@@ -1,152 +1,219 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
-import { useSettlements, useSubmitSettlement, useApproveSettlement } from '@/hooks/useSettlements';
+import { useSettlementPeriods, useSyncSettlementPeriods, type SettlementPeriod } from '@/hooks/useSettlementPeriods';
+import { useDealCapital, useReinvestProfit, usePayoutProfit } from '@/hooks/useDealCapital';
 import { fmtU } from '@/lib/tracker-helpers';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import type { Cadence } from '@/lib/settlement-periods';
 import '@/styles/tracker.css';
+
+interface DealInfo {
+  id: string;
+  title: string;
+  deal_type: string;
+  settlement_cadence: string;
+  amount: number;
+  created_at: string;
+}
 
 interface Props {
   relationshipId: string;
-  deals: { id: string; title: string }[];
+  deals: DealInfo[];
+}
+
+function PeriodCard({ period, dealAmount, relationshipId }: { period: SettlementPeriod; dealAmount: number; relationshipId: string }) {
+  const t = useT();
+  const { data: capital } = useDealCapital(period.deal_id, dealAmount);
+  const reinvest = useReinvestProfit();
+  const payout = usePayoutProfit();
+
+  const statusCls = period.status === 'settled' ? 'good'
+    : period.status === 'overdue' ? 'bad'
+    : period.status === 'due' ? 'warn'
+    : '';
+
+  const poolBalance = capital?.reinvestedPool || 0;
+
+  const handlePayout = async () => {
+    if (period.partner_amount <= 0) return;
+    try {
+      await payout.mutateAsync({
+        deal_id: period.deal_id,
+        relationship_id: relationshipId,
+        period_id: period.id,
+        amount: period.partner_amount,
+        currency: 'USDT',
+        current_pool_balance: poolBalance,
+      });
+      toast.success(t('paidOutToPartner'));
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleReinvest = async () => {
+    if (period.partner_amount <= 0) return;
+    try {
+      await reinvest.mutateAsync({
+        deal_id: period.deal_id,
+        relationship_id: relationshipId,
+        period_id: period.id,
+        amount: period.partner_amount,
+        currency: 'USDT',
+        current_pool_balance: poolBalance,
+      });
+      toast.success(t('reinvestedToPool'));
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  return (
+    <div className="panel" style={{ padding: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700 }}>{period.deal_title || '—'}</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+            {period.period_key} · {period.cadence === 'per_order' ? t('perTrade') : period.cadence === 'weekly' ? t('weekly') : t('monthly')}
+          </div>
+        </div>
+        <span className={`pill ${statusCls}`}>
+          {period.status === 'overdue' && '⚠️ '}{period.status}
+        </span>
+      </div>
+
+      {/* Trade metrics */}
+      <div style={{ display: 'flex', gap: 16, fontSize: 10, marginBottom: 8 }}>
+        <div><span style={{ color: 'var(--muted)' }}>{t('periodTrades')}:</span> <span className="mono">{period.trade_count}</span></div>
+        <div><span style={{ color: 'var(--muted)' }}>{t('periodVolume')}:</span> <span className="mono">{fmtU(period.gross_volume)}</span></div>
+        <div><span style={{ color: 'var(--muted)' }}>{t('periodProfit')}:</span> <span className="mono" style={{ color: period.net_profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>{fmtU(period.net_profit)}</span></div>
+      </div>
+
+      {/* Capital context */}
+      {capital && (
+        <div style={{ display: 'flex', gap: 16, fontSize: 10, marginBottom: 8, color: 'var(--muted)' }}>
+          <div>{t('originalPrincipal')}: <span className="mono">{fmtU(capital.originalPrincipal)}</span></div>
+          <div>{t('reinvestedPool')}: <span className="mono">{fmtU(capital.reinvestedPool)}</span></div>
+          <div>{t('workingCapital')}: <span className="mono" style={{ fontWeight: 700, color: 'var(--fg)' }}>{fmtU(capital.workingCapital)}</span></div>
+        </div>
+      )}
+
+      {/* Allocation */}
+      <div style={{ display: 'flex', gap: 16, fontSize: 10, marginBottom: 8 }}>
+        <div>{t('partnerShare')}: <span className="mono" style={{ fontWeight: 700 }}>{fmtU(period.partner_amount)}</span></div>
+        <div>{t('merchantShareDist')}: <span className="mono">{fmtU(period.merchant_amount)}</span></div>
+      </div>
+
+      {/* Actions or resolution */}
+      {period.status === 'settled' ? (
+        <div style={{ fontSize: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="pill good">
+            {period.resolution === 'payout' ? '💰 ' + t('paidOutToPartner') : '🔄 ' + t('reinvestedToPool')}
+          </span>
+          <span className="mono" style={{ color: 'var(--good)' }}>{fmtU(period.settled_amount)}</span>
+        </div>
+      ) : (period.status === 'due' || period.status === 'overdue') && period.partner_amount > 0 ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
+            💰 {t('payOut')} {fmtU(period.partner_amount)}
+          </button>
+          <button className="btn" onClick={handleReinvest} disabled={reinvest.isPending} style={{ fontSize: 10 }}>
+            🔄 {t('reinvest')} {fmtU(period.partner_amount)}
+          </button>
+        </div>
+      ) : null}
+
+      {period.status === 'overdue' && (
+        <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 4 }}>⚠️ {t('graceExpired')}</div>
+      )}
+    </div>
+  );
 }
 
 export function SettlementTab({ relationshipId, deals }: Props) {
   const t = useT();
-  const { userId } = useAuth();
-  const { data: settlements, isLoading } = useSettlements(relationshipId);
-  const submitSettlement = useSubmitSettlement();
-  const approveSettlement = useApproveSettlement();
-  const [showForm, setShowForm] = useState(false);
-  const [formDealId, setFormDealId] = useState('');
-  const [formAmount, setFormAmount] = useState('');
-  const [formNotes, setFormNotes] = useState('');
+  const { data: periods, isLoading } = useSettlementPeriods(relationshipId);
+  const syncPeriods = useSyncSettlementPeriods(relationshipId);
+  const [filterDealId, setFilterDealId] = useState<string>('all');
 
-  const handleSubmit = async () => {
-    if (!formDealId || !formAmount) {
-      toast.error('Deal and amount are required');
-      return;
+  // Sync periods on mount
+  useEffect(() => {
+    if (deals.length > 0) {
+      syncPeriods.mutate(deals.map(d => ({
+        id: d.id,
+        settlement_cadence: (d.settlement_cadence || 'monthly') as Cadence,
+        created_at: d.created_at,
+      })));
     }
-    try {
-      await submitSettlement.mutateAsync({
-        deal_id: formDealId,
-        relationship_id: relationshipId,
-        amount: parseFloat(formAmount),
-        currency: 'USDT',
-        notes: formNotes || undefined,
-      });
-      toast.success(t('settlementSubmitted'));
-      setShowForm(false);
-      setFormDealId('');
-      setFormAmount('');
-      setFormNotes('');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
+  }, [deals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleApprove = async (id: string, approved: boolean) => {
-    try {
-      await approveSettlement.mutateAsync({ id, approved });
-      toast.success(approved ? t('approvedMutation') : t('rejectedNoMutation'));
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
+  const filtered = (periods || []).filter(p =>
+    filterDealId === 'all' || p.deal_id === filterDealId
+  );
 
-  const statusPill = (status: string) => {
-    const cls = status === 'approved' ? 'good' : status === 'rejected' ? 'bad' : 'warn';
-    return <span className={`pill ${cls}`}>{status}</span>;
-  };
+  const dueCount = filtered.filter(p => p.status === 'due').length;
+  const overdueCount = filtered.filter(p => p.status === 'overdue').length;
+  const settledCount = filtered.filter(p => p.status === 'settled').length;
+  const totalSettled = filtered.filter(p => p.status === 'settled').reduce((s, p) => s + Number(p.settled_amount), 0);
+
+  // Build deal amount map
+  const dealAmountMap = new Map(deals.map(d => [d.id, d.amount]));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 12, fontWeight: 700 }}>{t('settlements')}</div>
-        <button className="btn" onClick={() => setShowForm(true)}>+ {t('submitSettlementAction')}</button>
+      {/* KPI summary */}
+      <div className="kpi-band">
+        <div className="kpi-band-title">{t('settlementTracker')}</div>
+        <div className="kpi-band-cols">
+          <div>
+            <div className="kpi-period">{t('dueNow')}</div>
+            <div className="kpi-cell-val" style={{ color: dueCount > 0 ? 'var(--warn-text, orange)' : 'var(--muted)' }}>{dueCount}</div>
+          </div>
+          <div>
+            <div className="kpi-period">{t('overdueSettlement')}</div>
+            <div className="kpi-cell-val" style={{ color: overdueCount > 0 ? 'var(--bad)' : 'var(--muted)' }}>{overdueCount}</div>
+          </div>
+          <div>
+            <div className="kpi-period">{t('settled')}</div>
+            <div className="kpi-cell-val">{settledCount}</div>
+          </div>
+          <div>
+            <div className="kpi-period">{t('totalSettled')}</div>
+            <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{fmtU(totalSettled)}</div>
+          </div>
+        </div>
       </div>
 
-      {isLoading ? (
-        <div className="empty"><div className="empty-t">{t('loading') || '...'}</div></div>
-      ) : !settlements?.length ? (
-        <div className="empty">
-          <div className="empty-t">{t('noDeals')}</div>
-        </div>
-      ) : (
-        <div className="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{t('date')}</th>
-                <th>{t('title') || 'Deal'}</th>
-                <th className="r">{t('amount')}</th>
-                <th>{t('status')}</th>
-                <th>{t('notes')}</th>
-                <th>{t('actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {settlements.map(s => (
-                <tr key={s.id}>
-                  <td className="mono" style={{ fontSize: 10 }}>{new Date(s.created_at).toLocaleDateString()}</td>
-                  <td style={{ fontSize: 11 }}>{s.deal_title || '—'}</td>
-                  <td className="mono r">{fmtU(s.amount)} {s.currency}</td>
-                  <td>{statusPill(s.status)}</td>
-                  <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.notes || '—'}
-                  </td>
-                  <td>
-                    {s.status === 'pending' && s.settled_by !== userId && (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="rowBtn" onClick={() => handleApprove(s.id, true)}>✓</button>
-                        <button className="rowBtn" onClick={() => handleApprove(s.id, false)}>✗</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Deal filter */}
+      {deals.length > 1 && (
+        <select
+          value={filterDealId}
+          onChange={e => setFilterDealId(e.target.value)}
+          className="w-full p-2 text-xs border rounded bg-background text-foreground"
+          style={{ maxWidth: 300 }}
+        >
+          <option value="all">{t('allDeals') || 'All Deals'}</option>
+          {deals.map(d => (
+            <option key={d.id} value={d.id}>{d.title}</option>
+          ))}
+        </select>
       )}
 
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-sm">{t('submitSettlementAction')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">{t('deals') || 'Deal'}</Label>
-              <select
-                value={formDealId}
-                onChange={e => setFormDealId(e.target.value)}
-                className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground"
-              >
-                <option value="">— Select —</option>
-                {deals.map(d => (
-                  <option key={d.id} value={d.id}>{d.title}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label className="text-xs">{t('amount')}</Label>
-              <Input type="number" value={formAmount} onChange={e => setFormAmount(e.target.value)} className="text-xs" />
-            </div>
-            <div>
-              <Label className="text-xs">{t('notes')}</Label>
-              <Input value={formNotes} onChange={e => setFormNotes(e.target.value)} className="text-xs" placeholder={t('noteOptional')} />
-            </div>
-            <Button size="sm" onClick={handleSubmit} disabled={submitSettlement.isPending}>
-              {t('submitForApproval')}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Period cards */}
+      {isLoading ? (
+        <div className="empty"><div className="empty-t">{t('loading') || '...'}</div></div>
+      ) : filtered.length === 0 ? (
+        <div className="empty">
+          <div className="empty-t">{t('noDeals')}</div>
+          <div className="empty-s">{t('createDealsFromWorkspace')}</div>
+        </div>
+      ) : (
+        filtered.map(p => (
+          <PeriodCard
+            key={p.id}
+            period={p}
+            dealAmount={dealAmountMap.get(p.deal_id) || 0}
+            relationshipId={relationshipId}
+          />
+        ))
+      )}
     </div>
   );
 }
