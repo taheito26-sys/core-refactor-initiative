@@ -190,7 +190,7 @@ export default function OrdersPage() {
   const query = (settings.searchQuery || '').trim().toLowerCase();
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
-  const list = useMemo(() => allTrades.filter(t => inRange(t.ts, state.range)), [allTrades, state.range]);
+  const list = useMemo(() => allTrades.filter(t => inRange(t.ts, state.range) && t.approvalStatus !== 'cancelled'), [allTrades, state.range]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
@@ -199,14 +199,14 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
-  // Incoming: deals created by OTHER merchants in my relationships (show all statuses)
+  // Incoming: deals created by OTHER merchants in my relationships (exclude cancelled)
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId),
+    () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
-  // Outgoing: deals I created (server-authoritative, show all statuses)
+  // Outgoing: deals I created (server-authoritative, exclude cancelled)
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId),
+    () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
 

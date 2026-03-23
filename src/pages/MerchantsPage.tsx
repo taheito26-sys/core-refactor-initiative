@@ -8,7 +8,7 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'agreements' | 'analytics';
+type MerchantTab = 'relationships' | 'agreements' | 'ledger' | 'analytics';
 
 interface AgreementRow {
   id: string;
