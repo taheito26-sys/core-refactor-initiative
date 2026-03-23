@@ -4,7 +4,7 @@ import {
   ArrowLeftRight,
   Wallet,
   TrendingUp,
-  Users,
+  
   Briefcase,
   BarChart3,
   Settings,
