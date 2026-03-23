@@ -221,16 +221,11 @@ export function calculateAllocation(
 
 // ─── Deal Status Transitions ────────────────────────────────────────
 
-export function getAvailableTransitions(status: DealStatus, dealType: DealType): DealStatus[] {
+export function getAvailableTransitions(status: DealStatus, _dealType: DealType): DealStatus[] {
   const transitions: Record<DealStatus, DealStatus[]> = {
-    draft: ['active', 'cancelled'],
-    pending: ['approved', 'cancelled'],
-    approved: ['active', 'cancelled'],
-    active: ['due', 'settled', 'closed', 'cancelled'],
-    due: ['overdue', 'settled', 'closed'],
-    settled: ['closed'],
-    closed: [],
-    overdue: ['settled', 'closed', 'cancelled'],
+    pending: ['approved', 'rejected', 'cancelled'],
+    approved: ['cancelled'],
+    rejected: [],
     cancelled: [],
   };
   return transitions[status] || [];
@@ -249,7 +244,7 @@ export function calculateOutstanding(deal: MerchantDeal): {
   const expectedReturn = deal.expected_return || 0;
   const realizedPnl = deal.realized_pnl || 0;
   const outstanding = principal + expectedReturn - realizedPnl;
-  const isOverdue = deal.due_date ? new Date(deal.due_date) < new Date() && deal.status !== 'settled' && deal.status !== 'closed' : false;
+  const isOverdue = deal.due_date ? new Date(deal.due_date) < new Date() : false;
 
   return { principal, expectedReturn, realizedPnl, outstanding, isOverdue };
 }
