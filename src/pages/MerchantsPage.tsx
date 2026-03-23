@@ -8,10 +8,11 @@ import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
+import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'inbox' | 'settlements';
+type MerchantTab = 'relationships' | 'inbox' | 'settlements' | 'chat';
 
 interface AgreementRow {
   id: string;
@@ -260,6 +261,7 @@ export default function MerchantsPage() {
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
+    { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬' },
   ];
 
   return (
@@ -628,6 +630,11 @@ export default function MerchantsPage() {
                 ))
               )}
             </>
+          )}
+
+          {/* ═══ CHAT TAB ═══ */}
+          {tab === 'chat' && (
+            <UnifiedChatInbox relationships={relationships} />
           )}
 
         </>
