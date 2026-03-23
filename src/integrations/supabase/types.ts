@@ -226,6 +226,7 @@ export type Database = {
           bio: string | null
           created_at: string
           default_currency: string
+          discoverability: string
           display_name: string
           id: string
           merchant_code: string | null
@@ -240,6 +241,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           default_currency?: string
+          discoverability?: string
           display_name: string
           id?: string
           merchant_code?: string | null
@@ -254,6 +256,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           default_currency?: string
+          discoverability?: string
           display_name?: string
           id?: string
           merchant_code?: string | null
@@ -275,6 +278,8 @@ export type Database = {
           id: string
           notes: string | null
           recorded_by: string
+          relationship_id: string | null
+          status: string
         }
         Insert: {
           amount: number
@@ -284,6 +289,8 @@ export type Database = {
           id?: string
           notes?: string | null
           recorded_by: string
+          relationship_id?: string | null
+          status?: string
         }
         Update: {
           amount?: number
@@ -293,6 +300,8 @@ export type Database = {
           id?: string
           notes?: string | null
           recorded_by?: string
+          relationship_id?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -300,6 +309,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_profits_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
             referencedColumns: ["id"]
           },
         ]
@@ -354,7 +370,9 @@ export type Database = {
           deal_id: string
           id: string
           notes: string | null
+          relationship_id: string | null
           settled_by: string
+          status: string
         }
         Insert: {
           amount: number
@@ -363,7 +381,9 @@ export type Database = {
           deal_id: string
           id?: string
           notes?: string | null
+          relationship_id?: string | null
           settled_by: string
+          status?: string
         }
         Update: {
           amount?: number
@@ -372,7 +392,9 @@ export type Database = {
           deal_id?: string
           id?: string
           notes?: string | null
+          relationship_id?: string | null
           settled_by?: string
+          status?: string
         }
         Relationships: [
           {
@@ -380,6 +402,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_settlements_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
             referencedColumns: ["id"]
           },
         ]
@@ -554,6 +583,10 @@ export type Database = {
         Returns: undefined
       }
       current_merchant_id: { Args: never; Returns: string }
+      has_relationship_with: {
+        Args: { _target_merchant_id: string; _viewer_merchant_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
