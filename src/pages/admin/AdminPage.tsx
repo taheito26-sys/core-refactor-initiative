@@ -84,6 +84,10 @@ export default function AdminPage() {
           <AdminApprovalsPage />
         </TabsContent>
 
+        <TabsContent value="notifications" className="mt-4">
+          <AdminNotificationSender />
+        </TabsContent>
+
         <TabsContent value="audit" className="mt-4">
           <AdminAuditCenter />
         </TabsContent>
