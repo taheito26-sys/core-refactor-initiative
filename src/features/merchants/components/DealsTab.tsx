@@ -116,6 +116,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
               <tr>
                 <th>{t('title') || 'Title'}</th>
                 <th>{t('type') || 'Type'}</th>
+                <th>{t('settlementCadence')}</th>
                 <th className="r">{t('amount')}</th>
                 <th>{t('status')}</th>
                 <th>{t('date')}</th>
