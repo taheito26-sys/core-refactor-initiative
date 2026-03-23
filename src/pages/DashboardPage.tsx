@@ -45,32 +45,8 @@ export default function DashboardPage() {
   const LOW = num(state.settings?.lowStockThreshold, 5000);
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
-  // ── Merchant Deal KPIs ──
-  const [merchantDeals, setMerchantDeals] = useState<MerchantDeal[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<MerchantApproval[]>([]);
 
-  useEffect(() => {
-    supabase.from('merchant_deals').select('*').then(({ data }) => setMerchantDeals((data || []) as any));
-    supabase.from('merchant_approvals').select('*').eq('status', 'pending').then(({ data }) => setPendingApprovals((data || []) as any));
-  }, []);
 
-  const activeDeals = merchantDeals.filter(d => d.status === 'approved');
-  const merchantExposure = activeDeals.reduce((s, d) => s + d.amount, 0);
-  const merchantPnL = merchantDeals.reduce((s, d) => s + (d.realized_pnl || 0), 0);
-  const [settlementAlert, setSettlementAlert] = useState({ due: 0, overdue: 0 });
-
-  useEffect(() => {
-    supabase
-      .from('settlement_periods')
-      .select('status')
-      .in('status', ['due', 'overdue'])
-      .then(({ data }) => {
-        setSettlementAlert({
-          due: (data || []).filter((d: any) => d.status === 'due').length,
-          overdue: (data || []).filter((d: any) => d.status === 'overdue').length,
-        });
-      });
-  }, []);
 
   // ── P2P Averages from real trade data ──
   const p2pAvgs = useMemo(() => {
