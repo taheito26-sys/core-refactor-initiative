@@ -181,7 +181,15 @@ function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
 
 function formatOfferLimit(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '∞';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
   return value.toLocaleString();
+}
+
+function effectiveMax(offer: P2POffer): number {
+  const availableFiat = offer.available * offer.price;
+  if (offer.max > 0 && offer.max < availableFiat) return offer.max;
+  return availableFiat;
 }
 
 // ── Component ──
@@ -589,7 +597,7 @@ export default function P2PTrackerPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
+                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(effectiveMax(o))}</TableCell>
                       <TableCell className="text-[10px] text-muted-foreground py-1">{dedupeSimplified(o.methods).join(' ')}</TableCell>
                       <TableCell className="text-right font-mono text-[10px] text-muted-foreground py-1">{o.trades > 0 ? o.trades.toLocaleString() : '—'}</TableCell>
                       <TableCell className="text-center py-1">
@@ -646,7 +654,7 @@ export default function P2PTrackerPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
+                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(effectiveMax(o))}</TableCell>
                       <TableCell className="text-[10px] text-muted-foreground py-1">{dedupeSimplified(o.methods).join(' ')}</TableCell>
                       <TableCell className="text-right font-mono text-[10px] text-muted-foreground py-1">{o.trades > 0 ? o.trades.toLocaleString() : '—'}</TableCell>
                       <TableCell className="text-center py-1">
