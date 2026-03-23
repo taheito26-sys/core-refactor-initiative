@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'inbox' | 'ledger' | 'analytics';
+type MerchantTab = 'relationships' | 'inbox' | 'ledger';
 
 interface AgreementRow {
   id: string;
