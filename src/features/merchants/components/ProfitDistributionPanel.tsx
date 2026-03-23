@@ -44,7 +44,7 @@ export function ProfitDistributionPanel({ relationshipId }: Props) {
             <div className="kpi-cell-val">{fmtU(summary.totalPartnerOwed)}</div>
           </div>
           <div>
-            <div className="kpi-period">{t('merchantShare')}</div>
+            <div className="kpi-period">{t('merchantShareDist')}</div>
             <div className="kpi-cell-val">{fmtU(summary.totalMerchantOwed)}</div>
           </div>
           <div>
