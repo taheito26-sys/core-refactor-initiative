@@ -243,8 +243,23 @@ export default function DashboardPage() {
             <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>@{t('avPrice')}</span>
           </div>
           <div className="kpi-lbl">{t('buyingPower')}</div>
-          <div className="kpi-val" style={{ color: 'var(--t5)' }}>{wacop && num(state.cashQAR, 0) > 0 ? fmtU(num(state.cashQAR, 0) / wacop, 0) + ' USDT' : t('setCash')}</div>
-          <div className="kpi-sub">{wacop ? `@ ${fmtP(wacop)} QAR` : t('addBatchesFirst')}</div>
+          {(() => {
+            const cash = num(state.cashQAR, 0);
+            const refPrice = wacop || p2pAvgs.avgBuy;
+            const isFallback = !wacop && !!p2pAvgs.avgBuy;
+            return (
+              <>
+                <div className="kpi-val" style={{ color: 'var(--t5)' }}>
+                  {refPrice && cash > 0 ? fmtU(cash / refPrice, 0) + ' USDT' : t('setCash')}
+                </div>
+                <div className="kpi-sub">
+                  {refPrice
+                    ? `@ ${fmtP(refPrice)} QAR${isFallback ? ' (mkt avg)' : ''}`
+                    : t('addBatchesFirst')}
+                </div>
+              </>
+            );
+          })()}
         </div>
         <div className="kpi-card">
           <div className="kpi-head">

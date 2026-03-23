@@ -1464,17 +1464,24 @@ export default function OrdersPage() {
                       {/* Capital Transfer form — replaces normal sale fields */}
                       {isCapitalTransfer && linkedRelId && (
                         <div style={{ marginTop: 8 }}>
-                          <div className="field2" style={{ marginBottom: 6 }}>
-                            <div className="lbl">{t('direction')}</div>
-                            <select
-                              value={transferDirection}
-                              onChange={e => setTransferDirection(e.target.value as any)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                            >
-                              <option value="lender_to_operator">💸 {t('lenderToOperator')}</option>
-                              <option value="operator_to_lender">↩️ {t('operatorToLender')}</option>
-                            </select>
-                          </div>
+                          {(() => {
+                            const cpRel = relationships.find(r => r.id === linkedRelId);
+                            const cpName = cpRel?.counterparty?.display_name || t('partner');
+                            const myName = t('you') || 'You';
+                            return (
+                              <div className="field2" style={{ marginBottom: 6 }}>
+                                <div className="lbl">{t('direction')}</div>
+                                <select
+                                  value={transferDirection}
+                                  onChange={e => setTransferDirection(e.target.value as any)}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                >
+                                  <option value="lender_to_operator">💸 {cpName} → {myName}</option>
+                                  <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
+                                </select>
+                              </div>
+                            );
+                          })()}
                           <div className="g2tight">
                             <div className="field2">
                               <div className="lbl">USDT {t('amount')}</div>
