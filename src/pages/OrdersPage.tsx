@@ -494,12 +494,14 @@ export default function OrdersPage() {
     if (!(qty > 0) || !(sell > 0)) { toast.error(t('fixFields') + ' ' + t('qty') + ', ' + t('sell')); return; }
     try {
       const deal = allMerchantDeals.find(d => d.id === editingDealId);
-      const existingMeta = (deal?.metadata || {}) as Record<string, unknown>;
-      await api.deals.update(editingDealId, {
+      const existingNotes = deal?.notes || '';
+      const metaNote = `qty: ${qty} | sell: ${sell} | fee: ${fee} | note: ${editDealNote}`;
+      const { error } = await supabase.from('merchant_deals').update({
         title: editDealTitle,
         amount: qty * sell,
-        metadata: { ...existingMeta, quantity: qty, sell_price: sell, fee, note: editDealNote },
-      });
+        notes: metaNote,
+      }).eq('id', editingDealId);
+      if (error) throw error;
       await reloadMerchantData();
       setEditingDealId(null);
       toast.success(t('saveCorrection'));
@@ -508,7 +510,8 @@ export default function OrdersPage() {
 
   const deleteDeal = async (dealId: string) => {
     try {
-      await api.deals.update(dealId, { status: 'cancelled' });
+      const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', dealId);
+      if (error) throw error;
       await reloadMerchantData();
       setDeleteDealConfirm(null);
       setEditingDealId(null);
