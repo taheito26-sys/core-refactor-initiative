@@ -1178,7 +1178,7 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* Allocation Preview */}
+                {/* Allocation Preview - enhanced with icons when partner linked */}
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
                     <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
@@ -1193,11 +1193,17 @@ export default function OrdersPage() {
                     </div>
                     <div className="prev-row"><span className="muted">{t('estPartnerShare')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 10 }}>{fmtQ(allocationPreview.partnerAmount)}</strong></div>
                     <div className="prev-row"><span className="muted">{t('estMerchantShare')}</span><strong style={{ color: 'var(--good)', fontSize: 10 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
+                    {/* Iconic profit split summary */}
+                    <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')}</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtQ(allocationPreview.partnerAmount)}</strong></div>
+                    </div>
                     <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
                   </div>
                 )}
 
-                {/* Live Preview */}
+                {/* Live Preview - only show when NO partner is linked */}
+                {!allocationPreview && (
                 <div className="previewBox">
                   <div className="pt">{t('livePreview')}</div>
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
@@ -1212,16 +1218,10 @@ export default function OrdersPage() {
                           {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
                         </strong>
                       </div>
-                      {/* Merchant net profit split when partner linked */}
-                      {allocationPreview && (
-                        <div style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5, marginTop: 4 }}>
-                          <div className="prev-row"><span className="muted" style={{ fontWeight: 700, color: 'var(--good)' }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 12 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
-                          <div className="prev-row"><span className="muted" style={{ fontWeight: 700, color: 'var(--bad)' }}>🤝 {t('partnerNetProfit')}</span><strong style={{ color: 'var(--bad)', fontSize: 12 }}>{fmtQ(allocationPreview.partnerAmount)}</strong></div>
-                        </div>
-                      )}
                     </>
                   )}
                 </div>
+                )}
 
                 <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
