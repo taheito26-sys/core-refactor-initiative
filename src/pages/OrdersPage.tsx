@@ -42,6 +42,7 @@ export default function OrdersPage() {
   const [buyerName, setBuyerName] = useState('');
   const [buyerId, setBuyerId] = useState('');
   const [useStock, setUseStock] = useState(true);
+  const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
   const [saleMessage, setSaleMessage] = useState('');
 
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
@@ -1029,11 +1030,17 @@ export default function OrdersPage() {
             <div className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
               <div className="inner">
-                {wacop && (
-                  <div className="bannerRow">
-                    <span className="bLbl">{t('avPrice')}</span><span className="bVal">{fmtP(wacop)}</span><span className="bSpacer" /><span className="bPill">FIFO</span>
+                {/* Price mode toggle: FIFO vs Manual */}
+                <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="bLbl">{t('avPrice')}</span>
+                    <span className="bVal">{priceMode === 'fifo' && wacop ? fmtP(wacop) : '—'}</span>
                   </div>
-                )}
+                  <div className="modeToggle" style={{ fontSize: 9 }}>
+                    <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }}>FIFO</button>
+                    <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }}>Manual</button>
+                  </div>
+                </div>
 
                 <div className="field2">
                   <div className="lbl">{t('dateTime')}</div>
@@ -1097,9 +1104,7 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)' }}>
-                  <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
-                </label>
+
 
                 {/* ─── MERCHANT-LINKED TRADE (SIMPLE FLOW) ─── */}
                 <div className="previewBox" style={{ marginTop: 6, borderColor: merchantOrderEnabled ? 'var(--brand)' : undefined }}>
