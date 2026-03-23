@@ -227,6 +227,11 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         </TabsContent>
 
         <TabsContent value="deals" className="mt-3">
+          <div className="flex justify-end mb-2">
+            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportDeals} disabled={!deals?.length}>
+              <Download className="h-3 w-3" /> CSV
+            </Button>
+          </div>
           {dealsLoading ? <Skeleton className="h-32" /> : !deals?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">No deals.</p>
           ) : (
