@@ -529,11 +529,11 @@ export default function P2PTrackerPage() {
           <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
               <span className="text-[10px] text-muted-foreground">{t('p2pSellAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(4) || '—'} {ccy}</span>
+              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'} {ccy}</span>
             </div>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
               <span className="text-[10px] text-muted-foreground">{t('p2pBuyAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg?.toFixed(4) || '—'} {ccy}</span>
+              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'} {ccy}</span>
             </div>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
               <span className="text-[10px] text-muted-foreground">{t('p2pSellDepth')}</span>
@@ -546,10 +546,10 @@ export default function P2PTrackerPage() {
             {profitIfSold && (
               <div className="border-t border-[var(--line)] px-3 py-1.5">
                 <div className="text-[10px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
+                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {ccy}
                 </div>
                 <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  {profitIfSold.stock.toFixed(3)} USDT · WACOP {profitIfSold.wacop.toFixed(4)} {ccy}
+                  {fmtPrice(profitIfSold.stock)} USDT · WACOP {fmtPrice(profitIfSold.wacop)} {ccy}
                 </div>
               </div>
             )}
@@ -591,7 +591,7 @@ export default function P2PTrackerPage() {
                       </TableCell>
                       <TableCell className="py-1">
                         <div className="flex items-center gap-1">
-                          <span className="font-bold font-mono text-[11px]">{o.price.toFixed(2)}</span>
+                          <span className="font-bold font-mono text-[11px]">{fmtPrice(o.price)}</span>
                           <div className="w-10 h-1 rounded bg-muted overflow-hidden">
                             <div className="h-full rounded" style={{ width: `${depthPct}%`, background: 'hsl(var(--success, 142 76% 36%))' }} />
                           </div>
@@ -648,7 +648,7 @@ export default function P2PTrackerPage() {
                       </TableCell>
                       <TableCell className="py-1">
                         <div className="flex items-center gap-1">
-                          <span className="font-bold font-mono text-[11px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{o.price.toFixed(2)}</span>
+                          <span className="font-bold font-mono text-[11px]" style={{ color: 'hsl(var(--success, 142 76% 36%))' }}>{fmtPrice(o.price)}</span>
                           <div className="w-10 h-1 rounded bg-muted overflow-hidden">
                             <div className="h-full bg-destructive/70 rounded" style={{ width: `${depthPct}%` }} />
                           </div>
@@ -717,13 +717,13 @@ export default function P2PTrackerPage() {
                     return (
                       <TableRow key={d.date}>
                         <TableCell className="font-mono text-xs">{d.date}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-destructive">{d.highSell.toFixed(3)}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-destructive/60">{d.lowSell?.toFixed(3) ?? '—'}</TableCell>
-                        <TableCell className="text-right font-mono text-xs font-bold text-destructive">{avgSell.toFixed(3)}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-emerald-500">{d.highBuy.toFixed(3)}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-emerald-500/60">{d.lowBuy?.toFixed(3) ?? '—'}</TableCell>
-                        <TableCell className="text-right font-mono text-xs font-bold text-emerald-500">{avgBuy.toFixed(3)}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-yellow-500">{spread.toFixed(3)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs text-destructive">{fmtPrice(d.highSell)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs text-destructive/60">{d.lowSell != null ? fmtPrice(d.lowSell) : '—'}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-bold text-destructive">{fmtPrice(avgSell)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs text-emerald-500">{fmtPrice(d.highBuy)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs text-emerald-500/60">{d.lowBuy != null ? fmtPrice(d.lowBuy) : '—'}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-bold text-emerald-500">{fmtPrice(avgBuy)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs text-yellow-500">{fmtPrice(spread)}</TableCell>
                         <TableCell className="text-right font-mono text-xs text-muted-foreground">{d.polls}</TableCell>
                       </TableRow>
                     );
