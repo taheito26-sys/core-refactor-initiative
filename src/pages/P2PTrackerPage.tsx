@@ -654,7 +654,7 @@ export default function P2PTrackerPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
+                      <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(effectiveMax(o))}</TableCell>
                       <TableCell className="text-[10px] text-muted-foreground py-1">{dedupeSimplified(o.methods).join(' ')}</TableCell>
                       <TableCell className="text-right font-mono text-[10px] text-muted-foreground py-1">{o.trades > 0 ? o.trades.toLocaleString() : '—'}</TableCell>
                       <TableCell className="text-center py-1">
