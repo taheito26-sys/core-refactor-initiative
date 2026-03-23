@@ -194,13 +194,21 @@ export default function OrdersPage() {
     const ts = new Date(saleDate).getTime();
     const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
-    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
+    const fee = parseFloat(saleFee) || 0;
+    if (priceMode === 'manual') {
+      const buyP = parseFloat(manualBuyPrice) || 0;
+      const rev = amountUSDT * sell;
+      const cost = amountUSDT * buyP;
+      const net = rev - cost - fee;
+      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net };
+    }
+    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = amountUSDT * sell;
     const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
-    const net = calc?.ok ? rev - cost : NaN;
+    const net = calc?.ok ? rev - cost - fee : NaN;
     return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
-  }, [saleAmount, saleDate, saleMode, saleSell, state.batches, state.trades]);
+  }, [saleAmount, saleDate, saleMode, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
