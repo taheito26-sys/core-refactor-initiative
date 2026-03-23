@@ -119,3 +119,46 @@ export function useAdminVoidDeal() {
     },
   });
 }
+
+export function useAdminCorrectTracker() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ targetUserId, entityType, entityId, updates, reason }: {
+      targetUserId: string; entityType: 'batch' | 'trade'; entityId: string; updates: Record<string, unknown>; reason: string;
+    }) => {
+      const { error } = await supabase.rpc('admin_correct_tracker' as any, {
+        _target_user_id: targetUserId,
+        _entity_type: entityType,
+        _entity_id: entityId,
+        _updates: updates,
+        _reason: reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-user-tracker'] });
+      qc.invalidateQueries({ queryKey: ['admin-audit'] });
+    },
+  });
+}
+
+export function useAdminVoidTrackerEntity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ targetUserId, entityType, entityId, reason }: {
+      targetUserId: string; entityType: 'batch' | 'trade'; entityId: string; reason: string;
+    }) => {
+      const { error } = await supabase.rpc('admin_void_tracker_entity' as any, {
+        _target_user_id: targetUserId,
+        _entity_type: entityType,
+        _entity_id: entityId,
+        _reason: reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-user-tracker'] });
+      qc.invalidateQueries({ queryKey: ['admin-audit'] });
+    },
+  });
+}
