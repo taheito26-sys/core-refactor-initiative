@@ -263,8 +263,17 @@ export default function P2PTrackerPage() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(() => load(true), 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    setNextRefreshIn(300);
+    const tick = setInterval(() => {
+      setNextRefreshIn(prev => {
+        if (prev <= 1) {
+          load(true);
+          return 300;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
   }, [autoRefresh, load]);
 
   const todaySummary = useMemo(() => {
