@@ -113,7 +113,11 @@ export default function OrdersPage() {
       if (!myMerchantId) return;
 
       const [relsRes, dealsRes, profilesRes] = await Promise.all([
-        supabase.from('merchant_relationships').select('*').eq('status', 'active'),
+        supabase
+          .from('merchant_relationships')
+          .select('*')
+          .eq('status', 'active')
+          .or(`merchant_a_id.eq.${myMerchantId},merchant_b_id.eq.${myMerchantId}`),
         supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
         supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
       ]);
@@ -310,7 +314,7 @@ export default function OrdersPage() {
 
     // Build trade with agreement fields if merchant-linked
     const tmpl = selectedTemplateId ? AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId) : null;
-    const trade: Trade = {
+    const baseTrade: Trade = {
       id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       linkedRelId: merchantOrderEnabled ? linkedRelId || undefined : undefined,
       agreementFamily: tmpl?.family,
@@ -320,11 +324,8 @@ export default function OrdersPage() {
       approvalStatus: merchantOrderEnabled ? 'pending_approval' : undefined,
     };
 
-    const next: TrackerState = { ...state, customers: nextCustomers, trades: [...state.trades, trade], range: inRange(ts, state.range) ? state.range : 'all' };
-    applyState(next);
-
     if (merchantOrderEnabled && tmpl) {
-      // Create a backend deal record in Supabase for the counterparty to see
+      // Create backend deal first so local outgoing state only exists when partner can actually receive it.
       try {
         const customerName = buyerName.trim() || t('buyer');
         const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
@@ -336,15 +337,15 @@ export default function OrdersPage() {
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
         // Store trade data in notes so partner can see qty/sell/cost
-        const c = computeFIFO(state.batches, [...state.trades, trade]).tradeCalc.get(trade.id);
+        const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
         const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
 
         const noteLines = [
           `template: ${tmpl.id}`,
           `customer: ${customerName}`,
-          `local_trade: ${trade.id}`,
-          `quantity: ${trade.amountUSDT}`,
+          `local_trade: ${baseTrade.id}`,
+          `quantity: ${baseTrade.amountUSDT}`,
           `sell_price: ${sell}`,
           `fifo_cost: ${fifoCost}`,
           `avg_buy: ${avgBuy}`,
@@ -354,18 +355,31 @@ export default function OrdersPage() {
             : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
         ].join(' | ');
 
-        const { error } = await supabase.from('merchant_deals').insert({
+        const { data, error } = await supabase.from('merchant_deals').insert({
           relationship_id: linkedRelId,
           deal_type: tmpl.dealType as string,
           title,
-          amount: trade.amountUSDT * sell,
+          amount: baseTrade.amountUSDT * sell,
           currency,
           status: 'pending',
           created_by: userId!,
           notes: noteLines,
-        });
+        }).select('id').single();
 
         if (error) throw error;
+
+        const persistedTrade: Trade = {
+          ...baseTrade,
+          linkedDealId: data?.id,
+        };
+        const next: TrackerState = {
+          ...state,
+          customers: nextCustomers,
+          trades: [...state.trades, persistedTrade],
+          range: inRange(ts, state.range) ? state.range : 'all'
+        };
+        applyState(next);
+
         await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
       } catch (err: any) {
@@ -373,6 +387,13 @@ export default function OrdersPage() {
         toast.error(err.message || t('failedCreateDeal'));
       }
     } else {
+      const next: TrackerState = {
+        ...state,
+        customers: nextCustomers,
+        trades: [...state.trades, baseTrade],
+        range: inRange(ts, state.range) ? state.range : 'all'
+      };
+      applyState(next);
       setSaleMessage(t('tradeLogged'));
     }
 
