@@ -281,16 +281,39 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                             <TableHead className="text-xs">Qty</TableHead>
                             <TableHead className="text-xs">Price</TableHead>
                             <TableHead className="text-xs">Date</TableHead>
+                            <TableHead className="text-xs">Status</TableHead>
+                            <TableHead className="text-xs text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {batches.slice(0, 50).map((b: any) => (
-                            <TableRow key={b.id}>
+                            <TableRow key={b.id} className={b.voided ? 'opacity-40' : ''}>
                               <TableCell className="text-xs font-mono">{String(b.id).slice(0, 8)}</TableCell>
                               <TableCell className="text-xs">{b.qty}</TableCell>
                               <TableCell className="text-xs">{b.price}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">
                                 {b.ts ? format(new Date(b.ts), 'MMM d, yyyy') : '—'}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {b.voided ? <Badge variant="destructive" className="text-[10px]">voided</Badge> : <Badge variant="outline" className="text-[10px]">active</Badge>}
+                              </TableCell>
+                              <TableCell className="text-right space-x-1">
+                                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => {
+                                  setEditEntity({ type: 'batch', data: b });
+                                  setEditEntityQty(String(b.qty ?? ''));
+                                  setEditEntityPrice(String(b.price ?? ''));
+                                  setEditEntityReason('');
+                                }}>
+                                  <Edit className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                {!b.voided && (
+                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={() => {
+                                    setVoidEntity({ type: 'batch', data: b });
+                                    setVoidEntityReason('');
+                                  }}>
+                                    <Ban className="h-3 w-3 mr-1" /> Void
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
