@@ -57,8 +57,20 @@ export default function DashboardPage() {
   const activeDeals = merchantDeals.filter(d => d.status === 'approved');
   const merchantExposure = activeDeals.reduce((s, d) => s + d.amount, 0);
   const merchantPnL = merchantDeals.reduce((s, d) => s + (d.realized_pnl || 0), 0);
-  const overdueDeals: typeof merchantDeals = [];
-  const settlementsDue: typeof merchantDeals = [];
+  const [settlementAlert, setSettlementAlert] = useState({ due: 0, overdue: 0 });
+
+  useEffect(() => {
+    supabase
+      .from('settlement_periods')
+      .select('status')
+      .in('status', ['due', 'overdue'])
+      .then(({ data }) => {
+        setSettlementAlert({
+          due: (data || []).filter((d: any) => d.status === 'due').length,
+          overdue: (data || []).filter((d: any) => d.status === 'overdue').length,
+        });
+      });
+  }, []);
 
   // ── P2P Averages from real trade data ──
   const p2pAvgs = useMemo(() => {

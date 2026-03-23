@@ -106,7 +106,7 @@ export function useProfitDistribution(relationshipId: string) {
           }
         }
 
-        return {
+        dealDistributions.push({
           dealId: deal.id,
           dealTitle: deal.title,
           dealType: deal.deal_type,
@@ -119,8 +119,8 @@ export function useProfitDistribution(relationshipId: string) {
           merchantOwed,
           totalSettled: dealSettlements,
           partnerOutstanding: partnerOwed - dealSettlements,
-        };
-      });
+        });
+      }
 
       const summary = {
         totalPartnerOwed: dealDistributions.reduce((s, d) => s + d.partnerOwed, 0),
