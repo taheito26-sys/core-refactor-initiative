@@ -1508,17 +1508,17 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={e => setEditDealQty(e.target.value)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={numericOnly(setEditDealQty)} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t('sellPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={e => setEditDealSell(e.target.value)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={numericOnly(setEditDealSell)} /></div>
                 </div>
               </div>
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('feeQarLabel')}</div>
-                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={e => setEditDealFee(e.target.value)} /></div>
+                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={numericOnly(setEditDealFee)} /></div>
               </div>
 
               <div className="field2" style={{ marginBottom: 16 }}>
