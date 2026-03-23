@@ -44,6 +44,70 @@ export type Database = {
         }
         Relationships: []
       }
+      deal_capital_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          deal_id: string
+          id: string
+          initiated_by: string
+          note: string | null
+          period_id: string | null
+          pool_balance_after: number
+          relationship_id: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          deal_id: string
+          id?: string
+          initiated_by: string
+          note?: string | null
+          period_id?: string | null
+          pool_balance_after?: number
+          relationship_id: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string
+          id?: string
+          initiated_by?: string
+          note?: string | null
+          period_id?: string | null
+          pool_balance_after?: number
+          relationship_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_capital_ledger_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_capital_ledger_period_id_fkey"
+            columns: ["period_id"]
+            isOneToOne: false
+            referencedRelation: "settlement_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_capital_ledger_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       merchant_approvals: {
         Row: {
           created_at: string
@@ -102,6 +166,7 @@ export type Database = {
           notes: string | null
           realized_pnl: number
           relationship_id: string
+          settlement_cadence: string | null
           status: string
           title: string
           updated_at: string
@@ -116,6 +181,7 @@ export type Database = {
           notes?: string | null
           realized_pnl?: number
           relationship_id: string
+          settlement_cadence?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -130,6 +196,7 @@ export type Database = {
           notes?: string | null
           realized_pnl?: number
           relationship_id?: string
+          settlement_cadence?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -503,6 +570,109 @@ export type Database = {
         }
         Relationships: []
       }
+      settlement_periods: {
+        Row: {
+          cadence: string
+          created_at: string
+          deal_id: string
+          due_at: string | null
+          gross_volume: number
+          id: string
+          merchant_amount: number
+          net_profit: number
+          partner_amount: number
+          period_end: string
+          period_key: string
+          period_start: string
+          relationship_id: string
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          settled_amount: number
+          settled_at: string | null
+          settlement_id: string | null
+          status: string
+          total_cost: number
+          total_fees: number
+          trade_count: number
+          updated_at: string
+        }
+        Insert: {
+          cadence: string
+          created_at?: string
+          deal_id: string
+          due_at?: string | null
+          gross_volume?: number
+          id?: string
+          merchant_amount?: number
+          net_profit?: number
+          partner_amount?: number
+          period_end: string
+          period_key: string
+          period_start: string
+          relationship_id: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          settled_amount?: number
+          settled_at?: string | null
+          settlement_id?: string | null
+          status?: string
+          total_cost?: number
+          total_fees?: number
+          trade_count?: number
+          updated_at?: string
+        }
+        Update: {
+          cadence?: string
+          created_at?: string
+          deal_id?: string
+          due_at?: string | null
+          gross_volume?: number
+          id?: string
+          merchant_amount?: number
+          net_profit?: number
+          partner_amount?: number
+          period_end?: string
+          period_key?: string
+          period_start?: string
+          relationship_id?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          settled_amount?: number
+          settled_at?: string | null
+          settlement_id?: string | null
+          status?: string
+          total_cost?: number
+          total_fees?: number
+          trade_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_periods_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlement_periods_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlement_periods_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tracker_snapshots: {
         Row: {
           created_at: string
@@ -586,6 +756,7 @@ export type Database = {
         Returns: undefined
       }
       current_merchant_id: { Args: never; Returns: string }
+      deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
       has_relationship_with: {
         Args: { _target_merchant_id: string; _viewer_merchant_id: string }
         Returns: boolean
