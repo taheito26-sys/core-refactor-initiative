@@ -228,6 +228,7 @@ export type Database = {
           default_currency: string
           display_name: string
           id: string
+          merchant_code: string | null
           merchant_id: string
           nickname: string
           region: string | null
@@ -241,6 +242,7 @@ export type Database = {
           default_currency?: string
           display_name: string
           id?: string
+          merchant_code?: string | null
           merchant_id: string
           nickname: string
           region?: string | null
@@ -254,6 +256,7 @@ export type Database = {
           default_currency?: string
           display_name?: string
           id?: string
+          merchant_code?: string | null
           merchant_id?: string
           nickname?: string
           region?: string | null
