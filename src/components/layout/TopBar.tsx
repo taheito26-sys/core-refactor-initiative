@@ -1,11 +1,12 @@
 import { useLocation } from 'react-router-dom';
-import { useMemo } from 'react';
-import { Menu, Bell, Users, TrendingUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Menu, Bell, Users, TrendingUp, User } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
+import { UserProfileModal } from '@/features/profile/UserProfileModal';
 
 function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: string; subtitle: string } {
   if (pathname === '/dashboard') return { title: t('dashboard'), subtitle: t('dashboardSub') };
