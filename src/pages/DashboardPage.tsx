@@ -46,7 +46,11 @@ export default function DashboardPage() {
   const LOW = num(state.settings?.lowStockThreshold, 5000);
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
+  const [showCashBox, setShowCashBox] = useState(false);
 
+  const handleCashSave = useCallback((newCash: number, owner: string) => {
+    applyState({ ...state, cashQAR: newCash, cashOwner: owner });
+  }, [state, applyState]);
 
 
   // ── P2P Averages from real trade data ──
