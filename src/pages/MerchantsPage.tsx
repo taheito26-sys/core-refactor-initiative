@@ -38,16 +38,7 @@ export default function MerchantsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  // Template creation
-  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<AgreementTemplate | null>(null);
 
-  // Agreement creation
-  const [showAgreementDialog, setShowAgreementDialog] = useState(false);
-  const [agreementTitle, setAgreementTitle] = useState('');
-  const [agreementAmount, setAgreementAmount] = useState('');
-  const [agreementRelId, setAgreementRelId] = useState('');
-  const [agreementTemplateId, setAgreementTemplateId] = useState('');
 
   useEffect(() => {
     loadData();
