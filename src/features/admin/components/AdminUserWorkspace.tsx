@@ -156,8 +156,10 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         <p className="text-sm text-muted-foreground">No merchant profile found.</p>
       )}
 
-      <Tabs defaultValue="deals" className="w-full">
+      <Tabs defaultValue="orders" className="w-full">
         <TabsList className="w-full justify-start flex-wrap h-auto gap-1">
+          <TabsTrigger value="orders" className="text-xs">Orders</TabsTrigger>
+          <TabsTrigger value="stock" className="text-xs">Stock</TabsTrigger>
           <TabsTrigger value="deals" className="text-xs">Deals ({deals?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="settlements" className="text-xs">Settlements ({settlements?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="profits" className="text-xs">Profits ({profits?.length ?? 0})</TabsTrigger>
