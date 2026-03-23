@@ -4,11 +4,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { fmtU, fmtDate } from '@/lib/tracker-helpers';
-import { AGREEMENT_TEMPLATES } from '@/lib/deal-templates';
-import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
-import { isSupportedDealType } from '@/types/domain';
-import type { MerchantDeal, MerchantRelationship } from '@/types/domain';
-import { toast } from 'sonner';
+import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
