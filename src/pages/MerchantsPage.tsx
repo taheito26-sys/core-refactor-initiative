@@ -8,7 +8,7 @@ import { AGREEMENT_TEMPLATES } from '@/lib/deal-templates';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
 import { isSupportedDealType } from '@/types/domain';
 import type { MerchantDeal, MerchantRelationship } from '@/types/domain';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
