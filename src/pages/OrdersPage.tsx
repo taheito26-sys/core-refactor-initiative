@@ -1466,8 +1466,8 @@ export default function OrdersPage() {
                         <div style={{ marginTop: 8 }}>
                           {(() => {
                             const cpRel = relationships.find(r => r.id === linkedRelId);
-                            const cpName = cpRel?.counterparty?.display_name || t('partner');
-                            const myName = t('you') || 'You';
+                            const cpName = cpRel?.counterparty?.display_name || cpRel?.counterparty_name || t('partner');
+                            const myName = merchantProfile?.display_name || t('you') || 'You';
                             return (
                               <div className="field2" style={{ marginBottom: 6 }}>
                                 <div className="lbl">{t('direction')}</div>

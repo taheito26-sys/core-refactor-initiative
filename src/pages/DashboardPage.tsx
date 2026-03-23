@@ -250,12 +250,18 @@ export default function DashboardPage() {
             return (
               <>
                 <div className="kpi-val" style={{ color: 'var(--t5)' }}>
-                  {refPrice && cash > 0 ? fmtU(cash / refPrice, 0) + ' USDT' : t('setCash')}
+                  {refPrice && cash > 0
+                    ? fmtU(cash / refPrice, 0) + ' USDT'
+                    : cash > 0
+                      ? fmtQ(cash) + ' QAR'
+                      : t('setCash')}
                 </div>
                 <div className="kpi-sub">
                   {refPrice
                     ? `@ ${fmtP(refPrice)} QAR${isFallback ? ' (mkt avg)' : ''}`
-                    : t('addBatchesFirst')}
+                    : cash > 0
+                      ? t('addBatchesFirst')
+                      : t('addBatchesFirst')}
                 </div>
               </>
             );
