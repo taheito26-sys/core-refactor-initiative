@@ -191,7 +191,7 @@ export default function OrdersPage() {
     [allMerchantDeals, userId],
   );
   const outgoingApiDeals = useMemo(
-    () => creatorMerchantDeals.filter(deal => !outgoingTrades.some(tr => (deal.metadata as any)?.local_trade_id === tr.id)),
+    () => creatorMerchantDeals.filter(deal => !outgoingTrades.some(tr => parseDealMeta(deal.notes).local_trade === tr.id)),
     [creatorMerchantDeals, outgoingTrades],
   );
   const outgoingVisibleCount = outgoingTrades.length + outgoingApiDeals.length;
