@@ -839,10 +839,11 @@ export default function OrdersPage() {
                         const { partnerPct } = getDealShares(deal);
                         const isDraft = deal.status === 'draft';
                         const isLegacy = !isSupportedDealType(deal.deal_type);
-                        const dealQty = Number((deal.metadata as any)?.quantity ?? deal.amount ?? 0);
-                        const dealSell = Number((deal.metadata as any)?.sell_price ?? 0);
+                        const meta = parseDealMeta(deal.notes);
+                        const dealQty = Number(meta.quantity) || deal.amount || 0;
+                        const dealSell = Number(meta.sell_price) || 0;
                         const dealVol = dealQty * (dealSell || 1);
-                        const dealCost = Number((deal.metadata as any)?.fifo_cost ?? 0);
+                        const dealCost = Number(meta.fifo_cost) || 0;
                         const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
