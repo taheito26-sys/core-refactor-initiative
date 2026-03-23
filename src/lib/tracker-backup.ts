@@ -31,7 +31,6 @@ const IMPORT_STATE_CANDIDATE_KEYS = [
   'content',
 ] as const;
 
-export const CLOUD_URL_KEYS = ['gas_url', 'tracker_cloud_url', 'taheito_cloud_url'] as const;
 export const AUTO_BACKUP_KEYS = ['gasAutoSave', 'trackerAutoBackup', 'taheitoAutoBackup'] as const;
 
 export type TrackerState = Record<string, unknown>;
@@ -109,18 +108,6 @@ export function getCurrentTrackerState(storage: Storage): TrackerState {
   }
 }
 
-export function loadCloudUrlFromStorage(storage: Storage): string {
-  for (const key of CLOUD_URL_KEYS) {
-    const value = storage.getItem(key);
-    if (value?.trim()) return value.trim();
-  }
-  return '';
-}
-
-export function saveCloudUrlToStorage(storage: Storage, url: string): void {
-  for (const key of CLOUD_URL_KEYS) storage.setItem(key, url);
-}
-
 export function loadAutoBackupFromStorage(storage: Storage): boolean {
   for (const key of AUTO_BACKUP_KEYS) {
     const value = storage.getItem(key);
@@ -137,7 +124,6 @@ export function saveAutoBackupToStorage(storage: Storage, value: boolean): void 
 export function listTrackerKeysToClear(storage: Storage): string[] {
   const keys = new Set<string>([
     ...TRACKER_CLEAR_EXACT_KEYS,
-    ...CLOUD_URL_KEYS,
     ...AUTO_BACKUP_KEYS,
   ]);
 
