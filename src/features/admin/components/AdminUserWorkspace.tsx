@@ -95,6 +95,42 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     }
   };
 
+  const handleCorrectEntity = async () => {
+    if (!editEntity || !editEntityReason.trim()) return;
+    try {
+      const updates: Record<string, unknown> = {};
+      if (editEntity.type === 'batch') {
+        if (editEntityQty) updates.qty = Number(editEntityQty);
+        if (editEntityPrice) updates.price = Number(editEntityPrice);
+      } else {
+        if (editEntityQty) updates.amountUSDT = Number(editEntityQty);
+        if (editEntityPrice) updates.sellPriceQAR = Number(editEntityPrice);
+      }
+      await correctTracker.mutateAsync({
+        targetUserId: userId, entityType: editEntity.type, entityId: editEntity.data.id,
+        updates, reason: editEntityReason.trim(),
+      });
+      toast({ title: `${editEntity.type} corrected`, description: 'Audit log recorded.' });
+      setEditEntity(null);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to correct record.', variant: 'destructive' });
+    }
+  };
+
+  const handleVoidEntity = async () => {
+    if (!voidEntity || !voidEntityReason.trim()) return;
+    try {
+      await voidTrackerEntity.mutateAsync({
+        targetUserId: userId, entityType: voidEntity.type, entityId: voidEntity.data.id,
+        reason: voidEntityReason.trim(),
+      });
+      toast({ title: `${voidEntity.type} voided`, description: 'Audit log recorded.' });
+      setVoidEntity(null);
+    } catch {
+      toast({ title: 'Error', description: 'Failed to void record.', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
