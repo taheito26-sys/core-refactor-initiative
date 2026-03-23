@@ -336,7 +336,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* ── Timeline ── */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-10">
+      <div className="px-4 sm:px-6 pb-10">
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <div className="h-12 w-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
