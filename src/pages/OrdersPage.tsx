@@ -919,20 +919,20 @@ export default function OrdersPage() {
             </>
           )}
 
-          {/* ── OUTGOING ORDERS TAB ── */}
+          {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
           {activeTab === 'outgoing' && (
             <>
-              {renderKpiBar({ count: outKpi.count, qty: outKpi.qty, vol: outKpi.vol, net: outKpi.net })}
+              {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div>
                 </div>
-                <span className="pill">{outgoingVisibleCount} {t('trades')}</span>
+                <span className="pill">{creatorMerchantDeals.length} {t('trades')}</span>
               </div>
 
-              {outgoingVisibleCount === 0 ? (
+              {creatorMerchantDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
@@ -947,71 +947,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {outgoingTrades.map(tr => {
-                        const c = derived.tradeCalc.get(tr.id);
-                        const ok = !!c?.ok;
-                        const rev = tr.amountUSDT * tr.sellPriceQAR;
-                        const net = ok ? c!.netQAR : NaN;
-                        const margin = ok && rev > 0 ? net / rev : NaN;
-                        const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-                        const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
-                        const merchantName = linkedRel?.counterparty?.display_name || '—';
-                        const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
-                        return (
-                          <React.Fragment key={tr.id}>
-                            <tr>
-                              <td>
-                                <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-                                  <span className="mono">{fmtDate(tr.ts)}</span>
-                                  {tr.approvalStatus && getApprovalStatusBadge(tr.approvalStatus)}
-                                </div>
-                              </td>
-                              <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                              <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                              <td className="mono r">{fmtU(tr.amountUSDT)}</td>
-                              <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
-                              <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
-                              <td className="mono r">{fmtQ(rev)}</td>
-                              <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
-                              <td>
-                                <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
-                                <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
-                              </td>
-                              <td>
-                                <div className="actionsRow">
-                                  <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
-                                    {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
-                                  </button>
-                                  {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
-                                    <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
-                                  )}
-                                  {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
-                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => {
-                                      if (tr.approvalStatus === 'pending_approval') {
-                                        handleCancelTrade(tr.id);
-                                      } else {
-                                        applyState({ ...state, trades: state.trades.filter(x => x.id !== tr.id) });
-                                        toast.success(t('tradeCancelled'));
-                                      }
-                                    }}>{t('delete')}</button>
-                                  )}
-                                  {tr.approvalStatus === 'approved' && (
-                                    <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                            {detailsOpen[tr.id] && (
-                              <tr>
-                                <td colSpan={10} style={{ padding: 0 }}>
-                                  {renderDetail(tr, c)}
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                      {outgoingApiDeals.map(deal => {
+                      {creatorMerchantDeals.map(deal => {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
@@ -1025,13 +961,21 @@ export default function OrdersPage() {
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
                         const customerName = meta.customer || '';
+
+                        const statusColors: Record<string, { bg: string; color: string }> = {
+                          pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
+                          approved: { bg: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' },
+                          rejected: { bg: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)' },
+                          cancelled: { bg: 'color-mix(in srgb, var(--muted) 15%, transparent)', color: 'var(--muted)' },
+                        };
+                        const sc = statusColors[deal.status] || statusColors.pending;
+
                         return (
                           <tr key={`deal-${deal.id}`}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
-                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)' }}>{cfg?.icon || 'API'}</span>
-                                <span className="pill" style={{ fontSize: 8 }}>{deal.status}</span>
+                                <span className="pill" style={{ fontSize: 8, background: sc.bg, color: sc.color, fontWeight: 700 }}>{deal.status}</span>
                                 {partnerPct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{partnerPct}%/{100 - partnerPct}%</span>}
                               </div>
                             </td>
@@ -1050,8 +994,15 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
-                                <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
-                                <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('delete')}</button>
+                                {deal.status === 'pending' && (
+                                  <>
+                                    <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
+                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+                                  </>
+                                )}
+                                {deal.status === 'approved' && (
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+                                )}
                               </div>
                             </td>
                           </tr>
