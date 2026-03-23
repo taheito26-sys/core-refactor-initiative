@@ -314,15 +314,26 @@ export default function OrdersPage() {
         const customerName = buyerName.trim() || t('buyer');
         const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
         const amount = Number(saleAmount) || 0;
+        const sell = Number(saleSell) || 0;
+        const fee = parseFloat(saleFee) || 0;
 
         const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
-        // Build notes with metadata for reference
+        // Store trade data in notes so partner can see qty/sell/cost
+        const c = computeFIFO(state.batches, [...state.trades, trade]).tradeCalc.get(trade.id);
+        const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
+        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
+
         const noteLines = [
           `template: ${tmpl.id}`,
           `customer: ${customerName}`,
           `local_trade: ${trade.id}`,
+          `quantity: ${trade.amountUSDT}`,
+          `sell_price: ${sell}`,
+          `fifo_cost: ${fifoCost}`,
+          `avg_buy: ${avgBuy}`,
+          `fee: ${fee}`,
           tmpl.dealType === 'partnership'
             ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
             : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
@@ -330,9 +341,9 @@ export default function OrdersPage() {
 
         const { error } = await supabase.from('merchant_deals').insert({
           relationship_id: linkedRelId,
-          deal_type: tmpl.dealType,
+          deal_type: tmpl.dealType as string,
           title,
-          amount,
+          amount: trade.amountUSDT * sell,
           currency,
           status: 'pending',
           created_by: userId!,
@@ -340,6 +351,7 @@ export default function OrdersPage() {
         });
 
         if (error) throw error;
+        await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
       } catch (err: any) {
         console.error('Failed to create deal:', err);
