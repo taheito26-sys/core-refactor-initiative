@@ -243,7 +243,7 @@ export default function MerchantsPage() {
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
     { key: 'ledger', label: t('ledger') || 'Ledger', icon: '📒' },
-    { key: 'analytics', label: t('analytics'), icon: '📊' },
+    
   ];
 
   return (
