@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useT } from '@/lib/i18n';
-import { useAuth } from '@/features/auth/auth-context';
 import { useSettlementPeriods, useSyncSettlementPeriods, type SettlementPeriod } from '@/hooks/useSettlementPeriods';
 import { useDealCapital, useReinvestProfit, usePayoutProfit } from '@/hooks/useDealCapital';
 import { fmtU } from '@/lib/tracker-helpers';
@@ -20,9 +19,26 @@ interface DealInfo {
 interface Props {
   relationshipId: string;
   deals: DealInfo[];
+  isPartner: boolean;
+  trades: Array<{
+    id: string;
+    ts: number;
+    linkedDealId?: string;
+    amountUSDT: number;
+    sellPriceQAR: number;
+    feeQAR: number;
+    voided: boolean;
+  }>;
+  tradeCalc: Map<string, any>;
 }
 
-function PeriodCard({ period, dealAmount, relationshipId }: { period: SettlementPeriod; dealAmount: number; relationshipId: string }) {
+function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }: {
+  period: SettlementPeriod;
+  dealAmount: number;
+  relationshipId: string;
+  isPartner: boolean;
+  dealType: string;
+}) {
   const t = useT();
   const { data: capital } = useDealCapital(period.deal_id, dealAmount);
   const reinvest = useReinvestProfit();
@@ -63,6 +79,61 @@ function PeriodCard({ period, dealAmount, relationshipId }: { period: Settlement
       });
       toast.success(t('reinvestedToPool'));
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  const showActions = (period.status === 'due' || period.status === 'overdue') && period.partner_amount > 0;
+
+  const renderActions = () => {
+    if (!showActions) return null;
+
+    if (dealType === 'arbitrage') {
+      // Sales Deal: merchant (non-partner) settles
+      if (!isPartner) {
+        return (
+          <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
+            💰 {t('settleAmount')} {fmtU(period.partner_amount)}
+          </button>
+        );
+      }
+      return (
+        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+          {t('waitingForMerchantToSettle')}
+        </div>
+      );
+    }
+
+    if (dealType === 'partnership') {
+      // Profit Share: lender (partner) decides
+      if (isPartner) {
+        return (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
+              💰 {t('takeProfit')} {fmtU(period.partner_amount)}
+            </button>
+            <button className="btn" onClick={handleReinvest} disabled={reinvest.isPending} style={{ fontSize: 10 }}>
+              🔄 {t('addToCapital')} {fmtU(period.partner_amount)}
+            </button>
+          </div>
+        );
+      }
+      return (
+        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+          {t('waitingForLenderDecision')}
+        </div>
+      );
+    }
+
+    // Fallback for other types
+    return (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
+          💰 {t('payOut')} {fmtU(period.partner_amount)}
+        </button>
+        <button className="btn" onClick={handleReinvest} disabled={reinvest.isPending} style={{ fontSize: 10 }}>
+          🔄 {t('reinvest')} {fmtU(period.partner_amount)}
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -109,16 +180,9 @@ function PeriodCard({ period, dealAmount, relationshipId }: { period: Settlement
           </span>
           <span className="mono" style={{ color: 'var(--good)' }}>{fmtU(period.settled_amount)}</span>
         </div>
-      ) : (period.status === 'due' || period.status === 'overdue') && period.partner_amount > 0 ? (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
-            💰 {t('payOut')} {fmtU(period.partner_amount)}
-          </button>
-          <button className="btn" onClick={handleReinvest} disabled={reinvest.isPending} style={{ fontSize: 10 }}>
-            🔄 {t('reinvest')} {fmtU(period.partner_amount)}
-          </button>
-        </div>
-      ) : null}
+      ) : (
+        renderActions()
+      )}
 
       {period.status === 'overdue' && (
         <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 4 }}>⚠️ {t('graceExpired')}</div>
@@ -127,20 +191,24 @@ function PeriodCard({ period, dealAmount, relationshipId }: { period: Settlement
   );
 }
 
-export function SettlementTab({ relationshipId, deals }: Props) {
+export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeCalc }: Props) {
   const t = useT();
   const { data: periods, isLoading } = useSettlementPeriods(relationshipId);
   const syncPeriods = useSyncSettlementPeriods(relationshipId);
   const [filterDealId, setFilterDealId] = useState<string>('all');
 
-  // Sync periods on mount
+  // Sync periods on mount with real trade data
   useEffect(() => {
     if (deals.length > 0) {
-      syncPeriods.mutate(deals.map(d => ({
-        id: d.id,
-        settlement_cadence: (d.settlement_cadence || 'monthly') as Cadence,
-        created_at: d.created_at,
-      })));
+      syncPeriods.mutate({
+        deals: deals.map(d => ({
+          id: d.id,
+          settlement_cadence: (d.settlement_cadence || 'monthly') as Cadence,
+          created_at: d.created_at,
+        })),
+        trades,
+        tradeCalc,
+      });
     }
   }, [deals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -153,8 +221,8 @@ export function SettlementTab({ relationshipId, deals }: Props) {
   const settledCount = filtered.filter(p => p.status === 'settled').length;
   const totalSettled = filtered.filter(p => p.status === 'settled').reduce((s, p) => s + Number(p.settled_amount), 0);
 
-  // Build deal amount map
   const dealAmountMap = new Map(deals.map(d => [d.id, d.amount]));
+  const dealTypeMap = new Map(deals.map(d => [d.id, d.deal_type]));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -211,6 +279,8 @@ export function SettlementTab({ relationshipId, deals }: Props) {
             period={p}
             dealAmount={dealAmountMap.get(p.deal_id) || 0}
             relationshipId={relationshipId}
+            isPartner={isPartner}
+            dealType={dealTypeMap.get(p.deal_id) || p.deal_type || 'partnership'}
           />
         ))
       )}

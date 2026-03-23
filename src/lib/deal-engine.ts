@@ -68,6 +68,25 @@ export const DEAL_TYPE_CONFIGS: Record<DealType, DealTypeConfig> = {
     isLegacy: false,
     allocationBase: 'sale_economics',
   },
+  capital_transfer: {
+    type: 'capital_transfer',
+    label: 'Capital Transfer',
+    description: 'Pure USDT transfer between operator and lender. Affects only the capital balance — no profit sharing or settlement.',
+    icon: '💸',
+    requiredFields: ['title', 'amount', 'metadata.cost_basis', 'metadata.direction'],
+    optionalFields: ['notes'],
+    hasCounterpartyShare: false,
+    hasDueDate: false,
+    hasExpectedReturn: false,
+    hasRepaymentLogic: false,
+    eligibleOrderSides: [],
+    requiresApproval: false,
+    settlementBehavior: 'manual',
+    lifecycleSteps: ['completed'],
+    ruleSummaryTemplate: '{direction} of {amount} USDT at {cost_basis} QAR/USDT. Capital only — no profit split.',
+    isLegacy: false,
+    allocationBase: 'none',
+  },
   // ── Legacy types (read-only, not available for new creation) ──
   lending: {
     type: 'lending',
@@ -129,7 +148,7 @@ export const DEAL_TYPE_CONFIGS: Record<DealType, DealTypeConfig> = {
 };
 
 /** Only supported (non-legacy) types for creation flows */
-export const SUPPORTED_DEAL_TYPES: DealType[] = ['partnership', 'arbitrage'];
+export const SUPPORTED_DEAL_TYPES: DealType[] = ['partnership', 'arbitrage', 'capital_transfer'];
 
 // ─── Deal Rule Summary Generator ────────────────────────────────────
 

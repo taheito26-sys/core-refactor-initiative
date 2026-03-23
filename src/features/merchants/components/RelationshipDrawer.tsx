@@ -4,6 +4,7 @@ import { DealsTab } from './DealsTab';
 import { SettlementTab } from './SettlementTab';
 import { ProfitDistributionPanel } from './ProfitDistributionPanel';
 import { CapitalPoolPanel } from './CapitalPoolPanel';
+import { BalanceLedger } from './BalanceLedger';
 import { ChatTab } from './ChatTab';
 import { useState, useMemo } from 'react';
 import '@/styles/tracker.css';
@@ -34,11 +35,21 @@ interface RelationshipDrawerProps {
   };
   agreements: AgreementRow[];
   onClose: () => void;
+  trackerTrades?: Array<{
+    id: string;
+    ts: number;
+    linkedDealId?: string;
+    amountUSDT: number;
+    sellPriceQAR: number;
+    feeQAR: number;
+    voided: boolean;
+  }>;
+  tradeCalc?: Map<string, any>;
 }
 
 type DrawerTab = 'deals' | 'settlements' | 'pnl' | 'capital' | 'chat';
 
-export function RelationshipDrawer({ relationship, agreements, onClose }: RelationshipDrawerProps) {
+export function RelationshipDrawer({ relationship, agreements, onClose, trackerTrades, tradeCalc }: RelationshipDrawerProps) {
   const t = useT();
   const { merchantProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<DrawerTab>('deals');
@@ -123,28 +134,40 @@ export function RelationshipDrawer({ relationship, agreements, onClose }: Relati
             <SettlementTab
               relationshipId={relationship.id}
               deals={relDeals}
+              isPartner={isPartner}
+              trades={trackerTrades || []}
+              tradeCalc={tradeCalc || new Map()}
             />
           )}
           {activeTab === 'pnl' && (
             <ProfitDistributionPanel relationshipId={relationship.id} />
           )}
           {activeTab === 'capital' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {relDeals.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Unified balance ledger */}
+              <BalanceLedger relationshipId={relationship.id} />
+
+              {/* Per-deal capital pools (exclude capital_transfer deals) */}
+              {relDeals.filter(d => d.deal_type !== 'capital_transfer').length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 8 }}>{t('perDealCapital') || 'Per-Deal Capital'}</div>
+                  {relDeals.filter(d => d.deal_type !== 'capital_transfer').map(d => (
+                    <CapitalPoolPanel
+                      key={d.id}
+                      dealId={d.id}
+                      dealAmount={d.amount}
+                      dealTitle={d.title}
+                      relationshipId={relationship.id}
+                      isPartner={isPartner}
+                    />
+                  ))}
+                </>
+              )}
+
+              {relDeals.filter(d => d.deal_type !== 'capital_transfer').length === 0 && (
                 <div className="empty">
                   <div className="empty-t">{t('noDeals')}</div>
                 </div>
-              ) : (
-                relDeals.map(d => (
-                  <CapitalPoolPanel
-                    key={d.id}
-                    dealId={d.id}
-                    dealAmount={d.amount}
-                    dealTitle={d.title}
-                    relationshipId={relationship.id}
-                    isPartner={isPartner}
-                  />
-                ))
               )}
             </div>
           )}
