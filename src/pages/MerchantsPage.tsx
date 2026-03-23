@@ -12,7 +12,7 @@ import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInb
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'inbox' | 'settlements' | 'chat';
+type MerchantTab = 'relationships' | 'settlements' | 'chat';
 
 interface AgreementRow {
   id: string;
