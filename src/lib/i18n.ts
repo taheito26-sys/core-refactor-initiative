@@ -373,6 +373,11 @@ const translations = {
   failedLoadNetwork: { en: 'Failed to load network data', ar: 'فشل تحميل بيانات الشبكة' },
   enterMin2Chars: { en: 'Enter at least 2 characters', ar: 'أدخل حرفين على الأقل' },
   noResults: { en: 'No merchants found', ar: 'لم يتم العثور على تجار' },
+  findMerchantPlaceholder: { en: 'Enter merchant code, nickname, or ID...', ar: 'أدخل رمز التاجر أو الاسم المستعار أو المعرف...' },
+  merchantNotFound: { en: 'No merchant found. Please check and try again.', ar: 'لم يتم العثور على تاجر. يرجى التحقق والمحاولة مرة أخرى.' },
+  alreadyConnected: { en: 'Already connected or pending invite.', ar: 'متصل بالفعل أو دعوة معلقة.' },
+  code: { en: 'Code', ar: 'الرمز' },
+  memberSince: { en: 'Member since', ar: 'عضو منذ' },
 
   // ── Relationship Workspace ──
   workspace: { en: 'Workspace', ar: 'مساحة العمل' },

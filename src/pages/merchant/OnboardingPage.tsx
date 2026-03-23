@@ -63,15 +63,15 @@ export default function OnboardingPage() {
       let codeUnique = false;
       while (!codeUnique) {
         merchantCode = String(Math.floor(1000 + Math.random() * 9000));
-        const { data: existing } = await supabase
-          .from('merchant_profiles')
+        const { data: existing } = await (supabase
+          .from('merchant_profiles') as any)
           .select('id')
-          .eq('merchant_code' as any, merchantCode)
+          .eq('merchant_code', merchantCode)
           .maybeSingle();
         codeUnique = !existing;
       }
 
-      const { error } = await supabase.from('merchant_profiles').insert({
+      const insertPayload: any = {
         user_id: userId,
         merchant_id: form.nickname,
         nickname: form.nickname,
@@ -80,7 +80,8 @@ export default function OnboardingPage() {
         default_currency: form.default_currency || 'USDT',
         bio: form.bio || null,
         merchant_code: merchantCode,
-      } as any);
+      };
+      const { error } = await supabase.from('merchant_profiles').insert(insertPayload);
       if (error) throw error;
       await refreshProfile();
       toast.success('Merchant profile created!');
