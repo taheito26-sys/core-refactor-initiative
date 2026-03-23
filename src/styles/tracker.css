@@ -357,6 +357,23 @@
 .tracker-signout { font-size: 11px; font-weight: 700; }
 .tracker-plus { background: var(--tracker-brand); border-color: var(--tracker-brand); color: #fff; }
 
+/* ── RELATIONSHIP DRAWER ── */
+.rel-drawer-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0,0,0,.45); backdrop-filter: blur(4px);
+  animation: fadeIn .2s ease;
+}
+.rel-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 91;
+  width: min(480px, 92vw); display: flex; flex-direction: column;
+  background: var(--bg, hsl(222 47% 6%)); border-left: 1px solid var(--line);
+  box-shadow: -8px 0 30px rgba(0,0,0,.3);
+  padding: 16px; overflow-y: auto;
+  animation: slideInRight .25s ease;
+}
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
 /* ── BLINK ── */
 @keyframes tracker-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 

@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
+import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
 import '@/styles/tracker.css';
 
 type MerchantTab = 'relationships' | 'inbox' | 'ledger' | 'analytics';
@@ -31,6 +32,7 @@ export default function MerchantsPage() {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<MerchantTab>('relationships');
+  const [activeRelId, setActiveRelId] = useState<string | null>(null);
   const [relationships, setRelationships] = useState<any[]>([]);
   const [agreements, setAgreements] = useState<AgreementRow[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
@@ -424,6 +426,9 @@ export default function MerchantsPage() {
                             <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
+                                <button className="rowBtn" onClick={() => setActiveRelId(r.id)}>
+                                  Open
+                                </button>
                                 <button className="rowBtn" onClick={() => navigate('/orders')}>
                                   {t('orders') || 'Orders'}
                                 </button>
@@ -639,7 +644,20 @@ export default function MerchantsPage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+
+      {/* ─── RELATIONSHIP DRAWER ─── */}
+      {activeRelId && (() => {
+        const rel = relationships.find(r => r.id === activeRelId);
+        if (!rel) return null;
+        return (
+          <RelationshipDrawer
+            relationship={rel}
+            agreements={agreements}
+            onClose={() => setActiveRelId(null)}
+          />
+        );
+      })()}
+    </div>
             </>
           )}
         </>
