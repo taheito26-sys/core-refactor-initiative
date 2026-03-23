@@ -190,7 +190,7 @@ export default function OrdersPage() {
   const query = (settings.searchQuery || '').trim().toLowerCase();
 
   const cancelledDealIds = useMemo(() => new Set(
-    allMerchantDeals.filter(d => d.status === 'cancelled' || d.status === 'voided').map(d => d.id)
+    allMerchantDeals.filter(d => d.status === 'cancelled' || (d.status as string) === 'voided').map(d => d.id)
   ), [allMerchantDeals]);
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
