@@ -165,9 +165,13 @@ export default function MerchantsPage() {
   const pendingAgreements = agreements.filter(a => a.status === 'pending').length;
   const totalExposure = agreements.filter(a => a.status === 'active').reduce((s, a) => s + a.amount, 0);
 
+  // Cancelled deals for ledger
+  const cancelledDeals = agreements.filter(a => a.status === 'cancelled');
+
   const tabs: { key: MerchantTab; label: string; icon: string }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'agreements', label: t('agreements') || 'Agreements', icon: '🤝' },
+    { key: 'ledger', label: t('ledger') || 'Ledger', icon: '📒' },
     { key: 'analytics', label: t('analytics'), icon: '📊' },
   ];
 
