@@ -108,16 +108,16 @@ function AdminNavSection({ collapsed, isActive, isMobile, onMobileClose }: { col
       <ul className="space-y-0.5 px-2">
         <li>
           <Link
-            to="/admin/approvals"
+            to="/admin"
             onClick={isMobile ? onMobileClose : undefined}
             className={cn(
               'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
               'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-              isActive('/admin/approvals') && 'bg-sidebar-accent text-sidebar-primary font-medium'
+              isActive('/admin') && 'bg-sidebar-accent text-sidebar-primary font-medium'
             )}
           >
             <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-            {!collapsed && <span>{t('approvals') || 'Approvals'}</span>}
+            {!collapsed && <span>{t('admin') || 'Admin Center'}</span>}
           </Link>
         </li>
       </ul>
