@@ -102,7 +102,7 @@ export function ChatTab({ relationshipId }: Props) {
           />
         </div>
         <button className="btn" onClick={handleSend} disabled={sendMessage.isPending || !text.trim()}>
-          {t('sendMessage')}
+          {t('sendMessageBtn')}
         </button>
       </div>
     </div>

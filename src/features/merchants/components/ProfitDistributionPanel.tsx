@@ -85,7 +85,7 @@ export function ProfitDistributionPanel({ relationshipId }: Props) {
                   <td style={{ fontWeight: 700, fontSize: 11 }}>{d.dealTitle}</td>
                   <td><span className="pill">{family.icon} {family.label}</span></td>
                   <td style={{ fontSize: 10 }}>
-                    {d.allocationBase === 'net_profit' ? t('netProfit') : t('saleEconomics')}
+                    {d.allocationBase === 'net_profit' ? t('netProfit') : t('saleEconomicsDist')}
                   </td>
                   <td className="mono r">{d.partnerPct}%</td>
                   <td className="mono r">{fmtU(d.totalOrderVolume)}</td>

@@ -47,7 +47,7 @@ export function RelationshipDrawer({ relationship, agreements, onClose }: Relati
     { key: 'deals', label: t('dealsLabel'), icon: '📋' },
     { key: 'settlements', label: t('settlements'), icon: '💰' },
     { key: 'pnl', label: t('pnl'), icon: '📊' },
-    { key: 'chat', label: t('chat'), icon: '💬' },
+    { key: 'chat', label: t('chatTab'), icon: '💬' },
   ];
 
   return (
