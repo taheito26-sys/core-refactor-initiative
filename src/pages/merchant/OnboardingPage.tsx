@@ -58,7 +58,20 @@ export default function OnboardingPage() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.from('merchant_profiles').insert({
+      // Generate a unique 4-digit merchant code
+      let merchantCode = '';
+      let codeUnique = false;
+      while (!codeUnique) {
+        merchantCode = String(Math.floor(1000 + Math.random() * 9000));
+        const { data: existing } = await (supabase
+          .from('merchant_profiles') as any)
+          .select('id')
+          .eq('merchant_code', merchantCode)
+          .maybeSingle();
+        codeUnique = !existing;
+      }
+
+      const insertPayload: any = {
         user_id: userId,
         merchant_id: form.nickname,
         nickname: form.nickname,
@@ -66,7 +79,9 @@ export default function OnboardingPage() {
         region: form.region || null,
         default_currency: form.default_currency || 'USDT',
         bio: form.bio || null,
-      });
+        merchant_code: merchantCode,
+      };
+      const { error } = await supabase.from('merchant_profiles').insert(insertPayload);
       if (error) throw error;
       await refreshProfile();
       toast.success('Merchant profile created!');

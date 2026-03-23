@@ -6,7 +6,6 @@ import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
@@ -28,15 +27,12 @@ export default function NetworkPage() {
   const [invites, setInvites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Merchant search & invite dialog
-  const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [merchantSearch, setMerchantSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [selectedMerchant, setSelectedMerchant] = useState<any>(null);
-  const [invitePurpose, setInvitePurpose] = useState('');
-  const [inviteMessage, setInviteMessage] = useState('');
+  // Find a Merchant state
+  const [findQuery, setFindQuery] = useState('');
+  const [findResult, setFindResult] = useState<any>(null);
+  const [findStatus, setFindStatus] = useState<'idle' | 'searching' | 'found' | 'not_found' | 'already_connected'>('idle');
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -45,47 +41,6 @@ export default function NetworkPage() {
   useEffect(() => {
     setSearchParams({ tab }, { replace: true });
   }, [tab]);
-
-  // Debounced merchant search
-  useEffect(() => {
-    if (merchantSearch.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const timer = setTimeout(() => searchMerchants(merchantSearch), 400);
-    return () => clearTimeout(timer);
-  }, [merchantSearch]);
-
-  const searchMerchants = async (q: string) => {
-    if (!q || q.length < 2) return;
-    setSearching(true);
-    try {
-      const myMerchantId = merchantProfile?.merchant_id;
-      const { data, error } = await supabase
-        .from('merchant_profiles')
-        .select('merchant_id, display_name, nickname, region, status')
-        .or(`display_name.ilike.%${q}%,nickname.ilike.%${q}%,merchant_id.ilike.%${q}%`)
-        .neq('merchant_id', myMerchantId || '')
-        .eq('status', 'active')
-        .limit(10);
-
-      if (error) throw error;
-
-      // Filter out merchants we already have a relationship or pending invite with
-      const existingMerchantIds = new Set([
-        ...relationships.map(r => r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id),
-        ...invites.filter(i => i.status === 'pending').map(i => 
-          i.from_merchant_id === myMerchantId ? i.to_merchant_id : i.from_merchant_id
-        ),
-      ]);
-
-      setSearchResults((data || []).filter(m => !existingMerchantIds.has(m.merchant_id)));
-    } catch (err) {
-      console.error('Search error:', err);
-    } finally {
-      setSearching(false);
-    }
-  };
 
   const loadData = async () => {
     if (!userId) return;
@@ -97,7 +52,7 @@ export default function NetworkPage() {
         supabase.from('merchant_relationships').select('*').order('created_at', { ascending: false }),
         supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
         supabase.from('merchant_invites').select('*').order('created_at', { ascending: false }),
-        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname'),
+        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
       ]);
 
       const profileMap = new Map(
@@ -111,6 +66,7 @@ export default function NetworkPage() {
           ...r,
           counterparty_name: cp?.display_name || cpId,
           counterparty_nickname: cp?.nickname || '',
+          counterparty_code: (cp as any)?.merchant_code || '',
         };
       });
 
@@ -154,21 +110,71 @@ export default function NetworkPage() {
     return cfg ? `${cfg.icon} ${cfg.label}` : dt;
   };
 
+  // ─── Find a Merchant ───
+  const handleFind = async () => {
+    const q = findQuery.trim();
+    if (!q) return;
+    setFindStatus('searching');
+    setFindResult(null);
+    try {
+      const myMerchantId = merchantProfile?.merchant_id;
+
+      // Search by merchant_code, nickname, or merchant_id
+      const { data, error } = await supabase
+        .from('merchant_profiles')
+        .select('merchant_id, display_name, nickname, region, bio, default_currency, merchant_code, created_at')
+        .or(`merchant_code.eq.${q},nickname.ilike.%${q}%,merchant_id.ilike.%${q}%`)
+        .neq('merchant_id', myMerchantId || '')
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        setFindStatus('not_found');
+        return;
+      }
+
+      // Check if already connected or has pending invite
+      const existingMerchantIds = new Set([
+        ...relationships.map(r => r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id),
+        ...invites.filter(i => i.status === 'pending').map(i =>
+          i.from_merchant_id === myMerchantId ? i.to_merchant_id : i.from_merchant_id
+        ),
+      ]);
+
+      if (existingMerchantIds.has(data.merchant_id)) {
+        setFindResult(data);
+        setFindStatus('already_connected');
+        return;
+      }
+
+      setFindResult(data);
+      setFindStatus('found');
+    } catch (err) {
+      console.error('Find error:', err);
+      setFindStatus('not_found');
+    }
+  };
+
   // ─── Send Invite ───
   const handleSendInvite = async () => {
-    if (!selectedMerchant || !merchantProfile) return;
+    if (!findResult || !merchantProfile) return;
     setSendingInvite(true);
     try {
       const { error } = await supabase.from('merchant_invites').insert({
         from_merchant_id: merchantProfile.merchant_id,
-        to_merchant_id: selectedMerchant.merchant_id,
+        to_merchant_id: findResult.merchant_id,
         status: 'pending',
         message: inviteMessage || null,
       });
       if (error) throw error;
-      toast.success(`${t('inviteSentTo') || 'Invite sent to'} ${selectedMerchant.display_name}`);
-      setShowInviteDialog(false);
-      resetInviteForm();
+      toast.success(`${t('inviteSentTo') || 'Invite sent to'} ${findResult.display_name}`);
+      setFindQuery('');
+      setFindResult(null);
+      setFindStatus('idle');
+      setInviteMessage('');
       loadData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to send invite');
@@ -177,10 +183,9 @@ export default function NetworkPage() {
     }
   };
 
-  // ─── Accept Invite: create relationship ───
+  // ─── Accept Invite ───
   const handleAcceptInvite = async (invite: any) => {
     try {
-      // 1. Create the relationship
       const { error: relError } = await supabase.from('merchant_relationships').insert({
         merchant_a_id: invite.from_merchant_id,
         merchant_b_id: invite.to_merchant_id,
@@ -188,7 +193,6 @@ export default function NetworkPage() {
       });
       if (relError) throw relError;
 
-      // 2. Update invite status
       const { error: invError } = await supabase
         .from('merchant_invites')
         .update({ status: 'accepted' })
@@ -230,14 +234,6 @@ export default function NetworkPage() {
     }
   };
 
-  const resetInviteForm = () => {
-    setMerchantSearch('');
-    setSearchResults([]);
-    setSelectedMerchant(null);
-    setInvitePurpose('');
-    setInviteMessage('');
-  };
-
   const filteredRels = search
     ? relationships.filter(r => r.counterparty_name?.toLowerCase().includes(search.toLowerCase()))
     : relationships;
@@ -271,11 +267,96 @@ export default function NetworkPage() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <button className="btn" onClick={() => { resetInviteForm(); setShowInviteDialog(true); }}>
-            + {t('invite') || 'Invite'}
-          </button>
         </div>
       </div>
+
+      {/* ─── FIND A MERCHANT SECTION ─── */}
+      <div style={{
+        display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0',
+        borderBottom: '1px solid var(--line)',
+      }}>
+        <div className="inputBox" style={{ flex: 1, maxWidth: 320, padding: '6px 10px' }}>
+          <input
+            placeholder={t('findMerchantPlaceholder') || 'Enter merchant code, nickname, or ID...'}
+            value={findQuery}
+            onChange={e => { setFindQuery(e.target.value); if (findStatus !== 'idle') { setFindStatus('idle'); setFindResult(null); } }}
+            onKeyDown={e => { if (e.key === 'Enter') handleFind(); }}
+          />
+        </div>
+        <button
+          className="btn"
+          onClick={handleFind}
+          disabled={!findQuery.trim() || findStatus === 'searching'}
+          style={{ whiteSpace: 'nowrap' }}
+        >
+          🔍 {findStatus === 'searching' ? (t('loading') || '...') : (t('findMerchant') || 'Find a Merchant')}
+        </button>
+      </div>
+
+      {/* ─── FIND RESULT ─── */}
+      {findStatus === 'not_found' && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 8, border: '1px solid var(--line)',
+          background: 'var(--cardBg)', fontSize: 11, color: 'var(--muted)',
+        }}>
+          ❌ {t('merchantNotFound') || 'No merchant found with that code or ID. Please check and try again.'}
+        </div>
+      )}
+
+      {findStatus === 'already_connected' && findResult && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 8, border: '1px solid var(--line)',
+          background: 'var(--cardBg)', fontSize: 11,
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>{findResult.display_name}</div>
+          <div style={{ color: 'var(--muted)', fontSize: 10 }}>
+            ✅ {t('alreadyConnected') || 'You are already connected or have a pending invite with this merchant.'}
+          </div>
+        </div>
+      )}
+
+      {findStatus === 'found' && findResult && (
+        <div style={{
+          padding: '12px 14px', borderRadius: 8, border: '1px solid var(--brand)',
+          background: 'var(--cardBg)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 13 }}>{findResult.display_name}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                @{findResult.nickname} · {t('code') || 'Code'}: <span className="mono" style={{ fontWeight: 700 }}>{(findResult as any).merchant_code || '—'}</span>
+              </div>
+              {findResult.region && (
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>📍 {findResult.region}</div>
+              )}
+              {findResult.bio && (
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{findResult.bio}</div>
+              )}
+              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
+                {t('memberSince') || 'Member since'}: {new Date(findResult.created_at).toLocaleDateString()}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+              <div className="inputBox" style={{ maxWidth: 220, padding: '4px 8px' }}>
+                <input
+                  placeholder={t('addANote') || 'Add a note (optional)...'}
+                  value={inviteMessage}
+                  onChange={e => setInviteMessage(e.target.value)}
+                  style={{ fontSize: 10 }}
+                />
+              </div>
+              <button
+                className="btn"
+                onClick={handleSendInvite}
+                disabled={sendingInvite}
+                style={{ fontSize: 11 }}
+              >
+                📨 {sendingInvite ? (t('loading') || '...') : (t('sendInvite') || 'Send Invite')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── TAB BAR ─── */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
@@ -325,7 +406,7 @@ export default function NetworkPage() {
               {filteredRels.length === 0 ? (
                 <div className="empty">
                   <div className="empty-t">{t('noConnections') || 'No connections yet'}</div>
-                  <div className="empty-s">{t('sendInviteToConnect') || 'Send an invitation to connect with merchants'}</div>
+                  <div className="empty-s">{t('sendInviteToConnect') || 'Find a merchant above to connect'}</div>
                 </div>
               ) : (
                 <div className="tableWrap">
@@ -333,6 +414,7 @@ export default function NetworkPage() {
                     <thead>
                       <tr>
                         <th>{t('merchant') || 'Merchant'}</th>
+                        <th>{t('code') || 'Code'}</th>
                         <th>{t('status')}</th>
                         <th className="r">{t('deals')}</th>
                         <th className="r">{t('exposure') || 'Exposure'}</th>
@@ -349,6 +431,7 @@ export default function NetworkPage() {
                               <div style={{ fontWeight: 700, fontSize: 11 }}>{r.counterparty_name}</div>
                               <div style={{ fontSize: 9, color: 'var(--muted)' }}>@{r.counterparty_nickname}</div>
                             </td>
+                            <td className="mono" style={{ fontSize: 10, fontWeight: 700 }}>{r.counterparty_code || '—'}</td>
                             <td>{statusPill(r.status)}</td>
                             <td className="mono r">{relDeals.length}</td>
                             <td className="mono r">{fmtU(activeExp)} USDT</td>
@@ -507,93 +590,6 @@ export default function NetworkPage() {
           )}
         </>
       )}
-
-      {/* ─── SEND INVITE DIALOG ─── */}
-      <Dialog open={showInviteDialog} onOpenChange={(open) => { setShowInviteDialog(open); if (!open) resetInviteForm(); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>📨 {t('sendInvite') || 'Send Invite'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {/* Search for merchant */}
-            {!selectedMerchant ? (
-              <>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">{t('findMerchant') || 'Find merchant...'}</label>
-                  <input
-                    className="w-full mt-1 rounded border border-input bg-background px-3 py-2 text-sm"
-                    placeholder={t('findMerchant') || 'Search by name, nickname, or ID...'}
-                    value={merchantSearch}
-                    onChange={e => setMerchantSearch(e.target.value)}
-                    autoFocus
-                  />
-                </div>
-                {searching && (
-                  <div className="text-xs text-muted-foreground">{t('loading') || 'Searching...'}</div>
-                )}
-                {searchResults.length > 0 && (
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">{t('searchResults') || 'Search results:'}</div>
-                    <div className="space-y-1 max-h-48 overflow-auto">
-                      {searchResults.map(m => (
-                        <div
-                          key={m.merchant_id}
-                          className="flex items-center justify-between p-2 rounded border border-input hover:bg-accent cursor-pointer text-sm"
-                          onClick={() => setSelectedMerchant(m)}
-                        >
-                          <div>
-                            <div className="font-semibold text-xs">{m.display_name}</div>
-                            <div className="text-[10px] text-muted-foreground">@{m.nickname} · {m.region || '—'}</div>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{m.merchant_id}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {merchantSearch.length >= 2 && !searching && searchResults.length === 0 && (
-                  <div className="text-xs text-muted-foreground">{t('noResults') || 'No merchants found'}</div>
-                )}
-              </>
-            ) : (
-              <>
-                {/* Selected merchant */}
-                <div className="flex items-center justify-between p-2 rounded border border-input bg-accent/30">
-                  <div>
-                    <div className="font-semibold text-sm">{t('sendInviteTo') || 'Send Invite to'}</div>
-                    <div className="font-bold text-sm">{selectedMerchant.display_name}</div>
-                    <div className="text-[10px] text-muted-foreground">@{selectedMerchant.nickname} · {selectedMerchant.merchant_id}</div>
-                  </div>
-                  <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setSelectedMerchant(null)}>
-                    ✕
-                  </button>
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">{t('messageOptional') || 'Message (optional)'}</label>
-                  <textarea
-                    className="w-full mt-1 rounded border border-input bg-background px-3 py-2 text-sm resize-none"
-                    rows={3}
-                    value={inviteMessage}
-                    onChange={e => setInviteMessage(e.target.value)}
-                    placeholder={t('addANote') || 'Add a note...'}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter>
-            <button className="btn secondary" onClick={() => { setShowInviteDialog(false); resetInviteForm(); }}>
-              {t('cancel') || 'Cancel'}
-            </button>
-            {selectedMerchant && (
-              <button className="btn" onClick={handleSendInvite} disabled={sendingInvite}>
-                {sendingInvite ? (t('loading') || '...') : (t('sendInvite') || 'Send Invite')}
-              </button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
