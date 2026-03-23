@@ -288,7 +288,7 @@ export default function OrdersPage() {
     // Build trade with agreement fields if merchant-linked
     const tmpl = selectedTemplateId ? AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId) : null;
     const trade: Trade = {
-      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       linkedRelId: merchantOrderEnabled ? linkedRelId || undefined : undefined,
       agreementFamily: tmpl?.family,
       agreementTemplateId: tmpl?.id,
