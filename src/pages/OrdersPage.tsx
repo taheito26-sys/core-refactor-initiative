@@ -24,7 +24,7 @@ function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 
 
 export default function OrdersPage() {
   const { settings } = useTheme();
-  const { userId } = useAuth();
+  const { userId, merchantProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
 
