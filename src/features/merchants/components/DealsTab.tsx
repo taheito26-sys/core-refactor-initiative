@@ -127,6 +127,11 @@ export function DealsTab({ relationshipId, agreements }: Props) {
                 <tr key={d.id}>
                   <td style={{ fontWeight: 700, fontSize: 11 }}>{d.title}</td>
                   <td><span className="pill">{dealTypeLabel(d.deal_type)}</span></td>
+                  <td>
+                    <span className={`pill ${(d as any).settlement_cadence === 'per_order' ? 'warn' : (d as any).settlement_cadence === 'weekly' ? '' : ''}`}>
+                      {(d as any).settlement_cadence === 'per_order' ? '⚡ ' + t('perTrade') : (d as any).settlement_cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
+                    </span>
+                  </td>
                   <td className="mono r">{fmtU(d.amount)} {d.currency}</td>
                   <td>{statusPill(d.status)}</td>
                   <td className="mono" style={{ fontSize: 10 }}>{new Date(d.created_at).toLocaleDateString()}</td>
