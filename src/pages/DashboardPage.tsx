@@ -10,7 +10,6 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
-import type { MerchantDeal, MerchantApproval } from '@/types/domain';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell,
