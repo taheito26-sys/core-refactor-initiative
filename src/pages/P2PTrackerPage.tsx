@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { computeFIFO, totalStock, getWACOP, stockCostQAR, type TrackerState } from '@/lib/tracker-helpers';
+import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 import { getCurrentTrackerState } from '@/lib/tracker-backup';
 import { useT } from '@/lib/i18n';
 import '@/styles/tracker.css';
@@ -181,9 +182,9 @@ function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
 
 function formatOfferLimit(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '∞';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return value.toLocaleString();
+  if (value >= 1_000_000) return `${fmtPrice(value / 1_000_000)}M`;
+  if (value >= 1_000) return `${fmtTotal(value / 1_000)}K`;
+  return fmtTotal(value);
 }
 
 function effectiveMax(offer: P2POffer): number {
@@ -441,45 +442,45 @@ export default function P2PTrackerPage() {
         <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pBestSell')}</div>
-            <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell?.toFixed(2) || '—'}</div>
+            <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell ? fmtPrice(snapshot.bestSell) : '—'}</div>
             <div className="kpi-sub">{t('p2pTopSell')} {ccy}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pSellAvgTop5')}</div>
-            <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(2) || '—'}</div>
+            <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}</div>
             <div className="kpi-sub" style={{ color: 'var(--good)' }}>
-              {snapshot.spreadPct ? `+${snapshot.spreadPct.toFixed(2)}% ${t('p2pSpreadLabel').toLowerCase()}` : t('p2pLiveWeightedAvg')}
+              {snapshot.spreadPct ? `+${fmtPrice(snapshot.spreadPct)}% ${t('p2pSpreadLabel').toLowerCase()}` : t('p2pLiveWeightedAvg')}
             </div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pBestRestock')}</div>
-            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestBuy?.toFixed(2) || '—'}</div>
+            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{snapshot.bestBuy ? fmtPrice(snapshot.bestBuy) : '—'}</div>
             <div className="kpi-sub">{t('p2pCheapestRestock')} {ccy}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pSpread')}</div>
             <div className="kpi-val" style={{ color: snapshot.spread != null && snapshot.spread > 0 ? 'var(--good)' : 'var(--bad)' }}>
-              {snapshot.spread != null ? snapshot.spread.toFixed(4) : '—'}
+              {snapshot.spread != null ? fmtPrice(snapshot.spread) : '—'}
             </div>
-            <div className="kpi-sub">{snapshot.spreadPct != null ? `${snapshot.spreadPct.toFixed(2)}%` : t('p2pNoData')}</div>
+            <div className="kpi-sub">{snapshot.spreadPct != null ? `${fmtPrice(snapshot.spreadPct)}%` : t('p2pNoData')}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pTodayHighSell')}</div>
-            <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.highSell.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">{t('p2pLow')} {todaySummary?.lowSell?.toFixed(3) || '—'} · {todaySummary?.polls || 0} {t('p2pPolls').toLowerCase()}</div>
+            <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.highSell ? fmtPrice(todaySummary.highSell) : '—'}</div>
+            <div className="kpi-sub">{t('p2pLow')} {todaySummary?.lowSell ? fmtPrice(todaySummary.lowSell) : '—'} · {todaySummary?.polls || 0} {t('p2pPolls').toLowerCase()}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pTodayLowBuy')}</div>
-            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{todaySummary?.lowBuy?.toFixed(2) || '—'}</div>
-            <div className="kpi-sub">{t('p2pHigh')} {todaySummary?.highBuy?.toFixed(2) || '—'}</div>
+            <div className="kpi-val" style={{ color: 'var(--bad)' }}>{todaySummary?.lowBuy ? fmtPrice(todaySummary.lowBuy) : '—'}</div>
+            <div className="kpi-sub">{t('p2pHigh')} {todaySummary?.highBuy ? fmtPrice(todaySummary.highBuy) : '—'}</div>
           </div>
           {profitIfSold && (
             <div className="kpi-card">
               <div className="kpi-lbl">{t('p2pProfitIfSoldNow')}</div>
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
+                {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {ccy}
               </div>
-              <div className="kpi-sub">{profitIfSold.stock.toFixed(3)} USDT · {t('p2pCostBasis')}</div>
+              <div className="kpi-sub">{fmtPrice(profitIfSold.stock)} USDT · {t('p2pCostBasis')}</div>
             </div>
           )}
         </div>
@@ -497,7 +498,7 @@ export default function P2PTrackerPage() {
           <div className="panel-body" style={{ padding: '8px 12px 12px', minHeight: 150, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div className="flex items-start justify-between gap-2">
               <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
-              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(3) : '—'}</span>
+              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? fmtPrice(priceBarData.sellLatest) : '—'}</span>
             </div>
             <div className="flex items-end gap-1 h-5">
               {priceBarData.sellBars.map((pct, i) => (
@@ -506,7 +507,7 @@ export default function P2PTrackerPage() {
             </div>
             <div className="flex items-start justify-between gap-2">
               <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
-              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
+              <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? fmtPrice(priceBarData.buyLatest) : '—'}</span>
             </div>
             <div className="flex items-end gap-1 h-5">
               {priceBarData.buyBars.map((pct, i) => (
@@ -514,8 +515,8 @@ export default function P2PTrackerPage() {
               ))}
             </div>
             <div className="flex gap-2">
-              <span className="pill" style={{ fontSize: 9 }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{priceBarData.sellChange.toFixed(3)}</span>
-              <span className="pill" style={{ fontSize: 9 }}>{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{priceBarData.buyChange.toFixed(3)}</span>
+              <span className="pill" style={{ fontSize: 9 }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.sellChange)}</span>
+              <span className="pill" style={{ fontSize: 9 }}>{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.buyChange)}</span>
             </div>
           </div>
         </div>
