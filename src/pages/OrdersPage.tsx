@@ -173,32 +173,16 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
-  // Merchant-linked trades (new trade-centric model)
-  const merchantLinkedTrades = useMemo(
-    () => allTrades.filter(tr => !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId)),
-    [allTrades],
-  );
-
-  // Outgoing: locally-created merchant-linked trades that are still visible
-  const outgoingTrades = useMemo(
-    () => merchantLinkedTrades.filter(tr => tr.approvalStatus !== 'cancelled'),
-    [merchantLinkedTrades],
-  );
-
-  // Incoming/Outgoing API deals that are still visible in the review queue/history
+  // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
     () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
+  // Outgoing: deals I created (server-authoritative)
   const creatorMerchantDeals = useMemo(
     () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
-  const outgoingApiDeals = useMemo(
-    () => creatorMerchantDeals.filter(deal => !outgoingTrades.some(tr => parseDealMeta(deal.notes).local_trade === tr.id)),
-    [creatorMerchantDeals, outgoingTrades],
-  );
-  const outgoingVisibleCount = outgoingTrades.length + outgoingApiDeals.length;
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
@@ -471,56 +455,63 @@ export default function OrdersPage() {
   };
 
   // ─── Cancel / Cancellation Request ────────────────────────────────
-  const handleCancelTrade = (tradeId: string) => {
+  const handleCancelTrade = async (tradeId: string) => {
     const tr = state.trades.find(x => x.id === tradeId);
     if (!tr) return;
 
-    if (tr.approvalStatus === 'pending_approval') {
-      // Creator can cancel directly before approval
-      const nextTrades = state.trades.map(t =>
-        t.id === tradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
-      );
-      applyState({ ...state, trades: nextTrades });
-      toast.success(t('tradeCancelled'));
-    } else if (tr.approvalStatus === 'approved') {
-      // After approval, need cancellation request
-      setCancelTradeId(tradeId);
+    // If trade has a linked deal, cancel on server
+    if (tr.linkedDealId) {
+      try {
+        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
+        if (error) throw error;
+        await reloadMerchantData();
+        toast.success(t('tradeCancelled'));
+      } catch (err: any) { toast.error(err.message); return; }
     }
-  };
 
-  const submitCancellationRequest = () => {
-    if (!cancelTradeId) return;
-    const nextTrades = state.trades.map(t =>
-      t.id === cancelTradeId ? { ...t, approvalStatus: 'cancellation_pending' as LinkedTradeStatus, cancellationRequestedBy: userId || '' } : t
-    );
-    applyState({ ...state, trades: nextTrades });
-    setCancelTradeId(null);
-    toast.success(t('cancellationRequestSent'));
-  };
-
-  // Approve an incoming partner trade (from the incoming tab)
-  const approveIncomingTrade = (tradeId: string) => {
-    const nextTrades = state.trades.map(t =>
-      t.id === tradeId ? { ...t, approvalStatus: 'approved' as LinkedTradeStatus } : t
-    );
-    applyState({ ...state, trades: nextTrades });
-    toast.success(t('tradeApproved'));
-  };
-
-  const rejectIncomingTrade = (tradeId: string) => {
-    const nextTrades = state.trades.map(t =>
-      t.id === tradeId ? { ...t, approvalStatus: 'rejected' as LinkedTradeStatus } : t
-    );
-    applyState({ ...state, trades: nextTrades });
-    toast.success(t('tradeRejected'));
-  };
-
-  const approveCancellation = (tradeId: string) => {
+    // Also update local trade state
     const nextTrades = state.trades.map(t =>
       t.id === tradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
     applyState({ ...state, trades: nextTrades });
+    if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
+  };
+
+  const submitCancellationRequest = async () => {
+    if (!cancelTradeId) return;
+    const tr = state.trades.find(x => x.id === cancelTradeId);
+    if (tr?.linkedDealId) {
+      try {
+        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
+        if (error) throw error;
+        await reloadMerchantData();
+      } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
+    }
+    const nextTrades = state.trades.map(t =>
+      t.id === cancelTradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+    );
+    applyState({ ...state, trades: nextTrades });
+    setCancelTradeId(null);
     toast.success(t('tradeCancelled'));
+  };
+
+  // Server-side approve/reject for incoming merchant deals
+  const approveIncomingDeal = async (dealId: string) => {
+    try {
+      const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', dealId);
+      if (error) throw error;
+      await reloadMerchantData();
+      toast.success(t('tradeApproved'));
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const rejectIncomingDeal = async (dealId: string) => {
+    try {
+      const { error } = await supabase.from('merchant_deals').update({ status: 'rejected' }).eq('id', dealId);
+      if (error) throw error;
+      await reloadMerchantData();
+      toast.success(t('tradeRejected'));
+    } catch (err: any) { toast.error(err.message); }
   };
 
   // ─── Merchant Deal Edit/Delete Handlers ───────────────────────────
@@ -668,15 +659,13 @@ export default function OrdersPage() {
   }, [filtered, derived]);
 
   const outKpi = useMemo(() => {
-    let qty = 0, vol = 0, netVal = 0;
-    for (const tr of outgoingTrades) {
-      const c = derived.tradeCalc.get(tr.id);
-      qty += tr.amountUSDT;
-      vol += tr.amountUSDT * tr.sellPriceQAR;
-      if (c?.ok) netVal += c.netQAR;
+    let vol = 0, netVal = 0;
+    for (const deal of creatorMerchantDeals) {
+      vol += deal.amount;
+      if (deal.realized_pnl != null) netVal += deal.realized_pnl;
     }
-    return { count: outgoingTrades.length, qty, vol, net: netVal };
-  }, [outgoingTrades, derived]);
+    return { count: creatorMerchantDeals.length, vol, net: netVal };
+  }, [creatorMerchantDeals]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
@@ -858,7 +847,7 @@ export default function OrdersPage() {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
-                        const isDraft = deal.status === 'draft';
+                        const isPending = deal.status === 'pending';
                         const isLegacy = !isSupportedDealType(deal.deal_type);
                         const meta = parseDealMeta(deal.notes);
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
@@ -896,28 +885,19 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
-                                {(deal.status === 'pending' || isDraft) && (
+                                {deal.status === 'pending' && (
                                   <>
-                                    <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={async () => {
-                                      try {
-                                        const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', deal.id);
-                                        if (error) throw error;
-                                        await reloadMerchantData();
-                                        toast.success(t('tradeApproved'));
-                                      } catch (err: any) { toast.error(err.message); }
-                                    }}>{t('approve')}</button>
-                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={async () => {
-                                      try {
-                                        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', deal.id);
-                                        if (error) throw error;
-                                        await reloadMerchantData();
-                                        toast.success(t('tradeRejected'));
-                                      } catch (err: any) { toast.error(err.message); }
-                                    }}>{t('reject')}</button>
+                                    <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
+                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
                                   </>
                                 )}
+                                {deal.status === 'approved' && (
+                                  <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700 }}>✅ {t('approvedStatus')}</span>
+                                )}
+                                {deal.status === 'rejected' && (
+                                  <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)', fontWeight: 700 }}>❌ {t('rejectedStatus')}</span>
+                                )}
                                 <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
-                                <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('delete')}</button>
                               </div>
                             </td>
                           </tr>
@@ -930,20 +910,20 @@ export default function OrdersPage() {
             </>
           )}
 
-          {/* ── OUTGOING ORDERS TAB ── */}
+          {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
           {activeTab === 'outgoing' && (
             <>
-              {renderKpiBar({ count: outKpi.count, qty: outKpi.qty, vol: outKpi.vol, net: outKpi.net })}
+              {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div>
                 </div>
-                <span className="pill">{outgoingVisibleCount} {t('trades')}</span>
+                <span className="pill">{creatorMerchantDeals.length} {t('trades')}</span>
               </div>
 
-              {outgoingVisibleCount === 0 ? (
+              {creatorMerchantDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
@@ -958,71 +938,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {outgoingTrades.map(tr => {
-                        const c = derived.tradeCalc.get(tr.id);
-                        const ok = !!c?.ok;
-                        const rev = tr.amountUSDT * tr.sellPriceQAR;
-                        const net = ok ? c!.netQAR : NaN;
-                        const margin = ok && rev > 0 ? net / rev : NaN;
-                        const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-                        const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
-                        const merchantName = linkedRel?.counterparty?.display_name || '—';
-                        const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
-                        return (
-                          <React.Fragment key={tr.id}>
-                            <tr>
-                              <td>
-                                <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-                                  <span className="mono">{fmtDate(tr.ts)}</span>
-                                  {tr.approvalStatus && getApprovalStatusBadge(tr.approvalStatus)}
-                                </div>
-                              </td>
-                              <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                              <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                              <td className="mono r">{fmtU(tr.amountUSDT)}</td>
-                              <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
-                              <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
-                              <td className="mono r">{fmtQ(rev)}</td>
-                              <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
-                              <td>
-                                <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
-                                <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
-                              </td>
-                              <td>
-                                <div className="actionsRow">
-                                  <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
-                                    {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
-                                  </button>
-                                  {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
-                                    <button className="rowBtn" onClick={() => openEdit(tr.id)}>{t('edit')}</button>
-                                  )}
-                                  {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
-                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => {
-                                      if (tr.approvalStatus === 'pending_approval') {
-                                        handleCancelTrade(tr.id);
-                                      } else {
-                                        applyState({ ...state, trades: state.trades.filter(x => x.id !== tr.id) });
-                                        toast.success(t('tradeCancelled'));
-                                      }
-                                    }}>{t('delete')}</button>
-                                  )}
-                                  {tr.approvalStatus === 'approved' && (
-                                    <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                            {detailsOpen[tr.id] && (
-                              <tr>
-                                <td colSpan={10} style={{ padding: 0 }}>
-                                  {renderDetail(tr, c)}
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                      {outgoingApiDeals.map(deal => {
+                      {creatorMerchantDeals.map(deal => {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
@@ -1036,13 +952,21 @@ export default function OrdersPage() {
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
                         const customerName = meta.customer || '';
+
+                        const statusColors: Record<string, { bg: string; color: string }> = {
+                          pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
+                          approved: { bg: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' },
+                          rejected: { bg: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)' },
+                          cancelled: { bg: 'color-mix(in srgb, var(--muted) 15%, transparent)', color: 'var(--muted)' },
+                        };
+                        const sc = statusColors[deal.status] || statusColors.pending;
+
                         return (
                           <tr key={`deal-${deal.id}`}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
-                                <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)' }}>{cfg?.icon || 'API'}</span>
-                                <span className="pill" style={{ fontSize: 8 }}>{deal.status}</span>
+                                <span className="pill" style={{ fontSize: 8, background: sc.bg, color: sc.color, fontWeight: 700 }}>{deal.status}</span>
                                 {partnerPct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{partnerPct}%/{100 - partnerPct}%</span>}
                               </div>
                             </td>
@@ -1061,8 +985,15 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
-                                <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
-                                <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('delete')}</button>
+                                {deal.status === 'pending' && (
+                                  <>
+                                    <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
+                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+                                  </>
+                                )}
+                                {deal.status === 'approved' && (
+                                  <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1314,7 +1245,7 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>
                     <p>{t('incomingTradesHelp')}</p>
                     <div style={{ marginTop: 12 }}>
-                      {partnerMerchantDeals.filter(d => d.status === 'draft').map(deal => {
+                      {partnerMerchantDeals.filter(d => d.status === 'pending').map(deal => {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
@@ -1330,25 +1261,13 @@ export default function OrdersPage() {
                               <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{deal.amount.toLocaleString()} {deal.currency}</div>
                             </div>
                             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                              <button className="btn" style={{ fontSize: 10, padding: '4px 12px' }} onClick={async () => {
-                                try {
-                                  await api.deals.update(deal.id, { status: 'active' });
-                                  await reloadMerchantData();
-                                  toast.success(t('tradeApproved'));
-                                } catch (err: any) { toast.error(err.message); }
-                              }}>{t('approve')}</button>
-                              <button className="btn secondary" style={{ fontSize: 10, padding: '4px 12px', color: 'var(--bad)' }} onClick={async () => {
-                                try {
-                                  await api.deals.update(deal.id, { status: 'cancelled' });
-                                  await reloadMerchantData();
-                                  toast.success(t('tradeRejected'));
-                                } catch (err: any) { toast.error(err.message); }
-                              }}>{t('reject')}</button>
+                              <button className="btn" style={{ fontSize: 10, padding: '4px 12px' }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
+                              <button className="btn secondary" style={{ fontSize: 10, padding: '4px 12px', color: 'var(--bad)' }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
                             </div>
                           </div>
                         );
                       })}
-                      {partnerMerchantDeals.filter(d => d.status === 'draft').length === 0 && (
+                      {partnerMerchantDeals.filter(d => d.status === 'pending').length === 0 && (
                         <div style={{ textAlign: 'center', padding: 12, color: 'var(--muted)' }}>{t('noPendingApprovals')}</div>
                       )}
                     </div>
@@ -1366,15 +1285,15 @@ export default function OrdersPage() {
                 <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>
                   <p>{t('outgoingTradesHelp')}</p>
                 </div>
-                {outgoingTrades.filter(tr => tr.approvalStatus === 'pending_approval').length > 0 && (
+                {creatorMerchantDeals.filter(d => d.status === 'pending').length > 0 && (
                   <div className="previewBox" style={{ borderColor: 'var(--warn)' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 4 }}>⏳ {t('pendingApprovalCount').replace('{n}', String(outgoingTrades.filter(tr => tr.approvalStatus === 'pending_approval').length))}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 4 }}>⏳ {t('pendingApprovalCount').replace('{n}', String(creatorMerchantDeals.filter(d => d.status === 'pending').length))}</div>
                     <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('awaitingPartnerApproval')}</div>
                   </div>
                 )}
-                {outgoingTrades.filter(tr => tr.approvalStatus === 'approved').length > 0 && (
+                {creatorMerchantDeals.filter(d => d.status === 'approved').length > 0 && (
                   <div className="previewBox" style={{ borderColor: 'var(--good)', marginTop: 6 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 4 }}>✅ {outgoingTrades.filter(tr => tr.approvalStatus === 'approved').length} {t('approvedTrades')}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 4 }}>✅ {creatorMerchantDeals.filter(d => d.status === 'approved').length} {t('approvedTrades')}</div>
                     <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('permanentSharedRecords')}</div>
                   </div>
                 )}

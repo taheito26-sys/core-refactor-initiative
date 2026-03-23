@@ -115,7 +115,7 @@ export interface RelationshipSummary {
 // but hidden from creation flows.
 export type DealType = 'lending' | 'arbitrage' | 'partnership' | 'capital_placement' | 'general';
 export type SupportedDealType = 'arbitrage' | 'partnership';
-export type DealStatus = 'draft' | 'pending' | 'active' | 'approved' | 'due' | 'settled' | 'closed' | 'overdue' | 'cancelled';
+export type DealStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 /** Check if a deal type is a currently supported (non-legacy) type */
 export function isSupportedDealType(dt: DealType): dt is SupportedDealType {

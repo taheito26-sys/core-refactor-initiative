@@ -8,7 +8,7 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
-import * as api from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 import type { MerchantDeal, MerchantApproval } from '@/types/domain';
 import '@/styles/tracker.css';
 
@@ -46,15 +46,15 @@ export default function DashboardPage() {
   const [pendingApprovals, setPendingApprovals] = useState<MerchantApproval[]>([]);
 
   useEffect(() => {
-    api.deals.list().then(r => setMerchantDeals(r.deals)).catch(() => {});
-    api.approvals.inbox().then(r => setPendingApprovals(r.approvals.filter(a => a.status === 'pending'))).catch(() => {});
+    supabase.from('merchant_deals').select('*').then(({ data }) => setMerchantDeals((data || []) as any));
+    supabase.from('merchant_approvals').select('*').eq('status', 'pending').then(({ data }) => setPendingApprovals((data || []) as any));
   }, []);
 
-  const activeDeals = merchantDeals.filter(d => ['active', 'due', 'overdue'].includes(d.status));
+  const activeDeals = merchantDeals.filter(d => d.status === 'approved');
   const merchantExposure = activeDeals.reduce((s, d) => s + d.amount, 0);
   const merchantPnL = merchantDeals.reduce((s, d) => s + (d.realized_pnl || 0), 0);
-  const overdueDeals = merchantDeals.filter(d => d.status === 'overdue');
-  const settlementsDue = merchantDeals.filter(d => d.status === 'due');
+  const overdueDeals: typeof merchantDeals = [];
+  const settlementsDue: typeof merchantDeals = [];
 
   // ── P2P Averages from real trade data ──
   const p2pAvgs = useMemo(() => {
