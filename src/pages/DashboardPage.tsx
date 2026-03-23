@@ -316,9 +316,9 @@ export default function DashboardPage() {
           <div className="kpi-lbl">{t('merchantRealizedPnl')}</div>
           <div className={`kpi-val ${merchantPnL >= 0 ? 'good' : 'bad'}`}>${merchantPnL.toLocaleString()}</div>
           <div className="kpi-sub">
-            {overdueDeals.length > 0 && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>{overdueDeals.length} {t('overdue')}</span>}
-            {settlementsDue.length > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700, marginLeft: 6 }}>{settlementsDue.length} {t('due')}</span>}
-            {overdueDeals.length === 0 && settlementsDue.length === 0 && <span>{t('allClear')}</span>}
+            {settlementAlert.overdue > 0 && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>{settlementAlert.overdue} {t('overdue')}</span>}
+            {settlementAlert.due > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700, marginLeft: 6 }}>{settlementAlert.due} {t('due')}</span>}
+            {settlementAlert.overdue === 0 && settlementAlert.due === 0 && <span>{t('allClear')}</span>}
           </div>
         </div>
       </div>
