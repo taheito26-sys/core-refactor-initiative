@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
+import { useEffect } from 'react';
 
 export interface Settlement {
   id: string;
@@ -18,23 +19,23 @@ export interface Settlement {
 
 export function useSettlements(relationshipId?: string) {
   const { userId } = useAuth();
+  const qc = useQueryClient();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['settlements', relationshipId],
     queryFn: async (): Promise<Settlement[]> => {
-      let query = supabase
+      let q = supabase
         .from('merchant_settlements')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (relationshipId) {
-        query = query.eq('relationship_id', relationshipId);
+        q = q.eq('relationship_id', relationshipId);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await q;
       if (error) throw error;
 
-      // Fetch deal titles separately
       const dealIds = [...new Set((data || []).map(s => s.deal_id))];
       const dealMap = new Map<string, { title: string; deal_type: string }>();
       if (dealIds.length > 0) {
@@ -53,8 +54,21 @@ export function useSettlements(relationshipId?: string) {
     },
     enabled: !!userId,
   });
-}
 
+  // Realtime
+  useEffect(() => {
+    if (!relationshipId) return;
+    const channel = supabase
+      .channel(`settlements:${relationshipId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_settlements', filter: `relationship_id=eq.${relationshipId}` }, () => {
+        qc.invalidateQueries({ queryKey: ['settlements', relationshipId] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [relationshipId, qc]);
+
+  return query;
+}
 export function useSubmitSettlement() {
   const qc = useQueryClient();
   const { userId } = useAuth();
