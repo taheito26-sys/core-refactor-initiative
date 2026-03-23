@@ -1513,7 +1513,7 @@ export default function OrdersPage() {
         const editingDeal = editingDealId ? allMerchantDeals.find(d => d.id === editingDealId) : null;
         if (!editingDeal) return null;
         const dealVol = Number(editDealQty) * Number(editDealSell);
-        const dealCost = Number((editingDeal.metadata as any)?.fifo_cost ?? 0);
+        const dealCost = Number(parseDealMeta(editingDeal.notes).fifo_cost) || 0;
         const dealNet = dealVol - dealCost - Number(editDealFee);
         return (
           <Dialog open={!!editingDealId} onOpenChange={open => !open && setEditingDealId(null)}>
