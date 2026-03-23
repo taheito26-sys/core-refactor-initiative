@@ -6,9 +6,10 @@ import {
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import * as api from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 import { DEAL_TYPE_CONFIGS, calculateAllocation } from '@/lib/deal-engine';
 import { AGREEMENT_TEMPLATES, getTemplateRatioLabel, getAgreementFamilyLabel, getDealShares, type AgreementTemplate } from '@/lib/deal-templates';
 import { isSupportedDealType } from '@/types/domain';
