@@ -24,13 +24,13 @@ import {
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
 
-const CATEGORIES: { key: CategoryKey; label: string; icon: React.ComponentType<{ className?: string }>; color: string }[] = [
-  { key: 'all', label: 'All', icon: Sparkles, color: 'text-primary' },
-  { key: 'deal', label: 'Deals', icon: Handshake, color: 'text-accent' },
-  { key: 'order', label: 'Orders', icon: Package, color: 'text-warning' },
-  { key: 'invite', label: 'Invites', icon: Mail, color: 'text-primary' },
-  { key: 'approval', label: 'Approvals', icon: ShieldCheck, color: 'text-success' },
-  { key: 'system', label: 'System', icon: Zap, color: 'text-muted-foreground' },
+const CATEGORIES: { key: CategoryKey; label: string; icon: React.ComponentType<{ className?: string }>; activeBg: string; activeText: string }[] = [
+  { key: 'all', label: 'All', icon: Sparkles, activeBg: 'bg-primary', activeText: 'text-primary-foreground' },
+  { key: 'deal', label: 'Deals', icon: Handshake, activeBg: 'bg-accent', activeText: 'text-accent-foreground' },
+  { key: 'order', label: 'Orders', icon: Package, activeBg: 'bg-warning', activeText: 'text-warning-foreground' },
+  { key: 'invite', label: 'Invites', icon: Mail, activeBg: 'bg-[hsl(260,60%,50%)]', activeText: 'text-white' },
+  { key: 'approval', label: 'Approvals', icon: ShieldCheck, activeBg: 'bg-success', activeText: 'text-success-foreground' },
+  { key: 'system', label: 'System', icon: Zap, activeBg: 'bg-muted-foreground', activeText: 'text-background' },
 ];
 
 const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
