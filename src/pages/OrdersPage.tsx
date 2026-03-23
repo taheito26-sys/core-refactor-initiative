@@ -150,6 +150,20 @@ export default function OrdersPage() {
 
   useEffect(() => { reloadMerchantData(); }, [reloadMerchantData]);
 
+  // Real-time listener for merchant_deals changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('merchant-deals-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'merchant_deals' },
+        () => { reloadMerchantData(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [reloadMerchantData]);
+
   useEffect(() => {
     const next: TrackerState = { ...state, range: settings.range, currency: settings.currency,
       settings: { ...state.settings, lowStockThreshold: settings.lowStockThreshold, priceAlertThreshold: settings.priceAlertThreshold }
