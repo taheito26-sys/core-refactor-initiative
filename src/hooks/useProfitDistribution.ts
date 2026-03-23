@@ -69,14 +69,28 @@ export function useProfitDistribution(relationshipId: string) {
         if (cpProfile) cpName = cpProfile.display_name;
       }
 
-      const dealDistributions: DealDistribution[] = (deals || []).map(deal => {
+      // Helper to get pool balance
+      async function getDealPoolBalance(dealId: string): Promise<number> {
+        const { data } = await supabase
+          .from('deal_capital_ledger')
+          .select('pool_balance_after')
+          .eq('deal_id', dealId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return data ? Number((data as any).pool_balance_after) : 0;
+      }
+
+      const dealDistributions: DealDistribution[] = [];
+      for (const deal of (deals || [])) {
         const shares = getDealShares({ deal_type: deal.deal_type, notes: deal.notes });
 
         const dealSettlements = (settlements || [])
           .filter(s => s.deal_id === deal.id)
           .reduce((sum, s) => sum + Number(s.amount), 0);
 
-        const totalOrderVolume = Number(deal.amount || 0);
+        const poolBalance = await getDealPoolBalance(deal.id);
+        const totalOrderVolume = Number(deal.amount || 0) + poolBalance;
         const totalNetProfit = Number(deal.realized_pnl || 0);
 
         let partnerOwed = 0;
@@ -92,7 +106,7 @@ export function useProfitDistribution(relationshipId: string) {
           }
         }
 
-        return {
+        dealDistributions.push({
           dealId: deal.id,
           dealTitle: deal.title,
           dealType: deal.deal_type,
@@ -105,8 +119,8 @@ export function useProfitDistribution(relationshipId: string) {
           merchantOwed,
           totalSettled: dealSettlements,
           partnerOutstanding: partnerOwed - dealSettlements,
-        };
-      });
+        });
+      }
 
       const summary = {
         totalPartnerOwed: dealDistributions.reduce((s, d) => s + d.partnerOwed, 0),

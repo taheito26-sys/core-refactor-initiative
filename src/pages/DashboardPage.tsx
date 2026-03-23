@@ -57,8 +57,20 @@ export default function DashboardPage() {
   const activeDeals = merchantDeals.filter(d => d.status === 'approved');
   const merchantExposure = activeDeals.reduce((s, d) => s + d.amount, 0);
   const merchantPnL = merchantDeals.reduce((s, d) => s + (d.realized_pnl || 0), 0);
-  const overdueDeals: typeof merchantDeals = [];
-  const settlementsDue: typeof merchantDeals = [];
+  const [settlementAlert, setSettlementAlert] = useState({ due: 0, overdue: 0 });
+
+  useEffect(() => {
+    supabase
+      .from('settlement_periods')
+      .select('status')
+      .in('status', ['due', 'overdue'])
+      .then(({ data }) => {
+        setSettlementAlert({
+          due: (data || []).filter((d: any) => d.status === 'due').length,
+          overdue: (data || []).filter((d: any) => d.status === 'overdue').length,
+        });
+      });
+  }, []);
 
   // ── P2P Averages from real trade data ──
   const p2pAvgs = useMemo(() => {
@@ -304,9 +316,9 @@ export default function DashboardPage() {
           <div className="kpi-lbl">{t('merchantRealizedPnl')}</div>
           <div className={`kpi-val ${merchantPnL >= 0 ? 'good' : 'bad'}`}>${merchantPnL.toLocaleString()}</div>
           <div className="kpi-sub">
-            {overdueDeals.length > 0 && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>{overdueDeals.length} {t('overdue')}</span>}
-            {settlementsDue.length > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700, marginLeft: 6 }}>{settlementsDue.length} {t('due')}</span>}
-            {overdueDeals.length === 0 && settlementsDue.length === 0 && <span>{t('allClear')}</span>}
+            {settlementAlert.overdue > 0 && <span style={{ color: 'var(--bad)', fontWeight: 700 }}>{settlementAlert.overdue} {t('overdue')}</span>}
+            {settlementAlert.due > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700, marginLeft: 6 }}>{settlementAlert.due} {t('due')}</span>}
+            {settlementAlert.overdue === 0 && settlementAlert.due === 0 && <span>{t('allClear')}</span>}
           </div>
         </div>
       </div>

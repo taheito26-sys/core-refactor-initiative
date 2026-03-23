@@ -38,6 +38,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
   const [dealType, setDealType] = useState<string>(SUPPORTED_DEAL_TYPES[0]);
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USDT');
+  const [cadence, setCadence] = useState<string>('monthly');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,11 +82,12 @@ export function DealsTab({ relationshipId, agreements }: Props) {
         currency,
         created_by: userId!,
         notes: notes.trim() || null,
-      });
+        settlement_cadence: cadence,
+      } as any);
       if (error) throw error;
       toast.success(t('dealCreated') || 'Deal created');
       setShowForm(false);
-      setTitle(''); setAmount(''); setNotes('');
+      setTitle(''); setAmount(''); setNotes(''); setCadence('monthly');
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -114,6 +116,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
               <tr>
                 <th>{t('title') || 'Title'}</th>
                 <th>{t('type') || 'Type'}</th>
+                <th>{t('settlementCadence')}</th>
                 <th className="r">{t('amount')}</th>
                 <th>{t('status')}</th>
                 <th>{t('date')}</th>
@@ -124,6 +127,11 @@ export function DealsTab({ relationshipId, agreements }: Props) {
                 <tr key={d.id}>
                   <td style={{ fontWeight: 700, fontSize: 11 }}>{d.title}</td>
                   <td><span className="pill">{dealTypeLabel(d.deal_type)}</span></td>
+                  <td>
+                    <span className={`pill ${(d as any).settlement_cadence === 'per_order' ? 'warn' : (d as any).settlement_cadence === 'weekly' ? '' : ''}`}>
+                      {(d as any).settlement_cadence === 'per_order' ? '⚡ ' + t('perTrade') : (d as any).settlement_cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
+                    </span>
+                  </td>
                   <td className="mono r">{fmtU(d.amount)} {d.currency}</td>
                   <td>{statusPill(d.status)}</td>
                   <td className="mono" style={{ fontSize: 10 }}>{new Date(d.created_at).toLocaleDateString()}</td>
@@ -163,6 +171,14 @@ export function DealsTab({ relationshipId, agreements }: Props) {
                 <option value="USDT">USDT</option>
                 <option value="USD">USD</option>
                 <option value="IQD">IQD</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">{t('settlementCadence')}</Label>
+              <select value={cadence} onChange={e => setCadence(e.target.value)} className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
+                <option value="monthly">📅 {t('monthly')}</option>
+                <option value="weekly">📆 {t('weekly')}</option>
+                <option value="per_order">⚡ {t('perTrade')}</option>
               </select>
             </div>
             <div>

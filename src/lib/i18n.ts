@@ -891,6 +891,42 @@ const translations = {
   allocationBaseDist: { en: 'Allocation Base', ar: 'أساس التوزيع' },
   saleEconomicsDist: { en: 'Sale Economics', ar: 'اقتصاديات البيع' },
   pnl: { en: 'P&L', ar: 'الأرباح/الخسائر' },
+
+  // ── Settlement System ──
+  settlementTracker: { en: 'Settlement Tracker', ar: 'متتبع التسويات' },
+  dueNow: { en: 'Due Now', ar: 'مستحق الآن' },
+  overdueSettlement: { en: 'Overdue', ar: 'متأخر' },
+  settledThisMonth: { en: 'Settled This Month', ar: 'مسوّى هذا الشهر' },
+  totalOutstandingLabel: { en: 'Total Outstanding', ar: 'إجمالي المتبقي' },
+  perTrade: { en: 'Per Trade', ar: 'لكل صفقة' },
+  settled: { en: 'Settled', ar: 'تمت التسوية' },
+  allDeals: { en: 'All Deals', ar: 'جميع الصفقات' },
+  settlementCadence: { en: 'Settlement Cadence', ar: 'دورة التسوية' },
+  settleAmount: { en: 'Settle', ar: 'تسوية' },
+  periodTrades: { en: 'trades', ar: 'صفقات' },
+  periodVolume: { en: 'volume', ar: 'حجم' },
+  periodProfit: { en: 'profit', ar: 'ربح' },
+  graceExpired: { en: 'Grace period expired', ar: 'انتهت فترة السماح' },
+  openWorkspace: { en: 'Open Workspace', ar: 'فتح مساحة العمل' },
+
+  // ── Capital Model ──
+  payOut: { en: 'Pay Out', ar: 'دفع' },
+  reinvest: { en: 'Reinvest', ar: 'إعادة استثمار' },
+  reinvestedPool: { en: 'Reinvested Pool', ar: 'رصيد إعادة الاستثمار' },
+  workingCapital: { en: 'Working Capital', ar: 'رأس المال العامل' },
+  originalPrincipal: { en: 'Principal', ar: 'رأس المال الأصلي' },
+  withdrawFromPool: { en: 'Withdraw from Pool', ar: 'سحب من الرصيد' },
+  withdrawalAmount: { en: 'Withdrawal Amount', ar: 'مبلغ السحب' },
+  poolBalance: { en: 'Pool Balance', ar: 'رصيد المجمع' },
+  reinvestedToPool: { en: 'Reinvested to pool', ar: 'أعيد استثماره في المجمع' },
+  paidOutToPartner: { en: 'Paid out to partner', ar: 'تم الدفع للشريك' },
+  withdrawnByPartner: { en: 'Withdrawn by partner', ar: 'سحبه الشريك' },
+  nextCycleCapital: { en: 'Next cycle', ar: 'الدورة القادمة' },
+  capitalLedger: { en: 'Capital Ledger', ar: 'سجل رأس المال' },
+  capitalTab: { en: 'Capital', ar: 'رأس المال' },
+  sendToPartner: { en: 'Send to partner', ar: 'إرسال للشريك' },
+  addToCapitalPool: { en: 'Add to capital pool', ar: 'إضافة لمجمع رأس المال' },
+  exceedsPoolBalance: { en: 'Amount exceeds pool balance', ar: 'المبلغ يتجاوز رصيد المجمع' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

@@ -8,9 +8,10 @@ import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
+import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'inbox' | 'ledger';
+type MerchantTab = 'relationships' | 'inbox' | 'settlements';
 
 interface AgreementRow {
   id: string;
@@ -23,6 +24,7 @@ interface AgreementRow {
   created_at: string;
   counterparty_name?: string;
   order_count?: number;
+  settlement_cadence?: string;
 }
 
 export default function MerchantsPage() {
@@ -45,6 +47,7 @@ export default function MerchantsPage() {
   const [findStatus, setFindStatus] = useState<'idle' | 'searching' | 'found' | 'not_found' | 'already_connected'>('idle');
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
+  const { data: settlementOverview } = useSettlementOverview();
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
 
@@ -97,6 +100,7 @@ export default function MerchantsPage() {
           created_at: d.created_at,
           counterparty_name: rel?.counterparty_name || '—',
           order_count: 0,
+          settlement_cadence: (d as any).settlement_cadence || 'monthly',
         };
       });
 
@@ -251,11 +255,11 @@ export default function MerchantsPage() {
     [relationships, activeRelId]
   );
 
+  const overdueCount = settlementOverview?.overdueCount || 0;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
-    { key: 'ledger', label: t('ledger') || 'Ledger', icon: '📒' },
-    
+    { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
   ];
 
   return (
@@ -542,49 +546,86 @@ export default function MerchantsPage() {
             </>
           )}
 
-          {/* ═══ LEDGER TAB ═══ */}
-          {tab === 'ledger' && (
+          {/* ═══ SETTLEMENTS TAB ═══ */}
+          {tab === 'settlements' && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>📒 {t('cancelledDeals')}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cancelledDealsDesc')}</div>
+              {/* KPI row */}
+              {settlementOverview && (
+                <div className="kpi-band" style={{ marginBottom: 10 }}>
+                  <div className="kpi-band-title">{t('settlementTracker')}</div>
+                  <div className="kpi-band-cols">
+                    <div>
+                      <div className="kpi-period">{t('dueNow')}</div>
+                      <div className="kpi-cell-val" style={{ color: settlementOverview.dueCount > 0 ? 'orange' : 'var(--muted)' }}>
+                        {settlementOverview.dueCount}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="kpi-period">{t('overdueSettlement')}</div>
+                      <div className="kpi-cell-val" style={{ color: settlementOverview.overdueCount > 0 ? 'var(--bad)' : 'var(--muted)' }}>
+                        {settlementOverview.overdueCount}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="kpi-period">{t('settledThisMonth')}</div>
+                      <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{settlementOverview.settledThisMonth}</div>
+                    </div>
+                    <div>
+                      <div className="kpi-period">{t('totalOutstandingLabel')}</div>
+                      <div className="kpi-cell-val">{fmtU(settlementOverview.totalOutstanding)}</div>
+                    </div>
+                  </div>
                 </div>
-                <span className="pill">{filteredLedger.length}</span>
-              </div>
+              )}
 
-              {filteredLedger.length === 0 ? (
+              {/* Grouped by relationship */}
+              {!settlementOverview || settlementOverview.items.length === 0 ? (
                 <div className="empty">
-                  <div className="empty-t">{t('noCancelledDeals')}</div>
-                  <div className="empty-s">{t('ledgerClean')}</div>
+                  <div className="empty-t">{t('noDeals')}</div>
+                  <div className="empty-s">{t('createDealsFromWorkspace')}</div>
                 </div>
               ) : (
-                <div className="tableWrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t('title') || 'Title'}</th>
-                        <th>{t('merchant') || 'Merchant'}</th>
-                        <th>{t('type') || 'Type'}</th>
-                        <th className="r">{t('amount')}</th>
-                        <th>{t('cancelledOn')}</th>
-                        <th>{t('date')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredLedger.map(a => (
-                        <tr key={a.id} style={{ opacity: 0.7 }}>
-                          <td style={{ fontWeight: 700, fontSize: 11 }}>{a.title}</td>
-                          <td style={{ fontSize: 10 }}>{a.counterparty_name}</td>
-                          <td style={{ fontSize: 10 }}>{dealTypeLabel(a.deal_type)}</td>
-                          <td className="mono r">{fmtU(a.amount)} {a.currency}</td>
-                          <td>{statusPill(a.status)}</td>
-                          <td className="mono" style={{ fontSize: 10 }}>{new Date(a.created_at).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                Array.from(settlementOverview.byRelationship.entries()).map(([relId, group]) => (
+                  <div key={relId} className="panel" style={{ padding: 10, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{group.name}</div>
+                      <button className="rowBtn" onClick={() => handleOpenRelationship(relId)} style={{ fontSize: 10 }}>
+                        {t('openWorkspace')} →
+                      </button>
+                    </div>
+                    <div className="tableWrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t('title') || 'Deal'}</th>
+                            <th>{t('period') || 'Period'}</th>
+                            <th>{t('settlementCadence')}</th>
+                            <th className="r">{t('partnerShare')}</th>
+                            <th>{t('status')}</th>
+                            <th>{t('dueDate') || 'Due'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.items.map(item => {
+                            const statusCls = item.status === 'overdue' ? 'bad' : item.status === 'due' ? 'warn' : '';
+                            return (
+                              <tr key={item.period_id}>
+                                <td style={{ fontWeight: 700, fontSize: 11 }}>{item.deal_title}</td>
+                                <td className="mono" style={{ fontSize: 10 }}>{item.period_key}</td>
+                                <td style={{ fontSize: 10 }}>
+                                  {item.cadence === 'per_order' ? '⚡ ' + t('perTrade') : item.cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
+                                </td>
+                                <td className="mono r">{fmtU(item.partner_amount)}</td>
+                                <td><span className={`pill ${statusCls}`}>{item.status === 'overdue' ? '⚠️ ' : ''}{item.status}</span></td>
+                                <td className="mono" style={{ fontSize: 10 }}>{item.due_at ? new Date(item.due_at).toLocaleDateString() : '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))
               )}
             </>
           )}
