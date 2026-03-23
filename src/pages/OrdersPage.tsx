@@ -293,40 +293,40 @@ export default function OrdersPage() {
     applyState(next);
 
     if (merchantOrderEnabled && tmpl) {
-      // Also create a backend deal record for the counterparty to see
+      // Create a backend deal record in Supabase for the counterparty to see
       try {
         const customerName = buyerName.trim() || t('buyer');
         const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
         const amount = Number(saleAmount) || 0;
-        const metadata: Record<string, unknown> = {
-          agreement_family: tmpl.family,
-          template_id: tmpl.id,
-          customer_name: customerName,
-          supplier_name: 'System',
-          local_trade_id: trade.id,
-        };
-        if (tmpl.dealType === 'partnership') {
-          metadata.partner_ratio = tmpl.defaults.partner_ratio;
-          metadata.merchant_ratio = tmpl.defaults.merchant_ratio;
-        } else {
-          metadata.counterparty_share_pct = tmpl.defaults.counterparty_share_pct;
-          metadata.merchant_share_pct = tmpl.defaults.merchant_share_pct;
-        }
-        metadata.settlement_period = tmpl.defaults.settlement_period;
 
         const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
-        await api.deals.create({
+        // Build notes with metadata for reference
+        const noteLines = [
+          `template: ${tmpl.id}`,
+          `customer: ${customerName}`,
+          `local_trade: ${trade.id}`,
+          tmpl.dealType === 'partnership'
+            ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
+            : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
+        ].join(' | ');
+
+        const { error } = await supabase.from('merchant_deals').insert({
           relationship_id: linkedRelId,
           deal_type: tmpl.dealType,
           title,
           amount,
           currency,
-          metadata,
+          status: 'pending',
+          created_by: user!.id,
+          notes: noteLines,
         });
+
+        if (error) throw error;
         toast.success(t('tradeSentForApproval'));
       } catch (err: any) {
+        console.error('Failed to create deal:', err);
         toast.error(err.message || t('failedCreateDeal'));
       }
     } else {
