@@ -46,6 +46,7 @@ export default function MerchantsPage() {
   const [findStatus, setFindStatus] = useState<'idle' | 'searching' | 'found' | 'not_found' | 'already_connected'>('idle');
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
+  const { data: settlementOverview } = useSettlementOverview();
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
 
