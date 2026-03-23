@@ -26,6 +26,8 @@ export function notificationRoute(n: Notification): string {
       return '/admin/approvals';
     case 'merchant':
       return '/merchants';
+    case 'message':
+      return '/merchants';
     default:
       return '/dashboard';
   }

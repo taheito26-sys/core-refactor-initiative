@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, CheckCheck, Handshake, Mail, ShieldCheck, Package,
-  Zap, Filter, Clock, ArrowRight, Sparkles, Circle,
+  Zap, Filter, Clock, ArrowRight, Sparkles, Circle, MessageCircle,
 } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import {
@@ -22,7 +22,7 @@ import {
 } from '@/hooks/useNotifications';
 
 // ─── Category Config ────────────────────────────────────────────────
-type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
+type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'message' | 'system';
 
 const CATEGORIES: { key: CategoryKey; label: string; icon: React.ComponentType<{ className?: string }>; activeBg: string; activeText: string }[] = [
   { key: 'all', label: 'All', icon: Sparkles, activeBg: 'bg-primary', activeText: 'text-primary-foreground' },
@@ -30,6 +30,7 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: React.ComponentType<{
   { key: 'order', label: 'Orders', icon: Package, activeBg: 'bg-warning', activeText: 'text-warning-foreground' },
   { key: 'invite', label: 'Invites', icon: Mail, activeBg: 'bg-[hsl(260,60%,50%)]', activeText: 'text-white' },
   { key: 'approval', label: 'Approvals', icon: ShieldCheck, activeBg: 'bg-success', activeText: 'text-success-foreground' },
+  { key: 'message', label: 'Messages', icon: MessageCircle, activeBg: 'bg-[hsl(200,70%,50%)]', activeText: 'text-white' },
   { key: 'system', label: 'System', icon: Zap, activeBg: 'bg-muted-foreground', activeText: 'text-background' },
 ];
 
@@ -40,6 +41,7 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
   network: { icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
   approval: { icon: ShieldCheck, color: 'text-success', bg: 'bg-success/10' },
   merchant: { icon: Handshake, color: 'text-accent', bg: 'bg-accent/10' },
+  message: { icon: MessageCircle, color: 'text-[hsl(200,70%,50%)]', bg: 'bg-[hsl(200,70%,50%)]/10' },
   system: { icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
 };
 
@@ -145,6 +147,7 @@ export default function ActivityCenter() {
     return notifications.filter(n => {
       if (activeCategory === 'invite') return n.category === 'invite' || n.category === 'network';
       if (activeCategory === 'deal') return n.category === 'deal' || n.category === 'merchant';
+      if (activeCategory === 'message') return n.category === 'message';
       return n.category === activeCategory;
     });
   }, [notifications, activeCategory]);
@@ -157,6 +160,7 @@ export default function ActivityCenter() {
       if (!n.read_at) {
         const cat = (n.category === 'network' || n.category === 'invite') ? 'invite'
           : (n.category === 'merchant' || n.category === 'deal') ? 'deal'
+          : n.category === 'message' ? 'message'
           : n.category;
         counts[cat] = (counts[cat] || 0) + 1;
       }
