@@ -128,6 +128,7 @@ const translations = {
   quantity: { en: 'Quantity', ar: 'الكمية' },
   amountQar: { en: 'Amount (QAR)', ar: 'المبلغ (ر.ق)' },
   sellPriceLabel: { en: 'Sell Price', ar: 'سعر البيع' },
+  buyPrice: { en: 'Buy Price', ar: 'سعر الشراء' },
   buyerName: { en: 'Buyer Name', ar: 'اسم المشتري' },
   searchOrTypeBuyer: { en: 'Search or type buyer name', ar: 'ابحث أو اكتب اسم المشتري' },
   noBuyersYet: { en: 'No buyers yet', ar: 'لا يوجد مشترين بعد' },
