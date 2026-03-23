@@ -426,6 +426,9 @@ export default function MerchantsPage() {
                             <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
+                                <button className="rowBtn" onClick={() => setActiveRelId(r.id)}>
+                                  {t('open') || 'Open'}
+                                </button>
                                 <button className="rowBtn" onClick={() => navigate('/orders')}>
                                   {t('orders') || 'Orders'}
                                 </button>
