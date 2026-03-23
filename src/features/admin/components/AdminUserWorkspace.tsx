@@ -64,6 +64,55 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
   const trades = Array.isArray(trackerState?.trades) ? trackerState.trades : [];
 
+  const exportCSV = useCallback((filename: string, headers: string[], rows: string[][]) => {
+    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Exported', description: `${filename} downloaded.` });
+  }, [toast]);
+
+  const exportDeals = () => {
+    if (!deals?.length) return;
+    exportCSV(`deals_${userId.slice(0,8)}.csv`,
+      ['ID','Title','Amount','Currency','Type','Status','Created','Notes'],
+      deals.map((d: any) => [d.id, d.title, d.amount, d.currency, d.deal_type, d.status, d.created_at, d.notes ?? ''])
+    );
+  };
+
+  const exportSettlements = () => {
+    if (!settlements?.length) return;
+    exportCSV(`settlements_${userId.slice(0,8)}.csv`,
+      ['ID','Deal ID','Amount','Currency','Date','Notes'],
+      settlements.map((s: any) => [s.id, s.deal_id, s.amount, s.currency, s.created_at, s.notes ?? ''])
+    );
+  };
+
+  const exportTrades = () => {
+    if (!trades.length) return;
+    exportCSV(`trades_${userId.slice(0,8)}.csv`,
+      ['ID','Amount USDT','Sell Price QAR','Customer','Date','Voided'],
+      trades.map((t: any) => [t.id, t.amountUSDT ?? t.qty ?? '', t.sellPriceQAR ?? t.price ?? '', t.customer ?? '', t.ts ? new Date(t.ts).toISOString() : '', t.voided ? 'yes' : 'no'])
+    );
+  };
+
+  const exportBatches = () => {
+    if (!batches.length) return;
+    exportCSV(`batches_${userId.slice(0,8)}.csv`,
+      ['ID','Qty','Price','Supplier','Date','Voided'],
+      batches.map((b: any) => [b.id, b.qty, b.price, b.supplier ?? '', b.ts ? new Date(b.ts).toISOString() : '', b.voided ? 'yes' : 'no'])
+    );
+  };
+
+  const exportAll = () => {
+    exportDeals();
+    exportSettlements();
+    exportTrades();
+    exportBatches();
+  };
+
   const openEdit = (deal: any) => {
     setEditDeal(deal);
     setEditTitle(deal.title);
