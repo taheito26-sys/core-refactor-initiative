@@ -130,6 +130,7 @@ export interface MerchantDeal {
   amount: number;
   currency: string;
   status: DealStatus;
+  notes: string | null;
   metadata: Record<string, unknown>;
   issue_date: string;
   due_date: string | null;
