@@ -8,7 +8,7 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
-import * as api from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 import type { MerchantDeal, MerchantApproval } from '@/types/domain';
 import '@/styles/tracker.css';
 
