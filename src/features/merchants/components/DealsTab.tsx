@@ -177,9 +177,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
       </Dialog>
     </div>
   );
-
-
-  const t = useT();
+}
 
   const relDeals = agreements.filter(a => a.relationship_id === relationshipId && a.status !== 'cancelled');
 
