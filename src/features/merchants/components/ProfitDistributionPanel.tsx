@@ -68,7 +68,7 @@ export function ProfitDistributionPanel({ relationshipId }: Props) {
             <tr>
               <th>{t('title') || 'Title'}</th>
               <th>{t('type') || 'Type'}</th>
-              <th>{t('allocationBase')}</th>
+              <th>{t('allocationBaseDist')}</th>
               <th className="r">{t('partnerShare')} %</th>
               <th className="r">{t('volume') || 'Volume'}</th>
               <th className="r">{t('partnerShare')}</th>
