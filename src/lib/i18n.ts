@@ -956,6 +956,9 @@ const translations = {
   submitTransfer: { en: 'Submit Transfer', ar: 'تقديم التحويل' },
   capitalTransferSubmitted: { en: 'Capital transfer submitted', ar: 'تم تقديم تحويل رأس المال' },
   transfers: { en: 'transfers', ar: 'تحويلات' },
+  linkExistingOrderToPartner: { en: 'Link this order to a partner deal', ar: 'ربط هذا الطلب بصفقة شريك' },
+  orderLinkedToPartner: { en: 'Order linked to partner deal', ar: 'تم ربط الطلب بصفقة الشريك' },
+  alreadyLinkedToPartner: { en: 'This order is linked to a partner deal', ar: 'هذا الطلب مرتبط بصفقة شريك' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

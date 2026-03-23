@@ -87,6 +87,12 @@ export default function OrdersPage() {
   const [editNote, setEditNote] = useState('');
   const [editCustomerId, setEditCustomerId] = useState('');
 
+  // Link-to-partner state (for editing self orders)
+  const [editLinkEnabled, setEditLinkEnabled] = useState(false);
+  const [editLinkedRelId, setEditLinkedRelId] = useState('');
+  const [editSelectedTemplateId, setEditSelectedTemplateId] = useState<string | null>(null);
+  const [editSettleImmediately, setEditSettleImmediately] = useState(false);
+
   // ─── Merchant-Linked Trade (Trade-Centric) ────────────────────────
   const [relationships, setRelationships] = useState<MerchantRelationship[]>([]);
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
@@ -562,20 +568,142 @@ export default function OrdersPage() {
     setEditFee(String(tr.feeQAR ?? 0));
     setEditNote(tr.note ?? '');
     setEditCustomerId(tr.customerId ?? '');
+    // Reset link-to-partner state
+    setEditLinkEnabled(false);
+    setEditLinkedRelId('');
+    setEditSelectedTemplateId(null);
+    setEditSettleImmediately(false);
   };
 
-  const saveTradeEdit = () => {
+  const saveTradeEdit = async () => {
     if (!editingTradeId) return;
     const ts = new Date(editDate).getTime();
     const qty = Number(editQty);
     const sell = Number(editSell);
     const fee = Number(editFee) || 0;
     if (!Number.isFinite(ts) || !(qty > 0) || !(sell > 0)) return;
+
+    const existingTrade = state.trades.find(t => t.id === editingTradeId);
+    if (!existingTrade) return;
+
+    // Build base updated fields
+    let updatedFields: Partial<Trade> = {
+      ts, amountUSDT: qty, sellPriceQAR: sell, feeQAR: fee, note: editNote,
+      customerId: editCustomerId, usesStock: editUsesStock,
+    };
+
+    // ── Handle linking to partner deal ──
+    if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
+      const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
+      if (!tmpl) { toast.error('Invalid template'); return; }
+
+      try {
+        const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
+        const rev = qty * sell;
+
+        const tempCalc = computeFIFO(state.batches, state.trades);
+        const calc = tempCalc.tradeCalc.get(editingTradeId);
+        const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
+        const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
+
+        const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+        const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
+
+        const noteLines = [
+          `template: ${tmpl.id}`,
+          `customer: ${customerName}`,
+          `local_trade: ${editingTradeId}`,
+          `quantity: ${qty}`,
+          `sell_price: ${sell}`,
+          `fifo_cost: ${fifoCost}`,
+          `avg_buy: ${avgBuy}`,
+          `fee: ${fee}`,
+          tmpl.dealType === 'partnership'
+            ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
+            : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
+        ].join(' | ');
+
+        const { data: dealData, error: dealError } = await supabase.from('merchant_deals').insert({
+          relationship_id: editLinkedRelId,
+          deal_type: tmpl.dealType as string,
+          title,
+          amount: rev,
+          currency: 'QAR',
+          status: 'pending',
+          created_by: userId!,
+          notes: noteLines,
+        }).select('id').single();
+
+        if (dealError) throw dealError;
+
+        const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
+        updatedFields = {
+          ...updatedFields,
+          linkedRelId: editLinkedRelId,
+          linkedDealId: dealData?.id,
+          agreementFamily: tmpl.family as 'profit_share' | 'sales_deal',
+          agreementTemplateId: tmpl.id,
+          partnerPct,
+          merchantPct: 100 - partnerPct,
+          approvalStatus: 'pending_approval' as LinkedTradeStatus,
+        };
+
+        // Create settlement period for per_order deals
+        const dealCadence = tmpl.defaults.settlement_period || 'monthly';
+        if (dealCadence === 'per_order' && dealData?.id) {
+          const netProfit = rev - fifoCost - fee;
+          const partnerAmt = tmpl.family === 'profit_share'
+            ? netProfit * (partnerPct / 100)
+            : rev * (partnerPct / 100);
+
+          const { data: periodData } = await supabase.from('settlement_periods').insert({
+            deal_id: dealData.id,
+            relationship_id: editLinkedRelId,
+            cadence: 'per_order',
+            period_key: `order:${editingTradeId}`,
+            period_start: new Date(ts).toISOString(),
+            period_end: new Date(ts).toISOString(),
+            due_at: new Date(ts + 86400000).toISOString(),
+            trade_count: 1,
+            gross_volume: rev,
+            total_cost: fifoCost,
+            net_profit: netProfit,
+            total_fees: fee,
+            partner_amount: partnerAmt,
+            merchant_amount: rev - partnerAmt,
+            status: editSettleImmediately ? 'settled' : 'due',
+            resolution: editSettleImmediately ? 'payout' : null,
+            resolved_by: editSettleImmediately ? userId : null,
+            resolved_at: editSettleImmediately ? new Date().toISOString() : null,
+            settled_amount: editSettleImmediately ? partnerAmt : 0,
+          } as any).select('id').single();
+
+          if (editSettleImmediately && periodData?.id) {
+            await supabase.from('merchant_settlements').insert({
+              deal_id: dealData.id,
+              relationship_id: editLinkedRelId,
+              amount: partnerAmt,
+              currency: 'USDT',
+              settled_by: userId!,
+              notes: `Immediate settlement for linked order ${editingTradeId}`,
+              status: 'pending',
+            } as any);
+          }
+        }
+
+        toast.success(t('orderLinkedToPartner') || 'Order linked to partner deal');
+        reloadMerchantData();
+      } catch (err: any) {
+        toast.error(err.message);
+        return; // Don't save local trade if deal creation failed
+      }
+    }
+
     const nextTrades = state.trades.map(tr => {
       if (tr.id !== editingTradeId) return tr;
       return {
-        ...tr, ts, amountUSDT: qty, sellPriceQAR: sell, feeQAR: fee, note: editNote,
-        customerId: editCustomerId, usesStock: editUsesStock,
+        ...tr,
+        ...updatedFields,
         revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
       };
     });
@@ -1703,6 +1831,145 @@ export default function OrdersPage() {
                   />
                 </div>
               </div>
+
+              {/* Already linked indicator */}
+              {editingTrade && (editingTrade.agreementFamily || editingTrade.linkedDealId) && (
+                <div style={{
+                  marginBottom: 16, padding: '8px 12px', borderRadius: 8,
+                  background: 'color-mix(in srgb, var(--brand) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)',
+                  fontSize: 10, color: 'var(--brand)',
+                }}>
+                  🤝 {t('alreadyLinkedToPartner')}
+                  {editingTrade.agreementFamily && (
+                    <span style={{ marginLeft: 8 }}>
+                      ({editingTrade.agreementFamily === 'profit_share' ? 'Profit Share' : 'Sales Deal'}
+                      {editingTrade.partnerPct != null ? ` · ${editingTrade.partnerPct}/${editingTrade.merchantPct}` : ''})
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Link to Partner — only for self orders, not approved */}
+              {editingTrade && !editingTrade.agreementFamily && !editingTrade.linkedDealId && !editingTrade.linkedRelId && !isApproved && (
+                <div style={{
+                  marginBottom: 16, padding: 10, borderRadius: 8,
+                  border: editLinkEnabled ? '1px solid var(--brand)' : '1px solid var(--line)',
+                  background: editLinkEnabled ? 'color-mix(in srgb, var(--brand) 4%, transparent)' : 'transparent',
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, cursor: 'pointer', color: 'var(--muted)', marginBottom: editLinkEnabled ? 10 : 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={editLinkEnabled}
+                      onChange={e => {
+                        setEditLinkEnabled(e.target.checked);
+                        if (!e.target.checked) {
+                          setEditLinkedRelId('');
+                          setEditSelectedTemplateId(null);
+                          setEditSettleImmediately(false);
+                        }
+                      }}
+                      style={{ accentColor: 'var(--brand)' }}
+                    />
+                    🤝 {t('linkExistingOrderToPartner')}
+                  </label>
+
+                  {editLinkEnabled && (
+                    <>
+                      {/* Step 1: Select partner */}
+                      <div className="field2" style={{ marginBottom: 6 }}>
+                        <div className="lbl">{t('selectPartner')}</div>
+                        <select
+                          value={editLinkedRelId}
+                          onChange={e => { setEditLinkedRelId(e.target.value); setEditSelectedTemplateId(null); }}
+                          style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                        >
+                          <option value="">{t('noneSelected')}</option>
+                          {relationships.map(r => (
+                            <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Step 2: Select order type */}
+                      {editLinkedRelId && (
+                        <div style={{ marginTop: 4 }}>
+                          <div className="lbl" style={{ marginBottom: 4 }}>{t('agreementType')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                          <select
+                            value={editSelectedTemplateId || ''}
+                            onChange={e => setEditSelectedTemplateId(e.target.value || null)}
+                            style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                          >
+                            <option value="">{t('selectAgreementType')}</option>
+                            {AGREEMENT_TEMPLATES.filter(tmpl => tmpl.family !== 'capital_transfer').map(tmpl => (
+                              <option key={tmpl.id} value={tmpl.id}>
+                                {tmpl.icon} {tmpl.label[t.lang as 'en' | 'ar']} ({tmpl.ratioDisplay})
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Template details + allocation preview */}
+                          {editSelectedTemplateId && (() => {
+                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
+                            if (!tmpl) return null;
+                            const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
+                            const qty = Number(editQty) || 0;
+                            const sell = Number(editSell) || 0;
+                            const rev = qty * sell;
+                            const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
+                            const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
+                            const netProfit = rev - fifoCost - (Number(editFee) || 0);
+                            const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
+                            const base = tmpl.family === 'profit_share' ? netProfit : rev;
+                            const partnerAmt = base * (partnerPct / 100);
+                            const merchantAmt = base - partnerAmt;
+                            return (
+                              <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: `color-mix(in srgb, ${accentVar} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${accentVar} 30%, transparent)` }}>
+                                <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 3 }}>
+                                  {getTemplateRatioLabel(tmpl, t.lang as 'en' | 'ar')}
+                                </div>
+                                <div style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.4 }}>{tmpl.helperText[t.lang as 'en' | 'ar']}</div>
+                                {rev > 0 && (
+                                  <div style={{ marginTop: 6, fontSize: 10 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                      <span className="muted">{t('partnerShare')}:</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(partnerAmt)}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                      <span className="muted">{t('merchantShareDist')}:</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(merchantAmt)}</span>
+                                    </div>
+                                  </div>
+                                )}
+                                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>
+                                  {t('tradeWillBeSentForApproval')}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Settle immediately (Sales Deal only) */}
+                          {editSelectedTemplateId && (() => {
+                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
+                            if (!tmpl || tmpl.family !== 'sales_deal') return null;
+                            return (
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={editSettleImmediately}
+                                  onChange={e => setEditSettleImmediately(e.target.checked)}
+                                  style={{ accentColor: 'var(--brand)' }}
+                                />
+                                {t('settleThisTradeNow')}
+                              </label>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 {!isApproved && (
