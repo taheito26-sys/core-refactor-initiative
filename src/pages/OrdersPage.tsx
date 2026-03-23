@@ -847,7 +847,7 @@ export default function OrdersPage() {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
-                        const isDraft = deal.status === 'draft';
+                        const isPending = deal.status === 'pending';
                         const isLegacy = !isSupportedDealType(deal.deal_type);
                         const meta = parseDealMeta(deal.notes);
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
