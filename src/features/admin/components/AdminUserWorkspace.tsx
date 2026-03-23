@@ -343,6 +343,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
             <p className="text-sm text-muted-foreground text-center py-6">No tracker data.</p>
           ) : (
             <div className="space-y-4">
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportBatches} disabled={!batches.length}>
+                  <Download className="h-3 w-3" /> Batches CSV
+                </Button>
+                <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportTrades} disabled={!trades.length}>
+                  <Download className="h-3 w-3" /> Trades CSV
+                </Button>
+              </div>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm">Batches ({batches.length})</CardTitle></CardHeader>
                 <CardContent className="p-0">
