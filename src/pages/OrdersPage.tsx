@@ -1245,7 +1245,7 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>
                     <p>{t('incomingTradesHelp')}</p>
                     <div style={{ marginTop: 12 }}>
-                      {partnerMerchantDeals.filter(d => d.status === 'draft').map(deal => {
+                      {partnerMerchantDeals.filter(d => d.status === 'pending').map(deal => {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
@@ -1261,25 +1261,13 @@ export default function OrdersPage() {
                               <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{deal.amount.toLocaleString()} {deal.currency}</div>
                             </div>
                             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                              <button className="btn" style={{ fontSize: 10, padding: '4px 12px' }} onClick={async () => {
-                                try {
-                                  await api.deals.update(deal.id, { status: 'active' });
-                                  await reloadMerchantData();
-                                  toast.success(t('tradeApproved'));
-                                } catch (err: any) { toast.error(err.message); }
-                              }}>{t('approve')}</button>
-                              <button className="btn secondary" style={{ fontSize: 10, padding: '4px 12px', color: 'var(--bad)' }} onClick={async () => {
-                                try {
-                                  await api.deals.update(deal.id, { status: 'cancelled' });
-                                  await reloadMerchantData();
-                                  toast.success(t('tradeRejected'));
-                                } catch (err: any) { toast.error(err.message); }
-                              }}>{t('reject')}</button>
+                              <button className="btn" style={{ fontSize: 10, padding: '4px 12px' }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
+                              <button className="btn secondary" style={{ fontSize: 10, padding: '4px 12px', color: 'var(--bad)' }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
                             </div>
                           </div>
                         );
                       })}
-                      {partnerMerchantDeals.filter(d => d.status === 'draft').length === 0 && (
+                      {partnerMerchantDeals.filter(d => d.status === 'pending').length === 0 && (
                         <div style={{ textAlign: 'center', padding: 12, color: 'var(--muted)' }}>{t('noPendingApprovals')}</div>
                       )}
                     </div>
