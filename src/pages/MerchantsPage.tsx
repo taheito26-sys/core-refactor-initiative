@@ -236,11 +236,6 @@ export default function MerchantsPage() {
     return cfg ? `${cfg.icon} ${cfg.label}` : dt;
   };
 
-  // Analytics — relationship-focused
-  const totalRelationships = relationships.length;
-  const activeRelationships = relationships.filter(r => r.status === 'active').length;
-  const totalDeals = agreements.filter(a => a.status !== 'cancelled').length;
-  const pendingDeals = agreements.filter(a => a.status === 'pending').length;
 
   const inboxCount = invites.filter(i => i.status === 'pending' && i.is_incoming).length;
 
