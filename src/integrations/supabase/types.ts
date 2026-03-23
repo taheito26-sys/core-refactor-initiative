@@ -100,6 +100,7 @@ export type Database = {
           deal_type: string
           id: string
           notes: string | null
+          realized_pnl: number
           relationship_id: string
           status: string
           title: string
@@ -113,6 +114,7 @@ export type Database = {
           deal_type?: string
           id?: string
           notes?: string | null
+          realized_pnl?: number
           relationship_id: string
           status?: string
           title: string
@@ -126,6 +128,7 @@ export type Database = {
           deal_type?: string
           id?: string
           notes?: string | null
+          realized_pnl?: number
           relationship_id?: string
           status?: string
           title?: string

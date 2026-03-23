@@ -1,0 +1,1 @@
+ALTER TABLE public.merchant_deals ADD COLUMN realized_pnl numeric NOT NULL DEFAULT 0;
