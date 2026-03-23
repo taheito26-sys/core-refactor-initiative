@@ -473,12 +473,12 @@ export default function P2PTrackerPage() {
             <h2 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{t('p2pPriceHistory')}</h2>
             <span className="pill">{last24hHistory.length} {t('p2pPts24h')}</span>
           </div>
-          <div className="panel-body" style={{ padding: '14px 18px 18px', minHeight: 220, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="panel-body" style={{ padding: '10px 14px 14px', minHeight: 176, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="flex items-start justify-between gap-3">
               <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
               <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? priceBarData.sellLatest.toFixed(3) : '—'}</span>
             </div>
-            <div className="flex items-end gap-1 h-8">
+            <div className="flex items-end gap-1 h-6">
               {priceBarData.sellBars.map((pct, i) => (
                 <div key={`sell-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.28)}px`, background: 'color-mix(in srgb, var(--good) 82%, transparent)' }} />
               ))}
@@ -487,7 +487,7 @@ export default function P2PTrackerPage() {
               <span className="text-[10px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
               <span className="font-mono text-[16px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? priceBarData.buyLatest.toFixed(3) : '—'}</span>
             </div>
-            <div className="flex items-end gap-1 h-8">
+            <div className="flex items-end gap-1 h-6">
               {priceBarData.buyBars.map((pct, i) => (
                 <div key={`buy-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(3, pct * 0.28)}px`, background: 'color-mix(in srgb, var(--bad) 82%, transparent)' }} />
               ))}
@@ -505,24 +505,24 @@ export default function P2PTrackerPage() {
             <span className="pill" style={{ fontSize: 9 }}>{currentMarket.pair}</span>
           </div>
           <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2">
               <span className="text-[11px] text-muted-foreground">{t('p2pSellAvgTop5Label')}</span>
               <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg?.toFixed(4) || '—'} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2">
               <span className="text-[11px] text-muted-foreground">{t('p2pBuyAvgTop5Label')}</span>
               <span className="font-mono text-[13px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg?.toFixed(4) || '—'} {ccy}</span>
             </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2">
               <span className="text-[11px] text-muted-foreground">{t('p2pSellDepth')}</span>
               <span className="font-mono text-[13px] font-extrabold text-muted-foreground">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
-            <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between px-4 py-2">
               <span className="text-[11px] text-muted-foreground">{t('p2pBuyDepth')}</span>
               <span className="font-mono text-[13px] font-extrabold text-muted-foreground">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             {profitIfSold && (
-              <div className="border-t border-[var(--line)] px-4 py-3">
+              <div className="border-t border-[var(--line)] px-4 py-2">
                 <div className="text-[11px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                   {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
                 </div>
