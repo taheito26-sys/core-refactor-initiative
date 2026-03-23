@@ -743,7 +743,7 @@ export default function OrdersPage() {
                           </tr>
                           {detailsOpen[tr.id] && (
                             <tr>
-                              <td colSpan={9} style={{ padding: 0 }}>
+                              <td colSpan={10} style={{ padding: 0 }}>
                                 {renderDetail(tr, c)}
                               </td>
                             </tr>
