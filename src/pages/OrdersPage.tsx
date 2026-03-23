@@ -43,7 +43,15 @@ export default function OrdersPage() {
   const [buyerId, setBuyerId] = useState('');
   const [useStock, setUseStock] = useState(true);
   const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
+  const [manualBuyPrice, setManualBuyPrice] = useState('');
+  const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
+
+  // Numeric-only handler: allows digits, one dot, and leading minus
+  const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v === '' || /^-?\d*\.?\d*$/.test(v)) setter(v);
+  };
 
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
   const [addBuyerOpen, setAddBuyerOpen] = useState(false);
