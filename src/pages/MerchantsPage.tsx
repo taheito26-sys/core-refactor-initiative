@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
@@ -8,7 +9,7 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'agreements' | 'inbox' | 'ledger' | 'analytics';
+type MerchantTab = 'relationships' | 'inbox' | 'ledger' | 'analytics';
 
 interface AgreementRow {
   id: string;
@@ -27,6 +28,7 @@ export default function MerchantsPage() {
   const { settings } = useTheme();
   const { userId, merchantProfile } = useAuth();
   const t = useT();
+  const navigate = useNavigate();
 
   const [tab, setTab] = useState<MerchantTab>('relationships');
   const [relationships, setRelationships] = useState<any[]>([]);
@@ -131,9 +133,9 @@ export default function MerchantsPage() {
       if (!data) { setFindStatus('not_found'); return; }
 
       const existingMerchantIds = new Set([
-        ...relationships.map(r => r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id),
+        ...relationships.map(r => r.merchant_a_id === merchantProfile?.merchant_id ? r.merchant_b_id : r.merchant_a_id),
         ...invites.filter(i => i.status === 'pending').map(i =>
-          i.from_merchant_id === myMerchantId ? i.to_merchant_id : i.from_merchant_id
+          i.from_merchant_id === merchantProfile?.merchant_id ? i.to_merchant_id : i.from_merchant_id
         ),
       ]);
 
@@ -201,24 +203,6 @@ export default function MerchantsPage() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const handleArchiveAgreement = async (id: string) => {
-    try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', id);
-      if (error) throw error;
-      toast.success(t('agreementArchived') || 'Agreement archived');
-      loadData();
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  const handleApproveAgreement = async (id: string) => {
-    try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'active' }).eq('id', id);
-      if (error) throw error;
-      toast.success(t('agreementApproved') || 'Agreement approved');
-      loadData();
-    } catch (err: any) { toast.error(err.message); }
-  };
-
   // Filtered lists
   const filteredRels = search
     ? relationships.filter(r =>
@@ -228,15 +212,6 @@ export default function MerchantsPage() {
     : relationships;
 
   const cancelledDeals = useMemo(() => agreements.filter(a => a.status === 'cancelled'), [agreements]);
-
-  const filteredAgreements = useMemo(() => {
-    const active = agreements.filter(a => a.status !== 'cancelled');
-    if (!search) return active;
-    return active.filter(a =>
-      a.title.toLowerCase().includes(search.toLowerCase()) ||
-      a.counterparty_name?.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [agreements, search]);
 
   const filteredLedger = useMemo(() => {
     if (!search) return cancelledDeals;
@@ -259,17 +234,16 @@ export default function MerchantsPage() {
     return cfg ? `${cfg.icon} ${cfg.label}` : dt;
   };
 
-  // Analytics
-  const totalAgreements = agreements.length;
-  const activeAgreements = agreements.filter(a => a.status === 'active').length;
-  const pendingAgreements = agreements.filter(a => a.status === 'pending').length;
-  const totalExposure = agreements.filter(a => a.status === 'active').reduce((s, a) => s + a.amount, 0);
+  // Analytics — relationship-focused
+  const totalRelationships = relationships.length;
+  const activeRelationships = relationships.filter(r => r.status === 'active').length;
+  const totalDeals = agreements.filter(a => a.status !== 'cancelled').length;
+  const pendingDeals = agreements.filter(a => a.status === 'pending').length;
 
   const inboxCount = invites.filter(i => i.status === 'pending' && i.is_incoming).length;
 
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
-    { key: 'agreements', label: t('agreements') || 'Agreements', icon: '🤝' },
     { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
     { key: 'ledger', label: t('ledger') || 'Ledger', icon: '📒' },
     { key: 'analytics', label: t('analytics'), icon: '📊' },
@@ -282,7 +256,7 @@ export default function MerchantsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 800 }}>🏪 {t('theMerchants') || 'The Merchants'}</div>
-          <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('merchantOrchestratorDesc') || 'Relationship & agreement orchestration hub'}</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('merchantOrchestratorDesc') || 'Relationship orchestration hub'}</div>
         </div>
         <div className="inputBox" style={{ maxWidth: 240, padding: '6px 10px' }}>
           <input
@@ -430,14 +404,14 @@ export default function MerchantsPage() {
                         <th>{t('merchant') || 'Merchant'}</th>
                         <th>{t('code') || 'Code'}</th>
                         <th>{t('status')}</th>
-                        <th className="r">{t('agreements') || 'Agreements'}</th>
+                        <th className="r">{t('deals') || 'Deals'}</th>
                         <th>{t('since') || 'Since'}</th>
                         <th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredRels.map(r => {
-                        const relDeals = agreements.filter(a => a.relationship_id === r.id);
+                        const relDeals = agreements.filter(a => a.relationship_id === r.id && a.status !== 'cancelled');
                         return (
                           <tr key={r.id}>
                             <td>
@@ -450,75 +424,14 @@ export default function MerchantsPage() {
                             <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
-                                <button className="rowBtn" onClick={() => { setTab('agreements'); setSearch(r.counterparty_name); }}>
-                                  {t('viewDeals') || 'Deals'}
+                                <button className="rowBtn" onClick={() => navigate('/orders')}>
+                                  {t('viewOrders') || 'Orders'}
                                 </button>
                               </div>
                             </td>
                           </tr>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ═══ AGREEMENTS TAB ═══ */}
-          {tab === 'agreements' && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('merchantAgreements') || 'Merchant Agreements'}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{filteredAgreements.length} {t('total') || 'total'}</div>
-                </div>
-              </div>
-
-              {filteredAgreements.length === 0 ? (
-                <div className="empty">
-                  <div className="empty-t">{t('noAgreements') || 'No agreements yet'}</div>
-                  <div className="empty-s">{t('createFirstAgreement') || 'Create your first merchant agreement'}</div>
-                </div>
-              ) : (
-                <div className="tableWrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t('title') || 'Title'}</th>
-                        <th>{t('merchant') || 'Merchant'}</th>
-                        <th>{t('type') || 'Type'}</th>
-                        <th className="r">{t('amount')}</th>
-                        <th>{t('status')}</th>
-                        <th>{t('date')}</th>
-                        <th>{t('actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAgreements.map(a => (
-                        <tr key={a.id}>
-                          <td style={{ fontWeight: 700, fontSize: 11 }}>{a.title}</td>
-                          <td style={{ fontSize: 10 }}>{a.counterparty_name}</td>
-                          <td style={{ fontSize: 10 }}>{dealTypeLabel(a.deal_type)}</td>
-                          <td className="mono r">{fmtU(a.amount)} {a.currency}</td>
-                          <td>{statusPill(a.status)}</td>
-                          <td className="mono" style={{ fontSize: 10 }}>{new Date(a.created_at).toLocaleDateString()}</td>
-                          <td>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {a.status === 'pending' && (
-                                <button className="rowBtn" onClick={() => handleApproveAgreement(a.id)}>
-                                  ✓ {t('approve') || 'Approve'}
-                                </button>
-                              )}
-                              {a.status !== 'cancelled' && (
-                                <button className="rowBtn" onClick={() => handleArchiveAgreement(a.id)}>
-                                  {t('archive') || 'Archive'}
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -669,33 +582,33 @@ export default function MerchantsPage() {
             <>
               <div style={{ marginBottom: 4 }}>
                 <div style={{ fontSize: 12, fontWeight: 700 }}>{t('merchantAnalytics') || 'Merchant Analytics'}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('overviewOfAgreements') || 'Overview of agreements & relationships'}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('overviewOfRelationships') || 'Overview of relationships & activity'}</div>
               </div>
 
               <div className="kpi-band-grid">
                 <div className="kpi-band">
-                  <div className="kpi-band-title">{t('totalAgreements') || 'TOTAL AGREEMENTS'}</div>
+                  <div className="kpi-band-title">{t('relationships') || 'RELATIONSHIPS'}</div>
                   <div className="kpi-band-cols">
                     <div>
                       <div className="kpi-period">{t('total') || 'TOTAL'}</div>
-                      <div className="kpi-cell-val">{totalAgreements}</div>
+                      <div className="kpi-cell-val">{totalRelationships}</div>
                     </div>
                     <div>
                       <div className="kpi-period">{t('activeLabel') || 'ACTIVE'}</div>
-                      <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{activeAgreements}</div>
+                      <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{activeRelationships}</div>
                     </div>
                   </div>
                 </div>
                 <div className="kpi-band">
-                  <div className="kpi-band-title">{t('exposure') || 'EXPOSURE'}</div>
+                  <div className="kpi-band-title">{t('deals') || 'DEALS'}</div>
                   <div className="kpi-band-cols">
                     <div>
-                      <div className="kpi-period">{t('pending') || 'PENDING'}</div>
-                      <div className="kpi-cell-val" style={{ color: 'var(--warn)' }}>{pendingAgreements}</div>
+                      <div className="kpi-period">{t('total') || 'TOTAL'}</div>
+                      <div className="kpi-cell-val">{totalDeals}</div>
                     </div>
                     <div>
-                      <div className="kpi-period">{t('totalExposure') || 'TOTAL'}</div>
-                      <div className="kpi-cell-val">{fmtU(totalExposure)} USDT</div>
+                      <div className="kpi-period">{t('pending') || 'PENDING'}</div>
+                      <div className="kpi-cell-val" style={{ color: 'var(--warn)' }}>{pendingDeals}</div>
                     </div>
                   </div>
                 </div>
@@ -708,20 +621,17 @@ export default function MerchantsPage() {
                     <thead>
                       <tr>
                         <th>{t('merchant') || 'Merchant'}</th>
-                        <th className="r">{t('agreements') || 'Agreements'}</th>
-                        <th className="r">{t('activeExposure') || 'Active Exposure'}</th>
+                        <th className="r">{t('deals') || 'Deals'}</th>
                         <th>{t('status')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {relationships.map(r => {
-                        const relDeals = agreements.filter(a => a.relationship_id === r.id);
-                        const activeExp = relDeals.filter(a => a.status === 'active').reduce((s, a) => s + a.amount, 0);
+                        const relDeals = agreements.filter(a => a.relationship_id === r.id && a.status !== 'cancelled');
                         return (
                           <tr key={r.id}>
                             <td style={{ fontWeight: 700, fontSize: 11 }}>{r.counterparty_name}</td>
                             <td className="mono r">{relDeals.length}</td>
-                            <td className="mono r">{fmtU(activeExp)} USDT</td>
                             <td>{statusPill(r.status)}</td>
                           </tr>
                         );
