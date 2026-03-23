@@ -133,40 +133,7 @@ export default function MerchantsPage() {
     return cfg ? `${cfg.icon} ${cfg.label}` : dt;
   };
 
-  const handleCreateAgreement = async () => {
-    if (!agreementRelId || !agreementTitle || !agreementAmount || !agreementTemplateId) {
-      toast.error(t('fillAllFields') || 'Fill all required fields');
-      return;
-    }
-    const tpl = AGREEMENT_TEMPLATES.find(t => t.id === agreementTemplateId);
-    if (!tpl) return;
 
-    try {
-      const { error } = await supabase.from('merchant_deals').insert({
-        relationship_id: agreementRelId,
-        title: agreementTitle,
-        amount: parseFloat(agreementAmount),
-        deal_type: tpl.dealType,
-        status: 'pending',
-        created_by: userId!,
-        currency: 'USDT',
-        notes: JSON.stringify({
-          template_id: tpl.id,
-          agreement_snapshot: tpl.defaults,
-        }),
-      });
-      if (error) throw error;
-      toast.success(t('agreementCreated') || 'Agreement created');
-      setShowAgreementDialog(false);
-      setAgreementTitle('');
-      setAgreementAmount('');
-      setAgreementRelId('');
-      setAgreementTemplateId('');
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create agreement');
-    }
-  };
 
   const handleArchiveAgreement = async (id: string) => {
     try {
