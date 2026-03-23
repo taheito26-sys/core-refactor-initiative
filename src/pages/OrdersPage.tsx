@@ -690,7 +690,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -708,28 +708,11 @@ export default function OrdersPage() {
                           <React.Fragment key={tr.id}>
                             <tr style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                             <td>
-                              <div style={{ display: 'flex', gap: 5, alignItems: 'center', minWidth: 0, flexWrap: 'wrap' }}>
-                                <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
-                                {!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}
-                                {isMerchantLinked && (
-                                  <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--brand) 20%, transparent)', color: 'var(--brand)', fontWeight: 700, letterSpacing: '.3px' }}>
-                                     🤝 {t('partnerLinked')}
-                                  </span>
-                                )}
-                                {tr.approvalStatus && getApprovalStatusBadge(tr.approvalStatus)}
-                              </div>
-                              {isMerchantLinked && (
-                                <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                                  {linkedRel?.counterparty?.display_name && (
-                                    <span className="pill" style={{ fontSize: 8 }}>🤝 {linkedRel.counterparty.display_name}</span>
-                                  )}
-                                  {tr.agreementFamily && (
-                                    <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' }}>
-                                      {tr.agreementFamily === 'profit_share' ? t('netProfitSplit') : t('saleLinkedSplit')} {tr.partnerPct != null ? `${tr.partnerPct}/${tr.merchantPct}` : ''}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                              <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
+                              {!ok && <span className="pill bad" style={{ fontSize: 9, marginLeft: 4 }}>!</span>}
+                            </td>
+                            <td style={{ textAlign: 'center', fontSize: 16 }}>
+                              {isMerchantLinked ? '🤝' : '👤'}
                             </td>
                             <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
@@ -760,7 +743,7 @@ export default function OrdersPage() {
                           </tr>
                           {detailsOpen[tr.id] && (
                             <tr>
-                              <td colSpan={9} style={{ padding: 0 }}>
+                              <td colSpan={10} style={{ padding: 0 }}>
                                 {renderDetail(tr, c)}
                               </td>
                             </tr>
