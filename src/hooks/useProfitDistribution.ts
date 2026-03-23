@@ -45,8 +45,8 @@ export function useProfitDistribution(relationshipId: string) {
       const { data: settlements } = await supabase
         .from('merchant_settlements')
         .select('*')
-        .eq('relationship_id', relationshipId)
-        .eq('status', 'approved');
+        .eq('relationship_id' as any, relationshipId)
+        .eq('status' as any, 'approved');
 
       const { data: rel } = await supabase
         .from('merchant_relationships')
@@ -54,7 +54,6 @@ export function useProfitDistribution(relationshipId: string) {
         .eq('id', relationshipId)
         .single();
 
-      // Get counterparty name
       const myMerchantId = merchantProfile?.merchant_id;
       const cpMerchantId = rel
         ? (rel.merchant_a_id === myMerchantId ? rel.merchant_b_id : rel.merchant_a_id)
@@ -71,7 +70,6 @@ export function useProfitDistribution(relationshipId: string) {
       }
 
       const dealDistributions: DealDistribution[] = (deals || []).map(deal => {
-        // Parse shares from notes since metadata isn't a DB column
         const shares = getDealShares({ deal_type: deal.deal_type, notes: deal.notes });
 
         const dealSettlements = (settlements || [])
@@ -79,8 +77,7 @@ export function useProfitDistribution(relationshipId: string) {
           .reduce((sum, s) => sum + Number(s.amount), 0);
 
         const totalOrderVolume = Number(deal.amount || 0);
-        // Use notes to extract realized PnL if stored there, otherwise 0
-        const totalNetProfit = 0; // Would need trade-level FIFO data
+        const totalNetProfit = 0;
 
         let partnerOwed = 0;
         let merchantOwed = 0;

@@ -10,7 +10,7 @@ export interface Settlement {
   currency: string;
   settled_by: string;
   notes: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  status: string;
   created_at: string;
   deal_title?: string;
   deal_type?: string;
@@ -24,7 +24,7 @@ export function useSettlements(relationshipId?: string) {
     queryFn: async (): Promise<Settlement[]> => {
       let query = supabase
         .from('merchant_settlements')
-        .select('*, merchant_deals(title, deal_type)')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (relationshipId) {
@@ -34,10 +34,21 @@ export function useSettlements(relationshipId?: string) {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((s: any) => ({
+      // Fetch deal titles separately
+      const dealIds = [...new Set((data || []).map(s => s.deal_id))];
+      const dealMap = new Map<string, { title: string; deal_type: string }>();
+      if (dealIds.length > 0) {
+        const { data: deals } = await supabase
+          .from('merchant_deals')
+          .select('id, title, deal_type')
+          .in('id', dealIds);
+        (deals || []).forEach(d => dealMap.set(d.id, { title: d.title, deal_type: d.deal_type }));
+      }
+
+      return (data || []).map(s => ({
         ...s,
-        deal_title: s.merchant_deals?.title,
-        deal_type: s.merchant_deals?.deal_type,
+        deal_title: dealMap.get(s.deal_id)?.title,
+        deal_type: dealMap.get(s.deal_id)?.deal_type,
       }));
     },
     enabled: !!userId,
@@ -60,13 +71,13 @@ export function useSubmitSettlement() {
         .from('merchant_settlements')
         .insert({
           deal_id: input.deal_id,
-          relationship_id: input.relationship_id,
+          relationship_id: input.relationship_id as any,
           amount: input.amount,
           currency: input.currency,
           settled_by: userId!,
           notes: input.notes || null,
-          status: 'pending',
-        });
+          status: 'pending' as any,
+        } as any);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
@@ -83,7 +94,7 @@ export function useApproveSettlement() {
     mutationFn: async (input: { id: string; approved: boolean }) => {
       const { error } = await supabase
         .from('merchant_settlements')
-        .update({ status: input.approved ? 'approved' : 'rejected' })
+        .update({ status: input.approved ? 'approved' : 'rejected' } as any)
         .eq('id', input.id);
       if (error) throw error;
     },
