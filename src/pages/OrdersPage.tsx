@@ -1285,15 +1285,15 @@ export default function OrdersPage() {
                 <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>
                   <p>{t('outgoingTradesHelp')}</p>
                 </div>
-                {outgoingTrades.filter(tr => tr.approvalStatus === 'pending_approval').length > 0 && (
+                {creatorMerchantDeals.filter(d => d.status === 'pending').length > 0 && (
                   <div className="previewBox" style={{ borderColor: 'var(--warn)' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 4 }}>⏳ {t('pendingApprovalCount').replace('{n}', String(outgoingTrades.filter(tr => tr.approvalStatus === 'pending_approval').length))}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 4 }}>⏳ {t('pendingApprovalCount').replace('{n}', String(creatorMerchantDeals.filter(d => d.status === 'pending').length))}</div>
                     <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('awaitingPartnerApproval')}</div>
                   </div>
                 )}
-                {outgoingTrades.filter(tr => tr.approvalStatus === 'approved').length > 0 && (
+                {creatorMerchantDeals.filter(d => d.status === 'approved').length > 0 && (
                   <div className="previewBox" style={{ borderColor: 'var(--good)', marginTop: 6 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 4 }}>✅ {outgoingTrades.filter(tr => tr.approvalStatus === 'approved').length} {t('approvedTrades')}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 4 }}>✅ {creatorMerchantDeals.filter(d => d.status === 'approved').length} {t('approvedTrades')}</div>
                     <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('permanentSharedRecords')}</div>
                   </div>
                 )}
