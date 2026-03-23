@@ -885,28 +885,19 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
-                                {(deal.status === 'pending' || isDraft) && (
+                                {deal.status === 'pending' && (
                                   <>
-                                    <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={async () => {
-                                      try {
-                                        const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', deal.id);
-                                        if (error) throw error;
-                                        await reloadMerchantData();
-                                        toast.success(t('tradeApproved'));
-                                      } catch (err: any) { toast.error(err.message); }
-                                    }}>{t('approve')}</button>
-                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={async () => {
-                                      try {
-                                        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', deal.id);
-                                        if (error) throw error;
-                                        await reloadMerchantData();
-                                        toast.success(t('tradeRejected'));
-                                      } catch (err: any) { toast.error(err.message); }
-                                    }}>{t('reject')}</button>
+                                    <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
+                                    <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
                                   </>
                                 )}
+                                {deal.status === 'approved' && (
+                                  <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700 }}>✅ {t('approvedStatus')}</span>
+                                )}
+                                {deal.status === 'rejected' && (
+                                  <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)', fontWeight: 700 }}>❌ {t('rejectedStatus')}</span>
+                                )}
                                 <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
-                                <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('delete')}</button>
                               </div>
                             </td>
                           </tr>
