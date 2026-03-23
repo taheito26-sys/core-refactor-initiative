@@ -682,9 +682,9 @@ const translations = {
   linkToPartner: { en: 'Link to Partner', ar: 'ربط بشريك' },
   isThisSaleLinked: { en: 'Is this sale linked to another merchant?', ar: 'هل هذا البيع مرتبط بتاجر آخر؟' },
   selectPartner: { en: 'Select Partner', ar: 'اختر الشريك' },
-  agreementType: { en: 'Agreement Type', ar: 'نوع الاتفاقية' },
-  selectAgreementType: { en: '— Select agreement type —', ar: '— اختر نوع الاتفاقية —' },
-  agreementTypeRequired: { en: 'Agreement type', ar: 'نوع الاتفاقية' },
+  agreementType: { en: 'Order Type', ar: 'نوع الطلب' },
+  selectAgreementType: { en: '— Select order type —', ar: '— اختر نوع الطلب —' },
+  agreementTypeRequired: { en: 'Order type', ar: 'نوع الطلب' },
   sendForApproval: { en: 'Send for Approval', ar: 'إرسال للموافقة' },
   tradeSentForApproval: { en: 'Trade sent to partner for approval ✓', ar: 'تم إرسال الصفقة للشريك للموافقة ✓' },
   tradeWillBeSentForApproval: { en: 'This trade will be sent to the partner for approval before it becomes permanent.', ar: 'سيتم إرسال هذه الصفقة للشريك للموافقة قبل أن تصبح دائمة.' },
@@ -949,6 +949,13 @@ const translations = {
   netBalanceLabel: { en: 'Net Balance', ar: 'صافي الرصيد' },
   perDealCapital: { en: 'Per-Deal Capital', ar: 'رأس المال لكل صفقة' },
   transactionHistory: { en: 'Transaction History', ar: 'سجل المعاملات' },
+  usdtTransfers: { en: 'USDT Transfers', ar: 'تحويلات USDT' },
+  capitalTransfersDesc: { en: 'Pure USDT capital movements between operator and lender', ar: 'حركات رأس المال USDT بين المشغل والمقرض' },
+  noTransfers: { en: 'No transfers yet', ar: 'لا توجد تحويلات بعد' },
+  createTransferDesc: { en: 'Create a transfer from the sale form using "Capital Transfer" order type', ar: 'أنشئ تحويلاً من نموذج البيع باستخدام نوع الطلب "تحويل رأس مال"' },
+  submitTransfer: { en: 'Submit Transfer', ar: 'تقديم التحويل' },
+  capitalTransferSubmitted: { en: 'Capital transfer submitted', ar: 'تم تقديم تحويل رأس المال' },
+  transfers: { en: 'transfers', ar: 'تحويلات' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

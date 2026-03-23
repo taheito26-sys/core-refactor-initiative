@@ -16,6 +16,7 @@ import { AGREEMENT_TEMPLATES, getTemplateRatioLabel, getAgreementFamilyLabel, ge
 import { isSupportedDealType } from '@/types/domain';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import type { MerchantRelationship, MerchantDeal } from '@/types/domain';
 import '@/styles/tracker.css';
 
@@ -93,7 +94,14 @@ export default function OrdersPage() {
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
+
+  // Capital Transfer state
+  const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
+  const [transferCostBasis, setTransferCostBasis] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferNote, setTransferNote] = useState('');
+  const [allTransfers, setAllTransfers] = useState<any[]>([]);
 
   // Cancellation request dialog
   const [cancelTradeId, setCancelTradeId] = useState<string | null>(null);
@@ -145,6 +153,15 @@ export default function OrdersPage() {
         return { ...d, counterparty_name: (rel as any)?.counterparty_name || '—' } as any as MerchantDeal;
       });
       setAllMerchantDeals(enrichedDeals);
+
+      // Fetch capital transfers across all relationships
+      const transferResults = await Promise.all(
+        (relsRes.data || []).map(r =>
+          supabase.from('capital_transfers').select('*').eq('relationship_id', r.id)
+        )
+      );
+      const allTx = transferResults.flatMap(r => r.data || []);
+      setAllTransfers(allTx.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch {
       // keep tracker usable
     }
@@ -297,6 +314,33 @@ export default function OrdersPage() {
     }
   }, [selectedTemplateId, salePreview, linkedRelId, relationships, t]);
 
+  const isCapitalTransfer = selectedTemplateId === 'capital_transfer';
+  const submitCapitalTransfer = useSubmitCapitalTransfer();
+
+  const handleCapitalTransfer = async () => {
+    if (!linkedRelId) { toast.error('Select a partner first'); return; }
+    if (!transferAmount || !transferCostBasis) { toast.error('Amount and cost basis are required'); return; }
+    try {
+      await submitCapitalTransfer.mutateAsync({
+        relationship_id: linkedRelId,
+        direction: transferDirection,
+        amount: parseFloat(transferAmount),
+        cost_basis: parseFloat(transferCostBasis),
+        note: transferNote || undefined,
+      });
+      toast.success(t('capitalTransferSubmitted') || 'Capital transfer submitted');
+      setTransferAmount('');
+      setTransferCostBasis('');
+      setTransferNote('');
+      setTransferDirection('lender_to_operator');
+      setSelectedTemplateId(null);
+      setMerchantOrderEnabled(false);
+      reloadMerchantData();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
     if (!nm) return { id: '', customers: state.customers };
@@ -320,6 +364,9 @@ export default function OrdersPage() {
 
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
   const addTrade = async () => {
+    // Capital transfers are handled separately via handleCapitalTransfer
+    if (isCapitalTransfer) return;
+
     const ts = new Date(saleDate).getTime();
     const sell = Number(saleSell);
     const raw = Number(saleAmount);
@@ -783,12 +830,12 @@ export default function OrdersPage() {
 
       {/* ─── TAB BAR ─── */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
-        {(['my', 'incoming', 'outgoing'] as const).map(tab => (
+        {(['my', 'incoming', 'outgoing', 'transfers'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => {
               setActiveTab(tab);
-              if (tab !== 'my') {
+              if (tab !== 'my' && tab !== 'transfers') {
                 setMerchantOrderEnabled(true);
                 setLinkedRelId('');
                 setSelectedTemplateId(null);
@@ -803,7 +850,10 @@ export default function OrdersPage() {
               transition: 'all 0.15s', letterSpacing: '.2px',
             }}
           >
-            {tab === 'my' ? `👤 ${t('myOrders')}` : tab === 'incoming' ? `📥 ${t('incomingOrders')}` : `📤 ${t('outgoingOrders')}`}
+            {tab === 'my' ? `👤 ${t('myOrders')}`
+              : tab === 'incoming' ? `📥 ${t('incomingOrders')}`
+              : tab === 'outgoing' ? `📤 ${t('outgoingOrders')}`
+              : `💸 ${t('usdtTransfers')}`}
           </button>
         ))}
       </div>
@@ -1109,6 +1159,9 @@ export default function OrdersPage() {
             <div className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
               <div className="inner">
+                {/* Normal sale form — hidden when Capital Transfer is selected */}
+                {!isCapitalTransfer && (<>
+
                 {/* Price mode toggle: FIFO vs Manual */}
                 <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1203,7 +1256,7 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-
+                </>)}
 
                 {/* ─── MERCHANT-LINKED TRADE (SIMPLE FLOW) ─── */}
                 <div className="previewBox" style={{ marginTop: 6, borderColor: merchantOrderEnabled ? 'var(--brand)' : undefined }}>
@@ -1279,9 +1332,79 @@ export default function OrdersPage() {
                           })()}
                         </div>
                       )}
+
+                      {/* Capital Transfer form — replaces normal sale fields */}
+                      {isCapitalTransfer && linkedRelId && (
+                        <div style={{ marginTop: 8 }}>
+                          <div className="field2" style={{ marginBottom: 6 }}>
+                            <div className="lbl">{t('direction')}</div>
+                            <select
+                              value={transferDirection}
+                              onChange={e => setTransferDirection(e.target.value as any)}
+                              style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                            >
+                              <option value="lender_to_operator">💸 {t('lenderToOperator')}</option>
+                              <option value="operator_to_lender">↩️ {t('operatorToLender')}</option>
+                            </select>
+                          </div>
+                          <div className="g2tight">
+                            <div className="field2">
+                              <div className="lbl">USDT {t('amount')}</div>
+                              <div className="inputBox">
+                                <input
+                                  type="number"
+                                  value={transferAmount}
+                                  onChange={e => setTransferAmount(e.target.value)}
+                                  placeholder="0"
+                                />
+                              </div>
+                            </div>
+                            <div className="field2">
+                              <div className="lbl">{t('costBasisQar')}</div>
+                              <div className="inputBox">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={transferCostBasis}
+                                  onChange={e => setTransferCostBasis(e.target.value)}
+                                  placeholder="3.65"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          {transferAmount && transferCostBasis && (
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                              {t('totalCostQar')}: <span className="mono" style={{ fontWeight: 700 }}>
+                                {(parseFloat(transferAmount) * parseFloat(transferCostBasis)).toLocaleString()} QAR
+                              </span>
+                            </div>
+                          )}
+                          <div className="field2" style={{ marginTop: 6 }}>
+                            <div className="lbl">{t('noteOptional')}</div>
+                            <div className="inputBox">
+                              <input
+                                value={transferNote}
+                                onChange={e => setTransferNote(e.target.value)}
+                                placeholder={t('noteOptional')}
+                              />
+                            </div>
+                          </div>
+                          <button
+                            className="btn"
+                            style={{ marginTop: 8, width: '100%' }}
+                            onClick={handleCapitalTransfer}
+                            disabled={submitCapitalTransfer.isPending}
+                          >
+                            💸 {t('submitTransfer')}
+                          </button>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
+
+                {/* The sections below are hidden when Capital Transfer is selected */}
+                {!isCapitalTransfer && (<>
 
                 {/* Settle immediately option (Sales Deal + per_order cadence only) */}
                 {merchantOrderEnabled && (() => {
@@ -1341,6 +1464,8 @@ export default function OrdersPage() {
 
                 <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
+
+                </>)}
               </div>
             </div>
           )}
@@ -1406,6 +1531,73 @@ export default function OrdersPage() {
                   <div className="previewBox" style={{ borderColor: 'var(--good)', marginTop: 6 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 4 }}>✅ {creatorMerchantDeals.filter(d => d.status === 'approved').length} {t('approvedTrades')}</div>
                     <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('permanentSharedRecords')}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── USDT TRANSFERS PANEL ── */}
+          {activeTab === 'transfers' && (
+            <div className="formPanel salePanel">
+              <div className="hdr">💸 {t('usdtTransfers')}</div>
+              <div className="inner">
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>
+                  {t('capitalTransfersDesc')}
+                </div>
+                {allTransfers.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 20, color: 'var(--muted)', fontSize: 11 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{t('noTransfers')}</div>
+                    <div style={{ fontSize: 10 }}>{t('createTransferDesc')}</div>
+                  </div>
+                ) : (
+                  <div className="tableWrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>{t('date')}</th>
+                          <th>{t('direction')}</th>
+                          <th>{t('merchant') || 'Partner'}</th>
+                          <th className="r">USDT</th>
+                          <th className="r">{t('costBasisQar')}</th>
+                          <th className="r">{t('totalCostQar')}</th>
+                          <th>{t('notes')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allTransfers.map((tx: any) => {
+                          const rel = relationships.find(r => r.id === tx.relationship_id);
+                          const isIn = tx.direction === 'lender_to_operator';
+                          return (
+                            <tr key={tx.id}>
+                              <td className="mono" style={{ fontSize: 10 }}>
+                                {new Date(tx.created_at).toLocaleDateString()}
+                              </td>
+                              <td>
+                                <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                                  {isIn ? '💸 ' + (t('capitalIn') || 'In') : '↩️ ' + (t('capitalReturn') || 'Out')}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: 10 }}>
+                                {rel?.counterparty?.display_name || '—'}
+                              </td>
+                              <td className="mono r" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
+                                {isIn ? '+' : '−'}{fmtU(tx.amount)}
+                              </td>
+                              <td className="mono r" style={{ fontSize: 10 }}>
+                                {fmtP(tx.cost_basis)} QAR
+                              </td>
+                              <td className="mono r" style={{ fontSize: 10 }}>
+                                {fmtQ(tx.total_cost)}
+                              </td>
+                              <td style={{ fontSize: 9, color: 'var(--muted)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {tx.note || '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>

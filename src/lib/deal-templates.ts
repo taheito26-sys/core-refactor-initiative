@@ -16,7 +16,7 @@ export interface AgreementTemplate {
   helperText: { en: string; ar: string };
   dealType: SupportedDealType;
   /** Agreement family for display */
-  family: 'profit_share' | 'sales_deal';
+  family: 'profit_share' | 'sales_deal' | 'capital_transfer';
   icon: string;
   /** Predefined metadata values auto-applied on agreement creation */
   defaults: {
@@ -113,6 +113,27 @@ export const AGREEMENT_TEMPLATES: AgreementTemplate[] = [
     accent: 'good',
     ratioDisplay: '50/50',
     tags: ['sales'],
+  },
+
+  // ── Capital Transfer ──
+  {
+    id: 'capital_transfer',
+    label: { en: 'Capital Transfer', ar: 'تحويل رأس مال' },
+    description: {
+      en: 'Pure USDT transfer between operator and lender. No profit sharing.',
+      ar: 'تحويل USDT صافي بين المشغل والمقرض. بدون مشاركة أرباح.',
+    },
+    helperText: {
+      en: 'Use when sending or receiving USDT capital with a cost basis. No profit split applies.',
+      ar: 'استخدم عند إرسال أو استلام رأس مال USDT بسعر تكلفة. لا تنطبق مشاركة أرباح.',
+    },
+    dealType: 'capital_transfer' as any,
+    family: 'capital_transfer' as const,
+    icon: '💸',
+    defaults: {},
+    accent: 'brand' as const,
+    ratioDisplay: '—',
+    tags: ['capital'],
   },
 ];
 

@@ -5,7 +5,6 @@ import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS, SUPPORTED_DEAL_TYPES } from '@/lib/deal-engine';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,17 +32,16 @@ export function DealsTab({ relationshipId, agreements }: Props) {
   const t = useT();
   const { userId } = useAuth();
   const qc = useQueryClient();
-  const submitTransfer = useSubmitCapitalTransfer();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
-  const [dealType, setDealType] = useState<string>(SUPPORTED_DEAL_TYPES[0]);
+  const [dealType, setDealType] = useState<string>(() => {
+    // Default to first non-capital-transfer deal type
+    return SUPPORTED_DEAL_TYPES.find(dt => dt !== 'capital_transfer') || SUPPORTED_DEAL_TYPES[0];
+  });
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USDT');
   const [cadence, setCadence] = useState<string>('monthly');
   const [notes, setNotes] = useState('');
-  // Capital Transfer-specific state
-  const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
-  const [costBasis, setCostBasis] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Realtime for deals
@@ -76,13 +74,11 @@ export function DealsTab({ relationshipId, agreements }: Props) {
 
   const resetForm = () => {
     setTitle('');
-    setDealType(SUPPORTED_DEAL_TYPES[0]);
+    setDealType(SUPPORTED_DEAL_TYPES.find(dt => dt !== 'capital_transfer') || SUPPORTED_DEAL_TYPES[0]);
     setAmount('');
     setCurrency('USDT');
     setCadence('monthly');
     setNotes('');
-    setTransferDirection('lender_to_operator');
-    setCostBasis('');
   };
 
   const closeForm = () => {
@@ -93,44 +89,26 @@ export function DealsTab({ relationshipId, agreements }: Props) {
   const handleCreate = async () => {
     setSubmitting(true);
     try {
-      if (dealType === 'capital_transfer') {
-        if (!amount || !costBasis) { toast.error('Amount and cost basis are required'); return; }
-        await submitTransfer.mutateAsync({
-          relationship_id: relationshipId,
-          direction: transferDirection,
-          amount: parseFloat(amount),
-          cost_basis: parseFloat(costBasis),
-          note: notes.trim() || undefined,
-        });
-        toast.success(t('dealCreated') || 'Transfer recorded');
-        closeForm();
-      } else {
-        if (!title.trim() || !amount) { toast.error('Title and amount are required'); return; }
-        const { error } = await supabase.from('merchant_deals').insert({
-          relationship_id: relationshipId,
-          title: title.trim(),
-          deal_type: dealType,
-          amount: parseFloat(amount),
-          currency,
-          created_by: userId!,
-          notes: notes.trim() || null,
-          settlement_cadence: cadence,
-        } as any);
-        if (error) throw error;
-        toast.success(t('dealCreated') || 'Deal created');
-        closeForm();
-      }
+      if (!title.trim() || !amount) { toast.error('Title and amount are required'); return; }
+      const { error } = await supabase.from('merchant_deals').insert({
+        relationship_id: relationshipId,
+        title: title.trim(),
+        deal_type: dealType,
+        amount: parseFloat(amount),
+        currency,
+        created_by: userId!,
+        notes: notes.trim() || null,
+        settlement_cadence: cadence,
+      } as any);
+      if (error) throw error;
+      toast.success(t('dealCreated') || 'Deal created');
+      closeForm();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setSubmitting(false);
     }
   };
-
-  const isCapitalTransfer = dealType === 'capital_transfer';
-  const totalCostPreview = amount && costBasis
-    ? (parseFloat(amount) * parseFloat(costBasis)).toLocaleString()
-    : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -153,77 +131,45 @@ export function DealsTab({ relationshipId, agreements }: Props) {
             <div>
               <Label className="text-xs">{t('type') || 'Type'}</Label>
               <select value={dealType} onChange={e => setDealType(e.target.value)} className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
-                {SUPPORTED_DEAL_TYPES.map(dt => {
+                {SUPPORTED_DEAL_TYPES.filter(dt => dt !== 'capital_transfer').map(dt => {
                   const cfg = DEAL_TYPE_CONFIGS[dt as keyof typeof DEAL_TYPE_CONFIGS];
                   return <option key={dt} value={dt}>{cfg ? `${cfg.icon} ${cfg.label}` : dt}</option>;
                 })}
               </select>
             </div>
 
-            {isCapitalTransfer ? (
-              <>
-                <div>
-                  <Label className="text-xs">{t('direction')}</Label>
-                  <select value={transferDirection} onChange={e => setTransferDirection(e.target.value as any)}
-                    className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
-                    <option value="lender_to_operator">💸 {t('lenderToOperator')}</option>
-                    <option value="operator_to_lender">↩️ {t('operatorToLender')}</option>
-                  </select>
-                </div>
-                <div>
-                  <Label className="text-xs">{t('amount')} (USDT)</Label>
-                  <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="text-xs" placeholder="0" />
-                </div>
-                <div>
-                  <Label className="text-xs">{t('costBasisQar')}</Label>
-                  <Input type="number" step="0.01" value={costBasis} onChange={e => setCostBasis(e.target.value)} className="text-xs" placeholder="3.65" />
-                </div>
-                {totalCostPreview && (
-                  <div style={{ fontSize: 10, color: 'var(--muted)', padding: '2px 0' }}>
-                    {t('totalCostQar')}: <span className="mono" style={{ fontWeight: 700 }}>{totalCostPreview} QAR</span>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-xs">{t('noteOptional')}</Label>
-                  <Input value={notes} onChange={e => setNotes(e.target.value)} className="text-xs" placeholder={t('noteOptional')} />
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <Label className="text-xs">{t('title') || 'Title'}</Label>
-                  <Input value={title} onChange={e => setTitle(e.target.value)} className="text-xs" placeholder="e.g. Partnership Q3" />
-                </div>
-                <div>
-                  <Label className="text-xs">{t('amount')}</Label>
-                  <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs">{t('currency') || 'Currency'}</Label>
-                  <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
-                    <option value="USDT">USDT</option>
-                    <option value="USD">USD</option>
-                    <option value="IQD">IQD</option>
-                  </select>
-                </div>
-                <div>
-                  <Label className="text-xs">{t('settlementCadence')}</Label>
-                  <select value={cadence} onChange={e => setCadence(e.target.value)} className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
-                    <option value="monthly">📅 {t('monthly')}</option>
-                    <option value="weekly">📆 {t('weekly')}</option>
-                    <option value="per_order">⚡ {t('perTrade')}</option>
-                  </select>
-                </div>
-                <div>
-                  <Label className="text-xs">{t('notes')}</Label>
-                  <Input value={notes} onChange={e => setNotes(e.target.value)} className="text-xs" placeholder={t('noteOptional')} />
-                </div>
-              </>
-            )}
+            <div>
+              <Label className="text-xs">{t('title') || 'Title'}</Label>
+              <Input value={title} onChange={e => setTitle(e.target.value)} className="text-xs" placeholder="e.g. Partnership Q3" />
+            </div>
+            <div>
+              <Label className="text-xs">{t('amount')}</Label>
+              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="text-xs" />
+            </div>
+            <div>
+              <Label className="text-xs">{t('currency') || 'Currency'}</Label>
+              <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
+                <option value="USDT">USDT</option>
+                <option value="USD">USD</option>
+                <option value="IQD">IQD</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">{t('settlementCadence')}</Label>
+              <select value={cadence} onChange={e => setCadence(e.target.value)} className="w-full mt-1 p-2 text-xs border rounded bg-background text-foreground">
+                <option value="monthly">📅 {t('monthly')}</option>
+                <option value="weekly">📆 {t('weekly')}</option>
+                <option value="per_order">⚡ {t('perTrade')}</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">{t('notes')}</Label>
+              <Input value={notes} onChange={e => setNotes(e.target.value)} className="text-xs" placeholder={t('noteOptional')} />
+            </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={handleCreate} disabled={submitting || submitTransfer.isPending}>
-                {isCapitalTransfer ? (t('capitalTransfer') || 'Capital Transfer') : (t('createDeal') || 'Create Deal')}
+              <Button size="sm" onClick={handleCreate} disabled={submitting}>
+                {t('createDeal') || 'Create Deal'}
               </Button>
               <Button size="sm" variant="outline" onClick={closeForm} disabled={submitting}>
                 {t('cancel') || 'Cancel'}
