@@ -455,7 +455,7 @@ export default function OrdersPage() {
   };
 
   // ─── Cancel / Cancellation Request ────────────────────────────────
-  const handleCancelTrade = (tradeId: string) => {
+  const handleCancelTrade = async (tradeId: string) => {
     const tr = state.trades.find(x => x.id === tradeId);
     if (!tr) return;
 
