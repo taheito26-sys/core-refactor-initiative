@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
@@ -46,7 +46,15 @@ export default function MerchantsPage() {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
 
-  useEffect(() => { loadData(); }, [userId]);
+  useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
+
+  const handleOpenRelationship = useCallback((relationshipId: string) => {
+    setActiveRelId(relationshipId);
+  }, []);
+
+  const handleOpenOrders = useCallback((relationshipId: string) => {
+    navigate(`/trading/orders?relationship=${relationshipId}`);
+  }, [navigate]);
 
   const loadData = async () => {
     if (!userId) return;
@@ -238,6 +246,10 @@ export default function MerchantsPage() {
 
 
   const inboxCount = invites.filter(i => i.status === 'pending' && i.is_incoming).length;
+  const activeRelationship = useMemo(
+    () => relationships.find(r => r.id === activeRelId) ?? null,
+    [relationships, activeRelId]
+  );
 
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
@@ -421,10 +433,10 @@ export default function MerchantsPage() {
                             <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
-                                <button className="rowBtn" onClick={() => setActiveRelId(r.id)}>
+                                 <button className="rowBtn" type="button" onClick={() => handleOpenRelationship(r.id)}>
                                   Open
                                 </button>
-                                <button className="rowBtn" onClick={() => navigate('/orders')}>
+                                 <button className="rowBtn" type="button" onClick={() => handleOpenOrders(r.id)}>
                                   {t('orders') || 'Orders'}
                                 </button>
                               </div>
@@ -581,17 +593,13 @@ export default function MerchantsPage() {
       )}
 
       {/* ─── RELATIONSHIP DRAWER ─── */}
-      {activeRelId && (() => {
-        const rel = relationships.find(r => r.id === activeRelId);
-        if (!rel) return null;
-        return (
-          <RelationshipDrawer
-            relationship={rel}
-            agreements={agreements}
-            onClose={() => setActiveRelId(null)}
-          />
-        );
-      })()}
+      {activeRelationship && (
+        <RelationshipDrawer
+          relationship={activeRelationship}
+          agreements={agreements}
+          onClose={() => setActiveRelId(null)}
+        />
+      )}
     </div>
   );
 }
