@@ -24,6 +24,7 @@ import OnboardingPage from "./pages/merchant/OnboardingPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
+import AdminPage from "./pages/admin/AdminPage";
 
 // Core pages (exact repo copies)
 import DashboardPage from './pages/DashboardPage';
