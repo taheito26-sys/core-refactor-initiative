@@ -522,7 +522,7 @@ export default function P2PTrackerPage() {
               <span className="font-mono text-[13px] font-extrabold text-muted-foreground">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
             </div>
             {profitIfSold && (
-              <div className="border-t border-[var(--line)] px-4 py-3">
+              <div className="border-t border-[var(--line)] px-4 py-2">
                 <div className="text-[11px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                   {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{profitIfSold.profit.toFixed(0)} {ccy}
                 </div>
