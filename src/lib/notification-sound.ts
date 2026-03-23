@@ -62,13 +62,14 @@ export function showBrowserNotification(title: string, body?: string, onClick?: 
   if (document.hasFocus()) return;
 
   try {
-    const n = new Notification(title, {
+    const options: NotificationOptions & { renotify?: boolean } = {
       body: body ?? undefined,
       icon: '/favicon.svg',
       badge: '/favicon.svg',
       tag: 'deal-notification',
       renotify: true,
-    });
+    };
+    const n = new Notification(title, options as NotificationOptions);
 
     if (onClick) {
       n.onclick = () => {
