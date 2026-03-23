@@ -24,6 +24,7 @@ interface AgreementRow {
   created_at: string;
   counterparty_name?: string;
   order_count?: number;
+  settlement_cadence?: string;
 }
 
 export default function MerchantsPage() {
