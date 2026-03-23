@@ -82,7 +82,6 @@ export default function OrdersPage() {
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
 
-  const { merchantProfile } = useAuth();
 
   const reloadMerchantData = useCallback(async () => {
     try {
