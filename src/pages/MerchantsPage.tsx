@@ -109,6 +109,9 @@ export default function MerchantsPage() {
       )
     : relationships;
 
+  // Cancelled deals for ledger (moved up so filteredLedger can reference it)
+  const cancelledDeals = useMemo(() => agreements.filter(a => a.status === 'cancelled'), [agreements]);
+
   const filteredAgreements = useMemo(() => {
     const active = agreements.filter(a => a.status !== 'cancelled');
     if (!search) return active;
