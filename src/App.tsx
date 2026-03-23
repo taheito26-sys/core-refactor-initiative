@@ -134,7 +134,7 @@ const App = () => (
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />
-                  <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/messages" element={<MessagesPage />} />
