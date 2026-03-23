@@ -32,6 +32,7 @@ export default function MerchantsPage() {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<MerchantTab>('relationships');
+  const [activeRelId, setActiveRelId] = useState<string | null>(null);
   const [relationships, setRelationships] = useState<any[]>([]);
   const [agreements, setAgreements] = useState<AgreementRow[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
