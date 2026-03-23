@@ -10,6 +10,7 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
+import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell,
