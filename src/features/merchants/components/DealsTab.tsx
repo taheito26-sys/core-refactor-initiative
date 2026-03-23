@@ -6,7 +6,6 @@ import { DEAL_TYPE_CONFIGS, SUPPORTED_DEAL_TYPES } from '@/lib/deal-engine';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -70,6 +69,20 @@ export function DealsTab({ relationshipId, agreements }: Props) {
     return <span className={`pill ${cls}`}>{status}</span>;
   };
 
+  const resetForm = () => {
+    setTitle('');
+    setDealType(SUPPORTED_DEAL_TYPES[0]);
+    setAmount('');
+    setCurrency('USDT');
+    setCadence('monthly');
+    setNotes('');
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    resetForm();
+  };
+
   const handleCreate = async () => {
     if (!title.trim() || !amount) { toast.error('Title and amount are required'); return; }
     setSubmitting(true);
@@ -86,8 +99,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
       } as any);
       if (error) throw error;
       toast.success(t('dealCreated') || 'Deal created');
-      setShowForm(false);
-      setTitle(''); setAmount(''); setNotes(''); setCadence('monthly');
+      closeForm();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -102,52 +114,17 @@ export function DealsTab({ relationshipId, agreements }: Props) {
           <div style={{ fontSize: 12, fontWeight: 700 }}>{t('dealsLabel')}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)' }}>{relDeals.length} {t('activeLabel') || 'active'}</div>
         </div>
-        <button className="btn" onClick={() => setShowForm(true)}>+ {t('newDeal')}</button>
+        <button className="btn" onClick={() => setShowForm((open) => !open)}>{showForm ? t('close') || 'Close' : `+ ${t('newDeal')}`}</button>
       </div>
 
-      {relDeals.length === 0 ? (
-        <div className="empty">
-          <div className="empty-t">{t('noDealsYet')}</div>
-        </div>
-      ) : (
-        <div className="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{t('title') || 'Title'}</th>
-                <th>{t('type') || 'Type'}</th>
-                <th>{t('settlementCadence')}</th>
-                <th className="r">{t('amount')}</th>
-                <th>{t('status')}</th>
-                <th>{t('date')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {relDeals.map(d => (
-                <tr key={d.id}>
-                  <td style={{ fontWeight: 700, fontSize: 11 }}>{d.title}</td>
-                  <td><span className="pill">{dealTypeLabel(d.deal_type)}</span></td>
-                  <td>
-                    <span className={`pill ${(d as any).settlement_cadence === 'per_order' ? 'warn' : (d as any).settlement_cadence === 'weekly' ? '' : ''}`}>
-                      {(d as any).settlement_cadence === 'per_order' ? '⚡ ' + t('perTrade') : (d as any).settlement_cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
-                    </span>
-                  </td>
-                  <td className="mono r">{fmtU(d.amount)} {d.currency}</td>
-                  <td>{statusPill(d.status)}</td>
-                  <td className="mono" style={{ fontSize: 10 }}>{new Date(d.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {showForm && (
+        <div className="rounded-lg border bg-background p-4 shadow-sm">
+          <div className="mb-3">
+            <div className="text-sm font-semibold text-foreground">{t('newDeal')}</div>
+            <div className="text-xs text-muted-foreground">{t('createDeal') || 'Create Deal'}</div>
+          </div>
 
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-sm">{t('newDeal')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
+          <div className="grid gap-3">
             <div>
               <Label className="text-xs">{t('title') || 'Title'}</Label>
               <Input value={title} onChange={e => setTitle(e.target.value)} className="text-xs" placeholder="e.g. Partnership Q3" />
@@ -185,12 +162,54 @@ export function DealsTab({ relationshipId, agreements }: Props) {
               <Label className="text-xs">{t('notes')}</Label>
               <Input value={notes} onChange={e => setNotes(e.target.value)} className="text-xs" placeholder={t('noteOptional')} />
             </div>
-            <Button size="sm" onClick={handleCreate} disabled={submitting}>
-              {t('createDeal') || 'Create Deal'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={handleCreate} disabled={submitting}>
+                {t('createDeal') || 'Create Deal'}
+              </Button>
+              <Button size="sm" variant="outline" onClick={closeForm} disabled={submitting}>
+                {t('cancel') || 'Cancel'}
+              </Button>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
+      {relDeals.length === 0 ? (
+        <div className="empty">
+          <div className="empty-t">{t('noDealsYet')}</div>
+        </div>
+      ) : (
+        <div className="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{t('title') || 'Title'}</th>
+                <th>{t('type') || 'Type'}</th>
+                <th>{t('settlementCadence')}</th>
+                <th className="r">{t('amount')}</th>
+                <th>{t('status')}</th>
+                <th>{t('date')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {relDeals.map(d => (
+                <tr key={d.id}>
+                  <td style={{ fontWeight: 700, fontSize: 11 }}>{d.title}</td>
+                  <td><span className="pill">{dealTypeLabel(d.deal_type)}</span></td>
+                  <td>
+                    <span className={`pill ${(d as any).settlement_cadence === 'per_order' ? 'warn' : (d as any).settlement_cadence === 'weekly' ? '' : ''}`}>
+                      {(d as any).settlement_cadence === 'per_order' ? '⚡ ' + t('perTrade') : (d as any).settlement_cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
+                    </span>
+                  </td>
+                  <td className="mono r">{fmtU(d.amount)} {d.currency}</td>
+                  <td>{statusPill(d.status)}</td>
+                  <td className="mono" style={{ fontSize: 10 }}>{new Date(d.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
