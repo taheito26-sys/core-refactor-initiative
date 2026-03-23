@@ -38,6 +38,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
   const [dealType, setDealType] = useState<string>(SUPPORTED_DEAL_TYPES[0]);
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('USDT');
+  const [cadence, setCadence] = useState<string>('monthly');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
