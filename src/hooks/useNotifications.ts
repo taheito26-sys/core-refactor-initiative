@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
+import { playNotificationSound, showBrowserNotification, requestPushPermission } from '@/lib/notification-sound';
 
 export interface Notification {
   id: string;
