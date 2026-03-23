@@ -166,6 +166,14 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           <TabsTrigger value="tracker" className="text-xs">Tracker ({batches.length}B / {trades.length}T)</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="orders" className="mt-3">
+          <AdminOrdersMirror userId={userId} merchantId={profile?.merchant_id ?? null} trackerState={trackerState ?? null} />
+        </TabsContent>
+
+        <TabsContent value="stock" className="mt-3">
+          <AdminStockMirror trackerState={trackerState ?? null} />
+        </TabsContent>
+
         <TabsContent value="deals" className="mt-3">
           {dealsLoading ? <Skeleton className="h-32" /> : !deals?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">No deals.</p>
