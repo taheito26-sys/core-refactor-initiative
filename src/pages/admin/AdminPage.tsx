@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle } from 'lucide-react';
+import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
@@ -7,6 +7,7 @@ import { AdminDashboard } from '@/features/admin/components/AdminDashboard';
 import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirectory';
 import { AdminUserWorkspace } from '@/features/admin/components/AdminUserWorkspace';
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
+import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
 import AdminApprovalsPage from './AdminApprovalsPage';
 
 export default function AdminPage() {
@@ -63,6 +64,9 @@ export default function AdminPage() {
           <TabsTrigger value="approvals" className="text-xs gap-1">
             <CheckCircle className="h-3.5 w-3.5" /> Approvals
           </TabsTrigger>
+          <TabsTrigger value="notifications" className="text-xs gap-1">
+            <Bell className="h-3.5 w-3.5" /> Notifications
+          </TabsTrigger>
           <TabsTrigger value="audit" className="text-xs gap-1">
             <FileText className="h-3.5 w-3.5" /> Audit Log
           </TabsTrigger>
@@ -78,6 +82,10 @@ export default function AdminPage() {
 
         <TabsContent value="approvals" className="mt-4">
           <AdminApprovalsPage />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="mt-4">
+          <AdminNotificationSender />
         </TabsContent>
 
         <TabsContent value="audit" className="mt-4">
