@@ -140,7 +140,8 @@ const App = () => (
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/invitations" element={<InvitationsPage />} />
                   <Route path="/approvals" element={<ApprovalsPage />} />
-                  <Route path="/admin/approvals" element={<AdminApprovalsPage />} />
+                  <Route path="/admin" element={<AdminPage />} />
+                  <Route path="/admin/approvals" element={<AdminPage />} />
                   <Route path="/relationships" element={<RelationshipsPage />} />
                 </Route>
 
