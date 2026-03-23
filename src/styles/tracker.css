@@ -372,7 +372,14 @@
   animation: slideInRight .25s ease;
 }
 /* Ensure Radix dialogs render above the drawer (z-91) */
-[data-radix-portal] { z-index: 200 !important; }
+[data-radix-portal] {
+  position: relative;
+  z-index: 9999 !important;
+}
+[data-radix-portal] [role="dialog"],
+[data-radix-portal] [data-state] {
+  z-index: 9999 !important;
+}
 @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
