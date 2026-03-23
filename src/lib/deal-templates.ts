@@ -175,27 +175,48 @@ export function getAgreementFamilyLabel(dealType: string, lang: 'en' | 'ar'): { 
   return { label: lang === 'ar' ? 'اتفاقية' : 'Agreement', icon: '📋' };
 }
 
-/** Get partner/merchant share percentages from a deal's metadata */
-export function getDealShares(deal: { deal_type: string; metadata: Record<string, unknown> }): {
+/** Get partner/merchant share percentages from a deal's metadata or notes */
+export function getDealShares(deal: { deal_type: string; metadata?: Record<string, unknown>; notes?: string | null }): {
   partnerPct: number | null;
   merchantPct: number | null;
   allocationBase: 'net_profit' | 'sale_economics';
 } {
+  // Parse metadata from notes if metadata object is empty/missing
+  const meta = (deal.metadata && Object.keys(deal.metadata).length > 0)
+    ? deal.metadata
+    : parseNotesToMeta(deal.notes);
+
   let partnerPct: number | null = null;
 
   if (deal.deal_type === 'partnership') {
-    partnerPct = (deal.metadata?.partner_ratio as number) ?? null;
+    partnerPct = meta.partner_ratio != null ? Number(meta.partner_ratio) : null;
     return { partnerPct, merchantPct: partnerPct != null ? 100 - partnerPct : null, allocationBase: 'net_profit' };
   }
   if (deal.deal_type === 'arbitrage') {
-    partnerPct = (deal.metadata?.counterparty_share_pct as number) ?? null;
+    partnerPct = meta.counterparty_share_pct != null ? Number(meta.counterparty_share_pct) : null;
     return { partnerPct, merchantPct: partnerPct != null ? 100 - partnerPct : null, allocationBase: 'sale_economics' };
   }
-  // Legacy types
   if (deal.deal_type === 'capital_placement') {
-    partnerPct = (deal.metadata?.pool_owner_share_pct as number) ?? null;
+    partnerPct = meta.pool_owner_share_pct != null ? Number(meta.pool_owner_share_pct) : null;
     return { partnerPct, merchantPct: partnerPct != null ? 100 - partnerPct : null, allocationBase: 'sale_economics' };
   }
 
   return { partnerPct: null, merchantPct: null, allocationBase: 'net_profit' };
+}
+
+function parseNotesToMeta(notes: string | null | undefined): Record<string, unknown> {
+  if (!notes) return {};
+  const meta: Record<string, unknown> = {};
+  notes.split('|').forEach(seg => {
+    // Handle "key: value" and "key: value, key2: value2" within a segment
+    seg.split(',').forEach(part => {
+      const idx = part.indexOf(':');
+      if (idx > 0) {
+        const key = part.slice(0, idx).trim().replace(/\s+/g, '_');
+        const val = part.slice(idx + 1).trim().replace(/%$/, '');
+        meta[key] = isNaN(Number(val)) ? val : Number(val);
+      }
+    });
+  });
+  return meta;
 }
