@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
+import { playNotificationSound, showBrowserNotification, requestPushPermission } from '@/lib/notification-sound';
 
 export interface Notification {
   id: string;
@@ -50,7 +51,34 @@ export function useNotifications() {
     staleTime: 15_000,
   });
 
-  // Real-time listener
+  // Track previous unread count to detect new arrivals
+  const prevUnreadRef = useRef<number | null>(null);
+
+  // Request push permission on mount
+  useEffect(() => {
+    if (userId) requestPushPermission();
+  }, [userId]);
+
+  // Real-time listener — play sound + push on new notifications
+  const handleRealtimeChange = useCallback(
+    (payload: any) => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
+
+      // If it's a new INSERT, play sound and push
+      if (payload?.eventType === 'INSERT' && payload?.new) {
+        const n = payload.new as { title?: string; body?: string; user_id?: string };
+        if (n.user_id === userId) {
+          playNotificationSound();
+          showBrowserNotification(
+            n.title ?? 'New notification',
+            n.body ?? undefined
+          );
+        }
+      }
+    },
+    [queryClient, userId]
+  );
+
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
@@ -58,11 +86,11 @@ export function useNotifications() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications' },
-        () => { queryClient.invalidateQueries({ queryKey: ['notifications', userId] }); }
+        handleRealtimeChange
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [userId, queryClient]);
+  }, [userId, handleRealtimeChange]);
 
   const unreadCount = (query.data ?? []).filter(n => !n.read_at).length;
 
