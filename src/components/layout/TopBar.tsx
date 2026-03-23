@@ -42,6 +42,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const { merchantProfile, logout } = useAuth();
   const t = useT();
   const meta = useMemo(() => titleFromPath(location.pathname, t), [location.pathname, t]);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-3 py-1.5">
