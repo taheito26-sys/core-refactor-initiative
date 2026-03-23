@@ -644,6 +644,11 @@ export default function MerchantsPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       {/* ─── RELATIONSHIP DRAWER ─── */}
       {activeRelId && (() => {
@@ -657,11 +662,6 @@ export default function MerchantsPage() {
           />
         );
       })()}
-    </div>
-            </>
-          )}
-        </>
-      )}
     </div>
   );
 }
