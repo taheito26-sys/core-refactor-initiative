@@ -659,15 +659,13 @@ export default function OrdersPage() {
   }, [filtered, derived]);
 
   const outKpi = useMemo(() => {
-    let qty = 0, vol = 0, netVal = 0;
-    for (const tr of outgoingTrades) {
-      const c = derived.tradeCalc.get(tr.id);
-      qty += tr.amountUSDT;
-      vol += tr.amountUSDT * tr.sellPriceQAR;
-      if (c?.ok) netVal += c.netQAR;
+    let vol = 0, netVal = 0;
+    for (const deal of creatorMerchantDeals) {
+      vol += deal.amount;
+      if (deal.realized_pnl != null) netVal += deal.realized_pnl;
     }
-    return { count: outgoingTrades.length, qty, vol, net: netVal };
-  }, [outgoingTrades, derived]);
+    return { count: creatorMerchantDeals.length, vol, net: netVal };
+  }, [creatorMerchantDeals]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
