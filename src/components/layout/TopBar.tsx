@@ -14,8 +14,7 @@ function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: s
   if (pathname === '/trading/calendar') return { title: t('calendar'), subtitle: t('calendarSub') };
   if (pathname === '/trading/p2p') return { title: t('p2pTracker'), subtitle: 'Live market rates' };
   if (pathname === '/crm') return { title: t('crm'), subtitle: t('crmSub') };
-  if (pathname === '/network') return { title: t('network'), subtitle: 'Merchant connections' };
-  if (pathname.startsWith('/network/')) return { title: 'Workspace', subtitle: 'Relationship details' };
+  if (pathname === '/merchants') return { title: t('theMerchants'), subtitle: 'Relationships, deals & invitations' };
   if (pathname === '/deals') return { title: t('deals'), subtitle: 'Deal management' };
   if (pathname === '/analytics') return { title: t('analytics'), subtitle: 'Performance insights' };
   if (pathname === '/vault') return { title: t('vault'), subtitle: 'Document storage' };

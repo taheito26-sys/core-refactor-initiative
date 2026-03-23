@@ -21,7 +21,7 @@ export function notificationRoute(n: Notification): string {
       return '/trading/orders';
     case 'invite':
     case 'network':
-      return '/network';
+      return '/merchants';
     case 'approval':
       return '/admin/approvals';
     case 'merchant':

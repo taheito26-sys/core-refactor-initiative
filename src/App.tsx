@@ -148,8 +148,10 @@ const App = () => (
 
                 {/* Legacy redirects */}
                 <Route path="/trading" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/merchant" element={<Navigate to="/network" replace />} />
-                <Route path="/merchant/*" element={<Navigate to="/network" replace />} />
+                <Route path="/merchant" element={<Navigate to="/merchants" replace />} />
+                <Route path="/merchant/*" element={<Navigate to="/merchants" replace />} />
+                <Route path="/network" element={<Navigate to="/merchants" replace />} />
+                <Route path="/network/*" element={<Navigate to="/merchants" replace />} />
                 <Route path="/vault" element={<Navigate to="/trading/vault" replace />} />
                 <Route path="/p2p" element={<Navigate to="/trading/p2p" replace />} />
 
