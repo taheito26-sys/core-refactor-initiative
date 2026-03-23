@@ -10,6 +10,7 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
+import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell,
@@ -20,7 +21,7 @@ export default function DashboardPage() {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
-  const { state, derived } = useTrackerState({
+  const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
@@ -45,7 +46,11 @@ export default function DashboardPage() {
   const LOW = num(state.settings?.lowStockThreshold, 5000);
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
+  const [showCashBox, setShowCashBox] = useState(false);
 
+  const handleCashSave = useCallback((newCash: number, owner: string) => {
+    applyState({ ...state, cashQAR: newCash, cashOwner: owner });
+  }, [state, applyState]);
 
 
   // ── P2P Averages from real trade data ──
@@ -229,7 +234,7 @@ export default function DashboardPage() {
           <div className="kpi-lbl">{t('cashAvailable')}</div>
           <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(num(state.cashQAR, 0))}</div>
           <div className="kpi-sub" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }}>{t('manageCash')}</button>
+            <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }} onClick={() => setShowCashBox(true)}>{t('manageCash')}</button>
             <span className="muted" style={{ fontSize: 10 }}>{state.cashOwner ? `${t('owner')}: ${state.cashOwner}` : `${t('owner')}: —`}</span>
           </div>
         </div>
@@ -354,6 +359,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {showCashBox && (
+        <CashBoxManager
+          currentCash={num(state.cashQAR, 0)}
+          currentOwner={state.cashOwner || ''}
+          onSave={handleCashSave}
+          onClose={() => setShowCashBox(false)}
+        />
+      )}
     </div>
   );
 }

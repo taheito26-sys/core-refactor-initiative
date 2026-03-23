@@ -39,7 +39,7 @@ import CalendarPage from './pages/CalendarPage';
 import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
 
-const AnalyticsPage = createPlaceholderPage('Analytics', 'Performance analytics and insights');
+
 import NotificationsPage from './pages/NotificationsPage';
 const MessagesPage = createPlaceholderPage('Messages', 'Direct messages');
 const InvitationsPage = createPlaceholderPage('Invitations', 'Manage invitations');
@@ -134,7 +134,7 @@ const App = () => (
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />
-                  <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/messages" element={<MessagesPage />} />

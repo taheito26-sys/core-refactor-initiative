@@ -12,7 +12,7 @@ import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInb
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'inbox' | 'settlements' | 'chat';
+type MerchantTab = 'relationships' | 'settlements' | 'chat';
 
 interface AgreementRow {
   id: string;
@@ -37,7 +37,7 @@ export default function MerchantsPage() {
 
   const [tab, setTab] = useState<MerchantTab>(() => {
     const qTab = searchParams.get('tab');
-    if (qTab === 'chat' || qTab === 'inbox' || qTab === 'settlements' || qTab === 'relationships') return qTab;
+    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships') return qTab as MerchantTab;
     return 'relationships';
   });
   const [activeRelId, setActiveRelId] = useState<string | null>(null);
@@ -276,7 +276,6 @@ export default function MerchantsPage() {
   const overdueCount = settlementOverview?.overdueCount || 0;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
-    { key: 'inbox', label: t('inbox') || 'Inbox', icon: '📥', badge: inboxCount },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
     { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬', badge: unreadChatCount > 0 ? unreadChatCount : undefined },
   ];
@@ -474,96 +473,6 @@ export default function MerchantsPage() {
             </>
           )}
 
-          {/* ═══ INBOX TAB ═══ */}
-          {tab === 'inbox' && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('inbox') || 'Inbox'}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('pendingActions') || 'Pending invitations & actions'}</div>
-                </div>
-              </div>
-
-              {/* Incoming invites */}
-              {invites.filter(i => i.is_incoming).length === 0 ? (
-                <div className="empty">
-                  <div className="empty-t">{t('noInboxItems') || 'No pending items'}</div>
-                  <div className="empty-s">{t('inboxEmpty') || 'Your inbox is empty'}</div>
-                </div>
-              ) : (
-                <div className="tableWrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t('fromLabel') || 'From'}</th>
-                        <th>{t('message') || 'Message'}</th>
-                        <th>{t('status')}</th>
-                        <th>{t('date')}</th>
-                        <th>{t('actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invites.filter(i => i.is_incoming).map(inv => (
-                        <tr key={inv.id}>
-                          <td style={{ fontWeight: 700, fontSize: 11 }}>{inv.from_name}</td>
-                          <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {inv.message || '—'}
-                          </td>
-                          <td>{statusPill(inv.status)}</td>
-                          <td className="mono" style={{ fontSize: 10 }}>{new Date(inv.created_at).toLocaleDateString()}</td>
-                          <td>
-                            {inv.status === 'pending' && (
-                              <div style={{ display: 'flex', gap: 4 }}>
-                                <button className="rowBtn" onClick={() => handleAcceptInvite(inv)}>✓ {t('accept') || 'Accept'}</button>
-                                <button className="rowBtn" onClick={() => handleRejectInvite(inv.id)}>✗ {t('reject') || 'Reject'}</button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Sent invites */}
-              {invites.filter(i => !i.is_incoming).length > 0 && (
-                <>
-                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 12, marginBottom: 4 }}>
-                    📤 {t('sentInvites') || 'Sent Invitations'}
-                  </div>
-                  <div className="tableWrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>{t('toLabel') || 'To'}</th>
-                          <th>{t('message') || 'Message'}</th>
-                          <th>{t('status')}</th>
-                          <th>{t('date')}</th>
-                          <th>{t('actions')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {invites.filter(i => !i.is_incoming).map(inv => (
-                          <tr key={inv.id}>
-                            <td style={{ fontWeight: 700, fontSize: 11 }}>{inv.to_name}</td>
-                            <td style={{ fontSize: 10, color: 'var(--muted)' }}>{inv.message || '—'}</td>
-                            <td>{statusPill(inv.status)}</td>
-                            <td className="mono" style={{ fontSize: 10 }}>{new Date(inv.created_at).toLocaleDateString()}</td>
-                            <td>
-                              {inv.status === 'pending' && (
-                                <button className="rowBtn" onClick={() => handleWithdrawInvite(inv.id)}>↩ {t('withdraw') || 'Withdraw'}</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </>
-          )}
 
           {/* ═══ SETTLEMENTS TAB ═══ */}
           {tab === 'settlements' && (
