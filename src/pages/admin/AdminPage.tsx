@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle } from 'lucide-react';
+import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
