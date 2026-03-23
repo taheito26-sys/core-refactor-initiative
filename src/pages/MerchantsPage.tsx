@@ -33,8 +33,13 @@ export default function MerchantsPage() {
   const { userId, merchantProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [tab, setTab] = useState<MerchantTab>('relationships');
+  const [tab, setTab] = useState<MerchantTab>(() => {
+    const qTab = searchParams.get('tab');
+    if (qTab === 'chat' || qTab === 'inbox' || qTab === 'settlements' || qTab === 'relationships') return qTab;
+    return 'relationships';
+  });
   const [activeRelId, setActiveRelId] = useState<string | null>(null);
   const [relationships, setRelationships] = useState<any[]>([]);
   const [agreements, setAgreements] = useState<AgreementRow[]>([]);
