@@ -82,18 +82,44 @@ export default function OrdersPage() {
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
 
+  const { merchantProfile } = useAuth();
+
   const reloadMerchantData = useCallback(async () => {
     try {
-      const [relationshipsRes, dealsRes] = await Promise.all([
-        api.relationships.list(),
-        api.deals.list(),
+      const myMerchantId = merchantProfile?.merchant_id;
+      if (!myMerchantId) return;
+
+      const [relsRes, dealsRes, profilesRes] = await Promise.all([
+        supabase.from('merchant_relationships').select('*').eq('status', 'active'),
+        supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
+        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
       ]);
-      setRelationships(relationshipsRes.relationships);
-      setAllMerchantDeals(dealsRes.deals);
+
+      const profileMap = new Map(
+        (profilesRes.data || []).map(p => [p.merchant_id, p])
+      );
+
+      const enrichedRels = (relsRes.data || []).map(r => {
+        const cpId = r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id;
+        const cp = profileMap.get(cpId);
+        return {
+          ...r,
+          counterparty: { display_name: cp?.display_name || cpId, nickname: cp?.nickname || '' },
+          counterparty_name: cp?.display_name || cpId,
+        } as any as MerchantRelationship;
+      });
+
+      setRelationships(enrichedRels);
+
+      const enrichedDeals = (dealsRes.data || []).map(d => {
+        const rel = enrichedRels.find(r => r.id === d.relationship_id);
+        return { ...d, counterparty_name: (rel as any)?.counterparty_name || '—' } as any as MerchantDeal;
+      });
+      setAllMerchantDeals(enrichedDeals);
     } catch {
       // keep tracker usable
     }
-  }, []);
+  }, [merchantProfile?.merchant_id]);
 
   useEffect(() => { reloadMerchantData(); }, [reloadMerchantData]);
 
