@@ -109,12 +109,22 @@ export default function MerchantsPage() {
       )
     : relationships;
 
-  const filteredAgreements = search
-    ? agreements.filter(a =>
-        a.title.toLowerCase().includes(search.toLowerCase()) ||
-        a.counterparty_name?.toLowerCase().includes(search.toLowerCase())
-      )
-    : agreements;
+  const filteredAgreements = useMemo(() => {
+    const active = agreements.filter(a => a.status !== 'cancelled');
+    if (!search) return active;
+    return active.filter(a =>
+      a.title.toLowerCase().includes(search.toLowerCase()) ||
+      a.counterparty_name?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [agreements, search]);
+
+  const filteredLedger = useMemo(() => {
+    if (!search) return cancelledDeals;
+    return cancelledDeals.filter(a =>
+      a.title.toLowerCase().includes(search.toLowerCase()) ||
+      a.counterparty_name?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [cancelledDeals, search]);
 
   const statusPill = (status: string) => {
     const cls = status === 'active' || status === 'approved' ? 'good'
