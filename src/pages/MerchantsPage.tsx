@@ -8,6 +8,7 @@ import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
+import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import '@/styles/tracker.css';
 
 type MerchantTab = 'relationships' | 'inbox' | 'ledger';
