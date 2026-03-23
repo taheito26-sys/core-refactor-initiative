@@ -224,6 +224,8 @@ export function calculateAllocation(
 export function getAvailableTransitions(status: DealStatus, dealType: DealType): DealStatus[] {
   const transitions: Record<DealStatus, DealStatus[]> = {
     draft: ['active', 'cancelled'],
+    pending: ['approved', 'cancelled'],
+    approved: ['active', 'cancelled'],
     active: ['due', 'settled', 'closed', 'cancelled'],
     due: ['overdue', 'settled', 'closed'],
     settled: ['closed'],

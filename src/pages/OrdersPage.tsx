@@ -22,6 +22,21 @@ const nowInput = () => new Date().toISOString().slice(0, 16);
 const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
+/** Parse pipe-separated key:value metadata from deal.notes */
+function parseDealMeta(notes: string | null | undefined): Record<string, string> {
+  if (!notes) return {};
+  const meta: Record<string, string> = {};
+  notes.split('|').forEach(seg => {
+    const idx = seg.indexOf(':');
+    if (idx > 0) {
+      const key = seg.slice(0, idx).trim();
+      const val = seg.slice(idx + 1).trim();
+      meta[key] = val;
+    }
+  });
+  return meta;
+}
+
 export default function OrdersPage() {
   const { settings } = useTheme();
   const { userId, merchantProfile } = useAuth();
@@ -176,7 +191,7 @@ export default function OrdersPage() {
     [allMerchantDeals, userId],
   );
   const outgoingApiDeals = useMemo(
-    () => creatorMerchantDeals.filter(deal => !outgoingTrades.some(tr => (deal.metadata as any)?.local_trade_id === tr.id)),
+    () => creatorMerchantDeals.filter(deal => !outgoingTrades.some(tr => parseDealMeta(deal.notes).local_trade === tr.id)),
     [creatorMerchantDeals, outgoingTrades],
   );
   const outgoingVisibleCount = outgoingTrades.length + outgoingApiDeals.length;
@@ -314,15 +329,26 @@ export default function OrdersPage() {
         const customerName = buyerName.trim() || t('buyer');
         const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
         const amount = Number(saleAmount) || 0;
+        const sell = Number(saleSell) || 0;
+        const fee = parseFloat(saleFee) || 0;
 
         const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
-        // Build notes with metadata for reference
+        // Store trade data in notes so partner can see qty/sell/cost
+        const c = computeFIFO(state.batches, [...state.trades, trade]).tradeCalc.get(trade.id);
+        const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
+        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
+
         const noteLines = [
           `template: ${tmpl.id}`,
           `customer: ${customerName}`,
           `local_trade: ${trade.id}`,
+          `quantity: ${trade.amountUSDT}`,
+          `sell_price: ${sell}`,
+          `fifo_cost: ${fifoCost}`,
+          `avg_buy: ${avgBuy}`,
+          `fee: ${fee}`,
           tmpl.dealType === 'partnership'
             ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
             : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
@@ -330,9 +356,9 @@ export default function OrdersPage() {
 
         const { error } = await supabase.from('merchant_deals').insert({
           relationship_id: linkedRelId,
-          deal_type: tmpl.dealType,
+          deal_type: tmpl.dealType as string,
           title,
-          amount,
+          amount: trade.amountUSDT * sell,
           currency,
           status: 'pending',
           created_by: userId!,
@@ -340,6 +366,7 @@ export default function OrdersPage() {
         });
 
         if (error) throw error;
+        await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
       } catch (err: any) {
         console.error('Failed to create deal:', err);
@@ -480,10 +507,11 @@ export default function OrdersPage() {
     setEditingDealId(deal.id);
     setEditDealTitle(deal.title || '');
     setEditDealAmount(String(deal.amount || 0));
-    setEditDealQty(String((deal.metadata as any)?.quantity ?? deal.amount ?? ''));
-    setEditDealSell(String((deal.metadata as any)?.sell_price ?? ''));
-    setEditDealFee(String((deal.metadata as any)?.fee ?? '0'));
-    setEditDealNote(String((deal.metadata as any)?.note ?? ''));
+    const meta = parseDealMeta(deal.notes);
+    setEditDealQty(meta.quantity || String(deal.amount || ''));
+    setEditDealSell(meta.sell_price || '');
+    setEditDealFee(meta.fee || '0');
+    setEditDealNote(meta.note || '');
   };
 
   const saveDealEdit = async () => {
@@ -494,12 +522,14 @@ export default function OrdersPage() {
     if (!(qty > 0) || !(sell > 0)) { toast.error(t('fixFields') + ' ' + t('qty') + ', ' + t('sell')); return; }
     try {
       const deal = allMerchantDeals.find(d => d.id === editingDealId);
-      const existingMeta = (deal?.metadata || {}) as Record<string, unknown>;
-      await api.deals.update(editingDealId, {
+      const existingNotes = deal?.notes || '';
+      const metaNote = `qty: ${qty} | sell: ${sell} | fee: ${fee} | note: ${editDealNote}`;
+      const { error } = await supabase.from('merchant_deals').update({
         title: editDealTitle,
         amount: qty * sell,
-        metadata: { ...existingMeta, quantity: qty, sell_price: sell, fee, note: editDealNote },
-      });
+        notes: metaNote,
+      }).eq('id', editingDealId);
+      if (error) throw error;
       await reloadMerchantData();
       setEditingDealId(null);
       toast.success(t('saveCorrection'));
@@ -508,7 +538,8 @@ export default function OrdersPage() {
 
   const deleteDeal = async (dealId: string) => {
     try {
-      await api.deals.update(dealId, { status: 'cancelled' });
+      const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', dealId);
+      if (error) throw error;
       await reloadMerchantData();
       setDeleteDealConfirm(null);
       setEditingDealId(null);
@@ -808,10 +839,11 @@ export default function OrdersPage() {
                         const { partnerPct } = getDealShares(deal);
                         const isDraft = deal.status === 'draft';
                         const isLegacy = !isSupportedDealType(deal.deal_type);
-                        const dealQty = Number((deal.metadata as any)?.quantity ?? deal.amount ?? 0);
-                        const dealSell = Number((deal.metadata as any)?.sell_price ?? 0);
+                        const meta = parseDealMeta(deal.notes);
+                        const dealQty = Number(meta.quantity) || deal.amount || 0;
+                        const dealSell = Number(meta.sell_price) || 0;
                         const dealVol = dealQty * (dealSell || 1);
-                        const dealCost = Number((deal.metadata as any)?.fifo_cost ?? 0);
+                        const dealCost = Number(meta.fifo_cost) || 0;
                         const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
@@ -843,18 +875,20 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
-                                {isDraft && (
+                                {(deal.status === 'pending' || isDraft) && (
                                   <>
                                     <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={async () => {
                                       try {
-                                        await api.deals.update(deal.id, { status: 'active' });
+                                        const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', deal.id);
+                                        if (error) throw error;
                                         await reloadMerchantData();
                                         toast.success(t('tradeApproved'));
                                       } catch (err: any) { toast.error(err.message); }
                                     }}>{t('approve')}</button>
                                     <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={async () => {
                                       try {
-                                        await api.deals.update(deal.id, { status: 'cancelled' });
+                                        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', deal.id);
+                                        if (error) throw error;
                                         await reloadMerchantData();
                                         toast.success(t('tradeRejected'));
                                       } catch (err: any) { toast.error(err.message); }
@@ -971,15 +1005,16 @@ export default function OrdersPage() {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
-                        const dealQty = Number((deal.metadata as any)?.quantity ?? deal.amount ?? 0);
-                        const dealSell = Number((deal.metadata as any)?.sell_price ?? 0);
+                        const meta = parseDealMeta(deal.notes);
+                        const dealQty = Number(meta.quantity) || deal.amount || 0;
+                        const dealSell = Number(meta.sell_price) || 0;
                         const dealVol = dealQty * (dealSell || 1);
-                        const dealCost = Number((deal.metadata as any)?.fifo_cost ?? 0);
+                        const dealCost = Number(meta.fifo_cost) || 0;
                         const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
-                        const customerName = String((deal.metadata as any)?.customer_name || '');
+                        const customerName = meta.customer || '';
                         return (
                           <tr key={`deal-${deal.id}`}>
                             <td>
@@ -1478,7 +1513,7 @@ export default function OrdersPage() {
         const editingDeal = editingDealId ? allMerchantDeals.find(d => d.id === editingDealId) : null;
         if (!editingDeal) return null;
         const dealVol = Number(editDealQty) * Number(editDealSell);
-        const dealCost = Number((editingDeal.metadata as any)?.fifo_cost ?? 0);
+        const dealCost = Number(parseDealMeta(editingDeal.notes).fifo_cost) || 0;
         const dealNet = dealVol - dealCost - Number(editDealFee);
         return (
           <Dialog open={!!editingDealId} onOpenChange={open => !open && setEditingDealId(null)}>
