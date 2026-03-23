@@ -100,6 +100,7 @@ export default function MerchantsPage() {
           created_at: d.created_at,
           counterparty_name: rel?.counterparty_name || '—',
           order_count: 0,
+          settlement_cadence: (d as any).settlement_cadence || 'monthly',
         };
       });
 
