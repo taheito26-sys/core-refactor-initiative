@@ -429,6 +429,58 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Tracker Entity Dialog */}
+      <Dialog open={!!editEntity} onOpenChange={(open) => !open && setEditEntity(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-sm">Correct {editEntity?.type === 'batch' ? 'Batch' : 'Trade'}</DialogTitle>
+            <DialogDescription className="text-xs">Changes are audited and permanent.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Quantity' : 'Amount (USDT)'}</Label>
+              <Input type="number" value={editEntityQty} onChange={e => setEditEntityQty(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Buy Price' : 'Sell Price (QAR)'}</Label>
+              <Input type="number" value={editEntityPrice} onChange={e => setEditEntityPrice(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">Reason (required)</Label>
+              <Textarea value={editEntityReason} onChange={e => setEditEntityReason(e.target.value)} placeholder="Why is this correction needed?" className="text-sm min-h-[60px]" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditEntity(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleCorrectEntity} disabled={!editEntityReason.trim() || correctTracker.isPending}>
+              {correctTracker.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Save Correction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Void Tracker Entity Dialog */}
+      <Dialog open={!!voidEntity} onOpenChange={(open) => !open && setVoidEntity(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-sm">Void {voidEntity?.type === 'batch' ? 'Batch' : 'Trade'}</DialogTitle>
+            <DialogDescription className="text-xs">This will mark the record as voided. This action is audited.</DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label className="text-xs">Reason (required)</Label>
+            <Textarea value={voidEntityReason} onChange={e => setVoidEntityReason(e.target.value)} placeholder="Why is this record being voided?" className="text-sm min-h-[60px]" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setVoidEntity(null)}>Cancel</Button>
+            <Button variant="destructive" size="sm" onClick={handleVoidEntity} disabled={!voidEntityReason.trim() || voidTrackerEntity.isPending}>
+              {voidTrackerEntity.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Confirm Void
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
