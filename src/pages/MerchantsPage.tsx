@@ -37,7 +37,7 @@ export default function MerchantsPage() {
 
   const [tab, setTab] = useState<MerchantTab>(() => {
     const qTab = searchParams.get('tab');
-    if (qTab === 'chat' || qTab === 'inbox' || qTab === 'settlements' || qTab === 'relationships') return qTab;
+    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships') return qTab as MerchantTab;
     return 'relationships';
   });
   const [activeRelId, setActiveRelId] = useState<string | null>(null);
