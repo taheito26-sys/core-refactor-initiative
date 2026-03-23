@@ -42,11 +42,12 @@ export function useProfitDistribution(relationshipId: string) {
         .eq('relationship_id', relationshipId)
         .in('status', ['approved', 'pending']);
 
-      const { data: settlements } = await supabase
+      const { data: allSettlements } = await supabase
         .from('merchant_settlements')
-        .select('*')
-        .eq('relationship_id' as any, relationshipId)
-        .eq('status' as any, 'approved');
+        .select('*');
+      const settlements = (allSettlements || []).filter(
+        (s: any) => s.relationship_id === relationshipId && s.status === 'approved'
+      );
 
       const { data: rel } = await supabase
         .from('merchant_relationships')
