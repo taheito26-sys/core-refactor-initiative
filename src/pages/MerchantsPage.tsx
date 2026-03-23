@@ -171,7 +171,6 @@ export default function MerchantsPage() {
 
   const tabs: { key: MerchantTab; label: string; icon: string }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
-    { key: 'templates', label: t('templates') || 'Templates', icon: '📋' },
     { key: 'agreements', label: t('agreements') || 'Agreements', icon: '🤝' },
     { key: 'analytics', label: t('analytics'), icon: '📊' },
   ];
