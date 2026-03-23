@@ -82,7 +82,8 @@ export function DealsTab({ relationshipId, agreements }: Props) {
         currency,
         created_by: userId!,
         notes: notes.trim() || null,
-      });
+        settlement_cadence: cadence,
+      } as any);
       if (error) throw error;
       toast.success(t('dealCreated') || 'Deal created');
       setShowForm(false);
