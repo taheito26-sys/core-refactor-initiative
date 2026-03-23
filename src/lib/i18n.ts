@@ -890,7 +890,6 @@ const translations = {
   noMessagesChat: { en: 'No messages yet', ar: 'لا توجد رسائل بعد' },
   allConversations: { en: 'All Conversations', ar: 'جميع المحادثات' },
   openRelationshipToChat: { en: 'Open a relationship and start chatting', ar: 'افتح علاقة وابدأ المحادثة' },
-  you: { en: 'You', ar: 'أنت' },
   allocationBaseDist: { en: 'Allocation Base', ar: 'أساس التوزيع' },
   saleEconomicsDist: { en: 'Sale Economics', ar: 'اقتصاديات البيع' },
   pnl: { en: 'P&L', ar: 'الأرباح/الخسائر' },
