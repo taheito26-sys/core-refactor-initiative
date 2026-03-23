@@ -1104,9 +1104,7 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, cursor: 'pointer', color: 'var(--muted)' }}>
-                  <input type="checkbox" checked={useStock} onChange={e => setUseStock(e.target.checked)} style={{ accentColor: 'var(--brand)' }} /> {t('useFifoStock')}
-                </label>
+
 
                 {/* ─── MERCHANT-LINKED TRADE (SIMPLE FLOW) ─── */}
                 <div className="previewBox" style={{ marginTop: 6, borderColor: merchantOrderEnabled ? 'var(--brand)' : undefined }}>
