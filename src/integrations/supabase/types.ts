@@ -521,6 +521,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_correct_deal: {
+        Args: { _deal_id: string; _reason: string; _updates: Json }
+        Returns: Json
+      }
+      admin_system_stats: { Args: never; Returns: Json }
+      admin_void_deal: {
+        Args: { _deal_id: string; _reason: string }
+        Returns: undefined
+      }
       current_merchant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
