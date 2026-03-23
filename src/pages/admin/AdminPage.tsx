@@ -7,6 +7,7 @@ import { AdminDashboard } from '@/features/admin/components/AdminDashboard';
 import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirectory';
 import { AdminUserWorkspace } from '@/features/admin/components/AdminUserWorkspace';
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
+import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
 import AdminApprovalsPage from './AdminApprovalsPage';
 
 export default function AdminPage() {
