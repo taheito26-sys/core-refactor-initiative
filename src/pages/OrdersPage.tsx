@@ -199,14 +199,14 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
-  // Incoming: deals created by OTHER merchants in my relationships
+  // Incoming: deals created by OTHER merchants in my relationships (show all statuses)
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled'),
+    () => allMerchantDeals.filter(d => d.created_by !== userId),
     [allMerchantDeals, userId],
   );
-  // Outgoing: deals I created (server-authoritative)
+  // Outgoing: deals I created (server-authoritative, show all statuses)
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled'),
+    () => allMerchantDeals.filter(d => d.created_by === userId),
     [allMerchantDeals, userId],
   );
 
