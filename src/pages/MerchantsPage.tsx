@@ -632,6 +632,11 @@ export default function MerchantsPage() {
             </>
           )}
 
+          {/* ═══ CHAT TAB ═══ */}
+          {tab === 'chat' && (
+            <UnifiedChatInbox relationships={relationships} />
+          )}
+
         </>
       )}
 
