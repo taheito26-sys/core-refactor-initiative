@@ -408,41 +408,7 @@ export default function MerchantsPage() {
         </>
       )}
 
-      {/* ─── TEMPLATE DETAIL DIALOG ─── */}
-      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{selectedTemplate?.icon} {selectedTemplate?.label[(settings.language as 'en' | 'ar')] || selectedTemplate?.label.en}</DialogTitle>
-          </DialogHeader>
-          {selectedTemplate && (
-            <div className="space-y-3 text-sm">
-              <p className="text-muted-foreground">{selectedTemplate.description[(settings.language as 'en' | 'ar')] || selectedTemplate.description.en}</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><strong>{t('family') || 'Family'}:</strong> {selectedTemplate.family === 'profit_share' ? 'Profit Share' : 'Sales Deal'}</div>
-                <div><strong>{t('ratio') || 'Ratio'}:</strong> {selectedTemplate.ratioDisplay}</div>
-                <div><strong>{t('dealType') || 'Deal Type'}:</strong> {selectedTemplate.dealType}</div>
-                {selectedTemplate.defaults.settlement_period && (
-                  <div><strong>{t('settlementLabel') || 'Settlement'}:</strong> {selectedTemplate.defaults.settlement_period}</div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground italic">
-                {selectedTemplate.helperText[(settings.language as 'en' | 'ar')] || selectedTemplate.helperText.en}
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            <button className="btn" onClick={() => {
-              if (selectedTemplate) {
-                setAgreementTemplateId(selectedTemplate.id);
-                setShowTemplateDialog(false);
-                setShowAgreementDialog(true);
-              }
-            }}>
-              {t('useTemplate') || 'Use Template'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       {/* ─── CREATE AGREEMENT DIALOG ─── */}
       <Dialog open={showAgreementDialog} onOpenChange={setShowAgreementDialog}>
