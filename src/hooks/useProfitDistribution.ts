@@ -77,7 +77,7 @@ export function useProfitDistribution(relationshipId: string) {
           .reduce((sum, s) => sum + Number(s.amount), 0);
 
         const totalOrderVolume = Number(deal.amount || 0);
-        const totalNetProfit = Number((deal as any).realized_pnl || 0);
+        const totalNetProfit = Number(deal.realized_pnl || 0);
 
         let partnerOwed = 0;
         let merchantOwed = 0;
