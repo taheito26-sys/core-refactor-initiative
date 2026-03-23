@@ -1005,15 +1005,16 @@ export default function OrdersPage() {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
-                        const dealQty = Number((deal.metadata as any)?.quantity ?? deal.amount ?? 0);
-                        const dealSell = Number((deal.metadata as any)?.sell_price ?? 0);
+                        const meta = parseDealMeta(deal.notes);
+                        const dealQty = Number(meta.quantity) || deal.amount || 0;
+                        const dealSell = Number(meta.sell_price) || 0;
                         const dealVol = dealQty * (dealSell || 1);
-                        const dealCost = Number((deal.metadata as any)?.fifo_cost ?? 0);
+                        const dealCost = Number(meta.fifo_cost) || 0;
                         const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
-                        const customerName = String((deal.metadata as any)?.customer_name || '');
+                        const customerName = meta.customer || '';
                         return (
                           <tr key={`deal-${deal.id}`}>
                             <td>
