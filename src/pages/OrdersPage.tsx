@@ -173,32 +173,16 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
-  // Merchant-linked trades (new trade-centric model)
-  const merchantLinkedTrades = useMemo(
-    () => allTrades.filter(tr => !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId)),
-    [allTrades],
-  );
-
-  // Outgoing: locally-created merchant-linked trades that are still visible
-  const outgoingTrades = useMemo(
-    () => merchantLinkedTrades.filter(tr => tr.approvalStatus !== 'cancelled'),
-    [merchantLinkedTrades],
-  );
-
-  // Incoming/Outgoing API deals that are still visible in the review queue/history
+  // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
     () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
+  // Outgoing: deals I created (server-authoritative)
   const creatorMerchantDeals = useMemo(
     () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
-  const outgoingApiDeals = useMemo(
-    () => creatorMerchantDeals.filter(deal => !outgoingTrades.some(tr => parseDealMeta(deal.notes).local_trade === tr.id)),
-    [creatorMerchantDeals, outgoingTrades],
-  );
-  const outgoingVisibleCount = outgoingTrades.length + outgoingApiDeals.length;
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
