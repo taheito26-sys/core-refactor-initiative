@@ -4,12 +4,16 @@ import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtQWithUnit, fmtU, fmtQ, fmtPct, fmtP,
   kpiFor, totalStock, stockCostQAR, getWACOP,
-  rangeLabel, num,
+  rangeLabel, num, startOfDay,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import type { MerchantDeal, MerchantApproval } from '@/types/domain';
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell,
+} from 'recharts';
 import '@/styles/tracker.css';
 
 export default function DashboardPage() {
@@ -65,6 +69,80 @@ export default function DashboardPage() {
     const avgBuy = batches.length ? batches.reduce((s, b) => s + b.buyPriceQAR, 0) / batches.length : null;
     return { avgSell, avgBuy };
   }, [allTrades, state.batches]);
+
+  // ── Chart 1: Profit & Revenue Trend (last 14 trades) ──
+  const trendData = useMemo(() => {
+    const sorted = [...allTrades].sort((a, b) => a.ts - b.ts).slice(-14);
+    return sorted.map((tr, i) => {
+      const c = derived.tradeCalc.get(tr.id);
+      const rev = tr.amountUSDT * tr.sellPriceQAR;
+      const net = c?.ok ? c.netQAR : 0;
+      return {
+        idx: i + 1,
+        date: new Date(tr.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        revenue: Math.round(rev),
+        profit: Math.round(net),
+      };
+    });
+  }, [allTrades, derived]);
+
+  // ── Chart 2: Net Profit Per Trade (all time, bar chart) ──
+  const profitPerTradeData = useMemo(() => {
+    const sorted = [...allTrades].sort((a, b) => a.ts - b.ts);
+    return sorted.map((tr, i) => {
+      const c = derived.tradeCalc.get(tr.id);
+      const net = c?.ok ? c.netQAR : 0;
+      return {
+        idx: i + 1,
+        profit: Math.round(net),
+        positive: net >= 0,
+      };
+    });
+  }, [allTrades, derived]);
+
+  // ── Chart 3: Daily Volume & Profit (aggregated by day) ──
+  const dailyData = useMemo(() => {
+    const dayMap = new Map<number, { vol: number; profit: number; count: number }>();
+    for (const tr of allTrades) {
+      const dayTs = startOfDay(tr.ts);
+      const c = derived.tradeCalc.get(tr.id);
+      const rev = tr.amountUSDT * tr.sellPriceQAR;
+      const net = c?.ok ? c.netQAR : 0;
+      const existing = dayMap.get(dayTs) || { vol: 0, profit: 0, count: 0 };
+      existing.vol += rev;
+      existing.profit += net;
+      existing.count += 1;
+      dayMap.set(dayTs, existing);
+    }
+    return Array.from(dayMap.entries())
+      .sort(([a], [b]) => a - b)
+      .slice(-14)
+      .map(([ts, d]) => ({
+        date: new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        volume: Math.round(d.vol),
+        profit: Math.round(d.profit),
+        trades: d.count,
+      }));
+  }, [allTrades, derived]);
+
+  // ── Recharts custom tooltip ──
+  const ChartTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{
+        background: 'var(--panel2)', border: '1px solid var(--line)',
+        borderRadius: 6, padding: '6px 10px', fontSize: 10,
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 3 }}>{label}</div>
+        {payload.map((p: any, i: number) => (
+          <div key={i} style={{ color: p.color, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+            <span>{p.name}</span>
+            <span className="mono" style={{ fontWeight: 700 }}>{Number(p.value).toLocaleString()} QAR</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const badgeStyle = (condition: string) => {
     const color = condition === 'good' ? 'var(--good)' : condition === 'bad' ? 'var(--bad)' : 'var(--warn)';
@@ -237,8 +315,33 @@ export default function DashboardPage() {
       <div className="dash-bottom">
         <div className="panel">
           <div className="panel-head"><h2>{t('profitRevenueTrend')}</h2><span className="pill">{t('last14Trades')}</span></div>
-          <div className="panel-body" style={{ height: 190, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="muted" style={{ fontSize: 11 }}>{t('chartRendersLive')}</span>
+          <div className="panel-body" style={{ height: 190, position: 'relative' }}>
+            {trendData.length < 2 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <span className="muted" style={{ fontSize: 11 }}>{t('needMoreTrades') || 'Need at least 2 trades for chart'}</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gProfit" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" strokeOpacity={0.3} />
+                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="revenue" name={t('volume') || 'Revenue'} stroke="#6366f1" fill="url(#gRevenue)" strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="profit" name={t('netProfitLabel') || 'Profit'} stroke="#22c55e" fill="url(#gProfit)" strokeWidth={2} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
         <div className="panel">
@@ -258,14 +361,48 @@ export default function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div className="panel">
           <div className="panel-head"><h2>{t('netProfitPerTrade')}</h2><span className="pill muted">{t('allTime')}</span></div>
-          <div className="panel-body" style={{ height: 170, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="muted" style={{ fontSize: 11 }}>{t('chartRendersLive')}</span>
+          <div className="panel-body" style={{ height: 170, position: 'relative' }}>
+            {profitPerTradeData.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <span className="muted" style={{ fontSize: 11 }}>{t('noTrades') || 'No trades yet'}</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={profitPerTradeData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" strokeOpacity={0.3} vertical={false} />
+                  <XAxis dataKey="idx" tick={{ fontSize: 8, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <ReferenceLine y={0} stroke="var(--muted)" strokeOpacity={0.4} strokeDasharray="3 3" />
+                  <Bar dataKey="profit" name={t('netProfitLabel') || 'Profit'} radius={[2, 2, 0, 0]} maxBarSize={12}>
+                    {profitPerTradeData.map((entry, i) => (
+                      <Cell key={i} fill={entry.positive ? '#22c55e' : '#ef4444'} fillOpacity={0.8} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
         <div className="panel">
           <div className="panel-head"><h2>{t('dailyVolumeProfit')}</h2><span className="pill muted">{t('byDay')}</span></div>
-          <div className="panel-body" style={{ height: 170, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="muted" style={{ fontSize: 11 }}>{t('chartRendersLive')}</span>
+          <div className="panel-body" style={{ height: 170, position: 'relative' }}>
+            {dailyData.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <span className="muted" style={{ fontSize: 11 }}>{t('noTrades') || 'No trades yet'}</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" strokeOpacity={0.3} vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 8, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar dataKey="volume" name={t('volume') || 'Volume'} fill="#6366f1" fillOpacity={0.5} radius={[2, 2, 0, 0]} maxBarSize={16} />
+                  <Bar dataKey="profit" name={t('netProfitLabel') || 'Profit'} fill="#22c55e" fillOpacity={0.85} radius={[2, 2, 0, 0]} maxBarSize={16} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
