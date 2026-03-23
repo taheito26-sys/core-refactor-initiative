@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { format } from 'date-fns';
-import { ArrowLeft, Edit, Ban, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit, Ban, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
