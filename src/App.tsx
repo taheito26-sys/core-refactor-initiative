@@ -38,6 +38,7 @@ import SettingsPage from './pages/SettingsPage';
 import CalendarPage from './pages/CalendarPage';
 import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
+import RelationshipPage from './pages/RelationshipPage';
 
 
 import NotificationsPage from './pages/NotificationsPage';
@@ -131,6 +132,7 @@ const App = () => (
                   <Route path="/trading/vault" element={<VaultPage />} />
                   <Route path="/crm" element={<CRMPage />} />
                   <Route path="/merchants" element={<MerchantsPage />} />
+                  <Route path="/merchants/:relationshipId" element={<RelationshipPage />} />
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />
