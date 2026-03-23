@@ -1,0 +1,227 @@
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/features/auth/auth-context';
+import { useT } from '@/lib/i18n';
+import { supabase } from '@/integrations/supabase/client';
+import { DealsTab } from '@/features/merchants/components/DealsTab';
+import { SettlementTab } from '@/features/merchants/components/SettlementTab';
+import { ProfitDistributionPanel } from '@/features/merchants/components/ProfitDistributionPanel';
+import { CapitalPoolPanel } from '@/features/merchants/components/CapitalPoolPanel';
+import { BalanceLedger } from '@/features/merchants/components/BalanceLedger';
+import { ChatTab } from '@/features/merchants/components/ChatTab';
+import { useTrackerState } from '@/lib/useTrackerState';
+import '@/styles/tracker.css';
+
+type WorkspaceTab = 'deals' | 'settlements' | 'pnl' | 'capital' | 'chat';
+
+interface AgreementRow {
+  id: string;
+  relationship_id: string;
+  title: string;
+  deal_type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  counterparty_name?: string;
+  settlement_cadence?: string;
+}
+
+export default function RelationshipPage() {
+  const { relationshipId } = useParams<{ relationshipId: string }>();
+  const navigate = useNavigate();
+  const { userId, merchantProfile } = useAuth();
+  const t = useT();
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('deals');
+  const [relationship, setRelationship] = useState<any>(null);
+  const [agreements, setAgreements] = useState<AgreementRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const { state: trackerState, derived: trackerDerived } = useTrackerState({});
+
+  useEffect(() => {
+    if (!relationshipId || !userId) return;
+    loadData();
+  }, [relationshipId, userId, merchantProfile?.merchant_id]);
+
+  const loadData = async () => {
+    if (!relationshipId || !userId) return;
+    setLoading(true);
+    try {
+      const myMerchantId = merchantProfile?.merchant_id;
+
+      const [relRes, dealsRes, profilesRes] = await Promise.all([
+        supabase.from('merchant_relationships').select('*').eq('id', relationshipId).single(),
+        supabase.from('merchant_deals').select('*').eq('relationship_id', relationshipId).order('created_at', { ascending: false }),
+        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
+      ]);
+
+      if (relRes.error || !relRes.data) {
+        navigate('/merchants');
+        return;
+      }
+
+      const profileMap = new Map((profilesRes.data || []).map(p => [p.merchant_id, p]));
+      const r = relRes.data;
+      const cpId = r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id;
+      const cp = profileMap.get(cpId);
+
+      setRelationship({
+        ...r,
+        counterparty_name: cp?.display_name || cpId,
+        counterparty_nickname: cp?.nickname || '',
+        counterparty_code: (cp as any)?.merchant_code || '',
+      });
+
+      setAgreements((dealsRes.data || []).map(d => ({
+        id: d.id,
+        relationship_id: d.relationship_id,
+        title: d.title,
+        deal_type: d.deal_type,
+        amount: d.amount,
+        currency: d.currency,
+        status: d.status,
+        created_at: d.created_at,
+        settlement_cadence: (d as any).settlement_cadence || 'monthly',
+      })));
+    } catch (err) {
+      console.error('Failed to load relationship:', err);
+      navigate('/merchants');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const relDeals = useMemo(() =>
+    agreements
+      .filter(a => a.relationship_id === relationshipId && a.status !== 'cancelled')
+      .map(d => ({
+        id: d.id,
+        title: d.title,
+        deal_type: d.deal_type,
+        settlement_cadence: d.settlement_cadence || 'monthly',
+        amount: d.amount,
+        created_at: d.created_at,
+      })),
+    [agreements, relationshipId]
+  );
+
+  const isPartner = relationship
+    ? merchantProfile?.merchant_id !== relationship.merchant_a_id
+    : false;
+
+  const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
+    { key: 'deals', label: t('dealsLabel'), icon: '📋' },
+    { key: 'settlements', label: t('settlements'), icon: '💰' },
+    { key: 'pnl', label: t('pnl'), icon: '📊' },
+    { key: 'capital', label: t('capitalTab'), icon: '🏦' },
+    { key: 'chat', label: t('chatTab'), icon: '💬' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="tracker-root" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+        <div className="empty">
+          <div className="empty-t">{t('loading') || 'Loading...'}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!relationship) return null;
+
+  return (
+    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 0, minHeight: '100%' }}>
+
+      {/* ─── HEADER ─── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <button className="rowBtn" onClick={() => navigate('/merchants')} style={{ fontSize: 14, flexShrink: 0 }}>←</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {relationship.counterparty_name}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+            @{relationship.counterparty_nickname} · {t('code') || 'Code'}:{' '}
+            <span className="mono" style={{ fontWeight: 700 }}>{relationship.counterparty_code || '—'}</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+          <span className={`pill ${relationship.status === 'active' ? 'good' : 'warn'}`}>{relationship.status}</span>
+          <span style={{ fontSize: 9, color: 'var(--muted)' }}>
+            {t('since') || 'Since'}: {new Date(relationship.created_at).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+
+      {/* ─── TAB BAR ─── */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 12, overflowX: 'auto' }}>
+        {tabs.map(({ key, label, icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            style={{
+              padding: '8px 12px', fontSize: 10, fontWeight: activeTab === key ? 700 : 500,
+              color: activeTab === key ? 'var(--brand)' : 'var(--muted)',
+              borderBottom: activeTab === key ? '2px solid var(--brand)' : '2px solid transparent',
+              background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer',
+              transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+            }}
+          >
+            {icon} {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── TAB CONTENT ─── */}
+      <div style={{ flex: 1 }}>
+        {activeTab === 'deals' && (
+          <DealsTab
+            relationshipId={relationship.id}
+            agreements={agreements}
+          />
+        )}
+        {activeTab === 'settlements' && (
+          <SettlementTab
+            relationshipId={relationship.id}
+            deals={relDeals}
+            isPartner={isPartner}
+            trades={trackerState.trades || []}
+            tradeCalc={trackerDerived.tradeCalc || new Map()}
+          />
+        )}
+        {activeTab === 'pnl' && (
+          <ProfitDistributionPanel relationshipId={relationship.id} />
+        )}
+        {activeTab === 'capital' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <BalanceLedger relationshipId={relationship.id} />
+            {relDeals.filter(d => d.deal_type !== 'capital_transfer').length > 0 && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 8 }}>{t('perDealCapital') || 'Per-Deal Capital'}</div>
+                {relDeals.filter(d => d.deal_type !== 'capital_transfer').map(d => (
+                  <CapitalPoolPanel
+                    key={d.id}
+                    dealId={d.id}
+                    dealAmount={d.amount}
+                    dealTitle={d.title}
+                    relationshipId={relationship.id}
+                    isPartner={isPartner}
+                  />
+                ))}
+              </>
+            )}
+            {relDeals.filter(d => d.deal_type !== 'capital_transfer').length === 0 && (
+              <div className="empty">
+                <div className="empty-t">{t('noDeals')}</div>
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === 'chat' && (
+          <ChatTab relationshipId={relationship.id} />
+        )}
+      </div>
+    </div>
+  );
+}

@@ -7,10 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
-import { RelationshipDrawer } from '@/features/merchants/components/RelationshipDrawer';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
-import { useTrackerState } from '@/lib/useTrackerState';
 import '@/styles/tracker.css';
 
 type MerchantTab = 'relationships' | 'settlements' | 'chat';
@@ -41,7 +39,6 @@ export default function MerchantsPage() {
     if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships') return qTab as MerchantTab;
     return 'relationships';
   });
-  const [activeRelId, setActiveRelId] = useState<string | null>(null);
   const [relationships, setRelationships] = useState<any[]>([]);
   const [agreements, setAgreements] = useState<AgreementRow[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
@@ -55,7 +52,6 @@ export default function MerchantsPage() {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const { data: settlementOverview } = useSettlementOverview();
-  const { state: trackerState, derived: trackerDerived } = useTrackerState({});
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
@@ -72,8 +68,8 @@ export default function MerchantsPage() {
   }, [userId]);
 
   const handleOpenRelationship = useCallback((relationshipId: string) => {
-    setActiveRelId(relationshipId);
-  }, []);
+    navigate(`/merchants/${relationshipId}`);
+  }, [navigate]);
 
   const handleOpenOrders = useCallback((relationshipId: string) => {
     navigate(`/trading/orders?relationship=${relationshipId}`);
@@ -268,12 +264,7 @@ export default function MerchantsPage() {
     return cfg ? `${cfg.icon} ${cfg.label}` : dt;
   };
 
-
   const inboxCount = invites.filter(i => i.status === 'pending' && i.is_incoming).length;
-  const activeRelationship = useMemo(
-    () => relationships.find(r => r.id === activeRelId) ?? null,
-    [relationships, activeRelId]
-  );
 
   const overdueCount = settlementOverview?.overdueCount || 0;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
@@ -457,10 +448,10 @@ export default function MerchantsPage() {
                             <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
-                                 <button className="rowBtn" type="button" onClick={() => handleOpenRelationship(r.id)}>
+                                <button className="rowBtn" type="button" onClick={() => handleOpenRelationship(r.id)}>
                                   Open
                                 </button>
-                                 <button className="rowBtn" type="button" onClick={() => handleOpenOrders(r.id)}>
+                                <button className="rowBtn" type="button" onClick={() => handleOpenOrders(r.id)}>
                                   {t('orders') || 'Orders'}
                                 </button>
                               </div>
@@ -566,17 +557,6 @@ export default function MerchantsPage() {
           )}
 
         </>
-      )}
-
-      {/* ─── RELATIONSHIP DRAWER ─── */}
-      {activeRelationship && (
-        <RelationshipDrawer
-          relationship={activeRelationship}
-          agreements={agreements}
-          onClose={() => setActiveRelId(null)}
-          trackerTrades={trackerState.trades}
-          tradeCalc={trackerDerived.tradeCalc}
-        />
       )}
     </div>
   );
