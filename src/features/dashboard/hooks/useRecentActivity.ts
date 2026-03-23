@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 
@@ -13,6 +14,22 @@ export interface ActivityItem {
 export function useRecentActivity() {
   const { userId, merchantProfile } = useAuth();
   const merchantId = merchantProfile?.merchant_id;
+  const queryClient = useQueryClient();
+
+  // Real-time listener for notifications
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel('notifications-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        () => { queryClient.invalidateQueries({ queryKey: ['recent-activity'] }); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, queryClient]);
 
   return useQuery({
     queryKey: ['recent-activity', userId, merchantId],
