@@ -42,12 +42,11 @@ export function useProfitDistribution(relationshipId: string) {
         .eq('relationship_id', relationshipId)
         .in('status', ['approved', 'pending']);
 
-      const { data: allSettlements } = await supabase
+      const { data: settlements } = await supabase
         .from('merchant_settlements')
-        .select('*');
-      const settlements = (allSettlements || []).filter(
-        (s: any) => s.relationship_id === relationshipId && s.status === 'approved'
-      );
+        .select('*')
+        .eq('relationship_id', relationshipId)
+        .eq('status', 'approved');
 
       const { data: rel } = await supabase
         .from('merchant_relationships')
@@ -78,7 +77,7 @@ export function useProfitDistribution(relationshipId: string) {
           .reduce((sum, s) => sum + Number(s.amount), 0);
 
         const totalOrderVolume = Number(deal.amount || 0);
-        const totalNetProfit = 0;
+        const totalNetProfit = Number((deal as any).realized_pnl || 0);
 
         let partnerOwed = 0;
         let merchantOwed = 0;
