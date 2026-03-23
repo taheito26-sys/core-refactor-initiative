@@ -211,7 +211,7 @@ export default function NotificationsPage() {
       {/* ── Hero Header ── */}
       <div className="relative overflow-hidden border-b border-border/50">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-accent/[0.03]" />
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-6">
+        <div className="relative px-4 sm:px-6 py-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 shadow-sm">
@@ -263,7 +263,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* ── Controls ── */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+      <div className="px-4 sm:px-6 py-4">
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Search */}
           <div className="relative flex-1">
@@ -336,7 +336,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* ── Timeline ── */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-10">
+      <div className="px-4 sm:px-6 pb-10">
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <div className="h-12 w-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
