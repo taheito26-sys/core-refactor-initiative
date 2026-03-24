@@ -1657,7 +1657,7 @@ export default function OrdersPage() {
                               }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700 }}>
-                                    {selectedTemplateId === 'profit_share_family' ? '🤝' : '📊'} Allocation #{idx + 1}
+                                    {selectedTemplateId === 'profit_share_family' ? '🤝' : '📊'} {t('allocationNum')} #{idx + 1}
                                   </span>
                                   <button
                                     className="rowBtn"
