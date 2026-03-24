@@ -241,7 +241,7 @@ export default function NotificationsPage() {
                 disabled={markAllRead.isPending}
               >
                 <CheckCheck className="h-3.5 w-3.5" />
-                Mark all read ({unreadCount})
+                {t('notifMarkAllRead')} ({unreadCount})
               </Button>
             )}
           </div>
