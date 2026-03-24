@@ -147,7 +147,7 @@ function NotificationCard({
               onClick={(e) => { e.stopPropagation(); onMarkRead(n.id); }}
               className="ml-auto text-[10px] text-muted-foreground/50 hover:text-foreground font-medium transition-colors"
             >
-              Mark read
+              {t('markRead')}
             </button>
           )}
         </div>
