@@ -57,9 +57,9 @@ export function ChatTab({ relationshipId }: Props) {
   })();
 
   return (
-    <div ref={containerRef} className="flex flex-col h-full" style={{ minHeight: 400, maxHeight: 'calc(100vh - 200px)' }}>
-      {/* ── Messages area: flex-1 overflow-y-auto ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+    <div ref={containerRef} className="relative flex flex-col" style={{ height: 'calc(100vh - 220px)', minHeight: 350 }}>
+      {/* ── Messages area: scrolls, leaves room for input ── */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 pb-16 space-y-1">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="h-8 w-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
@@ -111,8 +111,8 @@ export function ChatTab({ relationshipId }: Props) {
         )}
       </div>
 
-      {/* ── Fixed input bar: always pinned at bottom ── */}
-      <div className="shrink-0 border-t border-border/50 bg-background px-3 py-2 flex items-center gap-2">
+      {/* ── Input bar: sticky at bottom, never moves ── */}
+      <div className="absolute bottom-0 inset-x-0 border-t border-border/50 bg-background px-3 py-2 flex items-center gap-2">
         <div className="flex-1 relative">
           <input
             ref={inputRef}
