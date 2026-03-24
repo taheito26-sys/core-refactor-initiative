@@ -580,7 +580,48 @@ const LEDGER_PRO: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER, EXECUTIVE_HUB, OPERATIONS_DESK, LEDGER_PRO];
+// ═══ AURORA — Luminous dark with organic warmth, northern-lights inspired ═══
+const AURORA: LayoutDef = {
+  id: 'aurora', name: 'Aurora', desc: 'Luminous dark · organic warmth',
+  font: 'Outfit', fontMono: 'JetBrains Mono',
+  radius: '18px', radiusSm: '12px', radiusLg: '24px',
+  shadow: '0 12px 40px rgba(0,0,0,.35), 0 0 80px rgba(120,80,255,.06)',
+  swatches: ['#0e0b1a','#7b5cff','#22d3a7','#ff6b9d','#f4a942','#3b9eff','#1a1528','#e040fb'],
+  themes: {
+    t1: { // Northern Glow — green-violet aurora
+      bg:'#0e0b1a', panel:'#16122a', panel2:'#1e1838', panel3:'#282048',
+      text:'#e8e0ff', muted:'#8878b8', muted2:'#6050a0',
+      line:'rgba(123,92,255,.1)', line2:'rgba(123,92,255,.05)',
+      brand:'#7b5cff', brand2:'#a78bfa', brand3:'rgba(123,92,255,.12)',
+      good:'#22d3a7', bad:'#ff6b9d', warn:'#f4a942',
+      sidebarBg:'#0a0814', topbarBg:'rgba(14,11,26,.96)',
+      cardBg:'#16122a', inputBg:'rgba(123,92,255,.08)',
+      hoverCard:'rgba(123,92,255,.06)', glow:'rgba(167,139,250,.2)',
+    },
+    t2: { // Coral Dusk — warm sunset aurora
+      bg:'#1a0e14', panel:'#281620', panel2:'#361e2c', panel3:'#442638',
+      text:'#ffe0ec', muted:'#c07090', muted2:'#a05070',
+      line:'rgba(255,107,157,.1)', line2:'rgba(255,107,157,.05)',
+      brand:'#ff6b9d', brand2:'#ff8eb8', brand3:'rgba(255,107,157,.12)',
+      good:'#22d3a7', bad:'#ff4d6d', warn:'#f4a942',
+      sidebarBg:'#14080e', topbarBg:'rgba(26,14,20,.96)',
+      cardBg:'#281620', inputBg:'rgba(255,107,157,.08)',
+      hoverCard:'rgba(255,107,157,.06)', glow:'rgba(255,142,184,.2)',
+    },
+    t3: { // Ocean Frost — cool aqua aurora
+      bg:'#080e1a', panel:'#0e1828', panel2:'#142236', panel3:'#1a2c44',
+      text:'#d8f0ff', muted:'#5898c8', muted2:'#3878a8',
+      line:'rgba(59,158,255,.1)', line2:'rgba(59,158,255,.05)',
+      brand:'#3b9eff', brand2:'#6ab8ff', brand3:'rgba(59,158,255,.12)',
+      good:'#22d3a7', bad:'#ff6b9d', warn:'#f4a942',
+      sidebarBg:'#04080e', topbarBg:'rgba(8,14,26,.96)',
+      cardBg:'#0e1828', inputBg:'rgba(59,158,255,.08)',
+      hoverCard:'rgba(59,158,255,.06)', glow:'rgba(106,184,255,.2)',
+    },
+  },
+};
+
+export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER, EXECUTIVE_HUB, OPERATIONS_DESK, LEDGER_PRO, AURORA];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
 export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto'];
 export const FONT_SIZES = [9,10,11,12,13,14];
