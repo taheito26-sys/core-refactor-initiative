@@ -1767,7 +1767,7 @@ export default function OrdersPage() {
                                 {/* Common: USDT allocation & cost */}
                                 <div className="g2tight">
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>Allocated USDT</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocatedUsdt')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
                                         inputMode="decimal" placeholder="0"
