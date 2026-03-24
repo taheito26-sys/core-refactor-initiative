@@ -1923,11 +1923,11 @@ export default function OrdersPage() {
                                     }}>
                                       <span>TOTAL</span>
                                       <span className="mono">
-                                        Rev {fmtQ(totals.revenue)} · Net <span style={{ color: totals.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{totals.net >= 0 ? '+' : ''}{fmtQ(totals.net)}</span>
+                                        {t('allocRev')} {fmtQ(totals.revenue)} · {t('allocNet')} <span style={{ color: totals.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{totals.net >= 0 ? '+' : ''}{fmtQ(totals.net)}</span>
                                         {' · '}
-                                        <span style={{ color: 'var(--good)' }}>You {fmtQ(totals.merchantTotal)}</span>
+                                        <span style={{ color: 'var(--good)' }}>{t('youShare')} {fmtQ(totals.merchantTotal)}</span>
                                         {' · '}
-                                        <span style={{ color: 'var(--bad)' }}>Partners {fmtQ(totals.partnerTotal)}</span>
+                                        <span style={{ color: 'var(--bad)' }}>{t('allocPartners')} {fmtQ(totals.partnerTotal)}</span>
                                       </span>
                                     </div>
                                   </div>
