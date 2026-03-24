@@ -1547,10 +1547,10 @@ export default function OrdersPage() {
                           }}
                           style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                         >
-                          <option value="">Select deal family...</option>
-                          <option value="profit_share_family">🤝 Profit Share (requires agreement)</option>
-                          <option value="sales_deal_family">📊 Sales Deal (no approval needed)</option>
-                          <option value="capital_transfer">💸 Capital Transfer</option>
+                          <option value="">{t('selectDealFamily')}</option>
+                          <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')}</option>
+                          <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
+                          <option value="capital_transfer">💸 {t('capitalTransferFamily')}</option>
                         </select>
                       </div>
 
