@@ -66,8 +66,8 @@ export function useSubmitCapitalTransfer() {
       if (dealErr) throw dealErr;
 
       // 2. Create the transfer record
-      const { error: txErr } = await supabase
-        .from('capital_transfers')
+      const { error: txErr } = await (supabase
+        .from('capital_transfers' as any)
         .insert({
           deal_id: deal.id,
           relationship_id: input.relationship_id,
@@ -78,7 +78,7 @@ export function useSubmitCapitalTransfer() {
           currency: 'USDT',
           transferred_by: userId!,
           note: input.note || null,
-        } as any);
+        }) as any);
       if (txErr) throw txErr;
     },
     onSuccess: (_, vars) => {

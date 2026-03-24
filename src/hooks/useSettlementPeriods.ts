@@ -108,13 +108,10 @@ export function useSyncSettlementPeriods(relationshipId: string) {
           .single();
 
         let partnerPct = 0;
-        if (dealMeta) {
-          const meta = (dealMeta.metadata && Object.keys(dealMeta.metadata).length > 0)
-            ? dealMeta.metadata
-            : {};
-          partnerPct = Number(
-            (meta as any).partner_ratio ?? (meta as any).counterparty_share_pct ?? 0
-          );
+        if (dealMeta?.notes) {
+          // Parse partner ratio from notes field (e.g. "partner_ratio: 50")
+          const ratioMatch = dealMeta.notes.match(/(?:partner_ratio|counterparty_share_pct):\s*(\d+)/);
+          if (ratioMatch) partnerPct = Number(ratioMatch[1]);
         }
 
         for (const period of periods) {
