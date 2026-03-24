@@ -96,6 +96,9 @@ const App = () => (
           <AuthProvider>
             <RouteErrorBoundary>
               <Routes>
+                {/* OAuth callback — handled by @lovable.dev/cloud-auth-js */}
+                <Route path="/~oauth/*" element={null} />
+
                 {/* Auth — public */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
