@@ -130,14 +130,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
-    // Direct Supabase OAuth — no Lovable Cloud dependency
-    const { error } = await supabase.auth.signInWithOAuth({
+    const redirectTo = `${window.location.origin}/auth/callback`;
+
+    console.info('[Auth] Starting Google OAuth with Supabase', { redirectTo });
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo,
       },
     });
-    if (error) throw error;
+
+    if (error) {
+      console.error('[Auth] Google OAuth initiation failed', {
+        message: error.message,
+        name: error.name,
+        status: 'status' in error ? error.status : undefined,
+        redirectTo,
+      });
+      throw error;
+    }
+
+    console.info('[Auth] Google OAuth redirect prepared', {
+      redirectTo,
+      hasUrl: Boolean(data?.url),
+    });
   }, []);
 
   const signup = useCallback(async (email: string, password: string) => {
