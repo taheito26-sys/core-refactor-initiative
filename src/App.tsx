@@ -97,10 +97,7 @@ const App = () => (
           <AuthProvider>
             <RouteErrorBoundary>
               <Routes>
-                {/* Lovable Cloud OAuth — library intercepts /~oauth/* */}
-                <Route path="/~oauth/*" element={null} />
-
-                {/* Legacy OAuth callback fallback */}
+                {/* OAuth callback — Supabase redirects here after Google consent */}
                 <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
                 {/* Auth — public */}
