@@ -70,6 +70,24 @@ class RouteErrorBoundary extends React.Component<
     console.error('[RouteErrorBoundary] route render failed', error);
   }
 
+  handleClearAndReload = async () => {
+    try {
+      // Unregister all service workers
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(r => r.unregister()));
+      }
+      // Clear caches
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(n => caches.delete(n)));
+      }
+    } catch {
+      // Best effort
+    }
+    window.location.reload();
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -77,8 +95,14 @@ class RouteErrorBoundary extends React.Component<
           <div className="text-center space-y-4">
             <h2 className="text-xl font-semibold text-foreground">This page could not be rendered.</h2>
             <p className="text-muted-foreground">
-              Try refreshing the page. If the issue continues, the data source may be temporarily unavailable.
+              This is usually caused by a stale cache. Tap below to clear and reload.
             </p>
+            <button
+              onClick={this.handleClearAndReload}
+              className="mt-4 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm shadow-sm hover:opacity-90 transition-opacity"
+            >
+              Clear Cache & Reload
+            </button>
           </div>
         </div>
       );
