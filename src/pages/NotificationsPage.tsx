@@ -15,6 +15,7 @@ import {
   notificationRoute,
   type Notification,
 } from '@/hooks/useNotifications';
+import { useT } from '@/lib/i18n';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
