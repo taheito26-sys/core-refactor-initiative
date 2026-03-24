@@ -222,13 +222,13 @@ export default function NotificationsPage() {
                 <Sparkles className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-black text-foreground tracking-tight">Activity Center</h1>
+                <h1 className="text-xl font-black text-foreground tracking-tight">{t('activityCenter')}</h1>
                 <p className="text-[12px] text-muted-foreground mt-0.5 flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
                   </span>
-                  Real-time updates · {(notifications ?? []).length} total alerts
+                  {t('realTimeUpdates')} · {(notifications ?? []).length} {t('totalAlerts')}
                 </p>
               </div>
             </div>
