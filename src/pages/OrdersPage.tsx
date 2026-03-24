@@ -1756,7 +1756,7 @@ export default function OrdersPage() {
                                       </div>
                                     </div>
                                     <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>Your Share %</div>
+                                      <div className="lbl" style={{ fontSize: 9 }}>{t('allocYourSharePct')}</div>
                                       <div className="inputBox" style={{ padding: '3px 6px' }}>
                                         <input type="number" readOnly value={alloc.merchantSharePct || 0} style={{ fontSize: 10, opacity: 0.6, cursor: 'not-allowed' }} />
                                       </div>
