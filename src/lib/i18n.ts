@@ -369,6 +369,10 @@ const translations = {
   inviteAccepted: { en: 'Invite accepted — relationship created!', ar: 'تم قبول الدعوة — تم إنشاء العلاقة!' },
   inviteRejected: { en: 'Invite rejected', ar: 'تم رفض الدعوة' },
   inviteWithdrawn: { en: 'Invite withdrawn', ar: 'تم سحب الدعوة' },
+  pendingInvitations: { en: 'Pending Invitations', ar: 'دعوات معلقة' },
+  connectionRequest: { en: 'New connection request', ar: 'طلب اتصال جديد' },
+  pendingStatus: { en: 'Pending...', ar: 'قيد الانتظار...' },
+  sentInvites: { en: 'Sent Invitations', ar: 'الدعوات المرسلة' },
   approved: { en: 'Approved', ar: 'تمت الموافقة' },
   rejected: { en: 'Rejected', ar: 'تم الرفض' },
   failedLoadNetwork: { en: 'Failed to load network data', ar: 'فشل تحميل بيانات الشبكة' },
@@ -868,7 +872,6 @@ const translations = {
   fromLabel: { en: 'From', ar: 'من' },
   toLabel: { en: 'To', ar: 'إلى' },
   sentInvitations: { en: 'Sent Invitations', ar: 'الدعوات المرسلة' },
-  sentInvites: { en: 'Sent Invitations', ar: 'الدعوات المرسلة' },
   settlementLabel: { en: 'Settlement', ar: 'التسوية' },
   message: { en: 'Message', ar: 'رسالة' },
 

@@ -413,28 +413,109 @@ export default function MerchantsPage() {
           {/* ═══ RELATIONSHIPS TAB ═══ */}
           {tab === 'relationships' && (
             <>
+              {/* ── PENDING INVITES SECTION ── */}
+              {invites.filter(i => i.status === 'pending' && i.is_incoming).length > 0 && (
+                <div style={{
+                  padding: '10px 12px', borderRadius: 8, marginBottom: 10,
+                  border: '2px solid var(--bad)',
+                  background: 'color-mix(in srgb, var(--bad) 8%, var(--cardBg))',
+                  animation: 'pulse 2s infinite',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8, color: 'var(--bad)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🔔 {t('pendingInvitations')}
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, background: 'var(--bad)',
+                      color: '#fff', borderRadius: 10, padding: '1px 6px',
+                    }}>
+                      {invites.filter(i => i.status === 'pending' && i.is_incoming).length}
+                    </span>
+                  </div>
+                  {invites.filter(i => i.status === 'pending' && i.is_incoming).map(inv => (
+                    <div key={inv.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '8px 10px', borderRadius: 6, marginBottom: 4,
+                      background: 'var(--cardBg)', border: '1px solid var(--line)',
+                      flexWrap: 'wrap', gap: 8,
+                    }}>
+                      <div style={{ flex: 1, minWidth: 150 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12 }}>{inv.from_name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                          {inv.message || (t('connectionRequest'))}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+                          {new Date(inv.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          className="btn"
+                          onClick={() => handleAcceptInvite(inv)}
+                          style={{ fontSize: 11, background: 'var(--good)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 700 }}
+                        >
+                          ✓ {t('accept')}
+                        </button>
+                        <button
+                          className="rowBtn"
+                          onClick={() => handleRejectInvite(inv.id)}
+                          style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 700 }}
+                        >
+                          ✗ {t('reject')}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── SENT INVITES (PENDING) ── */}
+              {invites.filter(i => i.status === 'pending' && !i.is_incoming).length > 0 && (
+                <div style={{
+                  padding: '8px 12px', borderRadius: 8, marginBottom: 10,
+                  border: '1px solid var(--line)', background: 'var(--cardBg)',
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--muted)' }}>
+                    📤 {t('sentInvites')}
+                  </div>
+                  {invites.filter(i => i.status === 'pending' && !i.is_incoming).map(inv => (
+                    <div key={inv.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '6px 8px', borderRadius: 4, marginBottom: 3,
+                      border: '1px solid var(--line)',
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 11 }}>{inv.to_name}</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('pendingStatus')}</div>
+                      </div>
+                      <button className="rowBtn" onClick={() => handleWithdrawInvite(inv.id)} style={{ fontSize: 10 }}>
+                        ↩ {t('withdraw')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('activeRelationships') || 'Active Relationships'}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{filteredRels.length} {t('merchants') || 'merchants'}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('activeRelationships')}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{filteredRels.length} {t('merchants')}</div>
                 </div>
               </div>
 
               {filteredRels.length === 0 ? (
                 <div className="empty">
-                  <div className="empty-t">{t('noRelationships') || 'No relationships yet'}</div>
-                  <div className="empty-s">{t('sendInviteToStart') || 'Send an invite to start collaborating'}</div>
+                  <div className="empty-t">{t('noRelationships')}</div>
+                  <div className="empty-s">{t('sendInviteToStart')}</div>
                 </div>
               ) : (
                 <div className="tableWrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('merchant') || 'Merchant'}</th>
-                        <th>{t('code') || 'Code'}</th>
+                        <th>{t('merchant')}</th>
+                        <th>{t('code')}</th>
                         <th>{t('status')}</th>
-                        <th className="r">{t('deals') || 'Deals'}</th>
-                        <th>{t('since') || 'Since'}</th>
+                        <th className="r">{t('deals')}</th>
+                        <th>{t('since')}</th>
                         <th>{t('actions')}</th>
                       </tr>
                     </thead>
@@ -454,10 +535,10 @@ export default function MerchantsPage() {
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
                                 <button className="rowBtn" type="button" onClick={() => handleOpenRelationship(r.id)}>
-                                  Open
+                                  {t('openWorkspaceLabel')}
                                 </button>
                                 <button className="rowBtn" type="button" onClick={() => handleOpenOrders(r.id)}>
-                                  {t('orders') || 'Orders'}
+                                  {t('orders')}
                                 </button>
                               </div>
                             </td>
