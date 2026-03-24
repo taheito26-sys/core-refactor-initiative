@@ -170,7 +170,7 @@ export default function SettingsPage() {
             <div>
               <Label className="text-xs mb-2 block">{t('dateRange')}</Label>
               <div className="flex gap-1.5">
-                {([{ id: 'today', label: '1 Day' }, { id: '7d', label: '7 Days' }, { id: '30d', label: '30 Days' }, { id: 'all', label: 'All' }] as const).map(r => (
+                {([{ id: 'today', labelKey: 'oneDay2' as const }, { id: '7d', labelKey: 'sevenDays2' as const }, { id: '30d', labelKey: 'thirtyDays' as const }, { id: 'all', labelKey: 'allLabel' as const }]).map(r => (
                   <button
                     key={r.id}
                     onClick={() => update({ range: r.id as any })}
@@ -179,11 +179,11 @@ export default function SettingsPage() {
                       draft.range === r.id ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
                     )}
                   >
-                    {r.label}
+                    {t(r.labelKey)}
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Default: 7 Days</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{t('defaultSevenDays')}</p>
             </div>
           </CardContent>
         </Card>

@@ -292,7 +292,7 @@ export default function DashboardPage() {
           <div className="panel-body" style={{ height: 190, position: 'relative' }}>
             {trendData.length < 2 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                <span className="muted" style={{ fontSize: 11 }}>{'Need at least 2 trades for chart'}</span>
+                <span className="muted" style={{ fontSize: 11 }}>{t('needAtLeast2Trades')}</span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
