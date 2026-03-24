@@ -311,7 +311,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
                   <th>{t('agreement')}</th>
                   <th>{t('cadence')}</th>
                   <th>{t('wasEffective')}</th>
-                  <th>{t('expired')}</th>
+                  <th>{t('expiredStatus')}</th>
                   <th>{t('status')}</th>
                 </tr>
               </thead>
