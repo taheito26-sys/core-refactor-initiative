@@ -1875,7 +1875,7 @@ export default function OrdersPage() {
 
                                 {/* Allocation balance */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                  <span className="muted">Total Sale USDT:</span>
+                                  <span className="muted">{t('totalSaleUsdt')}:</span>
                                   <strong className="mono">{fmtU(salePreview.qty)}</strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
