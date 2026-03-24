@@ -1690,7 +1690,7 @@ export default function OrdersPage() {
                                     }}
                                     style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                                   >
-                                    <option value="">Select merchant...</option>
+                                    <option value="">{t('selectMerchantAlloc')}</option>
                                     {relationships.map(r => (
                                       <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
                                     ))}
