@@ -1700,10 +1700,10 @@ export default function OrdersPage() {
                                 {/* Profit Share: Agreement selector (locked ratio) */}
                                 {selectedTemplateId === 'profit_share_family' && alloc.relationshipId && (
                                   <div className="field2" style={{ marginBottom: 4 }}>
-                                    <div className="lbl" style={{ fontSize: 9 }}>Approved Agreement <span style={{ color: 'var(--bad)' }}>*</span></div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
                                     {relAgreements.length === 0 ? (
                                       <div style={{ fontSize: 9, color: 'var(--bad)', padding: '4px 0' }}>
-                                        ⚠️ No approved profit share agreement for {alloc.merchantName || 'this merchant'}. Create one in the Merchants workspace first.
+                                        ⚠️ {t('noApprovedAgreement')} {alloc.merchantName || t('thisMerchant')}. {t('createInWorkspaceFirst')}
                                       </div>
                                     ) : (
                                       <select
