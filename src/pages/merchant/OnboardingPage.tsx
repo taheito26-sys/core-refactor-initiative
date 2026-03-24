@@ -6,14 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
 
 export default function OnboardingPage() {
   const { refreshProfile, userId, merchantProfile, isLoading } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
 
@@ -49,7 +50,7 @@ export default function OnboardingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (nicknameStatus === 'taken') {
-      toast.error('That nickname is already taken');
+      toast.error(t('onboardNickTaken'));
       return;
     }
     if (!userId) {
@@ -84,14 +85,14 @@ export default function OnboardingPage() {
       const { error } = await supabase.from('merchant_profiles').insert(insertPayload);
       if (error) throw error;
       await refreshProfile();
-      toast.success('Merchant profile created!');
+      toast.success(t('onboardSuccess'));
       navigate('/dashboard');
     } catch (err: unknown) {
       await refreshProfile();
       const message = err instanceof Error ? err.message : 'Failed to create profile';
 
       if (message.toLowerCase().includes('duplicate') || message.includes('409')) {
-        toast.info('Merchant profile already exists. Redirecting to dashboard.');
+        toast.info(t('onboardDuplicate'));
         navigate('/dashboard', { replace: true });
         return;
       }
@@ -103,21 +104,19 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4" dir={t.isRTL ? 'rtl' : 'ltr'}>
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Set Up Your Merchant Profile</CardTitle>
-          <CardDescription>
-            Complete your profile to start trading on the TRACKER platform.
-          </CardDescription>
+          <CardTitle className="text-2xl">{t('onboardTitle')}</CardTitle>
+          <CardDescription>{t('onboardDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="display_name">Display Name</Label>
+              <Label htmlFor="display_name">{t('onboardDisplayName')}</Label>
               <Input
                 id="display_name"
-                placeholder="Your display name"
+                placeholder={t('onboardDisplayNamePh')}
                 value={form.display_name}
                 onChange={(e) => setForm(f => ({ ...f, display_name: e.target.value }))}
                 required
@@ -127,11 +126,11 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="nickname">Public Nickname</Label>
+              <Label htmlFor="nickname">{t('onboardNickname')}</Label>
               <div className="relative">
                 <Input
                   id="nickname"
-                  placeholder="unique_handle"
+                  placeholder={t('onboardNicknamePh')}
                   value={form.nickname}
                   onChange={(e) => {
                     const v = e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, '');
@@ -142,42 +141,42 @@ export default function OnboardingPage() {
                   minLength={3}
                   maxLength={32}
                   className="pr-8"
+                  dir="ltr"
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2">
                   {nicknameStatus === 'available' && <CheckCircle2 className="h-4 w-4 text-success" />}
                   {nicknameStatus === 'taken' && <XCircle className="h-4 w-4 text-destructive" />}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Lowercase letters, numbers, dots, hyphens, underscores only.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('onboardNicknameHint')}</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="region">Region</Label>
+              <Label htmlFor="region">{t('onboardRegion')}</Label>
               <Input
                 id="region"
-                placeholder="e.g. Middle East, Asia"
+                placeholder={t('onboardRegionPh')}
                 value={form.region}
                 onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="default_currency">Default Currency</Label>
+              <Label htmlFor="default_currency">{t('onboardCurrency')}</Label>
               <Input
                 id="default_currency"
                 placeholder="USDT"
                 value={form.default_currency}
                 onChange={(e) => setForm(f => ({ ...f, default_currency: e.target.value.toUpperCase() }))}
+                dir="ltr"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bio">Bio (optional)</Label>
+              <Label htmlFor="bio">{t('onboardBio')}</Label>
               <Textarea
                 id="bio"
-                placeholder="Tell others about your trading focus..."
+                placeholder={t('onboardBioPh')}
                 value={form.bio}
                 onChange={(e) => setForm(f => ({ ...f, bio: e.target.value }))}
                 rows={3}
@@ -186,7 +185,7 @@ export default function OnboardingPage() {
 
             <Button type="submit" className="w-full" disabled={loading || nicknameStatus === 'taken'}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Profile
+              {t('onboardSubmit')}
             </Button>
           </form>
         </CardContent>
