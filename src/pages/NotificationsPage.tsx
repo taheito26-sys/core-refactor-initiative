@@ -249,10 +249,10 @@ export default function NotificationsPage() {
           {/* ── Stats bar ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
             {[
-              { label: 'Total', value: (notifications ?? []).length, icon: Bell, color: 'text-foreground' },
-              { label: 'Unread', value: unreadCount, icon: Sparkles, color: unreadCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
-              { label: 'Deals', value: (notifications ?? []).filter(n => normalizeCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
-              { label: 'This Week', value: (notifications ?? []).filter(n => Date.now() - new Date(n.created_at).getTime() < 7 * 86400000).length, icon: Clock, color: 'text-primary' },
+              { label: t('notifTotal'), value: (notifications ?? []).length, icon: Bell, color: 'text-foreground' },
+              { label: t('notifUnread'), value: unreadCount, icon: Sparkles, color: unreadCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
+              { label: t('notifDeals'), value: (notifications ?? []).filter(n => normalizeCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
+              { label: t('notifThisWeek'), value: (notifications ?? []).filter(n => Date.now() - new Date(n.created_at).getTime() < 7 * 86400000).length, icon: Clock, color: 'text-primary' },
             ].map(stat => (
               <div key={stat.label} className="flex items-center gap-2.5 p-3 rounded-xl bg-card/80 border border-border/50">
                 <stat.icon className={cn('h-4 w-4', stat.color)} />
