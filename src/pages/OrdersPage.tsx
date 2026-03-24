@@ -1893,7 +1893,7 @@ export default function OrdersPage() {
                                 {calcRows.length > 0 && (
                                   <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 4, marginTop: 2 }}>
                                     <div style={{ fontSize: 8, fontWeight: 700, color: 'var(--muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                                      Per-Merchant Breakdown
+                                      {t('perMerchantBreakdown')}
                                     </div>
                                     {allocations.map((alloc, i) => {
                                       const c = calcRows[i];
