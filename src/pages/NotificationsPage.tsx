@@ -383,7 +383,7 @@ export default function NotificationsPage() {
                   <div className="flex items-center gap-3 mb-3 relative">
                     <div className="absolute -left-10 hidden lg:flex h-7 w-7 items-center justify-center rounded-full bg-card border-2 border-border">
                       <span className="text-[9px] font-black text-muted-foreground">
-                        {group.label === 'Today' ? '🔥' : group.label === 'Yesterday' ? '📅' : '📆'}
+                        {group.label === t('notifToday') ? '🔥' : group.label === t('notifYesterday') ? '📅' : '📆'}
                       </span>
                     </div>
                     <h3 className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
