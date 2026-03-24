@@ -995,7 +995,7 @@ const translations = {
   rejectAction: { en: 'Reject', ar: 'رفض' },
   wasEffective: { en: 'Was Effective', ar: 'كان سارياً' },
   
-  created: { en: 'Created', ar: 'الإنشاء' },
+  
   activeStatus: { en: 'Active', ar: 'نشط' },
   inactiveStatus: { en: 'Inactive', ar: 'غير نشط' },
   expiredStatus: { en: 'Expired', ar: 'منتهي' },
