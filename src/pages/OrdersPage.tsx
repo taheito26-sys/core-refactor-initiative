@@ -163,7 +163,7 @@ export default function OrdersPage() {
       // Fetch capital transfers across all relationships
       const transferResults = await Promise.all(
         (relsRes.data || []).map(r =>
-          supabase.from('capital_transfers').select('*').eq('relationship_id', r.id)
+          supabase.from('capital_transfers' as any).select('*').eq('relationship_id', r.id) as any
         )
       );
       const allTx = transferResults.flatMap(r => r.data || []);
