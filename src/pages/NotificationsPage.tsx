@@ -353,7 +353,7 @@ export default function NotificationsPage() {
                 <Bell className="h-8 w-8 text-muted-foreground/30" />
               ) : (
                 (() => {
-                  const CatIcon = CATEGORIES.find(c => c.key === activeCategory)?.icon ?? Bell;
+                  const CatIcon = CATEGORY_KEYS.find(c => c.key === activeCategory)?.icon ?? Bell;
                   return <CatIcon className="h-8 w-8 text-muted-foreground/30" />;
                 })()
               )}
