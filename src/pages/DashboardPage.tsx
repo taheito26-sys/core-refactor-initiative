@@ -190,7 +190,7 @@ export default function DashboardPage() {
           </div>
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
           <div className={`kpi-val ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net)}</div>
-          <div className="kpi-sub">{dR.count} {t('trades')} · {fmtQ(dR.rev)} rev</div>
+          <div className="kpi-sub">{dR.count} {t('trades')} · {fmtQ(dR.rev)} {t('revSuffix')}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
@@ -258,7 +258,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="kpi-sub">
                   {refPrice
-                    ? `@ ${fmtP(refPrice)} QAR${isFallback ? ' (mkt avg)' : ''}`
+                    ? `@ ${fmtP(refPrice)} QAR${isFallback ? ` ${t('mktAvg')}` : ''}`
                     : cash > 0
                       ? t('addBatchesFirst')
                       : t('addBatchesFirst')}
@@ -277,7 +277,7 @@ export default function DashboardPage() {
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{state.batches.length} batch</span>
+            <span className="kpi-badge" style={{ color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{state.batches.length} {t('batchSuffix')}</span>
           </div>
           <div className="kpi-lbl">{t('stockCostEst')}</div>
           <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtQWithUnit(stCost)}</div>
@@ -292,7 +292,7 @@ export default function DashboardPage() {
           <div className="panel-body" style={{ height: 190, position: 'relative' }}>
             {trendData.length < 2 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                <span className="muted" style={{ fontSize: 11 }}>{'Need at least 2 trades for chart'}</span>
+                <span className="muted" style={{ fontSize: 11 }}>{t('needAtLeast2Trades')}</span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">

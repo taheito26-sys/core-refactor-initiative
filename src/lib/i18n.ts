@@ -1088,6 +1088,54 @@ const translations = {
   toSubmit: { en: 'to submit', ar: 'للإرسال' },
   thisMerchant: { en: 'this merchant', ar: 'هذا التاجر' },
   optionalNotePlaceholder: { en: 'Optional note...', ar: 'ملاحظة اختيارية...' },
+
+  // ── Activity Center Popover ──
+  clearAll: { en: 'Clear all', ar: 'مسح الكل' },
+  unreadAlerts: { en: 'unread alert', ar: 'تنبيه غير مقروء' },
+  unreadAlertsPlural: { en: 'unread alerts', ar: 'تنبيهات غير مقروءة' },
+  allCaughtUpShort: { en: 'All caught up', ar: 'لا جديد' },
+  loadingActivity: { en: 'Loading activity...', ar: 'جاري تحميل النشاط...' },
+  noActivityShort: { en: 'No activity yet', ar: 'لا يوجد نشاط بعد' },
+  noCategoryNotif: { en: 'No notifications', ar: 'لا توجد إشعارات' },
+  startDealOrInvite: { en: 'Create a deal or send an invite to get started', ar: 'أنشئ صفقة أو أرسل دعوة للبدء' },
+  checkBackLater: { en: 'Check back later for updates', ar: 'تحقق لاحقاً للتحديثات' },
+  liveLabel: { en: 'Live', ar: 'مباشر' },
+  totalDot: { en: 'total', ar: 'الإجمالي' },
+  realTimeEnabled: { en: 'Real-time updates enabled', ar: 'التحديثات الفورية مفعّلة' },
+  notifMessages: { en: 'Messages', ar: 'الرسائل' },
+
+  // ── Dashboard remaining ──
+  needAtLeast2Trades: { en: 'Need at least 2 trades for chart', ar: 'يلزم صفقتان على الأقل للرسم البياني' },
+  revSuffix: { en: 'rev', ar: 'إيرادات' },
+  batchSuffix: { en: 'batch', ar: 'دفعة' },
+  mktAvg: { en: '(mkt avg)', ar: '(متوسط السوق)' },
+
+  // ── Settings remaining ──
+  oneDay2: { en: '1 Day', ar: 'يوم واحد' },
+  sevenDays2: { en: '7 Days', ar: '7 أيام' },
+  thirtyDays: { en: '30 Days', ar: '30 يوم' },
+  allLabel: { en: 'All', ar: 'الكل' },
+  defaultSevenDays: { en: 'Default: 7 Days', ar: 'الافتراضي: 7 أيام' },
+
+  // ── P2P remaining ──
+  unknownTrader: { en: 'Unknown trader', ar: 'تاجر غير معروف' },
+  bankMethod: { en: 'Bank', ar: 'بنك' },
+  cashMethod: { en: 'Cash', ar: 'نقد' },
+  failedLoadP2P: { en: 'Failed to load P2P data', ar: 'فشل تحميل بيانات P2P' },
+
+  // ── Login page ──
+  signIn: { en: 'Sign In', ar: 'تسجيل الدخول' },
+  accessYourAccount: { en: 'Access your P2P Tracker account', ar: 'الوصول إلى حسابك في المتتبع' },
+  continueWithGoogle: { en: 'Continue with Google', ar: 'المتابعة بحساب Google' },
+  googleSignInFailed: { en: 'Google sign-in failed', ar: 'فشل تسجيل الدخول بـ Google' },
+  welcomeBack: { en: 'Welcome Back', ar: 'أهلاً بعودتك' },
+  secureTrading: { en: 'Secure P2P Trading Platform', ar: 'منصة تداول P2P آمنة' },
+  trustedByMerchants: { en: 'Trusted by merchants across Qatar', ar: 'موثوقة من التجار في قطر' },
+  qatarPowered: { en: 'Qatar-powered P2P intelligence', ar: 'ذكاء P2P بقوة قطر' },
+  liveMarketData: { en: 'Live market data & analytics', ar: 'بيانات وتحليلات السوق المباشرة' },
+  secureMerchantNetwork: { en: 'Secure merchant network', ar: 'شبكة تجار آمنة' },
+  smartFifoTracking: { en: 'Smart FIFO cost tracking', ar: 'تتبع ذكي لتكلفة FIFO' },
+  profitShareAuto: { en: 'Automated profit sharing', ar: 'تقاسم أرباح تلقائي' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
