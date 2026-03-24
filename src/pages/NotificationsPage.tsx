@@ -360,14 +360,14 @@ export default function NotificationsPage() {
             </div>
             <div className="text-center">
               <h3 className="text-sm font-bold text-muted-foreground">
-                {searchQuery ? 'No results found' : showUnreadOnly ? 'No unread notifications' : 'No activity yet'}
+                {searchQuery ? t('noResultsFound') : showUnreadOnly ? t('noUnreadNotifications') : t('notifNoActivityYet')}
               </h3>
               <p className="text-[12px] text-muted-foreground/60 mt-1 max-w-[260px]">
                 {searchQuery
-                  ? `No notifications match "${searchQuery}"`
+                  ? `${t('noNotificationsMatch')} "${searchQuery}"`
                   : showUnreadOnly
-                  ? 'You\'re all caught up! Toggle off the filter to see all activity.'
-                  : 'Create a deal or send an invite to start seeing activity here.'}
+                  ? t('allCaughtUp')
+                  : t('createDealOrInvite')}
               </p>
             </div>
           </div>
