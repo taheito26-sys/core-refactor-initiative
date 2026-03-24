@@ -1936,7 +1936,7 @@ export default function OrdersPage() {
                                 {/* Validation message */}
                                 {!allocationMatch && (
                                   <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 4, fontWeight: 600 }}>
-                                    ⚠️ Allocated USDT must exactly match total sale quantity ({fmtU(salePreview.qty)}) to submit.
+                                    ⚠️ {t('allocationMustMatch')} ({fmtU(salePreview.qty)}) {t('toSubmit')}.
                                   </div>
                                 )}
                               </div>
