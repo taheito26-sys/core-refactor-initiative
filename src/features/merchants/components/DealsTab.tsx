@@ -59,7 +59,7 @@ export function DealsTab({ relationshipId, agreements }: Props) {
         color: 'var(--muted)',
       }}>
         <strong style={{ color: 'var(--brand)' }}>{t('howItWorksAgreement')}</strong>{' '}
-        {t('ordersPageOnlyExecution') || 'All orders are created from the Orders page. This tab shows existing deals for reference.'}
+        {t('ordersPageOnlyExecution')}
       </div>
 
       {relDeals.length === 0 ? (

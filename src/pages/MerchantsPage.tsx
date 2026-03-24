@@ -477,9 +477,9 @@ export default function MerchantsPage() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>🤝 Profit Share Agreements</div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('profitShareAgreements')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    Standing agreements across all relationships · {activeAgreementCount} active
+                    {t('standingAgreementsAllRels')} · {activeAgreementCount} {t('active')}
                   </div>
                 </div>
               </div>
@@ -491,28 +491,26 @@ export default function MerchantsPage() {
                 border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)',
                 color: 'var(--muted)',
               }}>
-                <strong style={{ color: 'var(--brand)' }}>Profit Share Agreements</strong> are created in the merchant workspace.
-                Once approved, they appear in the <strong>Orders</strong> page when creating profit share orders.
-                Sales Deals and Capital Transfers don't require agreements.
+                <strong style={{ color: 'var(--brand)' }}>{t('profitShareAgreementsGlobal')}</strong> {t('agreementsCreatedInWorkspace')}
               </div>
 
               {allAgreements.length === 0 ? (
                 <div className="empty">
-                  <div className="empty-t">No agreements yet</div>
-                  <div className="empty-s">Open a merchant workspace to create Profit Share agreements.</div>
+                  <div className="empty-t">{t('noAgreementsGlobal')}</div>
+                  <div className="empty-s">{t('openMerchantToCreate')}</div>
                 </div>
               ) : (
                 <div className="tableWrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>Merchant</th>
-                        <th>Agreement</th>
-                        <th>Cadence</th>
-                        <th>Effective</th>
-                        <th>Expires</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th>{t('merchant') || 'Merchant'}</th>
+                        <th>{t('agreement')}</th>
+                        <th>{t('cadence')}</th>
+                        <th>{t('effective')}</th>
+                        <th>{t('expires')}</th>
+                        <th>{t('status')}</th>
+                        <th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -521,7 +519,7 @@ export default function MerchantsPage() {
                         const cpName = rel?.counterparty_name || '—';
                         const active = a.status === 'approved' && isAgreementActive(a);
                         const statusCls = active ? 'good' : a.status === 'rejected' ? 'bad' : 'warn';
-                        const statusLabel = active ? 'Active' : a.status === 'rejected' ? 'Rejected' : a.status === 'expired' ? 'Expired' : 'Inactive';
+                        const statusLabel = active ? t('activeStatus') : a.status === 'rejected' ? t('rejectedStatus') : a.status === 'expired' ? t('expiredStatus') : t('inactiveStatus');
                         return (
                           <tr key={a.id} style={{ opacity: active ? 1 : 0.6 }}>
                             <td>
@@ -532,11 +530,11 @@ export default function MerchantsPage() {
                                 🤝 {a.partner_ratio}/{a.merchant_ratio}
                               </div>
                               <div style={{ fontSize: 9, color: 'var(--muted)' }}>
-                                Partner {a.partner_ratio}% · You {a.merchant_ratio}%
+                                {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}%
                               </div>
                             </td>
                             <td style={{ fontSize: 10 }}>
-                              {a.settlement_cadence === 'per_order' ? '⚡ Per Order' : a.settlement_cadence === 'weekly' ? '📆 Weekly' : '📅 Monthly'}
+                              {a.settlement_cadence === 'per_order' ? t('perOrderCadence') : a.settlement_cadence === 'weekly' ? t('weeklyCadence') : t('monthlyCadence')}
                             </td>
                             <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
                             <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
@@ -544,7 +542,7 @@ export default function MerchantsPage() {
                             <td>
                               {rel && (
                                 <button className="rowBtn" onClick={() => handleOpenRelationship(rel.id)}>
-                                  Open Workspace
+                                  {t('openWorkspaceLabel')}
                                 </button>
                               )}
                             </td>
