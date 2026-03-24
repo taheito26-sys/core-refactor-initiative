@@ -192,7 +192,7 @@ export default function NotificationsPage() {
     return items;
   }, [notifications, activeCategory, showUnreadOnly, searchQuery]);
 
-  const grouped = useMemo(() => groupByDay(filtered), [filtered]);
+  const grouped = useMemo(() => groupByDay(filtered, t), [filtered, t]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
