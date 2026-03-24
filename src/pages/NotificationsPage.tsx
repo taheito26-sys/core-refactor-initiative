@@ -306,7 +306,7 @@ export default function NotificationsPage() {
 
         {/* Category tabs */}
         <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide pb-1">
-          {CATEGORIES.map(cat => {
+          {CATEGORY_KEYS.map(cat => {
             const count = cat.key === 'all' ? unreadCount : (categoryCounts[cat.key] || 0);
             const isActive = activeCategory === cat.key;
             const CatIcon = cat.icon;
@@ -322,7 +322,7 @@ export default function NotificationsPage() {
                 )}
               >
                 <CatIcon className="h-3.5 w-3.5" />
-                {cat.label}
+                {t(cat.labelKey as any)}
                 {count > 0 && (
                   <span className={cn(
                     'flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-black',
