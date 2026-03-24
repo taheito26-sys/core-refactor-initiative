@@ -20,18 +20,19 @@ import {
   notificationRoute,
   type Notification,
 } from '@/hooks/useNotifications';
+import { useT } from '@/lib/i18n';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'message' | 'system';
 
-const CATEGORIES: { key: CategoryKey; label: string; icon: React.ComponentType<{ className?: string }>; activeBg: string; activeText: string }[] = [
-  { key: 'all', label: 'All', icon: Sparkles, activeBg: 'bg-primary', activeText: 'text-primary-foreground' },
-  { key: 'deal', label: 'Deals', icon: Handshake, activeBg: 'bg-accent', activeText: 'text-accent-foreground' },
-  { key: 'order', label: 'Orders', icon: Package, activeBg: 'bg-warning', activeText: 'text-warning-foreground' },
-  { key: 'invite', label: 'Invites', icon: Mail, activeBg: 'bg-[hsl(260,60%,50%)]', activeText: 'text-white' },
-  { key: 'approval', label: 'Approvals', icon: ShieldCheck, activeBg: 'bg-success', activeText: 'text-success-foreground' },
-  { key: 'message', label: 'Messages', icon: MessageCircle, activeBg: 'bg-[hsl(200,70%,50%)]', activeText: 'text-white' },
-  { key: 'system', label: 'System', icon: Zap, activeBg: 'bg-muted-foreground', activeText: 'text-background' },
+const CATEGORIES: { key: CategoryKey; labelKey: string; icon: React.ComponentType<{ className?: string }>; activeBg: string; activeText: string }[] = [
+  { key: 'all', labelKey: 'notifAllActivity', icon: Sparkles, activeBg: 'bg-primary', activeText: 'text-primary-foreground' },
+  { key: 'deal', labelKey: 'notifDeals', icon: Handshake, activeBg: 'bg-accent', activeText: 'text-accent-foreground' },
+  { key: 'order', labelKey: 'orders', icon: Package, activeBg: 'bg-warning', activeText: 'text-warning-foreground' },
+  { key: 'invite', labelKey: 'notifInvites', icon: Mail, activeBg: 'bg-[hsl(260,60%,50%)]', activeText: 'text-white' },
+  { key: 'approval', labelKey: 'notifApprovals', icon: ShieldCheck, activeBg: 'bg-success', activeText: 'text-success-foreground' },
+  { key: 'message', labelKey: 'notifMessages', icon: MessageCircle, activeBg: 'bg-[hsl(200,70%,50%)]', activeText: 'text-white' },
+  { key: 'system', labelKey: 'notifSystem', icon: Zap, activeBg: 'bg-muted-foreground', activeText: 'text-background' },
 ];
 
 const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
@@ -46,13 +47,13 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
 };
 
 // ─── Group by day ───────────────────────────────────────────────────
-function groupByDay(items: Notification[]): { label: string; items: Notification[] }[] {
+function groupByDay(items: Notification[], t: ReturnType<typeof useT>): { label: string; items: Notification[] }[] {
   const groups = new Map<string, Notification[]>();
   for (const n of items) {
     const d = new Date(n.created_at);
     let label: string;
-    if (isToday(d)) label = 'Today';
-    else if (isYesterday(d)) label = 'Yesterday';
+    if (isToday(d)) label = t('notifToday');
+    else if (isYesterday(d)) label = t('notifYesterday');
     else label = format(d, 'MMM d, yyyy');
     const existing = groups.get(label) || [];
     existing.push(n);
@@ -83,7 +84,6 @@ function NotificationRow({
           : 'hover:bg-muted/50'
       )}
     >
-      {/* Live pulse for unread */}
       {isUnread && (
         <span className="absolute top-3 left-1 flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50" />
@@ -91,7 +91,6 @@ function NotificationRow({
         </span>
       )}
 
-      {/* Category icon */}
       <div className={cn(
         'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105',
         meta.bg
@@ -99,7 +98,6 @@ function NotificationRow({
         <Icon className={cn('h-4 w-4', meta.color)} />
       </div>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className={cn(
@@ -137,6 +135,7 @@ export default function ActivityCenter() {
   const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
   const navigate = useNavigate();
+  const t = useT();
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllRead();
@@ -152,7 +151,7 @@ export default function ActivityCenter() {
     });
   }, [notifications, activeCategory]);
 
-  const grouped = useMemo(() => groupByDay(filtered), [filtered]);
+  const grouped = useMemo(() => groupByDay(filtered, t), [filtered, t]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -203,9 +202,11 @@ export default function ActivityCenter() {
                 <Sparkles className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <h3 className="text-[13px] font-bold text-foreground leading-tight">Activity Center</h3>
+                <h3 className="text-[13px] font-bold text-foreground leading-tight">{t('activityCenter')}</h3>
                 <p className="text-[10px] text-muted-foreground leading-tight">
-                  {unreadCount > 0 ? `${unreadCount} unread alert${unreadCount > 1 ? 's' : ''}` : 'All caught up'}
+                  {unreadCount > 0
+                    ? `${unreadCount} ${unreadCount > 1 ? t('unreadAlertsPlural') : t('unreadAlerts')}`
+                    : t('allCaughtUpShort')}
                 </p>
               </div>
             </div>
@@ -218,7 +219,7 @@ export default function ActivityCenter() {
                 disabled={markAllRead.isPending}
               >
                 <CheckCheck className="h-3 w-3" />
-                Clear all
+                {t('clearAll')}
               </Button>
             )}
           </div>
@@ -241,7 +242,7 @@ export default function ActivityCenter() {
                   )}
                 >
                   <CatIcon className="h-3 w-3" />
-                  {cat.label}
+                  {t(cat.labelKey as any)}
                   {count > 0 && (
                     <span className={cn(
                       'ml-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[8px] font-black',
@@ -265,7 +266,7 @@ export default function ActivityCenter() {
               <div className="relative">
                 <div className="h-10 w-10 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
               </div>
-              <p className="text-[11px] text-muted-foreground font-medium">Loading activity...</p>
+              <p className="text-[11px] text-muted-foreground font-medium">{t('loadingActivity')}</p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center py-14 gap-3">
@@ -281,12 +282,12 @@ export default function ActivityCenter() {
               </div>
               <div className="text-center">
                 <p className="text-[12px] font-semibold text-muted-foreground">
-                  {activeCategory === 'all' ? 'No activity yet' : `No ${activeCategory} notifications`}
+                  {activeCategory === 'all' ? t('noActivityShort') : t('noCategoryNotif')}
                 </p>
                 <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                   {activeCategory === 'all'
-                    ? 'Create a deal or send an invite to get started'
-                    : 'Check back later for updates'}
+                    ? t('startDealOrInvite')
+                    : t('checkBackLater')}
                 </p>
               </div>
             </div>
@@ -294,7 +295,6 @@ export default function ActivityCenter() {
             <div className="py-1.5">
               {grouped.map(group => (
                 <div key={group.label}>
-                  {/* Day label */}
                   <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-1.5 bg-background/95 backdrop-blur-sm">
                     <div className="h-px flex-1 bg-border/50" />
                     <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
@@ -302,7 +302,6 @@ export default function ActivityCenter() {
                     </span>
                     <div className="h-px flex-1 bg-border/50" />
                   </div>
-                  {/* Notifications */}
                   <div className="px-1.5 space-y-0.5">
                     {group.items.map(n => (
                       <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} />
@@ -322,10 +321,10 @@ export default function ActivityCenter() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
               </span>
-              <span className="text-[9px] font-semibold text-success uppercase tracking-wider">Live</span>
+              <span className="text-[9px] font-semibold text-success uppercase tracking-wider">{t('liveLabel')}</span>
             </div>
             <span className="text-[9px] text-muted-foreground/50">
-              {(notifications ?? []).length} total · Real-time updates enabled
+              {(notifications ?? []).length} {t('totalDot')} · {t('realTimeEnabled')}
             </span>
           </div>
         </div>
