@@ -1,28 +1,39 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
 /**
- * OAuthCallbackPage
+ * OAuthCallbackPage — rendered at /auth/callback after Google OAuth.
  *
- * Rendered at /~oauth/* after the Lovable auth library processes the Google
- * OAuth callback and sets the Supabase session via supabase.auth.setSession().
+ * Supabase routes the user back here with either:
+ *   - PKCE flow: ?code=<code>  → must call exchangeCodeForSession()
+ *   - Implicit flow: #access_token=... → Supabase JS auto-detects on init
  *
- * Because the library is async, isLoading may already be false (no prior
- * session) before the new session is written. We therefore watch for
- * `isAuthenticated` to become true via onAuthStateChange — which fires
- * whenever the session changes — and redirect to /dashboard at that point.
- *
- * A 10-second safety timeout redirects back to /login if the auth library
- * never resolves (e.g. invalid OAuth code, network error).
+ * Once onAuthStateChange fires with a valid session, isAuthenticated becomes
+ * true and we navigate to /dashboard. A 15-second safety timeout falls back
+ * to /login if the exchange never resolves.
  */
 export default function OAuthCallbackPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const redirectedRef = useRef(false);
 
-  // Redirect to dashboard as soon as auth is confirmed
+  // Handle PKCE code exchange (Supabase default for newer setups)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).catch((err) => {
+        console.error('[OAuthCallback] exchangeCodeForSession failed', err);
+      });
+    }
+    // Implicit flow (#access_token=...) is handled automatically by the
+    // Supabase client via detectSessionInUrl on createClient()
+  }, []);
+
+  // Redirect to dashboard as soon as session is confirmed
   useEffect(() => {
     if (isAuthenticated && !redirectedRef.current) {
       redirectedRef.current = true;
@@ -30,14 +41,14 @@ export default function OAuthCallbackPage() {
     }
   }, [isAuthenticated, navigate]);
 
-  // Safety net: if auth never resolves, send the user back to login
+  // Safety net: redirect to login if auth never resolves
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!redirectedRef.current) {
         redirectedRef.current = true;
         navigate('/login', { replace: true });
       }
-    }, 10_000);
+    }, 15_000);
     return () => clearTimeout(timer);
   }, [navigate]);
 

@@ -97,8 +97,11 @@ const App = () => (
           <AuthProvider>
             <RouteErrorBoundary>
               <Routes>
-                {/* OAuth callback — session set by @lovable.dev/cloud-auth-js, then redirected by OAuthCallbackPage */}
-                <Route path="/~oauth/*" element={<OAuthCallbackPage />} />
+                {/* Supabase Google OAuth callback (PKCE + implicit) */}
+                <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+
+                {/* Lovable internal OAuth route — leave as null so the library handles it */}
+                <Route path="/~oauth/*" element={null} />
 
                 {/* Auth — public */}
                 <Route path="/login" element={<LoginPage />} />
