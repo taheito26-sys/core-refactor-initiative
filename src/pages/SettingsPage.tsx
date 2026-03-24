@@ -18,7 +18,6 @@ import {
   FONT_SIZES,
   VISION_PROFILES,
   FONT_CONFIG,
-  VIEW_TEMPLATES,
   detectOptimalFontSize,
   type ThemeDef,
 } from '@/lib/theme-context';
@@ -62,39 +61,6 @@ export default function SettingsPage() {
       </PageHeader>
 
       <div className="p-6 space-y-4">
-        {/* ── View Templates ── */}
-        <Card className="glass">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-display">🖼️ View Template</CardTitle>
-              <Badge variant="outline" className="text-xs">{VIEW_TEMPLATES.find(v => v.id === draft.viewTemplate)?.name || 'Default'}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {VIEW_TEMPLATES.map(v => (
-                <button
-                  key={v.id}
-                  onClick={() => update({ viewTemplate: v.id })}
-                  className={cn(
-                    'relative rounded-lg border p-3 text-left transition-all hover:border-primary/50',
-                    draft.viewTemplate === v.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border'
-                  )}
-                >
-                  {draft.viewTemplate === v.id && (
-                    <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                      <Check className="w-2.5 h-2.5 text-primary-foreground" />
-                    </div>
-                  )}
-                  <div className="text-lg mb-1">{v.icon}</div>
-                  <div className="text-xs font-bold">{v.name}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{v.desc}</div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* ── Layout Templates ── */}
         <Card className="glass">
           <CardHeader className="pb-2">
@@ -104,7 +70,7 @@ export default function SettingsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-3 mb-6">
               {LAYOUTS.map(l => (
                 <button
                   key={l.id}

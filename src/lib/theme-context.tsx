@@ -457,7 +457,130 @@ const DARK_LEDGER: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER];
+// ═══ EXECUTIVE HUB — Clean overview, card-based, generous spacing ═══
+const EXECUTIVE_HUB: LayoutDef = {
+  id: 'executive_hub', name: 'Executive Hub', desc: 'Card-based overview · spacious',
+  font: 'Plus Jakarta Sans', fontMono: 'JetBrains Mono',
+  radius: '14px', radiusSm: '10px', radiusLg: '20px',
+  shadow: '0 8px 30px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)',
+  swatches: ['#f5f7fb','#1e40af','#0891b2','#059669','#dc2626','#7c3aed','#f59e0b','#0f172a'],
+  themes: {
+    t1: { // Sapphire Executive
+      bg:'#f5f7fb', panel:'#ffffff', panel2:'#eef2f9', panel3:'#dfe6f2',
+      text:'#0c1a2e', muted:'#4b6382', muted2:'#8ba3be',
+      line:'rgba(30,64,175,.07)', line2:'rgba(30,64,175,.03)',
+      brand:'#1e40af', brand2:'#2563eb', brand3:'rgba(30,64,175,.08)',
+      good:'#059669', bad:'#dc2626', warn:'#f59e0b',
+      sidebarBg:'#0c1a2e', topbarBg:'rgba(245,247,251,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(30,64,175,.04)',
+      hoverCard:'rgba(30,64,175,.03)', glow:'rgba(37,99,235,.12)',
+    },
+    t2: { // Teal Summit
+      bg:'#f0fafb', panel:'#ffffff', panel2:'#e0f5f7', panel3:'#c4eaef',
+      text:'#0a2024', muted:'#2e6b78', muted2:'#68a8b8',
+      line:'rgba(8,145,178,.07)', line2:'rgba(8,145,178,.03)',
+      brand:'#0891b2', brand2:'#06b6d4', brand3:'rgba(8,145,178,.08)',
+      good:'#059669', bad:'#dc2626', warn:'#f59e0b',
+      sidebarBg:'#0a2024', topbarBg:'rgba(240,250,251,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(8,145,178,.04)',
+      hoverCard:'rgba(8,145,178,.03)', glow:'rgba(6,182,212,.12)',
+    },
+    t3: { // Violet Board
+      bg:'#f8f5ff', panel:'#ffffff', panel2:'#f0eaff', panel3:'#e2d8ff',
+      text:'#1a0e30', muted:'#5b3d8a', muted2:'#9578c0',
+      line:'rgba(124,58,237,.07)', line2:'rgba(124,58,237,.03)',
+      brand:'#7c3aed', brand2:'#8b5cf6', brand3:'rgba(124,58,237,.08)',
+      good:'#059669', bad:'#dc2626', warn:'#f59e0b',
+      sidebarBg:'#1a0e30', topbarBg:'rgba(248,245,255,.97)',
+      cardBg:'#ffffff', inputBg:'rgba(124,58,237,.04)',
+      hoverCard:'rgba(124,58,237,.03)', glow:'rgba(139,92,246,.12)',
+    },
+  },
+};
+
+// ═══ OPERATIONS DESK — Table-focused, medium-high density, ops workflow ═══
+const OPERATIONS_DESK: LayoutDef = {
+  id: 'operations_desk', name: 'Operations Desk', desc: 'Table-focused · ops workflow',
+  font: 'DM Sans', fontMono: 'IBM Plex Mono',
+  radius: '5px', radiusSm: '3px', radiusLg: '8px',
+  shadow: '0 1px 4px rgba(0,0,0,.1), 0 0 0 1px rgba(0,0,0,.04)',
+  swatches: ['#0b1622','#00c9a7','#ff6b6b','#4ecdc4','#ffe66d','#a855f7','#3b82f6','#f97316'],
+  themes: {
+    t1: { // Midnight Ops
+      bg:'#0b1622', panel:'#111f30', panel2:'#172840', panel3:'#1d3250',
+      text:'#d0e4f4', muted:'#5a8aaa', muted2:'#3a6a8a',
+      line:'rgba(0,201,167,.1)', line2:'rgba(0,201,167,.05)',
+      brand:'#00c9a7', brand2:'#00b094', brand3:'rgba(0,201,167,.1)',
+      good:'#00c9a7', bad:'#ff6b6b', warn:'#ffe66d',
+      sidebarBg:'#060e18', topbarBg:'rgba(11,22,34,.98)',
+      cardBg:'#111f30', inputBg:'rgba(0,201,167,.06)',
+      hoverCard:'rgba(0,201,167,.04)', glow:'rgba(0,201,167,.18)',
+    },
+    t2: { // Arctic Command
+      bg:'#080e18', panel:'#0e1828', panel2:'#142238', panel3:'#1a2c48',
+      text:'#c8d8f0', muted:'#4878a8', muted2:'#285888',
+      line:'rgba(59,130,246,.1)', line2:'rgba(59,130,246,.05)',
+      brand:'#3b82f6', brand2:'#60a5fa', brand3:'rgba(59,130,246,.1)',
+      good:'#4ecdc4', bad:'#ff6b6b', warn:'#ffe66d',
+      sidebarBg:'#04080e', topbarBg:'rgba(8,14,24,.98)',
+      cardBg:'#0e1828', inputBg:'rgba(59,130,246,.06)',
+      hoverCard:'rgba(59,130,246,.04)', glow:'rgba(96,165,250,.18)',
+    },
+    t3: { // Flame Console
+      bg:'#14100a', panel:'#1e1810', panel2:'#282018', panel3:'#322820',
+      text:'#f0d8b8', muted:'#a08050', muted2:'#806030',
+      line:'rgba(249,115,22,.1)', line2:'rgba(249,115,22,.05)',
+      brand:'#f97316', brand2:'#fb923c', brand3:'rgba(249,115,22,.1)',
+      good:'#4ecdc4', bad:'#ff6b6b', warn:'#ffe66d',
+      sidebarBg:'#100c06', topbarBg:'rgba(20,16,10,.98)',
+      cardBg:'#1e1810', inputBg:'rgba(249,115,22,.06)',
+      hoverCard:'rgba(249,115,22,.04)', glow:'rgba(251,146,60,.2)',
+    },
+  },
+};
+
+// ═══ LEDGER PRO — Maximum density, financial power-user ═══
+const LEDGER_PRO: LayoutDef = {
+  id: 'ledger_pro', name: 'Ledger Pro', desc: 'Max density · financial review',
+  font: 'IBM Plex Mono', fontMono: 'IBM Plex Mono',
+  radius: '3px', radiusSm: '2px', radiusLg: '4px',
+  shadow: '0 0 0 1px rgba(0,0,0,.08)',
+  swatches: ['#fafafa','#18181b','#16a34a','#dc2626','#ca8a04','#6366f1','#0891b2','#9333ea'],
+  themes: {
+    t1: { // Monochrome Ledger
+      bg:'#fafafa', panel:'#ffffff', panel2:'#f4f4f5', panel3:'#e4e4e7',
+      text:'#18181b', muted:'#52525b', muted2:'#a1a1aa',
+      line:'rgba(24,24,27,.1)', line2:'rgba(24,24,27,.05)',
+      brand:'#18181b', brand2:'#3f3f46', brand3:'rgba(24,24,27,.06)',
+      good:'#16a34a', bad:'#dc2626', warn:'#ca8a04',
+      sidebarBg:'#18181b', topbarBg:'rgba(250,250,250,.98)',
+      cardBg:'#ffffff', inputBg:'rgba(24,24,27,.03)',
+      hoverCard:'rgba(24,24,27,.02)', glow:'rgba(63,63,70,.08)',
+    },
+    t2: { // Indigo Ledger
+      bg:'#f8f8ff', panel:'#ffffff', panel2:'#eef0ff', panel3:'#dde0f8',
+      text:'#1e1b4b', muted:'#4338a0', muted2:'#818cf8',
+      line:'rgba(99,102,241,.08)', line2:'rgba(99,102,241,.04)',
+      brand:'#6366f1', brand2:'#818cf8', brand3:'rgba(99,102,241,.06)',
+      good:'#16a34a', bad:'#dc2626', warn:'#ca8a04',
+      sidebarBg:'#1e1b4b', topbarBg:'rgba(248,248,255,.98)',
+      cardBg:'#ffffff', inputBg:'rgba(99,102,241,.03)',
+      hoverCard:'rgba(99,102,241,.02)', glow:'rgba(129,140,248,.1)',
+    },
+    t3: { // Dark Ledger Terminal
+      bg:'#09090b', panel:'#18181b', panel2:'#27272a', panel3:'#3f3f46',
+      text:'#e4e4e7', muted:'#a1a1aa', muted2:'#71717a',
+      line:'rgba(228,228,231,.08)', line2:'rgba(228,228,231,.04)',
+      brand:'#0891b2', brand2:'#22d3ee', brand3:'rgba(8,145,178,.1)',
+      good:'#16a34a', bad:'#dc2626', warn:'#ca8a04',
+      sidebarBg:'#050506', topbarBg:'rgba(9,9,11,.98)',
+      cardBg:'#18181b', inputBg:'rgba(8,145,178,.06)',
+      hoverCard:'rgba(8,145,178,.04)', glow:'rgba(34,211,238,.12)',
+    },
+  },
+};
+
+export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER, EXECUTIVE_HUB, OPERATIONS_DESK, LEDGER_PRO];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
 export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto'];
 export const FONT_SIZES = [9,10,11,12,13,14];
@@ -487,21 +610,10 @@ export function detectOptimalFontSize(baseSize: number, visionProfile: string): 
   return finalSize;
 }
 
-// ── View template types ──
-export type ViewTemplate = 'default' | 'executive' | 'operations' | 'ledger';
-
-export const VIEW_TEMPLATES: { id: ViewTemplate; name: string; desc: string; icon: string }[] = [
-  { id: 'default', name: 'Default', desc: 'Current compact terminal layout', icon: '⚡' },
-  { id: 'executive', name: 'Executive Hub', desc: 'KPI cards, clean overview', icon: '📊' },
-  { id: 'operations', name: 'Operations Desk', desc: 'Table-focused, side panels', icon: '🖥️' },
-  { id: 'ledger', name: 'Ledger Pro', desc: 'High density, multi-panel', icon: '📒' },
-];
-
 // ── Settings shape ──
 export interface AppSettings {
   layout: string;
   theme: string;
-  viewTemplate: ViewTemplate;
   range: 'today' | '7d' | '30d' | 'all';
   currency: 'QAR' | 'USDT';
   language: 'en' | 'ar';
@@ -519,7 +631,7 @@ export interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  layout: 'flux', theme: 't1', viewTemplate: 'default',
+  layout: 'flux', theme: 't1',
   range: '7d', currency: 'QAR', language: 'en', searchQuery: '',
   lowStockThreshold: 5000, priceAlertThreshold: 2,
   allowInvalidTrades: true,
