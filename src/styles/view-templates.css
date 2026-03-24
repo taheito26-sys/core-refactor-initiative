@@ -1,223 +1,290 @@
 /* ═══════════════════════════════════════════════════════
-   View Templates — Layout-only presentation overrides
-   No business logic. Only spacing, density, structure.
+   Structural Layout Overrides — per layout ID
+   Applied via .layout-{id} class on .app-shell
+   These change structure: sidebar width, spacing, card 
+   shapes, grid density, header design.
    ═══════════════════════════════════════════════════════ */
 
-/* ── Template 1: Executive Hub ──
-   Purpose: High-level overview and monitoring
-   - Generous spacing, card-based layout
-   - Larger KPI text, more breathing room
-   - Lower density, clean and scannable
-*/
-.tpl-executive .app-page-shell {
-  padding: 20px 24px;
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+/* ══════════════════════════════════════════════════════
+   EXECUTIVE HUB — Spacious card-based dashboard
+   ══════════════════════════════════════════════════════ */
+
+/* Generous page padding */
+.layout-executive_hub .app-page-shell {
+  padding: 20px 28px;
 }
 
-.tpl-executive .app-page-content {
-  max-width: 1400px;
+/* Center-constrained content for readability */
+.layout-executive_hub .app-page-content {
+  max-width: 1440px;
   margin: 0 auto;
 }
 
-/* KPI cards get more prominence */
-.tpl-executive .tracker-kpi-band {
+/* Cards get large radii, subtle elevation */
+.layout-executive_hub .glass,
+.layout-executive_hub [data-slot="card"],
+.layout-executive_hub .border {
+  border-radius: 14px;
+}
+
+/* KPI cards: larger text, more padding */
+.layout-executive_hub .tracker-kpi-band {
   gap: 16px;
 }
 
-.tpl-executive .tracker-kpi-card {
-  padding: 16px 20px;
-  border-radius: 12px;
+.layout-executive_hub .tracker-kpi-card {
+  padding: 18px 22px;
+  border-radius: 14px;
 }
 
-.tpl-executive .tracker-kpi-card .text-2xl,
-.tpl-executive .tracker-kpi-card .text-xl {
-  font-size: 1.75rem;
-  line-height: 2rem;
-}
-
-/* Tables get more row height */
-.tpl-executive table tbody tr td {
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-
-/* Cards get slight elevation and radius */
-.tpl-executive .glass,
-.tpl-executive [class*="Card"] {
-  border-radius: 12px;
-}
-
-/* Page headers breathe */
-.tpl-executive .tracker-page > .flex:first-child,
-.tpl-executive .tracker-page > div:first-child {
-  margin-bottom: 20px;
-}
-
-/* Chart containers get more height */
-.tpl-executive .recharts-wrapper {
-  min-height: 240px;
-}
-
-@media (max-width: 768px) {
-  .tpl-executive .app-page-shell {
-    padding: 12px 16px;
-  }
-}
-
-/* ── Template 2: Operations Desk ──
-   Purpose: Daily operational workflow
-   - Medium-high density
-   - Optimized for table + side panel workflows
-   - Tighter horizontal rhythm, context-panel friendly
-*/
-.tpl-operations .app-page-shell {
-  padding: 8px 12px;
-}
-
-/* Tighter table rows for operations scanning */
-.tpl-operations table tbody tr td {
-  padding-top: 5px;
-  padding-bottom: 5px;
-  font-size: 12px;
-}
-
-.tpl-operations table thead tr th {
-  font-size: 10px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* Forms and panels get ops-desk styling */
-.tpl-operations .glass,
-.tpl-operations [class*="Card"] {
-  border-radius: 6px;
-}
-
-/* KPI band is more compact */
-.tpl-operations .tracker-kpi-band {
-  gap: 8px;
-}
-
-.tpl-operations .tracker-kpi-card {
-  padding: 8px 12px;
-}
-
-/* Grids favor two-column with side context */
-.tpl-operations .grid.grid-cols-2 {
-  gap: 8px;
-}
-
-/* Buttons are slightly smaller */
-.tpl-operations button.text-xs {
-  font-size: 10px;
-  padding: 4px 8px;
-}
-
-/* Badge density */
-.tpl-operations .badge,
-.tpl-operations [class*="Badge"] {
-  font-size: 9px;
-  padding: 1px 6px;
-}
-
-@media (max-width: 768px) {
-  .tpl-operations .app-page-shell {
-    padding: 6px 8px;
-  }
-}
-
-/* ── Template 3: Ledger Pro ──
-   Purpose: Power users and financial review
-   - Maximum density, compact rows
-   - Monospace numbers, tight spacing
-   - Multi-panel structure, no wasted space
-*/
-.tpl-ledger .app-page-shell {
-  padding: 4px 8px;
-}
-
-/* Ultra-compact table rows */
-.tpl-ledger table tbody tr td {
-  padding-top: 3px;
-  padding-bottom: 3px;
-  font-size: 11px;
-  font-family: var(--font-display);
-  letter-spacing: -0.01em;
-}
-
-.tpl-ledger table thead tr th {
-  font-size: 9px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.layout-executive_hub .tracker-kpi-card .text-2xl,
+.layout-executive_hub .tracker-kpi-card .text-xl {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
   font-weight: 700;
 }
 
-/* Zebra striping for ledger readability */
-.tpl-ledger table tbody tr:nth-child(even) {
-  background: hsl(var(--muted) / 0.15);
+/* Tables with relaxed row height */
+.layout-executive_hub table tbody tr td {
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
-/* Cards are flat, minimal radius */
-.tpl-ledger .glass,
-.tpl-ledger [class*="Card"] {
-  border-radius: 4px;
-  box-shadow: none;
-  border: 1px solid hsl(var(--border));
+.layout-executive_hub table thead tr th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
-/* KPI band ultra-compact */
-.tpl-ledger .tracker-kpi-band {
-  gap: 4px;
+/* Charts get more breathing room */
+.layout-executive_hub .recharts-wrapper {
+  min-height: 260px;
 }
 
-.tpl-ledger .tracker-kpi-card {
-  padding: 6px 8px;
-  border-radius: 4px;
+/* Grids: more gap for card layouts */
+.layout-executive_hub .grid {
+  gap: 16px;
 }
 
-.tpl-ledger .tracker-kpi-card .text-2xl,
-.tpl-ledger .tracker-kpi-card .text-xl {
-  font-size: 1rem;
-  line-height: 1.25rem;
+/* Page headers generous */
+.layout-executive_hub .tracker-page > div:first-child {
+  margin-bottom: 24px;
 }
 
-/* Labels and secondary text are tiny */
-.tpl-ledger .text-muted-foreground {
+/* Buttons fully rounded */
+.layout-executive_hub button {
+  border-radius: 10px;
+}
+
+/* Sidebar wider for executive feel */
+.layout-executive_hub .app-sidebar-desktop {
+  width: 240px;
+}
+
+@media (max-width: 768px) {
+  .layout-executive_hub .app-page-shell {
+    padding: 14px 16px;
+  }
+  .layout-executive_hub .grid {
+    gap: 10px;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════
+   OPERATIONS DESK — Dense ops workflow, side panels
+   ══════════════════════════════════════════════════════ */
+
+/* Tight page margins */
+.layout-operations_desk .app-page-shell {
+  padding: 6px 10px;
+}
+
+/* Compact table rows for rapid scanning */
+.layout-operations_desk table tbody tr td {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.layout-operations_desk table thead tr th {
   font-size: 9px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  border-bottom: 2px solid hsl(var(--primary) / 0.2);
 }
 
-/* Buttons minimal */
-.tpl-ledger button {
+/* Ops cards: sharp corners, strong borders */
+.layout-operations_desk .glass,
+.layout-operations_desk [data-slot="card"],
+.layout-operations_desk .border {
+  border-radius: 5px;
+}
+
+/* KPI compact strip */
+.layout-operations_desk .tracker-kpi-band {
+  gap: 6px;
+}
+
+.layout-operations_desk .tracker-kpi-card {
+  padding: 8px 10px;
+  border-radius: 5px;
+  border-left: 3px solid hsl(var(--primary));
+}
+
+/* Buttons: compact ops style */
+.layout-operations_desk button {
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.layout-operations_desk button.text-xs {
+  font-size: 10px;
+  padding: 3px 8px;
+}
+
+/* Badges: dense */
+.layout-operations_desk [class*="Badge"] {
+  font-size: 9px;
+  padding: 1px 6px;
   border-radius: 3px;
 }
 
-/* Grids use minimal gaps */
-.tpl-ledger .grid {
-  gap: 4px;
+/* Grids tight */
+.layout-operations_desk .grid {
+  gap: 6px;
 }
 
-/* Page headers minimal */
-.tpl-ledger .tracker-page > .flex:first-child,
-.tpl-ledger .tracker-page > div:first-child {
-  margin-bottom: 6px;
+/* Status bar feel on topbar */
+.layout-operations_desk .tracker-topbar {
+  border-bottom: 2px solid hsl(var(--primary) / 0.15);
 }
 
-/* Scrollbars thin */
-.tpl-ledger ::-webkit-scrollbar {
+/* Sidebar narrower for more workspace */
+.layout-operations_desk .app-sidebar-desktop {
+  width: 180px;
+}
+
+@media (max-width: 768px) {
+  .layout-operations_desk .app-page-shell {
+    padding: 4px 6px;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════
+   LEDGER PRO — Maximum density, mono-font, power user
+   ══════════════════════════════════════════════════════ */
+
+/* Minimal page padding */
+.layout-ledger_pro .app-page-shell {
+  padding: 3px 6px;
+}
+
+/* Ultra-compact table rows with mono font */
+.layout-ledger_pro table {
+  font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+}
+
+.layout-ledger_pro table tbody tr td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.layout-ledger_pro table thead tr th {
+  font-size: 9px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Zebra striping for ledger readability */
+.layout-ledger_pro table tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.08);
+}
+
+/* Hover highlight for active row */
+.layout-ledger_pro table tbody tr:hover {
+  background: hsl(var(--primary) / 0.06);
+}
+
+/* Cards: flat, ruled lines, no shadow */
+.layout-ledger_pro .glass,
+.layout-ledger_pro [data-slot="card"],
+.layout-ledger_pro .border {
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+/* KPI ultra-compact inline */
+.layout-ledger_pro .tracker-kpi-band {
+  gap: 3px;
+}
+
+.layout-ledger_pro .tracker-kpi-card {
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+.layout-ledger_pro .tracker-kpi-card .text-2xl,
+.layout-ledger_pro .tracker-kpi-card .text-xl {
+  font-size: 0.95rem;
+  line-height: 1.15rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* All muted text even smaller */
+.layout-ledger_pro .text-muted-foreground {
+  font-size: 9px;
+}
+
+/* Buttons: minimal, square */
+.layout-ledger_pro button {
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+/* Grids: zero-waste spacing */
+.layout-ledger_pro .grid {
+  gap: 3px;
+}
+
+/* Page header minimal */
+.layout-ledger_pro .tracker-page > div:first-child {
+  margin-bottom: 4px;
+}
+
+/* Thin scrollbars */
+.layout-ledger_pro ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
 
-.tpl-ledger ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 2px;
+.layout-ledger_pro ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 1px;
+}
+
+/* Sidebar ultra-narrow for max data surface */
+.layout-ledger_pro .app-sidebar-desktop {
+  width: 160px;
 }
 
 @media (max-width: 768px) {
-  .tpl-ledger .app-page-shell {
-    padding: 4px 6px;
+  .layout-ledger_pro .app-page-shell {
+    padding: 2px 4px;
   }
 }

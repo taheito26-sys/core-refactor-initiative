@@ -11,11 +11,10 @@ export function AppLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings } = useTheme();
   const isRTL = settings.language === 'ar';
-  const tpl = settings.viewTemplate || 'default';
 
   return (
     <div
-      className={cn('app-shell flex h-dvh overflow-hidden', `tpl-${tpl}`)}
+      className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`)}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* Desktop sidebar */}
