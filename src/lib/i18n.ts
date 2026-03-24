@@ -999,7 +999,6 @@ const translations = {
   activeStatus: { en: 'Active', ar: 'نشط' },
   inactiveStatus: { en: 'Inactive', ar: 'غير نشط' },
   expiredStatus: { en: 'Expired', ar: 'منتهي' },
-  rejectedStatus: { en: 'Rejected', ar: 'مرفوض' },
   noAgreementsYet: { en: 'No agreements yet', ar: 'لا توجد اتفاقيات بعد' },
   createAgreementToStart: { en: 'Create a Profit Share agreement to start linking orders with this partner.', ar: 'أنشئ اتفاقية تقاسم أرباح لبدء ربط الطلبات مع هذا الشريك.' },
   perOrderCadence: { en: '⚡ Per Order', ar: '⚡ لكل طلب' },
