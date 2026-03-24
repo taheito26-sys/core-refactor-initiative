@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "robots.txt"],
       workbox: {
-        navigateFallbackDenylist: [/^\/auth\/callback/],
+        navigateFallbackDenylist: [/^\/auth\//, /^\/~oauth/, /^\/login/],
         clientsClaim: true,
         skipWaiting: true,
       },
