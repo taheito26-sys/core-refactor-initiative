@@ -190,7 +190,7 @@ export default function DashboardPage() {
           </div>
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
           <div className={`kpi-val ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net)}</div>
-          <div className="kpi-sub">{dR.count} {t('trades')} · {fmtQ(dR.rev)} rev</div>
+          <div className="kpi-sub">{dR.count} {t('trades')} · {fmtQ(dR.rev)} {t('revSuffix')}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
