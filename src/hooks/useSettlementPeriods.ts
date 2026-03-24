@@ -103,7 +103,7 @@ export function useSyncSettlementPeriods(relationshipId: string) {
         // Fetch deal metadata once per deal for share computation
         const { data: dealMeta } = await supabase
           .from('merchant_deals')
-          .select('deal_type, metadata, notes')
+          .select('deal_type, notes')
           .eq('id', deal.id)
           .single();
 
