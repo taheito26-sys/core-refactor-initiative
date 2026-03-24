@@ -1720,7 +1720,7 @@ export default function OrdersPage() {
                                         }}
                                         style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                                       >
-                                        <option value="">Select agreement...</option>
+                                        <option value="">{t('selectAgreement')}</option>
                                         {relAgreements.map(agr => (
                                           <option key={agr.id} value={agr.id}>
                                             🤝 {agr.partner_ratio}/{agr.merchant_ratio} — {agr.settlement_cadence}
