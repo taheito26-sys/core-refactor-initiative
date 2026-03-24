@@ -610,21 +610,10 @@ export function detectOptimalFontSize(baseSize: number, visionProfile: string): 
   return finalSize;
 }
 
-// ── View template types ──
-export type ViewTemplate = 'default' | 'executive' | 'operations' | 'ledger';
-
-export const VIEW_TEMPLATES: { id: ViewTemplate; name: string; desc: string; icon: string }[] = [
-  { id: 'default', name: 'Default', desc: 'Current compact terminal layout', icon: '⚡' },
-  { id: 'executive', name: 'Executive Hub', desc: 'KPI cards, clean overview', icon: '📊' },
-  { id: 'operations', name: 'Operations Desk', desc: 'Table-focused, side panels', icon: '🖥️' },
-  { id: 'ledger', name: 'Ledger Pro', desc: 'High density, multi-panel', icon: '📒' },
-];
-
 // ── Settings shape ──
 export interface AppSettings {
   layout: string;
   theme: string;
-  viewTemplate: ViewTemplate;
   range: 'today' | '7d' | '30d' | 'all';
   currency: 'QAR' | 'USDT';
   language: 'en' | 'ar';
@@ -642,7 +631,7 @@ export interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  layout: 'flux', theme: 't1', viewTemplate: 'default',
+  layout: 'flux', theme: 't1',
   range: '7d', currency: 'QAR', language: 'en', searchQuery: '',
   lowStockThreshold: 5000, priceAlertThreshold: 2,
   allowInvalidTrades: true,
