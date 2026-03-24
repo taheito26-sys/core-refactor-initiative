@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, TrendingUp, Shield, BarChart3, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 
 // Import hooks but handle context-missing gracefully inside the component
 import { useAuth } from '@/features/auth/auth-context';
