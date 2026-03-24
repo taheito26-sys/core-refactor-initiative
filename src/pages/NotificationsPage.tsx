@@ -300,7 +300,7 @@ export default function NotificationsPage() {
             )}
           >
             <Filter className="h-3.5 w-3.5" />
-            Unread only
+            {t('unreadOnly')}
           </button>
         </div>
 
