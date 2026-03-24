@@ -1670,7 +1670,7 @@ export default function OrdersPage() {
 
                                 {/* Merchant selector */}
                                 <div className="field2" style={{ marginBottom: 4 }}>
-                                  <div className="lbl" style={{ fontSize: 9 }}>Merchant</div>
+                                  <div className="lbl" style={{ fontSize: 9 }}>{t('allocMerchant')}</div>
                                   <select
                                     value={alloc.relationshipId}
                                     onChange={e => {
