@@ -9,20 +9,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { loginWithGoogle } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await login(email, password);
-      toast.success('Signed in successfully');
-      navigate('/dashboard');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
