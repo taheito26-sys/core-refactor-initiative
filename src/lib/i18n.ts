@@ -991,7 +991,6 @@ const translations = {
   cadence: { en: 'Cadence', ar: 'الدورة' },
   effective: { en: 'Effective', ar: 'ساري' },
   expires: { en: 'Expires', ar: 'ينتهي' },
-  actions: { en: 'Actions', ar: 'الإجراءات' },
   expireAction: { en: 'Expire', ar: 'إنهاء' },
   rejectAction: { en: 'Reject', ar: 'رفض' },
   wasEffective: { en: 'Was Effective', ar: 'كان سارياً' },
