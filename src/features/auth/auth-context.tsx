@@ -182,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         merchantProfile,
         login,
+        loginWithGoogle,
         signup,
         logout,
         refreshProfile,
