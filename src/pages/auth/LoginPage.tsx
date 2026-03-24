@@ -1,20 +1,74 @@
 import { useState } from 'react';
-import { useAuth } from '@/features/auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { Loader2, TrendingUp, Shield, BarChart3, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+
+// Import hooks but handle context-missing gracefully inside the component
+import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const { loginWithGoogle } = useAuth();
-  const t = useT();
+
+  // These hooks should work since LoginPage is inside AuthProvider & ThemeProvider,
+  // but we wrap in try/catch for resilience against stale SW cache on mobile
+  let loginWithGoogle: (() => Promise<void>) | null = null;
+  let t: any = (key: string) => {
+    const map: Record<string, string> = {
+      qatarPowered: 'Qatar-Powered\nP2P Intelligence',
+      trustedByMerchants: 'Trusted by merchants across the region for secure, transparent P2P trading.',
+      liveMarketData: 'Live Market Data',
+      secureMerchantNetwork: 'Secure Merchant Network',
+      smartFifoTracking: 'Smart FIFO Tracking',
+      profitShareAuto: 'Profit Share Automation',
+      welcomeBack: 'Welcome back',
+      secureTrading: 'Sign in to your trading workspace',
+      continueWithGoogle: 'Continue with Google',
+      googleSignInFailed: 'Google sign-in failed. Please try again.',
+    };
+    return map[key] ?? key;
+  };
+  t.isRTL = false;
+
+  try {
+    const auth = useAuth();
+    loginWithGoogle = auth.loginWithGoogle;
+  } catch {
+    // Context not available — will use direct Supabase call below
+  }
+
+  try {
+    t = useT();
+  } catch {
+    // Theme context not available — using fallback translations above
+  }
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      if (loginWithGoogle) {
+        await loginWithGoogle();
+      } else {
+        // Direct Supabase fallback when auth context is unavailable
+        const redirectTo = `${window.location.origin}/auth/callback`;
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo },
+        });
+        if (error) throw error;
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : (t('googleSignInFailed') || 'Google sign-in failed');
+      toast.error(message);
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen" dir={t.isRTL ? 'rtl' : 'ltr'}>
       {/* ── Left Panel: Qatar Culture Hero ── */}
       <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden">
-        {/* Background layers */}
         <div className="absolute inset-0 bg-[hsl(340,30%,8%)]" />
         <div
           className="absolute inset-0"
@@ -26,13 +80,11 @@ export default function LoginPage() {
             `,
           }}
         />
-        {/* Geometric pattern inspired by Islamic art */}
         <div className="absolute inset-0 opacity-[0.04]" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
         }} />
 
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
-          {/* Top: Brand */}
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(35,70%,40%)] shadow-lg shadow-[hsl(35,80%,55%)]/20">
               <TrendingUp className="h-6 w-6 text-white" />
@@ -43,7 +95,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Center: Hero text */}
           <div className="space-y-6">
             <div>
               <h1 className="text-4xl font-black text-white leading-[1.1] tracking-tight">
@@ -54,7 +105,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Feature highlights */}
             <div className="grid grid-cols-2 gap-3 max-w-md">
               {[
                 { icon: BarChart3, label: t('liveMarketData') },
@@ -70,7 +120,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Bottom: Qatar pride */}
           <div className="flex items-center gap-3">
             <div className="flex gap-1">
               <div className="w-1.5 h-6 rounded-full bg-[hsl(340,60%,35%)]" />
@@ -86,7 +135,6 @@ export default function LoginPage() {
       {/* ── Right Panel: Sign In ── */}
       <div className="flex-1 flex items-center justify-center bg-background p-6 lg:p-12">
         <div className="w-full max-w-sm space-y-8">
-          {/* Mobile brand (hidden on lg) */}
           <div className="lg:hidden flex flex-col items-center gap-3 mb-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(340,50%,35%)] shadow-lg">
               <TrendingUp className="h-7 w-7 text-white" />
@@ -97,27 +145,16 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Heading */}
           <div className="text-center lg:text-start">
             <h2 className="text-2xl font-black text-foreground tracking-tight">{t('welcomeBack')}</h2>
             <p className="text-sm text-muted-foreground mt-1">{t('secureTrading')}</p>
           </div>
 
-          {/* Google Sign In */}
           <Button
             type="button"
             className="w-full h-12 text-sm font-semibold gap-3 rounded-xl shadow-sm"
             size="lg"
-            onClick={async () => {
-              setLoading(true);
-              try {
-                await loginWithGoogle();
-              } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : t('googleSignInFailed');
-                toast.error(message);
-                setLoading(false);
-              }
-            }}
+            onClick={handleGoogleLogin}
             disabled={loading}
           >
             {loading ? (
@@ -133,7 +170,6 @@ export default function LoginPage() {
             {t('continueWithGoogle')}
           </Button>
 
-          {/* Security note */}
           <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground/60">
             <Shield className="h-3 w-3" />
             <span>{t.isRTL ? 'محمي بتشفير المؤسسات' : 'Protected by enterprise-grade encryption'}</span>
