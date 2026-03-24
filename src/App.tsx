@@ -97,11 +97,11 @@ const App = () => (
           <AuthProvider>
             <RouteErrorBoundary>
               <Routes>
-                {/* Supabase Google OAuth callback (PKCE + implicit) */}
-                <Route path="/auth/callback" element={<OAuthCallbackPage />} />
-
-                {/* Lovable internal OAuth route — leave as null so the library handles it */}
+                {/* Lovable Cloud OAuth — library intercepts /~oauth/* */}
                 <Route path="/~oauth/*" element={null} />
+
+                {/* Legacy OAuth callback fallback */}
+                <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
                 {/* Auth — public */}
                 <Route path="/login" element={<LoginPage />} />
