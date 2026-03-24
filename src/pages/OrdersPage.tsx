@@ -1778,7 +1778,7 @@ export default function OrdersPage() {
                                     </div>
                                   </div>
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>Merchant Cost/USDT</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('merchantCostUsdt')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
                                         inputMode="decimal" placeholder="3.65"
