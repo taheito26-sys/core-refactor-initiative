@@ -1664,7 +1664,7 @@ export default function OrdersPage() {
                                     style={{ color: 'var(--bad)', fontSize: 9 }}
                                     onClick={() => setAllocations(prev => prev.filter(a => a.id !== alloc.id))}
                                   >
-                                    Remove
+                                    {t('removeAllocation')}
                                   </button>
                                 </div>
 
