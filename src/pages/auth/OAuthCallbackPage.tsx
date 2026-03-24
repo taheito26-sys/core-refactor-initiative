@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 /**
  * OAuthCallbackPage — rendered at /auth/callback after Google OAuth.
@@ -20,20 +21,83 @@ export default function OAuthCallbackPage() {
   const { isAuthenticated } = useAuth();
   const redirectedRef = useRef(false);
 
-  // Handle PKCE code exchange (Supabase default for newer setups)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).catch((err) => {
-        console.error('[OAuthCallback] exchangeCodeForSession failed', err);
-      });
-    }
-    // Implicit flow (#access_token=...) is handled automatically by the
-    // Supabase client via detectSessionInUrl on createClient()
-  }, []);
+    let isMounted = true;
 
-  // Redirect to dashboard as soon as session is confirmed
+    const finalizeOAuth = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const providerError = params.get('error');
+      const providerErrorDescription = params.get('error_description');
+
+      if (providerError || providerErrorDescription) {
+        const message = providerErrorDescription || providerError || 'Google sign-in was cancelled or rejected.';
+        console.error('[OAuthCallback] OAuth provider returned an error', {
+          error: providerError,
+          errorDescription: providerErrorDescription,
+          search: window.location.search,
+        });
+        toast.error(message);
+
+        if (isMounted && !redirectedRef.current) {
+          redirectedRef.current = true;
+          navigate('/login', { replace: true });
+        }
+
+        return;
+      }
+
+      try {
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (error) {
+            throw error;
+          }
+        }
+
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        if (!session?.user) {
+          throw new Error('No authenticated session was created after Google sign-in.');
+        }
+
+        console.info('[OAuthCallback] Supabase session restored', {
+          userId: session.user.id,
+          email: session.user.email,
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unable to complete Google sign-in.';
+
+        console.error('[OAuthCallback] Failed to finalize Google OAuth session', {
+          error: err,
+          search: window.location.search,
+          hash: window.location.hash,
+        });
+
+        toast.error(message);
+
+        if (isMounted && !redirectedRef.current) {
+          redirectedRef.current = true;
+          navigate('/login', { replace: true });
+        }
+      }
+    };
+
+    void finalizeOAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
+
   useEffect(() => {
     if (isAuthenticated && !redirectedRef.current) {
       redirectedRef.current = true;
@@ -41,10 +105,15 @@ export default function OAuthCallbackPage() {
     }
   }, [isAuthenticated, navigate]);
 
-  // Safety net: redirect to login if auth never resolves
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!redirectedRef.current) {
+        const message = 'Google sign-in timed out before a session was created.';
+        console.error('[OAuthCallback] OAuth callback timed out', {
+          search: window.location.search,
+          hash: window.location.hash,
+        });
+        toast.error(message);
         redirectedRef.current = true;
         navigate('/login', { replace: true });
       }
