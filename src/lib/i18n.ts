@@ -872,7 +872,6 @@ const translations = {
   fromLabel: { en: 'From', ar: 'من' },
   toLabel: { en: 'To', ar: 'إلى' },
   sentInvitations: { en: 'Sent Invitations', ar: 'الدعوات المرسلة' },
-  sentInvites: { en: 'Sent Invitations', ar: 'الدعوات المرسلة' },
   settlementLabel: { en: 'Settlement', ar: 'التسوية' },
   message: { en: 'Message', ar: 'رسالة' },
 
