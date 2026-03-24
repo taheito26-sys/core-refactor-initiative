@@ -1740,7 +1740,7 @@ export default function OrdersPage() {
                                 {selectedTemplateId === 'sales_deal_family' && (
                                   <div className="g2tight" style={{ marginBottom: 4 }}>
                                     <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>Partner Share %</div>
+                                      <div className="lbl" style={{ fontSize: 9 }}>{t('allocPartnerSharePct')}</div>
                                       <div className="inputBox" style={{ padding: '3px 6px' }}>
                                         <input
                                           type="number" min="0" max="100" placeholder="50"
