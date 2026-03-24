@@ -1792,7 +1792,7 @@ export default function OrdersPage() {
 
                                 {/* Optional note */}
                                 <div className="field2" style={{ marginTop: 4 }}>
-                                  <div className="lbl" style={{ fontSize: 9 }}>Note (optional)</div>
+                                  <div className="lbl" style={{ fontSize: 9 }}>{t('noteOptional')}</div>
                                   <div className="inputBox" style={{ padding: '3px 6px' }}>
                                     <input
                                       value={alloc.note}
