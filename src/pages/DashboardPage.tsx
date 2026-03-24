@@ -258,7 +258,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="kpi-sub">
                   {refPrice
-                    ? `@ ${fmtP(refPrice)} QAR${isFallback ? ' (mkt avg)' : ''}`
+                    ? `@ ${fmtP(refPrice)} QAR${isFallback ? ` ${t('mktAvg')}` : ''}`
                     : cash > 0
                       ? t('addBatchesFirst')
                       : t('addBatchesFirst')}
