@@ -1827,7 +1827,7 @@ export default function OrdersPage() {
                               }]);
                             }}
                           >
-                            + Add Merchant Allocation
+                            {t('addMerchantAllocation')}
                           </button>
 
                           {/* ─── Allocation Summary ─── */}
