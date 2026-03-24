@@ -67,10 +67,12 @@ function NotificationCard({
   n,
   onNavigate,
   onMarkRead,
+  t,
 }: {
   n: Notification;
   onNavigate: (n: Notification) => void;
   onMarkRead: (id: string) => void;
+  t: (key: string) => string;
 }) {
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
