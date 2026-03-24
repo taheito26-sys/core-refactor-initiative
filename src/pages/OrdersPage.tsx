@@ -1638,9 +1638,9 @@ export default function OrdersPage() {
                             color: 'var(--muted)',
                           }}>
                             {selectedTemplateId === 'profit_share_family' ? (
-                              <><strong style={{ color: 'var(--brand)' }}>Profit Share:</strong> Each allocation uses an approved standing agreement. Net profit is split per the agreement ratio. No manual ratio entry.</>
+                              <><strong style={{ color: 'var(--brand)' }}>{t('profitShare')}:</strong> {t('profitShareInfoBanner')}</>
                             ) : (
-                              <><strong style={{ color: 'var(--good)' }}>Sales Deal:</strong> Direct entry — no approval needed. Enter merchant cost and share percentage per allocation.</>
+                              <><strong style={{ color: 'var(--good)' }}>{t('salesDeal')}:</strong> {t('salesDealInfoBanner')}</>
                             )}
                           </div>
 
