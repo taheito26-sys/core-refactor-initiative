@@ -107,7 +107,7 @@ export default function RelationshipPage() {
     : false;
 
   const tabs: { key: WorkspaceTab; label: string; icon: string }[] = [
-    { key: 'agreements', label: 'Agreements', icon: '🤝' },
+    { key: 'agreements', label: t('profitShareAgreements'), icon: '🤝' },
     { key: 'settlements', label: t('settlements'), icon: '💰' },
     { key: 'chat', label: t('chatTab'), icon: '💬' },
   ];

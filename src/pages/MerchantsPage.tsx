@@ -273,7 +273,7 @@ export default function MerchantsPage() {
   const activeAgreementCount = allAgreements.filter(a => a.status === 'approved' && isAgreementActive(a)).length;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
-    { key: 'agreements', label: 'Agreements', icon: '🤝', badge: activeAgreementCount > 0 ? activeAgreementCount : undefined },
+    { key: 'agreements', label: t('profitShareAgreements'), icon: '🤝', badge: activeAgreementCount > 0 ? activeAgreementCount : undefined },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
     { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬', badge: unreadChatCount > 0 ? unreadChatCount : undefined },
   ];
