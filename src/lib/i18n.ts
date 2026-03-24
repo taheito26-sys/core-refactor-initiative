@@ -1014,6 +1014,13 @@ const translations = {
   noCapitalMovements: { en: 'No capital movements yet', ar: 'لا توجد حركات رأس مال بعد' },
   invalidAmount: { en: 'Invalid amount', ar: 'مبلغ غير صالح' },
   failedToCreate: { en: 'Failed to create agreement', ar: 'فشل إنشاء الاتفاقية' },
+  ordersPageOnlyExecution: { en: 'All orders are created from the Orders page. This tab shows existing deals for reference.', ar: 'جميع الطلبات تُنشأ من صفحة الطلبات. هذا التبويب يعرض الصفقات الموجودة للاطلاع فقط.' },
+  openWorkspaceLabel: { en: 'Open Workspace', ar: 'فتح مساحة العمل' },
+  profitShareAgreementsGlobal: { en: 'Profit Share Agreements', ar: 'اتفاقيات تقاسم الأرباح' },
+  standingAgreementsAllRels: { en: 'Standing agreements across all relationships', ar: 'اتفاقيات قائمة عبر جميع العلاقات' },
+  agreementsCreatedInWorkspace: { en: 'Profit Share Agreements are created in the merchant workspace. Once approved, they appear in the Orders page when creating profit share orders. Sales Deals and Capital Transfers don\'t require agreements.', ar: 'اتفاقيات تقاسم الأرباح تُنشأ في مساحة عمل التاجر. بمجرد الموافقة، تظهر في صفحة الطلبات عند إنشاء طلبات تقاسم الأرباح. صفقات البيع وتحويلات رأس المال لا تتطلب اتفاقيات.' },
+  noAgreementsGlobal: { en: 'No agreements yet', ar: 'لا توجد اتفاقيات بعد' },
+  openMerchantToCreate: { en: 'Open a merchant workspace to create Profit Share agreements.', ar: 'افتح مساحة عمل التاجر لإنشاء اتفاقيات تقاسم الأرباح.' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
