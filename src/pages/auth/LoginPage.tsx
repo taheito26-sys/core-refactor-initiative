@@ -1,14 +1,90 @@
 import { useState } from 'react';
-import { useAuth } from '@/features/auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { Loader2, TrendingUp, Shield, BarChart3, Users, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { useT } from '@/lib/i18n';
+
+// Safely import hooks — on stale SW cache these may fail
+let useAuthHook: () => { loginWithGoogle: () => Promise<void> };
+let useTHook: () => ReturnType<typeof import('@/lib/i18n').useT>;
+
+try {
+  const authMod = await import('@/features/auth/auth-context');
+  useAuthHook = authMod.useAuth;
+} catch {
+  // Will be handled in component
+}
+try {
+  const i18nMod = await import('@/lib/i18n');
+  useTHook = i18nMod.useT;
+} catch {
+  // Will be handled in component
+}
+
+// Fallback translations
+const fallbackT = Object.assign(
+  (key: string) => {
+    const map: Record<string, string> = {
+      qatarPowered: 'Qatar-Powered\nP2P Intelligence',
+      trustedByMerchants: 'Trusted by merchants across the region for secure, transparent P2P trading.',
+      liveMarketData: 'Live Market Data',
+      secureMerchantNetwork: 'Secure Merchant Network',
+      smartFifoTracking: 'Smart FIFO Tracking',
+      profitShareAuto: 'Profit Share Automation',
+      welcomeBack: 'Welcome back',
+      secureTrading: 'Sign in to your trading workspace',
+      continueWithGoogle: 'Continue with Google',
+      googleSignInFailed: 'Google sign-in failed. Please try again.',
+    };
+    return map[key] ?? key;
+  },
+  { isRTL: false, lang: 'en' as const }
+);
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const { loginWithGoogle } = useAuth();
-  const t = useT();
+
+  // Safely use hooks with fallbacks
+  let loginWithGoogle: (() => Promise<void>) | null = null;
+  let t = fallbackT;
+
+  try {
+    if (useAuthHook) {
+      const auth = useAuthHook();
+      loginWithGoogle = auth.loginWithGoogle;
+    }
+  } catch {
+    // Auth context not available — will use direct Supabase call
+  }
+
+  try {
+    if (useTHook) {
+      t = useTHook();
+    }
+  } catch {
+    // Theme context not available — use fallback
+  }
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      if (loginWithGoogle) {
+        await loginWithGoogle();
+      } else {
+        // Direct Supabase fallback when context is unavailable
+        const { supabase } = await import('@/integrations/supabase/client');
+        const redirectTo = `${window.location.origin}/auth/callback`;
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo },
+        });
+        if (error) throw error;
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t('googleSignInFailed');
+      toast.error(message);
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen" dir={t.isRTL ? 'rtl' : 'ltr'}>
@@ -108,16 +184,7 @@ export default function LoginPage() {
             type="button"
             className="w-full h-12 text-sm font-semibold gap-3 rounded-xl shadow-sm"
             size="lg"
-            onClick={async () => {
-              setLoading(true);
-              try {
-                await loginWithGoogle();
-              } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : t('googleSignInFailed');
-                toast.error(message);
-                setLoading(false);
-              }
-            }}
+            onClick={handleGoogleLogin}
             disabled={loading}
           >
             {loading ? (
