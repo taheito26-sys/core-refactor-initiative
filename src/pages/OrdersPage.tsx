@@ -1883,9 +1883,9 @@ export default function OrdersPage() {
                                   <strong className="mono">{fmtU(totalAllocated)}</strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4 }}>
-                                  <span className="muted">Remaining:</span>
+                                  <span className="muted">{t('allocRemaining')}:</span>
                                   <strong className="mono" style={{ color: allocationMatch ? 'var(--good)' : overAllocated ? 'var(--bad)' : 'var(--warn)' }}>
-                                    {allocationMatch ? '✅ Balanced' : overAllocated ? `⚠️ Over by ${fmtU(Math.abs(remaining))}` : fmtU(remaining)}
+                                    {allocationMatch ? `✅ ${t('allocBalanced')}` : overAllocated ? `⚠️ ${t('allocOverBy')} ${fmtU(Math.abs(remaining))}` : fmtU(remaining)}
                                   </strong>
                                 </div>
 
