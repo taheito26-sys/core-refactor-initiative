@@ -77,7 +77,7 @@ function NotificationCard({
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
   const isUnread = !n.read_at;
-  const isAdminPriority = n.category === 'system' || n.category === 'approval';
+  const isAdminPriority = n.category === 'system' || n.category === 'approval' || n.category === 'invite';
 
   return (
     <div
