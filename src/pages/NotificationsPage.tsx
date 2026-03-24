@@ -344,7 +344,7 @@ export default function NotificationsPage() {
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <div className="h-12 w-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-            <p className="text-sm text-muted-foreground font-medium">Loading activity feed...</p>
+            <p className="text-sm text-muted-foreground font-medium">{t('loadingActivityFeed')}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-20 gap-4">
