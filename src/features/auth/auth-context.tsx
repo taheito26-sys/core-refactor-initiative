@@ -134,6 +134,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     console.info('[Auth] Starting Google OAuth with Supabase', { redirectTo });
 
+    if (import.meta.env.DEV) {
+      console.info('[Auth][DEV] Active Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+      console.info('[Auth][DEV] Active Project ID:', import.meta.env.VITE_SUPABASE_PROJECT_ID);
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
