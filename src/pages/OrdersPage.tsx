@@ -402,7 +402,7 @@ export default function OrdersPage() {
     const baseTrade: Trade = {
       id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       linkedRelId: merchantOrderEnabled ? linkedRelId || undefined : undefined,
-      agreementFamily: tmpl?.family,
+      agreementFamily: tmpl?.family as 'profit_share' | 'sales_deal' | 'capital_transfer' | undefined,
       agreementTemplateId: tmpl?.id,
       partnerPct: tmpl ? (tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio) : undefined,
       merchantPct: tmpl ? (tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio) : undefined,
