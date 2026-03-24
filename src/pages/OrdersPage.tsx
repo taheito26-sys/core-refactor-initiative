@@ -1870,7 +1870,7 @@ export default function OrdersPage() {
                                 border: `1px solid ${allocationMatch ? 'color-mix(in srgb, var(--good) 30%, transparent)' : 'color-mix(in srgb, var(--warn) 30%, transparent)'}`,
                               }}>
                                 <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>
-                                  Allocation Summary
+                                  {t('allocSummary')}
                                 </div>
 
                                 {/* Allocation balance */}
