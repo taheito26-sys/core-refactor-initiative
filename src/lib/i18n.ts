@@ -1026,7 +1026,7 @@ const translations = {
   activityCenter: { en: 'Activity Center', ar: 'مركز النشاط' },
   realTimeUpdates: { en: 'Real-time updates', ar: 'تحديثات فورية' },
   totalAlerts: { en: 'total alerts', ar: 'إجمالي التنبيهات' },
-  markAllRead: { en: 'Mark all read', ar: 'تحديد الكل كمقروء' },
+  notifMarkAllRead: { en: 'Mark all read', ar: 'تحديد الكل كمقروء' },
   markRead: { en: 'Mark read', ar: 'تحديد كمقروء' },
   searchNotifications: { en: 'Search notifications...', ar: 'بحث في الإشعارات...' },
   unreadOnly: { en: 'Unread only', ar: 'غير المقروء فقط' },
