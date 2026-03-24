@@ -41,17 +41,6 @@ function entryColor(type: BalanceEntry['type']): string {
   }
 }
 
-function entryLabel(type: BalanceEntry['type'], costBasis?: number, note?: string | null): string {
-  switch (type) {
-    case 'capital_in': return `Capital In${costBasis ? ` @ ${costBasis}` : ''}`;
-    case 'capital_out': return `Capital Return${costBasis ? ` @ ${costBasis}` : ''}`;
-    case 'reinvest': return note || 'Reinvested';
-    case 'payout': return note || 'Profit Paid Out';
-    case 'withdrawal': return note || 'Withdrawal';
-    default: return note || type;
-  }
-}
-
 interface Props {
   relationshipId: string;
 }
@@ -59,6 +48,17 @@ interface Props {
 export function BalanceLedger({ relationshipId }: Props) {
   const t = useT();
   const { data, isLoading } = useBalanceLedger(relationshipId);
+
+  const entryLabel = (type: BalanceEntry['type'], costBasis?: number, note?: string | null): string => {
+    switch (type) {
+      case 'capital_in': return `${t('capitalInLabel')}${costBasis ? ` @ ${costBasis}` : ''}`;
+      case 'capital_out': return `${t('capitalReturnLabel')}${costBasis ? ` @ ${costBasis}` : ''}`;
+      case 'reinvest': return note || t('reinvestedLabel');
+      case 'payout': return note || t('profitPaidOutLabel');
+      case 'withdrawal': return note || t('withdrawalLabel');
+      default: return note || type;
+    }
+  };
 
   if (isLoading) {
     return <div className="empty"><div className="empty-t">{t('loading')}</div></div>;
@@ -106,7 +106,7 @@ export function BalanceLedger({ relationshipId }: Props) {
 
       {entries.length === 0 ? (
         <div className="empty">
-          <div className="empty-t" style={{ fontSize: 11 }}>No capital movements yet</div>
+          <div className="empty-t" style={{ fontSize: 11 }}>{t('noCapitalMovements')}</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -27,7 +27,7 @@ export function CapitalPoolPanel({ dealId, dealAmount, dealTitle, relationshipId
 
   const handleWithdraw = async () => {
     const amt = parseFloat(withdrawAmount);
-    if (!amt || amt <= 0) { toast.error('Invalid amount'); return; }
+    if (!amt || amt <= 0) { toast.error(t('invalidAmount')); return; }
     if (!capital || amt > capital.reinvestedPool) { toast.error(t('exceedsPoolBalance')); return; }
     try {
       await withdraw.mutateAsync({
