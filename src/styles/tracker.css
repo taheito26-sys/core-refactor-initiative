@@ -407,5 +407,59 @@
   .tracker-user { margin-left: auto; }
   .tracker-sync { display: none; }
   .tracker-seg button { padding: 5px 7px; font-size: 10px; }
+
+  /* ── Mobile table fixes: prevent horizontal overflow ── */
+  .tracker-root .tableWrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tracker-root table {
+    font-size: 10px;
+    min-width: 0;
+    table-layout: auto;
+  }
+  .tracker-root thead th {
+    padding: 5px 4px;
+    font-size: 8px;
+    letter-spacing: .2px;
+    white-space: nowrap;
+  }
+  .tracker-root tbody td {
+    padding: 5px 4px;
+    font-size: 10px;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Hide low-priority columns on mobile */
+  .tracker-root th.hide-mobile,
+  .tracker-root td.hide-mobile { display: none; }
+
+  /* ── Mobile form panels ── */
+  .tracker-root .formPanel { border-radius: 8px; }
+  .tracker-root .g2tight { gap: 4px; }
+  .tracker-root .previewBox { padding: 6px 8px; }
+  .tracker-root .formActions { padding: 0; }
+  .tracker-root .formActions .btn { width: 100%; }
+
+  /* ── Prevent any child from exceeding viewport ── */
+  .tracker-root,
+  .tracker-root > *,
+  .tracker-root .twoColPage,
+  .tracker-root .twoColPage > * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* ── Extra small screens (≤ 400px) ── */
+@media (max-width: 400px) {
+  .tracker-root thead th { padding: 4px 3px; font-size: 7px; }
+  .tracker-root tbody td { padding: 4px 3px; font-size: 9px; max-width: 70px; }
+  .tracker-root .kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .tracker-root .formPanel .inner { padding: 4px; }
 }
 

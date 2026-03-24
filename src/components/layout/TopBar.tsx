@@ -45,7 +45,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-3 py-1.5">
+    <header className="sticky top-0 z-20 flex items-center gap-1 md:gap-2 border-b border-border bg-background/95 backdrop-blur-sm px-2 md:px-3 py-1.5">
       {isMobile && onMenuClick && (
         <button onClick={onMenuClick} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
           <Menu className="h-4 w-4" />
@@ -59,7 +59,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             key={r.id}
             onClick={() => update({ range: r.id as any })}
             className={cn(
-              'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
+              'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
               settings.range === r.id
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -77,7 +77,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
             key={c}
             onClick={() => update({ currency: c })}
             className={cn(
-              'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
+              'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
               settings.currency === c
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -88,37 +88,39 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         ))}
       </div>
 
-      {/* ── Activity ── */}
-      <ActivityCenter />
-
-      {/* ── Spacer ── */}
-      <div className="flex-1" />
-
       {/* ── Language Toggle ── */}
       <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
         <button
           onClick={() => update({ language: 'ar' })}
           className={cn(
-            'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
+            'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
             settings.language === 'ar'
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          {t('arabic')}
+          <span className="md:hidden">AR</span>
+          <span className="hidden md:inline">{t('arabic')}</span>
         </button>
         <button
           onClick={() => update({ language: 'en' })}
           className={cn(
-            'px-2.5 py-1 rounded text-[11px] font-semibold transition-all',
+            'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
             settings.language === 'en'
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          {t('english')}
+          <span className="md:hidden">EN</span>
+          <span className="hidden md:inline">{t('english')}</span>
         </button>
       </div>
+
+      {/* ── Activity ── */}
+      <ActivityCenter />
+
+      {/* ── Spacer ── */}
+      <div className="flex-1" />
 
       {/* ── Sync indicator ── */}
       <div className="hidden md:flex items-center gap-1">

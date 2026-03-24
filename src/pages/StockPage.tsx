@@ -255,8 +255,8 @@ export default function StockPage() {
                     <th className="r">{t('total')}</th>
                     <th className="r">{t('buy')}</th>
                     <th className="r">{t('rem')}</th>
-                    <th>{t('usage')}</th>
-                    <th className="r">{t('profit')}</th>
+                    <th className="hide-mobile">{t('usage')}</th>
+                    <th className="r hide-mobile">{t('profit')}</th>
                     <th>{t('statusEdit')}</th>
                   </tr>
                 </thead>
@@ -277,11 +277,11 @@ export default function StockPage() {
                         <td className="mono r">{fmtU(b.initialUSDT)}</td>
                         <td className="mono r">{fmtP(b.buyPriceQAR)}</td>
                         <td className="mono r">{fmtU(rem)}</td>
-                        <td>
+                        <td className="hide-mobile">
                           <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
                           <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
                         </td>
-                        <td className="mono r" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                        <td className="mono r hide-mobile" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
                           {(b.profit || 0) >= 0 ? '+' : ''}{fmtQ(b.profit || 0)}
                         </td>
                         <td>

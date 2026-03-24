@@ -1138,7 +1138,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1164,11 +1164,11 @@ export default function OrdersPage() {
                             </td>
                             <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
-                            <td className="mono r">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
+                            <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
-                            <td className="mono r">{fmtQ(rev)}</td>
+                            <td className="mono r hide-mobile">{fmtQ(rev)}</td>
                             <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
-                            <td>
+                            <td className="hide-mobile">
                               <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>

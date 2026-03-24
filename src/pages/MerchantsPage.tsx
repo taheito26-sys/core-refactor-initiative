@@ -512,10 +512,10 @@ export default function MerchantsPage() {
                     <thead>
                       <tr>
                         <th>{t('merchant')}</th>
-                        <th>{t('code')}</th>
+                        <th className="hide-mobile">{t('code')}</th>
                         <th>{t('status')}</th>
-                        <th className="r">{t('deals')}</th>
-                        <th>{t('since')}</th>
+                        <th className="r hide-mobile">{t('deals')}</th>
+                        <th className="hide-mobile">{t('since')}</th>
                         <th>{t('actions')}</th>
                       </tr>
                     </thead>
@@ -528,10 +528,10 @@ export default function MerchantsPage() {
                               <div style={{ fontWeight: 700, fontSize: 11 }}>{r.counterparty_name}</div>
                               <div style={{ fontSize: 9, color: 'var(--muted)' }}>@{r.counterparty_nickname}</div>
                             </td>
-                            <td className="mono" style={{ fontSize: 10, fontWeight: 700 }}>{r.counterparty_code || '—'}</td>
+                            <td className="mono hide-mobile" style={{ fontSize: 10, fontWeight: 700 }}>{r.counterparty_code || '—'}</td>
                             <td>{statusPill(r.status)}</td>
-                            <td className="mono r">{relDeals.length}</td>
-                            <td className="mono">{new Date(r.created_at).toLocaleDateString()}</td>
+                            <td className="mono r hide-mobile">{relDeals.length}</td>
+                            <td className="mono hide-mobile">{new Date(r.created_at).toLocaleDateString()}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
                                 <button className="rowBtn" type="button" onClick={() => handleOpenRelationship(r.id)}>
