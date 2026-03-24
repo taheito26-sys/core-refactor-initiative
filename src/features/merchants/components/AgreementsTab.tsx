@@ -43,7 +43,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
   const handleCreate = async () => {
     const ratio = parseFloat(partnerRatio);
     if (isNaN(ratio) || ratio <= 0 || ratio >= 100) {
-      toast.error('Partner ratio must be between 1 and 99');
+      toast.error(t('ratioValidation'));
       return;
     }
 
@@ -57,18 +57,18 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
         notes: notes.trim() || null,
       });
-      toast.success('Profit Share agreement created');
+      toast.success(t('agreementCreatedSuccess'));
       setShowForm(false);
       resetForm();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create agreement');
+      toast.error(err.message || t('failedToCreate'));
     }
   };
 
   const handleReject = async (id: string) => {
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'rejected' });
-      toast.success('Agreement rejected');
+      toast.success(t('agreementRejectedSuccess'));
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -77,7 +77,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
   const handleExpire = async (id: string) => {
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'expired' });
-      toast.success('Agreement expired');
+      toast.success(t('agreementExpiredSuccess'));
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -92,23 +92,23 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
   };
 
   const statusPill = (status: string, isActive: boolean) => {
-    if (status === 'approved' && isActive) return <span className="pill good">Active</span>;
-    if (status === 'approved' && !isActive) return <span className="pill warn">Inactive</span>;
-    if (status === 'expired') return <span className="pill warn">Expired</span>;
-    if (status === 'rejected') return <span className="pill bad">Rejected</span>;
+    if (status === 'approved' && isActive) return <span className="pill good">{t('activeStatus')}</span>;
+    if (status === 'approved' && !isActive) return <span className="pill warn">{t('inactiveStatus')}</span>;
+    if (status === 'expired') return <span className="pill warn">{t('expiredStatus')}</span>;
+    if (status === 'rejected') return <span className="pill bad">{t('rejectedStatus')}</span>;
     return <span className="pill">{status}</span>;
   };
 
   const cadenceLabel = (c: string) => {
-    if (c === 'per_order') return '⚡ Per Order';
-    if (c === 'weekly') return '📆 Weekly';
-    return '📅 Monthly';
+    if (c === 'per_order') return t('perOrderCadence');
+    if (c === 'weekly') return t('weeklyCadence');
+    return t('monthlyCadence');
   };
 
   if (isLoading) {
     return (
       <div className="empty">
-        <div className="empty-t">{t('loading') || 'Loading...'}</div>
+        <div className="empty-t">{t('loading')}</div>
       </div>
     );
   }
@@ -119,13 +119,13 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
       {/* ─── Header ─── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700 }}>🤝 Profit Share Agreements</div>
+          <div style={{ fontSize: 12, fontWeight: 700 }}>{t('profitShareAgreements')}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-            Standing agreements with {counterpartyName || 'partner'} · {approved.length} active
+            {t('standingAgreementsWith')} {counterpartyName || t('partner')} · {approved.length} {t('active')}
           </div>
         </div>
         <button className="btn" onClick={() => setShowForm(v => !v)}>
-          {showForm ? (t('close') || 'Close') : '+ New Agreement'}
+          {showForm ? t('close') : `+ ${t('newAgreement')}`}
         </button>
       </div>
 
@@ -136,9 +136,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
         border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)',
         color: 'var(--muted)',
       }}>
-        <strong style={{ color: 'var(--brand)' }}>How it works:</strong> Create a Profit Share agreement here.
-        Once approved, it becomes available in the <strong>Orders</strong> page when creating profit share orders
-        with this merchant. Ratios are locked once agreed — no ad-hoc ratio entry on orders.
+        <strong style={{ color: 'var(--brand)' }}>{t('howItWorksAgreement')}</strong> {t('howItWorksDesc')}
       </div>
 
       {/* ─── Create Form ─── */}
@@ -148,11 +146,11 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
           border: '1px solid var(--brand)',
           background: 'color-mix(in srgb, var(--brand) 3%, var(--cardBg))',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>New Profit Share Agreement</div>
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>{t('newProfitShareAgreement')}</div>
 
           {/* Quick presets */}
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>Quick Presets</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t('quickPresets')}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[30, 40, 50, 60, 70].map(r => (
                 <button
@@ -170,7 +168,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
-                Partner Share (%) — {counterpartyName || 'Partner'}
+                {t('partnerSharePct')} — {counterpartyName || t('partner')}
               </div>
               <div className="inputBox" style={{ padding: '6px 10px' }}>
                 <input
@@ -185,7 +183,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
             </div>
             <div>
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
-                Your Share (%) — You
+                {t('yourSharePct')} — {t('you')}
               </div>
               <div className="inputBox" style={{ padding: '6px 10px' }}>
                 <input
@@ -200,25 +198,25 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Settlement Cadence</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('settlementCadence')}</div>
               <select
                 value={cadence}
                 onChange={e => setCadence(e.target.value as any)}
                 style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
               >
-                <option value="monthly">📅 Monthly</option>
-                <option value="weekly">📆 Weekly</option>
-                <option value="per_order">⚡ Per Order</option>
+                <option value="monthly">{t('monthlyCadence')}</option>
+                <option value="weekly">{t('weeklyCadence')}</option>
+                <option value="per_order">{t('perOrderCadence')}</option>
               </select>
             </div>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Effective From</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('effectiveFrom')}</div>
               <div className="inputBox" style={{ padding: '6px 10px' }}>
                 <input type="date" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} />
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Expires At (optional)</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('expiresAtLabel')}</div>
               <div className="inputBox" style={{ padding: '6px 10px' }}>
                 <input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
               </div>
@@ -226,9 +224,9 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
           </div>
 
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Notes (optional)</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('notesOptionalLabel')}</div>
             <div className="inputBox" style={{ padding: '6px 10px' }}>
-              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional agreement notes..." />
+              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('optionalAgreementNotes')} />
             </div>
           </div>
 
@@ -239,16 +237,16 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
             border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
             fontSize: 10,
           }}>
-            <strong>Preview:</strong> Profit Share {partnerRatio}/{100 - (parseFloat(partnerRatio) || 0)} —
-            {counterpartyName || 'Partner'} gets {partnerRatio}% of net profit, You keep {100 - (parseFloat(partnerRatio) || 0)}%.
-            Settlement: {cadenceLabel(cadence)}.
+            <strong>{t('previewAgreement')}</strong> {t('profitShareLabel')} {partnerRatio}/{100 - (parseFloat(partnerRatio) || 0)} —
+            {counterpartyName || t('partner')} {t('gets')} {partnerRatio}% {t('ofNetProfit')}, {t('you')} {t('keeps')} {100 - (parseFloat(partnerRatio) || 0)}%.
+            {t('settlement')}: {cadenceLabel(cadence)}.
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={handleCreate} disabled={createAgreement.isPending}>
-              {createAgreement.isPending ? 'Creating...' : 'Create Agreement'}
+              {createAgreement.isPending ? t('creatingAgreement') : t('createAgreement')}
             </button>
-            <button className="btn secondary" onClick={() => { setShowForm(false); resetForm(); }}>Cancel</button>
+            <button className="btn secondary" onClick={() => { setShowForm(false); resetForm(); }}>{t('cancel')}</button>
           </div>
         </div>
       )}
@@ -257,18 +255,18 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
       {approved.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-            ✅ Active Agreements ({approved.length})
+            ✅ {t('activeAgreementsLabel')} ({approved.length})
           </div>
           <div className="tableWrap">
             <table>
               <thead>
                 <tr>
-                  <th>Agreement</th>
-                  <th>Cadence</th>
-                  <th>Effective</th>
-                  <th>Expires</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th>{t('agreement')}</th>
+                  <th>{t('cadence')}</th>
+                  <th>{t('effective')}</th>
+                  <th>{t('expires')}</th>
+                  <th>{t('status')}</th>
+                  <th>{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,7 +277,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
                         🤝 {a.partner_ratio}/{a.merchant_ratio}
                       </div>
                       <div style={{ fontSize: 9, color: 'var(--muted)' }}>
-                        Partner {a.partner_ratio}% · You {a.merchant_ratio}%
+                        {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}%
                       </div>
                     </td>
                     <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
@@ -288,8 +286,8 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
                     <td>{statusPill(a.status, isAgreementActive(a))}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>Expire</button>
-                        <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>Reject</button>
+                        <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
+                        <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                       </div>
                     </td>
                   </tr>
@@ -304,17 +302,17 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
       {expired.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-            ⏰ Expired ({expired.length})
+            ⏰ {t('expiredAgreementsLabel')} ({expired.length})
           </div>
           <div className="tableWrap">
             <table>
               <thead>
                 <tr>
-                  <th>Agreement</th>
-                  <th>Cadence</th>
-                  <th>Was Effective</th>
-                  <th>Expired</th>
-                  <th>Status</th>
+                  <th>{t('agreement')}</th>
+                  <th>{t('cadence')}</th>
+                  <th>{t('wasEffective')}</th>
+                  <th>{t('expired')}</th>
+                  <th>{t('status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -337,16 +335,16 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
       {rejected.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--bad)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-            ❌ Rejected ({rejected.length})
+            ❌ {t('rejectedAgreementsLabel')} ({rejected.length})
           </div>
           <div className="tableWrap">
             <table>
               <thead>
                 <tr>
-                  <th>Agreement</th>
-                  <th>Cadence</th>
-                  <th>Created</th>
-                  <th>Status</th>
+                  <th>{t('agreement')}</th>
+                  <th>{t('cadence')}</th>
+                  <th>{t('created')}</th>
+                  <th>{t('status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -367,8 +365,8 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
       {/* ─── Empty State ─── */}
       {agreements.length === 0 && !showForm && (
         <div className="empty">
-          <div className="empty-t">No agreements yet</div>
-          <div className="empty-s">Create a Profit Share agreement to start linking orders with this partner.</div>
+          <div className="empty-t">{t('noAgreementsYet')}</div>
+          <div className="empty-s">{t('createAgreementToStart')}</div>
         </div>
       )}
     </div>
