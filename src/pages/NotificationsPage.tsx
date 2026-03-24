@@ -40,13 +40,13 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
 };
 
 // ─── Group by day ───────────────────────────────────────────────────
-function groupByDay(items: Notification[]): { label: string; items: Notification[] }[] {
+function groupByDay(items: Notification[], t: any): { label: string; items: Notification[] }[] {
   const groups = new Map<string, Notification[]>();
   for (const n of items) {
     const d = new Date(n.created_at);
     let label: string;
-    if (isToday(d)) label = 'Today';
-    else if (isYesterday(d)) label = 'Yesterday';
+    if (isToday(d)) label = t('notifToday');
+    else if (isYesterday(d)) label = t('notifYesterday');
     else label = format(d, 'EEEE, MMM d');
     const existing = groups.get(label) || [];
     existing.push(n);
