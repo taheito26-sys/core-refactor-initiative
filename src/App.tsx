@@ -117,8 +117,9 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+         <BrowserRouter>
           <AuthProvider>
+            <AuthDiagnostics />
             <RouteErrorBoundary>
               <Routes>
                 {/* OAuth callback — Supabase redirects here after Google consent */}
