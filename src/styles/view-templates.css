@@ -288,3 +288,144 @@
     padding: 2px 4px;
   }
 }
+
+
+/* ══════════════════════════════════════════════════════
+   AURORA — Luminous dark, organic warmth, flowing shapes
+   ══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+/* Wide sidebar with soft glow */
+.layout-aurora .app-sidebar-desktop {
+  width: 230px;
+}
+
+/* Generous organic spacing */
+.layout-aurora .app-page-shell {
+  padding: 24px 28px;
+}
+
+/* Center-cap for readability */
+.layout-aurora .app-page-content {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Cards: large radius, soft glow border */
+.layout-aurora .glass,
+.layout-aurora [data-slot="card"],
+.layout-aurora .border {
+  border-radius: 18px;
+}
+
+/* Subtle inner glow on cards */
+.layout-aurora [data-slot="card"] {
+  box-shadow: 0 0 0 1px rgba(123,92,255,.08), 0 8px 32px rgba(0,0,0,.25);
+}
+
+/* KPI band: spacious with glow accents */
+.layout-aurora .tracker-kpi-band {
+  gap: 14px;
+}
+
+.layout-aurora .tracker-kpi-card {
+  padding: 16px 20px;
+  border-radius: 18px;
+  box-shadow: 0 0 20px rgba(123,92,255,.06);
+}
+
+.layout-aurora .tracker-kpi-card .text-2xl,
+.layout-aurora .tracker-kpi-card .text-xl {
+  font-size: 1.75rem;
+  line-height: 2.1rem;
+  font-weight: 700;
+}
+
+/* Tables: soft rows with hover glow */
+.layout-aurora table tbody tr td {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 12px;
+}
+
+.layout-aurora table thead tr th {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.layout-aurora table tbody tr {
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.layout-aurora table tbody tr:hover {
+  box-shadow: inset 0 0 30px rgba(123,92,255,.04);
+}
+
+/* Buttons: pill-shaped */
+.layout-aurora button {
+  border-radius: 99px;
+}
+
+/* Grids: generous gaps */
+.layout-aurora .grid {
+  gap: 14px;
+}
+
+/* Page header breathing room */
+.layout-aurora .tracker-page > div:first-child {
+  margin-bottom: 20px;
+}
+
+/* Topbar: subtle bottom glow */
+.layout-aurora .tracker-topbar {
+  border-bottom: 1px solid rgba(123,92,255,.1);
+  box-shadow: 0 1px 20px rgba(123,92,255,.04);
+}
+
+/* Charts: taller for visual impact */
+.layout-aurora .recharts-wrapper {
+  min-height: 240px;
+}
+
+/* Smooth scrollbar */
+.layout-aurora ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.layout-aurora ::-webkit-scrollbar-thumb {
+  background: rgba(123,92,255,.2);
+  border-radius: 99px;
+}
+
+.layout-aurora ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Badges: pill-shaped */
+.layout-aurora [class*="Badge"] {
+  border-radius: 99px;
+  font-size: 10px;
+  padding: 2px 10px;
+}
+
+/* Inputs: organic rounded */
+.layout-aurora input,
+.layout-aurora select,
+.layout-aurora textarea {
+  border-radius: 14px;
+}
+
+@media (max-width: 768px) {
+  .layout-aurora .app-page-shell {
+    padding: 14px 16px;
+  }
+  .layout-aurora .grid {
+    gap: 10px;
+  }
+}
