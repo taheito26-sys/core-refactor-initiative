@@ -159,6 +159,7 @@ function NotificationCard({
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function NotificationsPage() {
   const navigate = useNavigate();
+  const t = useT();
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllRead();
