@@ -1730,7 +1730,7 @@ export default function OrdersPage() {
                                     )}
                                     {alloc.agreementId && (
                                       <div style={{ fontSize: 9, color: 'var(--brand)', marginTop: 2, fontWeight: 600 }}>
-                                        Locked: Partner {alloc.partnerSharePct}% / You {alloc.merchantSharePct}%
+                                        {t('lockedRatio')} {alloc.partnerSharePct}% / {t('youShare')} {alloc.merchantSharePct}%
                                       </div>
                                     )}
                                   </div>
