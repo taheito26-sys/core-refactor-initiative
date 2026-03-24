@@ -20,9 +20,17 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "robots.txt"],
       workbox: {
-        navigateFallbackDenylist: [/^\/auth\//, /^\/~oauth/, /^\/login/],
+        navigateFallbackDenylist: [/^\/auth\//, /^\/~oauth/, /^\/login/, /^\/signup/, /^\/reset-password/, /^\/verify-email/],
         clientsClaim: true,
         skipWaiting: true,
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkFirst',
+            options: { cacheName: 'supabase-api', expiration: { maxEntries: 50, maxAgeSeconds: 60 } },
+          },
+        ],
       },
       manifest: {
         name: "P2P Tracker",

@@ -54,13 +54,33 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// ── Aggressive SW cleanup on every app boot ──
+// This ensures stale service workers never block new deployments
+(async function cleanupStaleSW() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        // Force the waiting SW to activate immediately
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        // Check for updates
+        reg.update().catch(() => {});
+      }
+    }
+  } catch {
+    // Best effort
+  }
+})();
+
 class RouteErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; autoCleared: boolean }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, autoCleared: false };
   }
 
   static getDerivedStateFromError() {
@@ -69,16 +89,20 @@ class RouteErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error) {
     console.error('[RouteErrorBoundary] route render failed', error);
+    // Auto-clear caches on first error — many mobile crashes are stale SW
+    const alreadyCleared = sessionStorage.getItem('_p2p_auto_cleared');
+    if (!alreadyCleared) {
+      sessionStorage.setItem('_p2p_auto_cleared', '1');
+      this.clearAndReload();
+    }
   }
 
-  handleClearAndReload = async () => {
+  clearAndReload = async () => {
     try {
-      // Unregister all service workers
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         await Promise.all(registrations.map(r => r.unregister()));
       }
-      // Clear caches
       if ('caches' in window) {
         const names = await caches.keys();
         await Promise.all(names.map(n => caches.delete(n)));
@@ -87,6 +111,12 @@ class RouteErrorBoundary extends React.Component<
       // Best effort
     }
     window.location.reload();
+  };
+
+  handleClearAndReload = async () => {
+    // Reset the session flag so the auto-clear can retry next time
+    sessionStorage.removeItem('_p2p_auto_cleared');
+    await this.clearAndReload();
   };
 
   render() {
@@ -104,6 +134,9 @@ class RouteErrorBoundary extends React.Component<
             >
               Clear Cache & Reload
             </button>
+            <p className="text-xs text-muted-foreground mt-2">
+              If this keeps happening, clear your browser data for this site.
+            </p>
           </div>
         </div>
       );

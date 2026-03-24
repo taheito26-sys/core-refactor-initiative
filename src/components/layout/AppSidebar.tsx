@@ -62,10 +62,8 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     tradingNav[1], // Orders
     tradingNav[2], // Stock
     tradingNav[4], // P2P Tracker
-    networkNav[0], // Network
-    tradingNav[3], // Calendar
-    networkNav[3], // Vault
-  ];
+    networkNav[0], // Merchants
+  ].filter(Boolean) as NavItem[];
 
   return (
     <nav className="mobile-bottom-nav">
