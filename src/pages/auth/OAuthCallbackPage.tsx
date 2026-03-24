@@ -69,17 +69,26 @@ export default function OAuthCallbackPage() {
           throw new Error('No authenticated session was created after Google sign-in.');
         }
 
+        window.history.replaceState({}, document.title, '/auth/callback');
+        sessionStorage.removeItem('oauth:return-path');
+        sessionStorage.removeItem('oauth:started-at');
+
         console.info('[OAuthCallback] Supabase session restored', {
           userId: session.user.id,
           email: session.user.email,
         });
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unable to complete Google sign-in.';
+        const rawMessage = err instanceof Error ? err.message : 'Unable to complete Google sign-in.';
+        const message = rawMessage.toLowerCase().includes('state not found or expired')
+          ? 'Google sign-in expired on this device. Please try again from the login page.'
+          : rawMessage;
 
         console.error('[OAuthCallback] Failed to finalize Google OAuth session', {
           error: err,
           search: window.location.search,
           hash: window.location.hash,
+          startedAt: sessionStorage.getItem('oauth:started-at'),
+          returnPath: sessionStorage.getItem('oauth:return-path'),
         });
 
         toast.error(message);

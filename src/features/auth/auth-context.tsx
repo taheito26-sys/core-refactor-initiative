@@ -132,18 +132,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithGoogle = useCallback(async () => {
     const redirectTo = `${window.location.origin}/auth/callback`;
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const isMobileViewport = window.matchMedia?.('(max-width: 1024px)').matches ?? false;
+    const useManualRedirect = isStandalone || isMobileViewport;
 
-    console.info('[Auth] Starting Google OAuth with Supabase', { redirectTo });
+    console.info('[Auth] Starting Google OAuth with Supabase', {
+      redirectTo,
+      isStandalone,
+      isMobileViewport,
+      useManualRedirect,
+    });
 
     if (import.meta.env.DEV) {
       console.info('[Auth][DEV] Active Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
       console.info('[Auth][DEV] Active Project ID:', import.meta.env.VITE_SUPABASE_PROJECT_ID);
     }
 
+    sessionStorage.setItem('oauth:return-path', window.location.pathname + window.location.search);
+    sessionStorage.setItem('oauth:started-at', String(Date.now()));
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo,
+        skipBrowserRedirect: useManualRedirect,
       },
     });
 
@@ -153,6 +165,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: error.name,
         status: 'status' in error ? error.status : undefined,
         redirectTo,
+        isStandalone,
+        isMobileViewport,
+        useManualRedirect,
       });
       throw error;
     }
@@ -160,7 +175,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.info('[Auth] Google OAuth redirect prepared', {
       redirectTo,
       hasUrl: Boolean(data?.url),
+      isStandalone,
+      isMobileViewport,
+      useManualRedirect,
     });
+
+    if (useManualRedirect) {
+      if (!data?.url) {
+        throw new Error('Google OAuth redirect URL was not returned.');
+      }
+
+      window.location.assign(data.url);
+    }
   }, []);
 
   const signup = useCallback(async (email: string, password: string) => {
