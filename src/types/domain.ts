@@ -343,6 +343,73 @@ export interface JournalEntry {
   created_at: string;
 }
 
+// ─── Profit Share Agreements (Standing Agreements) ──────────────────
+export type AgreementStatus = 'approved' | 'rejected' | 'expired';
+
+export interface ProfitShareAgreement {
+  id: string;
+  relationship_id: string;
+  /** partner_ratio: the counterparty's share percentage (e.g. 40 means partner gets 40%) */
+  partner_ratio: number;
+  /** merchant_ratio: the trader's share percentage (e.g. 60 means you keep 60%) */
+  merchant_ratio: number;
+  settlement_cadence: 'monthly' | 'weekly' | 'per_order';
+  status: AgreementStatus;
+  effective_from: string;
+  expires_at: string | null;
+  created_by: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Enriched (client-side joins)
+  counterparty_name?: string;
+  counterparty_merchant_id?: string;
+}
+
+// ─── Order Allocations (Per-Merchant Allocation for Multi-Merchant Sales) ─
+export type AllocationFamily = 'profit_share' | 'sales_deal' | 'capital_transfer';
+export type AllocationStatus = 'pending' | 'confirmed' | 'settled' | 'voided';
+
+export interface OrderAllocation {
+  id: string;
+  /** sale_group_id groups all allocations for the same parent sale */
+  sale_group_id: string;
+  /** local trade ID from tracker state */
+  order_id: string;
+  relationship_id: string;
+  merchant_id: string;
+  family: AllocationFamily;
+  /** Only set when family = profit_share */
+  profit_share_agreement_id: string | null;
+  // Allocation economics
+  allocated_usdt: number;
+  merchant_cost_per_usdt: number;
+  sell_price: number;
+  fee_share: number;
+  // Calculated fields
+  allocation_revenue: number;
+  allocation_cost: number;
+  allocation_fee: number;
+  allocation_net: number;
+  // Split details (snapshot at creation time)
+  partner_share_pct: number;
+  merchant_share_pct: number;
+  partner_amount: number;
+  merchant_amount: number;
+  // Snapshots for immutability
+  agreement_ratio_snapshot: string | null;
+  deal_terms_snapshot: Record<string, unknown> | null;
+  // Status
+  status: AllocationStatus;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  // Enriched
+  counterparty_name?: string;
+}
+
 // ─── User Preferences ───────────────────────────────────────────────
 export interface UserPreferences {
   id: string;
