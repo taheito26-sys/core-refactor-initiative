@@ -38,6 +38,7 @@ interface AuthState {
   profile: Profile | null;
   merchantProfile: MerchantProfile | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
