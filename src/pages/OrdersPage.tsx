@@ -1903,13 +1903,13 @@ export default function OrdersPage() {
                                           fontSize: 9, padding: '3px 0',
                                           borderBottom: i < allocations.length - 1 ? '1px solid color-mix(in srgb, var(--line) 30%, transparent)' : 'none',
                                         }}>
-                                          <span style={{ fontWeight: 600 }}>{alloc.merchantName || `Merchant ${i + 1}`}</span>
+                                          <span style={{ fontWeight: 600 }}>{alloc.merchantName || `${t('allocMerchant')} ${i + 1}`}</span>
                                           <span className="mono">
-                                            Rev {fmtQ(c.revenue)} · Net <span style={{ color: c.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{c.net >= 0 ? '+' : ''}{fmtQ(c.net)}</span>
+                                            {t('allocRev')} {fmtQ(c.revenue)} · {t('allocNet')} <span style={{ color: c.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{c.net >= 0 ? '+' : ''}{fmtQ(c.net)}</span>
                                             {' · '}
-                                            <span style={{ color: 'var(--good)' }}>You {fmtQ(c.merchantAmount)}</span>
+                                            <span style={{ color: 'var(--good)' }}>{t('youShare')} {fmtQ(c.merchantAmount)}</span>
                                             {' · '}
-                                            <span style={{ color: 'var(--bad)' }}>Partner {fmtQ(c.partnerAmount)}</span>
+                                            <span style={{ color: 'var(--bad)' }}>{t('partner')} {fmtQ(c.partnerAmount)}</span>
                                           </span>
                                         </div>
                                       );
