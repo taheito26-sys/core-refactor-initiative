@@ -1033,7 +1033,7 @@ const translations = {
   loadingActivityFeed: { en: 'Loading activity feed...', ar: 'جاري تحميل النشاط...' },
   noResultsFound: { en: 'No results found', ar: 'لا توجد نتائج' },
   noUnreadNotifications: { en: 'No unread notifications', ar: 'لا توجد إشعارات غير مقروءة' },
-  noActivityYet: { en: 'No activity yet', ar: 'لا يوجد نشاط بعد' },
+  notifNoActivityYet: { en: 'No activity yet', ar: 'لا يوجد نشاط بعد' },
   noNotificationsMatch: { en: 'No notifications match', ar: 'لا توجد إشعارات تطابق' },
   allCaughtUp: { en: "You're all caught up! Toggle off the filter to see all activity.", ar: 'لقد اطلعت على كل شيء! أوقف الفلتر لرؤية كل النشاط.' },
   createDealOrInvite: { en: 'Create a deal or send an invite to start seeing activity here.', ar: 'أنشئ صفقة أو أرسل دعوة لبدء رؤية النشاط هنا.' },
