@@ -16,15 +16,15 @@ export function useOrderAllocations(orderId?: string) {
     queryKey: [ALLOCATIONS_KEY, 'order', orderId],
     queryFn: async (): Promise<OrderAllocation[]> => {
       if (!orderId) return [];
-
-      const { data, error } = await supabase
-        .from('order_allocations' as any)
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return (data || []) as unknown as OrderAllocation[];
+      try {
+        const { data, error } = await supabase
+          .from('order_allocations' as any)
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true });
+        if (error) { console.warn('[useOrderAllocations] Query error:', error.message); return []; }
+        return (data || []) as unknown as OrderAllocation[];
+      } catch (e) { console.warn('[useOrderAllocations] Failed:', e); return []; }
     },
     enabled: !!orderId,
   });
@@ -37,15 +37,15 @@ export function useSaleGroupAllocations(saleGroupId?: string) {
     queryKey: [ALLOCATIONS_KEY, 'group', saleGroupId],
     queryFn: async (): Promise<OrderAllocation[]> => {
       if (!saleGroupId) return [];
-
-      const { data, error } = await supabase
-        .from('order_allocations' as any)
-        .select('*')
-        .eq('sale_group_id', saleGroupId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      return (data || []) as unknown as OrderAllocation[];
+      try {
+        const { data, error } = await supabase
+          .from('order_allocations' as any)
+          .select('*')
+          .eq('sale_group_id', saleGroupId)
+          .order('created_at', { ascending: true });
+        if (error) { console.warn('[useSaleGroupAllocations] Query error:', error.message); return []; }
+        return (data || []) as unknown as OrderAllocation[];
+      } catch (e) { console.warn('[useSaleGroupAllocations] Failed:', e); return []; }
     },
     enabled: !!saleGroupId,
   });
@@ -60,15 +60,15 @@ export function useRelationshipAllocations(relationshipId?: string) {
     queryKey: [ALLOCATIONS_KEY, 'relationship', relationshipId],
     queryFn: async (): Promise<OrderAllocation[]> => {
       if (!relationshipId) return [];
-
-      const { data, error } = await supabase
-        .from('order_allocations' as any)
-        .select('*')
-        .eq('relationship_id', relationshipId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return (data || []) as unknown as OrderAllocation[];
+      try {
+        const { data, error } = await supabase
+          .from('order_allocations' as any)
+          .select('*')
+          .eq('relationship_id', relationshipId)
+          .order('created_at', { ascending: false });
+        if (error) { console.warn('[useRelationshipAllocations] Query error:', error.message); return []; }
+        return (data || []) as unknown as OrderAllocation[];
+      } catch (e) { console.warn('[useRelationshipAllocations] Failed:', e); return []; }
     },
     enabled: !!relationshipId,
   });

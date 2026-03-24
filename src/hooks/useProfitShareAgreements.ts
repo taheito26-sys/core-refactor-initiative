@@ -18,18 +18,27 @@ export function useProfitShareAgreements(relationshipId?: string) {
   const query = useQuery({
     queryKey: [AGREEMENTS_KEY, relationshipId],
     queryFn: async (): Promise<ProfitShareAgreement[]> => {
-      let q = supabase
-        .from('profit_share_agreements' as any)
-        .select('*')
-        .order('created_at', { ascending: false });
+      try {
+        let q = supabase
+          .from('profit_share_agreements' as any)
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (relationshipId) {
-        q = q.eq('relationship_id', relationshipId);
+        if (relationshipId) {
+          q = q.eq('relationship_id', relationshipId);
+        }
+
+        const { data, error } = await q;
+        if (error) {
+          // Table may not exist yet — return empty gracefully
+          console.warn('[useProfitShareAgreements] Query error (table may not exist):', error.message);
+          return [];
+        }
+        return (data || []) as unknown as ProfitShareAgreement[];
+      } catch (e) {
+        console.warn('[useProfitShareAgreements] Failed:', e);
+        return [];
       }
-
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data || []) as unknown as ProfitShareAgreement[];
     },
     enabled: !!merchantProfile?.merchant_id,
   });
@@ -74,26 +83,34 @@ export function useApprovedAgreements(relationshipId: string | undefined) {
     queryFn: async (): Promise<ProfitShareAgreement[]> => {
       if (!relationshipId) return [];
 
-      const { data, error } = await supabase
-        .from('profit_share_agreements' as any)
-        .select('*')
-        .eq('relationship_id', relationshipId)
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('profit_share_agreements' as any)
+          .select('*')
+          .eq('relationship_id', relationshipId)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-
-      // Client-side filter: only agreements that are currently effective
-      const now = new Date();
-      return ((data || []) as unknown as ProfitShareAgreement[]).filter(a => {
-        const from = new Date(a.effective_from);
-        if (from > now) return false;
-        if (a.expires_at) {
-          const until = new Date(a.expires_at);
-          if (until < now) return false;
+        if (error) {
+          console.warn('[useApprovedAgreements] Query error:', error.message);
+          return [];
         }
-        return true;
-      });
+
+        // Client-side filter: only agreements that are currently effective
+        const now = new Date();
+        return ((data || []) as unknown as ProfitShareAgreement[]).filter(a => {
+          const from = new Date(a.effective_from);
+          if (from > now) return false;
+          if (a.expires_at) {
+            const until = new Date(a.expires_at);
+            if (until < now) return false;
+          }
+          return true;
+        });
+      } catch (e) {
+        console.warn('[useApprovedAgreements] Failed:', e);
+        return [];
+      }
     },
     enabled: !!merchantProfile?.merchant_id && !!relationshipId,
   });
