@@ -9,9 +9,11 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
+import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
+import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'settlements' | 'chat';
+type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat';
 
 interface AgreementRow {
   id: string;
@@ -36,7 +38,7 @@ export default function MerchantsPage() {
 
   const [tab, setTab] = useState<MerchantTab>(() => {
     const qTab = searchParams.get('tab');
-    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships') return qTab as MerchantTab;
+    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements') return qTab as MerchantTab;
     return 'relationships';
   });
   const [relationships, setRelationships] = useState<any[]>([]);
@@ -52,6 +54,7 @@ export default function MerchantsPage() {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const { data: settlementOverview } = useSettlementOverview();
+  const { data: allAgreements = [] } = useProfitShareAgreements();
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
@@ -267,8 +270,10 @@ export default function MerchantsPage() {
   const inboxCount = invites.filter(i => i.status === 'pending' && i.is_incoming).length;
 
   const overdueCount = settlementOverview?.overdueCount || 0;
+  const activeAgreementCount = allAgreements.filter(a => a.status === 'approved' && isAgreementActive(a)).length;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
+    { key: 'agreements', label: 'Agreements', icon: '🤝', badge: activeAgreementCount > 0 ? activeAgreementCount : undefined },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
     { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬', badge: unreadChatCount > 0 ? unreadChatCount : undefined },
   ];
@@ -466,6 +471,92 @@ export default function MerchantsPage() {
             </>
           )}
 
+
+          {/* ═══ AGREEMENTS TAB ═══ */}
+          {tab === 'agreements' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>🤝 Profit Share Agreements</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                    Standing agreements across all relationships · {activeAgreementCount} active
+                  </div>
+                </div>
+              </div>
+
+              {/* Info Banner */}
+              <div style={{
+                padding: '8px 12px', borderRadius: 6, fontSize: 10, lineHeight: 1.5, marginBottom: 10,
+                background: 'color-mix(in srgb, var(--brand) 6%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)',
+                color: 'var(--muted)',
+              }}>
+                <strong style={{ color: 'var(--brand)' }}>Profit Share Agreements</strong> are created in the merchant workspace.
+                Once approved, they appear in the <strong>Orders</strong> page when creating profit share orders.
+                Sales Deals and Capital Transfers don't require agreements.
+              </div>
+
+              {allAgreements.length === 0 ? (
+                <div className="empty">
+                  <div className="empty-t">No agreements yet</div>
+                  <div className="empty-s">Open a merchant workspace to create Profit Share agreements.</div>
+                </div>
+              ) : (
+                <div className="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Merchant</th>
+                        <th>Agreement</th>
+                        <th>Cadence</th>
+                        <th>Effective</th>
+                        <th>Expires</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allAgreements.map(a => {
+                        const rel = relationships.find((r: any) => r.id === a.relationship_id);
+                        const cpName = rel?.counterparty_name || '—';
+                        const active = a.status === 'approved' && isAgreementActive(a);
+                        const statusCls = active ? 'good' : a.status === 'rejected' ? 'bad' : 'warn';
+                        const statusLabel = active ? 'Active' : a.status === 'rejected' ? 'Rejected' : a.status === 'expired' ? 'Expired' : 'Inactive';
+                        return (
+                          <tr key={a.id} style={{ opacity: active ? 1 : 0.6 }}>
+                            <td>
+                              <div style={{ fontWeight: 700, fontSize: 11 }}>{cpName}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 700, fontSize: 11 }}>
+                                🤝 {a.partner_ratio}/{a.merchant_ratio}
+                              </div>
+                              <div style={{ fontSize: 9, color: 'var(--muted)' }}>
+                                Partner {a.partner_ratio}% · You {a.merchant_ratio}%
+                              </div>
+                            </td>
+                            <td style={{ fontSize: 10 }}>
+                              {a.settlement_cadence === 'per_order' ? '⚡ Per Order' : a.settlement_cadence === 'weekly' ? '📆 Weekly' : '📅 Monthly'}
+                            </td>
+                            <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
+                            <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
+                            <td><span className={`pill ${statusCls}`}>{statusLabel}</span></td>
+                            <td>
+                              {rel && (
+                                <button className="rowBtn" onClick={() => handleOpenRelationship(rel.id)}>
+                                  Open Workspace
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
 
           {/* ═══ SETTLEMENTS TAB ═══ */}
           {tab === 'settlements' && (

@@ -238,6 +238,52 @@ export function calculateAllocation(
   return { counterpartyAmount, merchantAmount, allocationBase: 'sale_economics' };
 }
 
+// ─── Agreement-Based Allocation (New Model) ─────────────────────────
+
+import type { ProfitShareAgreement } from '@/types/domain';
+
+/**
+ * Calculate allocation for a standing profit share agreement.
+ * Uses net profit as the base for profit share agreements.
+ */
+export function calculateAgreementAllocation(
+  agreement: ProfitShareAgreement,
+  orderRevenue: number,
+  orderCost: number,
+  orderFee: number,
+): { partnerAmount: number; merchantAmount: number; netProfit: number } {
+  const netProfit = orderRevenue - orderCost - orderFee;
+  const partnerAmount = (netProfit * agreement.partner_ratio) / 100;
+  const merchantAmount = netProfit - partnerAmount;
+  return {
+    partnerAmount: Math.round(partnerAmount * 100) / 100,
+    merchantAmount: Math.round(merchantAmount * 100) / 100,
+    netProfit: Math.round(netProfit * 100) / 100,
+  };
+}
+
+/**
+ * Check if a profit share agreement is currently active and usable.
+ */
+export function isAgreementActive(agreement: ProfitShareAgreement): boolean {
+  if (agreement.status !== 'approved') return false;
+  const now = new Date();
+  const from = new Date(agreement.effective_from);
+  if (from > now) return false;
+  if (agreement.expires_at) {
+    const until = new Date(agreement.expires_at);
+    if (until < now) return false;
+  }
+  return true;
+}
+
+/**
+ * Get a human-readable label for an agreement.
+ */
+export function getAgreementLabel(agreement: ProfitShareAgreement): string {
+  return `Profit Share ${agreement.partner_ratio}/${agreement.merchant_ratio}`;
+}
+
 // ─── Deal Status Transitions ────────────────────────────────────────
 
 export function getAvailableTransitions(status: DealStatus, _dealType: DealType): DealStatus[] {
