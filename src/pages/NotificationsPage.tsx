@@ -15,17 +15,18 @@ import {
   notificationRoute,
   type Notification,
 } from '@/hooks/useNotifications';
+import { useT } from '@/lib/i18n';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
 
-const CATEGORIES: { key: CategoryKey; label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }[] = [
-  { key: 'all', label: 'All Activity', icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
-  { key: 'deal', label: 'Deals', icon: Handshake, color: 'text-accent', bg: 'bg-accent/10' },
-  { key: 'order', label: 'Orders', icon: Package, color: 'text-warning', bg: 'bg-warning/10' },
-  { key: 'invite', label: 'Invites', icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
-  { key: 'approval', label: 'Approvals', icon: ShieldCheck, color: 'text-success', bg: 'bg-success/10' },
-  { key: 'system', label: 'System', icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
+const CATEGORY_KEYS: { key: CategoryKey; labelKey: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }[] = [
+  { key: 'all', labelKey: 'notifAllActivity', icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
+  { key: 'deal', labelKey: 'notifDeals', icon: Handshake, color: 'text-accent', bg: 'bg-accent/10' },
+  { key: 'order', labelKey: 'orders', icon: Package, color: 'text-warning', bg: 'bg-warning/10' },
+  { key: 'invite', labelKey: 'notifInvites', icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
+  { key: 'approval', labelKey: 'notifApprovals', icon: ShieldCheck, color: 'text-success', bg: 'bg-success/10' },
+  { key: 'system', labelKey: 'notifSystem', icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
 ];
 
 const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string; gradient: string }> = {
@@ -39,13 +40,13 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
 };
 
 // ─── Group by day ───────────────────────────────────────────────────
-function groupByDay(items: Notification[]): { label: string; items: Notification[] }[] {
+function groupByDay(items: Notification[], t: any): { label: string; items: Notification[] }[] {
   const groups = new Map<string, Notification[]>();
   for (const n of items) {
     const d = new Date(n.created_at);
     let label: string;
-    if (isToday(d)) label = 'Today';
-    else if (isYesterday(d)) label = 'Yesterday';
+    if (isToday(d)) label = t('notifToday');
+    else if (isYesterday(d)) label = t('notifYesterday');
     else label = format(d, 'EEEE, MMM d');
     const existing = groups.get(label) || [];
     existing.push(n);
@@ -57,7 +58,7 @@ function groupByDay(items: Notification[]): { label: string; items: Notification
 function normalizeCategory(cat: string): CategoryKey {
   if (cat === 'network' || cat === 'invite') return 'invite';
   if (cat === 'merchant' || cat === 'deal') return 'deal';
-  if (CATEGORIES.some(c => c.key === cat)) return cat as CategoryKey;
+  if (CATEGORY_KEYS.some(c => c.key === cat)) return cat as CategoryKey;
   return 'system';
 }
 
@@ -66,10 +67,12 @@ function NotificationCard({
   n,
   onNavigate,
   onMarkRead,
+  t,
 }: {
   n: Notification;
   onNavigate: (n: Notification) => void;
   onMarkRead: (id: string) => void;
+  t: (key: string) => string;
 }) {
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
@@ -146,7 +149,7 @@ function NotificationCard({
               onClick={(e) => { e.stopPropagation(); onMarkRead(n.id); }}
               className="ml-auto text-[10px] text-muted-foreground/50 hover:text-foreground font-medium transition-colors"
             >
-              Mark read
+              {t('markRead')}
             </button>
           )}
         </div>
@@ -158,6 +161,7 @@ function NotificationCard({
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function NotificationsPage() {
   const navigate = useNavigate();
+  const t = useT();
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllRead();
@@ -188,7 +192,7 @@ export default function NotificationsPage() {
     return items;
   }, [notifications, activeCategory, showUnreadOnly, searchQuery]);
 
-  const grouped = useMemo(() => groupByDay(filtered), [filtered]);
+  const grouped = useMemo(() => groupByDay(filtered, t), [filtered, t]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -218,13 +222,13 @@ export default function NotificationsPage() {
                 <Sparkles className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-black text-foreground tracking-tight">Activity Center</h1>
+                <h1 className="text-xl font-black text-foreground tracking-tight">{t('activityCenter')}</h1>
                 <p className="text-[12px] text-muted-foreground mt-0.5 flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
                   </span>
-                  Real-time updates · {(notifications ?? []).length} total alerts
+                  {t('realTimeUpdates')} · {(notifications ?? []).length} {t('totalAlerts')}
                 </p>
               </div>
             </div>
@@ -237,7 +241,7 @@ export default function NotificationsPage() {
                 disabled={markAllRead.isPending}
               >
                 <CheckCheck className="h-3.5 w-3.5" />
-                Mark all read ({unreadCount})
+                {t('notifMarkAllRead')} ({unreadCount})
               </Button>
             )}
           </div>
@@ -245,10 +249,10 @@ export default function NotificationsPage() {
           {/* ── Stats bar ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
             {[
-              { label: 'Total', value: (notifications ?? []).length, icon: Bell, color: 'text-foreground' },
-              { label: 'Unread', value: unreadCount, icon: Sparkles, color: unreadCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
-              { label: 'Deals', value: (notifications ?? []).filter(n => normalizeCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
-              { label: 'This Week', value: (notifications ?? []).filter(n => Date.now() - new Date(n.created_at).getTime() < 7 * 86400000).length, icon: Clock, color: 'text-primary' },
+              { label: t('notifTotal'), value: (notifications ?? []).length, icon: Bell, color: 'text-foreground' },
+              { label: t('notifUnread'), value: unreadCount, icon: Sparkles, color: unreadCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
+              { label: t('notifDeals'), value: (notifications ?? []).filter(n => normalizeCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
+              { label: t('notifThisWeek'), value: (notifications ?? []).filter(n => Date.now() - new Date(n.created_at).getTime() < 7 * 86400000).length, icon: Clock, color: 'text-primary' },
             ].map(stat => (
               <div key={stat.label} className="flex items-center gap-2.5 p-3 rounded-xl bg-card/80 border border-border/50">
                 <stat.icon className={cn('h-4 w-4', stat.color)} />
@@ -270,7 +274,7 @@ export default function NotificationsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
             <input
               type="text"
-              placeholder="Search notifications..."
+              placeholder={t('searchNotifications')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-9 py-2 rounded-lg border border-border/50 bg-card text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
@@ -296,13 +300,13 @@ export default function NotificationsPage() {
             )}
           >
             <Filter className="h-3.5 w-3.5" />
-            Unread only
+            {t('unreadOnly')}
           </button>
         </div>
 
         {/* Category tabs */}
         <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide pb-1">
-          {CATEGORIES.map(cat => {
+          {CATEGORY_KEYS.map(cat => {
             const count = cat.key === 'all' ? unreadCount : (categoryCounts[cat.key] || 0);
             const isActive = activeCategory === cat.key;
             const CatIcon = cat.icon;
@@ -318,7 +322,7 @@ export default function NotificationsPage() {
                 )}
               >
                 <CatIcon className="h-3.5 w-3.5" />
-                {cat.label}
+                {t(cat.labelKey as any)}
                 {count > 0 && (
                   <span className={cn(
                     'flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-black',
@@ -340,7 +344,7 @@ export default function NotificationsPage() {
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <div className="h-12 w-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-            <p className="text-sm text-muted-foreground font-medium">Loading activity feed...</p>
+            <p className="text-sm text-muted-foreground font-medium">{t('loadingActivityFeed')}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-20 gap-4">
@@ -349,21 +353,21 @@ export default function NotificationsPage() {
                 <Bell className="h-8 w-8 text-muted-foreground/30" />
               ) : (
                 (() => {
-                  const CatIcon = CATEGORIES.find(c => c.key === activeCategory)?.icon ?? Bell;
+                  const CatIcon = CATEGORY_KEYS.find(c => c.key === activeCategory)?.icon ?? Bell;
                   return <CatIcon className="h-8 w-8 text-muted-foreground/30" />;
                 })()
               )}
             </div>
             <div className="text-center">
               <h3 className="text-sm font-bold text-muted-foreground">
-                {searchQuery ? 'No results found' : showUnreadOnly ? 'No unread notifications' : 'No activity yet'}
+                {searchQuery ? t('noResultsFound') : showUnreadOnly ? t('noUnreadNotifications') : t('notifNoActivityYet')}
               </h3>
               <p className="text-[12px] text-muted-foreground/60 mt-1 max-w-[260px]">
                 {searchQuery
-                  ? `No notifications match "${searchQuery}"`
+                  ? `${t('noNotificationsMatch')} "${searchQuery}"`
                   : showUnreadOnly
-                  ? 'You\'re all caught up! Toggle off the filter to see all activity.'
-                  : 'Create a deal or send an invite to start seeing activity here.'}
+                  ? t('allCaughtUp')
+                  : t('createDealOrInvite')}
               </p>
             </div>
           </div>
@@ -379,7 +383,7 @@ export default function NotificationsPage() {
                   <div className="flex items-center gap-3 mb-3 relative">
                     <div className="absolute -left-10 hidden lg:flex h-7 w-7 items-center justify-center rounded-full bg-card border-2 border-border">
                       <span className="text-[9px] font-black text-muted-foreground">
-                        {group.label === 'Today' ? '🔥' : group.label === 'Yesterday' ? '📅' : '📆'}
+                        {group.label === t('notifToday') ? '🔥' : group.label === t('notifYesterday') ? '📅' : '📆'}
                       </span>
                     </div>
                     <h3 className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
@@ -387,7 +391,7 @@ export default function NotificationsPage() {
                     </h3>
                     <div className="h-px flex-1 bg-border/30" />
                     <span className="text-[10px] font-semibold text-muted-foreground/40">
-                      {group.items.length} item{group.items.length > 1 ? 's' : ''}
+                      {group.items.length} {t('notifItems')}
                     </span>
                   </div>
 
@@ -397,6 +401,7 @@ export default function NotificationsPage() {
                       <NotificationCard
                         key={n.id}
                         n={n}
+                        t={t as any}
                         onNavigate={handleNavigate}
                         onMarkRead={(id) => markRead.mutate(id)}
                       />

@@ -1533,7 +1533,7 @@ export default function OrdersPage() {
                     <>
                       {/* ─── Deal Family Selector ─── */}
                       <div className="field2" style={{ marginBottom: 6 }}>
-                        <div className="lbl">Deal Family <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                        <div className="lbl">{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                         <select
                           value={selectedTemplateId || ''}
                           onChange={e => {
@@ -1547,10 +1547,10 @@ export default function OrdersPage() {
                           }}
                           style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                         >
-                          <option value="">Select deal family...</option>
-                          <option value="profit_share_family">🤝 Profit Share (requires agreement)</option>
-                          <option value="sales_deal_family">📊 Sales Deal (no approval needed)</option>
-                          <option value="capital_transfer">💸 Capital Transfer</option>
+                          <option value="">{t('selectDealFamily')}</option>
+                          <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')}</option>
+                          <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
+                          <option value="capital_transfer">💸 {t('capitalTransferFamily')}</option>
                         </select>
                       </div>
 
@@ -1638,9 +1638,9 @@ export default function OrdersPage() {
                             color: 'var(--muted)',
                           }}>
                             {selectedTemplateId === 'profit_share_family' ? (
-                              <><strong style={{ color: 'var(--brand)' }}>Profit Share:</strong> Each allocation uses an approved standing agreement. Net profit is split per the agreement ratio. No manual ratio entry.</>
+                              <><strong style={{ color: 'var(--brand)' }}>{t('profitShare')}:</strong> {t('profitShareInfoBanner')}</>
                             ) : (
-                              <><strong style={{ color: 'var(--good)' }}>Sales Deal:</strong> Direct entry — no approval needed. Enter merchant cost and share percentage per allocation.</>
+                              <><strong style={{ color: 'var(--good)' }}>{t('salesDeal')}:</strong> {t('salesDealInfoBanner')}</>
                             )}
                           </div>
 
@@ -1657,20 +1657,20 @@ export default function OrdersPage() {
                               }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700 }}>
-                                    {selectedTemplateId === 'profit_share_family' ? '🤝' : '📊'} Allocation #{idx + 1}
+                                    {selectedTemplateId === 'profit_share_family' ? '🤝' : '📊'} {t('allocationNum')} #{idx + 1}
                                   </span>
                                   <button
                                     className="rowBtn"
                                     style={{ color: 'var(--bad)', fontSize: 9 }}
                                     onClick={() => setAllocations(prev => prev.filter(a => a.id !== alloc.id))}
                                   >
-                                    Remove
+                                    {t('removeAllocation')}
                                   </button>
                                 </div>
 
                                 {/* Merchant selector */}
                                 <div className="field2" style={{ marginBottom: 4 }}>
-                                  <div className="lbl" style={{ fontSize: 9 }}>Merchant</div>
+                                  <div className="lbl" style={{ fontSize: 9 }}>{t('allocMerchant')}</div>
                                   <select
                                     value={alloc.relationshipId}
                                     onChange={e => {
@@ -1690,7 +1690,7 @@ export default function OrdersPage() {
                                     }}
                                     style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                                   >
-                                    <option value="">Select merchant...</option>
+                                    <option value="">{t('selectMerchantAlloc')}</option>
                                     {relationships.map(r => (
                                       <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
                                     ))}
@@ -1700,10 +1700,10 @@ export default function OrdersPage() {
                                 {/* Profit Share: Agreement selector (locked ratio) */}
                                 {selectedTemplateId === 'profit_share_family' && alloc.relationshipId && (
                                   <div className="field2" style={{ marginBottom: 4 }}>
-                                    <div className="lbl" style={{ fontSize: 9 }}>Approved Agreement <span style={{ color: 'var(--bad)' }}>*</span></div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
                                     {relAgreements.length === 0 ? (
                                       <div style={{ fontSize: 9, color: 'var(--bad)', padding: '4px 0' }}>
-                                        ⚠️ No approved profit share agreement for {alloc.merchantName || 'this merchant'}. Create one in the Merchants workspace first.
+                                        ⚠️ {t('noApprovedAgreement')} {alloc.merchantName || t('thisMerchant')}. {t('createInWorkspaceFirst')}
                                       </div>
                                     ) : (
                                       <select
@@ -1720,7 +1720,7 @@ export default function OrdersPage() {
                                         }}
                                         style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                                       >
-                                        <option value="">Select agreement...</option>
+                                        <option value="">{t('selectAgreement')}</option>
                                         {relAgreements.map(agr => (
                                           <option key={agr.id} value={agr.id}>
                                             🤝 {agr.partner_ratio}/{agr.merchant_ratio} — {agr.settlement_cadence}
@@ -1730,7 +1730,7 @@ export default function OrdersPage() {
                                     )}
                                     {alloc.agreementId && (
                                       <div style={{ fontSize: 9, color: 'var(--brand)', marginTop: 2, fontWeight: 600 }}>
-                                        Locked: Partner {alloc.partnerSharePct}% / You {alloc.merchantSharePct}%
+                                        {t('lockedRatio')} {alloc.partnerSharePct}% / {t('youShare')} {alloc.merchantSharePct}%
                                       </div>
                                     )}
                                   </div>
@@ -1740,7 +1740,7 @@ export default function OrdersPage() {
                                 {selectedTemplateId === 'sales_deal_family' && (
                                   <div className="g2tight" style={{ marginBottom: 4 }}>
                                     <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>Partner Share %</div>
+                                      <div className="lbl" style={{ fontSize: 9 }}>{t('allocPartnerSharePct')}</div>
                                       <div className="inputBox" style={{ padding: '3px 6px' }}>
                                         <input
                                           type="number" min="0" max="100" placeholder="50"
@@ -1756,7 +1756,7 @@ export default function OrdersPage() {
                                       </div>
                                     </div>
                                     <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>Your Share %</div>
+                                      <div className="lbl" style={{ fontSize: 9 }}>{t('allocYourSharePct')}</div>
                                       <div className="inputBox" style={{ padding: '3px 6px' }}>
                                         <input type="number" readOnly value={alloc.merchantSharePct || 0} style={{ fontSize: 10, opacity: 0.6, cursor: 'not-allowed' }} />
                                       </div>
@@ -1767,7 +1767,7 @@ export default function OrdersPage() {
                                 {/* Common: USDT allocation & cost */}
                                 <div className="g2tight">
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>Allocated USDT</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocatedUsdt')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
                                         inputMode="decimal" placeholder="0"
@@ -1778,7 +1778,7 @@ export default function OrdersPage() {
                                     </div>
                                   </div>
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>Merchant Cost/USDT</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('merchantCostUsdt')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
                                         inputMode="decimal" placeholder="3.65"
@@ -1792,12 +1792,12 @@ export default function OrdersPage() {
 
                                 {/* Optional note */}
                                 <div className="field2" style={{ marginTop: 4 }}>
-                                  <div className="lbl" style={{ fontSize: 9 }}>Note (optional)</div>
+                                  <div className="lbl" style={{ fontSize: 9 }}>{t('noteOptional')}</div>
                                   <div className="inputBox" style={{ padding: '3px 6px' }}>
                                     <input
                                       value={alloc.note}
                                       onChange={e => setAllocations(prev => prev.map(a => a.id === alloc.id ? { ...a, note: e.target.value } : a))}
-                                      placeholder="Optional note..."
+                                      placeholder={t('optionalNotePlaceholder')}
                                       style={{ fontSize: 10 }}
                                     />
                                   </div>
@@ -1827,7 +1827,7 @@ export default function OrdersPage() {
                               }]);
                             }}
                           >
-                            + Add Merchant Allocation
+                            {t('addMerchantAllocation')}
                           </button>
 
                           {/* ─── Allocation Summary ─── */}
@@ -1870,22 +1870,22 @@ export default function OrdersPage() {
                                 border: `1px solid ${allocationMatch ? 'color-mix(in srgb, var(--good) 30%, transparent)' : 'color-mix(in srgb, var(--warn) 30%, transparent)'}`,
                               }}>
                                 <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>
-                                  Allocation Summary
+                                  {t('allocSummary')}
                                 </div>
 
                                 {/* Allocation balance */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                  <span className="muted">Total Sale USDT:</span>
+                                  <span className="muted">{t('totalSaleUsdt')}:</span>
                                   <strong className="mono">{fmtU(salePreview.qty)}</strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                  <span className="muted">Allocated:</span>
+                                  <span className="muted">{t('allocAllocated')}:</span>
                                   <strong className="mono">{fmtU(totalAllocated)}</strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4 }}>
-                                  <span className="muted">Remaining:</span>
+                                  <span className="muted">{t('allocRemaining')}:</span>
                                   <strong className="mono" style={{ color: allocationMatch ? 'var(--good)' : overAllocated ? 'var(--bad)' : 'var(--warn)' }}>
-                                    {allocationMatch ? '✅ Balanced' : overAllocated ? `⚠️ Over by ${fmtU(Math.abs(remaining))}` : fmtU(remaining)}
+                                    {allocationMatch ? `✅ ${t('allocBalanced')}` : overAllocated ? `⚠️ ${t('allocOverBy')} ${fmtU(Math.abs(remaining))}` : fmtU(remaining)}
                                   </strong>
                                 </div>
 
@@ -1893,7 +1893,7 @@ export default function OrdersPage() {
                                 {calcRows.length > 0 && (
                                   <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 4, marginTop: 2 }}>
                                     <div style={{ fontSize: 8, fontWeight: 700, color: 'var(--muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                                      Per-Merchant Breakdown
+                                      {t('perMerchantBreakdown')}
                                     </div>
                                     {allocations.map((alloc, i) => {
                                       const c = calcRows[i];
@@ -1903,13 +1903,13 @@ export default function OrdersPage() {
                                           fontSize: 9, padding: '3px 0',
                                           borderBottom: i < allocations.length - 1 ? '1px solid color-mix(in srgb, var(--line) 30%, transparent)' : 'none',
                                         }}>
-                                          <span style={{ fontWeight: 600 }}>{alloc.merchantName || `Merchant ${i + 1}`}</span>
+                                          <span style={{ fontWeight: 600 }}>{alloc.merchantName || `${t('allocMerchant')} ${i + 1}`}</span>
                                           <span className="mono">
-                                            Rev {fmtQ(c.revenue)} · Net <span style={{ color: c.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{c.net >= 0 ? '+' : ''}{fmtQ(c.net)}</span>
+                                            {t('allocRev')} {fmtQ(c.revenue)} · {t('allocNet')} <span style={{ color: c.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{c.net >= 0 ? '+' : ''}{fmtQ(c.net)}</span>
                                             {' · '}
-                                            <span style={{ color: 'var(--good)' }}>You {fmtQ(c.merchantAmount)}</span>
+                                            <span style={{ color: 'var(--good)' }}>{t('youShare')} {fmtQ(c.merchantAmount)}</span>
                                             {' · '}
-                                            <span style={{ color: 'var(--bad)' }}>Partner {fmtQ(c.partnerAmount)}</span>
+                                            <span style={{ color: 'var(--bad)' }}>{t('partner')} {fmtQ(c.partnerAmount)}</span>
                                           </span>
                                         </div>
                                       );
@@ -1923,11 +1923,11 @@ export default function OrdersPage() {
                                     }}>
                                       <span>TOTAL</span>
                                       <span className="mono">
-                                        Rev {fmtQ(totals.revenue)} · Net <span style={{ color: totals.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{totals.net >= 0 ? '+' : ''}{fmtQ(totals.net)}</span>
+                                        {t('allocRev')} {fmtQ(totals.revenue)} · {t('allocNet')} <span style={{ color: totals.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{totals.net >= 0 ? '+' : ''}{fmtQ(totals.net)}</span>
                                         {' · '}
-                                        <span style={{ color: 'var(--good)' }}>You {fmtQ(totals.merchantTotal)}</span>
+                                        <span style={{ color: 'var(--good)' }}>{t('youShare')} {fmtQ(totals.merchantTotal)}</span>
                                         {' · '}
-                                        <span style={{ color: 'var(--bad)' }}>Partners {fmtQ(totals.partnerTotal)}</span>
+                                        <span style={{ color: 'var(--bad)' }}>{t('allocPartners')} {fmtQ(totals.partnerTotal)}</span>
                                       </span>
                                     </div>
                                   </div>
@@ -1936,7 +1936,7 @@ export default function OrdersPage() {
                                 {/* Validation message */}
                                 {!allocationMatch && (
                                   <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 4, fontWeight: 600 }}>
-                                    ⚠️ Allocated USDT must exactly match total sale quantity ({fmtU(salePreview.qty)}) to submit.
+                                    ⚠️ {t('allocationMustMatch')} ({fmtU(salePreview.qty)}) {t('toSubmit')}.
                                   </div>
                                 )}
                               </div>
