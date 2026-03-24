@@ -1879,7 +1879,7 @@ export default function OrdersPage() {
                                   <strong className="mono">{fmtU(salePreview.qty)}</strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                  <span className="muted">Allocated:</span>
+                                  <span className="muted">{t('allocAllocated')}:</span>
                                   <strong className="mono">{fmtU(totalAllocated)}</strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4 }}>
