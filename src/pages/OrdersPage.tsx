@@ -1533,7 +1533,7 @@ export default function OrdersPage() {
                     <>
                       {/* ─── Deal Family Selector ─── */}
                       <div className="field2" style={{ marginBottom: 6 }}>
-                        <div className="lbl">Deal Family <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                        <div className="lbl">{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                         <select
                           value={selectedTemplateId || ''}
                           onChange={e => {
