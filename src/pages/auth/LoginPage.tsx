@@ -6,11 +6,14 @@ import { toast } from 'sonner';
 // Import hooks but handle context-missing gracefully inside the component
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme-context';
+import { cn } from '@/lib/utils';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { loginWithGoogle } = useAuth();
   const t = useT();
+  const { settings, update } = useTheme();
 
   // On mount: proactively update stale service workers that cause mobile render failures
   useEffect(() => {
@@ -100,7 +103,33 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right Panel: Sign In ── */}
-      <div className="flex-1 flex items-center justify-center bg-background p-6 lg:p-12">
+      <div className="flex-1 flex items-center justify-center bg-background p-6 lg:p-12 relative">
+        {/* ── Language Toggle ── */}
+        <div className="absolute top-4 right-4 flex items-center gap-0.5 bg-muted rounded-full p-0.5 shadow-sm">
+          <button
+            onClick={() => update({ language: 'ar' })}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all',
+              settings.language === 'ar'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            عربي
+          </button>
+          <button
+            onClick={() => update({ language: 'en' })}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all',
+              settings.language === 'en'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            EN
+          </button>
+        </div>
+
         <div className="w-full max-w-sm space-y-8">
           <div className="lg:hidden flex flex-col items-center gap-3 mb-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(340,50%,35%)] shadow-lg">
