@@ -1,11 +1,24 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { useRelationshipMessages, useSendMessage } from '@/hooks/useRelationshipMessages';
-import { Send, Smile } from 'lucide-react';
+import { Send, MessageCircle } from 'lucide-react';
 
 interface Props {
   relationshipId: string;
+}
+
+function formatMessageTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function dateSeparator(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
 export function ChatTab({ relationshipId }: Props) {
@@ -15,8 +28,7 @@ export function ChatTab({ relationshipId }: Props) {
   const sendMessage = useSendMessage();
   const [text, setText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -27,6 +39,9 @@ export function ChatTab({ relationshipId }: Props) {
     try {
       await sendMessage.mutateAsync({ relationship_id: relationshipId, content: text.trim() });
       setText('');
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
       setTimeout(() => inputRef.current?.focus(), 50);
     } catch (err: any) {
       console.error('Send failed:', err);
@@ -40,67 +55,80 @@ export function ChatTab({ relationshipId }: Props) {
     }
   }, [handleSend]);
 
-  // Group consecutive messages from same sender
-  const groupedMessages = (() => {
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    const el = e.target;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }, []);
+
+  // Group by date
+  const groupedByDate = useMemo(() => {
     if (!messages?.length) return [];
-    const groups: { senderId: string; isOwn: boolean; msgs: typeof messages }[] = [];
+    const groups: { date: string; messages: typeof messages }[] = [];
     for (const m of messages) {
-      const isOwn = m.sender_id === userId;
+      const dateKey = new Date(m.created_at).toDateString();
       const last = groups[groups.length - 1];
-      if (last && last.senderId === m.sender_id) {
-        last.msgs.push(m);
+      if (last && last.date === dateKey) {
+        last.messages.push(m);
       } else {
-        groups.push({ senderId: m.sender_id, isOwn, msgs: [m] });
+        groups.push({ date: dateKey, messages: [m] });
       }
     }
     return groups;
-  })();
+  }, [messages]);
 
   return (
-    <div ref={containerRef} className="relative flex flex-col" style={{ height: 'calc(100vh - 220px)', minHeight: 350 }}>
-      {/* ── Messages area: scrolls, leaves room for input ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 pb-16 space-y-1">
+    <div className="chat-drawer-container">
+      {/* ── Messages area ── */}
+      <div className="chat-drawer-messages">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="h-8 w-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
           </div>
         ) : !messages?.length ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-            <MessageCircleIcon className="h-12 w-12 opacity-20" />
-            <p className="text-sm font-medium">{t('noMessagesChat')}</p>
-            <p className="text-[11px] opacity-60">{t('typeMessageChat')}</p>
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground py-12">
+            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <MessageCircle className="h-7 w-7 text-primary/40" />
+            </div>
+            <p className="text-sm font-medium">{t('noMessagesChat') || 'No messages yet'}</p>
+            <p className="text-[11px] opacity-60">{t('typeMessageChat') || 'Send a message to start chatting'}</p>
           </div>
         ) : (
           <>
-            {groupedMessages.map((group, gi) => (
-              <div key={gi} className={`flex flex-col ${group.isOwn ? 'items-end' : 'items-start'} gap-[2px] mb-2`}>
-                {group.msgs.map((m, mi) => {
-                  const isFirst = mi === 0;
-                  const isLast = mi === group.msgs.length - 1;
-                  const ownRadius = `${isFirst ? '18px' : '4px'} 4px 4px ${isLast ? '18px' : '4px'}`;
-                  const otherRadius = `4px ${isFirst ? '18px' : '4px'} ${isLast ? '18px' : '4px'} 4px`;
+            {groupedByDate.map((group) => (
+              <div key={group.date}>
+                <div className="chat-date-separator">
+                  <span>{dateSeparator(group.messages[0].created_at)}</span>
+                </div>
+                {group.messages.map((m, idx) => {
+                  const isOwn = m.sender_id === userId;
+                  const prev = idx > 0 ? group.messages[idx - 1] : null;
+                  const next = idx < group.messages.length - 1 ? group.messages[idx + 1] : null;
+                  const isFirst = prev?.sender_id !== m.sender_id;
+                  const isLast = next?.sender_id !== m.sender_id;
 
                   return (
                     <div
                       key={m.id}
-                      className={`max-w-[75%] px-3 py-[6px] text-[13px] leading-relaxed ${
-                        group.isOwn
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-foreground'
-                      }`}
-                      style={{
-                        borderRadius: group.isOwn ? ownRadius : otherRadius,
-                      }}
+                      className={`chat-bubble-row ${isOwn ? 'own' : 'other'} ${isFirst ? 'first' : ''} ${isLast ? 'last' : ''}`}
+                      style={{ marginTop: isFirst ? 8 : 1 }}
                     >
-                      <div className="break-words whitespace-pre-wrap">{m.content}</div>
-                      {isLast && (
-                        <div className={`text-[9px] mt-1 flex items-center gap-1 ${
-                          group.isOwn ? 'justify-end opacity-70' : 'opacity-50'
-                        }`}>
-                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {group.isOwn && <span>{m.read_at ? '✓✓' : '✓'}</span>}
+                      <div className={`chat-bubble ${isOwn ? 'own' : 'other'}`}>
+                        <div className="chat-bubble-content">{m.content}</div>
+                        <div className="chat-bubble-meta">
+                          <span>{formatMessageTime(m.created_at)}</span>
+                          {isOwn && (
+                            <span className="chat-read-status">
+                              {m.read_at ? (
+                                <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.65L4.98 6.73L1.68 3.43L0.27 4.84L4.98 9.55L12.48 2.05L11.07 0.65Z" fill="currentColor"/><path d="M14.07 0.65L7.98 6.73L6.78 5.53L5.37 6.94L7.98 9.55L15.48 2.05L14.07 0.65Z" fill="currentColor"/></svg>
+                              ) : (
+                                <svg width="11" height="11" viewBox="0 0 16 11" fill="none"><path d="M11.07 0.65L4.98 6.73L1.68 3.43L0.27 4.84L4.98 9.55L12.48 2.05L11.07 0.65Z" fill="currentColor"/></svg>
+                              )}
+                            </span>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -111,34 +139,27 @@ export function ChatTab({ relationshipId }: Props) {
         )}
       </div>
 
-      {/* ── Input bar: sticky at bottom, never moves ── */}
-      <div className="absolute bottom-0 inset-x-0 border-t border-border/50 bg-background px-3 py-2 flex items-center gap-2">
-        <div className="flex-1 relative">
-          <input
+      {/* ── Input bar ── */}
+      <div className="chat-messenger-input">
+        <div className="chat-input-wrap">
+          <textarea
             ref={inputRef}
             value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder={t('typeMessageChat')}
+            onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            className="w-full bg-muted/50 border border-border/50 rounded-full px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
+            placeholder={t('typeMessageChat') || 'Type a message...'}
+            rows={1}
+            className="chat-input-field"
           />
         </div>
         <button
           onClick={handleSend}
           disabled={sendMessage.isPending || !text.trim()}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-30 hover:opacity-90 transition-all"
+          className="chat-send-btn"
         >
           <Send className="h-4 w-4" />
         </button>
       </div>
     </div>
-  );
-}
-
-function MessageCircleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
   );
 }
