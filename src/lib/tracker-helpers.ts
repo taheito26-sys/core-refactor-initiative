@@ -144,7 +144,7 @@ export interface Trade {
   linkedMerchantId?: string;
   // ── Trade-centric agreement fields ──
   /** Agreement family: profit_share or sales_deal */
-  agreementFamily?: 'profit_share' | 'sales_deal';
+  agreementFamily?: 'profit_share' | 'sales_deal' | 'capital_transfer';
   /** Agreement template ID used */
   agreementTemplateId?: string;
   /** Partner share percentage */

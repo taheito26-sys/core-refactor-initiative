@@ -25,18 +25,20 @@ export function useBalanceLedger(relationshipId: string) {
   return useQuery({
     queryKey: ['balance-ledger', relationshipId],
     queryFn: async (): Promise<BalanceSummary> => {
-      const [{ data: transfers }, { data: ledgerEntries }] = await Promise.all([
+      const [transfersRes, ledgerRes] = await Promise.all([
         supabase
-          .from('capital_transfers')
+          .from('capital_transfers' as any)
           .select('*')
           .eq('relationship_id', relationshipId)
-          .order('created_at', { ascending: true }),
+          .order('created_at', { ascending: true }) as any,
         supabase
           .from('deal_capital_ledger')
           .select('*')
           .eq('relationship_id', relationshipId)
           .order('created_at', { ascending: true }),
       ]);
+      const transfers = transfersRes.data;
+      const ledgerEntries = ledgerRes.data;
 
       const allEvents: { ts: string; entry: BalanceEntry }[] = [];
 

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
 import type { User, Session } from '@supabase/supabase-js';
 
 export interface Profile {
@@ -38,6 +39,7 @@ interface AuthState {
   profile: Profile | null;
   merchantProfile: MerchantProfile | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -128,6 +130,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }, []);
 
+  const loginWithGoogle = useCallback(async () => {
+    const result = await lovable.auth.signInWithOAuth('google', {
+      redirect_uri: `${window.location.origin}/dashboard`,
+    });
+    if (result.error) throw result.error;
+  }, []);
+
   const signup = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
@@ -167,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         merchantProfile,
         login,
+        loginWithGoogle,
         signup,
         logout,
         refreshProfile,

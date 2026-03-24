@@ -163,7 +163,7 @@ export default function OrdersPage() {
       // Fetch capital transfers across all relationships
       const transferResults = await Promise.all(
         (relsRes.data || []).map(r =>
-          supabase.from('capital_transfers').select('*').eq('relationship_id', r.id)
+          supabase.from('capital_transfers' as any).select('*').eq('relationship_id', r.id) as any
         )
       );
       const allTx = transferResults.flatMap(r => r.data || []);
@@ -402,7 +402,7 @@ export default function OrdersPage() {
     const baseTrade: Trade = {
       id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       linkedRelId: merchantOrderEnabled ? linkedRelId || undefined : undefined,
-      agreementFamily: tmpl?.family,
+      agreementFamily: tmpl?.family as 'profit_share' | 'sales_deal' | 'capital_transfer' | undefined,
       agreementTemplateId: tmpl?.id,
       partnerPct: tmpl ? (tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio) : undefined,
       merchantPct: tmpl ? (tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio) : undefined,
@@ -1466,7 +1466,7 @@ export default function OrdersPage() {
                         <div style={{ marginTop: 8 }}>
                           {(() => {
                             const cpRel = relationships.find(r => r.id === linkedRelId);
-                            const cpName = cpRel?.counterparty?.display_name || cpRel?.counterparty_name || t('partner');
+                            const cpName = cpRel?.counterparty?.display_name || (cpRel as any)?.counterparty_name || t('partner');
                             const myName = merchantProfile?.display_name || t('you') || 'You';
                             return (
                               <div className="field2" style={{ marginBottom: 6 }}>
