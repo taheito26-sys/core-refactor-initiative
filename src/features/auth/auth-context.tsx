@@ -130,10 +130,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
-    const result = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
+    // Direct Supabase OAuth — no Lovable Cloud dependency
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
-    if (result.error) throw result.error;
+    if (error) throw error;
   }, []);
 
   const signup = useCallback(async (email: string, password: string) => {
