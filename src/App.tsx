@@ -12,6 +12,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 
 // Auth pages
+import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
@@ -96,8 +97,8 @@ const App = () => (
           <AuthProvider>
             <RouteErrorBoundary>
               <Routes>
-                {/* OAuth callback — handled by @lovable.dev/cloud-auth-js */}
-                <Route path="/~oauth/*" element={null} />
+                {/* OAuth callback — session set by @lovable.dev/cloud-auth-js, then redirected by OAuthCallbackPage */}
+                <Route path="/~oauth/*" element={<OAuthCallbackPage />} />
 
                 {/* Auth — public */}
                 <Route path="/login" element={<LoginPage />} />
