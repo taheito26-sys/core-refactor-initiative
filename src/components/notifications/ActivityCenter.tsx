@@ -4,7 +4,7 @@ import {
   Bell, CheckCheck, Handshake, Mail, ShieldCheck, Package,
   Zap, Filter, Clock, ArrowRight, Sparkles, Circle, MessageCircle,
 } from 'lucide-react';
-import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
+import { formatDistanceToNow, isToday, isYesterday, format, differenceInMinutes } from 'date-fns';
 import {
   Popover,
   PopoverContent,
@@ -46,8 +46,67 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
   system: { icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
 };
 
-// ─── Group by day ───────────────────────────────────────────────────
-function groupByDay(items: Notification[], t: ReturnType<typeof useT>): { label: string; items: Notification[] }[] {
+// ─── Smart grouping: collapse repeated sender+category notifications ──
+interface SmartNotification extends Notification {
+  groupCount?: number;
+  groupLatest?: string;
+}
+
+function smartGroupNotifications(items: Notification[]): SmartNotification[] {
+  if (!items.length) return [];
+
+  const result: SmartNotification[] = [];
+  let i = 0;
+
+  while (i < items.length) {
+    const current = items[i];
+    let count = 1;
+    let j = i + 1;
+
+    // Group consecutive notifications with same category + similar title (same sender)
+    while (j < items.length) {
+      const next = items[j];
+      const sameCategory = next.category === current.category;
+      // Extract sender name from title patterns like "New message from X" or "X sent you a message"
+      const sameSender = sameCategory && extractSender(next.title) === extractSender(current.title);
+      const withinWindow = differenceInMinutes(new Date(current.created_at), new Date(next.created_at)) <= 30;
+
+      if (sameSender && withinWindow) {
+        count++;
+        j++;
+      } else {
+        break;
+      }
+    }
+
+    if (count > 1) {
+      result.push({
+        ...current,
+        groupCount: count,
+        groupLatest: current.created_at,
+        body: current.body,
+      });
+    } else {
+      result.push({ ...current });
+    }
+
+    i = j;
+  }
+
+  return result;
+}
+
+function extractSender(title: string): string {
+  // "New message from X" → "X"
+  const fromMatch = title.match(/from\s+(.+)$/i);
+  if (fromMatch) return fromMatch[1].trim().toLowerCase();
+  // "X sent you a message" → "X"
+  const sentMatch = title.match(/^(.+?)\s+sent\s+you/i);
+  if (sentMatch) return sentMatch[1].trim().toLowerCase();
+  return title.toLowerCase();
+}
+
+function groupByDay(items: SmartNotification[], t: ReturnType<typeof useT>): { label: string; items: SmartNotification[] }[] {
   const groups = new Map<string, Notification[]>();
   for (const n of items) {
     const d = new Date(n.created_at);
@@ -67,7 +126,7 @@ function NotificationRow({
   n,
   onNavigate,
 }: {
-  n: Notification;
+  n: SmartNotification;
   onNavigate: (n: Notification) => void;
 }) {
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
@@ -75,6 +134,7 @@ function NotificationRow({
   const isUnread = !n.read_at;
   const isAdminPriority = n.category === 'system' || n.category === 'approval' || n.category === 'invite';
 
+  const t = useT();
   return (
     <button
       onClick={() => onNavigate(n)}
@@ -107,6 +167,11 @@ function NotificationRow({
             {isAdminPriority && isUnread && (
               <span className="shrink-0 text-[7px] font-black uppercase tracking-wider bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
                 ⚡
+              </span>
+            )}
+            {n.groupCount && n.groupCount > 1 && (
+              <span className="text-[8px] font-black bg-primary/15 text-primary px-1.5 py-0.5 rounded">
+                ×{n.groupCount}
               </span>
             )}
             <span className={cn(
@@ -161,7 +226,8 @@ export default function ActivityCenter() {
     });
   }, [notifications, activeCategory]);
 
-  const grouped = useMemo(() => groupByDay(filtered, t), [filtered, t]);
+  const smartFiltered = useMemo(() => smartGroupNotifications(filtered), [filtered]);
+  const grouped = useMemo(() => groupByDay(smartFiltered, t), [smartFiltered, t]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
