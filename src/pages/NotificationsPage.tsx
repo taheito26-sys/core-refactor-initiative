@@ -401,6 +401,7 @@ export default function NotificationsPage() {
                       <NotificationCard
                         key={n.id}
                         n={n}
+                        t={t as any}
                         onNavigate={handleNavigate}
                         onMarkRead={(id) => markRead.mutate(id)}
                       />
