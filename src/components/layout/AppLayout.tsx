@@ -4,15 +4,20 @@ import { AppSidebar, MobileBottomNav } from './AppSidebar';
 import { TopBar } from './TopBar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
+import { cn } from '@/lib/utils';
 
 export function AppLayout() {
   const isMobile = useIsMobile();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings } = useTheme();
   const isRTL = settings.language === 'ar';
+  const tpl = settings.viewTemplate || 'default';
 
   return (
-    <div className="app-shell flex h-dvh overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div
+      className={cn('app-shell flex h-dvh overflow-hidden', `tpl-${tpl}`)}
+      dir={isRTL ? 'rtl' : 'ltr'}
+    >
       {/* Desktop sidebar */}
       {!isMobile && <AppSidebar />}
 
