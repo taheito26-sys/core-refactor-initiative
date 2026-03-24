@@ -1797,7 +1797,7 @@ export default function OrdersPage() {
                                     <input
                                       value={alloc.note}
                                       onChange={e => setAllocations(prev => prev.map(a => a.id === alloc.id ? { ...a, note: e.target.value } : a))}
-                                      placeholder="Optional note..."
+                                      placeholder={t('optionalNotePlaceholder')}
                                       style={{ fontSize: 10 }}
                                     />
                                   </div>
