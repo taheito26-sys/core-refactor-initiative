@@ -4,7 +4,7 @@ import {
   ArrowLeftRight,
   Wallet,
   TrendingUp,
-  
+  MessageCircle,
   Briefcase,
   BarChart3,
   Settings,
@@ -61,14 +61,17 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     tradingNav[0], // Dashboard
     tradingNav[1], // Orders
     tradingNav[2], // Stock
-    tradingNav[4], // P2P Tracker
     networkNav[0], // Merchants
+    { labelKey: 'chatTab', fallback: 'Chat', icon: MessageCircle, path: '/merchants?tab=chat' } as NavItem,
   ].filter(Boolean) as NavItem[];
 
   return (
     <nav className="mobile-bottom-nav">
       {primaryNav.map((item) => {
-        const active = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+        const [itemPath, itemQuery] = item.path.split('?');
+        const active = itemQuery
+          ? location.pathname === itemPath && location.search.includes(itemQuery)
+          : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
         return (
           <Link
             key={item.path}
