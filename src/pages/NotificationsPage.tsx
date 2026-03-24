@@ -5,7 +5,7 @@ import {
   Zap, Clock, ArrowRight, Sparkles, Search, Trash2, Filter,
   ChevronDown, X,
 } from 'lucide-react';
-import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
+import { formatDistanceToNow, isToday, isYesterday, format, differenceInMinutes } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -55,6 +55,40 @@ function groupByDay(items: Notification[], t: any): { label: string; items: Noti
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
+// ─── Smart grouping: collapse repeated sender+category ──────────────
+interface SmartNotification extends Notification {
+  groupCount?: number;
+}
+
+function smartGroupNotifications(items: Notification[]): SmartNotification[] {
+  if (!items.length) return [];
+  const result: SmartNotification[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const current = items[i];
+    let count = 1;
+    let j = i + 1;
+    while (j < items.length) {
+      const next = items[j];
+      const sameCategory = next.category === current.category;
+      const sameSender = sameCategory && extractSender(next.title) === extractSender(current.title);
+      const withinWindow = differenceInMinutes(new Date(current.created_at), new Date(next.created_at)) <= 30;
+      if (sameSender && withinWindow) { count++; j++; } else break;
+    }
+    result.push(count > 1 ? { ...current, groupCount: count } : { ...current });
+    i = j;
+  }
+  return result;
+}
+
+function extractSender(title: string): string {
+  const fromMatch = title.match(/from\s+(.+)$/i);
+  if (fromMatch) return fromMatch[1].trim().toLowerCase();
+  const sentMatch = title.match(/^(.+?)\s+sent\s+you/i);
+  if (sentMatch) return sentMatch[1].trim().toLowerCase();
+  return title.toLowerCase();
+}
+
 function normalizeCategory(cat: string): CategoryKey {
   if (cat === 'network' || cat === 'invite') return 'invite';
   if (cat === 'merchant' || cat === 'deal') return 'deal';
@@ -69,7 +103,7 @@ function NotificationCard({
   onMarkRead,
   t,
 }: {
-  n: Notification;
+  n: SmartNotification;
   onNavigate: (n: Notification) => void;
   onMarkRead: (id: string) => void;
   t: (key: string) => string;
@@ -121,6 +155,11 @@ function NotificationCard({
               {isAdminPriority && isUnread && (
                 <span className="shrink-0 text-[8px] font-black uppercase tracking-wider bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
                   ⚡ {t('priority') || 'PRIORITY'}
+                </span>
+              )}
+              {n.groupCount && n.groupCount > 1 && (
+                <span className="shrink-0 text-[8px] font-black bg-primary/15 text-primary px-1.5 py-0.5 rounded">
+                  ×{n.groupCount} {t('messages') || 'messages'}
                 </span>
               )}
               <h4 className={cn(
@@ -200,7 +239,8 @@ export default function NotificationsPage() {
     return items;
   }, [notifications, activeCategory, showUnreadOnly, searchQuery]);
 
-  const grouped = useMemo(() => groupByDay(filtered, t), [filtered, t]);
+  const smartFiltered = useMemo(() => smartGroupNotifications(filtered), [filtered]);
+  const grouped = useMemo(() => groupByDay(smartFiltered, t), [smartFiltered, t]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -405,7 +445,7 @@ export default function NotificationsPage() {
 
                   {/* Cards */}
                   <div className="space-y-2">
-                    {group.items.map(n => (
+                    {(group.items as SmartNotification[]).map(n => (
                       <NotificationCard
                         key={n.id}
                         n={n}
