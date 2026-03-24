@@ -58,7 +58,7 @@ function groupByDay(items: Notification[], t: any): { label: string; items: Noti
 function normalizeCategory(cat: string): CategoryKey {
   if (cat === 'network' || cat === 'invite') return 'invite';
   if (cat === 'merchant' || cat === 'deal') return 'deal';
-  if (CATEGORIES.some(c => c.key === cat)) return cat as CategoryKey;
+  if (CATEGORY_KEYS.some(c => c.key === cat)) return cat as CategoryKey;
   return 'system';
 }
 
