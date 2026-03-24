@@ -10,54 +10,22 @@ import { useT } from '@/lib/i18n';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const { loginWithGoogle } = useAuth();
+  const t = useT();
 
-  // These hooks should work since LoginPage is inside AuthProvider & ThemeProvider,
-  // but we wrap in try/catch for resilience against stale SW cache on mobile
-  let loginWithGoogle: (() => Promise<void>) | null = null;
-  let t: any = (key: string) => {
-    const map: Record<string, string> = {
-      qatarPowered: 'Qatar-Powered\nP2P Intelligence',
-      trustedByMerchants: 'Trusted by merchants across the region for secure, transparent P2P trading.',
-      liveMarketData: 'Live Market Data',
-      secureMerchantNetwork: 'Secure Merchant Network',
-      smartFifoTracking: 'Smart FIFO Tracking',
-      profitShareAuto: 'Profit Share Automation',
-      welcomeBack: 'Welcome back',
-      secureTrading: 'Sign in to your trading workspace',
-      continueWithGoogle: 'Continue with Google',
-      googleSignInFailed: 'Google sign-in failed. Please try again.',
-    };
-    return map[key] ?? key;
-  };
-  t.isRTL = false;
-
-  try {
-    const auth = useAuth();
-    loginWithGoogle = auth.loginWithGoogle;
-  } catch {
-    // Context not available — will use direct Supabase call below
-  }
-
-  try {
-    t = useT();
-  } catch {
-    // Theme context not available — using fallback translations above
-  }
+  // On mount: proactively update stale service workers that cause mobile render failures
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.update().catch(() => {}));
+      });
+    }
+  }, []);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      if (loginWithGoogle) {
-        await loginWithGoogle();
-      } else {
-        // Direct Supabase fallback when auth context is unavailable
-        const redirectTo = `${window.location.origin}/auth/callback`;
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: { redirectTo },
-        });
-        if (error) throw error;
-      }
+      await loginWithGoogle();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : (t('googleSignInFailed') || 'Google sign-in failed');
       toast.error(message);
