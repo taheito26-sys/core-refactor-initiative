@@ -20,11 +20,11 @@ export function useCapitalTransfers(relationshipId: string) {
   return useQuery({
     queryKey: ['capital-transfers', relationshipId],
     queryFn: async (): Promise<CapitalTransfer[]> => {
-      const { data, error } = await supabase
-        .from('capital_transfers')
+      const { data, error } = await (supabase
+        .from('capital_transfers' as any)
         .select('*')
         .eq('relationship_id', relationshipId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any);
       if (error) throw error;
       return (data || []) as CapitalTransfer[];
     },
