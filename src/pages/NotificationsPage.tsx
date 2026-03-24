@@ -391,7 +391,7 @@ export default function NotificationsPage() {
                     </h3>
                     <div className="h-px flex-1 bg-border/30" />
                     <span className="text-[10px] font-semibold text-muted-foreground/40">
-                      {group.items.length} item{group.items.length > 1 ? 's' : ''}
+                      {group.items.length} {t('notifItems')}
                     </span>
                   </div>
 
