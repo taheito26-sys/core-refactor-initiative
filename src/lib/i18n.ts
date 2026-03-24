@@ -1052,6 +1052,8 @@ const translations = {
   // ── Orders Page: Deal Family & Allocations ──
   dealFamilyLabel: { en: 'Deal Family', ar: 'نوع الصفقة' },
   selectDealFamily: { en: 'Select deal family...', ar: 'اختر نوع الصفقة...' },
+  profitShare: { en: 'Profit Share', ar: 'تقاسم الأرباح' },
+  salesDeal: { en: 'Sales Deal', ar: 'صفقة بيع' },
   profitShareRequiresAgreement: { en: 'Profit Share (requires agreement)', ar: 'تقاسم أرباح (يتطلب اتفاقية)' },
   salesDealNoApproval: { en: 'Sales Deal (no approval needed)', ar: 'صفقة بيع (لا تحتاج موافقة)' },
   capitalTransferFamily: { en: 'Capital Transfer', ar: 'تحويل رأس مال' },
