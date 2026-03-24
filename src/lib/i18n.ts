@@ -994,8 +994,27 @@ const translations = {
   expireAction: { en: 'Expire', ar: 'إنهاء' },
   rejectAction: { en: 'Reject', ar: 'رفض' },
   wasEffective: { en: 'Was Effective', ar: 'كان سارياً' },
-  
-  
+
+  // ── Onboarding ──
+  onboardTitle: { en: 'Set Up Your Merchant Profile', ar: 'إعداد ملفك التجاري' },
+  onboardDesc: { en: 'Complete your profile to start trading on the TRACKER platform.', ar: 'أكمل ملفك الشخصي لبدء التداول على منصة المتتبع.' },
+  onboardDisplayName: { en: 'Display Name', ar: 'الاسم المعروض' },
+  onboardDisplayNamePh: { en: 'Your display name', ar: 'اسمك المعروض' },
+  onboardNickname: { en: 'Public Nickname', ar: 'الاسم المستعار العام' },
+  onboardNicknamePh: { en: 'unique_handle', ar: 'اسم_فريد' },
+  onboardNicknameHint: { en: 'Lowercase letters, numbers, dots, hyphens, underscores only.', ar: 'أحرف صغيرة وأرقام ونقاط وشرطات وشرطات سفلية فقط.' },
+  onboardRegion: { en: 'Region', ar: 'المنطقة' },
+  onboardRegionPh: { en: 'e.g. Middle East, Asia', ar: 'مثال: الشرق الأوسط، آسيا' },
+  onboardCurrency: { en: 'Default Currency', ar: 'العملة الافتراضية' },
+  onboardBio: { en: 'Bio (optional)', ar: 'نبذة (اختياري)' },
+  onboardBioPh: { en: 'Tell others about your trading focus...', ar: 'أخبر الآخرين عن تركيزك التجاري...' },
+  onboardSubmit: { en: 'Create Profile', ar: 'إنشاء الملف' },
+  onboardNickTaken: { en: 'That nickname is already taken', ar: 'هذا الاسم المستعار مأخوذ بالفعل' },
+  onboardSuccess: { en: 'Merchant profile created!', ar: 'تم إنشاء الملف التجاري!' },
+  onboardDuplicate: { en: 'Merchant profile already exists. Redirecting to dashboard.', ar: 'الملف التجاري موجود بالفعل. جاري التوجيه للوحة التحكم.' },
+  priority: { en: 'PRIORITY', ar: 'أولوية' },
+
+
   activeStatus: { en: 'Active', ar: 'نشط' },
   inactiveStatus: { en: 'Inactive', ar: 'غير نشط' },
   expiredStatus: { en: 'Expired', ar: 'منتهي' },

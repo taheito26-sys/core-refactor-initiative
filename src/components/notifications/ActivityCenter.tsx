@@ -73,39 +73,49 @@ function NotificationRow({
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
   const isUnread = !n.read_at;
+  const isAdminPriority = n.category === 'system' || n.category === 'approval';
 
   return (
     <button
       onClick={() => onNavigate(n)}
       className={cn(
         'group w-full flex items-start gap-3 px-3 py-2.5 text-left transition-all rounded-lg relative',
-        isUnread
+        isAdminPriority && isUnread
+          ? 'bg-destructive/[0.06] hover:bg-destructive/[0.10] border border-destructive/20'
+          : isUnread
           ? 'bg-primary/[0.04] hover:bg-primary/[0.08]'
           : 'hover:bg-muted/50'
       )}
     >
       {isUnread && (
         <span className="absolute top-3 left-1 flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+          <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-50', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
+          <span className={cn('relative inline-flex rounded-full h-2 w-2', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
         </span>
       )}
 
       <div className={cn(
         'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105',
-        meta.bg
+        isAdminPriority ? 'bg-destructive/10' : meta.bg
       )}>
-        <Icon className={cn('h-4 w-4', meta.color)} />
+        <Icon className={cn('h-4 w-4', isAdminPriority ? 'text-destructive' : meta.color)} />
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className={cn(
-            'text-[12px] leading-tight truncate',
-            isUnread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground'
-          )}>
-            {n.title}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            {isAdminPriority && isUnread && (
+              <span className="shrink-0 text-[7px] font-black uppercase tracking-wider bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
+                ⚡
+              </span>
+            )}
+            <span className={cn(
+              'text-[12px] leading-tight truncate',
+              isUnread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground'
+            )}>
+              {n.title}
+            </span>
+          </div>
           <ArrowRight className="h-3 w-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
         </div>
         {n.body && (
@@ -120,7 +130,7 @@ function NotificationRow({
           </span>
           <span className={cn(
             'text-[8px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
-            meta.bg, meta.color
+            isAdminPriority ? 'bg-destructive/10 text-destructive' : cn(meta.bg, meta.color)
           )}>
             {n.category}
           </span>

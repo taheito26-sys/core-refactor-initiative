@@ -77,12 +77,15 @@ function NotificationCard({
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
   const isUnread = !n.read_at;
+  const isAdminPriority = n.category === 'system' || n.category === 'approval';
 
   return (
     <div
       className={cn(
         'group relative flex items-start gap-4 p-4 rounded-xl transition-all cursor-pointer border',
-        isUnread
+        isAdminPriority && isUnread
+          ? 'bg-destructive/[0.04] border-destructive/20 shadow-sm shadow-destructive/5 hover:shadow-md hover:border-destructive/30'
+          : isUnread
           ? 'bg-card border-primary/15 shadow-sm hover:shadow-md hover:border-primary/25'
           : 'bg-card/50 border-border/50 hover:bg-card hover:border-border'
       )}
@@ -92,8 +95,8 @@ function NotificationCard({
       {isUnread && (
         <div className="absolute -left-[29px] top-5 hidden lg:flex">
           <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-40" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-primary border-2 border-background" />
+            <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-40', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
+            <span className={cn('relative inline-flex rounded-full h-3 w-3 border-2 border-background', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
           </span>
         </div>
       )}
@@ -104,9 +107,9 @@ function NotificationCard({
       {/* Category icon */}
       <div className={cn(
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110',
-        meta.bg
+        isAdminPriority ? 'bg-destructive/10' : meta.bg
       )}>
-        <Icon className={cn('h-5 w-5', meta.color)} />
+        <Icon className={cn('h-5 w-5', isAdminPriority ? 'text-destructive' : meta.color)} />
       </div>
 
       {/* Content */}
@@ -114,7 +117,12 @@ function NotificationCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              {isUnread && <span className="h-2 w-2 rounded-full bg-primary shrink-0" />}
+              {isUnread && <span className={cn('h-2 w-2 rounded-full shrink-0', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />}
+              {isAdminPriority && isUnread && (
+                <span className="shrink-0 text-[8px] font-black uppercase tracking-wider bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
+                  ⚡ {t('priority') || 'PRIORITY'}
+                </span>
+              )}
               <h4 className={cn(
                 'text-sm leading-tight truncate',
                 isUnread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground'
@@ -140,7 +148,7 @@ function NotificationCard({
           </div>
           <span className={cn(
             'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md',
-            meta.bg, meta.color
+            isAdminPriority ? 'bg-destructive/10 text-destructive' : cn(meta.bg, meta.color)
           )}>
             {n.category}
           </span>

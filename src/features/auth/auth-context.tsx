@@ -23,6 +23,7 @@ export interface MerchantProfile {
   bio: string | null;
   region: string | null;
   default_currency: string;
+  merchant_code: string | null;
   status: string;
   created_at: string;
   updated_at: string;
