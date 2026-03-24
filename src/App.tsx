@@ -10,6 +10,7 @@ import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
+import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 
 // Auth pages
 import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
