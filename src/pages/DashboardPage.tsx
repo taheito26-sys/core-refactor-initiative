@@ -477,21 +477,21 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="kpi-band" style={{ borderLeft: '3px solid var(--good)' }}>
-            <div className="kpi-band-title">{t('dealNetPnl')}</div>
+            <div className="kpi-band-title">💰 Deal Profit Split</div>
             <div className="kpi-band-cols">
               <div>
-                <div className="kpi-period">{t('totalDealVolume')}</div>
-                <div className="kpi-cell-val t1v">{fmtQWithUnit(merchantDealKpis.totalVol)}</div>
-                <div className="kpi-cell-sub">{merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
-              </div>
-              <div>
-                <div className="kpi-period">Merchants Net P&L</div>
-                <div className={`kpi-cell-val ${merchantDealKpis.totalNet >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalNet)}</div>
+                <div className="kpi-period">📊 My Earnings</div>
+                <div className={`kpi-cell-val ${merchantDealKpis.totalMyShare >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalMyShare)}</div>
                 <div className="kpi-cell-sub">
                   {merchantDealKpis.pendingCount > 0 && <span style={{ color: 'var(--warn)' }}>{merchantDealKpis.pendingCount} {t('pendingDeals')}</span>}
                   {merchantDealKpis.pendingCount > 0 && merchantDealKpis.approvedCount > 0 && ' · '}
                   {merchantDealKpis.approvedCount > 0 && <span style={{ color: 'var(--good)' }}>{merchantDealKpis.approvedCount} {t('approvedStatus')}</span>}
                 </div>
+              </div>
+              <div>
+                <div className="kpi-period">🛡️ Partner Earnings</div>
+                <div className={`kpi-cell-val ${merchantDealKpis.totalPartnerShare >= 0 ? 'good' : 'bad'}`} style={{ color: 'var(--warn)' }}>{merchantDealKpis.totalPartnerShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalPartnerShare)}</div>
+                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.totalVol)} {t('volume')} · {merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
               </div>
             </div>
           </div>
