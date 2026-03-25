@@ -142,7 +142,7 @@ function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
 }
 
 // ── Markets ──
-type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey' | 'oman' | 'georgia' | 'uzbekistan';
+type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey' | 'oman' | 'georgia' | 'uzbekistan' | 'kazakhstan';
 
 const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[] = [
   { id: 'qatar', label: 'Qatar', currency: 'QAR', pair: 'USDT/QAR' },
@@ -154,6 +154,7 @@ const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[]
   { id: 'oman', label: 'Oman', currency: 'OMR', pair: 'USDT/OMR' },
   { id: 'georgia', label: 'Georgia', currency: 'GEL', pair: 'USDT/GEL' },
   { id: 'uzbekistan', label: 'Uzbekistan', currency: 'UZS', pair: 'USDT/UZS' },
+  { id: 'kazakhstan', label: 'Kazakhstan', currency: 'KZT', pair: 'USDT/KZT' },
 ];
 
 const EMPTY_SNAPSHOT: P2PSnapshot = {

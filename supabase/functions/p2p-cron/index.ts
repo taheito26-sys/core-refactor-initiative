@@ -16,7 +16,7 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // Call the existing p2p-scraper for all markets
-    const markets = ["qatar", "uae", "egypt", "ksa", "syria", "turkey", "oman", "georgia", "uzbekistan"];
+    const markets = ["qatar", "uae", "egypt", "ksa", "syria", "turkey", "oman", "georgia", "uzbekistan", "kazakhstan"];
     const results: Record<string, string> = {};
 
     for (const market of markets) {
