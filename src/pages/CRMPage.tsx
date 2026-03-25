@@ -94,6 +94,11 @@ export default function CRMPage() {
   const [suppName, setSuppName] = useState('');
   const [suppError, setSuppError] = useState('');
 
+  // ── Supplier add modal ────────────────────────────────────────────
+  const [showAddSuppModal, setShowAddSuppModal] = useState(false);
+  const [newSuppName, setNewSuppName] = useState('');
+  const [newSuppError, setNewSuppError] = useState('');
+
   // ── Derived lists ─────────────────────────────────────────────────
   const customers = state.customers ?? [];
 
