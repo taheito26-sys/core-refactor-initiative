@@ -94,6 +94,11 @@ export default function CRMPage() {
   const [suppName, setSuppName] = useState('');
   const [suppError, setSuppError] = useState('');
 
+  // ── Supplier add modal ────────────────────────────────────────────
+  const [showAddSuppModal, setShowAddSuppModal] = useState(false);
+  const [newSuppName, setNewSuppName] = useState('');
+  const [newSuppError, setNewSuppError] = useState('');
+
   // ── Derived lists ─────────────────────────────────────────────────
   const customers = state.customers ?? [];
 
@@ -173,6 +178,28 @@ export default function CRMPage() {
     setSuppName(name);
     setSuppError('');
     setShowSuppModal(true);
+  };
+
+  const openAddSupplier = () => {
+    setNewSuppName('');
+    setNewSuppError('');
+    setShowAddSuppModal(true);
+  };
+
+  const saveNewSupplier = () => {
+    const name = newSuppName.trim();
+    if (!name) { setNewSuppError('Supplier name is required.'); return; }
+    const exists = suppliers.some(s => s.name.toLowerCase() === name.toLowerCase());
+    if (exists) { setNewSuppError('A supplier with this name already exists.'); return; }
+    // Create a zero-amount batch to register the supplier
+    const newBatch = {
+      id: uid(), ts: Date.now(), source: name,
+      initialUSDT: 0, remainingUSDT: 0,
+      costPerUnit: 0, sold: 0, voided: false,
+      note: '', buyPriceQAR: 0, revisions: [],
+    };
+    applyState({ ...state, batches: [...state.batches, newBatch] });
+    setShowAddSuppModal(false);
   };
 
   const saveSupplier = () => {
@@ -279,11 +306,11 @@ export default function CRMPage() {
               <div style={{ fontSize: 13, fontWeight: 800 }}>{t('suppliers')}</div>
               <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('autoTrackedFromBatches')}</div>
             </div>
-            <button className="btn" onClick={() => navigate('/trading/stock')}>{t('addSupplier')}</button>
+            <button className="btn" onClick={openAddSupplier}>+ {t('addSupplier')}</button>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
-            💡 Suppliers are auto-tracked from batch source names in Stock. Click <strong>+ Add Supplier</strong> to create a new batch.
+            💡 Suppliers are auto-tracked from batch source names in Stock, or you can add them directly here.
           </div>
 
           {filteredSuppliers.length === 0 ? (
@@ -408,6 +435,30 @@ export default function CRMPage() {
           </FormField>
           <div style={{ fontSize: 10, color: 'var(--muted)' }}>
             This renames the supplier across all batches that reference this name.
+          </div>
+        </CRMModal>
+      )}
+
+      {/* ── Add Supplier Modal ── */}
+      {showAddSuppModal && (
+        <CRMModal
+          title="Add Supplier"
+          onClose={() => setShowAddSuppModal(false)}
+          onSave={saveNewSupplier}
+          error={newSuppError}
+        >
+          <FormField label="Supplier Name *">
+            <input
+              className="inputBox"
+              style={{ padding: '6px 10px', width: '100%' }}
+              placeholder="e.g. Al-Fardan Exchange"
+              value={newSuppName}
+              autoFocus
+              onChange={e => setNewSuppName(e.target.value)}
+            />
+          </FormField>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+            The supplier will appear in your list. You can attach batches to them later from the Stock page.
           </div>
         </CRMModal>
       )}

@@ -132,3 +132,23 @@ export function useMarkAllRead() {
     },
   });
 }
+
+/** Mark all unread notifications of a specific category as read */
+export function useMarkCategoryRead() {
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (category: string) => {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', userId!)
+        .eq('category', category)
+        .is('read_at', null);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
