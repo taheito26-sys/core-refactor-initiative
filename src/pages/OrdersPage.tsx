@@ -1093,8 +1093,6 @@ export default function OrdersPage() {
     const fee = Number(editDealFee) || 0;
     if (!(qty > 0) || !(sell > 0)) { toast.error(t('fixFields') + ' ' + t('qty') + ', ' + t('sell')); return; }
     try {
-      const deal = allMerchantDeals.find(d => d.id === editingDealId);
-      const existingNotes = deal?.notes || '';
       const metaNote = `qty: ${qty} | sell: ${sell} | fee: ${fee} | note: ${editDealNote}`;
       const { error } = await supabase.from('merchant_deals').update({
         title: editDealTitle,
@@ -1103,7 +1101,11 @@ export default function OrdersPage() {
         status: 'pending',
       }).eq('id', editingDealId);
       if (error) throw error;
+      // Purge stale order_allocations so the dashboard recalculates from updated notes.
+      // Allocation records store the OLD qty/sell values and won't auto-update otherwise.
+      await supabase.from('order_allocations').delete().eq('order_id', editingDealId);
       await reloadMerchantData();
+      void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
       setEditingDealId(null);
       toast.success(t('saveCorrection'));
     } catch (err: any) { toast.error(err.message); }

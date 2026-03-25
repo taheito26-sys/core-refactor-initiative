@@ -97,10 +97,17 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
     try {
       const myMerchantId = merchantProfile?.merchant_id;
 
+      // ── CRITICAL: filter to only THIS merchant's data ──────────────────────
+      // Without these filters every merchant sees ALL other merchants' relationships,
+      // invites, and deals — causing ghost connections and data leakage.
       const [relsRes, dealsRes, invitesRes, profilesRes] = await Promise.all([
-        supabase.from('merchant_relationships').select('*').order('created_at', { ascending: false }),
+        supabase.from('merchant_relationships').select('*')
+          .or(`merchant_a_id.eq.${myMerchantId},merchant_b_id.eq.${myMerchantId}`)
+          .order('created_at', { ascending: false }),
         supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
-        supabase.from('merchant_invites').select('*').order('created_at', { ascending: false }),
+        supabase.from('merchant_invites').select('*')
+          .or(`from_merchant_id.eq.${myMerchantId},to_merchant_id.eq.${myMerchantId}`)
+          .order('created_at', { ascending: false }),
         supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
       ]);
 

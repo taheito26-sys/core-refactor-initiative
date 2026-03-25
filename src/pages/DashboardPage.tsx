@@ -551,13 +551,19 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               {(() => {
                 const outDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing');
                 const outTotal = outDeals.reduce((s, d) => s + d.net, 0);
+                const outMyCutTotal = outDeals.reduce((s, d) => s + d.myShare, 0);
                 return outDeals.length > 0 ? (
                   <div style={{ borderBottom: '1px solid var(--line)' }}>
-                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'color-mix(in srgb, var(--brand) 6%, transparent)' }}>
+                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'color-mix(in srgb, var(--brand) 6%, transparent)' }}>
                       <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📤 {t('outgoingDeals')} ({outDeals.length})</span>
-                      <span className={`mono ${outTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
-                        Total Net: {outTotal >= 0 ? '+' : ''}{fmtQWithUnit(outTotal)}
-                      </span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
+                          Gross: {outTotal >= 0 ? '+' : ''}{fmtQWithUnit(outTotal)}
+                        </span>
+                        <span className={`mono ${outMyCutTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
+                          My Cut: {outMyCutTotal >= 0 ? '+' : ''}{fmtQWithUnit(outMyCutTotal)}
+                        </span>
+                      </div>
                     </div>
                     <div style={{ overflow: 'auto' }}>
                       <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
@@ -599,13 +605,19 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               {(() => {
                 const inDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming');
                 const inTotal = inDeals.reduce((s, d) => s + d.net, 0);
+                const inMyCutTotal = inDeals.reduce((s, d) => s + d.myShare, 0);
                 return inDeals.length > 0 ? (
                   <div>
-                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'color-mix(in srgb, var(--good) 6%, transparent)' }}>
+                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'color-mix(in srgb, var(--good) 6%, transparent)' }}>
                       <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📥 {t('incomingDeals')} ({inDeals.length})</span>
-                      <span className={`mono ${inTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
-                        Total Net: {inTotal >= 0 ? '+' : ''}{fmtQWithUnit(inTotal)}
-                      </span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
+                          Gross: {inTotal >= 0 ? '+' : ''}{fmtQWithUnit(inTotal)}
+                        </span>
+                        <span className={`mono ${inMyCutTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
+                          My Cut: {inMyCutTotal >= 0 ? '+' : ''}{fmtQWithUnit(inMyCutTotal)}
+                        </span>
+                      </div>
                     </div>
                     <div style={{ overflow: 'auto' }}>
                       <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
