@@ -426,7 +426,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
           {/* ═══ RELATIONSHIPS TAB ═══ */}
           {tab === 'relationships' && (
             <>
-              {/* ── PENDING INVITES SECTION ── */}
+              {/* ── PENDING INVITES SECTION (INCOMING) ── */}
               {invites.filter(i => i.status === 'pending' && i.is_incoming).length > 0 && (
                 <div style={{
                   padding: '10px 12px', borderRadius: 8, marginBottom: 10,
@@ -443,67 +443,116 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                       {invites.filter(i => i.status === 'pending' && i.is_incoming).length}
                     </span>
                   </div>
-                  {invites.filter(i => i.status === 'pending' && i.is_incoming).map(inv => (
-                    <div key={inv.id} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '8px 10px', borderRadius: 6, marginBottom: 4,
-                      background: 'var(--cardBg)', border: '1px solid var(--line)',
-                      flexWrap: 'wrap', gap: 8,
-                    }}>
-                      <div style={{ flex: 1, minWidth: 150 }}>
-                        <div style={{ fontWeight: 700, fontSize: 12 }}>{inv.from_name}</div>
-                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                          {inv.message || (t('connectionRequest'))}
+                  {invites.filter(i => i.status === 'pending' && i.is_incoming).map(inv => {
+                    const elapsed = Date.now() - new Date(inv.created_at).getTime();
+                    const days = Math.floor(elapsed / 86400000);
+                    const hours = Math.floor((elapsed % 86400000) / 3600000);
+                    const timeAgo = days > 0 ? `${days}d ${hours}h ago` : hours > 0 ? `${hours}h ago` : 'Just now';
+                    return (
+                      <div key={inv.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 12px', borderRadius: 6, marginBottom: 4,
+                        background: 'var(--cardBg)', border: '1px solid var(--line)',
+                        flexWrap: 'wrap', gap: 8,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 180 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <span style={{ fontWeight: 800, fontSize: 12 }}>{inv.from_name}</span>
+                            <span style={{ fontSize: 9, color: 'var(--muted)' }}>→</span>
+                            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>You</span>
+                          </div>
+                          {inv.message && (
+                            <div style={{ fontSize: 10, color: 'var(--t2)', marginBottom: 3, fontStyle: 'italic' }}>
+                              💬 "{inv.message}"
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--muted)', flexWrap: 'wrap' }}>
+                            <span>📅 {new Date(inv.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                            <span>⏱ {timeAgo}</span>
+                            <span className="pill warn" style={{ fontSize: 8, padding: '1px 6px' }}>{t('pendingStatus')}</span>
+                          </div>
                         </div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
-                          {new Date(inv.created_at).toLocaleDateString()}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn"
+                            onClick={() => handleAcceptInvite(inv)}
+                            style={{ fontSize: 11, background: 'var(--good)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 700 }}
+                          >
+                            ✓ {t('accept')}
+                          </button>
+                          <button
+                            className="rowBtn"
+                            onClick={() => handleRejectInvite(inv.id)}
+                            style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 700 }}
+                          >
+                            ✗ {t('reject')}
+                          </button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          className="btn"
-                          onClick={() => handleAcceptInvite(inv)}
-                          style={{ fontSize: 11, background: 'var(--good)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 700 }}
-                        >
-                          ✓ {t('accept')}
-                        </button>
-                        <button
-                          className="rowBtn"
-                          onClick={() => handleRejectInvite(inv.id)}
-                          style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 700 }}
-                        >
-                          ✗ {t('reject')}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
-              {/* ── SENT INVITES (PENDING) ── */}
+              {/* ── SENT INVITES (OUTGOING PENDING) ── */}
               {invites.filter(i => i.status === 'pending' && !i.is_incoming).length > 0 && (
                 <div style={{
-                  padding: '8px 12px', borderRadius: 8, marginBottom: 10,
+                  padding: '10px 12px', borderRadius: 8, marginBottom: 10,
                   border: '1px solid var(--line)', background: 'var(--cardBg)',
                 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--muted)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 8, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     📤 {t('sentInvites')}
-                  </div>
-                  {invites.filter(i => i.status === 'pending' && !i.is_incoming).map(inv => (
-                    <div key={inv.id} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '6px 8px', borderRadius: 4, marginBottom: 3,
-                      border: '1px solid var(--line)',
+                    <span style={{
+                      fontSize: 9, fontWeight: 600, background: 'color-mix(in srgb, var(--warn) 15%, transparent)',
+                      color: 'var(--warn)', borderRadius: 10, padding: '1px 6px',
                     }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 11 }}>{inv.to_name}</div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('pendingStatus')}</div>
+                      {invites.filter(i => i.status === 'pending' && !i.is_incoming).length}
+                    </span>
+                  </div>
+                  {invites.filter(i => i.status === 'pending' && !i.is_incoming).map(inv => {
+                    const elapsed = Date.now() - new Date(inv.created_at).getTime();
+                    const days = Math.floor(elapsed / 86400000);
+                    const hours = Math.floor((elapsed % 86400000) / 3600000);
+                    const timeAgo = days > 0 ? `${days}d ${hours}h ago` : hours > 0 ? `${hours}h ago` : 'Just now';
+                    const expiresAt = inv.expires_at ? new Date(inv.expires_at) : null;
+                    const isExpiringSoon = expiresAt && (expiresAt.getTime() - Date.now()) < 86400000 * 3;
+                    return (
+                      <div key={inv.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 12px', borderRadius: 6, marginBottom: 4,
+                        border: '1px solid var(--line)', background: 'color-mix(in srgb, var(--warn) 3%, var(--cardBg))',
+                        flexWrap: 'wrap', gap: 8,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 180 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>You</span>
+                            <span style={{ fontSize: 9, color: 'var(--muted)' }}>→</span>
+                            <span style={{ fontWeight: 800, fontSize: 12 }}>{inv.to_name}</span>
+                          </div>
+                          {inv.message && (
+                            <div style={{ fontSize: 10, color: 'var(--t2)', marginBottom: 3, fontStyle: 'italic' }}>
+                              💬 "{inv.message}"
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--muted)', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span>📅 {new Date(inv.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                            <span>⏱ {timeAgo}</span>
+                            <span className="pill warn" style={{ fontSize: 8, padding: '1px 6px' }}>Awaiting response</span>
+                            {expiresAt && (
+                              <span style={{ color: isExpiringSoon ? 'var(--bad)' : 'var(--muted)', fontWeight: isExpiringSoon ? 700 : 400 }}>
+                                ⏳ Expires {expiresAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="rowBtn" onClick={() => handleWithdrawInvite(inv.id)} style={{ fontSize: 10, color: 'var(--bad)' }}>
+                            ↩ {t('withdraw')}
+                          </button>
+                        </div>
                       </div>
-                      <button className="rowBtn" onClick={() => handleWithdrawInvite(inv.id)} style={{ fontSize: 10 }}>
-                        ↩ {t('withdraw')}
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
