@@ -335,13 +335,13 @@ export default function OrdersPage() {
         counterpartyName: rel?.counterparty?.display_name || t('partner'),
       };
     } else {
-      // Sales Deal: based on order amount
-      const base = salePreview.revenue;
+      // Sales Deal: based on net profit (same as profit share)
+      const base = Number.isFinite(salePreview.net) ? salePreview.net : 0;
       const partnerAmount = (base * partnerPct) / 100;
       const merchantAmount = base - partnerAmount;
       return {
         partnerPct, merchantPct, partnerAmount, merchantAmount,
-        base, baseLabel: 'sale_economics' as const,
+        base, baseLabel: 'net_profit' as const,
         revenue: salePreview.revenue,
         fifoCost: Number.isFinite(salePreview.cost) ? salePreview.cost : null,
         counterpartyName: rel?.counterparty?.display_name || t('partner'),
