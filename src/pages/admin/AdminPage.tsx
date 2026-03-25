@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell } from 'lucide-react';
+import { useState, lazy, Suspense } from 'react';
+import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell, BarChart3, Store } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
@@ -9,6 +9,8 @@ import { AdminUserWorkspace } from '@/features/admin/components/AdminUserWorkspa
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
 import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
 import AdminApprovalsPage from './AdminApprovalsPage';
+import DashboardPage from '@/pages/DashboardPage';
+import MerchantsPage from '@/pages/MerchantsPage';
 
 export default function AdminPage() {
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
