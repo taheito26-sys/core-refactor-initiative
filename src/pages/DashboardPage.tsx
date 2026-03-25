@@ -80,7 +80,7 @@ export default function DashboardPage() {
       let inCount = 0, inVol = 0, inNet = 0;
       let pendingCount = 0, approvedCount = 0;
 
-      for (const d of deals) {
+      for (const d of activeDeals) {
         const meta = parseMeta(d.notes);
         const qty = Number(meta.quantity) || 0;
         const sell = Number(meta.sell_price) || 0;
@@ -104,7 +104,7 @@ export default function DashboardPage() {
       }
 
       return {
-        totalDeals: deals.length,
+        totalDeals: activeDeals.length,
         outCount, outVol, outNet,
         inCount, inVol, inNet,
         pendingCount, approvedCount,
