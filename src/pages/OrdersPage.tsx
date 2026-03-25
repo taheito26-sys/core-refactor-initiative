@@ -1326,7 +1326,7 @@ export default function OrdersPage() {
                         const meta = parseDealMeta(deal.notes);
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
                         const dealSell = Number(meta.sell_price) || 0;
-                        const dealAvgBuy = Number(meta.avg_buy) || 0;
+                        const dealAvgBuy = resolveDealAvgBuy(deal);
                         const dealFee = Number(meta.fee) || 0;
                         const dealVol = dealQty * dealSell;
                         const dealCost = dealQty * dealAvgBuy;
