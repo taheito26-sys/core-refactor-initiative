@@ -350,6 +350,46 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Merchant Deals KPIs */}
+      {merchantDealKpis && merchantDealKpis.totalDeals > 0 && (
+        <div className="kpi-band-grid" style={{ marginTop: 0 }}>
+          <div className="kpi-band" style={{ borderLeft: '3px solid var(--brand)' }}>
+            <div className="kpi-band-title">🤝 {t('merchantDealsOverview')}</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">{t('outgoingDeals')}</div>
+                <div className="kpi-cell-val t1v">{merchantDealKpis.outCount}</div>
+                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.outVol)} {t('volume')}</div>
+              </div>
+              <div>
+                <div className="kpi-period">{t('incomingDeals')}</div>
+                <div className="kpi-cell-val t1v">{merchantDealKpis.inCount}</div>
+                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.inVol)} {t('volume')}</div>
+              </div>
+            </div>
+          </div>
+          <div className="kpi-band" style={{ borderLeft: '3px solid var(--good)' }}>
+            <div className="kpi-band-title">{t('dealNetPnl')}</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">{t('totalDealVolume')}</div>
+                <div className="kpi-cell-val t1v">{fmtQWithUnit(merchantDealKpis.totalVol)}</div>
+                <div className="kpi-cell-sub">{merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
+              </div>
+              <div>
+                <div className="kpi-period">{t('net')} P&L</div>
+                <div className={`kpi-cell-val ${merchantDealKpis.totalNet >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalNet)}</div>
+                <div className="kpi-cell-sub">
+                  {merchantDealKpis.pendingCount > 0 && <span style={{ color: 'var(--warn)' }}>{merchantDealKpis.pendingCount} {t('pendingDeals')}</span>}
+                  {merchantDealKpis.pendingCount > 0 && merchantDealKpis.approvedCount > 0 && ' · '}
+                  {merchantDealKpis.approvedCount > 0 && <span style={{ color: 'var(--good)' }}>{merchantDealKpis.approvedCount} {t('approvedStatus')}</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom panels */}
       <div className="dash-bottom">
         <div className="panel">
