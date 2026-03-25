@@ -438,9 +438,10 @@ export default function DashboardPage() {
 
       {/* Merchant Deals KPIs */}
       {merchantDealKpis && merchantDealKpis.totalDeals > 0 && (
-        <div className="kpi-band-grid" style={{ marginTop: 0 }}>
+        <>
+        <div className="kpi-band-grid" style={{ marginTop: 0, cursor: 'pointer' }} onClick={() => setShowDealsDrilldown(v => !v)}>
           <div className="kpi-band" style={{ borderLeft: '3px solid var(--brand)' }}>
-            <div className="kpi-band-title">🤝 {t('merchantDealsOverview')}</div>
+            <div className="kpi-band-title">🤝 {t('merchantDealsOverview')} <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{showDealsDrilldown ? '▲ collapse' : '▼ details'}</span></div>
             <div className="kpi-band-cols">
               <div>
                 <div className="kpi-period">{t('outgoingDeals')}</div>
@@ -474,6 +475,140 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Drill-down panel */}
+        {showDealsDrilldown && merchantDealKpis.dealDetails && (
+          <div className="panel" style={{ marginTop: 0 }}>
+            <div className="panel-body" style={{ padding: 0 }}>
+              {/* Outgoing Deals */}
+              {(() => {
+                const outDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing');
+                const outTotal = outDeals.reduce((s, d) => s + d.net, 0);
+                return outDeals.length > 0 ? (
+                  <div style={{ borderBottom: '1px solid var(--line)' }}>
+                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'color-mix(in srgb, var(--brand) 6%, transparent)' }}>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📤 {t('outgoingDeals')} ({outDeals.length})</span>
+                      <span className={`mono ${outTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
+                        Total Net: {outTotal >= 0 ? '+' : ''}{fmtQWithUnit(outTotal)}
+                      </span>
+                    </div>
+                    <div style={{ overflow: 'auto' }}>
+                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--panel2)' }}>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Deal</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Net P&L</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outDeals.map(d => (
+                            <tr key={d.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                              <td style={{ padding: '6px 10px', fontWeight: 500 }}>{d.title}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--brand)' }}>{d.merchantName}</td>
+                              <td style={{ padding: '6px 10px' }}>
+                                <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.net >= 0 ? 'good' : 'bad'}`}>
+                                {d.net >= 0 ? '+' : ''}{fmtQWithUnit(d.net)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Incoming Deals */}
+              {(() => {
+                const inDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming');
+                const inTotal = inDeals.reduce((s, d) => s + d.net, 0);
+                return inDeals.length > 0 ? (
+                  <div>
+                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'color-mix(in srgb, var(--good) 6%, transparent)' }}>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📥 {t('incomingDeals')} ({inDeals.length})</span>
+                      <span className={`mono ${inTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
+                        Total Net: {inTotal >= 0 ? '+' : ''}{fmtQWithUnit(inTotal)}
+                      </span>
+                    </div>
+                    <div style={{ overflow: 'auto' }}>
+                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--panel2)' }}>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Deal</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Net P&L</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {inDeals.map(d => (
+                            <tr key={d.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                              <td style={{ padding: '6px 10px', fontWeight: 500 }}>{d.title}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--brand)' }}>{d.merchantName}</td>
+                              <td style={{ padding: '6px 10px' }}>
+                                <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.net >= 0 ? 'good' : 'bad'}`}>
+                                {d.net >= 0 ? '+' : ''}{fmtQWithUnit(d.net)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Per-merchant summary */}
+              {(() => {
+                const byMerchant = new Map<string, { net: number; count: number }>();
+                for (const d of merchantDealKpis.dealDetails) {
+                  const existing = byMerchant.get(d.merchantName) || { net: 0, count: 0 };
+                  existing.net += d.net;
+                  existing.count += 1;
+                  byMerchant.set(d.merchantName, existing);
+                }
+                const sorted = [...byMerchant.entries()].sort((a, b) => b[1].net - a[1].net);
+                return sorted.length > 0 ? (
+                  <div style={{ borderTop: '1px solid var(--line)', padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>📊 Per-Merchant Net Summary</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {sorted.map(([name, data]) => (
+                        <div key={name} style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          background: 'var(--panel2)',
+                          border: '1px solid var(--line)',
+                          fontSize: 11,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          minWidth: 100,
+                        }}>
+                          <span style={{ fontWeight: 600, color: 'var(--brand)', marginBottom: 2 }}>{name}</span>
+                          <span className={`mono ${data.net >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 13 }}>
+                            {data.net >= 0 ? '+' : ''}{fmtQWithUnit(data.net)}
+                          </span>
+                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>{data.count} deal{data.count !== 1 ? 's' : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* Bottom panels */}
