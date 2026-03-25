@@ -1121,7 +1121,7 @@ export default function OrdersPage() {
       const meta = parseDealMeta(deal.notes);
       const qty = Number(meta.quantity) || 0;
       const sell = Number(meta.sell_price) || 0;
-      const avgBuyVal = Number(meta.avg_buy) || 0;
+      const avgBuyVal = resolveDealAvgBuy(deal);
       const fee = Number(meta.fee) || 0;
       const dealVol = qty * sell;
       const dealCost = qty * avgBuyVal;
@@ -1129,7 +1129,7 @@ export default function OrdersPage() {
       netVal += dealVol - dealCost - fee;
     }
     return { count: creatorMerchantDeals.length, vol, net: netVal };
-  }, [creatorMerchantDeals]);
+  }, [creatorMerchantDeals, resolveDealAvgBuy]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
@@ -1137,7 +1137,7 @@ export default function OrdersPage() {
       const meta = parseDealMeta(deal.notes);
       const qty = Number(meta.quantity) || 0;
       const sell = Number(meta.sell_price) || 0;
-      const avgBuyVal = Number(meta.avg_buy) || 0;
+      const avgBuyVal = resolveDealAvgBuy(deal);
       const fee = Number(meta.fee) || 0;
       const dealVol = qty * sell;
       const dealCost = qty * avgBuyVal;
@@ -1145,7 +1145,7 @@ export default function OrdersPage() {
       netVal += dealVol - dealCost - fee;
     }
     return { count: partnerMerchantDeals.length, vol, net: netVal };
-  }, [partnerMerchantDeals]);
+  }, [partnerMerchantDeals, resolveDealAvgBuy]);
 
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => (
     <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
