@@ -135,7 +135,13 @@ export default function OrdersPage() {
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
 
-  // ─── Merchant Deal Edit (for incoming/outgoing API deals) ─────────
+  // Sync saleAmount into first allocation's allocatedUsdt for sales_deal 50/50
+  useEffect(() => {
+    if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+    }
+  }, [saleAmount]);
+
   const [editingDealId, setEditingDealId] = useState<string | null>(null);
   const [editDealTitle, setEditDealTitle] = useState('');
   const [editDealAmount, setEditDealAmount] = useState('');
@@ -329,13 +335,13 @@ export default function OrdersPage() {
         counterpartyName: rel?.counterparty?.display_name || t('partner'),
       };
     } else {
-      // Sales Deal: based on order amount
-      const base = salePreview.revenue;
+      // Sales Deal: based on net profit (same as profit share)
+      const base = Number.isFinite(salePreview.net) ? salePreview.net : 0;
       const partnerAmount = (base * partnerPct) / 100;
       const merchantAmount = base - partnerAmount;
       return {
         partnerPct, merchantPct, partnerAmount, merchantAmount,
-        base, baseLabel: 'sale_economics' as const,
+        base, baseLabel: 'net_profit' as const,
         revenue: salePreview.revenue,
         fifoCost: Number.isFinite(salePreview.cost) ? salePreview.cost : null,
         counterpartyName: rel?.counterparty?.display_name || t('partner'),
@@ -1703,8 +1709,8 @@ export default function OrdersPage() {
                                 {/* Template presets */}
                                 <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>Quick Template</div>
                                 <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                                  <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
-                                    onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50 } : a))}>
+                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
+                                    onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>
                                     🤝 50/50 Equal
                                   </button>
                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations.length > 1 ? '1.5px solid var(--brand)' : undefined }}

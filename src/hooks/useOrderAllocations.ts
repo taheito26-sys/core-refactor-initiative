@@ -182,9 +182,9 @@ export function calculateAllocationEconomics(input: AllocationCalcInput) {
     partnerAmount = net * (partnerSharePct / 100);
     merchantAmount = net - partnerAmount;
   } else if (family === 'sales_deal') {
-    // Sales Deal: split REVENUE
-    partnerAmount = revenue * (partnerSharePct / 100);
-    merchantAmount = revenue - partnerAmount;
+    // Sales Deal: split NET PROFIT (same as profit share)
+    partnerAmount = net * (partnerSharePct / 100);
+    merchantAmount = net - partnerAmount;
   } else {
     // Capital Transfer: no split
     partnerAmount = 0;
