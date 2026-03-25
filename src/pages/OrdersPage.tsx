@@ -459,7 +459,7 @@ export default function OrdersPage() {
     // ─── NEW: Multi-Merchant Allocation Flow ─────────────────────────
     if (merchantOrderEnabled && isNewAllocFlowActive) {
       try {
-        const saleGroupId = uid();
+        const saleGroupId = crypto.randomUUID();
         const fee = parseFloat(saleFee) || 0;
 
         const allocationInputs: CreateAllocationInput[] = allocations.map(alloc => {
