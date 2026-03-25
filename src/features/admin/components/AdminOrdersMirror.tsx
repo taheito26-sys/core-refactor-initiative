@@ -19,6 +19,9 @@ function parseDealMeta(notes: string | null | undefined): Record<string, string>
     const idx = seg.indexOf(':');
     if (idx > 0) meta[seg.slice(0, idx).trim()] = seg.slice(idx + 1).trim();
   });
+  // Normalise legacy aliases
+  if (!meta.quantity && meta.qty) meta.quantity = meta.qty;
+  if (!meta.sell_price && meta.sell) meta.sell_price = meta.sell;
   return meta;
 }
 
@@ -203,20 +206,45 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
           </div>
           {partnerMerchantDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noIncomingTrades')}</div></div> : (
             <div className="tableWrap ledgerWrap"><table><thead><tr>
-              <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('merchantDealType')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+              <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
             </tr></thead><tbody>
               {partnerMerchantDeals.map((deal: any) => {
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const meta = parseDealMeta(deal.notes);
                 const dealQty = Number(meta.quantity) || deal.amount || 0;
                 const dealSell = Number(meta.sell_price) || 0;
+                const dealAvgBuy = Number(meta.avg_buy) || 0;
                 const dealVol = dealQty * (dealSell || 1);
-                const dealCost = Number(meta.fifo_cost) || 0;
-                const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
-                const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
-                const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
-                const avgBuy = dealQty > 0 && dealCost > 0 ? dealCost / dealQty : 0;
-                return <tr key={deal.id}><td><span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span></td><td>{rel?.counterparty?.display_name || '—'}</td><td>{deal.deal_type}</td><td className="mono r">{fmtU(dealQty)}</td><td className="mono r">{avgBuy > 0 ? fmtP(avgBuy) : '—'}</td><td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td><td className="mono r">{fmtQ(dealVol)}</td><td className="mono r">{dealNet !== 0 ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}</td><td><div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div></td><td><span className="pill">{deal.status}</span></td></tr>;
+                const dealFee = Number(meta.fee) || 0;
+                const dealCost = dealAvgBuy > 0 ? dealQty * dealAvgBuy : 0;
+                const hasAvgBuy = dealAvgBuy > 0;
+                const fullNet = hasAvgBuy && dealSell > 0 ? dealVol - dealCost - dealFee : 0;
+                const dealMargin = hasAvgBuy && dealVol > 0 ? fullNet / dealVol : 0;
+                const marginPct = hasAvgBuy && Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
+                const customerName = meta.customer || '';
+                const familyLabel = deal.deal_type === 'arbitrage' ? '📊 Sales Deal' : deal.deal_type === 'partnership' ? '🤝 Partnership' : deal.deal_type === 'capital_transfer' ? '💰 Capital' : deal.deal_type || '';
+                const partnerRatio = meta.partner_ratio || meta.counterparty_share || '';
+                const merchantRatio = meta.merchant_ratio || meta.merchant_share || '';
+                const splitLabel = partnerRatio && merchantRatio ? `${partnerRatio}%/${merchantRatio}%` : '';
+                return <tr key={deal.id}>
+                  <td>
+                    <span className="mono" style={{ whiteSpace: 'nowrap' }}>{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+                      <span className={`pill ${deal.status === 'approved' ? 'good' : deal.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 8 }}>{deal.status}</span>
+                      {familyLabel && <span className="pill" style={{ fontSize: 8 }}>{familyLabel}</span>}
+                      {splitLabel && <span className="pill" style={{ fontSize: 8 }}>{splitLabel}</span>}
+                    </div>
+                  </td>
+                  <td>{rel?.counterparty?.display_name || '—'}</td>
+                  <td>{customerName || '—'}</td>
+                  <td className="mono r">{fmtU(dealQty)}</td>
+                  <td className="mono r">{hasAvgBuy ? fmtP(dealAvgBuy) : '—'}</td>
+                  <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
+                  <td className="mono r">{fmtQ(dealVol)}</td>
+                  <td className="mono r" style={{ color: hasAvgBuy ? (fullNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{hasAvgBuy ? `${fullNet >= 0 ? '+' : ''}${fmtQ(fullNet)}` : '—'}</td>
+                  <td>{hasAvgBuy ? <><div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div><div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{(dealMargin * 100).toFixed(2)}%</div></> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                  <td><span className="pill">{deal.status}</span></td>
+                </tr>;
               })}
             </tbody></table></div>
           )}
@@ -239,13 +267,16 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
                 const meta = parseDealMeta(deal.notes);
                 const dealQty = Number(meta.quantity) || deal.amount || 0;
                 const dealSell = Number(meta.sell_price) || 0;
+                const dealAvgBuy = Number(meta.avg_buy) || 0;
                 const dealVol = dealQty * (dealSell || 1);
-                const dealCost = Number(meta.fifo_cost) || 0;
-                const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
-                const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
-                const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
+                const dealFee = Number(meta.fee) || 0;
+                const dealCost = dealAvgBuy > 0 ? dealQty * dealAvgBuy : 0;
+                const hasAvgBuy = dealAvgBuy > 0;
+                const fullNet = hasAvgBuy && dealSell > 0 ? dealVol - dealCost - dealFee : 0;
+                const dealMargin = hasAvgBuy && dealVol > 0 ? fullNet / dealVol : 0;
+                const marginPct = hasAvgBuy && Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                 const customerName = meta.customer || '';
-                return <tr key={deal.id}><td><span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span></td><td>{rel?.counterparty?.display_name || '—'}</td><td>{customerName || '—'}</td><td className="mono r">{fmtU(dealQty)}</td><td className="mono r">{dealQty > 0 && dealCost > 0 ? fmtP(dealCost / dealQty) : '—'}</td><td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td><td className="mono r">{fmtQ(dealVol)}</td><td className="mono r">{dealNet !== 0 ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}</td><td><div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div></td><td><span className="pill">{deal.status}</span></td></tr>;
+                return <tr key={deal.id}><td><span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span></td><td>{rel?.counterparty?.display_name || '—'}</td><td>{customerName || '—'}</td><td className="mono r">{fmtU(dealQty)}</td><td className="mono r">{hasAvgBuy ? fmtP(dealAvgBuy) : '—'}</td><td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td><td className="mono r">{fmtQ(dealVol)}</td><td className="mono r" style={{ color: hasAvgBuy ? (fullNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{hasAvgBuy ? `${fullNet >= 0 ? '+' : ''}${fmtQ(fullNet)}` : '—'}</td><td>{hasAvgBuy ? <><div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div><div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{(dealMargin * 100).toFixed(2)}%</div></> : <span style={{ color: 'var(--muted)' }}>—</span>}</td><td><span className="pill">{deal.status}</span></td></tr>;
               })}
             </tbody></table></div>
           )}
