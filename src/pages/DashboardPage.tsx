@@ -401,7 +401,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 </span>
                 {(lowBal.length > 0 || overdueRecon.length > 0) && (
                   <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--warn)', background: 'color-mix(in srgb,var(--warn) 12%, transparent)', border: '1px solid color-mix(in srgb,var(--warn) 30%,transparent)', borderRadius: 4, padding: '2px 6px' }}>
-                    ⚠ {lowBal.length + overdueRecon.length} alerts
+                    ⚠ {lowBal.length + overdueRecon.length} {t('cashAlerts')}
                   </span>
                 )}
               </div>
@@ -424,7 +424,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                   ))}
                   {!isAdminView && (
                     <div style={{ marginTop: 4 }}>
-                      <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>→ Open Cash Management</span>
+                      <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>
                     </div>
                   )}
                 </div>

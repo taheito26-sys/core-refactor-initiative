@@ -214,10 +214,10 @@ export default function StockPage() {
 
     if (activeAccounts.length > 0 && fundingAccountId) {
       const selectedAcc = activeAccounts.find(a => a.id === fundingAccountId);
-      if (!selectedAcc) { setBatchMsg('Selected funding account not found.'); return; }
+      if (!selectedAcc) { setBatchMsg(t('fundingAccNotFound')); return; }
       const availBal = accountBalances.get(fundingAccountId) || 0;
       if (availBal < batchCostQAR) {
-        setBatchMsg(`⚠ Insufficient funds in "${selectedAcc.name}". Available: ${fmtTotal(availBal)} QAR, Required: ${fmtTotal(batchCostQAR)} QAR`);
+        setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} QAR, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} QAR`);
         return;
       }
       const entryId = uid();
@@ -432,7 +432,7 @@ export default function StockPage() {
         <button
           onClick={() => setStockTab('cash')}
           style={{ padding: '6px 16px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'cash' ? 'var(--brand)' : 'transparent', color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', gap: 5 }}>
-          💰 Cash
+          {t('cashTabLabel')}
           {cashAccounts.length > 0 && <span style={{ background: 'color-mix(in srgb, var(--good) 20%, transparent)', color: 'var(--good)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{cashAccounts.filter(a => a.status === 'active').length}</span>}
         </button>
       </div>
@@ -732,12 +732,12 @@ export default function StockPage() {
               {/* ── Funding Source (multi-account) ── */}
               {activeAccounts.length > 0 && (
                 <div className="field2">
-                  <div className="lbl">💰 Funding Source</div>
+                  <div className="lbl">{t('fundingSourceLbl')}</div>
                   <select
                     value={fundingAccountId}
                     onChange={e => setFundingAccountId(e.target.value)}
                     style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: `1px solid ${!fundingAccountId ? 'color-mix(in srgb, var(--warn) 50%, transparent)' : 'var(--line)'}`, background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-                    <option value="">— Select funding account —</option>
+                    <option value="">{t('selectFundingAccPh')}</option>
                     {activeAccounts.map(a => {
                       const bal = accountBalances.get(a.id) || 0;
                       return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
@@ -748,7 +748,7 @@ export default function StockPage() {
                     const bal = accountBalances.get(fundingAccountId) || 0;
                     return (
                       <div style={{ fontSize: 10, marginTop: 4, color: 'var(--muted)' }}>
-                        Available: <strong style={{ color: bal < 10000 ? 'var(--warn)' : 'var(--good)' }}>{fmtTotal(bal)} {acc?.currency}</strong>
+                        {t('availableLbl')}: <strong style={{ color: bal < 10000 ? 'var(--warn)' : 'var(--good)' }}>{fmtTotal(bal)} {acc?.currency}</strong>
                       </div>
                     );
                   })()}
@@ -756,7 +756,7 @@ export default function StockPage() {
               )}
               {activeAccounts.length === 0 && (
                 <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
-                  💡 Set up <button type="button" onClick={() => setStockTab('cash')} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>cash accounts</button> to track funding sources per batch.
+                  💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => setStockTab('cash')} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
                 </div>
               )}
 

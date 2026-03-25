@@ -6,6 +6,7 @@ import {
   type CashLedgerEntry, type LedgerEntryType,
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
 } from '@/lib/tracker-helpers';
+import { useT } from '@/lib/i18n';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
 const IconHand = () => (
@@ -47,17 +48,8 @@ const IconMinus = () => (
   </svg>
 );
 
-const ACCOUNT_TYPE_LABELS: Record<CashAccountType, string> = {
-  hand: 'Cash in Hand', bank: 'Bank Account', vault: 'Vault / Safe',
-};
 const ACCOUNT_TYPE_ICON: Record<CashAccountType, React.FC> = {
   hand: IconHand, bank: IconBank, vault: IconVault,
-};
-const LEDGER_TYPE_LABELS: Record<LedgerEntryType, string> = {
-  opening: 'Opening Balance', deposit: 'Deposit', withdrawal: 'Withdrawal',
-  transfer_in: 'Transfer In', transfer_out: 'Transfer Out',
-  stock_purchase: 'Stock Purchase', stock_refund: 'Stock Refund',
-  stock_edit_adjust: 'Batch Edit Adjust', reconcile: 'Reconciliation',
 };
 const CURRENCY_SYMBOLS: Record<CashCurrency, string> = { QAR: 'QAR', USDT: 'USDT', USD: 'USD' };
 
@@ -86,6 +78,7 @@ interface AddAccountModalProps {
   onClose: () => void;
 }
 function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalProps) {
+  const t = useT();
   const [name, setName] = useState(existingAccount?.name || '');
   const [type, setType] = useState<CashAccountType>(existingAccount?.type || 'hand');
   const [currency, setCurrency] = useState<CashCurrency>(existingAccount?.currency || 'QAR');
@@ -95,7 +88,7 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
   const [err, setErr] = useState('');
 
   const handleSave = () => {
-    if (!name.trim()) { setErr('Account name is required'); return; }
+    if (!name.trim()) { setErr(t('accountNameRequired')); return; }
     const account: CashAccount = {
       id: existingAccount?.id || uid(),
       name: name.trim(),
@@ -116,27 +109,29 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{existingAccount ? '✏️ Edit Account' : '➕ Add Cash Account'}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
+            {existingAccount ? t('editAccountTitle') : t('addCashAccount')}
+          </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
-          <div className="lbl">Account Name</div>
-          <div className="inputBox"><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Main Wallet, QNB Main" /></div>
+          <div className="lbl">{t('accountName')}</div>
+          <div className="inputBox"><input value={name} onChange={e => setName(e.target.value)} placeholder={t('accountNamePh')} /></div>
         </div>
 
         <div className="g2tight" style={{ marginBottom: 10 }}>
           <div className="field2">
-            <div className="lbl">Type</div>
+            <div className="lbl">{t('accountTypeLbl')}</div>
             <select value={type} onChange={e => setType(e.target.value as CashAccountType)}
               style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="hand">💵 Cash in Hand</option>
-              <option value="bank">🏦 Bank Account</option>
-              <option value="vault">🔒 Vault / Safe</option>
+              <option value="hand">💵 {t('accTypeHand')}</option>
+              <option value="bank">🏦 {t('accTypeBank')}</option>
+              <option value="vault">🔒 {t('accTypeVault')}</option>
             </select>
           </div>
           <div className="field2">
-            <div className="lbl">Currency</div>
+            <div className="lbl">{t('accountCurrencyLbl')}</div>
             <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
               style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
               <option value="QAR">🇶🇦 QAR</option>
@@ -149,25 +144,27 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
         {type === 'bank' && (
           <div className="g2tight" style={{ marginBottom: 10 }}>
             <div className="field2">
-              <div className="lbl">Bank Name</div>
-              <div className="inputBox"><input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="QNB, CBQ, Doha Bank..." /></div>
+              <div className="lbl">{t('bankNameLbl')}</div>
+              <div className="inputBox"><input value={bankName} onChange={e => setBankName(e.target.value)} placeholder={t('bankNamePh')} /></div>
             </div>
             <div className="field2">
-              <div className="lbl">Branch / Label</div>
-              <div className="inputBox"><input value={branch} onChange={e => setBranch(e.target.value)} placeholder="Main Branch, USD acc..." /></div>
+              <div className="lbl">{t('branchLbl')}</div>
+              <div className="inputBox"><input value={branch} onChange={e => setBranch(e.target.value)} placeholder={t('branchPh')} /></div>
             </div>
           </div>
         )}
 
         <div className="field2" style={{ marginBottom: 16 }}>
-          <div className="lbl">Notes (optional)</div>
-          <div className="inputBox"><input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes about this account..." /></div>
+          <div className="lbl">{t('notesOptionalAcc')}</div>
+          <div className="inputBox"><input value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('notesAccPh')} /></div>
         </div>
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
-          <button className="btn secondary" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={handleSave}>{existingAccount ? 'Save Changes' : 'Create Account'}</button>
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handleSave}>
+            {existingAccount ? t('saveChanges') : t('createAccountBtn')}
+          </button>
         </div>
       </div>
     </div>
@@ -182,14 +179,18 @@ interface DepositWithdrawModalProps {
   onClose: () => void;
 }
 function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose }: DepositWithdrawModalProps) {
+  const t = useT();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
   const amtNum = num(amount, 0);
 
   const handle = () => {
-    if (!(amtNum > 0)) { setErr('Enter a valid amount'); return; }
-    if (mode === 'withdrawal' && amtNum > currentBalance) { setErr(`Insufficient balance. Available: ${fmtTotal(currentBalance)} ${account.currency}`); return; }
+    if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
+    if (mode === 'withdrawal' && amtNum > currentBalance) {
+      setErr(`${t('insufficientBalMsg')} ${fmtTotal(currentBalance)} ${account.currency}`);
+      return;
+    }
     const entry: CashLedgerEntry = {
       id: uid(), ts: Date.now(),
       type: mode === 'deposit' ? 'deposit' : 'withdrawal',
@@ -208,34 +209,34 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose }
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
-            {mode === 'deposit' ? '➕' : '➖'} {mode === 'deposit' ? 'Deposit' : 'Withdraw'} — {account.name}
+            {mode === 'deposit' ? '➕' : '➖'} {mode === 'deposit' ? t('depositTitle') : t('withdrawTitle')} — {account.name}
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 11 }}>
-          <span style={{ color: 'var(--muted)' }}>Current balance: </span>
+          <span style={{ color: 'var(--muted)' }}>{t('currentBalanceLbl')}: </span>
           <span className="mono" style={{ fontWeight: 800, color: 'var(--brand)', fontSize: 13 }}>{fmtTotal(currentBalance)} {account.currency}</span>
         </div>
         <div className="field2" style={{ marginBottom: 10 }}>
-          <div className="lbl">Amount ({account.currency})</div>
+          <div className="lbl">{t('amount')} ({account.currency})</div>
           <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
         </div>
         {amtNum > 0 && (
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-            Balance after: <strong style={{ color: mode === 'deposit' ? 'var(--good)' : 'var(--warn)' }}>
+            {t('balanceAfterLbl')}: <strong style={{ color: mode === 'deposit' ? 'var(--good)' : 'var(--warn)' }}>
               {fmtTotal(currentBalance + (mode === 'deposit' ? amtNum : -amtNum))} {account.currency}
             </strong>
           </div>
         )}
         <div className="field2" style={{ marginBottom: 14 }}>
-          <div className="lbl">Note (optional)</div>
-          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="Source, reason..." /></div>
+          <div className="lbl">{t('noteOptional')}</div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('sourceReasonPh')} /></div>
         </div>
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
-          <button className="btn secondary" onClick={onClose}>Cancel</button>
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
           <button className="btn" style={{ background: mode === 'deposit' ? 'var(--good)' : 'var(--warn)', color: '#000' }} onClick={handle}>
-            {mode === 'deposit' ? 'Add Deposit' : 'Record Withdrawal'}
+            {mode === 'deposit' ? t('addDepositBtn') : t('recordWithdrawalBtn')}
           </button>
         </div>
       </div>
@@ -251,6 +252,7 @@ interface TransferModalProps {
   onClose: () => void;
 }
 function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: TransferModalProps) {
+  const t = useT();
   const active = accounts.filter(a => a.status === 'active');
   const [fromId, setFromId] = useState(defaultFromId || (active[0]?.id || ''));
   const [toId, setToId] = useState(active.find(a => a.id !== fromId)?.id || '');
@@ -264,10 +266,13 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: T
   const amtNum = num(amount, 0);
 
   const handle = () => {
-    if (!fromId || !toId) { setErr('Select both accounts'); return; }
-    if (fromId === toId) { setErr('Cannot transfer to the same account'); return; }
-    if (!(amtNum > 0)) { setErr('Enter a valid amount'); return; }
-    if (amtNum > fromBal) { setErr(`Insufficient funds. Available: ${fmtTotal(fromBal)} ${fromAcc?.currency}`); return; }
+    if (!fromId || !toId) { setErr(t('selectBothAccounts')); return; }
+    if (fromId === toId) { setErr(t('cannotSameAccount')); return; }
+    if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
+    if (amtNum > fromBal) {
+      setErr(`${t('insufficientFundsMsg')} ${fmtTotal(fromBal)} ${fromAcc?.currency}`);
+      return;
+    }
     const ts = Date.now();
     const outEntry: CashLedgerEntry = {
       id: uid(), ts, type: 'transfer_out', accountId: fromId, contraAccountId: toId,
@@ -287,19 +292,19 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: T
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>↔️ Quick Transfer</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{t('quickTransfer')}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div className="g2tight" style={{ marginBottom: 10, alignItems: 'end' }}>
           <div className="field2">
-            <div className="lbl">From</div>
+            <div className="lbl">{t('transferFromLbl')}</div>
             <select value={fromId} onChange={e => setFromId(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
               {active.map(a => <option key={a.id} value={a.id}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
             </select>
           </div>
           <div className="field2">
-            <div className="lbl">To</div>
+            <div className="lbl">{t('transferToLbl')}</div>
             <select value={toId} onChange={e => setToId(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
               {active.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -307,22 +312,22 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: T
           </div>
         </div>
         <div className="field2" style={{ marginBottom: 10 }}>
-          <div className="lbl">Amount</div>
+          <div className="lbl">{t('amount')}</div>
           <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
         </div>
         {amtNum > 0 && fromAcc && (
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-            {fromAcc.name} after: <strong style={{ color: 'var(--warn)' }}>{fmtTotal(fromBal - amtNum)} {fromAcc.currency}</strong>
+            {fromAcc.name} {t('balanceAfterLbl').toLowerCase()}: <strong style={{ color: 'var(--warn)' }}>{fmtTotal(fromBal - amtNum)} {fromAcc.currency}</strong>
           </div>
         )}
         <div className="field2" style={{ marginBottom: 14 }}>
-          <div className="lbl">Note (optional)</div>
-          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="Reason for transfer..." /></div>
+          <div className="lbl">{t('noteOptional')}</div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('reasonTransferPh')} /></div>
         </div>
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
-          <button className="btn secondary" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={handle}>Transfer Funds</button>
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handle}>{t('transferFundsBtn')}</button>
         </div>
       </div>
     </div>
@@ -336,8 +341,26 @@ interface CashManagementProps {
 }
 
 export function CashManagement({ state, applyState }: CashManagementProps) {
+  const t = useT();
   const accounts = state.cashAccounts || [];
   const ledger = state.cashLedger || [];
+
+  // ── Localized label maps (recomputed when language changes) ────
+  const ACCOUNT_TYPE_LABELS: Record<CashAccountType, string> = useMemo(() => ({
+    hand: t('accTypeHand'), bank: t('accTypeBank'), vault: t('accTypeVault'),
+  }), [t]);
+
+  const LEDGER_TYPE_LABELS: Record<LedgerEntryType, string> = useMemo(() => ({
+    opening: t('ledgerOpening'),
+    deposit: t('ledgerDeposit'),
+    withdrawal: t('ledgerWithdrawal'),
+    transfer_in: t('ledgerTransferIn'),
+    transfer_out: t('ledgerTransferOut'),
+    stock_purchase: t('ledgerStockPurchase'),
+    stock_refund: t('ledgerStockRefund'),
+    stock_edit_adjust: t('ledgerEditAdjust'),
+    reconcile: t('ledgerReconcile'),
+  }), [t]);
 
   const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights'>('accounts');
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -480,13 +503,13 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
     return null;
   }, [activeAccounts, balances, totalQAR]);
 
-  const tabBtn = (t: typeof innerTab, label: string) => (
+  const tabBtn = (tab: typeof innerTab, label: string) => (
     <button
-      onClick={() => setInnerTab(t)}
+      onClick={() => setInnerTab(tab)}
       style={{
         padding: '6px 14px', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer',
-        borderRadius: 6, background: innerTab === t ? 'var(--brand)' : 'transparent',
-        color: innerTab === t ? '#fff' : 'var(--muted)',
+        borderRadius: 6, background: innerTab === tab ? 'var(--brand)' : 'transparent',
+        color: innerTab === tab ? '#fff' : 'var(--muted)',
       }}>
       {label}
     </button>
@@ -506,29 +529,29 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
       {/* ── Summary Strip ── */}
       <div className="cash-summary-strip">
         <div className="cash-summary-item">
-          <div className="cash-summary-label">💰 Total Cash</div>
+          <div className="cash-summary-label">💰 {t('totalCashLbl')}</div>
           <div className="cash-summary-value mono">{fmtTotal(totalQAR)} <span style={{ fontSize: 11, fontWeight: 600 }}>QAR</span></div>
         </div>
         <div className="cash-summary-sep" />
         <div className="cash-summary-item">
-          <div className="cash-summary-label">✋ In Hand</div>
+          <div className="cash-summary-label">✋ {t('inHandLbl')}</div>
           <div className="cash-summary-value mono" style={{ fontSize: 15 }}>{fmtTotal(inHandQAR)}</div>
         </div>
         <div className="cash-summary-sep" />
         <div className="cash-summary-item">
-          <div className="cash-summary-label">🏦 Banks</div>
+          <div className="cash-summary-label">🏦 {t('banksLbl')}</div>
           <div className="cash-summary-value mono" style={{ fontSize: 15 }}>{fmtTotal(bankQAR)}</div>
         </div>
         {vaultQAR > 0 && <>
           <div className="cash-summary-sep" />
           <div className="cash-summary-item">
-            <div className="cash-summary-label">🔒 Vault</div>
+            <div className="cash-summary-label">🔒 {t('vaultLbl')}</div>
             <div className="cash-summary-value mono" style={{ fontSize: 15 }}>{fmtTotal(vaultQAR)}</div>
           </div>
         </>}
         <div className="cash-summary-sep" />
         <div className="cash-summary-item">
-          <div className="cash-summary-label">24h Movement</div>
+          <div className="cash-summary-label">{t('movement24h')}</div>
           <div className="cash-summary-value mono" style={{ fontSize: 14, color: total24hMovement >= 0 ? 'var(--good)' : 'var(--bad)' }}>
             {total24hMovement >= 0 ? '+' : ''}{fmtTotal(total24hMovement)}
           </div>
@@ -538,13 +561,13 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           className="btn"
           style={{ padding: '7px 14px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
           onClick={() => setShowTransfer(true)}>
-          <IconTransfer /> Transfer
+          <IconTransfer /> {t('transferLbl')}
         </button>
         <button
           className="btn secondary"
           style={{ padding: '7px 14px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
           onClick={() => setShowAddAccount(true)}>
-          <IconPlus /> Add Account
+          <IconPlus /> {t('addAccountBtn')}
         </button>
       </div>
 
@@ -553,17 +576,17 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {lowBalanceAccounts.map(a => (
             <div key={a.id} className="cash-warning-pill" style={{ borderColor: 'color-mix(in srgb, var(--warn) 30%, transparent)', color: 'var(--warn)' }}>
-              ⚠ {a.name}: low balance ({fmtTotal(balances.get(a.id) || 0)} QAR)
+              ⚠ {a.name}: {t('lowBalancePill')} ({fmtTotal(balances.get(a.id) || 0)} QAR)
             </div>
           ))}
           {concentrationWarning && (
             <div className="cash-warning-pill" style={{ borderColor: 'color-mix(in srgb, var(--brand) 30%, transparent)', color: 'var(--brand)' }}>
-              📊 {concentrationWarning.account.name} holds {concentrationWarning.pct}% of total cash
+              📊 {concentrationWarning.account.name}: {concentrationWarning.pct}% {t('holdsOfTotal')}
             </div>
           )}
           {overdueReconciliation.length > 0 && (
             <div className="cash-warning-pill" style={{ borderColor: 'color-mix(in srgb, var(--muted) 40%, transparent)', color: 'var(--muted)' }}>
-              🔄 {overdueReconciliation.length} account{overdueReconciliation.length > 1 ? 's' : ''} due for reconciliation
+              🔄 {overdueReconciliation.length} {t('accountsDueRecon')}
             </div>
           )}
         </div>
@@ -571,9 +594,9 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
       {/* ── Inner Tabs ── */}
       <div style={{ display: 'flex', gap: 4, background: 'var(--panel)', borderRadius: 8, padding: 4, alignSelf: 'flex-start' }}>
-        {tabBtn('accounts', '🏦 Accounts')}
-        {tabBtn('ledger', '📋 Ledger')}
-        {tabBtn('insights', '📊 Insights')}
+        {tabBtn('accounts', t('cashAccountsTab'))}
+        {tabBtn('ledger', t('cashLedgerTab'))}
+        {tabBtn('insights', t('cashInsightsTab'))}
       </div>
 
       {/* ── ACCOUNTS TAB ── */}
@@ -585,9 +608,9 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                 <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
                 <line x1="9" y1="21" x2="9" y2="9"/>
               </svg>
-              <div className="empty-t">No cash accounts yet</div>
-              <div className="empty-s">Create your first account to start tracking cash</div>
-              <button className="btn" style={{ marginTop: 12 }} onClick={() => setShowAddAccount(true)}>➕ Add First Account</button>
+              <div className="empty-t">{t('noCashAccountsTitle')}</div>
+              <div className="empty-s">{t('noCashAccountsDesc')}</div>
+              <button className="btn" style={{ marginTop: 12 }} onClick={() => setShowAddAccount(true)}>{t('addFirstAccountBtn')}</button>
             </div>
           ) : (
             <div className="cash-accounts-grid">
@@ -595,7 +618,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                 const bal = balances.get(acc.id) || 0;
                 const mov24h = get24hMovement(acc.id, ledger);
                 const batchCount = batchFundingSources.get(acc.id) || 0;
-                const lastActivity = [...ledger].filter(e => e.accountId === acc.id).sort((a, b) => b.ts - a.ts)[0];
+                const lastActivityEntry = [...ledger].filter(e => e.accountId === acc.id).sort((a, b) => b.ts - a.ts)[0];
                 const isInactive = acc.status === 'inactive';
                 const TypeIcon = ACCOUNT_TYPE_ICON[acc.type];
                 const needsReconcile = !acc.lastReconciled || (Date.now() - acc.lastReconciled > 7 * 86400000);
@@ -620,22 +643,22 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
                     {/* Balance */}
                     <div style={{ marginBottom: 10 }}>
-                      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Available Balance</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{t('availableBalanceLbl')}</div>
                       <div className="mono" style={{ fontSize: 22, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1 }}>
                         {fmtTotal(bal)}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>{acc.currency}</span>
                       </div>
                       {mov24h !== 0 && (
                         <div style={{ fontSize: 10, marginTop: 2, color: mov24h > 0 ? 'var(--good)' : 'var(--bad)' }}>
-                          {mov24h > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(mov24h))} in 24h
+                          {mov24h > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(mov24h))} {t('in24h')}
                         </div>
                       )}
                     </div>
 
                     {/* Meta */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, fontSize: 10, color: 'var(--muted)' }}>
-                      {lastActivity && <span>Last: {fmtDate(lastActivity.ts)}</span>}
-                      {batchCount > 0 && <span>• {batchCount} batch{batchCount > 1 ? 'es' : ''} funded</span>}
-                      {needsReconcile && !isInactive && <span style={{ color: 'var(--warn)' }}>• Needs reconcile</span>}
+                      {lastActivityEntry && <span>{t('lastActivity')}: {fmtDate(lastActivityEntry.ts)}</span>}
+                      {batchCount > 0 && <span>• {batchCount} {t('batchesFunded')}</span>}
+                      {needsReconcile && !isInactive && <span style={{ color: 'var(--warn)' }}>• {t('needsReconcileLbl')}</span>}
                     </div>
 
                     {/* Actions */}
@@ -643,22 +666,22 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                         <button className="rowBtn" style={{ fontSize: 10, display: 'flex', gap: 3, alignItems: 'center' }}
                           onClick={() => setShowDeposit({ account: acc, mode: 'deposit' })}>
-                          <IconPlus /> Deposit
+                          <IconPlus /> {t('depositTitle')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, display: 'flex', gap: 3, alignItems: 'center' }}
                           onClick={() => setShowDeposit({ account: acc, mode: 'withdrawal' })}>
-                          <IconMinus /> Withdraw
+                          <IconMinus /> {t('withdrawTitle')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, display: 'flex', gap: 3, alignItems: 'center' }}
                           onClick={() => { setTransferFromId(acc.id); setShowTransfer(true); }}>
-                          <IconTransfer /> Transfer
+                          <IconTransfer /> {t('transferLbl')}
                         </button>
-                        <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => setEditingAccount(acc)}>✏️ Edit</button>
-                        <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => reconcileAccount(acc.id)}>✓ Reconcile</button>
+                        <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
                       </div>
                     )}
                     {isInactive && (
-                      <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>Account inactive</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>{t('accountInactiveLbl')}</div>
                     )}
                   </div>
                 );
@@ -670,8 +693,8 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                   <div style={{ width: 36, height: 36, borderRadius: 50, border: '2px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconPlus />
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 700 }}>Add Account</div>
-                  <div style={{ fontSize: 10, textAlign: 'center', lineHeight: 1.4 }}>Bank, wallet, or cash in hand</div>
+                  <div style={{ fontSize: 11, fontWeight: 700 }}>{t('addAccountBtn')}</div>
+                  <div style={{ fontSize: 10, textAlign: 'center', lineHeight: 1.4 }}>{t('bankWalletHandDesc')}</div>
                 </div>
               </div>
             </div>
@@ -686,39 +709,39 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
             <select value={ledgerFilter.accountId} onChange={e => setLedgerFilter(f => ({ ...f, accountId: e.target.value }))}
               style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="">All Accounts</option>
+              <option value="">{t('allAccountsOpt')}</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <select value={ledgerFilter.type} onChange={e => setLedgerFilter(f => ({ ...f, type: e.target.value }))}
               style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="">All Types</option>
-              {(Object.keys(LEDGER_TYPE_LABELS) as LedgerEntryType[]).map(t => (
-                <option key={t} value={t}>{LEDGER_TYPE_LABELS[t]}</option>
+              <option value="">{t('allTypesOpt')}</option>
+              {(Object.keys(LEDGER_TYPE_LABELS) as LedgerEntryType[]).map(lType => (
+                <option key={lType} value={lType}>{LEDGER_TYPE_LABELS[lType]}</option>
               ))}
             </select>
             {(ledgerFilter.accountId || ledgerFilter.type) && (
-              <button className="rowBtn" onClick={() => setLedgerFilter({ accountId: '', type: '' })}>✕ Clear</button>
+              <button className="rowBtn" onClick={() => setLedgerFilter({ accountId: '', type: '' })}>✕ {t('clearAll')}</button>
             )}
-            <span className="muted" style={{ fontSize: 10, alignSelf: 'center' }}>{filteredLedger.length} entries</span>
+            <span className="muted" style={{ fontSize: 10, alignSelf: 'center' }}>{filteredLedger.length} {t('entriesCount')}</span>
           </div>
 
           {filteredLedger.length === 0 ? (
             <div className="empty" style={{ padding: '24px 0' }}>
-              <div className="empty-t">No ledger entries</div>
-              <div className="empty-s">Cash movements will appear here</div>
+              <div className="empty-t">{t('noLedgerEntries')}</div>
+              <div className="empty-s">{t('cashMovementsAppear')}</div>
             </div>
           ) : (
             <div className="tableWrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Time</th>
-                    <th>Account</th>
-                    <th>Type</th>
-                    <th className="r">Amount</th>
-                    <th className="r">Balance</th>
-                    <th>Linked</th>
-                    <th>Note</th>
+                    <th>{t('ledgerColTime')}</th>
+                    <th>{t('ledgerColAccount')}</th>
+                    <th>{t('ledgerColType')}</th>
+                    <th className="r">{t('ledgerColAmount')}</th>
+                    <th className="r">{t('ledgerColBalance')}</th>
+                    <th>{t('ledgerColLinked')}</th>
+                    <th>{t('note')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -767,10 +790,10 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* Account breakdown */}
           <div className="panel">
-            <div className="panel-head"><h2>💼 Portfolio Breakdown</h2></div>
+            <div className="panel-head"><h2>{t('portfolioBreakdown')}</h2></div>
             <div className="panel-body">
               {activeAccounts.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 12 }}>No active accounts</div>
+                <div style={{ color: 'var(--muted)', fontSize: 12 }}>{t('noActiveAccountsMsg')}</div>
               ) : (
                 activeAccounts.filter(a => a.currency === 'QAR').map(acc => {
                   const bal = balances.get(acc.id) || 0;
@@ -794,7 +817,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           {/* Batch funding sources */}
           {batchFundingSources.size > 0 && (
             <div className="panel">
-              <div className="panel-head"><h2>📦 Stock Funding Sources</h2></div>
+              <div className="panel-head"><h2>{t('stockFundingSources')}</h2></div>
               <div className="panel-body">
                 {Array.from(batchFundingSources.entries()).map(([accId, count]) => {
                   const acc = accounts.find(a => a.id === accId);
@@ -804,7 +827,9 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                   return (
                     <div key={accId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
                       <span style={{ fontSize: 11, fontWeight: 700 }}>{acc?.name || accId}</span>
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{count} batches · {fmtTotal(batchTotal)} QAR spent</span>
+                      <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        {count} {t('batchesLabel')} · {fmtTotal(batchTotal)} {t('qarSpent')}
+                      </span>
                     </div>
                   );
                 })}
@@ -814,25 +839,27 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
           {/* Health indicators */}
           <div className="panel">
-            <div className="panel-head"><h2>🏥 Balance Health</h2></div>
+            <div className="panel-head"><h2>{t('balanceHealth')}</h2></div>
             <div className="panel-body">
-              {accounts.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>No accounts configured</div>}
+              {accounts.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>{t('noAccountsConfigured')}</div>}
               {lowBalanceAccounts.map(a => (
                 <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
                   <span style={{ color: 'var(--warn)' }}>⚠ {a.name}</span>
-                  <span className="mono">{fmtTotal(balances.get(a.id) || 0)} QAR — Low</span>
+                  <span className="mono">{fmtTotal(balances.get(a.id) || 0)} QAR — {t('lowBalancePill')}</span>
                 </div>
               ))}
               {overdueReconciliation.map(a => (
                 <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
                   <span style={{ color: 'var(--muted)' }}>🔄 {a.name}</span>
                   <span style={{ color: 'var(--muted)', fontSize: 10 }}>
-                    {a.lastReconciled ? `Last: ${fmtDate(a.lastReconciled)}` : 'Never reconciled'}
+                    {a.lastReconciled
+                      ? `${t('lastActivity')}: ${fmtDate(a.lastReconciled)}`
+                      : t('neverReconciled')}
                   </span>
                 </div>
               ))}
               {lowBalanceAccounts.length === 0 && overdueReconciliation.length === 0 && (
-                <div style={{ color: 'var(--good)', fontSize: 12 }}>✅ All accounts healthy</div>
+                <div style={{ color: 'var(--good)', fontSize: 12 }}>{t('allAccountsHealthy')}</div>
               )}
             </div>
           </div>
@@ -853,17 +880,21 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setPendingAccount(null)}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
           <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', width: '100%', maxWidth: 380, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>💰 Set Opening Balance</div>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>{t('setOpeningBalance')}</div>
             <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
-              How much is currently in <strong style={{ color: 'var(--text)' }}>{pendingAccount.name}</strong>? This will be recorded as the opening balance.
+              {t('openingBalanceInQ')} <strong style={{ color: 'var(--text)' }}>{pendingAccount.name}</strong>{t('openingBalanceDesc')}
             </div>
             <div className="field2" style={{ marginBottom: 14 }}>
-              <div className="lbl">Opening Balance ({pendingAccount.currency})</div>
+              <div className="lbl">{t('openingBalanceLbl')} ({pendingAccount.currency})</div>
               <div className="inputBox"><input inputMode="decimal" value={newOpeningBalance} onChange={e => setNewOpeningBalance(e.target.value)} placeholder="0.00" autoFocus /></div>
             </div>
             <div className="formActions">
-              <button className="btn secondary" onClick={() => { addAccount(pendingAccount, 0); setPendingAccount(null); setNewOpeningBalance(''); }}>Skip (zero balance)</button>
-              <button className="btn" onClick={() => { addAccount(pendingAccount, num(newOpeningBalance, 0)); setPendingAccount(null); setNewOpeningBalance(''); }}>Create Account</button>
+              <button className="btn secondary" onClick={() => { addAccount(pendingAccount, 0); setPendingAccount(null); setNewOpeningBalance(''); }}>
+                {t('skipZeroBalance')}
+              </button>
+              <button className="btn" onClick={() => { addAccount(pendingAccount, num(newOpeningBalance, 0)); setPendingAccount(null); setNewOpeningBalance(''); }}>
+                {t('createAccountBtn')}
+              </button>
             </div>
           </div>
         </div>
@@ -882,9 +913,9 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowTransfer(false)}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)' }} />
           <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', maxWidth: 360 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Need 2+ Accounts</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>Add at least two active accounts to transfer between them.</div>
-            <button className="btn" onClick={() => { setShowTransfer(false); setShowAddAccount(true); }}>Add Account</button>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{t('need2AccountsTitle')}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('need2AccountsDesc')}</div>
+            <button className="btn" onClick={() => { setShowTransfer(false); setShowAddAccount(true); }}>{t('addAccountBtn')}</button>
           </div>
         </div>
       )}
