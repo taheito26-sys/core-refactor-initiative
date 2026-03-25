@@ -53,6 +53,12 @@ export default function CalendarPage() {
         margin = rev > 0 ? (netQAR / rev) * 100 : 0;
         avgBuy = tr.manualBuyPrice;
       }
+      // For linked/partner trades, show only my share of the profit
+      if (tr.linkedDealId || tr.linkedRelId) {
+        const myPct = (tr as any).merchantPct ?? 100;
+        netQAR = netQAR * myPct / 100;
+        margin = rev > 0 ? (netQAR / rev) * 100 : 0;
+      }
       if (rev > 0 || netQAR !== 0) {
         mData[d2].profit += netQAR;
         mData[d2].volumeQAR += rev;
