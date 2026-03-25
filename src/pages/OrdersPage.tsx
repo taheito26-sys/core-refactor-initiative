@@ -533,6 +533,7 @@ export default function OrdersPage() {
             `template: ${alloc.family}_family`,
             `customer: ${customerName}`,
             `local_trade: ${baseTrade.id}`,
+            `trade_date: ${new Date(ts).toISOString()}`,
             `quantity: ${usdt}`,
             `sell_price: ${sell}`,
             `fifo_cost: ${fifoCost}`,
@@ -651,6 +652,7 @@ export default function OrdersPage() {
           `template: ${tmpl.id}`,
           `customer: ${customerName}`,
           `local_trade: ${baseTrade.id}`,
+          `trade_date: ${new Date(ts).toISOString()}`,
           `quantity: ${baseTrade.amountUSDT}`,
           `sell_price: ${sell}`,
           `fifo_cost: ${fifoCost}`,
@@ -761,7 +763,9 @@ export default function OrdersPage() {
       const c = derived.tradeCalc.get(t.id);
       const revenue = t.amountUSDT * t.sellPriceQAR;
       const cost = c?.slices.reduce((s, x) => s + x.cost, 0) || 0;
-      const net = c?.ok ? revenue - cost : NaN;
+      let net = c?.ok ? revenue - cost - t.feeQAR : NaN;
+      const linked = !!(t.agreementFamily || t.linkedDealId || t.linkedRelId);
+      if (linked && t.merchantPct && Number.isFinite(net)) net = net * (t.merchantPct / 100);
       return [new Date(t.ts).toISOString(), t.amountUSDT, t.sellPriceQAR, revenue, Number.isFinite(cost) ? cost : '', Number.isFinite(net) ? net : ''].join(',');
     });
     const csv = `Date,Qty USDT,Sell QAR,Revenue QAR,Cost QAR,Net QAR\n${rows.join('\n')}`;
@@ -775,11 +779,7 @@ export default function OrdersPage() {
   const openEdit = (id: string) => {
     const tr = state.trades.find(x => x.id === id);
     if (!tr) return;
-    // Block editing approved merchant-linked trades
-    if (tr.approvalStatus === 'approved') {
-      toast.error(t('cannotEditApprovedTrade'));
-      return;
-    }
+    // Allow editing approved trades — will trigger re-approval
     const cn = state.customers.find(c => c.id === tr.customerId)?.name || '';
     setEditingTradeId(id);
     setEditDate(toInputFromTs(tr.ts));
@@ -831,11 +831,12 @@ export default function OrdersPage() {
         const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
-        const noteLines = [
-          `template: ${tmpl.id}`,
-          `customer: ${customerName}`,
-          `local_trade: ${editingTradeId}`,
-          `quantity: ${qty}`,
+          const noteLines = [
+            `template: ${tmpl.id}`,
+            `customer: ${customerName}`,
+            `local_trade: ${editingTradeId}`,
+            `trade_date: ${new Date(ts).toISOString()}`,
+            `quantity: ${qty}`,
           `sell_price: ${sell}`,
           `fifo_cost: ${fifoCost}`,
           `avg_buy: ${avgBuy}`,
@@ -930,6 +931,44 @@ export default function OrdersPage() {
       };
     });
     applyState({ ...state, trades: nextTrades });
+
+    // Propagate edits to linked server deal and trigger re-approval
+    if (existingTrade.linkedDealId && !editLinkEnabled) {
+      try {
+        const existingDeal = allMerchantDeals.find(d => d.id === existingTrade.linkedDealId);
+        const oldMeta = parseDealMeta(existingDeal?.notes);
+        const updatedCalc = computeFIFO(state.batches, nextTrades).tradeCalc.get(editingTradeId!);
+        const updatedAvgBuy = updatedCalc?.ok ? updatedCalc.avgBuyQAR : (existingTrade.manualBuyPrice || Number(oldMeta.avg_buy) || 0);
+        const updatedFifoCost = updatedCalc?.ok ? updatedCalc.slices.reduce((s: number, x: any) => s + x.cost, 0) : 0;
+        const preservedKeys = ['template', 'customer', 'local_trade', 'merchant_cost', 'partner_ratio', 'merchant_ratio', 'counterparty_share', 'merchant_share'];
+        const preserved = preservedKeys
+          .filter(k => oldMeta[k] != null)
+          .map(k => `${k}: ${oldMeta[k]}`);
+        const dealNoteLines = [
+          ...preserved,
+          `trade_date: ${new Date(ts).toISOString()}`,
+          `quantity: ${qty}`,
+          `sell_price: ${sell}`,
+          `fifo_cost: ${updatedFifoCost}`,
+          `avg_buy: ${updatedAvgBuy}`,
+          `fee: ${fee}`,
+        ].join(' | ');
+        await supabase.from('merchant_deals').update({
+          amount: qty * sell,
+          notes: dealNoteLines,
+          status: 'pending',
+        }).eq('id', existingTrade.linkedDealId);
+        const resetTrades = nextTrades.map(tr =>
+          tr.id === editingTradeId ? { ...tr, approvalStatus: 'pending_approval' as LinkedTradeStatus } : tr
+        );
+        applyState({ ...state, trades: resetTrades });
+        await reloadMerchantData();
+        toast.success('Deal updated — sent for re-approval');
+      } catch (err: any) {
+        console.error('Failed to update linked deal:', err);
+      }
+    }
+
     setEditingTradeId(null);
   };
 
@@ -1030,6 +1069,7 @@ export default function OrdersPage() {
         title: editDealTitle,
         amount: qty * sell,
         notes: metaNote,
+        status: 'pending',
       }).eq('id', editingDealId);
       if (error) throw error;
       await reloadMerchantData();
@@ -1150,14 +1190,16 @@ export default function OrdersPage() {
     let vol = 0, netVal = 0;
     for (const deal of creatorMerchantDeals) {
       const meta = parseDealMeta(deal.notes);
+      const { merchantPct } = getDealShares(deal);
       const qty = Number(meta.quantity) || 0;
       const sell = Number(meta.sell_price) || 0;
       const avgBuyVal = resolveDealAvgBuy(deal);
       const fee = Number(meta.fee) || 0;
       const dealVol = qty * sell;
       const dealCost = qty * avgBuyVal;
+      const fullNet = dealVol - dealCost - fee;
       vol += dealVol;
-      netVal += dealVol - dealCost - fee;
+      netVal += merchantPct != null ? fullNet * (merchantPct / 100) : fullNet;
     }
     return { count: creatorMerchantDeals.length, vol, net: netVal };
   }, [creatorMerchantDeals, resolveDealAvgBuy]);
@@ -1166,14 +1208,16 @@ export default function OrdersPage() {
     let vol = 0, netVal = 0;
     for (const deal of partnerMerchantDeals) {
       const meta = parseDealMeta(deal.notes);
+      const { partnerPct } = getDealShares(deal);
       const qty = Number(meta.quantity) || 0;
       const sell = Number(meta.sell_price) || 0;
       const avgBuyVal = resolveDealAvgBuy(deal);
       const fee = Number(meta.fee) || 0;
       const dealVol = qty * sell;
       const dealCost = qty * avgBuyVal;
+      const fullNet = dealVol - dealCost - fee;
       vol += dealVol;
-      netVal += dealVol - dealCost - fee;
+      netVal += partnerPct != null ? fullNet * (partnerPct / 100) : fullNet;
     }
     return { count: partnerMerchantDeals.length, vol, net: netVal };
   }, [partnerMerchantDeals, resolveDealAvgBuy]);
@@ -1260,11 +1304,12 @@ export default function OrdersPage() {
                         const c = derived.tradeCalc.get(tr.id);
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
-                        const net = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
+                        const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
+                        const rawNet = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
+                        const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
                         const margin = Number.isFinite(net) && rev > 0 ? net / rev : NaN;
                         const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                         const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
-                        const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
                         return (
                           <React.Fragment key={tr.id}>
@@ -1349,31 +1394,32 @@ export default function OrdersPage() {
                     </thead>
                     <tbody>
                       {partnerMerchantDeals.map(deal => {
-                        const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
-                        const isPending = deal.status === 'pending';
                         const isLegacy = !isSupportedDealType(deal.deal_type);
                         const meta = parseDealMeta(deal.notes);
+                        const familyInfo = getAgreementFamilyLabel(deal.deal_type, t.isRTL ? 'ar' : 'en');
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
                         const dealSell = Number(meta.sell_price) || 0;
                         const dealAvgBuy = resolveDealAvgBuy(deal);
                         const dealFee = Number(meta.fee) || 0;
                         const dealVol = dealQty * dealSell;
                         const dealCost = dealQty * dealAvgBuy;
-                        const dealNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
-                        const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
+                        const fullNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
+                        const myNet = partnerPct != null ? fullNet * (partnerPct / 100) : fullNet;
+                        const dealMargin = dealVol > 0 ? myNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
+                        const tradeDate = meta.trade_date ? new Date(meta.trade_date).toLocaleDateString() : (deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—');
 
                         return (
                           <tr key={deal.id}>
-                            <td><span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span></td>
+                            <td><span className="mono">{tradeDate}</span></td>
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                                <span>{cfg?.icon}</span>
-                                <span style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 10 }}>{cfg?.label || deal.deal_type}</span>
+                                <span>{familyInfo.icon}</span>
+                                <span style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 10 }}>{familyInfo.label}</span>
                                 {partnerPct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{partnerPct}%/{100 - partnerPct}%</span>}
                                 {isLegacy && <span className="pill" style={{ fontSize: 7, color: 'var(--muted)' }}>{t('legacyAgreement')}</span>}
                               </span>
@@ -1382,8 +1428,8 @@ export default function OrdersPage() {
                             <td className="mono r">{dealAvgBuy > 0 ? fmtP(dealAvgBuy) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
-                            <td className="mono r" style={{ color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                              {dealNet !== 0 ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                            <td className="mono r" style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                              {myNet !== 0 ? `${myNet >= 0 ? '+' : ''}${fmtQ(myNet)}` : '—'}
                             </td>
                             <td>
                               <div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
@@ -1445,21 +1491,23 @@ export default function OrdersPage() {
                     </thead>
                     <tbody>
                       {creatorMerchantDeals.map(deal => {
-                        const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
-                        const { partnerPct } = getDealShares(deal);
+                        const { merchantPct, partnerPct } = getDealShares(deal);
                         const meta = parseDealMeta(deal.notes);
+                        const familyInfo = getAgreementFamilyLabel(deal.deal_type, t.isRTL ? 'ar' : 'en');
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
                         const dealSell = Number(meta.sell_price) || 0;
                         const dealAvgBuy = resolveDealAvgBuy(deal);
                         const dealFee = Number(meta.fee) || 0;
                         const dealVol = dealQty * dealSell;
                         const dealCost = dealQty * dealAvgBuy;
-                        const dealNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
-                        const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
+                        const fullNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
+                        const myNet = merchantPct != null ? fullNet * (merchantPct / 100) : fullNet;
+                        const dealMargin = dealVol > 0 ? myNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
                         const customerName = meta.customer || '';
+                        const tradeDate = meta.trade_date ? new Date(meta.trade_date).toLocaleDateString() : (deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—');
 
                         const statusColors: Record<string, { bg: string; color: string }> = {
                           pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
@@ -1473,8 +1521,9 @@ export default function OrdersPage() {
                           <tr key={`deal-${deal.id}`}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-                                <span className="mono">{deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—'}</span>
+                                <span className="mono">{tradeDate}</span>
                                 <span className="pill" style={{ fontSize: 8, background: sc.bg, color: sc.color, fontWeight: 700 }}>{deal.status}</span>
+                                <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{familyInfo.icon} {familyInfo.label}</span>
                                 {partnerPct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{partnerPct}%/{100 - partnerPct}%</span>}
                               </div>
                             </td>
@@ -1484,8 +1533,8 @@ export default function OrdersPage() {
                             <td className="mono r">{dealAvgBuy > 0 ? fmtP(dealAvgBuy) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
-                            <td className="mono r" style={{ color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                              {dealNet !== 0 ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                            <td className="mono r" style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                              {myNet !== 0 ? `${myNet >= 0 ? '+' : ''}${fmtQ(myNet)}` : '—'}
                             </td>
                             <td>
                               <div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>

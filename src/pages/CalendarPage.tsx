@@ -33,7 +33,10 @@ export default function CalendarPage() {
   const mData: Record<number, { profit: number; trades: number; volumeQAR: number; wins: number; losses: number; marginSum: number; tradeList: any[] }> = {};
   for (let d = 1; d <= daysInM; d++) mData[d] = { profit: 0, trades: 0, volumeQAR: 0, wins: 0, losses: 0, marginSum: 0, tradeList: [] };
 
+  const seenTradeIds = new Set<string>();
   for (const tr of state.trades.filter(tr => !tr.voided)) {
+    if (seenTradeIds.has(tr.id)) continue;
+    seenTradeIds.add(tr.id);
     const dt = new Date(tr.ts);
     if (dt.getFullYear() === year && dt.getMonth() === month) {
       const c = derived.tradeCalc.get(tr.id);
