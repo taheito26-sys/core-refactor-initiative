@@ -1587,9 +1587,10 @@ export default function OrdersPage() {
                         const dealFee = Number(meta.fee) || 0;
                         const dealVol = dealQty * dealSell;
                         const dealCost = dealQty * dealAvgBuy;
-                        const fullNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
+                        const hasAvgBuy = dealAvgBuy > 0;
+                        const fullNet = hasAvgBuy && dealSell > 0 ? dealVol - dealCost - dealFee : 0;
                         const myNet = merchantPct != null ? fullNet * (merchantPct / 100) : fullNet;
-                        const dealMargin = dealVol > 0 ? myNet / dealVol : 0;
+                        const dealMargin = dealVol > 0 && hasAvgBuy ? myNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
                         const customerName = meta.customer || '';
