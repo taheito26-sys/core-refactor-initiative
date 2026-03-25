@@ -1303,13 +1303,14 @@ export default function OrdersPage() {
                         const meta = parseDealMeta(deal.notes);
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
                         const dealSell = Number(meta.sell_price) || 0;
-                        const dealVol = dealQty * (dealSell || 1);
-                        const dealCost = Number(meta.fifo_cost) || 0;
-                        const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
+                        const dealAvgBuy = Number(meta.avg_buy) || 0;
+                        const dealFee = Number(meta.fee) || 0;
+                        const dealVol = dealQty * dealSell;
+                        const dealCost = dealQty * dealAvgBuy;
+                        const dealNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
-                        const avgBuy = dealQty > 0 && dealCost > 0 ? dealCost / dealQty : 0;
 
                         return (
                           <tr key={deal.id}>
