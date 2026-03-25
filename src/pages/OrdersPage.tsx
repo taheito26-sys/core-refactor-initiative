@@ -752,6 +752,8 @@ export default function OrdersPage() {
     setLinkedRelId('');
     setSelectedTemplateId(null);
     setAllocations([]);
+    setCashDepositMode('none');
+    setCashDepositAmount('');
   };
 
   const exportCsv = () => {
