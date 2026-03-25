@@ -101,6 +101,17 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setDerived(rebuilt.derived);
       // Also update localStorage with merged state
       saveTrackerState(rebuilt.state);
+
+      // Load dedicated cash tables and prefer them over blob data
+      loadCashFromCloud().then(cashData => {
+        if (!cashData) return;
+        if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
+        setState(prev => ({
+          ...prev,
+          cashAccounts: cashData.accounts,
+          cashLedger:   cashData.ledger,
+        }));
+      }).catch(() => {});
     }).catch(() => {
       setCloudLoaded(true);
     });
