@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
-import { fmtU, fmtDate, uid, type Customer } from '@/lib/tracker-helpers';
+import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, type Customer } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import '@/styles/tracker.css';
@@ -35,13 +35,10 @@ function CRMModal({
         style={{ width: '100%', maxWidth: 460, borderRadius: 12, overflow: 'hidden' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* header */}
         <div className="panel-head" style={{ padding: '10px 16px' }}>
           <h2 style={{ fontSize: 13 }}>{title}</h2>
           <button className="rowBtn" onClick={onClose} aria-label="Close">✕</button>
         </div>
-
-        {/* body */}
         <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {children}
           {error && (
@@ -57,7 +54,6 @@ function CRMModal({
   );
 }
 
-// ── Label + input wrapper — also outside ─────────────────────────────
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -65,6 +61,71 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// ── KPI Card ────────────────────────────────────────────────────────
+function KpiCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div style={{
+      flex: '1 1 120px', minWidth: 100, padding: '8px 12px',
+      border: '1px solid var(--line)', borderRadius: 8,
+      background: 'var(--surface)',
+    }}>
+      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono, monospace)', color: color || 'var(--fg)', marginTop: 2 }}>{value}</div>
+    </div>
+  );
+}
+
+// ── Supplier Detail Card ────────────────────────────────────────────
+function SupplierCard({ supplier, maxUSDT, onEdit, onDelete }: {
+  supplier: { name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number };
+  maxUSDT: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const pct = maxUSDT > 0 ? Math.round((supplier.totalUSDT / maxUSDT) * 100) : 0;
+  return (
+    <div style={{
+      border: '1px solid var(--line)', borderRadius: 10, padding: 14,
+      background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>{supplier.name}</div>
+        <span className="pill" style={{ fontSize: 10 }}>{supplier.batchCount} {supplier.batchCount === 1 ? 'batch' : 'batches'}</span>
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+        <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
+          <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>USDT</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtTotal(supplier.totalUSDT)}</div>
+        </div>
+        <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
+          <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>AVG/USDT</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtPrice(supplier.avgCost)}</div>
+        </div>
+        <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
+          <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>SPENT QAR</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtTotal(supplier.spentQAR)}</div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 10, color: 'var(--muted)' }}>Last supply: {fmtDate(supplier.lastDate)}</div>
+      
+      {/* Volume progress bar */}
+      <div>
+        <div style={{ height: 5, borderRadius: 3, background: 'color-mix(in srgb, var(--good) 15%, transparent)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--good)', borderRadius: 3, transition: 'width 0.3s' }} />
+        </div>
+        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 3 }}>{pct}% of total supply volume</div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="rowBtn" onClick={onEdit} style={{ fontSize: 11 }}>Edit</button>
+        <button className="rowBtn" onClick={onDelete} style={{ fontSize: 11, color: 'var(--bad)', border: '1px solid var(--bad)', borderRadius: 4, padding: '2px 10px' }}>Delete</button>
+      </div>
     </div>
   );
 }
@@ -79,7 +140,7 @@ export default function CRMPage() {
     priceAlertThreshold: settings.priceAlertThreshold,
   });
 
-  const [tab, setTab] = useState<'customers' | 'suppliers'>('customers');
+  const [tab, setTab] = useState<'pipeline' | 'list' | 'suppliers'>('pipeline');
   const [search, setSearch] = useState('');
 
   // ── Customer modal ────────────────────────────────────────────────
@@ -111,15 +172,29 @@ export default function CRMPage() {
   }, [customers, search]);
 
   const suppliers = useMemo(() => {
-    const map = new Map<string, { name: string; batchCount: number; totalUSDT: number; lastDate: number }>();
+    const map = new Map<string, { name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number }>();
+    let grandTotal = 0;
     for (const b of state.batches) {
       const src = b.source.trim();
       if (!src) continue;
+      const cost = b.initialUSDT * b.buyPriceQAR;
       const ex = map.get(src);
-      if (ex) { ex.batchCount++; ex.totalUSDT += b.initialUSDT; ex.lastDate = Math.max(ex.lastDate, b.ts); }
-      else map.set(src, { name: src, batchCount: 1, totalUSDT: b.initialUSDT, lastDate: b.ts });
+      if (ex) {
+        ex.batchCount++;
+        ex.totalUSDT += b.initialUSDT;
+        ex.spentQAR += cost;
+        ex.lastDate = Math.max(ex.lastDate, b.ts);
+      } else {
+        map.set(src, { name: src, batchCount: 1, totalUSDT: b.initialUSDT, avgCost: 0, spentQAR: cost, lastDate: b.ts, volumePct: 0 });
+      }
+      grandTotal += b.initialUSDT;
     }
-    return Array.from(map.values()).sort((a, b) => b.lastDate - a.lastDate);
+    const arr = Array.from(map.values());
+    for (const s of arr) {
+      s.avgCost = s.totalUSDT > 0 ? s.spentQAR / s.totalUSDT : 0;
+      s.volumePct = grandTotal > 0 ? (s.totalUSDT / grandTotal) * 100 : 0;
+    }
+    return arr.sort((a, b) => b.totalUSDT - a.totalUSDT);
   }, [state.batches]);
 
   const filteredSuppliers = useMemo(() => {
@@ -128,14 +203,46 @@ export default function CRMPage() {
     return suppliers.filter(s => s.name.toLowerCase().includes(q));
   }, [suppliers, search]);
 
+  // ── Stats ─────────────────────────────────────────────────────────
   const customerStats = (cId: string) => {
     const trades = state.trades.filter(tr => !tr.voided && tr.customerId === cId);
-    return {
-      trades: trades.length,
-      totalUSDT: trades.reduce((s, tr) => s + tr.amountUSDT, 0),
-      totalQAR:  trades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0),
-    };
+    const totalUSDT = trades.reduce((s, tr) => s + tr.amountUSDT, 0);
+    const totalRevenue = trades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0);
+    // Simple P&L: revenue - cost (using FIFO cost basis approximation)
+    const totalCost = trades.reduce((s, tr) => {
+      // If trade uses stock, approximate cost from batches avg
+      const avgBuyCost = state.batches.length > 0
+        ? state.batches.reduce((a, b) => a + b.buyPriceQAR * b.initialUSDT, 0) / Math.max(1, state.batches.reduce((a, b) => a + b.initialUSDT, 0))
+        : 0;
+      return s + tr.amountUSDT * avgBuyCost;
+    }, 0);
+    const pnl = totalRevenue - totalCost;
+    const lastTrade = trades.length > 0 ? Math.max(...trades.map(tr => tr.ts)) : 0;
+    return { trades: trades.length, totalUSDT, totalQAR: totalRevenue, pnl, lastTrade };
   };
+
+  const kpis = useMemo(() => {
+    const allTrades = state.trades.filter(tr => !tr.voided);
+    const totalUSDT = allTrades.reduce((s, tr) => s + tr.amountUSDT, 0);
+    const totalRevenue = allTrades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0);
+    const avgBuyCost = state.batches.length > 0
+      ? state.batches.reduce((a, b) => a + b.buyPriceQAR * b.initialUSDT, 0) / Math.max(1, state.batches.reduce((a, b) => a + b.initialUSDT, 0))
+      : 0;
+    const totalCost = allTrades.reduce((s, tr) => s + tr.amountUSDT * avgBuyCost, 0);
+    const netPnl = totalRevenue - totalCost;
+    const linkedTrades = allTrades.filter(tr => tr.linkedRelId).length;
+    const tierCounts = { A: 0, B: 0, C: 0 };
+    for (const c of customers) {
+      if (c.tier === 'A') tierCounts.A++;
+      else if (c.tier === 'B') tierCounts.B++;
+      else tierCounts.C++;
+    }
+    return { clients: customers.length, totalUSDT, netPnl, linkedTrades, supplierCount: suppliers.length, tierCounts };
+  }, [state.trades, state.batches, customers, suppliers]);
+
+  const maxSupplierUSDT = useMemo(() => {
+    return suppliers.reduce((max, s) => Math.max(max, s.totalUSDT), 0);
+  }, [suppliers]);
 
   // ── Customer handlers ─────────────────────────────────────────────
   const openAddCustomer = () => {
@@ -191,7 +298,6 @@ export default function CRMPage() {
     if (!name) { setNewSuppError('Supplier name is required.'); return; }
     const exists = suppliers.some(s => s.name.toLowerCase() === name.toLowerCase());
     if (exists) { setNewSuppError('A supplier with this name already exists.'); return; }
-    // Create a zero-amount batch to register the supplier
     const newBatch = {
       id: uid(), ts: Date.now(), source: name,
       initialUSDT: 0, remainingUSDT: 0,
@@ -215,90 +321,153 @@ export default function CRMPage() {
     setShowSuppModal(false);
   };
 
+  const deleteSupplier = (name: string) => {
+    if (!window.confirm(`Delete supplier "${name}" and all associated batches? This cannot be undone.`)) return;
+    applyState({
+      ...state,
+      batches: state.batches.filter(b => b.source.trim() !== name),
+    });
+  };
+
+  // ── Tab views (Pipeline = card view, List = table view) ───────────
+  const isCustomerTab = tab === 'pipeline' || tab === 'list';
+
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'}
       style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
 
-      {/* Tab bar */}
+      {/* ── KPI Stats Bar ── */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <KpiCard label="Clients" value={kpis.clients} />
+        <KpiCard label="USDT Vol" value={fmtTotal(kpis.totalUSDT)} />
+        <KpiCard label="Net P&L" value={(kpis.netPnl >= 0 ? '+' : '') + fmtTotal(kpis.netPnl)} color={kpis.netPnl >= 0 ? 'var(--good)' : 'var(--bad)'} />
+        <KpiCard label="Linked Trades" value={kpis.linkedTrades} />
+        <KpiCard label="Suppliers" value={kpis.supplierCount} />
+        <KpiCard label="⭐ A" value={kpis.tierCounts.A} color="var(--good)" />
+        <KpiCard label="🔵 B" value={kpis.tierCounts.B} color="hsl(210 80% 60%)" />
+        <KpiCard label="🔴 C" value={kpis.tierCounts.C} color="var(--bad)" />
+      </div>
+
+      {/* Tab bar + search */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button className={`btn ${tab === 'customers' ? '' : 'secondary'}`} onClick={() => setTab('customers')}>
-            👥 {t('customers')} ({customers.length})
+          <button className={`btn ${tab === 'pipeline' ? '' : 'secondary'}`} onClick={() => setTab('pipeline')}>
+            📊 Pipeline
           </button>
-          <button className={`btn ${tab === 'suppliers' ? '' : 'secondary'}`} onClick={() => setTab('suppliers')}>
-            📦 {t('suppliers')} ({suppliers.length})
+          <button className={`btn ${tab === 'list' ? '' : 'secondary'}`} onClick={() => setTab('list')}>
+            ≡ List
+          </button>
+          <button className={`btn ${tab === 'suppliers' ? '' : 'secondary'}`} onClick={() => setTab('suppliers')}
+            style={tab === 'suppliers' ? { background: 'var(--good)', color: '#000' } : {}}>
+            📦 Suppliers
           </button>
         </div>
         <div className="inputBox" style={{ maxWidth: 260, padding: '6px 10px' }}>
           <input
-            placeholder={tab === 'customers' ? t('searchCustomers') : t('searchSuppliers')}
+            placeholder={isCustomerTab ? t('searchCustomers') : t('searchSuppliers')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
       </div>
 
-      {/* ── CUSTOMERS ── */}
-      {tab === 'customers' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800 }}>{t('customers')}</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('buyerManagement')}</div>
+      {/* ── CUSTOMERS (Pipeline or List) ── */}
+      {isCustomerTab && (
+        <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>
+          {/* Main table area */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800 }}>{t('customers')}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('buyerManagement')}</div>
+              </div>
+              <button className="btn" onClick={openAddCustomer}>{t('addCustomer')}</button>
             </div>
-            <button className="btn" onClick={openAddCustomer}>{t('addCustomer')}</button>
+
+            {filteredCustomers.length === 0 ? (
+              <div className="empty">
+                <div className="empty-t">{t('noCustomersFound')}</div>
+                <div className="empty-s">{t('addFirstBuyer')}</div>
+              </div>
+            ) : (
+              <div className="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t('name')}</th>
+                      <th>Tier</th>
+                      <th className="r">{t('trades')}</th>
+                      <th className="r">USDT Vol</th>
+                      <th className="r">Net P&L</th>
+                      <th>Last Trade</th>
+                      <th>{t('actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCustomers.map(c => {
+                      const s = customerStats(c.id);
+                      return (
+                        <tr key={c.id}>
+                          <td style={{ fontWeight: 700 }}>{c.name}</td>
+                          <td>
+                            <span className={`pill ${c.tier === 'A' ? 'good' : c.tier === 'B' ? 'warn' : ''}`}
+                              style={{
+                                fontWeight: 700, fontSize: 10, minWidth: 28, textAlign: 'center',
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                              }}>
+                              {c.tier === 'A' ? '⭐' : c.tier === 'B' ? '＋' : '●'} {c.tier}
+                            </span>
+                          </td>
+                          <td className="mono r">{s.trades}</td>
+                          <td className="mono r">{fmtTotal(s.totalUSDT)}</td>
+                          <td className="mono r" style={{ color: s.pnl >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                            {s.pnl >= 0 ? '+' : ''}{fmtTotal(s.pnl)}
+                          </td>
+                          <td className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
+                            {s.lastTrade > 0 ? fmtDate(s.lastTrade) : '—'}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button className="rowBtn" onClick={() => openEditCustomer(c)}>Edit</button>
+                              <button className="rowBtn" style={{ color: 'var(--bad)', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: '2px 6px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          {filteredCustomers.length === 0 ? (
-            <div className="empty">
-              <div className="empty-t">{t('noCustomersFound')}</div>
-              <div className="empty-s">{t('addFirstBuyer')}</div>
-            </div>
-          ) : (
-            <div className="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('name')}</th><th>{t('phone')}</th><th>{t('tier')}</th>
-                    <th className="r">{t('dailyLimit')}</th><th className="r">{t('trades')}</th>
-                    <th className="r">{t('totalUsdt')}</th><th className="r">{t('totalQar')}</th>
-                    <th>{t('notes')}</th><th>{t('actions')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCustomers.map(c => {
-                    const s = customerStats(c.id);
-                    return (
-                      <tr key={c.id}>
-                        <td style={{ fontWeight: 700 }}>{c.name}</td>
-                        <td className="mono">{c.phone || '—'}</td>
-                        <td>
-                          <span className={`pill ${c.tier === 'A' ? 'good' : c.tier === 'B' ? 'warn' : ''}`}>{c.tier}</span>
-                        </td>
-                        <td className="mono r">{fmtU(c.dailyLimitUSDT, 0)}</td>
-                        <td className="mono r">{s.trades}</td>
-                        <td className="mono r">{fmtU(s.totalUSDT, 0)}</td>
-                        <td className="mono r">{fmtU(s.totalQAR, 0)}</td>
-                        <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.notes || '—'}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button className="rowBtn" onClick={() => openEditCustomer(c)}>{t('edit')}</button>
-                            <button className="rowBtn" onClick={() => navigate('/trading/orders')}>{t('history')}</button>
-                            <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => deleteCustomer(c.id)}>✕</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          {/* Right side: Supplier summary panel (visible only in pipeline view) */}
+          {tab === 'pipeline' && suppliers.length > 0 && (
+            <div style={{
+              width: 320, minWidth: 280, flexShrink: 0,
+              display: 'flex', flexDirection: 'column', gap: 8,
+              overflowY: 'auto', maxHeight: 'calc(100vh - 220px)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 800 }}>📦 Suppliers</div>
+                <span className="pill" style={{ fontSize: 10 }}>Full</span>
+              </div>
+              {suppliers.slice(0, 10).map(s => (
+                <SupplierCard
+                  key={s.name}
+                  supplier={s}
+                  maxUSDT={maxSupplierUSDT}
+                  onEdit={() => openEditSupplier(s.name)}
+                  onDelete={() => deleteSupplier(s.name)}
+                />
+              ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
-      {/* ── SUPPLIERS ── */}
+      {/* ── SUPPLIERS TAB ── */}
       {tab === 'suppliers' && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -319,31 +488,16 @@ export default function CRMPage() {
               <div className="empty-s">{t('addBatchesToTrack')}</div>
             </div>
           ) : (
-            <div className="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('supplier')}</th><th className="r">{t('batches')}</th>
-                    <th className="r">{t('totalUsdt')}</th><th>{t('lastPurchase')}</th><th>{t('actions')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSuppliers.map(s => (
-                    <tr key={s.name}>
-                      <td style={{ fontWeight: 700 }}>{s.name}</td>
-                      <td className="mono r">{s.batchCount}</td>
-                      <td className="mono r">{fmtU(s.totalUSDT, 0)}</td>
-                      <td className="mono">{fmtDate(s.lastDate)}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button className="rowBtn" onClick={() => navigate('/trading/stock')}>{t('viewBatches')}</button>
-                          <button className="rowBtn" onClick={() => openEditSupplier(s.name)}>{t('edit')}</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+              {filteredSuppliers.map(s => (
+                <SupplierCard
+                  key={s.name}
+                  supplier={s}
+                  maxUSDT={maxSupplierUSDT}
+                  onEdit={() => openEditSupplier(s.name)}
+                  onDelete={() => deleteSupplier(s.name)}
+                />
+              ))}
             </div>
           )}
         </>
@@ -367,7 +521,6 @@ export default function CRMPage() {
               onChange={e => setCustForm(f => ({ ...f, name: e.target.value }))}
             />
           </FormField>
-
           <FormField label="Phone">
             <input
               className="inputBox"
@@ -377,7 +530,6 @@ export default function CRMPage() {
               onChange={e => setCustForm(f => ({ ...f, phone: e.target.value }))}
             />
           </FormField>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <FormField label="Tier">
               <select
@@ -390,7 +542,6 @@ export default function CRMPage() {
                 <option value="C">C — New</option>
               </select>
             </FormField>
-
             <FormField label="Daily Limit (USDT)">
               <input
                 className="inputBox"
@@ -403,7 +554,6 @@ export default function CRMPage() {
               />
             </FormField>
           </div>
-
           <FormField label="Notes">
             <textarea
               style={{ padding: '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 64, fontFamily: 'inherit' }}
