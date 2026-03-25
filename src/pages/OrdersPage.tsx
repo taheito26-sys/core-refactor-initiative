@@ -1211,8 +1211,8 @@ export default function OrdersPage() {
                         const c = derived.tradeCalc.get(tr.id);
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
-                        const net = ok ? c!.netQAR : NaN;
-                        const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                        const net = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
+                        const margin = Number.isFinite(net) && rev > 0 ? net / rev : NaN;
                         const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                         const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
                         const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
