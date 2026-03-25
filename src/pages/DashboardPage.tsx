@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
   const [showCashBox, setShowCashBox] = useState(false);
+  const [showDealsDrilldown, setShowDealsDrilldown] = useState(false);
   const { user, merchantProfile } = useAuth();
   const userId = user?.id;
 
