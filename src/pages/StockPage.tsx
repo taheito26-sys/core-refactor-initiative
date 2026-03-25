@@ -137,24 +137,46 @@ export default function StockPage() {
 
   const addBatch = () => {
     const ts = new Date(batchDate).getTime();
-    const px = Number(batchPrice);
-    const rawAmt = Number(batchAmount);
     const source = batchSupplier.trim();
 
-    const errs: string[] = [];
-    if (!Number.isFinite(ts)) errs.push(t('date'));
-    if (!(px > 0)) errs.push(t('price'));
-    if (!(rawAmt > 0)) errs.push(t('volume'));
-    if (!source) errs.push(t('supplier'));
+    let px = 0;
+    let totalUSDT = 0;
+    let volumeQAR = 0;
 
-    if (errs.length) {
-      setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`);
-      return;
+    if (batchEntryMode === 'price_vol') {
+      px = Number(batchPrice);
+      const rawAmt = Number(batchAmount);
+      const errs: string[] = [];
+      if (!Number.isFinite(ts)) errs.push(t('date'));
+      if (!(px > 0)) errs.push(t('price'));
+      if (!(rawAmt > 0)) errs.push(t('volume'));
+      if (!source) errs.push(t('supplier'));
+      if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
+      volumeQAR = batchMode === 'USDT' ? rawAmt * px : rawAmt;
+      totalUSDT = volumeQAR / px;
+    } else if (batchEntryMode === 'qty_total') {
+      totalUSDT = Number(batchUsdtQty);
+      volumeQAR = Number(batchAmount);
+      const errs: string[] = [];
+      if (!Number.isFinite(ts)) errs.push(t('date'));
+      if (!(totalUSDT > 0)) errs.push('USDT Qty');
+      if (!(volumeQAR > 0)) errs.push('Total QAR');
+      if (!source) errs.push(t('supplier'));
+      if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
+      px = volumeQAR / totalUSDT;
+    } else {
+      totalUSDT = Number(batchUsdtQty);
+      px = Number(batchPrice);
+      const errs: string[] = [];
+      if (!Number.isFinite(ts)) errs.push(t('date'));
+      if (!(totalUSDT > 0)) errs.push('USDT Qty');
+      if (!(px > 0)) errs.push(t('price'));
+      if (!source) errs.push(t('supplier'));
+      if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
+      volumeQAR = totalUSDT * px;
     }
 
-    const volumeQAR = batchMode === 'USDT' ? rawAmt * px : rawAmt;
-    const totalUSDT = volumeQAR / px;
-    const batchCostQAR = totalUSDT * px; // = volumeQAR
+    const batchCostQAR = volumeQAR;
 
     // Auto-deduct from cash
     const currentCash = num(state.cashQAR, 0);
@@ -191,6 +213,7 @@ export default function StockPage() {
     applyState(next);
     setBatchAmount('');
     setBatchPrice('');
+    setBatchUsdtQty('');
     setBatchSupplier('');
     setBatchNote('');
     const deductMsg = currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR deducted from cash` : '';
