@@ -1621,8 +1621,9 @@ export default function OrdersPage() {
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
                             <td className="mono r">
-                              {/* Show full deal net crossed out + merchant's cut when a split applies */}
-                              {merchantPct != null && fullNet !== myNet ? (
+                              {!hasAvgBuy ? (
+                                <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
+                              ) : merchantPct != null && fullNet !== myNet ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                                   <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
                                     {fullNet >= 0 ? '+' : ''}{fmtQ(fullNet)}
@@ -1639,7 +1640,7 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
-                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{dealMargin !== 0 ? `${(dealMargin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
+                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{hasAvgBuy && dealMargin !== 0 ? `${(dealMargin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>
                             <td>
                               <div className="actionsRow">
