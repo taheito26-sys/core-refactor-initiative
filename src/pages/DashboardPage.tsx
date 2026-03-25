@@ -131,8 +131,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         });
         const vol = row.volume;
         const dealNet = row.fullNet ?? 0;
-        const myShare = row.myNet ?? 0;
-        const partnerShare = row.fullNet != null ? row.fullNet - myShare : 0;
+        const myShare = direction === 'outgoing' ? (row.creatorNet ?? 0) : (row.partnerNet ?? 0);
+        const partnerShare = direction === 'outgoing' ? (row.partnerNet ?? 0) : (row.creatorNet ?? 0);
 
         if (d.status === 'pending') pendingCount++;
         if (d.status === 'approved') approvedCount++;

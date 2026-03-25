@@ -13,6 +13,8 @@ export interface DealRowModel {
   cost: number;
   hasAvgBuy: boolean;
   fullNet: number | null;
+  creatorNet: number | null;
+  partnerNet: number | null;
   myNet: number | null;
   margin: number | null;
   buyer: string;
@@ -21,7 +23,8 @@ export interface DealRowModel {
   splitLabel: string | null;
   myPct: number | null;
   partnerPct: number | null;
-  merchantPct: number | null;
+  merchantPct: number | null; // creator side
+  fallbackSplitApplied: boolean;
   status: string;
   dateLabel: string;
 }
@@ -94,6 +97,17 @@ export function buildDealRowModel({
     }
     return null;
   };
+  const parseRatioString = (v: unknown): { left: number; right: number } | null => {
+    if (typeof v !== 'string') return null;
+    const m = v.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    const left = Number(m[1]);
+    const right = Number(m[2]);
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+    const total = left + right;
+    if (total <= 0) return null;
+    return { left, right };
+  };
   let partnerPct: number | null = null;
   if (deal.deal_type === 'partnership') {
     partnerPct = firstPct('partner_ratio', 'counterparty_share_pct', 'counterparty_share');
@@ -104,13 +118,32 @@ export function buildDealRowModel({
       if (merchantMetaPct != null) partnerPct = 100 - merchantMetaPct;
     }
   }
-  const merchantPct = partnerPct != null ? 100 - partnerPct : null;
-  const myPct = perspective === 'incoming' ? partnerPct : merchantPct;
-  const myNet = fullNet == null ? null : (myPct != null ? fullNet * (myPct / 100) : fullNet);
+  if (partnerPct == null) {
+    // Fallback 1: ratio-like values in notes/meta/title ("50/50")
+    const ratio =
+      parseRatioString(String(mergedMeta.split_ratio ?? '')) ||
+      parseRatioString(String(mergedMeta.ratio ?? '')) ||
+      parseRatioString(String(mergedMeta.split ?? '')) ||
+      parseRatioString(String(mergedMeta.title ?? deal.title ?? ''));
+    if (ratio) {
+      partnerPct = (ratio.left / (ratio.left + ratio.right)) * 100;
+    }
+  }
+
+  // Explicit normalized fallback rule when split is truly unavailable: 50/50.
+  const fallbackSplitApplied = partnerPct == null;
+  const normalizedPartnerPct = partnerPct ?? 50;
+  const merchantPct = 100 - normalizedPartnerPct;
+  const myPct = perspective === 'incoming' ? normalizedPartnerPct : merchantPct;
+  const creatorPct = merchantPct;
+
+  const creatorNet = fullNet == null ? null : fullNet * (creatorPct / 100);
+  const partnerNet = fullNet == null || creatorNet == null ? null : fullNet - creatorNet;
+  const myNet = fullNet == null ? null : (perspective === 'incoming' ? partnerNet : creatorNet);
   const margin = myNet != null && volume > 0 ? myNet / volume : null;
 
   const family = getAgreementFamilyLabel(deal.deal_type, locale);
-  const splitLabel = partnerPct != null ? `${partnerPct}%/${100 - partnerPct}%` : null;
+  const splitLabel = `${normalizedPartnerPct}%/${100 - normalizedPartnerPct}%`;
 
   const dateLabel = meta.trade_date
     ? new Date(meta.trade_date).toLocaleDateString()
@@ -126,6 +159,8 @@ export function buildDealRowModel({
     cost,
     hasAvgBuy,
     fullNet,
+    creatorNet,
+    partnerNet,
     myNet,
     margin,
     buyer: meta.customer || meta.buyer || '',
@@ -133,8 +168,9 @@ export function buildDealRowModel({
     familyIcon: family.icon,
     splitLabel,
     myPct,
-    partnerPct,
+    partnerPct: normalizedPartnerPct,
     merchantPct,
+    fallbackSplitApplied,
     status: String(deal.status || 'pending'),
     dateLabel,
   };

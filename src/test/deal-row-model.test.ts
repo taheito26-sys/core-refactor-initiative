@@ -91,6 +91,65 @@ describe('dealRowModel', () => {
     expect(incoming.myNet).not.toBe(incoming.fullNet);
   });
 
+  it('allocates fullNet 112 at 50/50 to 56 and 56', () => {
+    const row = buildDealRowModel({
+      deal: { ...baseDeal, notes: 'quantity:1000|sell_price:3.82|avg_buy:3.698|fee:10|counterparty_share_pct:50' },
+      perspective: 'outgoing',
+      locale: 'en',
+    });
+    expect(row.fullNet).toBe(112);
+    expect(row.creatorNet).toBe(56);
+    expect(row.partnerNet).toBe(56);
+  });
+
+  it('allocates fullNet 110 at 50/50 to 55 and 55 and totals to 111/111 across records', () => {
+    const rowA = buildDealRowModel({
+      deal: { ...baseDeal, notes: 'quantity:1000|sell_price:3.82|avg_buy:3.698|fee:10|counterparty_share_pct:50' },
+      perspective: 'outgoing',
+      locale: 'en',
+    });
+    const rowB = buildDealRowModel({
+      deal: { ...baseDeal, notes: 'quantity:1000|sell_price:3.82|avg_buy:3.7|fee:10|counterparty_share_pct:50' },
+      perspective: 'outgoing',
+      locale: 'en',
+    });
+    expect(rowB.fullNet).toBe(110);
+    expect(rowB.creatorNet).toBe(55);
+    expect(rowB.partnerNet).toBe(55);
+    expect((rowA.creatorNet || 0) + (rowB.creatorNet || 0)).toBe(111);
+    expect((rowA.partnerNet || 0) + (rowB.partnerNet || 0)).toBe(111);
+  });
+
+  it('handles 60/40 split correctly', () => {
+    const row = buildDealRowModel({
+      deal: { ...baseDeal, notes: 'quantity:100|sell_price:4|avg_buy:3|fee:0|counterparty_share_pct:60' },
+      perspective: 'outgoing',
+      locale: 'en',
+    });
+    expect(row.fullNet).toBe(100);
+    expect(row.creatorNet).toBe(40);
+    expect(row.partnerNet).toBe(60);
+  });
+
+  it('incoming/outgoing symmetry keeps same fullNet and two-party allocation', () => {
+    const outgoing = buildDealRowModel({ deal: baseDeal, perspective: 'outgoing', locale: 'en' });
+    const incoming = buildDealRowModel({ deal: baseDeal, perspective: 'incoming', locale: 'en' });
+    expect(outgoing.fullNet).toBe(incoming.fullNet);
+    expect(outgoing.creatorNet).toBe(incoming.creatorNet);
+    expect(outgoing.partnerNet).toBe(incoming.partnerNet);
+    expect(outgoing.myNet).toBe(incoming.partnerNet);
+    expect(incoming.myNet).toBe(outgoing.partnerNet);
+  });
+
+  it('invariant: creatorNet + partnerNet equals fullNet', () => {
+    const row = buildDealRowModel({
+      deal: { ...baseDeal, notes: 'quantity:73|sell_price:3.9|avg_buy:3.1|fee:2|counterparty_share_pct:30' },
+      perspective: 'outgoing',
+      locale: 'en',
+    });
+    expect((row.creatorNet || 0) + (row.partnerNet || 0)).toBeCloseTo(row.fullNet || 0, 8);
+  });
+
   it('prefers normalized notes shares when metadata object is present but missing split fields', () => {
     const row = buildDealRowModel({
       deal: {
