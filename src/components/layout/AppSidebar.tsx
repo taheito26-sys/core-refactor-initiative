@@ -40,6 +40,7 @@ export const tradingNav: NavItem[] = [
   { labelKey: 'calendar', fallback: 'Calendar', icon: Calendar, path: '/trading/calendar' },
   { labelKey: 'p2pTracker', fallback: 'P2P Market', icon: TrendingUp, path: '/trading/p2p' },
   { labelKey: 'crm', fallback: 'CRM', icon: UserCircle, path: '/crm' },
+  { labelKey: 'chat', fallback: 'Chat', icon: MessageCircle, path: '/chat' },
 ];
 
 export const networkNav: NavItem[] = [
@@ -62,7 +63,7 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     tradingNav[1], // Orders
     tradingNav[2], // Stock
     networkNav[0], // Merchants
-    { labelKey: 'chatTab', fallback: 'Chat', icon: MessageCircle, path: '/merchants?tab=chat' } as NavItem,
+    { labelKey: 'chat', fallback: 'Chat', icon: MessageCircle, path: '/chat' } as NavItem,
   ].filter(Boolean) as NavItem[];
 
   return (

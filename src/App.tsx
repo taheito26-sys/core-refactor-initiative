@@ -41,6 +41,7 @@ import CalendarPage from './pages/CalendarPage';
 import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
 import RelationshipPage from './pages/RelationshipPage';
+import ChatPage from './pages/ChatPage';
 
 
 import NotificationsPage from './pages/NotificationsPage';
@@ -196,6 +197,7 @@ const App = () => (
                   <Route path="/crm" element={<CRMPage />} />
                   <Route path="/merchants" element={<MerchantsPage />} />
                   <Route path="/merchants/:relationshipId" element={<RelationshipPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />
