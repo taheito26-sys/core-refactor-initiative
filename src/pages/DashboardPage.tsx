@@ -54,38 +54,68 @@ export default function DashboardPage() {
   const userId = user?.id;
 
   // Merchant deals KPIs
+  interface DealDetail {
+    id: string;
+    title: string;
+    merchantName: string;
+    net: number;
+    vol: number;
+    status: string;
+    direction: 'outgoing' | 'incoming';
+    dealType: string;
+  }
+
   const { data: merchantDealKpis } = useQuery({
     queryKey: ['dashboard-merchant-deals', userId],
     queryFn: async () => {
       if (!userId) return null;
       const { data: deals } = await supabase
         .from('merchant_deals')
-        .select('id, amount, status, created_by, notes, deal_type')
+        .select('id, amount, status, created_by, notes, deal_type, relationship_id, title')
         .order('created_at', { ascending: false });
       if (!deals || deals.length === 0) return null;
 
-      // Filter out cancelled and voided deals
       const activeDeals = deals.filter(d => d.status !== 'cancelled' && d.status !== 'voided');
       const dealIds = activeDeals.map(d => d.id);
 
-      // Fetch authoritative allocation data
+      // Fetch allocations
       const { data: allocations } = dealIds.length > 0
         ? await supabase
             .from('order_allocations')
-            .select('order_id, allocation_net, partner_amount, merchant_amount, allocation_revenue, partner_share_pct, merchant_share_pct')
+            .select('order_id, allocation_net, partner_amount, merchant_amount, allocation_revenue, partner_share_pct, merchant_share_pct, merchant_id')
             .in('order_id', dealIds)
         : { data: [] as any[] };
 
-      // Build allocation lookup by deal id
-      const allocMap = new Map<string, { partnerAmt: number; merchantAmt: number; net: number; rev: number }>();
+      const allocMap = new Map<string, { partnerAmt: number; merchantAmt: number; net: number; rev: number; perMerchant: Map<string, number> }>();
       for (const a of (allocations || [])) {
-        const existing = allocMap.get(a.order_id) || { partnerAmt: 0, merchantAmt: 0, net: 0, rev: 0 };
+        const existing = allocMap.get(a.order_id) || { partnerAmt: 0, merchantAmt: 0, net: 0, rev: 0, perMerchant: new Map() };
         existing.partnerAmt += Number(a.partner_amount) || 0;
         existing.merchantAmt += Number(a.merchant_amount) || 0;
         existing.net += Number(a.allocation_net) || 0;
         existing.rev += Number(a.allocation_revenue) || 0;
+        const mId = a.merchant_id || 'unknown';
+        existing.perMerchant.set(mId, (existing.perMerchant.get(mId) || 0) + (Number(a.allocation_net) || 0));
         allocMap.set(a.order_id, existing);
       }
+
+      // Fetch merchant profiles for names
+      const relIds = [...new Set(activeDeals.map(d => d.relationship_id))];
+      const { data: rels } = relIds.length > 0
+        ? await supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id').in('id', relIds)
+        : { data: [] as any[] };
+
+      const allMerchantIds = new Set<string>();
+      for (const r of (rels || [])) { allMerchantIds.add(r.merchant_a_id); allMerchantIds.add(r.merchant_b_id); }
+
+      const { data: profiles } = allMerchantIds.size > 0
+        ? await supabase.from('merchant_profiles').select('merchant_id, display_name, user_id').in('merchant_id', [...allMerchantIds])
+        : { data: [] as any[] };
+
+      const profileMap = new Map<string, { name: string; userId: string }>();
+      for (const p of (profiles || [])) profileMap.set(p.merchant_id, { name: p.display_name, userId: p.user_id });
+
+      const relMap = new Map<string, { merchant_a_id: string; merchant_b_id: string }>();
+      for (const r of (rels || [])) relMap.set(r.id, r);
 
       const parseMeta = (notes: string | null) => {
         if (!notes) return {} as Record<string, string>;
@@ -100,13 +130,13 @@ export default function DashboardPage() {
       let outCount = 0, outVol = 0, outNet = 0;
       let inCount = 0, inVol = 0, inNet = 0;
       let pendingCount = 0, approvedCount = 0;
+      const dealDetails: DealDetail[] = [];
 
       for (const d of activeDeals) {
         const alloc = allocMap.get(d.id);
         const meta = parseMeta(d.notes);
         const vol = alloc ? alloc.rev : Number(d.amount) || 0;
 
-        // Use full deal net as source of truth for the dashboard KPI; fall back to notes-based calc
         let dealNet = 0;
         if (alloc) {
           dealNet = alloc.net;
@@ -121,15 +151,34 @@ export default function DashboardPage() {
         if (d.status === 'pending') pendingCount++;
         if (d.status === 'approved') approvedCount++;
 
-        if (d.created_by === userId) {
-          outCount++;
-          outVol += vol;
-          outNet += dealNet;
-        } else {
-          inCount++;
-          inVol += vol;
-          inNet += dealNet;
+        // Find counterparty name
+        const rel = relMap.get(d.relationship_id);
+        let merchantName = 'Unknown';
+        if (rel) {
+          const myProfile = [...profileMap.values()].find(p => p.userId === userId);
+          const myMerchantId = myProfile ? [...profileMap.entries()].find(([, v]) => v.userId === userId)?.[0] : null;
+          const counterId = myMerchantId === rel.merchant_a_id ? rel.merchant_b_id : rel.merchant_a_id;
+          merchantName = profileMap.get(counterId)?.name || 'Unknown';
         }
+
+        const direction = d.created_by === userId ? 'outgoing' as const : 'incoming' as const;
+
+        if (direction === 'outgoing') {
+          outCount++; outVol += vol; outNet += dealNet;
+        } else {
+          inCount++; inVol += vol; inNet += dealNet;
+        }
+
+        dealDetails.push({
+          id: d.id,
+          title: d.title,
+          merchantName,
+          net: Math.round(dealNet * 100) / 100,
+          vol: Math.round(vol * 100) / 100,
+          status: d.status,
+          direction,
+          dealType: d.deal_type,
+        });
       }
 
       return {
@@ -139,6 +188,7 @@ export default function DashboardPage() {
         pendingCount, approvedCount,
         totalVol: outVol + inVol,
         totalNet: outNet + inNet,
+        dealDetails,
       };
     },
     enabled: !!userId,
