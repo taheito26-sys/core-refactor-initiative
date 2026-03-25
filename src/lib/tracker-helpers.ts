@@ -136,6 +136,8 @@ export interface Trade {
   usesStock: boolean;
   revisions: any[];
   customerId: string;
+  /** Manual buy price (QAR per USDT) — used when usesStock is false */
+  manualBuyPrice?: number;
   /** Linked merchant deal ID (if this is a merchant order — legacy, kept for old data) */
   linkedDealId?: string;
   /** Linked relationship ID (if this is a merchant order) */
