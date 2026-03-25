@@ -395,7 +395,7 @@ export default function DashboardPage() {
                 <div className="kpi-cell-sub">{merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
               </div>
               <div>
-                <div className="kpi-period">{t('net')} P&L</div>
+                <div className="kpi-period">Merchants Net P&L</div>
                 <div className={`kpi-cell-val ${merchantDealKpis.totalNet >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalNet)}</div>
                 <div className="kpi-cell-sub">
                   {merchantDealKpis.pendingCount > 0 && <span style={{ color: 'var(--warn)' }}>{merchantDealKpis.pendingCount} {t('pendingDeals')}</span>}
