@@ -467,9 +467,19 @@ export default function OrdersPage() {
     if (isCapitalTransfer) return;
 
     const ts = new Date(saleDate).getTime();
-    const sell = Number(saleSell);
-    const raw = Number(saleAmount);
-    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    let sell: number, amountUSDT: number;
+    if (saleEntryMode === 'qty_total') {
+      amountUSDT = Number(saleUsdtQty);
+      const totalQar = Number(saleAmount);
+      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
+    } else if (saleEntryMode === 'qty_price') {
+      amountUSDT = Number(saleUsdtQty);
+      sell = Number(saleSell);
+    } else {
+      sell = Number(saleSell);
+      const raw = Number(saleAmount);
+      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    }
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
