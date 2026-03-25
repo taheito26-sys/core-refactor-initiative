@@ -196,6 +196,7 @@ export default function CRMPage() {
       id: uid(), ts: Date.now(), source: name,
       initialUSDT: 0, remainingUSDT: 0,
       costPerUnit: 0, sold: 0, voided: false,
+      note: '', buyPriceQAR: 0, revisions: [],
     };
     applyState({ ...state, batches: [...state.batches, newBatch] });
     setShowAddSuppModal(false);
