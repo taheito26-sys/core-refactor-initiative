@@ -742,7 +742,7 @@ export default function OrdersPage() {
         trades: [...state.trades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
       };
-      applyState(next);
+      applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
       setSaleMessage(t('tradeLogged'));
     }
 
