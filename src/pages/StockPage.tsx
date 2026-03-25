@@ -46,6 +46,8 @@ export default function StockPage() {
 
   const [batchDate, setBatchDate] = useState(nowInput());
   const [batchMode, setBatchMode] = useState<'QAR' | 'USDT'>('QAR');
+  const [batchEntryMode, setBatchEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
+  const [batchUsdtQty, setBatchUsdtQty] = useState('');
   const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
   const [batchPrice, setBatchPrice] = useState('');
   const [batchAmount, setBatchAmount] = useState('');
