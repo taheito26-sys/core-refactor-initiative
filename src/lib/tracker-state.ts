@@ -42,6 +42,7 @@ export function buildStateFrom(
     customers: Array.isArray(stored?.customers) ? stored.customers : [],
     cashQAR: asNumber(stored?.cashQAR, 0),
     cashOwner: typeof stored?.cashOwner === 'string' ? stored.cashOwner : '',
+    cashHistory: Array.isArray(stored?.cashHistory) ? stored.cashHistory : [],
     settings: {
       lowStockThreshold: overrides?.lowStockThreshold ?? asNumber(stored?.settings?.lowStockThreshold, 5000),
       priceAlertThreshold: overrides?.priceAlertThreshold ?? asNumber(stored?.settings?.priceAlertThreshold, 2),
