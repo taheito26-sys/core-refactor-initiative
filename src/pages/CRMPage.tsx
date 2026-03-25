@@ -305,11 +305,11 @@ export default function CRMPage() {
               <div style={{ fontSize: 13, fontWeight: 800 }}>{t('suppliers')}</div>
               <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('autoTrackedFromBatches')}</div>
             </div>
-            <button className="btn" onClick={() => navigate('/trading/stock')}>{t('addSupplier')}</button>
+            <button className="btn" onClick={openAddSupplier}>+ {t('addSupplier')}</button>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
-            💡 Suppliers are auto-tracked from batch source names in Stock. Click <strong>+ Add Supplier</strong> to create a new batch.
+            💡 Suppliers are auto-tracked from batch source names in Stock, or you can add them directly here.
           </div>
 
           {filteredSuppliers.length === 0 ? (
