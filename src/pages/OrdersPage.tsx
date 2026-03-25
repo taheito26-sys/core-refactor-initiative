@@ -267,9 +267,9 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
-  // Incoming: deals created by OTHER merchants in my relationships (exclude cancelled)
+  // Incoming: deals created by OTHER merchants in my relationships (exclude cancelled and rejected)
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled'),
+    () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled' && d.status !== 'rejected'),
     [allMerchantDeals, userId],
   );
   // Outgoing: deals I created (server-authoritative, exclude cancelled and rejected)
