@@ -185,6 +185,17 @@ export interface TradeCalcResult {
   slices: { batchId: string; qty: number; cost: number }[];
 }
 
+export interface CashTransaction {
+  id: string;
+  ts: number;
+  type: 'deposit' | 'withdraw' | 'batch_purchase';
+  amount: number;
+  balanceAfter: number;
+  owner: string;
+  bankAccount: string;
+  note: string;
+}
+
 export interface TrackerState {
   currency: 'QAR' | 'USDT';
   range: string;
@@ -193,6 +204,7 @@ export interface TrackerState {
   customers: Customer[];
   cashQAR: number;
   cashOwner: string;
+  cashHistory: CashTransaction[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }
