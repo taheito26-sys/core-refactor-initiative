@@ -105,20 +105,16 @@ export default function DashboardPage() {
         const meta = parseMeta(d.notes);
         const vol = alloc ? alloc.rev : Number(d.amount) || 0;
 
-        // Use allocation amounts as source of truth; fall back to notes-based calc
-        let myNet = 0;
+        // Use full deal net as source of truth for the dashboard KPI; fall back to notes-based calc
+        let dealNet = 0;
         if (alloc) {
-          myNet = d.created_by === userId ? alloc.partnerAmt : alloc.merchantAmt;
+          dealNet = alloc.net;
         } else {
           const qty = Number(meta.quantity) || 0;
           const sell = Number(meta.sell_price) || 0;
           const avgBuy = Number(meta.avg_buy) || Number(meta.merchant_cost) || 0;
           const fee = Number(meta.fee) || 0;
-          const fullNet = sell > 0 && avgBuy > 0 ? (qty * sell) - (qty * avgBuy) - fee : 0;
-          const sharePct = d.created_by === userId
-            ? (Number(meta.partner_ratio) || Number((meta.counterparty_share || '').replace('%', '')) || 50)
-            : (Number(meta.merchant_ratio) || Number((meta.merchant_share || '').replace('%', '')) || 50);
-          myNet = fullNet * (sharePct / 100);
+          dealNet = sell > 0 && avgBuy > 0 ? (qty * sell) - (qty * avgBuy) - fee : 0;
         }
 
         if (d.status === 'pending') pendingCount++;
@@ -127,11 +123,11 @@ export default function DashboardPage() {
         if (d.created_by === userId) {
           outCount++;
           outVol += vol;
-          outNet += myNet;
+          outNet += dealNet;
         } else {
           inCount++;
           inVol += vol;
-          inNet += myNet;
+          inNet += dealNet;
         }
       }
 
