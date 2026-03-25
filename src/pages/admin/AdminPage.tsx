@@ -60,6 +60,12 @@ export default function AdminPage() {
           <TabsTrigger value="overview" className="text-xs gap-1">
             <LayoutDashboard className="h-3.5 w-3.5" /> Overview
           </TabsTrigger>
+          <TabsTrigger value="dashboard" className="text-xs gap-1">
+            <BarChart3 className="h-3.5 w-3.5" /> Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="merchants" className="text-xs gap-1">
+            <Store className="h-3.5 w-3.5" /> Merchants
+          </TabsTrigger>
           <TabsTrigger value="users" className="text-xs gap-1">
             <Users className="h-3.5 w-3.5" /> Users
           </TabsTrigger>
@@ -76,6 +82,14 @@ export default function AdminPage() {
 
         <TabsContent value="overview" className="mt-4">
           <AdminDashboard />
+        </TabsContent>
+
+        <TabsContent value="dashboard" className="mt-4">
+          <DashboardPage />
+        </TabsContent>
+
+        <TabsContent value="merchants" className="mt-4">
+          <MerchantsPage />
         </TabsContent>
 
         <TabsContent value="users" className="mt-4">
