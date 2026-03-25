@@ -1420,14 +1420,14 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('merchantDealType')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        {/* Identical header columns as Outgoing tab */}
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {partnerMerchantDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
-                        const isLegacy = !isSupportedDealType(deal.deal_type);
                         const meta = parseDealMeta(deal.notes);
                         const familyInfo = getAgreementFamilyLabel(deal.deal_type, t.isRTL ? 'ar' : 'en');
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
@@ -1436,35 +1436,66 @@ export default function OrdersPage() {
                         const dealFee = Number(meta.fee) || 0;
                         const dealVol = dealQty * dealSell;
                         const dealCost = dealQty * dealAvgBuy;
-                        const fullNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
+                        // Guard: only compute net when avg_buy is actually known; if 0/missing show nothing
+                        const hasAvgBuy = dealAvgBuy > 0;
+                        const fullNet = hasAvgBuy && dealSell > 0 ? dealVol - dealCost - dealFee : 0;
                         const myNet = partnerPct != null ? fullNet * (partnerPct / 100) : fullNet;
-                        const dealMargin = dealVol > 0 ? myNet / dealVol : 0;
+                        const dealMargin = dealVol > 0 && hasAvgBuy ? myNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
+                        const customerName = meta.customer || '';
                         const tradeDate = meta.trade_date ? new Date(meta.trade_date).toLocaleDateString() : (deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—');
+
+                        // Same status colour map as Outgoing
+                        const statusColors: Record<string, { bg: string; color: string }> = {
+                          pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
+                          approved: { bg: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' },
+                          rejected: { bg: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)' },
+                          cancelled: { bg: 'color-mix(in srgb, var(--muted) 15%, transparent)', color: 'var(--muted)' },
+                        };
+                        const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
                           <tr key={deal.id}>
-                            <td><span className="mono">{tradeDate}</span></td>
-                            <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            {/* DATE cell — identical layout to Outgoing: date + status pill + deal-type pill + split pill */}
                             <td>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                                <span>{familyInfo.icon}</span>
-                                <span style={{ color: 'var(--brand)', fontWeight: 600, fontSize: 10 }}>{familyInfo.label}</span>
+                              <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <span className="mono">{tradeDate}</span>
+                                <span className="pill" style={{ fontSize: 8, background: sc.bg, color: sc.color, fontWeight: 700 }}>{deal.status}</span>
+                                <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{familyInfo.icon} {familyInfo.label}</span>
                                 {partnerPct != null && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{partnerPct}%/{100 - partnerPct}%</span>}
-                                {isLegacy && <span className="pill" style={{ fontSize: 7, color: 'var(--muted)' }}>{t('legacyAgreement')}</span>}
-                              </span>
+                              </div>
                             </td>
+                            {/* MERCHANT — counterparty who created the deal */}
+                            <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            {/* BUYER — same customer field stored in deal notes */}
+                            <td>{customerName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{customerName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(dealQty)}</td>
                             <td className="mono r">{dealAvgBuy > 0 ? fmtP(dealAvgBuy) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
-                            <td className="mono r" style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                              {myNet !== 0 ? `${myNet >= 0 ? '+' : ''}${fmtQ(myNet)}` : '—'}
+                            {/* NET — same dual display as Outgoing: crossed-out full net + "my cut" */}
+                            <td className="mono r">
+                              {!hasAvgBuy ? (
+                                <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
+                              ) : partnerPct != null && fullNet !== myNet ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                                  <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
+                                    {fullNet >= 0 ? '+' : ''}{fmtQ(fullNet)}
+                                  </span>
+                                  <span style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                                    {myNet >= 0 ? '+' : ''}{fmtQ(myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span>
+                                  </span>
+                                </div>
+                              ) : (
+                                <span style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                                  {myNet !== 0 ? `${myNet >= 0 ? '+' : ''}${fmtQ(myNet)}` : '—'}
+                                </span>
+                              )}
                             </td>
                             <td>
                               <div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
-                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{dealMargin !== 0 ? `${(dealMargin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
+                              <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{hasAvgBuy && dealMargin !== 0 ? `${(dealMargin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>
                             <td>
                               <div className="actionsRow">
@@ -1480,7 +1511,6 @@ export default function OrdersPage() {
                                 {deal.status === 'rejected' && (
                                   <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)', fontWeight: 700 }}>❌ {t('rejectedStatus')}</span>
                                 )}
-                                <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
                               </div>
                             </td>
                           </tr>
