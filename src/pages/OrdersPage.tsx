@@ -1688,7 +1688,7 @@ export default function OrdersPage() {
                               </div>
                             )}
 
-                            {/* ─── Sales Deal: Direct share entry ─── */}
+                            {/* ─── Sales Deal: Template presets + multi-merchant ─── */}
                             {selectedTemplateId === 'sales_deal_family' && (
                               <div style={{ marginTop: 4 }}>
                                 <div style={{
@@ -1700,71 +1700,170 @@ export default function OrdersPage() {
                                   <strong style={{ color: 'var(--good)' }}>{t('salesDeal')}:</strong> {t('salesDealInfoBanner')}
                                 </div>
 
-                                <div className="g2tight" style={{ marginBottom: 4 }}>
-                                  <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocPartnerSharePct')}</div>
-                                    <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                      <input
-                                        type="number" min="0" max="100" placeholder="50"
-                                        value={allocations[0]?.partnerSharePct || ''}
-                                        onChange={e => {
-                                          const pct = Number(e.target.value) || 0;
-                                          setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: pct, merchantSharePct: 100 - pct } : a));
-                                        }}
-                                        style={{ fontSize: 10 }}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocYourSharePct')}</div>
-                                    <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                      <input type="number" disabled value={allocations[0] ? 100 - (allocations[0].partnerSharePct || 0) : ''} style={{ fontSize: 10, opacity: 0.6 }} />
-                                    </div>
-                                  </div>
+                                {/* Template presets */}
+                                <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>Quick Template</div>
+                                <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                                  <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
+                                    onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50 } : a))}>
+                                    🤝 50/50 Equal
+                                  </button>
+                                  <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations.length > 1 ? '1.5px solid var(--brand)' : undefined }}
+                                    onClick={() => {
+                                      if (allocations.length <= 1) {
+                                        // Add a second merchant row
+                                        setAllocations(prev => [...prev, {
+                                          id: `alloc_${Date.now()}`,
+                                          relationshipId: '',
+                                          merchantName: '',
+                                          merchantId: '',
+                                          family: 'sales_deal',
+                                          agreementId: null,
+                                          agreementLabel: '',
+                                          allocatedUsdt: '',
+                                          merchantCostPerUsdt: '',
+                                          partnerSharePct: 0,
+                                          merchantSharePct: 0,
+                                          note: '',
+                                        }]);
+                                      }
+                                    }}>
+                                    👥 Custom Multi-Merchant
+                                  </button>
                                 </div>
 
-                                <div className="g2tight" style={{ marginTop: 4 }}>
-                                  <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>USDT {t('quantity')}</div>
-                                    <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                      <input
-                                        type="text" placeholder="0"
-                                        value={allocations[0]?.allocatedUsdt || ''}
-                                        onChange={e => {
-                                          if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
-                                            setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: e.target.value } : a));
-                                        }}
-                                        style={{ fontSize: 10 }}
-                                      />
+                                {/* Allocation rows */}
+                                {allocations.map((alloc, idx) => (
+                                  <div key={alloc.id} style={{
+                                    padding: '8px 10px', borderRadius: 6, marginBottom: 6,
+                                    background: 'color-mix(in srgb, var(--good) 4%, transparent)',
+                                    border: '1px solid color-mix(in srgb, var(--good) 12%, transparent)',
+                                  }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--good)' }}>
+                                        {idx === 0 ? `📊 ${cpName}` : `📊 Merchant ${idx + 1}`}
+                                      </span>
+                                      {idx > 0 && (
+                                        <button type="button" style={{ fontSize: 9, color: 'var(--bad)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                                          onClick={() => setAllocations(prev => prev.filter((_, i) => i !== idx))}>
+                                          ✕ Remove
+                                        </button>
+                                      )}
                                     </div>
-                                  </div>
-                                  <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
-                                    <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                      <input
-                                        type="text" placeholder="3.65"
-                                        value={allocations[0]?.merchantCostPerUsdt || ''}
-                                        onChange={e => {
-                                          if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
-                                            setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, merchantCostPerUsdt: e.target.value } : a));
-                                        }}
-                                        style={{ fontSize: 10 }}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
 
-                                <div className="field2" style={{ marginTop: 4 }}>
-                                  <div className="lbl" style={{ fontSize: 9 }}>{t('noteOptional')}</div>
-                                  <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                    <input
-                                      value={allocations[0]?.note || ''}
-                                      onChange={e => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, note: e.target.value } : a))}
-                                      placeholder={t('optionalNotePlaceholder')}
-                                      style={{ fontSize: 10 }}
-                                    />
+                                    {/* Merchant selector for additional allocations */}
+                                    {idx > 0 && (
+                                      <div className="field2" style={{ marginBottom: 4 }}>
+                                        <div className="lbl" style={{ fontSize: 9 }}>Merchant</div>
+                                        <select
+                                          value={alloc.relationshipId}
+                                          onChange={e => {
+                                            const rel = relationships.find(r => r.id === e.target.value);
+                                            const relCpId = rel ? (rel.merchant_a_id === merchantProfile?.merchant_id ? rel.merchant_b_id : rel.merchant_a_id) : '';
+                                            setAllocations(prev => prev.map((a, i) => i === idx ? {
+                                              ...a,
+                                              relationshipId: e.target.value,
+                                              merchantName: rel?.counterparty?.display_name || '',
+                                              merchantId: relCpId,
+                                            } : a));
+                                          }}
+                                          style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                        >
+                                          <option value="">Select merchant…</option>
+                                          {relationships.filter(r => r.id !== linkedRelId).map(r => (
+                                            <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+
+                                    <div className="g2tight" style={{ marginBottom: 4 }}>
+                                      <div className="field2">
+                                        <div className="lbl" style={{ fontSize: 9 }}>{t('allocPartnerSharePct')}</div>
+                                        <div className="inputBox" style={{ padding: '3px 6px' }}>
+                                          <input
+                                            type="number" min="0" max="100" placeholder="50"
+                                            value={alloc.partnerSharePct || ''}
+                                            onChange={e => {
+                                              const pct = Number(e.target.value) || 0;
+                                              setAllocations(prev => prev.map((a, i) => i === idx ? { ...a, partnerSharePct: pct, merchantSharePct: 100 - pct } : a));
+                                            }}
+                                            style={{ fontSize: 10 }}
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="field2">
+                                        <div className="lbl" style={{ fontSize: 9 }}>{t('allocYourSharePct')}</div>
+                                        <div className="inputBox" style={{ padding: '3px 6px' }}>
+                                          <input type="number" disabled value={100 - (alloc.partnerSharePct || 0)} style={{ fontSize: 10, opacity: 0.6 }} />
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="g2tight" style={{ marginTop: 4 }}>
+                                      <div className="field2">
+                                        <div className="lbl" style={{ fontSize: 9 }}>USDT {t('quantity')}</div>
+                                        <div className="inputBox" style={{ padding: '3px 6px' }}>
+                                          <input
+                                            type="text" placeholder="0"
+                                            value={alloc.allocatedUsdt}
+                                            onChange={e => {
+                                              if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
+                                                setAllocations(prev => prev.map((a, i) => i === idx ? { ...a, allocatedUsdt: e.target.value } : a));
+                                            }}
+                                            style={{ fontSize: 10 }}
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="field2">
+                                        <div className="lbl" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
+                                        <div className="inputBox" style={{ padding: '3px 6px' }}>
+                                          <input
+                                            type="text" placeholder="3.65"
+                                            value={alloc.merchantCostPerUsdt}
+                                            onChange={e => {
+                                              if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
+                                                setAllocations(prev => prev.map((a, i) => i === idx ? { ...a, merchantCostPerUsdt: e.target.value } : a));
+                                            }}
+                                            style={{ fontSize: 10 }}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="field2" style={{ marginTop: 4 }}>
+                                      <div className="lbl" style={{ fontSize: 9 }}>{t('noteOptional')}</div>
+                                      <div className="inputBox" style={{ padding: '3px 6px' }}>
+                                        <input
+                                          value={alloc.note}
+                                          onChange={e => setAllocations(prev => prev.map((a, i) => i === idx ? { ...a, note: e.target.value } : a))}
+                                          placeholder={t('optionalNotePlaceholder')}
+                                          style={{ fontSize: 10 }}
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
+                                ))}
+
+                                {/* Add more merchants button */}
+                                {allocations.length > 1 && (
+                                  <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', width: '100%', marginBottom: 4 }}
+                                    onClick={() => setAllocations(prev => [...prev, {
+                                      id: `alloc_${Date.now()}`,
+                                      relationshipId: '',
+                                      merchantName: '',
+                                      merchantId: '',
+                                      family: 'sales_deal',
+                                      agreementId: null,
+                                      agreementLabel: '',
+                                      allocatedUsdt: '',
+                                      merchantCostPerUsdt: '',
+                                      partnerSharePct: 0,
+                                      merchantSharePct: 0,
+                                      note: '',
+                                    }])}>
+                                    + Add Another Merchant
+                                  </button>
+                                )}
                               </div>
                             )}
 
