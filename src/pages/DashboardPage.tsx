@@ -569,7 +569,8 @@ export default function DashboardPage() {
                             <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
                             <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
                             <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Net P&L</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--good)', fontSize: 10 }}>📊 My Cut</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--warn)', fontSize: 10 }}>🛡️ Partner Cut</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -581,8 +582,11 @@ export default function DashboardPage() {
                                 <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
                               </td>
                               <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.net >= 0 ? 'good' : 'bad'}`}>
-                                {d.net >= 0 ? '+' : ''}{fmtQWithUnit(d.net)}
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.myShare >= 0 ? 'good' : 'bad'}`}>
+                                {d.myShare >= 0 ? '+' : ''}{fmtQWithUnit(d.myShare)}
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--warn)' }} className="mono">
+                                {fmtQWithUnit(d.partnerShare)}
                               </td>
                             </tr>
                           ))}
