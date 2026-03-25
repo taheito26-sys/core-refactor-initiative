@@ -45,6 +45,22 @@ describe('dealRowModel', () => {
     expect(row.myNet).toBe(10);
   });
 
+  it('uses merged metadata avg fields when resolveAvgBuy callback returns 0', () => {
+    const row = buildDealRowModel({
+      deal: {
+        ...baseDeal,
+        notes: 'quantity:100|sell_price:3.8|fee:10|counterparty_share_pct:50',
+        metadata: { avg_buy: 3.5 },
+      },
+      perspective: 'incoming',
+      locale: 'en',
+      resolveAvgBuy: () => 0,
+    });
+    expect(row.hasAvgBuy).toBe(true);
+    expect(row.avgBuy).toBe(3.5);
+    expect(row.myNet).toBe(10);
+  });
+
   it('legacy aliases map qty -> quantity and sell -> sell_price', () => {
     const meta = parseDealMeta('qty:20|sell:4.1|avg_buy:4');
     expect(meta.quantity).toBe('20');

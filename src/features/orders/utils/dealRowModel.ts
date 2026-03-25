@@ -41,6 +41,8 @@ export function parseDealMeta(notes: string | null | undefined): Record<string, 
 
   if (!meta.quantity && meta.qty) meta.quantity = meta.qty;
   if (!meta.sell_price && meta.sell) meta.sell_price = meta.sell;
+  if (!meta.avg_buy && (meta as Record<string, string>).avgBuy) meta.avg_buy = (meta as Record<string, string>).avgBuy;
+  if (!meta.merchant_cost && (meta as Record<string, string>).merchantCost) meta.merchant_cost = (meta as Record<string, string>).merchantCost;
 
   return meta;
 }
@@ -65,7 +67,14 @@ export function buildDealRowModel({
   const sellPrice = Number(meta.sell_price) || 0;
   const fee = Number(meta.fee) || 0;
 
-  const avgBuy = Math.max(0, resolveAvgBuy ? resolveAvgBuy(deal, meta) : (Number(meta.avg_buy) || Number(meta.merchant_cost) || 0));
+  const resolvedAvg = resolveAvgBuy ? resolveAvgBuy(deal, meta) : 0;
+  const mergedAvg =
+    Number(mergedMeta.avg_buy) ||
+    Number(mergedMeta.avgBuy) ||
+    Number(mergedMeta.merchant_cost) ||
+    Number(mergedMeta.merchantCost) ||
+    0;
+  const avgBuy = Math.max(0, resolvedAvg > 0 ? resolvedAvg : mergedAvg);
   const hasAvgBuy = avgBuy > 0;
 
   const volume = quantity * sellPrice;
