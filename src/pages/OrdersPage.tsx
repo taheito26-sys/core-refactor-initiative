@@ -1725,7 +1725,7 @@ export default function OrdersPage() {
 
                                 <div className="g2tight" style={{ marginTop: 4 }}>
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>USDT {t('allocated')}</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>USDT {t('quantity')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
                                         type="text" placeholder="0"
