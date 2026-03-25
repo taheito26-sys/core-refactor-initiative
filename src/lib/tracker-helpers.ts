@@ -300,10 +300,16 @@ export function kpiFor(state: TrackerState, derived: DerivedState, range: string
   let rev = 0, net = 0, qty = 0, fee = 0;
   for (const t of trades) {
     const c = derived.tradeCalc.get(t.id);
-    rev += t.amountUSDT * t.sellPriceQAR;
+    const tradeRev = t.amountUSDT * t.sellPriceQAR;
+    rev += tradeRev;
     qty += t.amountUSDT;
     fee += t.feeQAR;
-    if (c?.ok) net += c.netQAR;
+    if (c?.ok) {
+      net += c.netQAR;
+    } else if (t.manualBuyPrice) {
+      // Fallback for manual-mode trades not in FIFO
+      net += tradeRev - (t.amountUSDT * t.manualBuyPrice) - t.feeQAR;
+    }
   }
   const margins = trades
     .map(t => { const c = derived.tradeCalc.get(t.id); return c?.ok ? c.margin : null; })
