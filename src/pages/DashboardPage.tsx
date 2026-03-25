@@ -39,9 +39,17 @@ export default function DashboardPage() {
   const rLabel = rangeLabel(settings.range);
 
   const allTrades = state.trades.filter(t => !t.voided);
-  const allMargins = allTrades.map(t => {
-    const c = derived.tradeCalc.get(t.id);
-    return c?.ok ? c.margin : null;
+  const allMargins = allTrades.map(tr => {
+    const c = derived.tradeCalc.get(tr.id);
+    if (!c?.ok) return null;
+    // For linked trades, adjust margin to reflect only my share
+    if (tr.linkedDealId || tr.linkedRelId) {
+      const myPct = tr.merchantPct ?? 100;
+      const myNet = c.netQAR * myPct / 100;
+      const rev = tr.amountUSDT * tr.sellPriceQAR;
+      return rev > 0 ? (myNet / rev) * 100 : 0;
+    }
+    return c.margin;
   }).filter((x): x is number => x !== null);
   const avgM = allMargins.length ? allMargins.reduce((s, v) => s + v, 0) / allMargins.length : 0;
 
