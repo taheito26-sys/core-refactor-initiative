@@ -239,7 +239,30 @@ export default function StockPage() {
 
   const deleteBatch = () => {
     if (!editingBatchId) return;
-    applyState({ ...state, batches: state.batches.filter((b) => b.id !== editingBatchId) });
+    const batch = state.batches.find(b => b.id === editingBatchId);
+    if (!batch) return;
+
+    // Refund the batch cost back to cash
+    const batchCostQAR = batch.initialUSDT * batch.buyPriceQAR;
+    const currentCash = num(state.cashQAR, 0);
+    const newCash = currentCash + batchCostQAR;
+    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+      id: uid(),
+      ts: Date.now(),
+      type: 'batch_refund' as any,
+      amount: batchCostQAR,
+      balanceAfter: newCash,
+      owner: state.cashOwner || '',
+      bankAccount: '',
+      note: `Batch deleted: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${batch.source || 'unknown'}`,
+    };
+
+    applyState({
+      ...state,
+      batches: state.batches.filter(b => b.id !== editingBatchId),
+      cashQAR: newCash,
+      cashHistory: [...(state.cashHistory || []), cashTx],
+    });
     setEditingBatchId(null);
   };
 
