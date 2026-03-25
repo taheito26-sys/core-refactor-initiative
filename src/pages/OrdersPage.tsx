@@ -1703,8 +1703,8 @@ export default function OrdersPage() {
                                 {/* Template presets */}
                                 <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>Quick Template</div>
                                 <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-                                  <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
-                                    onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50 } : a))}>
+                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
+                                    onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>
                                     🤝 50/50 Equal
                                   </button>
                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations.length > 1 ? '1.5px solid var(--brand)' : undefined }}

@@ -1104,7 +1104,7 @@ const translations = {
   allocBalanced: { en: 'Balanced', ar: 'متوازن' },
   allocOverBy: { en: 'Over by', ar: 'أكثر بـ' },
   perMerchantBreakdown: { en: 'Per-Merchant Breakdown', ar: 'تفصيل لكل تاجر' },
-  allocRev: { en: 'Rev', ar: 'إيرادات' },
+  allocRev: { en: 'Total', ar: 'الإجمالي' },
   allocNet: { en: 'Net', ar: 'صافي' },
   allocPartners: { en: 'Partners', ar: 'الشركاء' },
   allocationMustMatch: { en: 'Allocated USDT must exactly match total sale quantity', ar: 'يجب أن يتطابق USDT المخصص تماماً مع إجمالي كمية البيع' },
