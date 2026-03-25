@@ -116,8 +116,8 @@ export default function DashboardPage() {
     staleTime: 30_000,
   });
 
-  const handleCashSave = useCallback((newCash: number, owner: string) => {
-    applyState({ ...state, cashQAR: newCash, cashOwner: owner });
+  const handleCashSave = useCallback((newCash: number, owner: string, history?: import('@/lib/tracker-helpers').CashTransaction[]) => {
+    applyState({ ...state, cashQAR: newCash, cashOwner: owner, cashHistory: history ?? state.cashHistory ?? [] });
   }, [state, applyState]);
 
 
