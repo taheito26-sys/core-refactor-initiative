@@ -59,6 +59,8 @@ export default function DashboardPage() {
     title: string;
     merchantName: string;
     net: number;
+    myShare: number;
+    partnerShare: number;
     vol: number;
     status: string;
     direction: 'outgoing' | 'incoming';
@@ -130,6 +132,7 @@ export default function DashboardPage() {
       let outCount = 0, outVol = 0, outNet = 0;
       let inCount = 0, inVol = 0, inNet = 0;
       let pendingCount = 0, approvedCount = 0;
+      let totalMyShare = 0, totalPartnerShare = 0;
       const dealDetails: DealDetail[] = [];
 
       for (const d of activeDeals) {
@@ -138,20 +141,32 @@ export default function DashboardPage() {
         const vol = alloc ? alloc.rev : Number(d.amount) || 0;
 
         let dealNet = 0;
+        let myShare = 0;
+        let partnerShare = 0;
         if (alloc) {
           dealNet = alloc.net;
+          // For outgoing deals (I created): merchant_amount is mine, partner_amount is theirs
+          // For incoming deals (partner created): partner_amount is mine, merchant_amount is theirs
+          if (d.created_by === userId) {
+            myShare = alloc.merchantAmt;
+            partnerShare = alloc.partnerAmt;
+          } else {
+            myShare = alloc.partnerAmt;
+            partnerShare = alloc.merchantAmt;
+          }
         } else {
           const qty = Number(meta.quantity) || 0;
           const sell = Number(meta.sell_price) || 0;
           const avgBuy = Number(meta.avg_buy) || Number(meta.merchant_cost) || 0;
           const fee = Number(meta.fee) || 0;
           dealNet = sell > 0 && avgBuy > 0 ? (qty * sell) - (qty * avgBuy) - fee : 0;
+          myShare = dealNet / 2;
+          partnerShare = dealNet / 2;
         }
 
         if (d.status === 'pending') pendingCount++;
         if (d.status === 'approved') approvedCount++;
 
-        // Find counterparty name
         const rel = relMap.get(d.relationship_id);
         let merchantName = 'Unknown';
         if (rel) {
@@ -169,11 +184,16 @@ export default function DashboardPage() {
           inCount++; inVol += vol; inNet += dealNet;
         }
 
+        totalMyShare += myShare;
+        totalPartnerShare += partnerShare;
+
         dealDetails.push({
           id: d.id,
           title: d.title,
           merchantName,
           net: Math.round(dealNet * 100) / 100,
+          myShare: Math.round(myShare * 100) / 100,
+          partnerShare: Math.round(partnerShare * 100) / 100,
           vol: Math.round(vol * 100) / 100,
           status: d.status,
           direction,
@@ -188,6 +208,7 @@ export default function DashboardPage() {
         pendingCount, approvedCount,
         totalVol: outVol + inVol,
         totalNet: outNet + inNet,
+        totalMyShare, totalPartnerShare,
         dealDetails,
       };
     },
@@ -456,21 +477,21 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="kpi-band" style={{ borderLeft: '3px solid var(--good)' }}>
-            <div className="kpi-band-title">{t('dealNetPnl')}</div>
+            <div className="kpi-band-title">💰 Deal Profit Split</div>
             <div className="kpi-band-cols">
               <div>
-                <div className="kpi-period">{t('totalDealVolume')}</div>
-                <div className="kpi-cell-val t1v">{fmtQWithUnit(merchantDealKpis.totalVol)}</div>
-                <div className="kpi-cell-sub">{merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
-              </div>
-              <div>
-                <div className="kpi-period">Merchants Net P&L</div>
-                <div className={`kpi-cell-val ${merchantDealKpis.totalNet >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalNet)}</div>
+                <div className="kpi-period">📊 My Earnings</div>
+                <div className={`kpi-cell-val ${merchantDealKpis.totalMyShare >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalMyShare)}</div>
                 <div className="kpi-cell-sub">
                   {merchantDealKpis.pendingCount > 0 && <span style={{ color: 'var(--warn)' }}>{merchantDealKpis.pendingCount} {t('pendingDeals')}</span>}
                   {merchantDealKpis.pendingCount > 0 && merchantDealKpis.approvedCount > 0 && ' · '}
                   {merchantDealKpis.approvedCount > 0 && <span style={{ color: 'var(--good)' }}>{merchantDealKpis.approvedCount} {t('approvedStatus')}</span>}
                 </div>
+              </div>
+              <div>
+                <div className="kpi-period">🛡️ Partner Earnings</div>
+                <div className={`kpi-cell-val ${merchantDealKpis.totalPartnerShare >= 0 ? 'good' : 'bad'}`} style={{ color: 'var(--warn)' }}>{merchantDealKpis.totalPartnerShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalPartnerShare)}</div>
+                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.totalVol)} {t('volume')} · {merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
               </div>
             </div>
           </div>
@@ -500,7 +521,8 @@ export default function DashboardPage() {
                             <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
                             <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
                             <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Net P&L</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--good)', fontSize: 10 }}>📊 My Cut</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--warn)', fontSize: 10 }}>🛡️ Partner Cut</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -512,8 +534,11 @@ export default function DashboardPage() {
                                 <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
                               </td>
                               <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.net >= 0 ? 'good' : 'bad'}`}>
-                                {d.net >= 0 ? '+' : ''}{fmtQWithUnit(d.net)}
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.myShare >= 0 ? 'good' : 'bad'}`}>
+                                {d.myShare >= 0 ? '+' : ''}{fmtQWithUnit(d.myShare)}
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--warn)' }} className="mono">
+                                {fmtQWithUnit(d.partnerShare)}
                               </td>
                             </tr>
                           ))}
@@ -544,7 +569,8 @@ export default function DashboardPage() {
                             <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
                             <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
                             <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Net P&L</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--good)', fontSize: 10 }}>📊 My Cut</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--warn)', fontSize: 10 }}>🛡️ Partner Cut</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -556,8 +582,11 @@ export default function DashboardPage() {
                                 <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
                               </td>
                               <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.net >= 0 ? 'good' : 'bad'}`}>
-                                {d.net >= 0 ? '+' : ''}{fmtQWithUnit(d.net)}
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.myShare >= 0 ? 'good' : 'bad'}`}>
+                                {d.myShare >= 0 ? '+' : ''}{fmtQWithUnit(d.myShare)}
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--warn)' }} className="mono">
+                                {fmtQWithUnit(d.partnerShare)}
                               </td>
                             </tr>
                           ))}
