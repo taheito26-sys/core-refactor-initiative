@@ -1030,10 +1030,7 @@ export default function OrdersPage() {
             </div>
             <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--bad) 10%, transparent)', fontSize: 10 }}>
               🤝 {t('partnerNetProfit')}: <strong style={{ color: 'var(--bad)' }}>
-                {tr.agreementFamily === 'profit_share'
-                  ? fmtQ(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)
-                  : fmtQ(revenue * (tr.partnerPct! / 100))
-                }
+                {fmtQ(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
               </strong>
             </div>
           </div>
