@@ -1623,21 +1623,64 @@ export default function OrdersPage() {
                 <div className="field2">
                   <div className="lbl">{t('inputMode')}</div>
                   <div className="modeToggle">
-                    <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>💲 USDT</button>
-                    <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>📦 QAR</button>
+                    <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')}>{t('entryModePriceVol')}</button>
+                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')}>{t('entryModeUsdtQar')}</button>
+                    <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')}>{t('entryModeUsdtPrice')}</button>
                   </div>
                 </div>
 
-                <div className="g2tight">
-                  <div className="field2">
-                    <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                {saleEntryMode === 'price_vol' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>USDT</button>
+                        <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>QAR</button>
+                      </div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('sellPriceLabel')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                    </div>
                   </div>
-                  <div className="field2">
-                    <div className="lbl">{t('sellPriceLabel')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                )}
+
+                {saleEntryMode === 'qty_total' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('totalUsdtSold')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('totalQarReceived')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      {Number(saleUsdtQty) > 0 && Number(saleAmount) > 0 && (
+                        <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
+                          {t('autoCalcSellPrice')}: {fmtPrice(Number(saleAmount) / Number(saleUsdtQty))} QAR/USDT
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {saleEntryMode === 'qty_price' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('totalUsdtSold')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('sellPriceLabel')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                      {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
+                        <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
+                          {t('autoCalcTotalQar')}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} QAR
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {priceMode === 'manual' && (
                   <div className="g2tight">
