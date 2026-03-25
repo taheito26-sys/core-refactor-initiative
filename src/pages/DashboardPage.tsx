@@ -77,6 +77,8 @@ export default function DashboardPage() {
 
   const { data: merchantDealKpis } = useQuery({
     queryKey: ['dashboard-merchant-deals', userId],
+    staleTime: 15_000,       // re-fetch after 15 s so edits in Orders page show quickly
+    refetchInterval: 30_000, // poll every 30 s in background
     queryFn: async () => {
       if (!userId) return null;
       const { data: deals } = await supabase
@@ -168,8 +170,31 @@ export default function DashboardPage() {
           const avgBuy = Number(meta.avg_buy) || Number(meta.merchant_cost) || 0;
           const fee = Number(meta.fee) || 0;
           dealNet = sell > 0 && avgBuy > 0 ? (qty * sell) - (qty * avgBuy) - fee : 0;
-          myShare = dealNet / 2;
-          partnerShare = dealNet / 2;
+
+          // Resolve the actual split ratio from deal notes — try all stored key variants
+          const pickPct = (...keys: string[]) => {
+            for (const k of keys) {
+              const v = Number(meta[k]?.replace?.('%', '') ?? meta[k]);
+              if (!isNaN(v) && v > 0 && v < 100) return v;
+            }
+            return null;
+          };
+          // partnerPct = counterparty / partner side
+          let resolvedPartnerPct = pickPct('counterparty_share_pct', 'counterparty_share', 'partner_ratio');
+          if (resolvedPartnerPct == null) {
+            const mSide = pickPct('merchant_share_pct', 'merchant_share', 'merchant_ratio');
+            if (mSide != null) resolvedPartnerPct = 100 - mSide;
+          }
+          const effectivePartnerPct = resolvedPartnerPct ?? 50; // default 50/50 only if truly unknown
+          const effectiveMerchantPct = 100 - effectivePartnerPct;
+
+          if (d.created_by === userId) {
+            myShare = dealNet * (effectiveMerchantPct / 100);
+            partnerShare = dealNet * (effectivePartnerPct / 100);
+          } else {
+            myShare = dealNet * (effectivePartnerPct / 100);
+            partnerShare = dealNet * (effectiveMerchantPct / 100);
+          }
         }
 
         if (d.status === 'pending') pendingCount++;

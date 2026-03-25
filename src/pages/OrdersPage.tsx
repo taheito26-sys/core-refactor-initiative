@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -62,6 +63,7 @@ export default function OrdersPage() {
   const { userId, merchantProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
@@ -990,6 +992,8 @@ export default function OrdersPage() {
         );
         applyState({ ...state, trades: resetTrades });
         await reloadMerchantData();
+        // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
+        void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
         toast.success('Deal updated — sent for re-approval');
       } catch (err: any) {
         console.error('Failed to update linked deal:', err);
@@ -1560,8 +1564,22 @@ export default function OrdersPage() {
                             <td className="mono r">{dealAvgBuy > 0 ? fmtP(dealAvgBuy) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
-                            <td className="mono r" style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                              {myNet !== 0 ? `${myNet >= 0 ? '+' : ''}${fmtQ(myNet)}` : '—'}
+                            <td className="mono r">
+                              {/* Show full deal net crossed out + merchant's cut when a split applies */}
+                              {merchantPct != null && fullNet !== myNet ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                                  <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
+                                    {fullNet >= 0 ? '+' : ''}{fmtQ(fullNet)}
+                                  </span>
+                                  <span style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                                    {myNet >= 0 ? '+' : ''}{fmtQ(myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span>
+                                  </span>
+                                </div>
+                              ) : (
+                                <span style={{ color: myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                                  {myNet !== 0 ? `${myNet >= 0 ? '+' : ''}${fmtQ(myNet)}` : '—'}
+                                </span>
+                              )}
                             </td>
                             <td>
                               <div className={`prog ${dealMargin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
