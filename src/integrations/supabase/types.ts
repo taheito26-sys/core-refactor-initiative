@@ -513,6 +513,105 @@ export type Database = {
         }
         Relationships: []
       }
+      order_allocations: {
+        Row: {
+          agreement_ratio_snapshot: string | null
+          allocated_usdt: number
+          allocation_cost: number
+          allocation_fee: number
+          allocation_net: number
+          allocation_revenue: number
+          created_at: string
+          deal_terms_snapshot: Json | null
+          family: string
+          fee_share: number
+          id: string
+          merchant_amount: number
+          merchant_cost_per_usdt: number
+          merchant_id: string
+          merchant_share_pct: number
+          note: string | null
+          order_id: string
+          partner_amount: number
+          partner_share_pct: number
+          profit_share_agreement_id: string | null
+          relationship_id: string
+          sale_group_id: string
+          sell_price: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agreement_ratio_snapshot?: string | null
+          allocated_usdt?: number
+          allocation_cost?: number
+          allocation_fee?: number
+          allocation_net?: number
+          allocation_revenue?: number
+          created_at?: string
+          deal_terms_snapshot?: Json | null
+          family: string
+          fee_share?: number
+          id?: string
+          merchant_amount?: number
+          merchant_cost_per_usdt?: number
+          merchant_id: string
+          merchant_share_pct?: number
+          note?: string | null
+          order_id: string
+          partner_amount?: number
+          partner_share_pct?: number
+          profit_share_agreement_id?: string | null
+          relationship_id: string
+          sale_group_id: string
+          sell_price?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agreement_ratio_snapshot?: string | null
+          allocated_usdt?: number
+          allocation_cost?: number
+          allocation_fee?: number
+          allocation_net?: number
+          allocation_revenue?: number
+          created_at?: string
+          deal_terms_snapshot?: Json | null
+          family?: string
+          fee_share?: number
+          id?: string
+          merchant_amount?: number
+          merchant_cost_per_usdt?: number
+          merchant_id?: string
+          merchant_share_pct?: number
+          note?: string | null
+          order_id?: string
+          partner_amount?: number
+          partner_share_pct?: number
+          profit_share_agreement_id?: string | null
+          relationship_id?: string
+          sale_group_id?: string
+          sell_price?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_allocations_profit_share_agreement_id_fkey"
+            columns: ["profit_share_agreement_id"]
+            isOneToOne: false
+            referencedRelation: "profit_share_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_allocations_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       p2p_snapshots: {
         Row: {
           data: Json
@@ -569,6 +668,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      profit_share_agreements: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string
+          effective_from: string
+          expires_at: string | null
+          id: string
+          merchant_ratio: number
+          notes: string | null
+          partner_ratio: number
+          relationship_id: string
+          settlement_cadence: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by: string
+          effective_from?: string
+          expires_at?: string | null
+          id?: string
+          merchant_ratio: number
+          notes?: string | null
+          partner_ratio: number
+          relationship_id: string
+          settlement_cadence?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          expires_at?: string | null
+          id?: string
+          merchant_ratio?: number
+          notes?: string | null
+          partner_ratio?: number
+          relationship_id?: string
+          settlement_cadence?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profit_share_agreements_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       settlement_periods: {
         Row: {
