@@ -483,7 +483,7 @@ export default function OrdersPage() {
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
-    if (!(raw > 0)) errs.push(t('quantity'));
+    if (!(amountUSDT > 0)) errs.push(t('quantity'));
     if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
