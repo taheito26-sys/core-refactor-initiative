@@ -395,22 +395,87 @@ export default function StockPage() {
                 <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
               </div>
               <div className="field2">
-                <div className="lbl">{t('currencyMode')}</div>
-                <div className="modeToggle">
-                  <button className={batchMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setBatchMode('QAR')}>📦 QAR</button>
-                  <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
+                <div className="lbl">Entry Mode</div>
+                <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+                  <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 9, padding: '6px 4px' }}>
+                    💲 Price + Vol
+                  </button>
+                  <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 9, padding: '6px 4px' }}>
+                    📦 USDT + QAR
+                  </button>
+                  <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 9, padding: '6px 4px' }}>
+                    📊 USDT + Price
+                  </button>
                 </div>
               </div>
-              <div className="g2tight">
-                <div className="field2">
-                  <div className="lbl">{t('buyPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
-                </div>
-                <div className="field2">
-                  <div className="lbl">{batchMode === 'QAR' ? t('volumeQar') : t('amountUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
-                </div>
-              </div>
+
+              {batchEntryMode === 'price_vol' && (
+                <>
+                  <div className="field2">
+                    <div className="lbl">{t('currencyMode')}</div>
+                    <div className="modeToggle">
+                      <button className={batchMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setBatchMode('QAR')}>📦 QAR</button>
+                      <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
+                    </div>
+                  </div>
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{batchMode === 'QAR' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {batchEntryMode === 'qty_total' && (
+                <>
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">USDT Bought</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">Total QAR Paid</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                  </div>
+                  {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
+                    <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
+                      <span style={{ color: 'var(--t2)' }}>Avg Price: </span>
+                      <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
+                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} QAR/USDT
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {batchEntryMode === 'qty_price' && (
+                <>
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">USDT Bought</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                  </div>
+                  {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
+                    <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
+                      <span style={{ color: 'var(--t2)' }}>Total QAR: </span>
+                      <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
+                        {fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} QAR
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="field2" style={{ gridColumn: 'span 2' }}>
                 <div className="lbl">{t('supplier')}</div>
                 <div className="lookupShell">
