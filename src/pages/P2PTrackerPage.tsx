@@ -203,8 +203,8 @@ export default function P2PTrackerPage() {
   const [history, setHistory] = useState<P2PHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [nextRefreshIn, setNextRefreshIn] = useState(300);
+  const [latestFetchedAt, setLatestFetchedAt] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
@@ -223,8 +223,10 @@ export default function P2PTrackerPage() {
 
     if (latestRow?.data) {
       setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at));
+      setLatestFetchedAt(latestRow.fetched_at ?? null);
     } else {
       setSnapshot(EMPTY_SNAPSHOT);
+      setLatestFetchedAt(null);
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
@@ -248,21 +250,10 @@ export default function P2PTrackerPage() {
     setLastUpdate(new Date().toISOString());
   }, [market]);
 
-  const scrapeAndLoad = useCallback(async () => {
-    try {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      await fetch(`https://${projectId}.supabase.co/functions/v1/p2p-scraper?market=${market}`);
-    } catch {
-      console.warn('Scraper call failed, loading cached data');
-    }
-    await loadFromDb();
-  }, [market, loadFromDb]);
-
-  const load = useCallback(async (scrape = false) => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      if (scrape) await scrapeAndLoad();
-      else await loadFromDb();
+      await loadFromDb();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to load P2P data');
       setSnapshot(EMPTY_SNAPSHOT);
@@ -270,24 +261,29 @@ export default function P2PTrackerPage() {
     } finally {
       setLoading(false);
     }
-  }, [loadFromDb, scrapeAndLoad]);
+  }, [loadFromDb]);
 
-  useEffect(() => { load(false); }, [load]);
+  // Initial load whenever market changes
+  useEffect(() => { load(); }, [load]);
 
+  // Realtime: re-read DB the moment the backend cron inserts a new snapshot
   useEffect(() => {
-    if (!autoRefresh) return;
-    setNextRefreshIn(300);
-    const tick = setInterval(() => {
-      setNextRefreshIn(prev => {
-        if (prev <= 1) {
-          load(true);
-          return 300;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [autoRefresh, load]);
+    const channel = supabase
+      .channel(`p2p_snapshots_${market}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'p2p_snapshots', filter: `market=eq.${market}` },
+        () => { void loadFromDb(); },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [market, loadFromDb]);
+
+  // Tick every 30 s so the "data age" badge stays current
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const todaySummary = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -314,6 +310,17 @@ export default function P2PTrackerPage() {
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     return dailySummaries.filter(d => d.date >= cutoff);
   }, [dailySummaries, historyRange]);
+
+  // Human-readable data freshness, recalculated every 30 s via `now`
+  const dataAgeLabel = useMemo(() => {
+    if (!latestFetchedAt) return null;
+    const ageMs = now - new Date(latestFetchedAt).getTime();
+    const ageSec = Math.floor(ageMs / 1000);
+    if (ageSec < 60) return 'just now';
+    const ageMin = Math.floor(ageSec / 60);
+    if (ageMin < 60) return `${ageMin} min ago`;
+    return `${Math.floor(ageMin / 60)}h ago`;
+  }, [latestFetchedAt, now]);
 
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
@@ -423,24 +430,20 @@ export default function P2PTrackerPage() {
           </TabsList>
         </Tabs>
 
-        <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="gap-1.5 h-8 text-[11px]">
+        <Button variant="outline" size="sm" onClick={() => load()} disabled={loading} className="gap-1.5 h-8 text-[11px]">
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           {t('p2pRefresh')}
         </Button>
 
-        <Button
-          variant={autoRefresh ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setAutoRefresh(!autoRefresh)}
-          className="gap-1.5 h-8 text-[11px]"
-        >
-          <span className={`h-2 w-2 rounded-full ${autoRefresh ? 'bg-green-400 animate-pulse' : 'bg-muted-foreground'}`} />
-          {t('p2pAutoRefresh')}
-        </Button>
+        {/* Backend-driven sync indicator */}
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+          Backend sync · every 5 min
+        </span>
 
-        {lastUpdate && (
+        {dataAgeLabel && (
           <span className="text-[11px] text-muted-foreground">
-            {t('p2pUpdated')} {new Date(lastUpdate).toLocaleTimeString()}
+            Data: {dataAgeLabel}
           </span>
         )}
 
@@ -501,7 +504,7 @@ export default function P2PTrackerPage() {
             <h2 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>{t('p2pPriceHistory')}</h2>
             <span className="pill" style={{ fontSize: 9 }}>
               {last24hHistory.length} {t('p2pPts24h')}
-              {autoRefresh && <> · {Math.floor(nextRefreshIn / 60)}:{String(nextRefreshIn % 60).padStart(2, '0')}</>}
+              {dataAgeLabel && <> · {dataAgeLabel}</>}
             </span>
           </div>
           <div className="panel-body" style={{ padding: '8px 12px 12px', minHeight: 150, display: 'flex', flexDirection: 'column', gap: 10 }}>
