@@ -305,16 +305,36 @@ export default function ActivityCenter() {
               </div>
             </div>
             {unreadCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-[10px] text-muted-foreground hover:text-foreground gap-1 rounded-lg"
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
-              >
-                <CheckCheck className="h-3 w-3" />
-                {t('clearAll')}
-              </Button>
+              <div className="flex items-center gap-1">
+                {activeCategory !== 'all' && (categoryCounts[activeCategory] || 0) > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-[10px] text-muted-foreground hover:text-foreground gap-1 rounded-lg"
+                    onClick={() => {
+                      // Mark all notifications in the mapped categories as read
+                      const cats = activeCategory === 'invite' ? ['invite', 'network']
+                        : activeCategory === 'deal' ? ['deal', 'merchant']
+                        : [activeCategory];
+                      cats.forEach(c => markCategoryRead.mutate(c));
+                    }}
+                    disabled={markCategoryRead.isPending}
+                  >
+                    <CheckCheck className="h-3 w-3" />
+                    Clear
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-[10px] text-muted-foreground hover:text-foreground gap-1 rounded-lg"
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                >
+                  <CheckCheck className="h-3 w-3" />
+                  {t('clearAll')}
+                </Button>
+              </div>
             )}
           </div>
 
