@@ -1325,7 +1325,7 @@ export default function OrdersPage() {
                               </span>
                             </td>
                             <td className="mono r">{fmtU(dealQty)}</td>
-                            <td className="mono r">{avgBuy > 0 ? fmtP(avgBuy) : '—'}</td>
+                            <td className="mono r">{dealAvgBuy > 0 ? fmtP(dealAvgBuy) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
                             <td className="mono r" style={{ color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
