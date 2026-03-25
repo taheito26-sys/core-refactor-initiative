@@ -632,9 +632,7 @@ export default function OrdersPage() {
           const partnerPct = (tmpl as any).defaults?.counterparty_share_pct ?? (tmpl as any).defaults?.partner_ratio ?? 0;
           const rev = baseTrade.amountUSDT * sell;
           const netProfit = rev - fifoCost - fee;
-          const partnerAmt = tmpl.family === 'profit_share'
-            ? netProfit * (partnerPct / 100)
-            : rev * (partnerPct / 100);
+          const partnerAmt = netProfit * (partnerPct / 100);
 
           const { data: periodData } = await supabase.from('settlement_periods').insert({
             deal_id: data.id,
