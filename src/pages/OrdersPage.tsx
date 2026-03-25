@@ -81,6 +81,8 @@ export default function OrdersPage() {
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
+  const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
+  const [cashDepositAmount, setCashDepositAmount] = useState('');
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
