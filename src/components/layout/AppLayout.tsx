@@ -5,6 +5,7 @@ import { TopBar } from './TopBar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
+import { RequiredFieldsModal } from '@/features/auth/components/RequiredFieldsModal';
 
 export function AppLayout() {
   const isMobile = useIsMobile();
@@ -44,6 +45,9 @@ export function AppLayout() {
         </div>
         {isMobile && <MobileBottomNav onMoreClick={() => setMobileSidebarOpen(true)} />}
       </div>
+
+      {/* Blocks the app if display_name or merchant_id are missing */}
+      <RequiredFieldsModal />
     </div>
   );
 }
