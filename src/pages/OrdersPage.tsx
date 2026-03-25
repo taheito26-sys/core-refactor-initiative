@@ -467,8 +467,52 @@ export default function OrdersPage() {
       try {
         const saleGroupId = crypto.randomUUID();
         const fee = parseFloat(saleFee) || 0;
+        const customerName = buyerName.trim() || t('buyer');
+        const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
+        const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
+        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
 
-        const allocationInputs: CreateAllocationInput[] = allocations.map(alloc => {
+        // Create a merchant_deals record for EACH allocation so it shows in partner's inbox
+        const createdDealIds: string[] = [];
+        for (const alloc of allocations) {
+          const usdt = parseFloat(alloc.allocatedUsdt) || 0;
+          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+          const familyLabel = alloc.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+          const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
+          const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
+
+          const noteLines = [
+            `template: ${alloc.family}_family`,
+            `customer: ${customerName}`,
+            `local_trade: ${baseTrade.id}`,
+            `quantity: ${usdt}`,
+            `sell_price: ${sell}`,
+            `fifo_cost: ${fifoCost}`,
+            `avg_buy: ${avgBuy}`,
+            `fee: ${fee}`,
+            `merchant_cost: ${costPerUsdt}`,
+            alloc.family === 'profit_share'
+              ? `partner_ratio: ${alloc.partnerSharePct}, merchant_ratio: ${alloc.merchantSharePct}`
+              : `counterparty_share: ${alloc.partnerSharePct}%, merchant_share: ${alloc.merchantSharePct}%`,
+          ].join(' | ');
+
+          const { data: dealData, error: dealError } = await supabase.from('merchant_deals').insert({
+            relationship_id: alloc.relationshipId,
+            deal_type: alloc.family === 'profit_share' ? 'partnership' : 'arbitrage',
+            title,
+            amount: usdt * sell,
+            currency: 'USDT',
+            status: 'pending',
+            created_by: userId!,
+            notes: noteLines,
+          }).select('id').single();
+
+          if (dealError) throw dealError;
+          if (dealData) createdDealIds.push(dealData.id);
+        }
+
+        // Now create allocation records linked to the deals
+        const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
           const calc = calculateAllocationEconomics({
@@ -483,7 +527,7 @@ export default function OrdersPage() {
 
           return {
             sale_group_id: saleGroupId,
-            order_id: baseTrade.id,
+            order_id: createdDealIds[idx] || baseTrade.id,
             relationship_id: alloc.relationshipId,
             merchant_id: alloc.merchantId,
             family: alloc.family,
@@ -508,16 +552,20 @@ export default function OrdersPage() {
 
         await createAllocations.mutateAsync(allocationInputs);
 
-        // Save local trade
+        // Save local trade with linked deal ID
+        const persistedTrade: Trade = {
+          ...baseTrade,
+          linkedDealId: createdDealIds[0] || undefined,
+        };
         const next: TrackerState = {
           ...state,
           customers: nextCustomers,
-          trades: [...state.trades, baseTrade],
+          trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
         applyState(next);
         await reloadMerchantData();
-        toast.success('Order created with multi-merchant allocations');
+        toast.success(t('tradeSentForApproval'));
 
         // Reset
         setSaleAmount('');
