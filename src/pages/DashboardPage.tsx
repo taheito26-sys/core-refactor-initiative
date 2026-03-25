@@ -59,6 +59,8 @@ export default function DashboardPage() {
     title: string;
     merchantName: string;
     net: number;
+    myShare: number;
+    partnerShare: number;
     vol: number;
     status: string;
     direction: 'outgoing' | 'incoming';
