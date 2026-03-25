@@ -243,15 +243,19 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
     });
   }
 
-  // Non-stock trades
+  // Non-stock trades (manual mode) — use manualBuyPrice for cost
   for (const t of trades.filter(t => !t.voided && !t.usesStock)) {
     const rev = t.amountUSDT * t.sellPriceQAR;
+    const cost = t.manualBuyPrice ? t.amountUSDT * t.manualBuyPrice : 0;
+    const netQAR = rev - cost - t.feeQAR;
+    const avgBuyQAR = t.manualBuyPrice || 0;
+    const margin = rev > 0 ? (netQAR / rev) * 100 : 0;
     tradeCalc.set(t.id, {
       ok: true,
-      netQAR: rev - t.feeQAR,
-      avgBuyQAR: 0,
-      margin: 100,
-      ppu: rev > 0 ? (rev - t.feeQAR) / t.amountUSDT : 0,
+      netQAR,
+      avgBuyQAR,
+      margin,
+      ppu: rev > 0 ? netQAR / t.amountUSDT : 0,
       slices: [],
     });
   }
