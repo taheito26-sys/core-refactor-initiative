@@ -1095,8 +1095,15 @@ export default function OrdersPage() {
   const outKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of creatorMerchantDeals) {
-      vol += deal.amount;
-      if (deal.realized_pnl != null) netVal += deal.realized_pnl;
+      const meta = parseDealMeta(deal.notes);
+      const qty = Number(meta.quantity) || 0;
+      const sell = Number(meta.sell_price) || 0;
+      const avgBuyVal = Number(meta.avg_buy) || 0;
+      const fee = Number(meta.fee) || 0;
+      const dealVol = qty * sell;
+      const dealCost = qty * avgBuyVal;
+      vol += dealVol;
+      netVal += dealVol - dealCost - fee;
     }
     return { count: creatorMerchantDeals.length, vol, net: netVal };
   }, [creatorMerchantDeals]);
@@ -1104,8 +1111,15 @@ export default function OrdersPage() {
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of partnerMerchantDeals) {
-      vol += deal.amount;
-      if (deal.realized_pnl != null) netVal += deal.realized_pnl;
+      const meta = parseDealMeta(deal.notes);
+      const qty = Number(meta.quantity) || 0;
+      const sell = Number(meta.sell_price) || 0;
+      const avgBuyVal = Number(meta.avg_buy) || 0;
+      const fee = Number(meta.fee) || 0;
+      const dealVol = qty * sell;
+      const dealCost = qty * avgBuyVal;
+      vol += dealVol;
+      netVal += dealVol - dealCost - fee;
     }
     return { count: partnerMerchantDeals.length, vol, net: netVal };
   }, [partnerMerchantDeals]);
@@ -1289,13 +1303,14 @@ export default function OrdersPage() {
                         const meta = parseDealMeta(deal.notes);
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
                         const dealSell = Number(meta.sell_price) || 0;
-                        const dealVol = dealQty * (dealSell || 1);
-                        const dealCost = Number(meta.fifo_cost) || 0;
-                        const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
+                        const dealAvgBuy = Number(meta.avg_buy) || 0;
+                        const dealFee = Number(meta.fee) || 0;
+                        const dealVol = dealQty * dealSell;
+                        const dealCost = dealQty * dealAvgBuy;
+                        const dealNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
-                        const avgBuy = dealQty > 0 && dealCost > 0 ? dealCost / dealQty : 0;
 
                         return (
                           <tr key={deal.id}>
@@ -1310,7 +1325,7 @@ export default function OrdersPage() {
                               </span>
                             </td>
                             <td className="mono r">{fmtU(dealQty)}</td>
-                            <td className="mono r">{avgBuy > 0 ? fmtP(avgBuy) : '—'}</td>
+                            <td className="mono r">{dealAvgBuy > 0 ? fmtP(dealAvgBuy) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
                             <td className="mono r" style={{ color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
@@ -1382,9 +1397,11 @@ export default function OrdersPage() {
                         const meta = parseDealMeta(deal.notes);
                         const dealQty = Number(meta.quantity) || deal.amount || 0;
                         const dealSell = Number(meta.sell_price) || 0;
-                        const dealVol = dealQty * (dealSell || 1);
-                        const dealCost = Number(meta.fifo_cost) || 0;
-                        const dealNet = dealSell > 0 ? dealVol - dealCost : 0;
+                        const dealAvgBuy = Number(meta.avg_buy) || 0;
+                        const dealFee = Number(meta.fee) || 0;
+                        const dealVol = dealQty * dealSell;
+                        const dealCost = dealQty * dealAvgBuy;
+                        const dealNet = dealSell > 0 ? dealVol - dealCost - dealFee : 0;
                         const dealMargin = dealVol > 0 ? dealNet / dealVol : 0;
                         const marginPct = Number.isFinite(dealMargin) ? Math.min(1, Math.abs(dealMargin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
@@ -1410,7 +1427,7 @@ export default function OrdersPage() {
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td>{customerName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{customerName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(dealQty)}</td>
-                            <td className="mono r">{dealQty > 0 && dealCost > 0 ? fmtP(dealCost / dealQty) : '—'}</td>
+                            <td className="mono r">{dealAvgBuy > 0 ? fmtP(dealAvgBuy) : '—'}</td>
                             <td className="mono r">{dealSell > 0 ? fmtP(dealSell) : '—'}</td>
                             <td className="mono r">{fmtQ(dealVol)}</td>
                             <td className="mono r" style={{ color: dealNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>

@@ -10,6 +10,8 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/features/auth/auth-context';
+import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -47,6 +49,69 @@ export default function DashboardPage() {
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
   const [showCashBox, setShowCashBox] = useState(false);
+  const { user, merchantProfile } = useAuth();
+  const userId = user?.id;
+
+  // Merchant deals KPIs
+  const { data: merchantDealKpis } = useQuery({
+    queryKey: ['dashboard-merchant-deals', userId],
+    queryFn: async () => {
+      if (!userId) return null;
+      const { data: deals } = await supabase
+        .from('merchant_deals')
+        .select('id, amount, status, created_by, notes, deal_type')
+        .order('created_at', { ascending: false });
+      if (!deals || deals.length === 0) return null;
+
+      const parseMeta = (notes: string | null) => {
+        if (!notes) return {} as Record<string, string>;
+        const map: Record<string, string> = {};
+        notes.split('|').forEach(seg => {
+          const idx = seg.indexOf(':');
+          if (idx > 0) map[seg.slice(0, idx).trim()] = seg.slice(idx + 1).trim();
+        });
+        return map;
+      };
+
+      let outCount = 0, outVol = 0, outNet = 0;
+      let inCount = 0, inVol = 0, inNet = 0;
+      let pendingCount = 0, approvedCount = 0;
+
+      for (const d of deals) {
+        const meta = parseMeta(d.notes);
+        const qty = Number(meta.quantity) || 0;
+        const sell = Number(meta.sell_price) || 0;
+        const avgBuy = Number(meta.avg_buy) || 0;
+        const fee = Number(meta.fee) || 0;
+        const vol = qty * sell;
+        const net = sell > 0 ? vol - (qty * avgBuy) - fee : 0;
+
+        if (d.status === 'pending') pendingCount++;
+        if (d.status === 'approved') approvedCount++;
+
+        if (d.created_by === userId) {
+          outCount++;
+          outVol += vol;
+          outNet += net;
+        } else {
+          inCount++;
+          inVol += vol;
+          inNet += net;
+        }
+      }
+
+      return {
+        totalDeals: deals.length,
+        outCount, outVol, outNet,
+        inCount, inVol, inNet,
+        pendingCount, approvedCount,
+        totalVol: outVol + inVol,
+        totalNet: outNet + inNet,
+      };
+    },
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
 
   const handleCashSave = useCallback((newCash: number, owner: string) => {
     applyState({ ...state, cashQAR: newCash, cashOwner: owner });
@@ -284,6 +349,46 @@ export default function DashboardPage() {
           <div className="kpi-sub">{t('avPrice')} {wacop ? fmtP(wacop) + ' QAR' : '—'}</div>
         </div>
       </div>
+
+      {/* Merchant Deals KPIs */}
+      {merchantDealKpis && merchantDealKpis.totalDeals > 0 && (
+        <div className="kpi-band-grid" style={{ marginTop: 0 }}>
+          <div className="kpi-band" style={{ borderLeft: '3px solid var(--brand)' }}>
+            <div className="kpi-band-title">🤝 {t('merchantDealsOverview')}</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">{t('outgoingDeals')}</div>
+                <div className="kpi-cell-val t1v">{merchantDealKpis.outCount}</div>
+                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.outVol)} {t('volume')}</div>
+              </div>
+              <div>
+                <div className="kpi-period">{t('incomingDeals')}</div>
+                <div className="kpi-cell-val t1v">{merchantDealKpis.inCount}</div>
+                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.inVol)} {t('volume')}</div>
+              </div>
+            </div>
+          </div>
+          <div className="kpi-band" style={{ borderLeft: '3px solid var(--good)' }}>
+            <div className="kpi-band-title">{t('dealNetPnl')}</div>
+            <div className="kpi-band-cols">
+              <div>
+                <div className="kpi-period">{t('totalDealVolume')}</div>
+                <div className="kpi-cell-val t1v">{fmtQWithUnit(merchantDealKpis.totalVol)}</div>
+                <div className="kpi-cell-sub">{merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
+              </div>
+              <div>
+                <div className="kpi-period">{t('net')} P&L</div>
+                <div className={`kpi-cell-val ${merchantDealKpis.totalNet >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalNet)}</div>
+                <div className="kpi-cell-sub">
+                  {merchantDealKpis.pendingCount > 0 && <span style={{ color: 'var(--warn)' }}>{merchantDealKpis.pendingCount} {t('pendingDeals')}</span>}
+                  {merchantDealKpis.pendingCount > 0 && merchantDealKpis.approvedCount > 0 && ' · '}
+                  {merchantDealKpis.approvedCount > 0 && <span style={{ color: 'var(--good)' }}>{merchantDealKpis.approvedCount} {t('approvedStatus')}</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom panels */}
       <div className="dash-bottom">
