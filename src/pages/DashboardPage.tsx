@@ -49,42 +49,73 @@ export default function DashboardPage() {
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
   const [showCashBox, setShowCashBox] = useState(false);
+  const [showDealsDrilldown, setShowDealsDrilldown] = useState(false);
   const { user, merchantProfile } = useAuth();
   const userId = user?.id;
 
   // Merchant deals KPIs
+  interface DealDetail {
+    id: string;
+    title: string;
+    merchantName: string;
+    net: number;
+    vol: number;
+    status: string;
+    direction: 'outgoing' | 'incoming';
+    dealType: string;
+  }
+
   const { data: merchantDealKpis } = useQuery({
     queryKey: ['dashboard-merchant-deals', userId],
     queryFn: async () => {
       if (!userId) return null;
       const { data: deals } = await supabase
         .from('merchant_deals')
-        .select('id, amount, status, created_by, notes, deal_type')
+        .select('id, amount, status, created_by, notes, deal_type, relationship_id, title')
         .order('created_at', { ascending: false });
       if (!deals || deals.length === 0) return null;
 
-      // Filter out cancelled and voided deals
       const activeDeals = deals.filter(d => d.status !== 'cancelled' && d.status !== 'voided');
       const dealIds = activeDeals.map(d => d.id);
 
-      // Fetch authoritative allocation data
+      // Fetch allocations
       const { data: allocations } = dealIds.length > 0
         ? await supabase
             .from('order_allocations')
-            .select('order_id, allocation_net, partner_amount, merchant_amount, allocation_revenue, partner_share_pct, merchant_share_pct')
+            .select('order_id, allocation_net, partner_amount, merchant_amount, allocation_revenue, partner_share_pct, merchant_share_pct, merchant_id')
             .in('order_id', dealIds)
         : { data: [] as any[] };
 
-      // Build allocation lookup by deal id
-      const allocMap = new Map<string, { partnerAmt: number; merchantAmt: number; net: number; rev: number }>();
+      const allocMap = new Map<string, { partnerAmt: number; merchantAmt: number; net: number; rev: number; perMerchant: Map<string, number> }>();
       for (const a of (allocations || [])) {
-        const existing = allocMap.get(a.order_id) || { partnerAmt: 0, merchantAmt: 0, net: 0, rev: 0 };
+        const existing = allocMap.get(a.order_id) || { partnerAmt: 0, merchantAmt: 0, net: 0, rev: 0, perMerchant: new Map() };
         existing.partnerAmt += Number(a.partner_amount) || 0;
         existing.merchantAmt += Number(a.merchant_amount) || 0;
         existing.net += Number(a.allocation_net) || 0;
         existing.rev += Number(a.allocation_revenue) || 0;
+        const mId = a.merchant_id || 'unknown';
+        existing.perMerchant.set(mId, (existing.perMerchant.get(mId) || 0) + (Number(a.allocation_net) || 0));
         allocMap.set(a.order_id, existing);
       }
+
+      // Fetch merchant profiles for names
+      const relIds = [...new Set(activeDeals.map(d => d.relationship_id))];
+      const { data: rels } = relIds.length > 0
+        ? await supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id').in('id', relIds)
+        : { data: [] as any[] };
+
+      const allMerchantIds = new Set<string>();
+      for (const r of (rels || [])) { allMerchantIds.add(r.merchant_a_id); allMerchantIds.add(r.merchant_b_id); }
+
+      const { data: profiles } = allMerchantIds.size > 0
+        ? await supabase.from('merchant_profiles').select('merchant_id, display_name, user_id').in('merchant_id', [...allMerchantIds])
+        : { data: [] as any[] };
+
+      const profileMap = new Map<string, { name: string; userId: string }>();
+      for (const p of (profiles || [])) profileMap.set(p.merchant_id, { name: p.display_name, userId: p.user_id });
+
+      const relMap = new Map<string, { merchant_a_id: string; merchant_b_id: string }>();
+      for (const r of (rels || [])) relMap.set(r.id, r);
 
       const parseMeta = (notes: string | null) => {
         if (!notes) return {} as Record<string, string>;
@@ -99,13 +130,13 @@ export default function DashboardPage() {
       let outCount = 0, outVol = 0, outNet = 0;
       let inCount = 0, inVol = 0, inNet = 0;
       let pendingCount = 0, approvedCount = 0;
+      const dealDetails: DealDetail[] = [];
 
       for (const d of activeDeals) {
         const alloc = allocMap.get(d.id);
         const meta = parseMeta(d.notes);
         const vol = alloc ? alloc.rev : Number(d.amount) || 0;
 
-        // Use full deal net as source of truth for the dashboard KPI; fall back to notes-based calc
         let dealNet = 0;
         if (alloc) {
           dealNet = alloc.net;
@@ -120,15 +151,34 @@ export default function DashboardPage() {
         if (d.status === 'pending') pendingCount++;
         if (d.status === 'approved') approvedCount++;
 
-        if (d.created_by === userId) {
-          outCount++;
-          outVol += vol;
-          outNet += dealNet;
-        } else {
-          inCount++;
-          inVol += vol;
-          inNet += dealNet;
+        // Find counterparty name
+        const rel = relMap.get(d.relationship_id);
+        let merchantName = 'Unknown';
+        if (rel) {
+          const myProfile = [...profileMap.values()].find(p => p.userId === userId);
+          const myMerchantId = myProfile ? [...profileMap.entries()].find(([, v]) => v.userId === userId)?.[0] : null;
+          const counterId = myMerchantId === rel.merchant_a_id ? rel.merchant_b_id : rel.merchant_a_id;
+          merchantName = profileMap.get(counterId)?.name || 'Unknown';
         }
+
+        const direction = d.created_by === userId ? 'outgoing' as const : 'incoming' as const;
+
+        if (direction === 'outgoing') {
+          outCount++; outVol += vol; outNet += dealNet;
+        } else {
+          inCount++; inVol += vol; inNet += dealNet;
+        }
+
+        dealDetails.push({
+          id: d.id,
+          title: d.title,
+          merchantName,
+          net: Math.round(dealNet * 100) / 100,
+          vol: Math.round(vol * 100) / 100,
+          status: d.status,
+          direction,
+          dealType: d.deal_type,
+        });
       }
 
       return {
@@ -138,6 +188,7 @@ export default function DashboardPage() {
         pendingCount, approvedCount,
         totalVol: outVol + inVol,
         totalNet: outNet + inNet,
+        dealDetails,
       };
     },
     enabled: !!userId,
@@ -387,9 +438,10 @@ export default function DashboardPage() {
 
       {/* Merchant Deals KPIs */}
       {merchantDealKpis && merchantDealKpis.totalDeals > 0 && (
-        <div className="kpi-band-grid" style={{ marginTop: 0 }}>
+        <>
+        <div className="kpi-band-grid" style={{ marginTop: 0, cursor: 'pointer' }} onClick={() => setShowDealsDrilldown(v => !v)}>
           <div className="kpi-band" style={{ borderLeft: '3px solid var(--brand)' }}>
-            <div className="kpi-band-title">🤝 {t('merchantDealsOverview')}</div>
+            <div className="kpi-band-title">🤝 {t('merchantDealsOverview')} <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{showDealsDrilldown ? '▲ collapse' : '▼ details'}</span></div>
             <div className="kpi-band-cols">
               <div>
                 <div className="kpi-period">{t('outgoingDeals')}</div>
@@ -423,6 +475,140 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Drill-down panel */}
+        {showDealsDrilldown && merchantDealKpis.dealDetails && (
+          <div className="panel" style={{ marginTop: 0 }}>
+            <div className="panel-body" style={{ padding: 0 }}>
+              {/* Outgoing Deals */}
+              {(() => {
+                const outDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing');
+                const outTotal = outDeals.reduce((s, d) => s + d.net, 0);
+                return outDeals.length > 0 ? (
+                  <div style={{ borderBottom: '1px solid var(--line)' }}>
+                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'color-mix(in srgb, var(--brand) 6%, transparent)' }}>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📤 {t('outgoingDeals')} ({outDeals.length})</span>
+                      <span className={`mono ${outTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
+                        Total Net: {outTotal >= 0 ? '+' : ''}{fmtQWithUnit(outTotal)}
+                      </span>
+                    </div>
+                    <div style={{ overflow: 'auto' }}>
+                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--panel2)' }}>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Deal</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Net P&L</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outDeals.map(d => (
+                            <tr key={d.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                              <td style={{ padding: '6px 10px', fontWeight: 500 }}>{d.title}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--brand)' }}>{d.merchantName}</td>
+                              <td style={{ padding: '6px 10px' }}>
+                                <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.net >= 0 ? 'good' : 'bad'}`}>
+                                {d.net >= 0 ? '+' : ''}{fmtQWithUnit(d.net)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Incoming Deals */}
+              {(() => {
+                const inDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming');
+                const inTotal = inDeals.reduce((s, d) => s + d.net, 0);
+                return inDeals.length > 0 ? (
+                  <div>
+                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'color-mix(in srgb, var(--good) 6%, transparent)' }}>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📥 {t('incomingDeals')} ({inDeals.length})</span>
+                      <span className={`mono ${inTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
+                        Total Net: {inTotal >= 0 ? '+' : ''}{fmtQWithUnit(inTotal)}
+                      </span>
+                    </div>
+                    <div style={{ overflow: 'auto' }}>
+                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--panel2)' }}>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Deal</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
+                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
+                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Net P&L</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {inDeals.map(d => (
+                            <tr key={d.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                              <td style={{ padding: '6px 10px', fontWeight: 500 }}>{d.title}</td>
+                              <td style={{ padding: '6px 10px', color: 'var(--brand)' }}>{d.merchantName}</td>
+                              <td style={{ padding: '6px 10px' }}>
+                                <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
+                              </td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
+                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.net >= 0 ? 'good' : 'bad'}`}>
+                                {d.net >= 0 ? '+' : ''}{fmtQWithUnit(d.net)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Per-merchant summary */}
+              {(() => {
+                const byMerchant = new Map<string, { net: number; count: number }>();
+                for (const d of merchantDealKpis.dealDetails) {
+                  const existing = byMerchant.get(d.merchantName) || { net: 0, count: 0 };
+                  existing.net += d.net;
+                  existing.count += 1;
+                  byMerchant.set(d.merchantName, existing);
+                }
+                const sorted = [...byMerchant.entries()].sort((a, b) => b[1].net - a[1].net);
+                return sorted.length > 0 ? (
+                  <div style={{ borderTop: '1px solid var(--line)', padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>📊 Per-Merchant Net Summary</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {sorted.map(([name, data]) => (
+                        <div key={name} style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          background: 'var(--panel2)',
+                          border: '1px solid var(--line)',
+                          fontSize: 11,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          minWidth: 100,
+                        }}>
+                          <span style={{ fontWeight: 600, color: 'var(--brand)', marginBottom: 2 }}>{name}</span>
+                          <span className={`mono ${data.net >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 13 }}>
+                            {data.net >= 0 ? '+' : ''}{fmtQWithUnit(data.net)}
+                          </span>
+                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>{data.count} deal{data.count !== 1 ? 's' : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* Bottom panels */}
