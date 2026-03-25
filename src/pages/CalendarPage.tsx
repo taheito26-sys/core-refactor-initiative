@@ -194,7 +194,10 @@ export default function CalendarPage() {
               <tbody>
                 {selData.tradeList.map((tr: any) => (
                   <tr key={tr.id}>
-                    <td className="mono">{new Date(tr.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className="mono">
+                      {tr.isLinked && <span title="Partner deal" style={{ marginRight: 3 }}>🤝</span>}
+                      {new Date(tr.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
                     <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                     <td className="mono r" style={{ color: 'var(--bad)' }}>{fmtP(tr.avgBuy)}</td>
                     <td className="mono r" style={{ color: 'var(--good)' }}>{fmtP(tr.sellPriceQAR)}</td>
