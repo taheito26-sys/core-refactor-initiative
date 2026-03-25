@@ -272,9 +272,9 @@ export default function OrdersPage() {
     () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled'),
     [allMerchantDeals, userId],
   );
-  // Outgoing: deals I created (server-authoritative, exclude cancelled)
+  // Outgoing: deals I created (server-authoritative, exclude cancelled and rejected)
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled'),
+    () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled' && d.status !== 'rejected'),
     [allMerchantDeals, userId],
   );
 
