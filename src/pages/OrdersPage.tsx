@@ -525,7 +525,7 @@ export default function OrdersPage() {
     const isNewAllocFlowActive = isNewAllocFlow && allocations.length > 0;
 
     const baseTrade: Trade = {
-      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
