@@ -17,6 +17,7 @@ import {
   useNotifications,
   useMarkNotificationRead,
   useMarkAllRead,
+  useMarkCategoryRead,
   notificationRoute,
   type Notification,
 } from '@/hooks/useNotifications';

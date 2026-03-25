@@ -438,6 +438,30 @@ export default function CRMPage() {
           </div>
         </CRMModal>
       )}
+
+      {/* ── Add Supplier Modal ── */}
+      {showAddSuppModal && (
+        <CRMModal
+          title="Add Supplier"
+          onClose={() => setShowAddSuppModal(false)}
+          onSave={saveNewSupplier}
+          error={newSuppError}
+        >
+          <FormField label="Supplier Name *">
+            <input
+              className="inputBox"
+              style={{ padding: '6px 10px', width: '100%' }}
+              placeholder="e.g. Al-Fardan Exchange"
+              value={newSuppName}
+              autoFocus
+              onChange={e => setNewSuppName(e.target.value)}
+            />
+          </FormField>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+            The supplier will appear in your list. You can attach batches to them later from the Stock page.
+          </div>
+        </CRMModal>
+      )}
     </div>
   );
 }
