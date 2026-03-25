@@ -135,7 +135,13 @@ export default function OrdersPage() {
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
 
-  // ─── Merchant Deal Edit (for incoming/outgoing API deals) ─────────
+  // Sync saleAmount into first allocation's allocatedUsdt for sales_deal 50/50
+  useEffect(() => {
+    if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+    }
+  }, [saleAmount]);
+
   const [editingDealId, setEditingDealId] = useState<string | null>(null);
   const [editDealTitle, setEditDealTitle] = useState('');
   const [editDealAmount, setEditDealAmount] = useState('');
