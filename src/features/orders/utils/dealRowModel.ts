@@ -73,6 +73,7 @@ export function buildDealRowModel({
     Number(mergedMeta.avgBuy) ||
     Number(mergedMeta.merchant_cost) ||
     Number(mergedMeta.merchantCost) ||
+    ((Number(mergedMeta.fifo_cost) > 0 && quantity > 0) ? Number(mergedMeta.fifo_cost) / quantity : 0) ||
     0;
   const avgBuy = Math.max(0, resolvedAvg > 0 ? resolvedAvg : mergedAvg);
   const hasAvgBuy = avgBuy > 0;

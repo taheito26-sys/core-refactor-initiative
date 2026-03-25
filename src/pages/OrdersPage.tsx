@@ -569,6 +569,15 @@ export default function OrdersPage() {
             status: 'pending',
             created_by: userId!,
             notes: noteLines,
+            metadata: {
+              quantity: usdt,
+              sell_price: sell,
+              avg_buy: avgBuy,
+              fee,
+              merchant_cost: costPerUsdt,
+              partner_ratio: alloc.partnerSharePct,
+              merchant_ratio: alloc.merchantSharePct,
+            },
           }).select('id').single();
 
           if (dealError) throw dealError;
@@ -687,6 +696,14 @@ export default function OrdersPage() {
           status: 'pending',
           created_by: userId!,
           notes: noteLines,
+          metadata: {
+            quantity: baseTrade.amountUSDT,
+            sell_price: sell,
+            avg_buy: avgBuy,
+            fee,
+            partner_ratio: tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? null,
+            merchant_ratio: tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio ?? null,
+          },
         }).select('id').single();
 
         if (error) throw error;
@@ -870,6 +887,14 @@ export default function OrdersPage() {
           status: 'pending',
           created_by: userId!,
           notes: noteLines,
+          metadata: {
+            quantity: qty,
+            sell_price: sell,
+            avg_buy: avgBuy,
+            fee,
+            partner_ratio: tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? null,
+            merchant_ratio: tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio ?? null,
+          },
         }).select('id').single();
 
         if (dealError) throw dealError;
