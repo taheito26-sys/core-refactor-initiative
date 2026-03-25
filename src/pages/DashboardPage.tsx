@@ -63,6 +63,9 @@ export default function DashboardPage() {
         .order('created_at', { ascending: false });
       if (!deals || deals.length === 0) return null;
 
+      // Filter out cancelled and voided deals
+      const activeDeals = deals.filter(d => d.status !== 'cancelled' && d.status !== 'voided');
+
       const parseMeta = (notes: string | null) => {
         if (!notes) return {} as Record<string, string>;
         const map: Record<string, string> = {};
