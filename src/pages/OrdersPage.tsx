@@ -1739,7 +1739,7 @@ export default function OrdersPage() {
                                     </div>
                                   </div>
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocMerchantCost')}</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
                                         type="text" placeholder="3.65"
