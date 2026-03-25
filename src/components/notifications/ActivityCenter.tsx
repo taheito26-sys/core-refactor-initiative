@@ -218,6 +218,7 @@ export default function ActivityCenter() {
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllRead();
+  const markCategoryRead = useMarkCategoryRead();
 
   const filtered = useMemo(() => {
     if (!notifications) return [];
