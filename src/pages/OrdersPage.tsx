@@ -2121,6 +2121,68 @@ export default function OrdersPage() {
                 </div>
                 )}
 
+                {/* Cash Deposit Option */}
+                {salePreview && salePreview.revenue > 0 && (
+                  <div style={{
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    background: 'color-mix(in srgb, var(--good) 6%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
+                    marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>💰 Add sale proceeds to cash?</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(['none', 'full', 'partial'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => {
+                            setCashDepositMode(mode);
+                            if (mode === 'full') setCashDepositAmount(String(Math.round(salePreview.revenue * 100) / 100));
+                            if (mode === 'none') setCashDepositAmount('');
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            border: cashDepositMode === mode
+                              ? '1.5px solid var(--good)'
+                              : '1px solid var(--line)',
+                            background: cashDepositMode === mode
+                              ? 'color-mix(in srgb, var(--good) 15%, transparent)'
+                              : 'var(--panel2)',
+                            color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
+                          }}
+                        >
+                          {mode === 'none' ? "Don't add" : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : 'Custom amount'}
+                        </button>
+                      ))}
+                    </div>
+                    {cashDepositMode === 'partial' && (
+                      <div style={{ marginTop: 6 }}>
+                        <div className="inputBox" style={{ maxWidth: 180 }}>
+                          <input
+                            inputMode="decimal"
+                            placeholder="Amount in QAR"
+                            value={cashDepositAmount}
+                            onChange={numericOnly(setCashDepositAmount)}
+                            style={{ fontSize: 11 }}
+                          />
+                        </div>
+                        {parseFloat(cashDepositAmount) > salePreview.revenue && (
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>Amount exceeds sale revenue</div>
+                        )}
+                      </div>
+                    )}
+                    {cashDepositMode !== 'none' && (
+                      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
+                        Cash balance: {fmtQ(num(state.cashQAR, 0))} → {fmtQ(num(state.cashQAR, 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
 
