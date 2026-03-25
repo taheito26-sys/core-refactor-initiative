@@ -81,6 +81,8 @@ export default function OrdersPage() {
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
+  const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
+  const [cashDepositAmount, setCashDepositAmount] = useState('');
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -415,6 +417,33 @@ export default function OrdersPage() {
     setNewBuyerName(''); setNewBuyerPhone(''); setNewBuyerTier('C');
   };
 
+  // Helper: apply cash deposit to state if enabled
+  const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
+    if (cashDepositMode === 'none') return nextState;
+    const revenue = amountUSDT * sell;
+    const depositAmt = cashDepositMode === 'full'
+      ? revenue
+      : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
+    if (depositAmt <= 0) return nextState;
+    const currentCash = nextState.cashQAR || 0;
+    const newCash = currentCash + depositAmt;
+    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+      id: uid(),
+      ts: Date.now(),
+      type: 'sale_deposit' as any,
+      amount: depositAmt,
+      balanceAfter: newCash,
+      owner: nextState.cashOwner || '',
+      bankAccount: '',
+      note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+    };
+    return {
+      ...nextState,
+      cashQAR: newCash,
+      cashHistory: [...(nextState.cashHistory || []), cashTx],
+    };
+  };
+
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
   const addTrade = async () => {
     // Capital transfers are handled separately via handleCapitalTransfer
@@ -582,7 +611,7 @@ export default function OrdersPage() {
           trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
-        applyState(next);
+        applyState(applyCashDeposit(next, sell, amountUSDT));
         await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
 
@@ -698,7 +727,7 @@ export default function OrdersPage() {
           trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
-        applyState(next);
+        applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
 
         await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
@@ -713,7 +742,7 @@ export default function OrdersPage() {
         trades: [...state.trades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
       };
-      applyState(next);
+      applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
       setSaleMessage(t('tradeLogged'));
     }
 
@@ -723,6 +752,8 @@ export default function OrdersPage() {
     setLinkedRelId('');
     setSelectedTemplateId(null);
     setAllocations([]);
+    setCashDepositMode('none');
+    setCashDepositAmount('');
   };
 
   const exportCsv = () => {
@@ -2117,6 +2148,68 @@ export default function OrdersPage() {
                     </>
                   )}
                 </div>
+                )}
+
+                {/* Cash Deposit Option */}
+                {salePreview && salePreview.revenue > 0 && (
+                  <div style={{
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    background: 'color-mix(in srgb, var(--good) 6%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
+                    marginBottom: 6,
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>💰 Add sale proceeds to cash?</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(['none', 'full', 'partial'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => {
+                            setCashDepositMode(mode);
+                            if (mode === 'full') setCashDepositAmount(String(Math.round(salePreview.revenue * 100) / 100));
+                            if (mode === 'none') setCashDepositAmount('');
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            border: cashDepositMode === mode
+                              ? '1.5px solid var(--good)'
+                              : '1px solid var(--line)',
+                            background: cashDepositMode === mode
+                              ? 'color-mix(in srgb, var(--good) 15%, transparent)'
+                              : 'var(--panel2)',
+                            color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
+                          }}
+                        >
+                          {mode === 'none' ? "Don't add" : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : 'Custom amount'}
+                        </button>
+                      ))}
+                    </div>
+                    {cashDepositMode === 'partial' && (
+                      <div style={{ marginTop: 6 }}>
+                        <div className="inputBox" style={{ maxWidth: 180 }}>
+                          <input
+                            inputMode="decimal"
+                            placeholder="Amount in QAR"
+                            value={cashDepositAmount}
+                            onChange={numericOnly(setCashDepositAmount)}
+                            style={{ fontSize: 11 }}
+                          />
+                        </div>
+                        {parseFloat(cashDepositAmount) > salePreview.revenue && (
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>Amount exceeds sale revenue</div>
+                        )}
+                      </div>
+                    )}
+                    {cashDepositMode !== 'none' && (
+                      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
+                        Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
