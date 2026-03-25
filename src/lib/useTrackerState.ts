@@ -5,6 +5,7 @@ import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-
 import { saveTrackerState, loadTrackerStateFromCloud } from './tracker-sync';
 import { getCurrentTrackerState } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
+import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 
 interface UseTrackerOptions {
   lowStockThreshold?: number;
