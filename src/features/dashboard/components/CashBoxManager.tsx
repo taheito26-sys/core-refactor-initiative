@@ -79,21 +79,23 @@ export function CashBoxManager({ currentCash, currentOwner, cashHistory, onSave,
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 4 }}>✕</button>
         </div>
 
-        {/* Current balance */}
+        {/* Current balance — styled as a non-interactive banner */}
         <div style={{
-          background: 'var(--cardBg)', border: '1px solid var(--line)', borderRadius: 8, padding: '12px 16px',
-          marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: 'linear-gradient(135deg, color-mix(in srgb, var(--good) 12%, transparent), color-mix(in srgb, var(--good) 5%, transparent))',
+          border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)',
+          borderRadius: 8, padding: '14px 18px', marginBottom: 14,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, marginBottom: 2 }}>Current Balance</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--good)', fontFamily: 'var(--mono, monospace)' }}>
-              {fmtTotal(currentCash)} QAR
+            <div style={{ fontSize: 10, color: 'var(--good)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>💰 Available Balance</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--good)', fontFamily: 'var(--mono, monospace)', lineHeight: 1 }}>
+              {fmtTotal(currentCash)} <span style={{ fontSize: 13, fontWeight: 600 }}>QAR</span>
             </div>
           </div>
           {currentOwner && (
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Owner</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{currentOwner}</div>
+            <div style={{ textAlign: 'right', padding: '6px 12px', background: 'color-mix(in srgb, var(--good) 8%, transparent)', borderRadius: 6 }}>
+              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Owner</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{currentOwner}</div>
             </div>
           )}
         </div>
