@@ -19,7 +19,14 @@ import {
 } from 'recharts';
 import '@/styles/tracker.css';
 
-export default function DashboardPage() {
+interface DashboardPageProps {
+  adminUserId?: string;
+  adminMerchantId?: string;
+  adminTrackerState?: any;
+  isAdminView?: boolean;
+}
+
+export default function DashboardPage({ adminUserId, adminMerchantId, adminTrackerState, isAdminView }: DashboardPageProps = {}) {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
@@ -28,6 +35,7 @@ export default function DashboardPage() {
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
     currency: settings.currency,
+    preloadedState: adminTrackerState || undefined,
   });
 
   const d1 = kpiFor(state, derived, 'today');
@@ -59,7 +67,7 @@ export default function DashboardPage() {
   const [showCashBox, setShowCashBox] = useState(false);
   const [showDealsDrilldown, setShowDealsDrilldown] = useState(false);
   const { user, merchantProfile } = useAuth();
-  const userId = user?.id;
+  const userId = adminUserId || user?.id;
 
   // Merchant deals KPIs
   interface DealDetail {
@@ -246,7 +254,6 @@ export default function DashboardPage() {
       };
     },
     enabled: !!userId,
-    staleTime: 30_000,
   });
 
   const handleCashSave = useCallback((newCash: number, owner: string, history?: import('@/lib/tracker-helpers').CashTransaction[]) => {
@@ -445,7 +452,7 @@ export default function DashboardPage() {
           <div className="kpi-lbl">{t('cashAvailable')}</div>
           <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(num(state.cashQAR, 0))}</div>
           <div className="kpi-sub" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }} onClick={() => setShowCashBox(true)}>{t('manageCash')}</button>
+            {!isAdminView && <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }} onClick={() => setShowCashBox(true)}>{t('manageCash')}</button>}
             <span className="muted" style={{ fontSize: 10 }}>{state.cashOwner ? `${t('owner')}: ${state.cashOwner}` : `${t('owner')}: —`}</span>
           </div>
         </div>
@@ -775,7 +782,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {showCashBox && (
+      {showCashBox && !isAdminView && (
         <CashBoxManager
           currentCash={num(state.cashQAR, 0)}
           currentOwner={state.cashOwner || ''}

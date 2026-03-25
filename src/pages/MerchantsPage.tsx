@@ -29,9 +29,22 @@ interface AgreementRow {
   settlement_cadence?: string;
 }
 
-export default function MerchantsPage() {
+interface MerchantsPageProps {
+  adminUserId?: string;
+  adminMerchantId?: string;
+  isAdminView?: boolean;
+}
+
+export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminView }: MerchantsPageProps = {}) {
   const { settings } = useTheme();
-  const { userId, merchantProfile } = useAuth();
+  const { userId: authUserId, merchantProfile: authMerchantProfile } = useAuth();
+  const effectiveUserId = adminUserId || authUserId;
+  const effectiveMerchantProfile = adminMerchantId
+    ? { ...authMerchantProfile, merchant_id: adminMerchantId } as typeof authMerchantProfile
+    : authMerchantProfile;
+  // Alias for rest of file
+  const userId = effectiveUserId;
+  const merchantProfile = effectiveMerchantProfile;
   const t = useT();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

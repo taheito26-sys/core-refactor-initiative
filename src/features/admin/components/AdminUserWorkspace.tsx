@@ -16,6 +16,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AdminOrdersMirror } from './AdminOrdersMirror';
 import { AdminStockMirror } from './AdminStockMirror';
+import DashboardPage from '@/pages/DashboardPage';
+import MerchantsPage from '@/pages/MerchantsPage';
 import { fmtTotal } from '@/lib/tracker-helpers';
 import {
   useAdminUserDeals,
@@ -209,8 +211,10 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         <p className="text-sm text-muted-foreground">No merchant profile found.</p>
       )}
 
-      <Tabs defaultValue="orders" className="w-full">
+      <Tabs defaultValue="dashboard" className="w-full">
         <TabsList className="w-full justify-start flex-wrap h-auto gap-1">
+          <TabsTrigger value="dashboard" className="text-xs">Dashboard</TabsTrigger>
+          <TabsTrigger value="merchants" className="text-xs">Merchants</TabsTrigger>
           <TabsTrigger value="orders" className="text-xs">Orders</TabsTrigger>
           <TabsTrigger value="stock" className="text-xs">Stock</TabsTrigger>
           <TabsTrigger value="deals" className="text-xs">Deals ({deals?.length ?? 0})</TabsTrigger>
@@ -218,6 +222,23 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           <TabsTrigger value="profits" className="text-xs">Profits ({profits?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="tracker" className="text-xs">Tracker ({batches.length}B / {trades.length}T)</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="dashboard" className="mt-3">
+          <DashboardPage
+            adminUserId={userId}
+            adminMerchantId={profile?.merchant_id ?? undefined}
+            adminTrackerState={trackerState ?? undefined}
+            isAdminView
+          />
+        </TabsContent>
+
+        <TabsContent value="merchants" className="mt-3">
+          <MerchantsPage
+            adminUserId={userId}
+            adminMerchantId={profile?.merchant_id ?? undefined}
+            isAdminView
+          />
+        </TabsContent>
 
         <TabsContent value="orders" className="mt-3">
           <AdminOrdersMirror userId={userId} merchantId={profile?.merchant_id ?? null} trackerState={trackerState ?? null} />

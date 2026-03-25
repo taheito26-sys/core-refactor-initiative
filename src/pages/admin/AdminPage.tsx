@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
-import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell, BarChart3, Store } from 'lucide-react';
+import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
@@ -9,8 +9,6 @@ import { AdminUserWorkspace } from '@/features/admin/components/AdminUserWorkspa
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
 import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
 import AdminApprovalsPage from './AdminApprovalsPage';
-import DashboardPage from '@/pages/DashboardPage';
-import MerchantsPage from '@/pages/MerchantsPage';
 
 export default function AdminPage() {
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
@@ -60,12 +58,6 @@ export default function AdminPage() {
           <TabsTrigger value="overview" className="text-xs gap-1">
             <LayoutDashboard className="h-3.5 w-3.5" /> Overview
           </TabsTrigger>
-          <TabsTrigger value="dashboard" className="text-xs gap-1">
-            <BarChart3 className="h-3.5 w-3.5" /> Dashboard
-          </TabsTrigger>
-          <TabsTrigger value="merchants" className="text-xs gap-1">
-            <Store className="h-3.5 w-3.5" /> Merchants
-          </TabsTrigger>
           <TabsTrigger value="users" className="text-xs gap-1">
             <Users className="h-3.5 w-3.5" /> Users
           </TabsTrigger>
@@ -82,14 +74,6 @@ export default function AdminPage() {
 
         <TabsContent value="overview" className="mt-4">
           <AdminDashboard />
-        </TabsContent>
-
-        <TabsContent value="dashboard" className="mt-4">
-          <DashboardPage />
-        </TabsContent>
-
-        <TabsContent value="merchants" className="mt-4">
-          <MerchantsPage />
         </TabsContent>
 
         <TabsContent value="users" className="mt-4">
