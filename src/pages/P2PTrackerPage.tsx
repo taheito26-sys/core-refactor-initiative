@@ -142,7 +142,7 @@ function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
 }
 
 // ── Markets ──
-type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey';
+type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey' | 'oman' | 'georgia' | 'uzbekistan';
 
 const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[] = [
   { id: 'qatar', label: 'Qatar', currency: 'QAR', pair: 'USDT/QAR' },
@@ -151,6 +151,9 @@ const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[]
   { id: 'ksa', label: 'KSA', currency: 'SAR', pair: 'USDT/SAR' },
   { id: 'syria', label: 'Syria', currency: 'SYP', pair: 'USDT/SYP' },
   { id: 'turkey', label: 'Turkey', currency: 'TRY', pair: 'USDT/TRY' },
+  { id: 'oman', label: 'Oman', currency: 'OMR', pair: 'USDT/OMR' },
+  { id: 'georgia', label: 'Georgia', currency: 'GEL', pair: 'USDT/GEL' },
+  { id: 'uzbekistan', label: 'Uzbekistan', currency: 'UZS', pair: 'USDT/UZS' },
 ];
 
 const EMPTY_SNAPSHOT: P2PSnapshot = {
@@ -204,6 +207,7 @@ export default function P2PTrackerPage() {
   const [nextRefreshIn, setNextRefreshIn] = useState(300);
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
+  const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
@@ -338,7 +342,7 @@ export default function P2PTrackerPage() {
 
 
   const priceBarData = useMemo(() => {
-    if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
+    if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellValues: [], buyValues: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
     const sellPts = last24hHistory.filter(p => p.sellAvg != null).map(p => p.sellAvg!);
     const buyPts = last24hHistory.filter(p => p.buyAvg != null).map(p => p.buyAvg!);
     const sellLatest = sellPts.length ? sellPts[sellPts.length - 1] : 0;
@@ -368,9 +372,14 @@ export default function P2PTrackerPage() {
       return vals.map(v => Math.max(5, ((v - min) / range) * 100));
     };
 
+    const sellValues = makeBarArray(sellPts);
+    const buyValues = makeBarArray(buyPts);
+
     return {
-      sellBars: normalize(makeBarArray(sellPts), sellMin, sellMax),
-      buyBars: normalize(makeBarArray(buyPts), buyMin, buyMax),
+      sellBars: normalize(sellValues, sellMin, sellMax),
+      buyBars: normalize(buyValues, buyMin, buyMax),
+      sellValues,
+      buyValues,
       sellLatest,
       buyLatest,
       sellChange,
@@ -500,19 +509,59 @@ export default function P2PTrackerPage() {
               <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
               <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? fmtPrice(priceBarData.sellLatest) : '—'}</span>
             </div>
-            <div className="flex items-end gap-1 h-5">
+            <div className="flex items-end gap-1 h-5 relative">
               {priceBarData.sellBars.map((pct, i) => (
-                <div key={`sell-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px`, background: 'color-mix(in srgb, var(--good) 82%, transparent)' }} />
+                <div
+                  key={`sell-${i}`}
+                  className="flex-1 rounded-sm cursor-pointer transition-all duration-100"
+                  style={{
+                    height: `${Math.max(2, pct * 0.22)}px`,
+                    background: hoveredBar?.type === 'sell' && hoveredBar.index === i
+                      ? 'color-mix(in srgb, var(--good) 100%, transparent)'
+                      : 'color-mix(in srgb, var(--good) 82%, transparent)',
+                    transform: hoveredBar?.type === 'sell' && hoveredBar.index === i ? 'scaleY(1.3)' : 'scaleY(1)',
+                    transformOrigin: 'bottom',
+                  }}
+                  onMouseEnter={() => setHoveredBar({ type: 'sell', index: i })}
+                  onMouseLeave={() => setHoveredBar(null)}
+                  title={priceBarData.sellValues[i] ? fmtPrice(priceBarData.sellValues[i]) : undefined}
+                />
               ))}
+              {hoveredBar?.type === 'sell' && priceBarData.sellValues[hoveredBar.index] != null && (
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-[var(--good)] text-black text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10"
+                  style={{ left: `${((hoveredBar.index + 0.5) / priceBarData.sellBars.length) * 100}%` }}>
+                  {fmtPrice(priceBarData.sellValues[hoveredBar.index])}
+                </div>
+              )}
             </div>
             <div className="flex items-start justify-between gap-2">
               <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
               <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? fmtPrice(priceBarData.buyLatest) : '—'}</span>
             </div>
-            <div className="flex items-end gap-1 h-5">
+            <div className="flex items-end gap-1 h-5 relative">
               {priceBarData.buyBars.map((pct, i) => (
-                <div key={`buy-${i}`} className="flex-1 rounded-sm" style={{ height: `${Math.max(2, pct * 0.22)}px`, background: 'color-mix(in srgb, var(--bad) 82%, transparent)' }} />
+                <div
+                  key={`buy-${i}`}
+                  className="flex-1 rounded-sm cursor-pointer transition-all duration-100"
+                  style={{
+                    height: `${Math.max(2, pct * 0.22)}px`,
+                    background: hoveredBar?.type === 'buy' && hoveredBar.index === i
+                      ? 'color-mix(in srgb, var(--bad) 100%, transparent)'
+                      : 'color-mix(in srgb, var(--bad) 82%, transparent)',
+                    transform: hoveredBar?.type === 'buy' && hoveredBar.index === i ? 'scaleY(1.3)' : 'scaleY(1)',
+                    transformOrigin: 'bottom',
+                  }}
+                  onMouseEnter={() => setHoveredBar({ type: 'buy', index: i })}
+                  onMouseLeave={() => setHoveredBar(null)}
+                  title={priceBarData.buyValues[i] ? fmtPrice(priceBarData.buyValues[i]) : undefined}
+                />
               ))}
+              {hoveredBar?.type === 'buy' && priceBarData.buyValues[hoveredBar.index] != null && (
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-[var(--bad)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10"
+                  style={{ left: `${((hoveredBar.index + 0.5) / priceBarData.buyBars.length) * 100}%` }}>
+                  {fmtPrice(priceBarData.buyValues[hoveredBar.index])}
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <span className="pill" style={{ fontSize: 9 }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.sellChange)}</span>
