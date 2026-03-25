@@ -727,7 +727,7 @@ export default function OrdersPage() {
           trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
-        applyState(next);
+        applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
 
         await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
