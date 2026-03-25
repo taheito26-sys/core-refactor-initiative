@@ -142,18 +142,16 @@ function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
 }
 
 // ── Markets ──
-type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'syria' | 'turkey' | 'oman' | 'georgia' | 'uzbekistan' | 'kazakhstan';
+type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'turkey' | 'oman' | 'georgia' | 'kazakhstan';
 
 const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[] = [
   { id: 'qatar', label: 'Qatar', currency: 'QAR', pair: 'USDT/QAR' },
   { id: 'uae', label: 'UAE', currency: 'AED', pair: 'USDT/AED' },
   { id: 'egypt', label: 'Egypt', currency: 'EGP', pair: 'USDT/EGP' },
   { id: 'ksa', label: 'KSA', currency: 'SAR', pair: 'USDT/SAR' },
-  { id: 'syria', label: 'Syria', currency: 'SYP', pair: 'USDT/SYP' },
   { id: 'turkey', label: 'Turkey', currency: 'TRY', pair: 'USDT/TRY' },
   { id: 'oman', label: 'Oman', currency: 'OMR', pair: 'USDT/OMR' },
   { id: 'georgia', label: 'Georgia', currency: 'GEL', pair: 'USDT/GEL' },
-  { id: 'uzbekistan', label: 'Uzbekistan', currency: 'UZS', pair: 'USDT/UZS' },
   { id: 'kazakhstan', label: 'Kazakhstan', currency: 'KZT', pair: 'USDT/KZT' },
 ];
 

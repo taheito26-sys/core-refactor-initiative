@@ -33,11 +33,10 @@ const MARKETS: MarketConfig[] = [
   { id: "uae", fiat: "AED", asset: "USDT" },
   { id: "egypt", fiat: "EGP", asset: "USDT" },
   { id: "ksa", fiat: "SAR", asset: "USDT" },
-  { id: "syria", fiat: "SYP", asset: "USDT" },
   { id: "turkey", fiat: "TRY", asset: "USDT" },
   { id: "oman", fiat: "OMR", asset: "USDT" },
   { id: "georgia", fiat: "GEL", asset: "USDT" },
-  { id: "uzbekistan", fiat: "UZS", asset: "USDT" },
+  { id: "kazakhstan", fiat: "KZT", asset: "USDT" },
   { id: "kazakhstan", fiat: "KZT", asset: "USDT" },
 ];
 
