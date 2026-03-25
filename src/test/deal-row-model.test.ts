@@ -34,6 +34,17 @@ describe('dealRowModel', () => {
     expect(row.margin).toBeNull();
   });
 
+  it('falls back to merchant_cost when avg_buy is absent', () => {
+    const row = buildDealRowModel({
+      deal: { ...baseDeal, notes: 'quantity:100|sell_price:3.8|merchant_cost:3.5|fee:10|counterparty_share_pct:50' },
+      perspective: 'outgoing',
+      locale: 'en',
+    });
+    expect(row.hasAvgBuy).toBe(true);
+    expect(row.avgBuy).toBe(3.5);
+    expect(row.myNet).toBe(10);
+  });
+
   it('legacy aliases map qty -> quantity and sell -> sell_price', () => {
     const meta = parseDealMeta('qty:20|sell:4.1|avg_buy:4');
     expect(meta.quantity).toBe('20');

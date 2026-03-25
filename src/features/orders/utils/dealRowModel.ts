@@ -65,7 +65,7 @@ export function buildDealRowModel({
   const sellPrice = Number(meta.sell_price) || 0;
   const fee = Number(meta.fee) || 0;
 
-  const avgBuy = Math.max(0, resolveAvgBuy ? resolveAvgBuy(deal, meta) : (Number(meta.avg_buy) || 0));
+  const avgBuy = Math.max(0, resolveAvgBuy ? resolveAvgBuy(deal, meta) : (Number(meta.avg_buy) || Number(meta.merchant_cost) || 0));
   const hasAvgBuy = avgBuy > 0;
 
   const volume = quantity * sellPrice;
