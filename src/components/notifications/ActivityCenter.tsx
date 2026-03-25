@@ -50,6 +50,8 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
 interface SmartNotification extends Notification {
   groupCount?: number;
   groupLatest?: string;
+  /** All IDs in this group — needed so every notification gets marked read */
+  groupIds?: string[];
 }
 
 function smartGroupNotifications(items: Notification[]): SmartNotification[] {
@@ -85,6 +87,7 @@ function smartGroupNotifications(items: Notification[]): SmartNotification[] {
         groupCount: count,
         groupLatest: current.created_at,
         body: current.body,
+        groupIds: items.slice(i, j).map(n => n.id),
       });
     } else {
       result.push({ ...current });
@@ -127,7 +130,7 @@ function NotificationRow({
   onNavigate,
 }: {
   n: SmartNotification;
-  onNavigate: (n: Notification) => void;
+  onNavigate: (n: SmartNotification) => void;
 }) {
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
@@ -243,8 +246,12 @@ export default function ActivityCenter() {
     return counts;
   }, [notifications]);
 
-  const handleNavigate = (n: Notification) => {
-    if (!n.read_at) markRead.mutate(n.id);
+  const handleNavigate = (n: SmartNotification) => {
+    // Mark every notification in the group as read, not just the representative one.
+    // This is the root cause of the phantom unread count — grouped notifications
+    // previously only marked 1 of N items read.
+    const idsToMark = n.groupIds?.length ? n.groupIds : (n.read_at ? [] : [n.id]);
+    idsToMark.forEach(id => markRead.mutate(id));
     setOpen(false);
     navigate(notificationRoute(n));
   };
