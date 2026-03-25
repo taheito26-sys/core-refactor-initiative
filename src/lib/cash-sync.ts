@@ -64,7 +64,7 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
     currency:         row.currency as CashLedgerEntry['currency'],
     note:             (row.note as string | null) ?? undefined,
     linkedEntityId:   (row.linked_entity_id   as string | null) ?? undefined,
-    linkedEntityType: (row.linked_entity_type  as 'batch' | 'trade' | null) ?? undefined,
+    linkedEntityType: (row.linked_entity_type as 'batch' | null) ?? undefined,
   };
 }
 
