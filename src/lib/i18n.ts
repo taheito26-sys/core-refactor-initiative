@@ -453,6 +453,7 @@ const translations = {
   interestRate: { en: 'Interest Rate %', ar: 'نسبة الفائدة %' },
   sharePercent: { en: "'s Share %", ar: ' حصة %' },
   yourSharePct: { en: 'Your Share %', ar: 'حصتك %' },
+  searchConversations: { en: 'Search conversations...', ar: 'بحث المحادثات...' },
   partnerRatio: { en: 'Partner Share %', ar: 'حصة الشريك %' },
   yourRatio: { en: 'Merchant Share %', ar: 'حصة التاجر %' },
   poolOwnerShare: { en: 'Pool Owner Share %', ar: 'حصة مالك المجمع %' },
