@@ -1,4 +1,4 @@
-import { getAgreementFamilyLabel, getDealShares } from '@/lib/deal-templates';
+import { getAgreementFamilyLabel } from '@/lib/deal-templates';
 import type { MerchantDeal } from '@/types/domain';
 
 export type DealRowPerspective = 'incoming' | 'outgoing';
@@ -57,6 +57,10 @@ export function buildDealRowModel({
   resolveAvgBuy?: (deal: MerchantDeal | any, normalizedMeta: Record<string, string>) => number;
 }): DealRowModel {
   const meta = parseDealMeta(deal.notes);
+  const mergedMeta: Record<string, unknown> = {
+    ...meta,
+    ...((deal.metadata && typeof deal.metadata === 'object') ? deal.metadata : {}),
+  };
   const quantity = Number(meta.quantity) || Number(deal.amount) || 0;
   const sellPrice = Number(meta.sell_price) || 0;
   const fee = Number(meta.fee) || 0;
@@ -68,7 +72,29 @@ export function buildDealRowModel({
   const cost = quantity * avgBuy;
   const fullNet = hasAvgBuy && sellPrice > 0 ? volume - cost - fee : null;
 
-  const { partnerPct, merchantPct } = getDealShares(deal);
+  const toPct = (v: unknown): number | null => {
+    if (v == null) return null;
+    const n = Number(String(v).replace('%', '').trim());
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const firstPct = (...keys: string[]): number | null => {
+    for (const key of keys) {
+      const pct = toPct(mergedMeta[key]);
+      if (pct != null) return pct;
+    }
+    return null;
+  };
+  let partnerPct: number | null = null;
+  if (deal.deal_type === 'partnership') {
+    partnerPct = firstPct('partner_ratio', 'counterparty_share_pct', 'counterparty_share');
+  } else {
+    partnerPct = firstPct('counterparty_share_pct', 'counterparty_share', 'partner_ratio');
+    if (partnerPct == null) {
+      const merchantMetaPct = firstPct('merchant_share_pct', 'merchant_share', 'merchant_ratio');
+      if (merchantMetaPct != null) partnerPct = 100 - merchantMetaPct;
+    }
+  }
+  const merchantPct = partnerPct != null ? 100 - partnerPct : null;
   const myPct = perspective === 'incoming' ? partnerPct : merchantPct;
   const myNet = fullNet == null ? null : (myPct != null ? fullNet * (myPct / 100) : fullNet);
   const margin = myNet != null && volume > 0 ? myNet / volume : null;

@@ -49,6 +49,20 @@ describe('dealRowModel', () => {
     expect(incoming.myNet).not.toBe(incoming.fullNet);
   });
 
+  it('prefers normalized notes shares when metadata object is present but missing split fields', () => {
+    const row = buildDealRowModel({
+      deal: {
+        ...baseDeal,
+        metadata: { settlement_period: 'monthly' },
+        notes: 'quantity:100|sell_price:3.8|avg_buy:3.5|fee:10|counterparty_share: 50%|merchant_share: 50%',
+      },
+      perspective: 'incoming',
+      locale: 'en',
+    });
+    expect(row.partnerPct).toBe(50);
+    expect(row.myNet).toBe(10);
+  });
+
   it('admin/user parity: same input deal and perspective produce identical derived economics', () => {
     const resolveAvgBuy = () => 3.5;
     const userRow = buildDealRowModel({ deal: baseDeal, perspective: 'incoming', locale: 'en', resolveAvgBuy });

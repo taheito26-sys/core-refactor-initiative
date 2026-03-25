@@ -238,14 +238,25 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
                       {row.splitLabel && <span className="pill" style={{ fontSize: 8 }}>{row.splitLabel}</span>}
                     </div>
                   </td>
-                  <td>{rel?.counterparty?.display_name || '—'}</td>
-                  <td>{row.buyer || '—'}</td>
+                  <td>{rel?.counterparty?.display_name ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{rel.counterparty.display_name}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                  <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                   <td className="mono r">{fmtU(row.quantity)}</td>
                   <td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                   <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
                   <td className="mono r">{fmtQ(row.volume)}</td>
-                  <td className="mono r" style={{ color: row.myNet == null ? 'var(--muted)' : (row.myNet >= 0 ? 'var(--good)' : 'var(--bad)'), fontWeight: 700 }}>{row.myNet != null ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}</td>
-                  <td>{row.margin != null ? <><div className={`prog ${row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div><div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{(row.margin * 100).toFixed(2)}%</div></> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                  <td className="mono r">
+                    {!row.hasAvgBuy ? (
+                      <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
+                    ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                        <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>{row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}</span>
+                        <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>{row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span></span>
+                      </div>
+                    ) : (
+                      <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>{row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}</span>
+                    )}
+                  </td>
+                  <td><div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div><div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div></td>
                   <td><span className="pill">{deal.status}</span></td>
                 </tr>;
               })}
@@ -269,7 +280,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                 const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
-                return <tr key={deal.id}><td><span className="mono">{row.dateLabel}</span><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}><span className={`pill ${deal.status === 'approved' ? 'good' : deal.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 8 }}>{deal.status}</span><span className="pill" style={{ fontSize: 8 }}>{row.familyIcon} {row.familyLabel}</span>{row.splitLabel && <span className="pill" style={{ fontSize: 8 }}>{row.splitLabel}</span>}</div></td><td>{rel?.counterparty?.display_name || '—'}</td><td>{row.buyer || '—'}</td><td className="mono r">{fmtU(row.quantity)}</td><td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td><td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td><td className="mono r">{fmtQ(row.volume)}</td><td className="mono r" style={{ color: row.myNet == null ? 'var(--muted)' : (row.myNet >= 0 ? 'var(--good)' : 'var(--bad)'), fontWeight: 700 }}>{row.myNet != null ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}</td><td>{row.margin != null ? <><div className={`prog ${row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div><div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{(row.margin * 100).toFixed(2)}%</div></> : <span style={{ color: 'var(--muted)' }}>—</span>}</td><td><span className="pill">{deal.status}</span></td></tr>;
+                return <tr key={deal.id}><td><span className="mono">{row.dateLabel}</span><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}><span className={`pill ${deal.status === 'approved' ? 'good' : deal.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 8 }}>{deal.status}</span><span className="pill" style={{ fontSize: 8 }}>{row.familyIcon} {row.familyLabel}</span>{row.splitLabel && <span className="pill" style={{ fontSize: 8 }}>{row.splitLabel}</span>}</div></td><td>{rel?.counterparty?.display_name ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{rel.counterparty.display_name}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td><td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td><td className="mono r">{fmtU(row.quantity)}</td><td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td><td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td><td className="mono r">{fmtQ(row.volume)}</td><td className="mono r">{!row.hasAvgBuy ? <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span> : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}><span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>{row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}</span><span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>{row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span></span></div> : <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>{row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}</span>}</td><td><div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div><div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div></td><td><span className="pill">{deal.status}</span></td></tr>;
               })}
             </tbody></table></div>
           )}
