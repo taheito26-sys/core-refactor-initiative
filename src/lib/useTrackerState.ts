@@ -11,6 +11,8 @@ interface UseTrackerOptions {
   priceAlertThreshold?: number;
   range?: string;
   currency?: 'QAR' | 'USDT';
+  /** When provided (admin view), skip cloud sync and use this state directly */
+  preloadedState?: any;
 }
 
 export function useTrackerState(options: UseTrackerOptions = {}) {
@@ -29,14 +31,38 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const stateRef = useRef(state);
 
   const applyState = useCallback((next: TrackerState) => {
+    // In admin preloaded mode, don't persist
+    if (options.preloadedState) {
+      setState(next);
+      stateRef.current = next;
+      setDerived(computeFIFO(next.batches, next.trades));
+      return;
+    }
     setState(next);
     stateRef.current = next;
     setDerived(computeFIFO(next.batches, next.trades));
     saveTrackerState(next);
-  }, []);
+  }, [options.preloadedState]);
+
+  // Handle preloaded state (admin view)
+  useEffect(() => {
+    if (!options.preloadedState) return;
+    const ps = options.preloadedState;
+    const rebuilt = buildStateFrom(ps, {
+      lowStockThreshold: options.lowStockThreshold,
+      priceAlertThreshold: options.priceAlertThreshold,
+      range: options.range,
+      currency: options.currency,
+    });
+    setState(rebuilt.state);
+    stateRef.current = rebuilt.state;
+    setDerived(rebuilt.derived);
+    setCloudLoaded(true);
+  }, [options.preloadedState]);
 
   // On mount + auth, try loading from cloud and merge with local
   useEffect(() => {
+    if (options.preloadedState) return; // skip cloud sync in admin mode
     if (!isAuthenticated) return;
 
     let cancelled = false;
@@ -71,7 +97,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     });
 
     return () => { cancelled = true; };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, options.preloadedState]);
 
   return { state, derived, applyState, cloudLoaded };
 }
