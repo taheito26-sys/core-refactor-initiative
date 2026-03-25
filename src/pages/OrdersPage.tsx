@@ -1111,8 +1111,15 @@ export default function OrdersPage() {
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of partnerMerchantDeals) {
-      vol += deal.amount;
-      if (deal.realized_pnl != null) netVal += deal.realized_pnl;
+      const meta = parseDealMeta(deal.notes);
+      const qty = Number(meta.quantity) || 0;
+      const sell = Number(meta.sell_price) || 0;
+      const avgBuyVal = Number(meta.avg_buy) || 0;
+      const fee = Number(meta.fee) || 0;
+      const dealVol = qty * sell;
+      const dealCost = qty * avgBuyVal;
+      vol += dealVol;
+      netVal += dealVol - dealCost - fee;
     }
     return { count: partnerMerchantDeals.length, vol, net: netVal };
   }, [partnerMerchantDeals]);
