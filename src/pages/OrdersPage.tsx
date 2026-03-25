@@ -417,6 +417,33 @@ export default function OrdersPage() {
     setNewBuyerName(''); setNewBuyerPhone(''); setNewBuyerTier('C');
   };
 
+  // Helper: apply cash deposit to state if enabled
+  const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
+    if (cashDepositMode === 'none') return nextState;
+    const revenue = amountUSDT * sell;
+    const depositAmt = cashDepositMode === 'full'
+      ? revenue
+      : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
+    if (depositAmt <= 0) return nextState;
+    const currentCash = nextState.cashQAR || 0;
+    const newCash = currentCash + depositAmt;
+    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+      id: uid(),
+      ts: Date.now(),
+      type: 'sale_deposit' as any,
+      amount: depositAmt,
+      balanceAfter: newCash,
+      owner: nextState.cashOwner || '',
+      bankAccount: '',
+      note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+    };
+    return {
+      ...nextState,
+      cashQAR: newCash,
+      cashHistory: [...(nextState.cashHistory || []), cashTx],
+    };
+  };
+
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
   const addTrade = async () => {
     // Capital transfers are handled separately via handleCapitalTransfer
