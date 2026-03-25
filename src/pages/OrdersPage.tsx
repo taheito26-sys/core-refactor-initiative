@@ -71,7 +71,9 @@ export default function OrdersPage() {
   });
 
   const [saleDate, setSaleDate] = useState(nowInput());
+  const [saleEntryMode, setSaleEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
   const [saleMode, setSaleMode] = useState<'USDT' | 'QAR'>('USDT');
+  const [saleUsdtQty, setSaleUsdtQty] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [saleSell, setSaleSell] = useState('');
   const [buyerName, setBuyerName] = useState('');
@@ -312,12 +314,27 @@ export default function OrdersPage() {
 
   // Sale preview computation
   const salePreview = useMemo(() => {
-    const sell = Number(saleSell);
-    const raw = Number(saleAmount);
+    let sell: number, amountUSDT: number;
     const ts = new Date(saleDate).getTime();
-    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
-    if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     const fee = parseFloat(saleFee) || 0;
+
+    if (saleEntryMode === 'qty_total') {
+      // USDT + QAR → auto-calc sell price
+      amountUSDT = Number(saleUsdtQty);
+      const totalQar = Number(saleAmount);
+      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
+    } else if (saleEntryMode === 'qty_price') {
+      // USDT + Price → auto-calc total QAR
+      amountUSDT = Number(saleUsdtQty);
+      sell = Number(saleSell);
+    } else {
+      // price_vol: original mode
+      sell = Number(saleSell);
+      const raw = Number(saleAmount);
+      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    }
+
+    if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     if (priceMode === 'manual') {
       const buyP = parseFloat(manualBuyPrice) || 0;
       const rev = amountUSDT * sell;
@@ -325,13 +342,13 @@ export default function OrdersPage() {
       const net = rev - cost - fee;
       return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net };
     }
-    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
+    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = amountUSDT * sell;
     const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
     const net = calc?.ok ? rev - cost - fee : NaN;
     return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
-  }, [saleAmount, saleDate, saleMode, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
+  }, [saleAmount, saleDate, saleEntryMode, saleMode, saleUsdtQty, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
@@ -450,13 +467,23 @@ export default function OrdersPage() {
     if (isCapitalTransfer) return;
 
     const ts = new Date(saleDate).getTime();
-    const sell = Number(saleSell);
-    const raw = Number(saleAmount);
-    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    let sell: number, amountUSDT: number;
+    if (saleEntryMode === 'qty_total') {
+      amountUSDT = Number(saleUsdtQty);
+      const totalQar = Number(saleAmount);
+      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
+    } else if (saleEntryMode === 'qty_price') {
+      amountUSDT = Number(saleUsdtQty);
+      sell = Number(saleSell);
+    } else {
+      sell = Number(saleSell);
+      const raw = Number(saleAmount);
+      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    }
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
-    if (!(raw > 0)) errs.push(t('quantity'));
+    if (!(amountUSDT > 0)) errs.push(t('quantity'));
     if (!(amountUSDT > 0)) errs.push(t('amountUsdt'));
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
@@ -498,7 +525,7 @@ export default function OrdersPage() {
     const isNewAllocFlowActive = isNewAllocFlow && allocations.length > 0;
 
     const baseTrade: Trade = {
-      id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
@@ -1596,21 +1623,64 @@ export default function OrdersPage() {
                 <div className="field2">
                   <div className="lbl">{t('inputMode')}</div>
                   <div className="modeToggle">
-                    <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>💲 USDT</button>
-                    <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>📦 QAR</button>
+                    <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')}>{t('entryModePriceVol')}</button>
+                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')}>{t('entryModeUsdtQar')}</button>
+                    <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')}>{t('entryModeUsdtPrice')}</button>
                   </div>
                 </div>
 
-                <div className="g2tight">
-                  <div className="field2">
-                    <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                {saleEntryMode === 'price_vol' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>USDT</button>
+                        <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>QAR</button>
+                      </div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('sellPriceLabel')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                    </div>
                   </div>
-                  <div className="field2">
-                    <div className="lbl">{t('sellPriceLabel')}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                )}
+
+                {saleEntryMode === 'qty_total' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('totalUsdtSold')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('totalQarReceived')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      {Number(saleUsdtQty) > 0 && Number(saleAmount) > 0 && (
+                        <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
+                          {t('autoCalcSellPrice')}: {fmtPrice(Number(saleAmount) / Number(saleUsdtQty))} QAR/USDT
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {saleEntryMode === 'qty_price' && (
+                  <div className="g2tight">
+                    <div className="field2">
+                      <div className="lbl">{t('totalUsdtSold')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('sellPriceLabel')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                      {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
+                        <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
+                          {t('autoCalcTotalQar')}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} QAR
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {priceMode === 'manual' && (
                   <div className="g2tight">
