@@ -71,7 +71,9 @@ export default function OrdersPage() {
   });
 
   const [saleDate, setSaleDate] = useState(nowInput());
+  const [saleEntryMode, setSaleEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
   const [saleMode, setSaleMode] = useState<'USDT' | 'QAR'>('USDT');
+  const [saleUsdtQty, setSaleUsdtQty] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [saleSell, setSaleSell] = useState('');
   const [buyerName, setBuyerName] = useState('');
