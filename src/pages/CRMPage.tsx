@@ -180,6 +180,27 @@ export default function CRMPage() {
     setShowSuppModal(true);
   };
 
+  const openAddSupplier = () => {
+    setNewSuppName('');
+    setNewSuppError('');
+    setShowAddSuppModal(true);
+  };
+
+  const saveNewSupplier = () => {
+    const name = newSuppName.trim();
+    if (!name) { setNewSuppError('Supplier name is required.'); return; }
+    const exists = suppliers.some(s => s.name.toLowerCase() === name.toLowerCase());
+    if (exists) { setNewSuppError('A supplier with this name already exists.'); return; }
+    // Create a zero-amount batch to register the supplier
+    const newBatch = {
+      id: uid(), ts: Date.now(), source: name,
+      initialUSDT: 0, remainingUSDT: 0,
+      costPerUnit: 0, sold: 0, voided: false,
+    };
+    applyState({ ...state, batches: [...state.batches, newBatch] });
+    setShowAddSuppModal(false);
+  };
+
   const saveSupplier = () => {
     if (!suppName.trim()) { setSuppError('Name is required.'); return; }
     if (suppName.trim() !== editingSupp) {
