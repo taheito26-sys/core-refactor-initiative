@@ -6,15 +6,70 @@ import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import '@/styles/tracker.css';
 
-// ── blank customer form ───────────────────────────────────────────────
-const BLANK_CUSTOMER = (): Omit<Customer, 'id' | 'createdAt'> => ({
-  name: '',
-  phone: '',
-  tier: 'C',
-  dailyLimitUSDT: 0,
-  notes: '',
+// ── Blank customer factory ────────────────────────────────────────────
+const blankCustomer = (): Omit<Customer, 'id' | 'createdAt'> => ({
+  name: '', phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '',
 });
 
+// ── Modal wrapper — defined OUTSIDE the page so React never remounts it ──
+function CRMModal({
+  title, onClose, onSave, error, children,
+}: {
+  title: string;
+  onClose: () => void;
+  onSave: () => void;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.50)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="panel"
+        style={{ width: '100%', maxWidth: 460, borderRadius: 12, overflow: 'hidden' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* header */}
+        <div className="panel-head" style={{ padding: '10px 16px' }}>
+          <h2 style={{ fontSize: 13 }}>{title}</h2>
+          <button className="rowBtn" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        {/* body */}
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {children}
+          {error && (
+            <div style={{ fontSize: 11, color: 'var(--bad)', paddingTop: 2 }}>⚠ {error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button className="btn secondary" onClick={onClose}>Cancel</button>
+            <button className="btn" onClick={onSave}>Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Label + input wrapper — also outside ─────────────────────────────
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────
 export default function CRMPage() {
   const { settings } = useTheme();
   const t = useT();
@@ -27,164 +82,118 @@ export default function CRMPage() {
   const [tab, setTab] = useState<'customers' | 'suppliers'>('customers');
   const [search, setSearch] = useState('');
 
-  // ── customer modal state ─────────────────────────────────────────
-  const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [customerForm, setCustomerForm] = useState(BLANK_CUSTOMER());
-  const [customerError, setCustomerError] = useState('');
+  // ── Customer modal ────────────────────────────────────────────────
+  const [showCustModal, setShowCustModal] = useState(false);
+  const [editingCust, setEditingCust] = useState<Customer | null>(null);
+  const [custForm, setCustForm] = useState(blankCustomer());
+  const [custError, setCustError] = useState('');
 
-  // ── supplier rename modal state ──────────────────────────────────
-  const [showSupplierModal, setShowSupplierModal] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<string | null>(null);
-  const [supplierName, setSupplierName] = useState('');
-  const [supplierError, setSupplierError] = useState('');
+  // ── Supplier rename modal ─────────────────────────────────────────
+  const [showSuppModal, setShowSuppModal] = useState(false);
+  const [editingSupp, setEditingSupp] = useState('');
+  const [suppName, setSuppName] = useState('');
+  const [suppError, setSuppError] = useState('');
 
-  // ── derived data ─────────────────────────────────────────────────
-  const customers = state.customers;
-  const filteredCustomers = !search
-    ? customers
-    : customers.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.phone.includes(search),
-      );
+  // ── Derived lists ─────────────────────────────────────────────────
+  const customers = state.customers ?? [];
 
-  const supplierMap = new Map<string, { name: string; batchCount: number; totalUSDT: number; lastDate: number }>();
-  for (const b of state.batches) {
-    const src = b.source.trim();
-    if (!src) continue;
-    const existing = supplierMap.get(src);
-    if (existing) {
-      existing.batchCount++;
-      existing.totalUSDT += b.initialUSDT;
-      existing.lastDate = Math.max(existing.lastDate, b.ts);
-    } else {
-      supplierMap.set(src, { name: src, batchCount: 1, totalUSDT: b.initialUSDT, lastDate: b.ts });
+  const filteredCustomers = useMemo(() => {
+    if (!search) return customers;
+    const q = search.toLowerCase();
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(q) || c.phone.includes(q),
+    );
+  }, [customers, search]);
+
+  const suppliers = useMemo(() => {
+    const map = new Map<string, { name: string; batchCount: number; totalUSDT: number; lastDate: number }>();
+    for (const b of state.batches) {
+      const src = b.source.trim();
+      if (!src) continue;
+      const ex = map.get(src);
+      if (ex) { ex.batchCount++; ex.totalUSDT += b.initialUSDT; ex.lastDate = Math.max(ex.lastDate, b.ts); }
+      else map.set(src, { name: src, batchCount: 1, totalUSDT: b.initialUSDT, lastDate: b.ts });
     }
-  }
-  const suppliers = Array.from(supplierMap.values()).sort((a, b) => b.lastDate - a.lastDate);
-  const filteredSuppliers = !search
-    ? suppliers
-    : suppliers.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+    return Array.from(map.values()).sort((a, b) => b.lastDate - a.lastDate);
+  }, [state.batches]);
+
+  const filteredSuppliers = useMemo(() => {
+    if (!search) return suppliers;
+    const q = search.toLowerCase();
+    return suppliers.filter(s => s.name.toLowerCase().includes(q));
+  }, [suppliers, search]);
 
   const customerStats = (cId: string) => {
     const trades = state.trades.filter(tr => !tr.voided && tr.customerId === cId);
-    const totalUSDT = trades.reduce((s, tr) => s + tr.amountUSDT, 0);
-    const totalQAR = trades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0);
-    return { trades: trades.length, totalUSDT, totalQAR };
+    return {
+      trades: trades.length,
+      totalUSDT: trades.reduce((s, tr) => s + tr.amountUSDT, 0),
+      totalQAR:  trades.reduce((s, tr) => s + tr.amountUSDT * tr.sellPriceQAR, 0),
+    };
   };
 
-  // ── customer handlers ────────────────────────────────────────────
+  // ── Customer handlers ─────────────────────────────────────────────
   const openAddCustomer = () => {
-    setEditingCustomer(null);
-    setCustomerForm(BLANK_CUSTOMER());
-    setCustomerError('');
-    setShowCustomerModal(true);
+    setEditingCust(null);
+    setCustForm(blankCustomer());
+    setCustError('');
+    setShowCustModal(true);
   };
 
   const openEditCustomer = (c: Customer) => {
-    setEditingCustomer(c);
-    setCustomerForm({ name: c.name, phone: c.phone, tier: c.tier, dailyLimitUSDT: c.dailyLimitUSDT, notes: c.notes });
-    setCustomerError('');
-    setShowCustomerModal(true);
+    setEditingCust(c);
+    setCustForm({ name: c.name, phone: c.phone, tier: c.tier, dailyLimitUSDT: c.dailyLimitUSDT, notes: c.notes });
+    setCustError('');
+    setShowCustModal(true);
   };
 
   const saveCustomer = () => {
-    if (!customerForm.name.trim()) { setCustomerError('Name is required.'); return; }
+    if (!custForm.name.trim()) { setCustError('Name is required.'); return; }
+    const existing = customers.find(
+      c => c.name.toLowerCase() === custForm.name.trim().toLowerCase() && c.id !== editingCust?.id
+    );
+    if (existing) { setCustError('A customer with this name already exists.'); return; }
 
-    let nextCustomers: Customer[];
-    if (editingCustomer) {
-      nextCustomers = state.customers.map(c =>
-        c.id === editingCustomer.id
-          ? { ...c, ...customerForm, name: customerForm.name.trim() }
-          : c,
-      );
-    } else {
-      const newCustomer: Customer = {
-        id: uid(),
-        createdAt: Date.now(),
-        ...customerForm,
-        name: customerForm.name.trim(),
-      };
-      nextCustomers = [...state.customers, newCustomer];
-    }
+    const next = editingCust
+      ? customers.map(c => c.id === editingCust.id ? { ...c, ...custForm, name: custForm.name.trim() } : c)
+      : [...customers, { id: uid(), createdAt: Date.now(), ...custForm, name: custForm.name.trim() } as Customer];
 
-    applyState({ ...state, customers: nextCustomers });
-    setShowCustomerModal(false);
+    applyState({ ...state, customers: next });
+    setShowCustModal(false);
   };
 
   const deleteCustomer = (id: string) => {
-    if (!window.confirm('Delete this customer?')) return;
-    applyState({ ...state, customers: state.customers.filter(c => c.id !== id) });
+    if (!window.confirm('Delete this customer? This cannot be undone.')) return;
+    applyState({ ...state, customers: customers.filter(c => c.id !== id) });
   };
 
-  // ── supplier handlers ────────────────────────────────────────────
+  // ── Supplier handlers ─────────────────────────────────────────────
   const openEditSupplier = (name: string) => {
-    setEditingSupplier(name);
-    setSupplierName(name);
-    setSupplierError('');
-    setShowSupplierModal(true);
+    setEditingSupp(name);
+    setSuppName(name);
+    setSuppError('');
+    setShowSuppModal(true);
   };
 
   const saveSupplier = () => {
-    if (!supplierName.trim()) { setSupplierError('Name is required.'); return; }
-    if (editingSupplier && supplierName.trim() !== editingSupplier) {
-      // Rename the source across all matching batches
-      const updatedBatches = state.batches.map(b =>
-        b.source.trim() === editingSupplier ? { ...b, source: supplierName.trim() } : b,
-      );
-      applyState({ ...state, batches: updatedBatches });
+    if (!suppName.trim()) { setSuppError('Name is required.'); return; }
+    if (suppName.trim() !== editingSupp) {
+      applyState({
+        ...state,
+        batches: state.batches.map(b =>
+          b.source.trim() === editingSupp ? { ...b, source: suppName.trim() } : b,
+        ),
+      });
     }
-    setShowSupplierModal(false);
+    setShowSuppModal(false);
   };
 
-  // ── overlay modal component ──────────────────────────────────────
-  const Modal = ({ title, onClose, onSave, children, error }: {
-    title: string;
-    onClose: () => void;
-    onSave: () => void;
-    children: React.ReactNode;
-    error?: string;
-  }) => (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-      }}
-      onClick={onClose}
-    >
-      <div
-        className="panel"
-        style={{ width: '100%', maxWidth: 440, borderRadius: 12, overflow: 'hidden' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="panel-head" style={{ padding: '10px 16px' }}>
-          <h2 style={{ fontSize: 13 }}>{title}</h2>
-          <button className="rowBtn" onClick={onClose}>✕</button>
-        </div>
-        <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {children}
-          {error && <div style={{ fontSize: 11, color: 'var(--bad)' }}>⚠ {error}</div>}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-            <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-            <button className="btn" onClick={onSave}>{t('save')}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>{label}</label>
-      {children}
-    </div>
-  );
-
+  // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'}
+      style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
 
-      {/* ── Tab toggle ── */}
+      {/* Tab bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
           <button className={`btn ${tab === 'customers' ? '' : 'secondary'}`} onClick={() => setTab('customers')}>
@@ -203,7 +212,7 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* ── CUSTOMERS TAB ── */}
+      {/* ── CUSTOMERS ── */}
       {tab === 'customers' && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -224,15 +233,10 @@ export default function CRMPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>{t('name')}</th>
-                    <th>{t('phone')}</th>
-                    <th>{t('tier')}</th>
-                    <th className="r">{t('dailyLimit')}</th>
-                    <th className="r">{t('trades')}</th>
-                    <th className="r">{t('totalUsdt')}</th>
-                    <th className="r">{t('totalQar')}</th>
-                    <th>{t('notes')}</th>
-                    <th>{t('actions')}</th>
+                    <th>{t('name')}</th><th>{t('phone')}</th><th>{t('tier')}</th>
+                    <th className="r">{t('dailyLimit')}</th><th className="r">{t('trades')}</th>
+                    <th className="r">{t('totalUsdt')}</th><th className="r">{t('totalQar')}</th>
+                    <th>{t('notes')}</th><th>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -267,7 +271,7 @@ export default function CRMPage() {
         </>
       )}
 
-      {/* ── SUPPLIERS TAB ── */}
+      {/* ── SUPPLIERS ── */}
       {tab === 'suppliers' && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -275,14 +279,11 @@ export default function CRMPage() {
               <div style={{ fontSize: 13, fontWeight: 800 }}>{t('suppliers')}</div>
               <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('autoTrackedFromBatches')}</div>
             </div>
-            <button className="btn" onClick={() => navigate('/trading/stock')}>
-              {t('addSupplier')}
-            </button>
+            <button className="btn" onClick={() => navigate('/trading/stock')}>{t('addSupplier')}</button>
           </div>
 
-          {/* Info banner explaining how suppliers work */}
-          <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 30%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
-            💡 Suppliers are automatically tracked from your stock batches. Click <strong>+ Add Supplier</strong> to go to Stock and create a new batch — the supplier name will appear here automatically.
+          <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
+            💡 Suppliers are auto-tracked from batch source names in Stock. Click <strong>+ Add Supplier</strong> to create a new batch.
           </div>
 
           {filteredSuppliers.length === 0 ? (
@@ -295,11 +296,8 @@ export default function CRMPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>{t('supplier')}</th>
-                    <th className="r">{t('batches')}</th>
-                    <th className="r">{t('totalUsdt')}</th>
-                    <th>{t('lastPurchase')}</th>
-                    <th>{t('actions')}</th>
+                    <th>{t('supplier')}</th><th className="r">{t('batches')}</th>
+                    <th className="r">{t('totalUsdt')}</th><th>{t('lastPurchase')}</th><th>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -324,90 +322,94 @@ export default function CRMPage() {
         </>
       )}
 
-      {/* ── Customer Modal ── */}
-      {showCustomerModal && (
-        <Modal
-          title={editingCustomer ? `Edit — ${editingCustomer.name}` : t('addCustomer')}
-          onClose={() => setShowCustomerModal(false)}
+      {/* ── Customer Add/Edit Modal ── */}
+      {showCustModal && (
+        <CRMModal
+          title={editingCust ? `Edit — ${editingCust.name}` : t('addCustomer')}
+          onClose={() => setShowCustModal(false)}
           onSave={saveCustomer}
-          error={customerError}
+          error={custError}
         >
-          <Field label={t('name') + ' *'}>
+          <FormField label="Name *">
             <input
               className="inputBox"
-              style={{ padding: '6px 10px' }}
+              style={{ padding: '6px 10px', width: '100%' }}
               placeholder="e.g. Ahmed Al-Rashid"
-              value={customerForm.name}
-              onChange={e => setCustomerForm(f => ({ ...f, name: e.target.value }))}
+              value={custForm.name}
               autoFocus
+              onChange={e => setCustForm(f => ({ ...f, name: e.target.value }))}
             />
-          </Field>
-          <Field label={t('phone')}>
+          </FormField>
+
+          <FormField label="Phone">
             <input
               className="inputBox"
-              style={{ padding: '6px 10px' }}
+              style={{ padding: '6px 10px', width: '100%' }}
               placeholder="+974 ..."
-              value={customerForm.phone}
-              onChange={e => setCustomerForm(f => ({ ...f, phone: e.target.value }))}
+              value={custForm.phone}
+              onChange={e => setCustForm(f => ({ ...f, phone: e.target.value }))}
             />
-          </Field>
-          <Field label={t('tier')}>
-            <select
-              className="inputBox"
-              style={{ padding: '6px 10px' }}
-              value={customerForm.tier}
-              onChange={e => setCustomerForm(f => ({ ...f, tier: e.target.value }))}
-            >
-              <option value="A">A — VIP</option>
-              <option value="B">B — Regular</option>
-              <option value="C">C — New</option>
-            </select>
-          </Field>
-          <Field label={t('dailyLimit') + ' (USDT)'}>
-            <input
-              className="inputBox"
-              style={{ padding: '6px 10px' }}
-              type="number"
-              min={0}
-              placeholder="0"
-              value={customerForm.dailyLimitUSDT || ''}
-              onChange={e => setCustomerForm(f => ({ ...f, dailyLimitUSDT: parseFloat(e.target.value) || 0 }))}
-            />
-          </Field>
-          <Field label={t('notes')}>
+          </FormField>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormField label="Tier">
+              <select
+                style={{ padding: '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
+                value={custForm.tier}
+                onChange={e => setCustForm(f => ({ ...f, tier: e.target.value }))}
+              >
+                <option value="A">A — VIP</option>
+                <option value="B">B — Regular</option>
+                <option value="C">C — New</option>
+              </select>
+            </FormField>
+
+            <FormField label="Daily Limit (USDT)">
+              <input
+                className="inputBox"
+                style={{ padding: '6px 10px', width: '100%' }}
+                type="number"
+                min={0}
+                placeholder="0"
+                value={custForm.dailyLimitUSDT || ''}
+                onChange={e => setCustForm(f => ({ ...f, dailyLimitUSDT: parseFloat(e.target.value) || 0 }))}
+              />
+            </FormField>
+          </div>
+
+          <FormField label="Notes">
             <textarea
-              className="inputBox"
-              style={{ padding: '6px 10px', resize: 'vertical', minHeight: 60 }}
+              style={{ padding: '6px 10px', width: '100%', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12, resize: 'vertical', minHeight: 64, fontFamily: 'inherit' }}
               placeholder="Optional notes..."
-              value={customerForm.notes}
-              onChange={e => setCustomerForm(f => ({ ...f, notes: e.target.value }))}
+              value={custForm.notes}
+              onChange={e => setCustForm(f => ({ ...f, notes: e.target.value }))}
             />
-          </Field>
-        </Modal>
+          </FormField>
+        </CRMModal>
       )}
 
       {/* ── Supplier Rename Modal ── */}
-      {showSupplierModal && (
-        <Modal
-          title={`Rename Supplier — ${editingSupplier}`}
-          onClose={() => setShowSupplierModal(false)}
+      {showSuppModal && (
+        <CRMModal
+          title={`Rename Supplier — ${editingSupp}`}
+          onClose={() => setShowSuppModal(false)}
           onSave={saveSupplier}
-          error={supplierError}
+          error={suppError}
         >
-          <Field label="Supplier Name *">
+          <FormField label="Supplier Name *">
             <input
               className="inputBox"
-              style={{ padding: '6px 10px' }}
+              style={{ padding: '6px 10px', width: '100%' }}
               placeholder="Supplier name"
-              value={supplierName}
-              onChange={e => setSupplierName(e.target.value)}
+              value={suppName}
               autoFocus
+              onChange={e => setSuppName(e.target.value)}
             />
-          </Field>
+          </FormField>
           <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-            This will rename the supplier across all batches that reference this name.
+            This renames the supplier across all batches that reference this name.
           </div>
-        </Modal>
+        </CRMModal>
       )}
     </div>
   );
