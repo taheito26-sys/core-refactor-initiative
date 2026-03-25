@@ -4,6 +4,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSendMessage } from '@/hooks/useRelationshipMessages';
+import { toast } from 'sonner';
 import {
   ArrowLeft, Send, Search, MessageCircle, ChevronDown, Smile, Reply, Copy,
   Trash2, X, Pin, Star, Forward, Edit3, Lock, Volume2, VolumeX, Clock,
@@ -23,12 +24,14 @@ function encodeForward(originalSender: string, originalText: string, newText: st
 function encodeEdited(text: string, ts: string) { return `${text}||EDITED||${ts}`; }
 function encodeScheduled(sendAt: string, content: string) { return `||SCHED||${sendAt}${SEP}${content}||/SCHED||`; }
 function encodePoll(question: string, opts: string[]) { return `||POLL||${question}${SEP}${opts.join(';;')}||/POLL||`; }
+function encodeVoice(durationSec: number, base64: string) { return `||VOICE||${durationSec}${SEP}${base64}||/VOICE||`; }
 
 function parseMsg(raw: string): {
   isReply: boolean; replyId?: string; replySender?: string; replyPreview?: string;
   isFwd: boolean; fwdSender?: string; fwdText?: string;
   isPoll: boolean; pollQuestion?: string; pollOptions?: string[];
   isScheduled: boolean; schedAt?: string;
+  isVoice: boolean; voiceDuration?: number; voiceBase64?: string;
   text: string; isEdited: boolean; editedAt?: string;
 } {
   let text = raw;
@@ -36,9 +39,18 @@ function parseMsg(raw: string): {
   let isFwd = false, fwdSender: string | undefined, fwdText: string | undefined;
   let isPoll = false, pollQuestion: string | undefined, pollOptions: string[] | undefined;
   let isScheduled = false, schedAt: string | undefined;
+  let isVoice = false, voiceDuration: number | undefined, voiceBase64: string | undefined;
   let isEdited = false, editedAt: string | undefined;
 
-  if (text.startsWith('||REPLY||')) {
+  if (text.startsWith('||VOICE||')) {
+    const end = text.indexOf('||/VOICE||');
+    if (end !== -1) {
+      const meta = text.slice(9, end).split(SEP);
+      voiceDuration = Number(meta[0]) || 0;
+      voiceBase64 = meta[1] || '';
+      text = ''; isVoice = true;
+    }
+  } else if (text.startsWith('||REPLY||')) {
     const end = text.indexOf('||/REPLY||\n');
     if (end !== -1) {
       const meta = text.slice(9, end).split(SEP);
@@ -72,7 +84,7 @@ function parseMsg(raw: string): {
     editedAt = text.slice(editIdx + 10); text = text.slice(0, editIdx); isEdited = true;
   }
 
-  return { isReply, replyId, replySender, replyPreview, isFwd, fwdSender, fwdText, isPoll, pollQuestion, pollOptions, isScheduled, schedAt, text, isEdited, editedAt };
+  return { isReply, replyId, replySender, replyPreview, isFwd, fwdSender, fwdText, isPoll, pollQuestion, pollOptions, isScheduled, schedAt, isVoice, voiceDuration, voiceBase64, text, isEdited, editedAt };
 }
 
 // ─── Link renderer ─────────────────────────────────────────────────────────
@@ -192,6 +204,104 @@ function PollBubble({ msgId, question, options, isOwn }: { msgId: string; questi
   );
 }
 
+// ─── Voice Note Player ────────────────────────────────────────────────────
+function VoicePlayer({ base64, duration, isOwn }: { base64: string; duration: number; isOwn: boolean }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [audioReady, setAudioReady] = useState(false);
+  const [audioError, setAudioError] = useState(false);
+
+  // Build the object URL once from base64
+  const srcUrl = useMemo(() => {
+    if (!base64) return '';
+    try {
+      const byteChars = atob(base64);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr], { type: 'audio/webm;codecs=opus' });
+      return URL.createObjectURL(blob);
+    } catch { return ''; }
+  }, [base64]);
+
+  useEffect(() => {
+    return () => { if (srcUrl) URL.revokeObjectURL(srcUrl); };
+  }, [srcUrl]);
+
+  const togglePlay = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing) { a.pause(); setPlaying(false); }
+    else { a.play().catch(() => setAudioError(true)); setPlaying(true); }
+  };
+
+  const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const displayDur = currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration);
+
+  return (
+    <div className={`chat-voice-player ${isOwn ? 'own' : 'other'}`}>
+      <audio
+        ref={audioRef}
+        src={srcUrl}
+        onCanPlay={() => setAudioReady(true)}
+        onError={() => setAudioError(true)}
+        onTimeUpdate={e => {
+          const a = e.currentTarget;
+          const dur = a.duration || duration || 1;
+          setProgress((a.currentTime / dur) * 100);
+          setCurrentTime(a.currentTime);
+        }}
+        onEnded={() => { setPlaying(false); setProgress(0); setCurrentTime(0); }}
+        preload="metadata"
+      />
+      {audioError ? (
+        <span style={{ fontSize: 10, opacity: 0.5 }}>⚠ Audio unavailable</span>
+      ) : (
+        <>
+          <button
+            className="chat-voice-play-btn"
+            onClick={togglePlay}
+            disabled={!audioReady}
+            title={playing ? 'Pause' : 'Play'}
+          >
+            {playing ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            )}
+          </button>
+          <div className="chat-voice-body">
+            <div className="chat-voice-waveform" onClick={e => {
+              const a = audioRef.current;
+              if (!a || !a.duration) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = (e.clientX - rect.left) / rect.width;
+              a.currentTime = pct * a.duration;
+            }}>
+              {/* Fake waveform bars */}
+              {Array.from({ length: 28 }).map((_, i) => {
+                const h = 20 + Math.sin(i * 1.3) * 12 + Math.cos(i * 0.7) * 8;
+                const filled = (i / 28) * 100 <= progress;
+                return (
+                  <div key={i} className="chat-voice-bar" style={{
+                    height: `${Math.max(6, h)}px`,
+                    background: filled
+                      ? (isOwn ? '#fff' : 'rgba(139,92,246,0.9)')
+                      : (isOwn ? 'rgba(255,255,255,0.3)' : 'rgba(139,92,246,0.25)'),
+                  }} />
+                );
+              })}
+            </div>
+            <div className="chat-voice-time">{displayDur}</div>
+          </div>
+          <div className="chat-voice-mic-icon">🎤</div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -247,6 +357,8 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   const typingChRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const relIds = useMemo(() => relationships.map(r => r.id), [relationships]);
@@ -476,14 +588,57 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
     }
   }, []);
 
-  const startRecording = () => {
-    setIsRecording(true); setRecordingTime(0);
-    recordingTimer.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      // Prefer opus/webm for compression; fall back to whatever browser supports
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.start(100); // collect every 100ms
+      mediaRecorderRef.current = mr;
+      setIsRecording(true); setRecordingTime(0);
+      recordingTimer.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch (err: any) {
+      toast.error('Microphone access denied. Please allow microphone permissions.');
+    }
   };
+
   const stopRecording = () => {
-    setIsRecording(false);
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    mr.stop();
+    // Stop all tracks to release microphone
+    mr.stream.getTracks().forEach(t => t.stop());
     if (recordingTimer.current) clearInterval(recordingTimer.current);
-    setText(p => p + `[🎤 Voice note: ${recordingTime}s]`);
+
+    mr.onstop = async () => {
+      const durationSec = recordingTime || 1;
+      const mimeType = mr.mimeType || 'audio/webm';
+      const blob = new Blob(audioChunksRef.current, { type: mimeType });
+      // Convert to base64 for storage in the message content
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const dataUrl = reader.result as string;
+        // dataUrl = "data:audio/webm;base64,AAAA..."
+        const base64 = dataUrl.split(',')[1];
+        if (!base64 || !activeRelId) return;
+        const content = encodeVoice(durationSec, base64);
+        // Send directly (bypass text state)
+        const tempId = `opt_${Date.now()}`;
+        setOptimistic(p => [...p, { id: tempId, relationship_id: activeRelId, sender_id: userId!, content, read_at: null, created_at: new Date().toISOString(), _pending: true }]);
+        try {
+          await sendMessage.mutateAsync({ relationship_id: activeRelId, content });
+          setOptimistic(p => p.filter(m => m.id !== tempId));
+          queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
+        } catch { setOptimistic(p => p.filter(m => m.id !== tempId)); }
+      };
+      reader.readAsDataURL(blob);
+      setIsRecording(false);
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+    };
   };
 
   const scrollToMsg = (msgId: string) => {
@@ -670,7 +825,7 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
                 return (
                   <div key={m.id} ref={el => { msgRefs.current[m.id] = el; }} className={`chat-bubble-row ${isOwn ? 'own' : 'other'} ${isFirst ? 'first' : ''} ${isLast ? 'last' : ''}`} style={{ marginTop: isFirst ? 10 : 2, alignItems: 'flex-end', gap: 5, transition: 'background 0.4s' }} onContextMenu={e => openCtx(e, m, isOwn)}>
                     {!isOwn && <div style={{ width: 28, flexShrink: 0, alignSelf: 'flex-end' }}>{isLast ? <Avatar name={activeRel.counterparty_name} size={28} /> : null}</div>}
-                    {!isPending && isOwn && <button className="chat-hover-action" title="Reply" onClick={() => setReplyTo({ id: m.id, sender: 'You', preview: parsed.text })}><Reply style={{ width: 12, height: 12 }} /></button>}
+                    {!isPending && isOwn && <button className="chat-hover-action" title="Reply" onClick={() => setReplyTo({ id: m.id, sender: 'You', preview: parsed.isVoice ? '🎤 Voice note' : parsed.text })}><Reply style={{ width: 12, height: 12 }} /></button>}
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isOwn ? 'flex-end' : 'flex-start', gap: 2 }}>
                       {/* Bubble */}
@@ -696,7 +851,9 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
                               <div className="chat-reply-quote-text">{parsed.replyPreview}</div>
                             </div>
                           )}
-                          {parsed.isPoll ? (
+                          {parsed.isVoice ? (
+                            <VoicePlayer base64={parsed.voiceBase64!} duration={parsed.voiceDuration!} isOwn={isOwn} />
+                          ) : parsed.isPoll ? (
                             <PollBubble msgId={m.id} question={parsed.pollQuestion!} options={parsed.pollOptions!} isOwn={isOwn} />
                           ) : (
                             <div className="chat-bubble-content">{renderLinks(parsed.text)}</div>
@@ -732,7 +889,7 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
                       )}
                     </div>
 
-                    {!isPending && !isOwn && <button className="chat-hover-action" title="Reply" onClick={() => setReplyTo({ id: m.id, sender: activeRel.counterparty_name, preview: parsed.text })}><Reply style={{ width: 12, height: 12 }} /></button>}
+                    {!isPending && !isOwn && <button className="chat-hover-action" title="Reply" onClick={() => setReplyTo({ id: m.id, sender: activeRel.counterparty_name, preview: parsed.isVoice ? '🎤 Voice note' : parsed.text })}><Reply style={{ width: 12, height: 12 }} /></button>}
                   </div>
                 );
               })}

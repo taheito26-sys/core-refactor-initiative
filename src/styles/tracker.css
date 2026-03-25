@@ -1172,3 +1172,66 @@
   50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
 }
 .chat-recording-btn { animation: recordPulse 1s ease infinite; }
+
+/* ─── Voice Note Player ──────────────────────────────────────────────────── */
+.chat-voice-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+  max-width: 260px;
+  padding: 2px 0;
+}
+.chat-voice-play-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.chat-voice-play-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chat-voice-play-btn:hover:not(:disabled) { transform: scale(1.1); }
+.chat-voice-player.own .chat-voice-play-btn {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+.chat-voice-player.other .chat-voice-play-btn {
+  background: rgba(139,92,246,0.25);
+  color: var(--brand, #8b5cf6);
+}
+.chat-voice-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.chat-voice-waveform {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.chat-voice-bar {
+  width: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+.chat-voice-time {
+  font-size: 9px;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+.chat-voice-mic-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
