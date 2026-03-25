@@ -656,6 +656,13 @@ const translations = {
   allClear: { en: 'All clear', ar: 'كل شيء مُنجز' },
   merchantExposure: { en: 'MERCHANT EXPOSURE', ar: 'التعرض التجاري' },
   merchantRealizedPnl: { en: 'MERCHANT P&L', ar: 'أرباح/خسائر تجارية' },
+  merchantDealsOverview: { en: 'Merchant Deals', ar: 'صفقات الشركاء' },
+  outgoingDeals: { en: 'Outgoing Deals', ar: 'صفقات صادرة' },
+  incomingDeals: { en: 'Incoming Deals', ar: 'صفقات واردة' },
+  totalDealVolume: { en: 'Total Deal Volume', ar: 'إجمالي حجم الصفقات' },
+  dealNetPnl: { en: 'Deal Net P&L', ar: 'صافي الأرباح' },
+  activeDeals: { en: 'Active Deals', ar: 'صفقات نشطة' },
+  pendingDeals: { en: 'Pending', ar: 'معلقة' },
 
   // ── Network Inbox ──
   globalInbox: { en: 'Merchant Inbox', ar: 'صندوق الوارد التجاري' },
