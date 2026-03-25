@@ -273,16 +273,34 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
-  // Incoming: deals created by OTHER merchants in my relationships (exclude cancelled and rejected)
+  const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
+  // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId && d.status !== 'cancelled' && d.status !== 'rejected'),
+    () => allMerchantDeals.filter(d => d.created_by !== userId && isDealVisible(d)),
     [allMerchantDeals, userId],
   );
-  // Outgoing: deals I created (server-authoritative, exclude cancelled and rejected)
+  // Outgoing: deals I created (server-authoritative)
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId && d.status !== 'cancelled' && d.status !== 'rejected'),
+    () => allMerchantDeals.filter(d => d.created_by === userId && isDealVisible(d)),
     [allMerchantDeals, userId],
   );
+
+  /** Resolve avg buy for a deal — use metadata first, fallback to local FIFO trade calc */
+  const resolveDealAvgBuy = useCallback((deal: any): number => {
+    const meta = parseDealMeta(deal.notes);
+    const metaAvg = Number(meta.avg_buy) || 0;
+    if (metaAvg > 0) return metaAvg;
+    // Fallback: find local trade linked to this deal and use FIFO calc
+    const localTradeId = meta.local_trade;
+    if (localTradeId && derived) {
+      const c = derived.tradeCalc.get(localTradeId);
+      if (c?.ok) return c.avgBuyQAR;
+      // Check manual buy price on local trade
+      const localTrade = state.trades.find(t => t.id === localTradeId);
+      if (localTrade?.manualBuyPrice && localTrade.manualBuyPrice > 0) return localTrade.manualBuyPrice;
+    }
+    return 0;
+  }, [derived, state.trades]);
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
