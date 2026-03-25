@@ -307,6 +307,15 @@ export function inRange(ts: number, range: string): boolean {
   return true;
 }
 
+/** Apply merchant share to net profit for linked trades (show only "my cut") */
+function applyMyShare(trade: Trade, fullNet: number): number {
+  if (trade.linkedDealId || trade.linkedRelId) {
+    const myPct = trade.merchantPct ?? 100;
+    return fullNet * myPct / 100;
+  }
+  return fullNet;
+}
+
 export function kpiFor(state: TrackerState, derived: DerivedState, range: string) {
   const trades = state.trades.filter(t => !t.voided && inRange(t.ts, range));
   let rev = 0, net = 0, qty = 0, fee = 0;
@@ -316,12 +325,13 @@ export function kpiFor(state: TrackerState, derived: DerivedState, range: string
     rev += tradeRev;
     qty += t.amountUSDT;
     fee += t.feeQAR;
+    let fullNet = 0;
     if (c?.ok) {
-      net += c.netQAR;
+      fullNet = c.netQAR;
     } else if (t.manualBuyPrice) {
-      // Fallback for manual-mode trades not in FIFO
-      net += tradeRev - (t.amountUSDT * t.manualBuyPrice) - t.feeQAR;
+      fullNet = tradeRev - (t.amountUSDT * t.manualBuyPrice) - t.feeQAR;
     }
+    net += applyMyShare(t, fullNet);
   }
   const margins = trades
     .map(t => { const c = derived.tradeCalc.get(t.id); return c?.ok ? c.margin : null; })

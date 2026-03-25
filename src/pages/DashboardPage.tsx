@@ -39,9 +39,17 @@ export default function DashboardPage() {
   const rLabel = rangeLabel(settings.range);
 
   const allTrades = state.trades.filter(t => !t.voided);
-  const allMargins = allTrades.map(t => {
-    const c = derived.tradeCalc.get(t.id);
-    return c?.ok ? c.margin : null;
+  const allMargins = allTrades.map(tr => {
+    const c = derived.tradeCalc.get(tr.id);
+    if (!c?.ok) return null;
+    // For linked trades, adjust margin to reflect only my share
+    if (tr.linkedDealId || tr.linkedRelId) {
+      const myPct = tr.merchantPct ?? 100;
+      const myNet = c.netQAR * myPct / 100;
+      const rev = tr.amountUSDT * tr.sellPriceQAR;
+      return rev > 0 ? (myNet / rev) * 100 : 0;
+    }
+    return c.margin;
   }).filter((x): x is number => x !== null);
   const avgM = allMargins.length ? allMargins.reduce((s, v) => s + v, 0) / allMargins.length : 0;
 
@@ -231,12 +239,18 @@ export default function DashboardPage() {
     return { avgSell, avgBuy };
   }, [allTrades, state.batches]);
 
-  // Helper: get net P&L for a trade (FIFO or manual fallback)
+  // Helper: get net P&L for a trade (FIFO or manual fallback) — applies "my cut" for linked trades
   const tradeNet = (tr: typeof allTrades[0]) => {
     const c = derived.tradeCalc.get(tr.id);
-    if (c?.ok) return c.netQAR;
-    if (tr.manualBuyPrice) return tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
-    return 0;
+    let fullNet = 0;
+    if (c?.ok) fullNet = c.netQAR;
+    else if (tr.manualBuyPrice) fullNet = tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
+    // For linked trades, show only my share
+    if (tr.linkedDealId || tr.linkedRelId) {
+      const myPct = tr.merchantPct ?? 100;
+      return fullNet * myPct / 100;
+    }
+    return fullNet;
   };
 
   // ── Chart 1: Profit & Revenue Trend (last 14 trades) ──
