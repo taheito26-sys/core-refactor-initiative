@@ -6,6 +6,8 @@ import {
   fmtQ,
   fmtDate,
   fmtDur,
+  fmtTotal,
+  num,
   getWACOP,
   rangeLabel,
   batchCycleTime,
