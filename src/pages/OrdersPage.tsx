@@ -1531,316 +1531,306 @@ export default function OrdersPage() {
                   </label>
                   {merchantOrderEnabled && (
                     <>
-                      {/* ─── Deal Family Selector ─── */}
+                      {/* ─── Step 1: Select Partner (Merchant) ─── */}
                       <div className="field2" style={{ marginBottom: 6 }}>
-                        <div className="lbl">{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                        <div className="lbl">{t('selectPartner')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                         <select
-                          value={selectedTemplateId || ''}
+                          value={linkedRelId}
                           onChange={e => {
-                            const val = e.target.value || null;
-                            setSelectedTemplateId(val);
+                            setLinkedRelId(e.target.value);
+                            setSelectedTemplateId(null);
                             setAllocations([]);
-                            // For capital transfer, switch to legacy flow
-                            if (val === 'capital_transfer') {
-                              setLinkedRelId('');
-                            }
                           }}
                           style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                         >
-                          <option value="">{t('selectDealFamily')}</option>
-                          <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')}</option>
-                          <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
-                          <option value="capital_transfer">💸 {t('capitalTransferFamily')}</option>
+                          <option value="">{t('noneSelected')}</option>
+                          {relationships.map(r => (
+                            <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
+                          ))}
                         </select>
                       </div>
 
-                      {/* ─── Capital Transfer (legacy flow) ─── */}
-                      {isCapitalTransfer && (
-                        <>
-                          <div className="field2" style={{ marginBottom: 6 }}>
-                            <div className="lbl">{t('selectPartner')}</div>
-                            <select
-                              value={linkedRelId}
-                              onChange={e => setLinkedRelId(e.target.value)}
-                              style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                            >
-                              <option value="">{t('noneSelected')}</option>
-                              {relationships.map(r => (
-                                <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
-                              ))}
-                            </select>
-                          </div>
-                          {linkedRelId && (
-                            <div style={{ marginTop: 8 }}>
-                              {(() => {
-                                const cpRel = relationships.find(r => r.id === linkedRelId);
-                                const cpName = cpRel?.counterparty?.display_name || (cpRel as any)?.counterparty_name || t('partner');
-                                const myName = merchantProfile?.display_name || t('you') || 'You';
-                                return (
-                                  <div className="field2" style={{ marginBottom: 6 }}>
-                                    <div className="lbl">{t('direction')}</div>
-                                    <select
-                                      value={transferDirection}
-                                      onChange={e => setTransferDirection(e.target.value as any)}
-                                      style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                                    >
-                                      <option value="lender_to_operator">💸 {cpName} → {myName}</option>
-                                      <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
-                                    </select>
-                                  </div>
-                                );
-                              })()}
-                              <div className="g2tight">
-                                <div className="field2">
-                                  <div className="lbl">USDT {t('amount')}</div>
-                                  <div className="inputBox">
-                                    <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" />
-                                  </div>
-                                </div>
-                                <div className="field2">
-                                  <div className="lbl">{t('costBasisQar')}</div>
-                                  <div className="inputBox">
-                                    <input type="number" step="0.01" value={transferCostBasis} onChange={e => setTransferCostBasis(e.target.value)} placeholder="3.65" />
-                                  </div>
-                                </div>
-                              </div>
-                              {transferAmount && transferCostBasis && (
-                                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                                  {t('totalCostQar')}: <span className="mono" style={{ fontWeight: 700 }}>
-                                    {(parseFloat(transferAmount) * parseFloat(transferCostBasis)).toLocaleString()} QAR
-                                  </span>
-                                </div>
-                              )}
-                              <div className="field2" style={{ marginTop: 6 }}>
-                                <div className="lbl">{t('noteOptional')}</div>
-                                <div className="inputBox">
-                                  <input value={transferNote} onChange={e => setTransferNote(e.target.value)} placeholder={t('noteOptional')} />
-                                </div>
-                              </div>
-                              <button className="btn" style={{ marginTop: 8, width: '100%' }} onClick={handleCapitalTransfer} disabled={submitCapitalTransfer.isPending}>
-                                💸 {t('submitTransfer')}
-                              </button>
+                      {/* ─── Step 2: Deal Family (only after merchant selected) ─── */}
+                      {linkedRelId && (() => {
+                        const selectedRel = relationships.find(r => r.id === linkedRelId);
+                        const cpName = selectedRel?.counterparty?.display_name || (selectedRel as any)?.counterparty_name || t('partner');
+                        const cpId = selectedRel ? (selectedRel.merchant_a_id === merchantProfile?.merchant_id ? selectedRel.merchant_b_id : selectedRel.merchant_a_id) : '';
+                        const relApprovedAgreements = allAgreements.filter(a =>
+                          a.relationship_id === linkedRelId && a.status === 'approved' && isAgreementActive(a)
+                        );
+
+                        return (
+                          <>
+                            <div className="field2" style={{ marginBottom: 6 }}>
+                              <div className="lbl">{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                              <select
+                                value={selectedTemplateId || ''}
+                                onChange={e => {
+                                  const val = e.target.value || null;
+                                  setSelectedTemplateId(val);
+                                  setAllocations([]);
+                                  // Auto-create allocation row for profit_share/sales_deal
+                                  if (val === 'profit_share_family' || val === 'sales_deal_family') {
+                                    setAllocations([{
+                                      id: `alloc_${Date.now()}`,
+                                      relationshipId: linkedRelId,
+                                      merchantName: cpName,
+                                      merchantId: cpId,
+                                      family: val === 'profit_share_family' ? 'profit_share' : 'sales_deal',
+                                      agreementId: null,
+                                      agreementLabel: '',
+                                      allocatedUsdt: saleAmount || '',
+                                      merchantCostPerUsdt: '',
+                                      partnerSharePct: 0,
+                                      merchantSharePct: 0,
+                                      note: '',
+                                    }]);
+                                  }
+                                }}
+                                style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                              >
+                                <option value="">{t('selectDealFamily')}</option>
+                                <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')} {relApprovedAgreements.length > 0 ? `(${relApprovedAgreements.length})` : ''}</option>
+                                <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
+                                <option value="capital_transfer">💸 {t('capitalTransferFamily')}</option>
+                              </select>
                             </div>
-                          )}
-                        </>
-                      )}
 
-                      {/* ─── MULTI-MERCHANT ALLOCATIONS (Profit Share & Sales Deal) ─── */}
-                      {(selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family') && (
-                        <div style={{ marginTop: 4 }}>
-                          {/* Info banner */}
-                          <div style={{
-                            padding: '6px 10px', borderRadius: 4, fontSize: 9, lineHeight: 1.4, marginBottom: 8,
-                            background: selectedTemplateId === 'profit_share_family'
-                              ? 'color-mix(in srgb, var(--brand) 6%, transparent)'
-                              : 'color-mix(in srgb, var(--good) 6%, transparent)',
-                            border: `1px solid ${selectedTemplateId === 'profit_share_family' ? 'color-mix(in srgb, var(--brand) 15%, transparent)' : 'color-mix(in srgb, var(--good) 15%, transparent)'}`,
-                            color: 'var(--muted)',
-                          }}>
-                            {selectedTemplateId === 'profit_share_family' ? (
-                              <><strong style={{ color: 'var(--brand)' }}>{t('profitShare')}:</strong> {t('profitShareInfoBanner')}</>
-                            ) : (
-                              <><strong style={{ color: 'var(--good)' }}>{t('salesDeal')}:</strong> {t('salesDealInfoBanner')}</>
-                            )}
-                          </div>
-
-                          {/* Allocation rows */}
-                          {allocations.map((alloc, idx) => {
-                            const relAgreements = allAgreements.filter(a =>
-                              a.relationship_id === alloc.relationshipId && a.status === 'approved' && isAgreementActive(a)
-                            );
-                            return (
-                              <div key={alloc.id} style={{
-                                padding: '8px 10px', borderRadius: 6, marginBottom: 6,
-                                border: '1px solid var(--line)',
-                                background: 'color-mix(in srgb, var(--brand) 3%, transparent)',
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700 }}>
-                                    {selectedTemplateId === 'profit_share_family' ? '🤝' : '📊'} {t('allocationNum')} #{idx + 1}
-                                  </span>
-                                  <button
-                                    className="rowBtn"
-                                    style={{ color: 'var(--bad)', fontSize: 9 }}
-                                    onClick={() => setAllocations(prev => prev.filter(a => a.id !== alloc.id))}
-                                  >
-                                    {t('removeAllocation')}
-                                  </button>
+                            {/* ─── Profit Share: Show approved agreements for this merchant ─── */}
+                            {selectedTemplateId === 'profit_share_family' && (
+                              <div style={{ marginTop: 4 }}>
+                                <div style={{
+                                  padding: '6px 10px', borderRadius: 4, fontSize: 9, lineHeight: 1.4, marginBottom: 8,
+                                  background: 'color-mix(in srgb, var(--brand) 6%, transparent)',
+                                  border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)',
+                                  color: 'var(--muted)',
+                                }}>
+                                  <strong style={{ color: 'var(--brand)' }}>{t('profitShare')}:</strong> {t('profitShareInfoBanner')}
                                 </div>
 
-                                {/* Merchant selector */}
-                                <div className="field2" style={{ marginBottom: 4 }}>
-                                  <div className="lbl" style={{ fontSize: 9 }}>{t('allocMerchant')}</div>
-                                  <select
-                                    value={alloc.relationshipId}
-                                    onChange={e => {
-                                      const relId = e.target.value;
-                                      const rel = relationships.find(r => r.id === relId);
-                                      const cpId = rel ? (rel.merchant_a_id === merchantProfile?.merchant_id ? rel.merchant_b_id : rel.merchant_a_id) : '';
-                                      setAllocations(prev => prev.map(a => a.id === alloc.id ? {
-                                        ...a,
-                                        relationshipId: relId,
-                                        merchantName: rel?.counterparty?.display_name || '',
-                                        merchantId: cpId,
-                                        agreementId: null,
-                                        agreementLabel: '',
-                                        partnerSharePct: selectedTemplateId === 'sales_deal_family' ? a.partnerSharePct : 0,
-                                        merchantSharePct: selectedTemplateId === 'sales_deal_family' ? a.merchantSharePct : 0,
-                                      } : a));
-                                    }}
-                                    style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                                  >
-                                    <option value="">{t('selectMerchantAlloc')}</option>
-                                    {relationships.map(r => (
-                                      <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                {/* Profit Share: Agreement selector (locked ratio) */}
-                                {selectedTemplateId === 'profit_share_family' && alloc.relationshipId && (
-                                  <div className="field2" style={{ marginBottom: 4 }}>
-                                    <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
-                                    {relAgreements.length === 0 ? (
-                                      <div style={{ fontSize: 9, color: 'var(--bad)', padding: '4px 0' }}>
-                                        ⚠️ {t('noApprovedAgreement')} {alloc.merchantName || t('thisMerchant')}. {t('createInWorkspaceFirst')}
-                                      </div>
-                                    ) : (
+                                {relApprovedAgreements.length === 0 ? (
+                                  <div style={{ fontSize: 10, color: 'var(--bad)', padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 15%, transparent)' }}>
+                                    ⚠️ {t('noApprovedAgreement')} <strong>{cpName}</strong>. {t('createInWorkspaceFirst')}
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="field2" style={{ marginBottom: 4 }}>
+                                      <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
                                       <select
-                                        value={alloc.agreementId || ''}
+                                        value={allocations[0]?.agreementId || ''}
                                         onChange={e => {
-                                          const agr = relAgreements.find(a => a.id === e.target.value);
-                                          setAllocations(prev => prev.map(a => a.id === alloc.id ? {
-                                            ...a,
-                                            agreementId: agr?.id || null,
-                                            agreementLabel: agr ? getAgreementLabel(agr) : '',
-                                            partnerSharePct: agr?.partner_ratio || 0,
-                                            merchantSharePct: agr?.merchant_ratio || 0,
-                                          } : a));
+                                          const agr = relApprovedAgreements.find(a => a.id === e.target.value);
+                                          setAllocations(prev => {
+                                            const base = prev[0] || {
+                                              id: `alloc_${Date.now()}`, relationshipId: linkedRelId, merchantName: cpName, merchantId: cpId,
+                                              family: 'profit_share' as const, allocatedUsdt: saleAmount || '', merchantCostPerUsdt: '', note: '',
+                                            };
+                                            return [{
+                                              ...base,
+                                              agreementId: agr?.id || null,
+                                              agreementLabel: agr ? getAgreementLabel(agr) : '',
+                                              partnerSharePct: agr?.partner_ratio || 0,
+                                              merchantSharePct: agr?.merchant_ratio || 0,
+                                            }];
+                                          });
                                         }}
                                         style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                                       >
                                         <option value="">{t('selectAgreement')}</option>
-                                        {relAgreements.map(agr => (
+                                        {relApprovedAgreements.map(agr => (
                                           <option key={agr.id} value={agr.id}>
                                             🤝 {agr.partner_ratio}/{agr.merchant_ratio} — {agr.settlement_cadence}
                                           </option>
                                         ))}
                                       </select>
-                                    )}
-                                    {alloc.agreementId && (
-                                      <div style={{ fontSize: 9, color: 'var(--brand)', marginTop: 2, fontWeight: 600 }}>
-                                        {t('lockedRatio')} {alloc.partnerSharePct}% / {t('youShare')} {alloc.merchantSharePct}%
+                                    </div>
+                                    {allocations[0]?.agreementId && (
+                                      <div style={{ fontSize: 9, color: 'var(--brand)', marginTop: 2, fontWeight: 600, marginBottom: 6 }}>
+                                        {t('lockedRatio')} {allocations[0].partnerSharePct}% / {t('youShare')} {allocations[0].merchantSharePct}%
                                       </div>
                                     )}
-                                  </div>
+                                  </>
                                 )}
 
-                                {/* Sales Deal: Direct share entry */}
-                                {selectedTemplateId === 'sales_deal_family' && (
-                                  <div className="g2tight" style={{ marginBottom: 4 }}>
+                                {/* USDT & Cost fields for the allocation */}
+                                {allocations[0]?.agreementId && (
+                                  <div className="g2tight" style={{ marginTop: 6 }}>
                                     <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>{t('allocPartnerSharePct')}</div>
+                                      <div className="lbl" style={{ fontSize: 9 }}>USDT {t('allocated')}</div>
                                       <div className="inputBox" style={{ padding: '3px 6px' }}>
                                         <input
-                                          type="number" min="0" max="100" placeholder="50"
-                                          value={alloc.partnerSharePct || ''}
+                                          type="text" placeholder="0"
+                                          value={allocations[0]?.allocatedUsdt || ''}
                                           onChange={e => {
-                                            const pct = Number(e.target.value) || 0;
-                                            setAllocations(prev => prev.map(a => a.id === alloc.id ? {
-                                              ...a, partnerSharePct: pct, merchantSharePct: 100 - pct,
-                                            } : a));
+                                            if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
+                                              setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: e.target.value } : a));
                                           }}
                                           style={{ fontSize: 10 }}
                                         />
                                       </div>
                                     </div>
                                     <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>{t('allocYourSharePct')}</div>
+                                      <div className="lbl" style={{ fontSize: 9 }}>{t('allocMerchantCost')}</div>
                                       <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                        <input type="number" readOnly value={alloc.merchantSharePct || 0} style={{ fontSize: 10, opacity: 0.6, cursor: 'not-allowed' }} />
+                                        <input
+                                          type="text" placeholder="3.65"
+                                          value={allocations[0]?.merchantCostPerUsdt || ''}
+                                          onChange={e => {
+                                            if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
+                                              setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, merchantCostPerUsdt: e.target.value } : a));
+                                          }}
+                                          style={{ fontSize: 10 }}
+                                        />
                                       </div>
                                     </div>
                                   </div>
                                 )}
+                              </div>
+                            )}
 
-                                {/* Common: USDT allocation & cost */}
-                                <div className="g2tight">
+                            {/* ─── Sales Deal: Direct share entry ─── */}
+                            {selectedTemplateId === 'sales_deal_family' && (
+                              <div style={{ marginTop: 4 }}>
+                                <div style={{
+                                  padding: '6px 10px', borderRadius: 4, fontSize: 9, lineHeight: 1.4, marginBottom: 8,
+                                  background: 'color-mix(in srgb, var(--good) 6%, transparent)',
+                                  border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)',
+                                  color: 'var(--muted)',
+                                }}>
+                                  <strong style={{ color: 'var(--good)' }}>{t('salesDeal')}:</strong> {t('salesDealInfoBanner')}
+                                </div>
+
+                                <div className="g2tight" style={{ marginBottom: 4 }}>
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocatedUsdt')}</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocPartnerSharePct')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
-                                        inputMode="decimal" placeholder="0"
-                                        value={alloc.allocatedUsdt}
-                                        onChange={e => setAllocations(prev => prev.map(a => a.id === alloc.id ? { ...a, allocatedUsdt: e.target.value } : a))}
+                                        type="number" min="0" max="100" placeholder="50"
+                                        value={allocations[0]?.partnerSharePct || ''}
+                                        onChange={e => {
+                                          const pct = Number(e.target.value) || 0;
+                                          setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: pct, merchantSharePct: 100 - pct } : a));
+                                        }}
                                         style={{ fontSize: 10 }}
                                       />
                                     </div>
                                   </div>
                                   <div className="field2">
-                                    <div className="lbl" style={{ fontSize: 9 }}>{t('merchantCostUsdt')}</div>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocYourSharePct')}</div>
+                                    <div className="inputBox" style={{ padding: '3px 6px' }}>
+                                      <input type="number" disabled value={allocations[0] ? 100 - (allocations[0].partnerSharePct || 0) : ''} style={{ fontSize: 10, opacity: 0.6 }} />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="g2tight" style={{ marginTop: 4 }}>
+                                  <div className="field2">
+                                    <div className="lbl" style={{ fontSize: 9 }}>USDT {t('allocated')}</div>
                                     <div className="inputBox" style={{ padding: '3px 6px' }}>
                                       <input
-                                        inputMode="decimal" placeholder="3.65"
-                                        value={alloc.merchantCostPerUsdt}
-                                        onChange={e => setAllocations(prev => prev.map(a => a.id === alloc.id ? { ...a, merchantCostPerUsdt: e.target.value } : a))}
+                                        type="text" placeholder="0"
+                                        value={allocations[0]?.allocatedUsdt || ''}
+                                        onChange={e => {
+                                          if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
+                                            setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: e.target.value } : a));
+                                        }}
+                                        style={{ fontSize: 10 }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="field2">
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('allocMerchantCost')}</div>
+                                    <div className="inputBox" style={{ padding: '3px 6px' }}>
+                                      <input
+                                        type="text" placeholder="3.65"
+                                        value={allocations[0]?.merchantCostPerUsdt || ''}
+                                        onChange={e => {
+                                          if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
+                                            setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, merchantCostPerUsdt: e.target.value } : a));
+                                        }}
                                         style={{ fontSize: 10 }}
                                       />
                                     </div>
                                   </div>
                                 </div>
 
-                                {/* Optional note */}
                                 <div className="field2" style={{ marginTop: 4 }}>
                                   <div className="lbl" style={{ fontSize: 9 }}>{t('noteOptional')}</div>
                                   <div className="inputBox" style={{ padding: '3px 6px' }}>
                                     <input
-                                      value={alloc.note}
-                                      onChange={e => setAllocations(prev => prev.map(a => a.id === alloc.id ? { ...a, note: e.target.value } : a))}
+                                      value={allocations[0]?.note || ''}
+                                      onChange={e => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, note: e.target.value } : a))}
                                       placeholder={t('optionalNotePlaceholder')}
                                       style={{ fontSize: 10 }}
                                     />
                                   </div>
                                 </div>
                               </div>
-                            );
-                          })}
+                            )}
 
-                          {/* Add allocation button */}
-                          <button
-                            className="btn secondary"
-                            style={{ width: '100%', fontSize: 10, marginBottom: 8 }}
-                            onClick={() => {
-                              setAllocations(prev => [...prev, {
-                                id: `alloc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-                                relationshipId: '',
-                                merchantName: '',
-                                merchantId: '',
-                                family: selectedTemplateId === 'profit_share_family' ? 'profit_share' : 'sales_deal',
-                                agreementId: null,
-                                agreementLabel: '',
-                                allocatedUsdt: '',
-                                merchantCostPerUsdt: '',
-                                partnerSharePct: 0,
-                                merchantSharePct: 0,
-                                note: '',
-                              }]);
-                            }}
-                          >
-                            {t('addMerchantAllocation')}
-                          </button>
+                            {/* ─── Capital Transfer ─── */}
+                            {isCapitalTransfer && (
+                              <div style={{ marginTop: 8 }}>
+                                {(() => {
+                                  const myName = merchantProfile?.display_name || t('you') || 'You';
+                                  return (
+                                    <div className="field2" style={{ marginBottom: 6 }}>
+                                      <div className="lbl">{t('direction')}</div>
+                                      <select
+                                        value={transferDirection}
+                                        onChange={e => setTransferDirection(e.target.value as any)}
+                                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                      >
+                                        <option value="lender_to_operator">💸 {cpName} → {myName}</option>
+                                        <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
+                                      </select>
+                                    </div>
+                                  );
+                                })()}
+                                <div className="g2tight">
+                                  <div className="field2">
+                                    <div className="lbl">USDT {t('amount')}</div>
+                                    <div className="inputBox">
+                                      <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" />
+                                    </div>
+                                  </div>
+                                  <div className="field2">
+                                    <div className="lbl">{t('costBasisQar')}</div>
+                                    <div className="inputBox">
+                                      <input type="number" step="0.01" value={transferCostBasis} onChange={e => setTransferCostBasis(e.target.value)} placeholder="3.65" />
+                                    </div>
+                                  </div>
+                                </div>
+                                {transferAmount && transferCostBasis && (
+                                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                                    {t('totalCostQar')}: <span className="mono" style={{ fontWeight: 700 }}>
+                                      {(parseFloat(transferAmount) * parseFloat(transferCostBasis)).toLocaleString()} QAR
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="field2" style={{ marginTop: 6 }}>
+                                  <div className="lbl">{t('noteOptional')}</div>
+                                  <div className="inputBox">
+                                    <input value={transferNote} onChange={e => setTransferNote(e.target.value)} placeholder={t('noteOptional')} />
+                                  </div>
+                                </div>
+                                <button className="btn" style={{ marginTop: 8, width: '100%' }} onClick={handleCapitalTransfer} disabled={submitCapitalTransfer.isPending}>
+                                  💸 {t('submitTransfer')}
+                                </button>
+                              </div>
+                            )}
 
-                          {/* ─── Allocation Summary ─── */}
-                          {allocations.length > 0 && salePreview && (() => {
-                            const totalAllocated = allocations.reduce((s, a) => s + (parseFloat(a.allocatedUsdt) || 0), 0);
-                            const remaining = salePreview.qty - totalAllocated;
-                            const sellP = Number(saleSell) || 0;
-                            const totalFee = parseFloat(saleFee) || 0;
-
-                            const calcRows = allocations.map(alloc => {
+                            {/* ─── Live Preview for PS/SD ─── */}
+                            {(selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family') && allocations.length > 0 && salePreview && (() => {
+                              const alloc = allocations[0];
                               const usdt = parseFloat(alloc.allocatedUsdt) || 0;
                               const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-                              return calculateAllocationEconomics({
+                              const sellP = Number(saleSell) || 0;
+                              const totalFee = parseFloat(saleFee) || 0;
+
+                              if (!(usdt > 0) || !(sellP > 0)) return null;
+
+                              const calc = calculateAllocationEconomics({
                                 allocatedUsdt: usdt,
                                 merchantCostPerUsdt: costPerUsdt,
                                 sellPrice: sellP,
@@ -1849,101 +1839,38 @@ export default function OrdersPage() {
                                 family: alloc.family,
                                 partnerSharePct: alloc.partnerSharePct,
                               });
-                            });
 
-                            const totals = calcRows.reduce((acc, c) => ({
-                              revenue: acc.revenue + c.revenue,
-                              cost: acc.cost + c.cost,
-                              fee: acc.fee + c.feeShare,
-                              net: acc.net + c.net,
-                              partnerTotal: acc.partnerTotal + c.partnerAmount,
-                              merchantTotal: acc.merchantTotal + c.merchantAmount,
-                            }), { revenue: 0, cost: 0, fee: 0, net: 0, partnerTotal: 0, merchantTotal: 0 });
-
-                            const allocationMatch = Math.abs(remaining) < 0.01;
-                            const overAllocated = remaining < -0.01;
-
-                            return (
-                              <div style={{
-                                padding: '8px 10px', borderRadius: 6, marginBottom: 6,
-                                background: 'color-mix(in srgb, var(--brand) 8%, transparent)',
-                                border: `1px solid ${allocationMatch ? 'color-mix(in srgb, var(--good) 30%, transparent)' : 'color-mix(in srgb, var(--warn) 30%, transparent)'}`,
-                              }}>
-                                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>
-                                  {t('allocSummary')}
-                                </div>
-
-                                {/* Allocation balance */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                  <span className="muted">{t('totalSaleUsdt')}:</span>
-                                  <strong className="mono">{fmtU(salePreview.qty)}</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                  <span className="muted">{t('allocAllocated')}:</span>
-                                  <strong className="mono">{fmtU(totalAllocated)}</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4 }}>
-                                  <span className="muted">{t('allocRemaining')}:</span>
-                                  <strong className="mono" style={{ color: allocationMatch ? 'var(--good)' : overAllocated ? 'var(--bad)' : 'var(--warn)' }}>
-                                    {allocationMatch ? `✅ ${t('allocBalanced')}` : overAllocated ? `⚠️ ${t('allocOverBy')} ${fmtU(Math.abs(remaining))}` : fmtU(remaining)}
-                                  </strong>
-                                </div>
-
-                                {/* Per-merchant preview table */}
-                                {calcRows.length > 0 && (
-                                  <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 4, marginTop: 2 }}>
-                                    <div style={{ fontSize: 8, fontWeight: 700, color: 'var(--muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                                      {t('perMerchantBreakdown')}
-                                    </div>
-                                    {allocations.map((alloc, i) => {
-                                      const c = calcRows[i];
-                                      return (
-                                        <div key={alloc.id} style={{
-                                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                          fontSize: 9, padding: '3px 0',
-                                          borderBottom: i < allocations.length - 1 ? '1px solid color-mix(in srgb, var(--line) 30%, transparent)' : 'none',
-                                        }}>
-                                          <span style={{ fontWeight: 600 }}>{alloc.merchantName || `${t('allocMerchant')} ${i + 1}`}</span>
-                                          <span className="mono">
-                                            {t('allocRev')} {fmtQ(c.revenue)} · {t('allocNet')} <span style={{ color: c.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{c.net >= 0 ? '+' : ''}{fmtQ(c.net)}</span>
-                                            {' · '}
-                                            <span style={{ color: 'var(--good)' }}>{t('youShare')} {fmtQ(c.merchantAmount)}</span>
-                                            {' · '}
-                                            <span style={{ color: 'var(--bad)' }}>{t('partner')} {fmtQ(c.partnerAmount)}</span>
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
-                                    {/* Totals row */}
-                                    <div style={{
-                                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                      fontSize: 10, fontWeight: 700, padding: '5px 0 0 0',
-                                      borderTop: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)',
-                                      marginTop: 3,
-                                    }}>
-                                      <span>TOTAL</span>
-                                      <span className="mono">
-                                        {t('allocRev')} {fmtQ(totals.revenue)} · {t('allocNet')} <span style={{ color: totals.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{totals.net >= 0 ? '+' : ''}{fmtQ(totals.net)}</span>
-                                        {' · '}
-                                        <span style={{ color: 'var(--good)' }}>{t('youShare')} {fmtQ(totals.merchantTotal)}</span>
-                                        {' · '}
-                                        <span style={{ color: 'var(--bad)' }}>{t('allocPartners')} {fmtQ(totals.partnerTotal)}</span>
-                                      </span>
-                                    </div>
+                              return (
+                                <div style={{
+                                  padding: '8px 10px', borderRadius: 6, marginTop: 8,
+                                  background: 'color-mix(in srgb, var(--brand) 8%, transparent)',
+                                  border: '1px solid color-mix(in srgb, var(--good) 30%, transparent)',
+                                }}>
+                                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>
+                                    {t('allocSummary')}
                                   </div>
-                                )}
-
-                                {/* Validation message */}
-                                {!allocationMatch && (
-                                  <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 4, fontWeight: 600 }}>
-                                    ⚠️ {t('allocationMustMatch')} ({fmtU(salePreview.qty)}) {t('toSubmit')}.
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
+                                    <span className="muted">{t('allocRev')}:</span>
+                                    <strong className="mono">{fmtQ(calc.revenue)}</strong>
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
+                                    <span className="muted">{t('allocNet')}:</span>
+                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtQ(calc.net)}</strong>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
+                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({alloc.merchantSharePct}%):</span>
+                                    <strong className="mono" style={{ color: 'var(--good)' }}>{fmtQ(calc.merchantAmount)}</strong>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({alloc.partnerSharePct}%):</span>
+                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtQ(calc.partnerAmount)}</strong>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
