@@ -84,19 +84,18 @@ export default function DashboardPage() {
         const meta = parseMeta(d.notes);
         const qty = Number(meta.quantity) || 0;
         const sell = Number(meta.sell_price) || 0;
-        const avgBuy = Number(meta.avg_buy) || 0;
+        // avg_buy may be 0 if FIFO wasn't used; fall back to merchant_cost or fifo_cost
+        const avgBuy = Number(meta.avg_buy) || Number(meta.merchant_cost) || Number(meta.fifo_cost) || 0;
         const fee = Number(meta.fee) || 0;
         const vol = qty * sell;
         const fullNet = sell > 0 && avgBuy > 0 ? vol - (qty * avgBuy) - fee : 0;
 
         // Determine the user's share percentage
         let mySharePct = 100;
-        if (d.created_by === userId) {
-          // Creator is the "partner" side
-          mySharePct = Number(meta.partner_ratio) || Number(meta.counterparty_share) || 50;
-        } else {
-          // Receiver is the "merchant" side
-          mySharePct = Number(meta.merchant_ratio) || Number(meta.merchant_share) || 50;
+        const partnerR = Number(meta.partner_ratio) || Number((meta.counterparty_share || '').replace('%', '')) || 0;
+        const merchantR = Number(meta.merchant_ratio) || Number((meta.merchant_share || '').replace('%', '')) || 0;
+        if (partnerR > 0 || merchantR > 0) {
+          mySharePct = d.created_by === userId ? (partnerR || 50) : (merchantR || 50);
         }
         const myNet = fullNet * (mySharePct / 100);
 
