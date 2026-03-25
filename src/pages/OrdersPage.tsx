@@ -2177,7 +2177,7 @@ export default function OrdersPage() {
                     )}
                     {cashDepositMode !== 'none' && (
                       <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
-                        Cash balance: {fmtQ(num(state.cashQAR, 0))} → {fmtQ(num(state.cashQAR, 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                        Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
                       </div>
                     )}
                   </div>
