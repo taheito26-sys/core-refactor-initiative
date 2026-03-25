@@ -256,8 +256,17 @@ export default function ActivityCenter() {
     navigate(notificationRoute(n));
   };
 
+  // Reset to "all" every time the panel opens — prevents phantom count where
+  // the user left on a filtered category (e.g. "Deals"), closed the panel, and
+  // on re-open the filtered view shows 0 items while the badge shows ≥1 from
+  // a different category (e.g. "System").
+  const handleOpenChange = (next: boolean) => {
+    if (next) setActiveCategory('all');
+    setOpen(next);
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button className="relative p-2 rounded-lg hover:bg-muted text-muted-foreground transition-all hover:text-foreground group">
           <Bell className={cn(
