@@ -1088,7 +1088,11 @@ export default function OrdersPage() {
       const c = derived.tradeCalc.get(tr.id);
       qty += tr.amountUSDT;
       vol += tr.amountUSDT * tr.sellPriceQAR;
-      if (c?.ok) netVal += c.netQAR;
+      if (c?.ok) {
+        netVal += c.netQAR;
+      } else if (tr.manualBuyPrice) {
+        netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
+      }
     }
     return { count: selfTrades.length, qty, vol, net: netVal };
   }, [filtered, derived]);
