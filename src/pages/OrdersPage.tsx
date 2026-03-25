@@ -314,12 +314,27 @@ export default function OrdersPage() {
 
   // Sale preview computation
   const salePreview = useMemo(() => {
-    const sell = Number(saleSell);
-    const raw = Number(saleAmount);
+    let sell: number, amountUSDT: number;
     const ts = new Date(saleDate).getTime();
-    const amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
-    if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     const fee = parseFloat(saleFee) || 0;
+
+    if (saleEntryMode === 'qty_total') {
+      // USDT + QAR → auto-calc sell price
+      amountUSDT = Number(saleUsdtQty);
+      const totalQar = Number(saleAmount);
+      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
+    } else if (saleEntryMode === 'qty_price') {
+      // USDT + Price → auto-calc total QAR
+      amountUSDT = Number(saleUsdtQty);
+      sell = Number(saleSell);
+    } else {
+      // price_vol: original mode
+      sell = Number(saleSell);
+      const raw = Number(saleAmount);
+      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    }
+
+    if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     if (priceMode === 'manual') {
       const buyP = parseFloat(manualBuyPrice) || 0;
       const rev = amountUSDT * sell;
@@ -327,13 +342,13 @@ export default function OrdersPage() {
       const net = rev - cost - fee;
       return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net };
     }
-    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
+    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = amountUSDT * sell;
     const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
     const net = calc?.ok ? rev - cost - fee : NaN;
     return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
-  }, [saleAmount, saleDate, saleMode, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
+  }, [saleAmount, saleDate, saleEntryMode, saleMode, saleUsdtQty, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
