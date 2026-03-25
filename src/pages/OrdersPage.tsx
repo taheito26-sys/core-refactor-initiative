@@ -452,6 +452,7 @@ export default function OrdersPage() {
 
     const baseTrade: Trade = {
       id: uid(), ts, inputMode: saleMode, amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
         ? (selectedTemplateId === 'profit_share_family' ? 'profit_share' : 'sales_deal') as any
@@ -1087,7 +1088,11 @@ export default function OrdersPage() {
       const c = derived.tradeCalc.get(tr.id);
       qty += tr.amountUSDT;
       vol += tr.amountUSDT * tr.sellPriceQAR;
-      if (c?.ok) netVal += c.netQAR;
+      if (c?.ok) {
+        netVal += c.netQAR;
+      } else if (tr.manualBuyPrice) {
+        netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
+      }
     }
     return { count: selfTrades.length, qty, vol, net: netVal };
   }, [filtered, derived]);
@@ -1206,8 +1211,8 @@ export default function OrdersPage() {
                         const c = derived.tradeCalc.get(tr.id);
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
-                        const net = ok ? c!.netQAR : NaN;
-                        const margin = ok && rev > 0 ? c!.netQAR / rev : NaN;
+                        const net = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
+                        const margin = Number.isFinite(net) && rev > 0 ? net / rev : NaN;
                         const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                         const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
                         const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);

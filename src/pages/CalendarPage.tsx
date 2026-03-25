@@ -38,14 +38,31 @@ export default function CalendarPage() {
     if (dt.getFullYear() === year && dt.getMonth() === month) {
       const c = derived.tradeCalc.get(tr.id);
       const d2 = dt.getDate();
+      const rev = tr.amountUSDT * tr.sellPriceQAR;
+      // Use FIFO result if available, otherwise compute from manual buy price
+      let netQAR = 0;
+      let margin = 0;
+      let avgBuy = 0;
       if (c?.ok) {
-        const rev = tr.amountUSDT * tr.sellPriceQAR;
-        mData[d2].profit += c.netQAR;
+        netQAR = c.netQAR;
+        margin = c.margin;
+        avgBuy = c.avgBuyQAR;
+      } else if (tr.manualBuyPrice) {
+        const cost = tr.amountUSDT * tr.manualBuyPrice;
+        netQAR = rev - cost - tr.feeQAR;
+        margin = rev > 0 ? (netQAR / rev) * 100 : 0;
+        avgBuy = tr.manualBuyPrice;
+      }
+      if (rev > 0 || netQAR !== 0) {
+        mData[d2].profit += netQAR;
         mData[d2].volumeQAR += rev;
         mData[d2].trades++;
-        mData[d2].marginSum += Number.isFinite(c.margin) ? c.margin : 0;
-        (c.netQAR >= 0 ? mData[d2].wins++ : mData[d2].losses++);
-        mData[d2].tradeList.push({ ...tr, net: c.netQAR, margin: c.margin, avgBuy: c.avgBuyQAR, rev });
+        mData[d2].marginSum += Number.isFinite(margin) ? margin : 0;
+        (netQAR >= 0 ? mData[d2].wins++ : mData[d2].losses++);
+        mData[d2].tradeList.push({
+          ...tr, net: netQAR, margin, avgBuy, rev,
+          isLinked: !!tr.linkedDealId || !!tr.linkedRelId,
+        });
       }
     }
   }
@@ -177,7 +194,10 @@ export default function CalendarPage() {
               <tbody>
                 {selData.tradeList.map((tr: any) => (
                   <tr key={tr.id}>
-                    <td className="mono">{new Date(tr.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className="mono">
+                      {tr.isLinked && <span title="Partner deal" style={{ marginRight: 3 }}>🤝</span>}
+                      {new Date(tr.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
                     <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                     <td className="mono r" style={{ color: 'var(--bad)' }}>{fmtP(tr.avgBuy)}</td>
                     <td className="mono r" style={{ color: 'var(--good)' }}>{fmtP(tr.sellPriceQAR)}</td>

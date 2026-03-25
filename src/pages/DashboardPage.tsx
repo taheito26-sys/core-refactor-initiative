@@ -128,18 +128,24 @@ export default function DashboardPage() {
     return { avgSell, avgBuy };
   }, [allTrades, state.batches]);
 
+  // Helper: get net P&L for a trade (FIFO or manual fallback)
+  const tradeNet = (tr: typeof allTrades[0]) => {
+    const c = derived.tradeCalc.get(tr.id);
+    if (c?.ok) return c.netQAR;
+    if (tr.manualBuyPrice) return tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
+    return 0;
+  };
+
   // ── Chart 1: Profit & Revenue Trend (last 14 trades) ──
   const trendData = useMemo(() => {
     const sorted = [...allTrades].sort((a, b) => a.ts - b.ts).slice(-14);
     return sorted.map((tr, i) => {
-      const c = derived.tradeCalc.get(tr.id);
       const rev = tr.amountUSDT * tr.sellPriceQAR;
-      const net = c?.ok ? c.netQAR : 0;
       return {
         idx: i + 1,
         date: new Date(tr.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
         revenue: Math.round(rev),
-        profit: Math.round(net),
+        profit: Math.round(tradeNet(tr)),
       };
     });
   }, [allTrades, derived]);
@@ -148,8 +154,7 @@ export default function DashboardPage() {
   const profitPerTradeData = useMemo(() => {
     const sorted = [...allTrades].sort((a, b) => a.ts - b.ts);
     return sorted.map((tr, i) => {
-      const c = derived.tradeCalc.get(tr.id);
-      const net = c?.ok ? c.netQAR : 0;
+      const net = tradeNet(tr);
       return {
         idx: i + 1,
         profit: Math.round(net),
@@ -163,9 +168,8 @@ export default function DashboardPage() {
     const dayMap = new Map<number, { vol: number; profit: number; count: number }>();
     for (const tr of allTrades) {
       const dayTs = startOfDay(tr.ts);
-      const c = derived.tradeCalc.get(tr.id);
       const rev = tr.amountUSDT * tr.sellPriceQAR;
-      const net = c?.ok ? c.netQAR : 0;
+      const net = tradeNet(tr);
       const existing = dayMap.get(dayTs) || { vol: 0, profit: 0, count: 0 };
       existing.vol += rev;
       existing.profit += net;

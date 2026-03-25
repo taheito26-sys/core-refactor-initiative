@@ -136,6 +136,8 @@ export interface Trade {
   usesStock: boolean;
   revisions: any[];
   customerId: string;
+  /** Manual buy price (QAR per USDT) — used when usesStock is false */
+  manualBuyPrice?: number;
   /** Linked merchant deal ID (if this is a merchant order — legacy, kept for old data) */
   linkedDealId?: string;
   /** Linked relationship ID (if this is a merchant order) */
@@ -241,15 +243,19 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
     });
   }
 
-  // Non-stock trades
+  // Non-stock trades (manual mode) — use manualBuyPrice for cost
   for (const t of trades.filter(t => !t.voided && !t.usesStock)) {
     const rev = t.amountUSDT * t.sellPriceQAR;
+    const cost = t.manualBuyPrice ? t.amountUSDT * t.manualBuyPrice : 0;
+    const netQAR = rev - cost - t.feeQAR;
+    const avgBuyQAR = t.manualBuyPrice || 0;
+    const margin = rev > 0 ? (netQAR / rev) * 100 : 0;
     tradeCalc.set(t.id, {
       ok: true,
-      netQAR: rev - t.feeQAR,
-      avgBuyQAR: 0,
-      margin: 100,
-      ppu: rev > 0 ? (rev - t.feeQAR) / t.amountUSDT : 0,
+      netQAR,
+      avgBuyQAR,
+      margin,
+      ppu: rev > 0 ? netQAR / t.amountUSDT : 0,
       slices: [],
     });
   }
@@ -294,10 +300,16 @@ export function kpiFor(state: TrackerState, derived: DerivedState, range: string
   let rev = 0, net = 0, qty = 0, fee = 0;
   for (const t of trades) {
     const c = derived.tradeCalc.get(t.id);
-    rev += t.amountUSDT * t.sellPriceQAR;
+    const tradeRev = t.amountUSDT * t.sellPriceQAR;
+    rev += tradeRev;
     qty += t.amountUSDT;
     fee += t.feeQAR;
-    if (c?.ok) net += c.netQAR;
+    if (c?.ok) {
+      net += c.netQAR;
+    } else if (t.manualBuyPrice) {
+      // Fallback for manual-mode trades not in FIFO
+      net += tradeRev - (t.amountUSDT * t.manualBuyPrice) - t.feeQAR;
+    }
   }
   const margins = trades
     .map(t => { const c = derived.tradeCalc.get(t.id); return c?.ok ? c.margin : null; })
