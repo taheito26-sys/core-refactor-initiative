@@ -55,6 +55,10 @@ function parseDealMeta(notes: string | null | undefined): Record<string, string>
       meta[key] = val;
     }
   });
+  // Normalise legacy key aliases so all readers see consistent names
+  // qty → quantity, sell → sell_price (written by old saveDealEdit)
+  if (!meta.quantity && meta.qty) meta.quantity = meta.qty;
+  if (!meta.sell_price && meta.sell) meta.sell_price = meta.sell;
   return meta;
 }
 
@@ -1093,7 +1097,26 @@ export default function OrdersPage() {
     const fee = Number(editDealFee) || 0;
     if (!(qty > 0) || !(sell > 0)) { toast.error(t('fixFields') + ' ' + t('qty') + ', ' + t('sell')); return; }
     try {
-      const metaNote = `qty: ${qty} | sell: ${sell} | fee: ${fee} | note: ${editDealNote}`;
+      // Preserve immutable fields from existing notes (avg_buy, customer, local_trade, trade_date, etc.)
+      // Only overwrite the editable numeric fields.
+      const deal = allMerchantDeals.find(d => d.id === editingDealId);
+      const existing = parseDealMeta(deal?.notes);
+      const preserved = [
+        existing.avg_buy ? `avg_buy: ${existing.avg_buy}` : null,
+        existing.customer ? `customer: ${existing.customer}` : null,
+        existing.local_trade ? `local_trade: ${existing.local_trade}` : null,
+        existing.trade_date ? `trade_date: ${existing.trade_date}` : null,
+        existing.template ? `template: ${existing.template}` : null,
+        existing.counterparty_share ? `counterparty_share: ${existing.counterparty_share}` : null,
+        existing.partner_ratio ? `partner_ratio: ${existing.partner_ratio}` : null,
+        existing.merchant_ratio ? `merchant_ratio: ${existing.merchant_ratio}` : null,
+        existing.merchant_share ? `merchant_share: ${existing.merchant_share}` : null,
+        existing.counterparty_share_pct ? `counterparty_share_pct: ${existing.counterparty_share_pct}` : null,
+        existing.merchant_share_pct ? `merchant_share_pct: ${existing.merchant_share_pct}` : null,
+      ].filter(Boolean).join(' | ');
+      // Use canonical key names (quantity/sell_price) so all readers work correctly
+      const editedFields = `quantity: ${qty} | sell_price: ${sell} | fee: ${fee} | note: ${editDealNote}`;
+      const metaNote = [preserved, editedFields].filter(Boolean).join(' | ');
       const { error } = await supabase.from('merchant_deals').update({
         title: editDealTitle,
         amount: qty * sell,
