@@ -150,9 +150,26 @@ export default function StockPage() {
 
     const volumeQAR = batchMode === 'USDT' ? rawAmt * px : rawAmt;
     const totalUSDT = volumeQAR / px;
+    const batchCostQAR = totalUSDT * px; // = volumeQAR
+
+    // Auto-deduct from cash
+    const currentCash = num(state.cashQAR, 0);
+    const newCash = Math.max(0, currentCash - batchCostQAR);
+    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+      id: uid(),
+      ts: Date.now(),
+      type: 'batch_purchase',
+      amount: Math.min(batchCostQAR, currentCash),
+      balanceAfter: newCash,
+      owner: state.cashOwner || '',
+      bankAccount: '',
+      note: `Stock purchase: ${fmtU(totalUSDT)} USDT @ ${fmtP(px)} from ${source}`,
+    };
 
     const next: TrackerState = {
       ...state,
+      cashQAR: newCash,
+      cashHistory: [...(state.cashHistory || []), cashTx],
       batches: [
         ...state.batches,
         {
@@ -172,7 +189,8 @@ export default function StockPage() {
     setBatchPrice('');
     setBatchSupplier('');
     setBatchNote('');
-    setBatchMsg(t('batchAdded'));
+    const deductMsg = currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR deducted from cash` : '';
+    setBatchMsg(t('batchAdded') + deductMsg);
   };
 
   const openEdit = (id: string) => {
