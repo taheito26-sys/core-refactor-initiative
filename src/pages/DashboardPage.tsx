@@ -497,6 +497,7 @@ export default function DashboardPage() {
         <CashBoxManager
           currentCash={num(state.cashQAR, 0)}
           currentOwner={state.cashOwner || ''}
+          cashHistory={state.cashHistory || []}
           onSave={handleCashSave}
           onClose={() => setShowCashBox(false)}
         />
