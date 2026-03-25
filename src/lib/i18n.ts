@@ -140,7 +140,7 @@ const translations = {
   noneSelected: { en: '— None —', ar: '— بدون —' },
   livePreview: { en: 'Live Preview', ar: 'معاينة مباشرة' },
   enterDetails: { en: 'Enter details...', ar: 'أدخل التفاصيل...' },
-  revenue: { en: 'Revenue', ar: 'الإيرادات' },
+  revenue: { en: 'Total', ar: 'الإجمالي' },
   costFifo: { en: 'Cost (FIFO)', ar: 'التكلفة (FIFO)' },
   addTrade: { en: 'Record Sale', ar: 'تسجيل البيع' },
   tradeLogged: { en: 'Trade logged ✓', ar: 'تم تسجيل الصفقة ✓' },

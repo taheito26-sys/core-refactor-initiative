@@ -2018,8 +2018,8 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-                {/* Live Preview - only show when NO partner is linked */}
-                {!allocationPreview && (
+                {/* Live Preview */}
+                {(
                 <div className="previewBox">
                   <div className="pt">{t('livePreview')}</div>
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
