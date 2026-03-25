@@ -87,7 +87,18 @@ export default function DashboardPage() {
         const avgBuy = Number(meta.avg_buy) || 0;
         const fee = Number(meta.fee) || 0;
         const vol = qty * sell;
-        const net = sell > 0 ? vol - (qty * avgBuy) - fee : 0;
+        const fullNet = sell > 0 && avgBuy > 0 ? vol - (qty * avgBuy) - fee : 0;
+
+        // Determine the user's share percentage
+        let mySharePct = 100;
+        if (d.created_by === userId) {
+          // Creator is the "partner" side
+          mySharePct = Number(meta.partner_ratio) || Number(meta.counterparty_share) || 50;
+        } else {
+          // Receiver is the "merchant" side
+          mySharePct = Number(meta.merchant_ratio) || Number(meta.merchant_share) || 50;
+        }
+        const myNet = fullNet * (mySharePct / 100);
 
         if (d.status === 'pending') pendingCount++;
         if (d.status === 'approved') approvedCount++;
@@ -95,11 +106,11 @@ export default function DashboardPage() {
         if (d.created_by === userId) {
           outCount++;
           outVol += vol;
-          outNet += net;
+          outNet += myNet;
         } else {
           inCount++;
           inVol += vol;
-          inNet += net;
+          inNet += myNet;
         }
       }
 
