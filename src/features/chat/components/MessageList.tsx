@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import type { ChatMessage } from '@/features/chat/lib/types';
+import { BusinessObjectCard } from '@/features/chat/components/BusinessObjectCard';
 import { MessageItem } from '@/features/chat/components/MessageItem';
 import { UnreadDivider } from '@/features/chat/components/UnreadDivider';
+import type { TimelineItem, ChatBusinessObject } from '@/features/chat/lib/types';
 
 interface Props {
-  messages: ChatMessage[];
+  messages: TimelineItem[];
   currentUserId: string;
   unreadMessageId: string | null;
   reactionsByMessage: Record<string, string[]>;
@@ -16,6 +17,8 @@ interface Props {
   onDeleteForEveryone: (messageId: string) => void;
   onCreateOrder: (messageId: string) => void;
   onCreateTask: (messageId: string) => void;
+  onAcceptDeal?: (id: string) => void;
+  onConvert?: (messageId: string, type: 'task' | 'order') => void;
 }
 
 export function MessageList(props: Props) {
@@ -29,6 +32,16 @@ export function MessageList(props: Props) {
   return (
     <div className="flex-1 overflow-auto py-2">
       {props.messages.map((m) => {
+        if (m.type === 'business_object') {
+          return (
+            <BusinessObjectCard 
+              key={m.id} 
+              obj={m as ChatBusinessObject} 
+              onAccept={() => props.onAcceptDeal?.(m.id)}
+            />
+          );
+        }
+
         const showUnread = props.unreadMessageId === m.id;
         return (
           <div key={m.id} id={`msg-${m.id}`}>
@@ -45,6 +58,7 @@ export function MessageList(props: Props) {
               onDeleteForEveryone={() => props.onDeleteForEveryone(m.id)}
               onCreateOrder={() => props.onCreateOrder(m.id)}
               onCreateTask={() => props.onCreateTask(m.id)}
+              onConvert={(type) => props.onConvert?.(m.id, type)}
             />
           </div>
         );

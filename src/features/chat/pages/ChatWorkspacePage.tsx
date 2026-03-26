@@ -29,6 +29,10 @@ import { PolicyCenterPanel } from '@/features/chat/components/PolicyCenterPanel'
 import { CannedResponsesPanel } from '@/features/chat/components/CannedResponsesPanel';
 import { MigrationHealthPanel } from '@/features/chat/components/MigrationHealthPanel';
 import { supabase } from '@/integrations/supabase/client';
+import { useRef } from 'react';
+
+// Messaging OS Primitives
+import { MOCK_OS_USER } from '@/lib/os-store';
 
 export default function ChatWorkspacePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,6 +41,20 @@ export default function ChatWorkspacePage() {
   const rooms = roomsQuery.data ?? [];
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [searchHits, setSearchHits] = useState<any[]>([]);
+  
+  // Feature 16: Smart Unread Presence
+  const roomFocusRef = useRef(true);
+
+  useEffect(() => {
+    const handleFocus = () => { roomFocusRef.current = true; };
+    const handleBlur = () => { roomFocusRef.current = false; };
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   const activeRoom = useMemo(
     () => rooms.find((r) => r.room_id === activeRoomId) ?? null,
@@ -145,11 +163,30 @@ export default function ChatWorkspacePage() {
     return () => clearTimeout(timer);
   }, [messages.data, searchParams, setSearchParams]);
 
+  const isWatermarked = policyDraft.watermark_enabled || policyDraft.disable_export;
+  const isCopyDisabled = policyDraft.disable_copy;
+
+  const watermarkBg = isWatermarked 
+    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' opacity='0.03' transform='rotate(-45)'><text x='50' y='150' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23000'>CONFIDENTIAL - ${MOCK_OS_USER.id}</text></svg>")`
+    : 'none';
+
   return (
-    <div className="h-full flex overflow-hidden">
+    <div 
+      className="h-full flex overflow-hidden"
+      style={{
+        userSelect: isCopyDisabled ? 'none' : 'auto',
+        WebkitUserSelect: isCopyDisabled ? 'none' : 'auto'
+      }}
+    >
       <ConversationSidebar rooms={rooms} activeRoomId={activeRoomId} onSelectRoom={setActiveRoomId} />
 
       <main className="flex-1 min-w-0 flex flex-col relative">
+        {/* Feature 2: Watermark Overlay */}
+        <div 
+          className="absolute inset-0 pointer-events-none z-0" 
+          style={{ backgroundImage: watermarkBg }} 
+        />
+        
         {activeRoom ? (
           <>
             <ConversationHeader
@@ -171,6 +208,14 @@ export default function ChatWorkspacePage() {
               onDeleteForEveryone={(messageId) => actions.deleteForEveryone.mutate(messageId)}
               onCreateOrder={(messageId) => tracker.createOrderDraft.mutate({ messageId, title: 'Order from chat message' })}
               onCreateTask={(messageId) => tracker.createTask.mutate({ messageId, title: 'Task from chat message' })}
+              onConvert={(messageId, type) => {
+                if (type === 'task') tracker.createTask.mutate({ messageId, title: 'Extracted Task' });
+                else tracker.createOrderDraft.mutate({ messageId, title: 'Extracted Order' });
+              }}
+              onAcceptDeal={(id) => {
+                alert(`Signing Deal Snapshot: ${id}`);
+                // Implementation would call update mutation with status: 'locked'
+              }}
             />
 
             <JumpToUnreadButton visible={activeRoomUnread > 0} onClick={jumpToUnread} />
@@ -180,6 +225,9 @@ export default function ChatWorkspacePage() {
               onTyping={(isTyping) => typing.updateTyping.mutate(isTyping)}
               onSend={(payload) => messages.send.mutate(payload)}
               onSchedule={(body, runAt) => messages.schedule.mutate({ body, runAt })}
+              onOpenApp={(app) => {
+                alert(`Mounting Embedded OS Mini-App: ${app}`);
+              }}
             />
           </>
         ) : (

@@ -1,8 +1,12 @@
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
+import { InboxLane } from '@/lib/os-store';
+export { type InboxLane };
+
 export interface ChatRoom {
   room_id: string;
   kind: 'direct' | 'group' | 'system';
+  lane?: InboxLane;
   title: string | null;
   relationship_id: string | null;
   member_role: 'owner' | 'admin' | 'member';
@@ -17,6 +21,7 @@ export interface ChatMessage {
   id: string;
   room_id: string;
   sender_id: string;
+  sender_identity_id?: string;
   body: string;
   body_json: Record<string, unknown>;
   message_type: string;
@@ -26,7 +31,29 @@ export interface ChatMessage {
   created_at: string;
   delivered_at: string | null;
   deleted_for_everyone_at: string | null;
+  expires_at?: string;
+  permissions?: {
+    forwardable: boolean;
+    exportable: boolean;
+    copyable: boolean;
+    ai_readable: boolean;
+  };
 }
+
+export interface ChatBusinessObject {
+  id: string;
+  room_id: string;
+  type: 'business_object';
+  object_type: 'order' | 'payment' | 'agreement' | 'dispute' | 'task' | 'deal_offer' | 'snapshot';
+  source_message_id?: string;
+  created_by: string;
+  state_snapshot_hash?: string;
+  payload: any;
+  status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'locked';
+  created_at: string;
+}
+
+export type TimelineItem = (ChatMessage & { type?: 'message' }) | ChatBusinessObject;
 
 export interface ChatReaction {
   message_id: string;
