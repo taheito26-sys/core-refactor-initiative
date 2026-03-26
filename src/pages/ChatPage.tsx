@@ -185,7 +185,6 @@ export default function ChatPage() {
       if (!activeConversationId || !userId) return;
       sendMessage.mutateAsync({
         relationship_id: activeConversationId,
-        sender_id: userId,
         content,
       }).then(() => {
         queryClient.invalidateQueries({ queryKey: ['unified-chat'] });

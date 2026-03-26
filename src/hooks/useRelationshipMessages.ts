@@ -67,7 +67,7 @@ export function useSendMessage() {
           relationship_id: input.relationship_id,
           sender_id: userId!,
           content: input.content,
-        });
+        } as any);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
