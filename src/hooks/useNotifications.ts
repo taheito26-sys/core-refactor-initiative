@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { playNotificationSound, showBrowserNotification, requestPushPermission } from '@/lib/notification-sound';
+import { useChatContextSafe } from '@/features/chat/chat-context';
 
 export interface Notification {
   id: string;
@@ -27,10 +28,21 @@ export function notificationRoute(n: Notification): string {
     case 'merchant':
       return '/merchants';
     case 'message':
-      return '/merchants?tab=chat';
+      return '/chat';
     default:
       return '/dashboard';
   }
+}
+
+/**
+ * Extract sender name from notification title for conversation matching.
+ */
+export function extractNotificationSender(title: string): string | null {
+  const fromMatch = title.match(/from\s+(.+)$/i);
+  if (fromMatch) return fromMatch[1].trim();
+  const sentMatch = title.match(/^(.+?)\s+sent\s+you/i);
+  if (sentMatch) return sentMatch[1].trim();
+  return null;
 }
 
 export function useNotifications() {
