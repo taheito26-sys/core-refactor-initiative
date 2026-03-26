@@ -77,7 +77,13 @@ export default function StockPage() {
   const [editNote, setEditNote] = useState('');
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
+  const [fundingAccountId, setFundingAccountId] = useState('');
   const activeTab = searchParams.get('tab') === 'cash' ? 'cash' : 'stock';
+
+  const cashAccounts = state.cashAccounts || [];
+  const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
+  const accountBalances = useMemo(() => getAllAccountBalances(activeAccounts, state.cashLedger || []), [activeAccounts, state.cashLedger]);
+  const setStockTab = (tab: string) => setSearchParams({ tab });
 
   useEffect(() => {
     const next: TrackerState = {

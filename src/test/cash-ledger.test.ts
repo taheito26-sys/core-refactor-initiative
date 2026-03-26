@@ -14,6 +14,8 @@ const baseState: TrackerState = {
     { id: '1', ts: 1, type: 'deposit', amount: 10000, balanceAfter: 10000, owner: 'Cash on Hand', bankAccount: 'Cash on Hand', note: '' },
     { id: '2', ts: 2, type: 'deposit', amount: 5000, balanceAfter: 15000, owner: 'Cash on Hand', bankAccount: 'QNB Bank', note: '' },
   ],
+  cashAccounts: [],
+  cashLedger: [],
   settings: { lowStockThreshold: 0, priceAlertThreshold: 0 },
   cal: { year: 2026, month: 1, selectedDay: null },
 };
