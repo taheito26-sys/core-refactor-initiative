@@ -4,7 +4,7 @@ import { encodeVoice } from '../../lib/message-codec';
 
 interface Props {
   onSend: (content: string) => void;
-  onOpenApp?: (app: 'calculator' | 'order_form' | 'balance_checker' | 'schedule_tool') => void;
+  onOpenApp?: (app: 'calculator' | 'order') => void;
   disabled?: boolean;
 }
 
@@ -126,7 +126,7 @@ export function ModernComposer({ onSend, disabled, onOpenApp }: Props) {
           </button>
           
           {/* Feature 20: Mini Apps */}
-          <button onClick={() => onOpenApp?.('order_form')} title="Open Embedded App" style={{ width: 32, height: 32, borderRadius: '50%', background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button onClick={() => onOpenApp?.('order')} title="Open Embedded App" style={{ width: 32, height: 32, borderRadius: '50%', background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <LayoutGrid size={18} />
           </button>
 
@@ -160,7 +160,6 @@ export function ModernComposer({ onSend, disabled, onOpenApp }: Props) {
           {/* Input */}
           <textarea
             ref={textareaRef}
-            data-chat-composer="true"
             value={text}
             onChange={handleChange}
             onKeyDown={handleKey}

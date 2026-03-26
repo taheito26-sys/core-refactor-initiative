@@ -9,10 +9,9 @@ interface Props {
   onAcceptDeal?: (id: string) => void;
   onConvertMessage?: (id: string, type: 'task' | 'order') => void;
   identitiesById?: Record<string, ChannelIdentity>;
-  scrollRef?: (el: HTMLDivElement | null) => void;
 }
 
-export function ModernTimeline({ messages, currentUserId, counterpartyName, onAcceptDeal, onConvertMessage, identitiesById, scrollRef }: Props) {
+export function ModernTimeline({ messages, currentUserId, counterpartyName, onAcceptDeal, onConvertMessage, identitiesById }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,10 +22,7 @@ export function ModernTimeline({ messages, currentUserId, counterpartyName, onAc
 
   return (
     <div
-      ref={(el) => {
-        containerRef.current = el;
-        scrollRef?.(el);
-      }}
+      ref={containerRef}
       style={{
         flex: 1, overflowY: 'auto', padding: '32px 0', display: 'flex', flexDirection: 'column',
         background: '#ffffff',
@@ -166,7 +162,7 @@ function ModernMessageItem({ message, isOwn, isFirstInGroup, counterpartyName, o
   if (vanished) return null;
 
   return (
-    <div data-msg-id={message.id} style={{ display: 'flex', gap: 16, padding: '0 24px', width: '100%', marginTop: !isFirstInGroup ? -16 : 0, position: 'relative' }}>
+    <div style={{ display: 'flex', gap: 16, padding: '0 24px', width: '100%', marginTop: !isFirstInGroup ? -16 : 0, position: 'relative' }}>
       <div style={{ width: 40, flexShrink: 0 }}>
         {isFirstInGroup && (
           <div style={{

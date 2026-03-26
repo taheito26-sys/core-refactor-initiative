@@ -5,10 +5,9 @@ interface Props {
   conversations: OsRoom[];
   activeRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
-  unreadCounts?: Record<string, number>;
 }
 
-export function ConversationSidebar({ conversations, activeRoomId, onSelectRoom, unreadCounts = {} }: Props) {
+export function ConversationSidebar({ conversations, activeRoomId, onSelectRoom }: Props) {
   // Feature 5: Split Inbox Architecture
   const grouped = conversations.reduce((acc, room) => {
     if (!acc[room.lane]) acc[room.lane] = [];
@@ -46,7 +45,6 @@ export function ConversationSidebar({ conversations, activeRoomId, onSelectRoom,
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {grouped[lane].map(room => {
                 const isSecure = room.security_policies.disable_export || room.security_policies.watermark;
-                const unread = unreadCounts[room.id] || 0;
                 
                 return (
                   <button 
@@ -72,11 +70,8 @@ export function ConversationSidebar({ conversations, activeRoomId, onSelectRoom,
                         {isSecure ? 'Classified discussion' : 'Last message snippet...'}
                       </div>
                     </div>
-                    {unread > 0 && (
-                      <div style={{ minWidth: 18, height: 18, borderRadius: 12, background: '#3b82f6', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>
-                        {unread > 99 ? '99+' : unread}
-                      </div>
-                    )}
+                    {/* Mock Unread (Feature 16) */}
+                    {room.lane === 'Customers' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', alignSelf: 'center' }} />}
                   </button>
                 );
               })}

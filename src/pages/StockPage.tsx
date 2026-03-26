@@ -80,6 +80,7 @@ export default function StockPage() {
   const activeTab = searchParams.get('tab') === 'cash' ? 'cash' : 'stock';
 
   // ── Cash Management tab ──────────────────────────────────────────
+  const [searchParams] = useSearchParams();
   const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
     searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
   );
