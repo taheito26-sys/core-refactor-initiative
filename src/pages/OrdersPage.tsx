@@ -811,6 +811,7 @@ export default function OrdersPage() {
     setAllocations([]);
     setCashDepositMode('none');
     setCashDepositAmount('');
+    setCashDepositAccountId('');
   };
 
   const exportCsv = () => {
