@@ -42,6 +42,8 @@ export default function ChatPage() {
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const setUnreadCounts = useChatStore((s) => s.setUnreadCounts);
   const markConversationRead = useChatStore((s) => s.markConversationRead);
+  const consumePendingNav = useChatStore((s) => s.consumePendingNav);
+  const setAnchor = useChatStore((s) => s.setAnchor);
 
   // ── Reply state ───────────────────────────────────────────────
   const [replyTo, setReplyTo] = useState<{ id: string; sender: string; preview: string } | null>(null);
@@ -143,6 +145,21 @@ export default function ChatPage() {
       setUnreadCounts(counts);
     });
   }, [userId, allMessages, setUnreadCounts]);
+
+  // ── Consume pending notification deep-link ──────────────────
+  useEffect(() => {
+    if (isLoading || !relationships.length) return;
+    const nav = consumePendingNav();
+    if (!nav) return;
+
+    // Activate the target conversation
+    setActiveConversation(nav.conversationId);
+
+    // Schedule anchor after conversation messages render
+    if (nav.messageId) {
+      requestAnimationFrame(() => setAnchor(nav.messageId));
+    }
+  }, [isLoading, relationships, consumePendingNav, setActiveConversation, setAnchor]);
 
   // ── Attention tracking ────────────────────────────────────────
   const { setScrollRef } = useChatAttention();
