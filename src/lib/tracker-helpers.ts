@@ -157,6 +157,8 @@ export interface Trade {
   approvalStatus?: LinkedTradeStatus;
   /** Who requested cancellation (user_id), if cancellation_pending */
   cancellationRequestedBy?: string;
+  fundingAllocations?: { accountId: string; accountName: string; amount: number }[];
+  fundingRefunded?: boolean;
 }
 
 export interface Customer {
@@ -188,12 +190,13 @@ export interface TradeCalcResult {
 export interface CashTransaction {
   id: string;
   ts: number;
-  type: 'deposit' | 'withdraw' | 'batch_purchase';
+  type: 'deposit' | 'withdraw' | 'batch_purchase' | 'batch_refund' | 'sale_deposit' | 'sale_proceeds' | 'order_funding' | 'order_refund';
   amount: number;
   balanceAfter: number;
   owner: string;
   bankAccount: string;
   note: string;
+  orderId?: string;
 }
 
 export interface TrackerState {
