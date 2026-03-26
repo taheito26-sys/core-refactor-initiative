@@ -279,7 +279,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* RIGHT — Context Panel */}
+      {/* RIGHT — Context Panel (hidden on mobile, visible on lg+) */}
       {activeConversationId && (
         <ContextPanel relationship={activeRel} />
       )}
