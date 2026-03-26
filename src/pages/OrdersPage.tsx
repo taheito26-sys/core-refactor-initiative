@@ -424,7 +424,7 @@ export default function OrdersPage() {
     setNewBuyerName(''); setNewBuyerPhone(''); setNewBuyerTier('C');
   };
 
-  // Helper: apply cash deposit to state if enabled
+  // Helper: apply cash deposit to state if enabled (uses new Cash Management ledger)
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
     if (cashDepositMode === 'none') return nextState;
     const revenue = amountUSDT * sell;
@@ -432,22 +432,43 @@ export default function OrdersPage() {
       ? revenue
       : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
     if (depositAmt <= 0) return nextState;
-    const currentCash = nextState.cashQAR || 0;
-    const newCash = currentCash + depositAmt;
-    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+
+    const accounts = nextState.cashAccounts ?? [];
+    const ledger = nextState.cashLedger ?? [];
+
+    // Find target account — prefer selected, fallback to first active QAR account
+    const targetId = cashDepositAccountId
+      || accounts.find(a => a.status === 'active' && a.currency === 'QAR')?.id
+      || '';
+
+    if (!targetId) {
+      // Legacy fallback if no accounts exist
+      const currentCash = nextState.cashQAR || 0;
+      const newCash = currentCash + depositAmt;
+      const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+        id: uid(), ts: Date.now(), type: 'sale_deposit' as any,
+        amount: depositAmt, balanceAfter: newCash,
+        owner: nextState.cashOwner || '', bankAccount: '', note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      };
+      return { ...nextState, cashQAR: newCash, cashHistory: [...(nextState.cashHistory || []), cashTx] };
+    }
+
+    // Write proper ledger entry
+    const entry: CashLedgerEntry = {
       id: uid(),
       ts: Date.now(),
-      type: 'sale_deposit' as any,
+      type: 'sale_deposit',
+      accountId: targetId,
+      direction: 'in',
       amount: depositAmt,
-      balanceAfter: newCash,
-      owner: nextState.cashOwner || '',
-      bankAccount: '',
+      currency: 'QAR',
       note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     };
+    const newLedger = [...ledger, entry];
     return {
       ...nextState,
-      cashQAR: newCash,
-      cashHistory: [...(nextState.cashHistory || []), cashTx],
+      cashLedger: newLedger,
+      cashQAR: deriveCashQAR(accounts, newLedger),
     };
   };
 
