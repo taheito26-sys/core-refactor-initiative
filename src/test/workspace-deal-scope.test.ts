@@ -85,4 +85,14 @@ describe('workspace deal scoping', () => {
     });
     expect(perspective).toBeNull();
   });
+
+  it('workspace merchant outside relationship returns null perspective', () => {
+    const perspective = getWorkspaceDealPerspective({
+      deal: { relationship_id: 'rel-ab', created_by: 'user-a' },
+      workspaceMerchantId: 'C',
+      relationshipById,
+      merchantUserByMerchantId,
+    });
+    expect(perspective).toBeNull();
+  });
 });

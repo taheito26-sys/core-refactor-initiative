@@ -1,11 +1,13 @@
 import type { MerchantDeal, MerchantRelationship } from '@/types/domain';
 
+type DealScopeInput = Pick<MerchantDeal, 'relationship_id' | 'created_by'> & Record<string, unknown>;
+
 export function isDealVisibleInWorkspace({
   deal,
   workspaceMerchantId,
   workspaceRelationshipIds,
 }: {
-  deal: MerchantDeal | any;
+  deal: DealScopeInput;
   workspaceMerchantId: string;
   workspaceRelationshipIds: Set<string>;
 }): boolean {
@@ -20,13 +22,14 @@ export function getWorkspaceDealPerspective({
   relationshipById,
   merchantUserByMerchantId,
 }: {
-  deal: MerchantDeal | any;
+  deal: DealScopeInput;
   workspaceMerchantId: string;
   relationshipById: Map<string, Pick<MerchantRelationship, 'merchant_a_id' | 'merchant_b_id'>>;
   merchantUserByMerchantId: Map<string, string>;
 }): 'incoming' | 'outgoing' | null {
   const rel = relationshipById.get(deal.relationship_id);
   if (!rel) return null;
+  if (workspaceMerchantId !== rel.merchant_a_id && workspaceMerchantId !== rel.merchant_b_id) return null;
 
   const creatorUserId = String(deal.created_by || '');
   const aUserId = merchantUserByMerchantId.get(rel.merchant_a_id);
