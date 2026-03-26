@@ -131,14 +131,18 @@ export default function ChatPage() {
     );
   }, [allMessages, relationships, userId]);
 
-  // Sync unread counts to the store
+  // Sync unread counts from RPC to the store
   useEffect(() => {
-    const counts: Record<string, number> = {};
-    for (const c of conversations) {
-      if (c.unread_count > 0) counts[c.relationship_id] = c.unread_count;
-    }
-    setUnreadCounts(counts);
-  }, [conversations, setUnreadCounts]);
+    if (!userId) return;
+    supabase.rpc('get_unread_counts').then(({ data }) => {
+      if (!data) return;
+      const counts: Record<string, number> = {};
+      for (const row of data as { relationship_id: string; unread_count: number }[]) {
+        counts[row.relationship_id] = row.unread_count;
+      }
+      setUnreadCounts(counts);
+    });
+  }, [userId, allMessages, setUnreadCounts]);
 
   // ── Attention tracking ────────────────────────────────────────
   const { setScrollRef } = useChatAttention();
@@ -146,26 +150,24 @@ export default function ChatPage() {
   // ── Realtime ──────────────────────────────────────────────────
   const { signalTyping } = useChatRealtime({ relationshipIds });
 
-  // ── Mark active conversation as read ──────────────────────────
+  // ── Mark active conversation as read (via RPC) ─────────────────
   useEffect(() => {
     if (!activeConversationId || !userId) return;
-    const unread = allMessages.filter(
+    const hasUnread = allMessages.some(
       (m) => m.relationship_id === activeConversationId && m.sender_id !== userId && !m.read_at
     );
-    if (unread.length === 0) return;
+    if (!hasUnread) return;
 
-    // Mark in DB
-    Promise.all(
-      unread.map((m) =>
-        supabase.from('merchant_messages').update({ read_at: new Date().toISOString() }).eq('id', m.id)
-      )
-    ).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
-    });
+    supabase.rpc('mark_conversation_read', { _relationship_id: activeConversationId })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
+      });
 
-    // Mark in store
-    const lastMsg = unread[unread.length - 1];
-    markConversationRead(activeConversationId, lastMsg.id);
+    // Update store
+    const lastMsg = [...allMessages]
+      .filter((m) => m.relationship_id === activeConversationId)
+      .pop();
+    if (lastMsg) markConversationRead(activeConversationId, lastMsg.id);
   }, [activeConversationId, allMessages, userId, queryClient, markConversationRead]);
 
   // ── Active conversation data ──────────────────────────────────
