@@ -5,6 +5,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { computeFIFO, fmtDate, fmtP, fmtQ, fmtU, inRange, rangeLabel, type TrackerState } from '@/lib/tracker-helpers';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
+import { getWorkspaceDealPerspective, isDealVisibleInWorkspace } from '@/features/orders/utils/workspaceDealScope';
 import '@/styles/tracker.css';
 
 interface Props {
@@ -25,14 +26,17 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     queryKey: ['admin-orders-mirror', userId, merchantId],
     enabled: !!merchantId,
     queryFn: async () => {
-      const [relsRes, dealsRes, profilesRes] = await Promise.all([
-        supabase
-          .from('merchant_relationships')
-          .select('*')
-          .eq('status', 'active')
-          .or(`merchant_a_id.eq.${merchantId},merchant_b_id.eq.${merchantId}`),
-        supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
-        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
+      const relsRes = await supabase
+        .from('merchant_relationships')
+        .select('*')
+        .eq('status', 'active')
+        .or(`merchant_a_id.eq.${merchantId},merchant_b_id.eq.${merchantId}`);
+      const relIds = (relsRes.data || []).map(r => r.id);
+      const [dealsRes, profilesRes] = await Promise.all([
+        relIds.length > 0
+          ? supabase.from('merchant_deals').select('*').in('relationship_id', relIds).order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null } as any),
+        supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname, merchant_code'),
       ]);
 
       if (relsRes.error) throw relsRes.error;
@@ -43,14 +47,25 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
       const enrichedRels = (relsRes.data || []).map(r => {
         const cpId = r.merchant_a_id === merchantId ? r.merchant_b_id : r.merchant_a_id;
         const cp = profileMap.get(cpId);
+        const aProfile = profileMap.get(r.merchant_a_id);
+        const bProfile = profileMap.get(r.merchant_b_id);
         return {
           ...r,
           counterparty: { display_name: cp?.display_name || cpId, nickname: cp?.nickname || '' },
           counterparty_name: cp?.display_name || cpId,
+          merchant_a_user_id: aProfile?.user_id || null,
+          merchant_b_user_id: bProfile?.user_id || null,
         } as any;
       });
 
-      const enrichedDeals = (dealsRes.data || []).map(d => {
+      const workspaceRelIds = new Set((relsRes.data || []).map(r => r.id));
+      const workspaceDeals = (dealsRes.data || []).filter(d => isDealVisibleInWorkspace({
+        deal: d,
+        workspaceMerchantId: merchantId!,
+        workspaceRelationshipIds: workspaceRelIds,
+      }));
+
+      const enrichedDeals = workspaceDeals.map(d => {
         const rel = enrichedRels.find((r: any) => r.id === d.relationship_id);
         return { ...d, counterparty_name: rel?.counterparty_name || '—' } as any;
       });
@@ -86,13 +101,36 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     return true;
   }), [allTrades, state?.range, settings.range, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, userId]);
 
+  const relationshipById = useMemo(() => new Map(
+    relationships.map((r: any) => [r.id, { merchant_a_id: r.merchant_a_id, merchant_b_id: r.merchant_b_id }]),
+  ), [relationships]);
+  const merchantUserByMerchantId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const rel of relationships as any[]) {
+      if (rel.merchant_a_id && rel.merchant_a_user_id) m.set(rel.merchant_a_id, rel.merchant_a_user_id);
+      if (rel.merchant_b_id && rel.merchant_b_user_id) m.set(rel.merchant_b_id, rel.merchant_b_user_id);
+    }
+    return m;
+  }, [relationships]);
+
+  const workspaceScopedDeals = useMemo(() => allMerchantDeals.filter((d: any) => d.status !== 'cancelled' && (d.status as string) !== 'voided'), [allMerchantDeals]);
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter((d: any) => d.created_by !== userId && d.status !== 'cancelled' && (d.status as string) !== 'voided'),
-    [allMerchantDeals, userId],
+    () => workspaceScopedDeals.filter((d: any) => getWorkspaceDealPerspective({
+      deal: d,
+      workspaceMerchantId: merchantId || '',
+      relationshipById,
+      merchantUserByMerchantId,
+    }) === 'incoming'),
+    [workspaceScopedDeals, merchantId, relationshipById, merchantUserByMerchantId],
   );
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter((d: any) => d.created_by === userId && d.status !== 'cancelled' && (d.status as string) !== 'voided'),
-    [allMerchantDeals, userId],
+    () => workspaceScopedDeals.filter((d: any) => getWorkspaceDealPerspective({
+      deal: d,
+      workspaceMerchantId: merchantId || '',
+      relationshipById,
+      merchantUserByMerchantId,
+    }) === 'outgoing'),
+    [workspaceScopedDeals, merchantId, relationshipById, merchantUserByMerchantId],
   );
   const resolveDealAvgBuy = (deal: any, normalizedMeta?: Record<string, string>): number => {
     const meta = normalizedMeta ?? parseDealMeta(deal.notes);

@@ -70,6 +70,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const [showDealsDrilldown, setShowDealsDrilldown] = useState(false);
   const { user, merchantProfile } = useAuth();
   const userId = adminUserId || user?.id;
+  const workspaceMerchantId = adminMerchantId || merchantProfile?.merchant_id;
 
   // Merchant deals KPIs
   interface DealDetail {
@@ -86,22 +87,32 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   }
 
   const { data: merchantDealKpis } = useQuery({
-    queryKey: ['dashboard-merchant-deals', userId],
+    queryKey: ['dashboard-merchant-deals', userId, workspaceMerchantId],
     staleTime: 15_000,       // re-fetch after 15 s so edits in Orders page show quickly
     refetchInterval: 30_000, // poll every 30 s in background
     queryFn: async () => {
-      if (!userId) return null;
-      const { data: deals } = await supabase
-        .from('merchant_deals')
-        .select('id, amount, status, created_by, notes, deal_type, relationship_id, title')
-        .order('created_at', { ascending: false });
+      if (!userId || !workspaceMerchantId) return null;
+      const relsScopedRes = await supabase
+        .from('merchant_relationships')
+        .select('id, merchant_a_id, merchant_b_id')
+        .eq('status', 'active')
+        .or(`merchant_a_id.eq.${workspaceMerchantId},merchant_b_id.eq.${workspaceMerchantId}`);
+      if (relsScopedRes.error) throw relsScopedRes.error;
+      const relIds = (relsScopedRes.data || []).map(r => r.id);
+      const { data: deals } = relIds.length > 0
+        ? await supabase
+            .from('merchant_deals')
+            .select('id, amount, status, created_by, notes, deal_type, relationship_id, title')
+            .in('relationship_id', relIds)
+            .order('created_at', { ascending: false })
+        : { data: [] as any[] };
       if (!deals || deals.length === 0) return null;
 
       const activeDeals = deals.filter(d => d.status !== 'cancelled' && d.status !== 'voided');
       // Fetch merchant profiles for names
-      const relIds = [...new Set(activeDeals.map(d => d.relationship_id))];
-      const { data: rels } = relIds.length > 0
-        ? await supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id').in('id', relIds)
+      const dealRelIds = [...new Set(activeDeals.map(d => d.relationship_id))];
+      const { data: rels } = dealRelIds.length > 0
+        ? await supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id').in('id', dealRelIds)
         : { data: [] as any[] };
 
       const allMerchantIds = new Set<string>();
@@ -181,7 +192,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         dealDetails,
       };
     },
-    enabled: !!userId,
+    enabled: !!userId && !!workspaceMerchantId,
   });
 
   const handleCashSave = useCallback((newCash: number, owner: string, history?: import('@/lib/tracker-helpers').CashTransaction[]) => {
