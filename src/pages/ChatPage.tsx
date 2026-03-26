@@ -1,418 +1,220 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+/* ═══════════════════════════════════════════════════════════════
+   ChatPage — three-column Rocket.Chat-style workspace
+   ═══════════════════════════════════════════════════════════════ */
+
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
-import { ChannelIdentity, OsRoom, OsMessage, OsBusinessObject } from '@/lib/os-store';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSendMessage } from '@/hooks/useRelationshipMessages';
+import { useChatStore } from '@/lib/chat-store';
+import type { ConversationSummary, ChatMessage } from '@/lib/chat-store';
+import { useChatAttention } from '@/hooks/useChatAttention';
+import { useChatRealtime } from '@/hooks/useChatRealtime';
+import { encodeForward, parseMsg, getPalette } from '@/features/chat/lib/message-codec';
+import { Forward, X } from 'lucide-react';
 
 import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar';
 import { ConversationHeader } from '@/features/chat/components/ConversationHeader';
 import { MessageTimeline } from '@/features/chat/components/MessageTimeline';
 import { MessageComposer } from '@/features/chat/components/MessageComposer';
+import { ContextPanel } from '@/features/chat/components/ContextPanel';
 
-import { ModernSidebar } from '@/features/chat/components/modern/ModernSidebar';
-import { ModernHeader } from '@/features/chat/components/modern/ModernHeader';
-import { ModernTimeline } from '@/features/chat/components/modern/ModernTimeline';
-import { ModernComposer } from '@/features/chat/components/modern/ModernComposer';
+import '@/styles/tracker.css';
 
-type DbRoom = {
+interface Relationship {
   id: string;
-  name: string;
-  type: OsRoom['type'];
-  lane: OsRoom['lane'];
-  security_policies: OsRoom['security_policies'];
-  retention_policy: OsRoom['retention_policy'];
-};
-
-type DbMessage = {
-  id: string;
-  room_id: string;
-  thread_id: string | null;
-  sender_merchant_id: string;
-  sender_identity_id: string | null;
-  content: string;
-  permissions: OsMessage['permissions'];
-  expires_at: string | null;
-  retention_policy: OsMessage['retention_policy'];
-  view_limit: number | null;
-  read_at: string | null;
-  created_at: string;
-};
-
-type DbBusinessObject = {
-  id: string;
-  room_id: string;
-  object_type: OsBusinessObject['object_type'];
-  source_message_id: string | null;
-  created_by_merchant_id: string;
-  state_snapshot_hash: string | null;
-  payload: Record<string, unknown>;
-  status: OsBusinessObject['status'];
-  created_at: string;
-};
-
-function toOsMessage(row: DbMessage): OsMessage {
-  return {
-    id: row.id,
-    type: 'message',
-    room_id: row.room_id,
-    thread_id: row.thread_id || undefined,
-    sender_id: row.sender_merchant_id,
-    sender_identity_id: row.sender_identity_id || undefined,
-    content: row.content,
-    permissions: row.permissions,
-    expires_at: row.expires_at || undefined,
-    retention_policy: row.retention_policy,
-    view_limit: row.view_limit || undefined,
-    read_at: row.read_at || undefined,
-    created_at: row.created_at,
-  };
-}
-
-function toOsBusinessObject(row: DbBusinessObject): OsBusinessObject {
-  return {
-    id: row.id,
-    type: 'business_object',
-    room_id: row.room_id,
-    object_type: row.object_type,
-    source_message_id: row.source_message_id || undefined,
-    created_by: row.created_by_merchant_id,
-    state_snapshot_hash: row.state_snapshot_hash || undefined,
-    payload: row.payload || {},
-    status: row.status,
-    created_at: row.created_at,
-  };
-}
-
-function generateSnapshotHash(): string {
-  const bytes = new Uint8Array(20);
-  crypto.getRandomValues(bytes);
-  return `0x${Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+  counterparty_name: string;
+  counterparty_nickname: string;
+  counterparty_code?: string;
+  merchant_a_id: string;
+  merchant_b_id: string;
 }
 
 export default function ChatPage() {
-  const { merchantProfile } = useAuth();
-  const merchantId = merchantProfile?.merchant_id ?? null;
+  const { settings } = useTheme();
+  const { userId, merchantProfile } = useAuth();
   const queryClient = useQueryClient();
+  const sendMessage = useSendMessage();
+  const isRTL = settings.language === 'ar';
 
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [layoutTheme, setLayoutTheme] = useState<'classic' | 'modern'>('modern');
-  const [miniApp, setMiniApp] = useState<'calculator' | 'order' | null>(null);
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const setUnreadCounts = useChatStore((s) => s.setUnreadCounts);
+  const markConversationRead = useChatStore((s) => s.markConversationRead);
+  const consumePendingNav = useChatStore((s) => s.consumePendingNav);
+  const setAnchor = useChatStore((s) => s.setAnchor);
 
-  const roomFocusRef = useRef(true);
+  const [replyTo, setReplyTo] = useState<{ id: string; sender: string; preview: string } | null>(null);
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
+  const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
 
-  useEffect(() => {
-    const handleFocus = () => { roomFocusRef.current = true; };
-    const handleBlur = () => { roomFocusRef.current = false; };
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, []);
+  const myId = merchantProfile?.merchant_id;
 
-  const { data: rooms = [], isLoading: roomsLoading } = useQuery({
-    queryKey: ['os-rooms', merchantId],
-    enabled: !!merchantId,
-    queryFn: async (): Promise<OsRoom[]> => {
-      const { data, error } = await (supabase as any)
-        .from('os_room_members')
-        .select('room_id, os_rooms(*)')
-        .eq('merchant_id', merchantId);
-
-      if (error) throw error;
-
-      const list = (data || [])
-        .map((row: any) => row.os_rooms as DbRoom | null)
-        .filter((room): room is DbRoom => Boolean(room))
-        .map((room: DbRoom) => ({
-          id: room.id,
-          name: room.name,
-          type: room.type,
-          lane: room.lane,
-          security_policies: room.security_policies,
-          retention_policy: room.retention_policy,
-        }));
-
-      return list;
+  const { data: relationships = [], isLoading } = useQuery({
+    queryKey: ['chat-relationships', myId],
+    queryFn: async (): Promise<Relationship[]> => {
+      const [relsRes, profilesRes] = await Promise.all([
+        supabase.from('merchant_relationships').select('*').order('created_at', { ascending: false }),
+        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
+      ]);
+      const profileMap = new Map((profilesRes.data || []).map((p: any) => [p.merchant_id, p]));
+      return (relsRes.data || []).map((r: any) => {
+        const cpId = r.merchant_a_id === myId ? r.merchant_b_id : r.merchant_a_id;
+        const cp = profileMap.get(cpId) as any;
+        return { ...r, counterparty_name: cp?.display_name || cpId, counterparty_nickname: cp?.nickname || '', counterparty_code: cp?.merchant_code || '' };
+      });
     },
-    staleTime: 15_000,
-  });
-
-  useEffect(() => {
-    if (!activeRoomId && rooms.length > 0) {
-      setActiveRoomId(rooms[0].id);
-    }
-  }, [activeRoomId, rooms]);
-
-  const { data: identitiesById = {} } = useQuery({
-    queryKey: ['os-identities', rooms.map((r) => r.id).join('|')],
-    enabled: rooms.length > 0,
-    queryFn: async (): Promise<Record<string, ChannelIdentity>> => {
-      const roomIds = rooms.map((r) => r.id);
-      const membersRes = await (supabase as any)
-        .from('os_room_members')
-        .select('merchant_id')
-        .in('room_id', roomIds);
-
-      if (membersRes.error) throw membersRes.error;
-
-      const merchantIds = Array.from(new Set((membersRes.data || []).map((m: any) => m.merchant_id).filter(Boolean)));
-      if (merchantIds.length === 0) return {};
-
-      const identitiesRes = await (supabase as any)
-        .from('os_channel_identities')
-        .select('id, provider_type, provider_uid, confidence_level')
-        .in('merchant_id', merchantIds);
-
-      if (identitiesRes.error) throw identitiesRes.error;
-
-      const out: Record<string, ChannelIdentity> = {};
-      for (const row of identitiesRes.data || []) {
-        out[row.id] = {
-          id: row.id,
-          provider_type: row.provider_type as ChannelIdentity['provider_type'],
-          provider_uid: row.provider_uid,
-          confidence_level: row.confidence_level as ChannelIdentity['confidence_level'],
-        };
-      }
-      return out;
-    },
+    enabled: !!myId,
     staleTime: 30_000,
   });
 
-  const { data: activeItems = [] } = useQuery({
-    queryKey: ['os-timeline', activeRoomId],
-    enabled: !!activeRoomId,
-    queryFn: async (): Promise<(OsMessage | OsBusinessObject)[]> => {
-      const [messagesRes, objectsRes] = await Promise.all([
-        (supabase as any)
-          .from('os_messages')
-          .select('id, room_id, thread_id, sender_merchant_id, sender_identity_id, content, permissions, expires_at, retention_policy, view_limit, read_at, created_at')
-          .eq('room_id', activeRoomId)
-          .order('created_at', { ascending: true }),
-        (supabase as any)
-          .from('os_business_objects')
-          .select('id, room_id, object_type, source_message_id, created_by_merchant_id, state_snapshot_hash, payload, status, created_at')
-          .eq('room_id', activeRoomId)
-          .order('created_at', { ascending: true }),
-      ]);
+  const relationshipIds = useMemo(() => relationships.map((r) => r.id), [relationships]);
 
-      if (messagesRes.error) throw messagesRes.error;
-      if (objectsRes.error) throw objectsRes.error;
-
-      const messages = (messagesRes.data || []).map((row: any) => toOsMessage(row as DbMessage));
-      const objects = (objectsRes.data || []).map((row: any) => toOsBusinessObject(row as DbBusinessObject));
-
-      return [...messages, ...objects].sort((a, b) => a.created_at.localeCompare(b.created_at));
-    },
-    refetchInterval: 5_000,
-  });
-
-  const activeRoom = useMemo(() => rooms.find((room) => room.id === activeRoomId) || null, [rooms, activeRoomId]);
-
-  const sendMutation = useMutation({
-    mutationFn: async (content: string) => {
-      if (!activeRoom || !merchantId) return;
-
-      const payload = {
-        room_id: activeRoom.id,
-        sender_merchant_id: merchantId,
-        content,
-        permissions: {
-          forwardable: !activeRoom.security_policies.disable_forwarding,
-          exportable: !activeRoom.security_policies.disable_export,
-          copyable: !activeRoom.security_policies.disable_copy,
-          ai_readable: true,
-        },
-        retention_policy: activeRoom.retention_policy,
-      };
-
-      const { error } = await (supabase as any).from('os_messages').insert(payload);
+  const { data: allMessages = [] } = useQuery({
+    queryKey: ['unified-chat', relationshipIds],
+    queryFn: async (): Promise<ChatMessage[]> => {
+      if (relationshipIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('merchant_messages')
+        .select('id, relationship_id, sender_id, content, read_at, created_at')
+        .in('relationship_id', relationshipIds)
+        .order('created_at', { ascending: true });
       if (error) throw error;
+      return (data || []) as ChatMessage[];
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['os-timeline', activeRoomId] });
-    },
+    enabled: relationshipIds.length > 0,
+    staleTime: 10_000,
   });
 
-  const convertMutation = useMutation({
-    mutationFn: async (input: { messageId: string; targetType: 'task' | 'order' }) => {
-      if (!activeRoom || !merchantId) return;
+  const conversations: ConversationSummary[] = useMemo(() => {
+    const map = new Map<string, ConversationSummary>();
+    for (const rel of relationships) {
+      map.set(rel.id, { relationship_id: rel.id, counterparty_name: rel.counterparty_name, counterparty_nickname: rel.counterparty_nickname, last_message: '', last_message_at: '', last_sender_id: '', unread_count: 0, is_muted: false, is_pinned: false });
+    }
+    for (const msg of allMessages) {
+      const conv = map.get(msg.relationship_id);
+      if (!conv) continue;
+      if (!conv.last_message_at || msg.created_at > conv.last_message_at) { conv.last_message = msg.content; conv.last_message_at = msg.created_at; conv.last_sender_id = msg.sender_id; }
+      if (msg.sender_id !== userId && !msg.read_at) conv.unread_count++;
+    }
+    return Array.from(map.values()).sort((a, b) => (b.last_message_at || '').localeCompare(a.last_message_at || ''));
+  }, [allMessages, relationships, userId]);
 
-      const { error } = await (supabase as any).from('os_business_objects').insert({
-        room_id: activeRoom.id,
-        object_type: input.targetType,
-        source_message_id: input.messageId,
-        created_by_merchant_id: merchantId,
-        payload: input.targetType === 'task' ? { description: 'Extracted task automatically' } : { default_terms: true },
-        status: 'pending',
-      });
+  useEffect(() => {
+    if (!userId) return;
+    supabase.rpc('get_unread_counts').then(({ data }) => {
+      if (!data) return;
+      const counts: Record<string, number> = {};
+      for (const row of data as { relationship_id: string; unread_count: number }[]) counts[row.relationship_id] = row.unread_count;
+      setUnreadCounts(counts);
+    });
+  }, [userId, allMessages, setUnreadCounts]);
 
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['os-timeline', activeRoomId] });
-    },
-  });
+  useEffect(() => {
+    if (isLoading || !relationships.length) return;
+    const nav = consumePendingNav();
+    if (!nav) return;
+    setActiveConversation(nav.conversationId);
+    if (nav.messageId) requestAnimationFrame(() => setAnchor(nav.messageId));
+  }, [isLoading, relationships, consumePendingNav, setActiveConversation, setAnchor]);
 
-  const acceptDealMutation = useMutation({
-    mutationFn: async (dealId: string) => {
-      const { error } = await (supabase as any)
-        .from('os_business_objects')
-        .update({ status: 'locked', state_snapshot_hash: generateSnapshotHash() })
-        .eq('id', dealId);
+  const { setScrollRef } = useChatAttention();
+  const { signalTyping } = useChatRealtime({ relationshipIds });
 
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['os-timeline', activeRoomId] });
-    },
-  });
+  useEffect(() => {
+    if (!activeConversationId || !userId) return;
+    const hasUnread = allMessages.some((m) => m.relationship_id === activeConversationId && m.sender_id !== userId && !m.read_at);
+    if (!hasUnread) return;
+    supabase.rpc('mark_conversation_read', { _relationship_id: activeConversationId }).then(() => queryClient.invalidateQueries({ queryKey: ['unified-chat'] }));
+    const lastMsg = [...allMessages].filter((m) => m.relationship_id === activeConversationId).pop();
+    if (lastMsg) markConversationRead(activeConversationId, lastMsg.id);
+  }, [activeConversationId, allMessages, userId, queryClient, markConversationRead]);
 
-  const toggleLayout = () => setLayoutTheme((current) => (current === 'classic' ? 'modern' : 'classic'));
+  const activeRel = useMemo(() => relationships.find((r) => r.id === activeConversationId) || null, [relationships, activeConversationId]);
+  const activeMessages = useMemo(() => allMessages.filter((m) => m.relationship_id === activeConversationId), [allMessages, activeConversationId]);
 
-  const isCopyDisabled = activeRoom?.security_policies.disable_copy;
-  const isWatermarked = activeRoom?.security_policies.disable_export || activeRoom?.security_policies.watermark;
+  const handleSend = useCallback((content: string) => {
+    if (!activeConversationId || !userId) return;
+    sendMessage.mutateAsync({ relationship_id: activeConversationId, content }).then(() => queryClient.invalidateQueries({ queryKey: ['unified-chat'] }));
+  }, [activeConversationId, userId, sendMessage, queryClient]);
 
-  const watermarkBg = isWatermarked
-    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' opacity='0.03' transform='rotate(-45)'><text x='50' y='150' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23000'>CONFIDENTIAL - ${merchantId || 'anonymous'}</text></svg>")`
-    : 'none';
+  const handleReply = useCallback((msg: ChatMessage) => {
+    const preview = msg.content.startsWith('||VOICE||') ? '🎤 Voice message' : msg.content.slice(0, 80);
+    setReplyTo({ id: msg.id, sender: msg.sender_id === userId ? 'You' : (activeRel?.counterparty_nickname || activeRel?.counterparty_name || ''), preview });
+  }, [userId, activeRel]);
 
-  if (!merchantId && !roomsLoading) {
+  const handleForward = useCallback(async (targetRelId: string) => {
+    if (!forwardMsg || !userId) return;
+    const p = parseMsg(forwardMsg.content);
+    const srcName = forwardMsg.sender_id === userId ? 'You' : (activeRel?.counterparty_name || 'Unknown');
+    const content = encodeForward(srcName, p.text, '');
+    await sendMessage.mutateAsync({ relationship_id: targetRelId, content: content.replace('\n', '') });
+    queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
+    setForwardMsg(null);
+  }, [forwardMsg, userId, activeRel, sendMessage, queryClient]);
+
+  if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70vh' }}>
-        Merchant profile is required to load messaging rooms.
-      </div>
-    );
-  }
-
-  if (roomsLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70vh' }}>
-        Loading secure messaging rooms...
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+        <div className="h-8 w-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
       </div>
     );
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      height: 'calc(100vh - 56px)',
-      overflow: 'hidden',
-      background: layoutTheme === 'modern' ? '#ffffff' : '#f8f9fe',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      userSelect: isCopyDisabled ? 'none' : 'auto',
-      WebkitUserSelect: isCopyDisabled ? 'none' : 'auto',
-    }}>
-      {layoutTheme === 'classic' ? (
-        <>
-          <ConversationSidebar conversations={rooms} activeRoomId={activeRoomId} onSelectRoom={setActiveRoomId} />
-          {activeRoom ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
-              {isCopyDisabled && (
-                <div style={{ background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 16px', textAlign: 'center', flexShrink: 0 }}>
-                  RESTRICTED ROOM: Copying, forwarding, and exporting are disabled by Policy.
-                </div>
-              )}
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="flex overflow-hidden bg-background" style={{ height: 'calc(100vh - 56px)' }}>
+      <ConversationSidebar conversations={conversations} currentUserId={userId || ''} />
 
-              <ConversationHeader
-                name={activeRoom.name}
-                nickname={activeRoom.type}
-                onBack={() => setActiveRoomId(null)}
-                onSearchToggle={() => {}}
-                onCallClick={() => {}}
-                onToggleLayout={toggleLayout}
-              />
-
-              <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: watermarkBg, pointerEvents: 'none', zIndex: 0 }} />
-                <MessageTimeline
-                  messages={activeItems}
-                  currentUserId={merchantId || ''}
-                  counterpartyName={activeRoom.name}
-                  scrollRef={() => {}}
-                  onReply={() => {}}
-                  onAcceptDeal={(id) => acceptDealMutation.mutate(id)}
-                  onConvertMessage={(messageId, targetType) => convertMutation.mutate({ messageId, targetType })}
-                  identitiesById={identitiesById}
-                />
-              </div>
-
-              {miniApp && (
-                <div style={{ background: '#fff', borderTop: '1px solid #e2e8f0', padding: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <strong>{miniApp === 'calculator' ? 'Calculator App' : 'Order Form'}</strong>
-                    <button onClick={() => setMiniApp(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444' }}>Close</button>
-                  </div>
-                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
-                    [Interactive {miniApp} mini-app renders securely inside viewport]
-                  </div>
-                </div>
-              )}
-
-              <MessageComposer
-                onSend={(content) => sendMutation.mutate(content)}
-                onTyping={() => {}}
-                replyTo={null}
-                onCancelReply={() => {}}
-                onOpenApp={(app) => setMiniApp(app as any)}
-              />
-            </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Select a room</div>
-          )}
-        </>
+      {activeConversationId && activeRel ? (
+        <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+          <ConversationHeader name={activeRel.counterparty_name} nickname={activeRel.counterparty_nickname} onBack={() => setActiveConversation(null)} onSearchToggle={() => setShowMsgSearch((v) => !v)} />
+          <MessageTimeline messages={activeMessages} currentUserId={userId || ''} counterpartyName={activeRel.counterparty_name} scrollRef={setScrollRef} onReply={handleReply} onForward={setForwardMsg} relationshipId={activeConversationId} />
+          <MessageComposer onSend={handleSend} onTyping={signalTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+        </div>
       ) : (
-        <>
-          <ModernSidebar conversations={rooms} activeRoomId={activeRoomId} onSelectRoom={setActiveRoomId} />
-          {activeRoom ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
-              {isCopyDisabled && (
-                <div style={{ background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 16px', textAlign: 'center', flexShrink: 0 }}>
-                  RESTRICTED ROOM: Actions disabled.
-                </div>
-              )}
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+          <div className="text-center">
+            <div className="text-4xl mb-3">💬</div>
+            <div className="font-bold mb-1">Select a conversation</div>
+            <div className="text-[11px]">Choose a conversation from the left to start messaging</div>
+          </div>
+        </div>
+      )}
 
-              <ModernHeader
-                name={activeRoom.name}
-                onCallClick={() => {}}
-                onToggleLayout={toggleLayout}
-              />
+      {activeConversationId && <ContextPanel relationship={activeRel} />}
 
-              <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: watermarkBg, pointerEvents: 'none', zIndex: 0 }} />
-                <ModernTimeline
-                  messages={activeItems}
-                  currentUserId={merchantId || ''}
-                  counterpartyName={activeRoom.name}
-                  onAcceptDeal={(id) => acceptDealMutation.mutate(id)}
-                  onConvertMessage={(messageId, targetType) => convertMutation.mutate({ messageId, targetType })}
-                  identitiesById={identitiesById}
-                />
-              </div>
-
-              {miniApp && (
-                <div style={{ background: '#fff', borderTop: '1px solid #e2e8f0', padding: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <strong>{miniApp === 'calculator' ? 'Calculator App' : 'Order Form'}</strong>
-                    <button onClick={() => setMiniApp(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444' }}>Close</button>
-                  </div>
-                  <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
-                    [Interactive {miniApp} mini-app renders securely inside viewport]
-                  </div>
-                </div>
-              )}
-
-              <ModernComposer
-                onSend={(content) => sendMutation.mutate(content)}
-                onOpenApp={(app) => setMiniApp(app as any)}
-              />
+      {/* Forward modal */}
+      {forwardMsg && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setForwardMsg(null)}>
+          <div className="bg-popover border border-border rounded-lg w-[320px] max-h-[400px] overflow-hidden shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+              <Forward size={16} className="text-foreground" />
+              <span className="text-sm font-bold text-foreground">Forward Message</span>
+              <button onClick={() => setForwardMsg(null)} className="ml-auto bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground"><X size={16} /></button>
             </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Select a room</div>
-          )}
-        </>
+            <div className="px-4 py-2 border-b border-border text-[11px] text-muted-foreground italic truncate">
+              "{parseMsg(forwardMsg.content).text.slice(0, 80)}…"
+            </div>
+            <div className="overflow-y-auto max-h-[280px]">
+              {relationships.filter((r) => r.id !== activeConversationId).map((r) => {
+                const pal = getPalette(r.counterparty_name);
+                return (
+                  <button key={r.id} onClick={() => handleForward(r.id)} className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-accent/30 transition-colors cursor-pointer bg-transparent border-none">
+                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[12px] font-extrabold" style={{ background: pal.bg, color: pal.text }}>
+                      {r.counterparty_name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-[13px] font-semibold text-foreground">{r.counterparty_name}</span>
+                  </button>
+                );
+              })}
+              {relationships.filter((r) => r.id !== activeConversationId).length === 0 && (
+                <div className="px-4 py-6 text-center text-muted-foreground text-xs">No other contacts</div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

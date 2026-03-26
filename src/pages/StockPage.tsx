@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/dialog';
 import { CashManagement } from '@/features/stock/components/CashManagement';
 import '@/styles/tracker.css';
-import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -41,7 +40,6 @@ function inputFromTs(ts: number) {
 }
 
 export default function StockPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const { settings, update } = useTheme();
   const t = useT();
 
@@ -77,7 +75,6 @@ export default function StockPage() {
   const [editNote, setEditNote] = useState('');
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
-  const activeTab = searchParams.get('tab') === 'cash' ? 'cash' : 'stock';
 
   // ── Cash Management tab ──────────────────────────────────────────
   const [searchParams] = useSearchParams();
@@ -424,23 +421,29 @@ export default function StockPage() {
 
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
-        <button onClick={() => setSearchParams({ tab: 'stock' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'stock' ? 700 : 500, color: activeTab === 'stock' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'stock' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>📦 {t('stock')}</button>
-        <button onClick={() => setSearchParams({ tab: 'cash' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'cash' ? 700 : 500, color: activeTab === 'cash' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'cash' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>💰 {t('cash')}</button>
+
+      {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: 'flex-start' }}>
+        <button
+          onClick={() => setStockTab('batches')}
+          style={{ padding: '6px 16px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent', color: stockTab === 'batches' ? '#fff' : 'var(--muted)', transition: 'all 0.12s' }}>
+          📦 {t('batches')}
+        </button>
+        <button
+          onClick={() => setStockTab('cash')}
+          style={{ padding: '6px 16px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'cash' ? 'var(--brand)' : 'transparent', color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', gap: 5 }}>
+          {t('cashTabLabel')}
+          {cashAccounts.length > 0 && <span style={{ background: 'color-mix(in srgb, var(--good) 20%, transparent)', color: 'var(--good)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{cashAccounts.filter(a => a.status === 'active').length}</span>}
+        </button>
       </div>
-      {activeTab === 'cash' ? (
-        <div className="formPanel salePanel">
-          <div className="inner">
-            <CashBoxManager
-              currentCash={num(state.cashQAR, 0)}
-              currentOwner={state.cashOwner || ''}
-              cashHistory={state.cashHistory || []}
-              onSave={(newCash, owner, history) => applyState({ ...state, cashQAR: newCash, cashOwner: owner, cashHistory: history })}
-              onClose={() => setSearchParams({ tab: 'stock' })}
-            />
-          </div>
-        </div>
-      ) : (
+
+      {/* ── CASH MANAGEMENT TAB ────────────────────────────────── */}
+      {stockTab === 'cash' && (
+        <CashManagement state={state} applyState={applyState} />
+      )}
+
+      {/* ── BATCHES TAB ────────────────────────────────────────── */}
+      {stockTab === 'batches' && (
       <div className="twoColPage">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -763,7 +766,7 @@ export default function StockPage() {
           </div>
         </div>
       </div>
-      )}
+      )} {/* end batches tab */}
 
       {/* ─── EDIT BATCH DIALOG ─── */}
       {(() => {

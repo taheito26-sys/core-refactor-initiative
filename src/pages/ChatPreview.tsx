@@ -1,113 +1,225 @@
-import { useEffect, useMemo, useState } from 'react';
-import { OsRoom, OsMessage } from '@/lib/os-store';
+/* Temporary preview page — renders chat UI with mock data, no auth required */
+
+import { useEffect } from 'react';
+import { useChatStore } from '@/lib/chat-store';
 import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar';
 import { ConversationHeader } from '@/features/chat/components/ConversationHeader';
 import { MessageTimeline } from '@/features/chat/components/MessageTimeline';
 import { MessageComposer } from '@/features/chat/components/MessageComposer';
+import { ContextPanel } from '@/features/chat/components/ContextPanel';
+import type { ConversationSummary, ChatMessage } from '@/lib/chat-store';
 
-const ME = 'preview-merchant';
+const MOCK_USER = 'user-me-123';
 
-const PREVIEW_ROOMS: OsRoom[] = [
+const MOCK_CONVERSATIONS: ConversationSummary[] = [
   {
-    id: 'preview-room-1',
-    name: 'Preview Deal Room',
-    type: 'deal',
-    lane: 'Deals',
-    security_policies: { disable_forwarding: true, disable_copy: true, disable_export: true, watermark: true },
-    retention_policy: '30d',
+    relationship_id: 'rel-1',
+    counterparty_name: 'Ahmad Trading Co.',
+    counterparty_nickname: 'Ahmad',
+    last_message: 'The shipment is ready for pickup tomorrow morning',
+    last_message_at: new Date(Date.now() - 2 * 60_000).toISOString(),
+    last_sender_id: 'user-ahmad',
+    unread_count: 3,
+    is_muted: false,
+    is_pinned: true,
   },
   {
-    id: 'preview-room-2',
-    name: 'Preview Support',
-    type: 'standard',
-    lane: 'Customers',
-    security_policies: { disable_forwarding: false, disable_copy: false, disable_export: false, watermark: false },
-    retention_policy: 'indefinite',
+    relationship_id: 'rel-2',
+    counterparty_name: 'Dubai Gold Suppliers',
+    counterparty_nickname: 'DGS',
+    last_message: 'Invoice #4521 has been settled',
+    last_message_at: new Date(Date.now() - 15 * 60_000).toISOString(),
+    last_sender_id: MOCK_USER,
+    unread_count: 0,
+    is_muted: false,
+    is_pinned: false,
+  },
+  {
+    relationship_id: 'rel-3',
+    counterparty_name: 'Al Rashid Metals',
+    counterparty_nickname: 'Rashid',
+    last_message: 'Can we discuss the new pricing?',
+    last_message_at: new Date(Date.now() - 45 * 60_000).toISOString(),
+    last_sender_id: 'user-rashid',
+    unread_count: 1,
+    is_muted: false,
+    is_pinned: false,
+  },
+  {
+    relationship_id: 'rel-4',
+    counterparty_name: 'Karachi Exports Ltd',
+    counterparty_nickname: 'KEL',
+    last_message: 'Order confirmed, processing now',
+    last_message_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+    last_sender_id: 'user-kel',
+    unread_count: 0,
+    is_muted: true,
+    is_pinned: false,
+  },
+  {
+    relationship_id: 'rel-5',
+    counterparty_name: 'Istanbul Bazaar Group',
+    counterparty_nickname: 'IBG',
+    last_message: '🎤 Voice message',
+    last_message_at: new Date(Date.now() - 6 * 3600_000).toISOString(),
+    last_sender_id: 'user-ibg',
+    unread_count: 0,
+    is_muted: false,
+    is_pinned: false,
   },
 ];
 
+const MOCK_MESSAGES: ChatMessage[] = [
+  {
+    id: 'msg-1',
+    relationship_id: 'rel-1',
+    sender_id: 'user-ahmad',
+    content: 'Hi, I wanted to check on the latest order status',
+    read_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+    created_at: new Date(Date.now() - 65 * 60_000).toISOString(),
+  },
+  {
+    id: 'msg-2',
+    relationship_id: 'rel-1',
+    sender_id: MOCK_USER,
+    content: 'Sure! Order #1247 is currently being processed. Should be ready by end of day.',
+    read_at: new Date(Date.now() - 58 * 60_000).toISOString(),
+    created_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+  },
+  {
+    id: 'msg-3',
+    relationship_id: 'rel-1',
+    sender_id: 'user-ahmad',
+    content: 'Perfect. What about the settlement for last week?',
+    read_at: new Date(Date.now() - 50 * 60_000).toISOString(),
+    created_at: new Date(Date.now() - 55 * 60_000).toISOString(),
+  },
+  {
+    id: 'msg-4',
+    relationship_id: 'rel-1',
+    sender_id: MOCK_USER,
+    content: 'Settlement was completed yesterday. I can share the receipt if you need it.',
+    read_at: new Date(Date.now() - 48 * 60_000).toISOString(),
+    created_at: new Date(Date.now() - 50 * 60_000).toISOString(),
+  },
+  {
+    id: 'msg-5',
+    relationship_id: 'rel-1',
+    sender_id: 'user-ahmad',
+    content: 'Yes please, that would be great. Also, I have a new deal proposal to discuss when you have time.',
+    read_at: null,
+    created_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+  },
+  {
+    id: 'msg-6',
+    relationship_id: 'rel-1',
+    sender_id: 'user-ahmad',
+    content: 'It involves 500 units at the revised rate we talked about last month.',
+    read_at: null,
+    created_at: new Date(Date.now() - 8 * 60_000).toISOString(),
+  },
+  {
+    id: 'msg-7',
+    relationship_id: 'rel-1',
+    sender_id: 'user-ahmad',
+    content: 'The shipment is ready for pickup tomorrow morning',
+    read_at: null,
+    created_at: new Date(Date.now() - 2 * 60_000).toISOString(),
+  },
+];
+
+const MOCK_REL = {
+  id: 'rel-1',
+  counterparty_name: 'Ahmad Trading Co.',
+  counterparty_nickname: 'Ahmad',
+  counterparty_code: 'ATC-001',
+  merchant_a_id: MOCK_USER,
+  merchant_b_id: 'user-ahmad',
+};
+
 export default function ChatPreview() {
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<OsMessage[]>([
-    {
-      id: 'preview-msg-1',
-      type: 'message',
-      room_id: 'preview-room-1',
-      sender_id: 'peer-merchant',
-      content: 'Preview secure room message.',
-      permissions: { forwardable: false, exportable: false, copyable: false, ai_readable: false },
-      retention_policy: '30d',
-      created_at: new Date(Date.now() - 120000).toISOString(),
-    },
-    {
-      id: 'preview-msg-2',
-      type: 'message',
-      room_id: 'preview-room-2',
-      sender_id: 'peer-merchant',
-      content: 'Need help with tracking details.',
-      permissions: { forwardable: true, exportable: true, copyable: true, ai_readable: true },
-      retention_policy: 'indefinite',
-      created_at: new Date(Date.now() - 60000).toISOString(),
-    },
-  ]);
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
 
+  // Auto-select first conversation on mount
   useEffect(() => {
-    if (!activeRoomId) setActiveRoomId(PREVIEW_ROOMS[0].id);
-  }, [activeRoomId]);
+    if (!activeConversationId) {
+      setActiveConversation('rel-1');
+    }
+  }, [activeConversationId, setActiveConversation]);
 
-  const activeRoom = useMemo(() => PREVIEW_ROOMS.find((room) => room.id === activeRoomId) || null, [activeRoomId]);
-  const activeItems = useMemo(() => messages.filter((message) => message.room_id === activeRoomId), [messages, activeRoomId]);
+  const activeMessages = MOCK_MESSAGES.filter(
+    (m) => m.relationship_id === activeConversationId
+  );
 
-  const handleSend = (content: string) => {
-    if (!activeRoom) return;
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `preview-msg-${Date.now()}`,
-        type: 'message',
-        room_id: activeRoom.id,
-        sender_id: ME,
-        content,
-        permissions: {
-          forwardable: !activeRoom.security_policies.disable_forwarding,
-          exportable: !activeRoom.security_policies.disable_export,
-          copyable: !activeRoom.security_policies.disable_copy,
-          ai_readable: true,
-        },
-        retention_policy: activeRoom.retention_policy,
-        created_at: new Date().toISOString(),
-      },
-    ]);
-  };
+  const activeRel = activeConversationId === 'rel-1' ? MOCK_REL : null;
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <ConversationSidebar conversations={PREVIEW_ROOMS} activeRoomId={activeRoomId} onSelectRoom={setActiveRoomId} />
-      {activeRoom ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{
+      display: 'flex', height: '100vh', overflow: 'hidden',
+      background: 'var(--bg, #0d1117)',
+      // Inject CSS variables for dark theme
+      ['--bg' as any]: '#0d1117',
+      ['--panel' as any]: '#161b22',
+      ['--panel2' as any]: '#1c2128',
+      ['--text' as any]: '#e6edf3',
+      ['--muted' as any]: '#8b949e',
+      ['--brand' as any]: '#6c63ff',
+      ['--line' as any]: '#30363d',
+      ['--input-bg' as any]: '#0d1117',
+      ['--good' as any]: '#3fb950',
+      ['--bad' as any]: '#f85149',
+    }}>
+      {/* LEFT — Conversation Sidebar */}
+      <ConversationSidebar
+        conversations={MOCK_CONVERSATIONS}
+        currentUserId={MOCK_USER}
+      />
+
+      {/* CENTER — Active Conversation */}
+      {activeConversationId && activeRel ? (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          height: '100%', overflow: 'hidden', minWidth: 0,
+        }}>
           <ConversationHeader
-            name={activeRoom.name}
-            nickname={activeRoom.type}
-            onBack={() => setActiveRoomId(null)}
+            name={activeRel.counterparty_name}
+            nickname={activeRel.counterparty_nickname}
+            onBack={() => setActiveConversation(null)}
             onSearchToggle={() => {}}
           />
+
           <MessageTimeline
-            messages={activeItems}
-            currentUserId={ME}
-            counterpartyName={activeRoom.name}
+            messages={activeMessages}
+            currentUserId={MOCK_USER}
+            counterpartyName={activeRel.counterparty_name}
             scrollRef={() => {}}
             onReply={() => {}}
           />
+
           <MessageComposer
-            onSend={handleSend}
+            onSend={(content) => console.log('Send:', content)}
             onTyping={() => {}}
             replyTo={null}
             onCancelReply={() => {}}
           />
         </div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Select a room</div>
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--muted)', fontSize: 13,
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Select a conversation</div>
+            <div style={{ fontSize: 11 }}>Choose a conversation from the left to start messaging</div>
+          </div>
+        </div>
+      )}
+
+      {/* RIGHT — Context Panel */}
+      {activeConversationId && (
+        <ContextPanel relationship={activeRel} />
       )}
     </div>
   );
