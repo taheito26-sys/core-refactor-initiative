@@ -8,7 +8,6 @@ import { AuthProvider } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
 import { ThemeProvider } from "@/lib/theme-context";
-import { ChatProvider } from "@/features/chat/chat-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
@@ -150,7 +149,6 @@ class RouteErrorBoundary extends React.Component<
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      <ChatProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -233,7 +231,6 @@ const App = () => (
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
-      </ChatProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

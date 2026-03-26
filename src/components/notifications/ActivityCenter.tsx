@@ -19,11 +19,9 @@ import {
   useMarkAllRead,
   useMarkCategoryRead,
   notificationRoute,
-  extractNotificationSender,
   type Notification,
 } from '@/hooks/useNotifications';
 import { useT } from '@/lib/i18n';
-import { useChatContextSafe } from '@/features/chat/chat-context';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'message' | 'system';
@@ -250,25 +248,14 @@ export default function ActivityCenter() {
     return counts;
   }, [notifications]);
 
-  const chatCtx = useChatContextSafe();
-
   const handleNavigate = (n: SmartNotification) => {
-    // Mark every notification in the group as read
+    // Mark every notification in the group as read, not just the representative one.
+    // This is the root cause of the phantom unread count — grouped notifications
+    // previously only marked 1 of N items read.
     const idsToMark = n.groupIds?.length ? n.groupIds : (n.read_at ? [] : [n.id]);
     idsToMark.forEach(id => markRead.mutate(id));
     setOpen(false);
-
-    // Deep-link: for chat notifications, navigate to /chat and trigger conversation open
-    if (n.category === 'message' && chatCtx) {
-      const senderName = extractNotificationSender(n.title);
-      // navigateToMessage will be consumed by UnifiedChatInbox to open the right conversation
-      if (senderName) {
-        chatCtx.navigateToMessage(senderName); // pass sender name, chat will resolve to relationship
-      }
-      navigate('/chat');
-    } else {
-      navigate(notificationRoute(n));
-    }
+    navigate(notificationRoute(n));
   };
 
   // Reset to "all" every time the panel opens — prevents phantom count where
