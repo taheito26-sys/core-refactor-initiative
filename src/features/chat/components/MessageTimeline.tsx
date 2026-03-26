@@ -130,7 +130,7 @@ export function MessageTimeline({
               <MessageItem
                 key={msg.id} message={msg} isOwn={isOwn} isFirstInGroup={isFirstInGroup} isLastInGroup={isLastInGroup}
                 currentUserId={currentUserId} counterpartyName={counterpartyName} isHighlighted={false}
-                onReply={onReply} onConvert={(type:any) => onConvertMessage?.(msg.id, type)}
+                onReply={() => onReply(msg)} onConvert={(type:any) => onConvertMessage?.(msg.id, type)}
               />
             );
           })}

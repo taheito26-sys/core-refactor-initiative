@@ -190,7 +190,7 @@ export default function ChatPreview() {
           />
 
           <MessageTimeline
-            messages={activeMessages}
+            messages={activeMessages as any}
             currentUserId={MOCK_USER}
             counterpartyName={activeRel.counterparty_name}
             scrollRef={() => {}}
