@@ -1,137 +1,129 @@
 /* ═══════════════════════════════════════════════════════════════
-   ConversationSidebar — left panel with conversation list
+   ConversationSidebar — Rocket.Chat-style left panel
+   Two sections: Channels (nav links) + Directs (contacts)
    ═══════════════════════════════════════════════════════════════ */
 
 import { useState, useMemo } from 'react';
-import { Search, MessageCircle, Filter } from 'lucide-react';
+import { MessageSquare, ShieldCheck, Receipt, FileText, Mail, ChevronDown, ChevronRight } from 'lucide-react';
 import { useChatStore, selectTotalUnread } from '@/lib/chat-store';
 import type { ConversationSummary } from '@/lib/chat-store';
-import { ConversationRow } from './ConversationRow';
+import { getPalette } from '../lib/message-codec';
 
 interface Props {
   conversations: ConversationSummary[];
   currentUserId: string;
 }
 
-type Folder = 'all' | 'unread' | 'muted';
+const CHANNEL_ITEMS = [
+  { key: 'chat', label: 'Chat', icon: MessageSquare, color: 'hsl(var(--primary))' },
+  { key: 'approvals', label: 'Approvals', icon: ShieldCheck, color: 'hsl(var(--destructive))' },
+  { key: 'settlements', label: 'Settlements', icon: Receipt, color: 'hsl(var(--muted-foreground))' },
+  { key: 'agreements', label: 'Agreements', icon: FileText, color: 'hsl(var(--muted-foreground))' },
+];
 
 export function ConversationSidebar({ conversations, currentUserId }: Props) {
-  const [search, setSearch] = useState('');
-  const [folder, setFolder] = useState<Folder>('all');
+  const [channelsOpen, setChannelsOpen] = useState(true);
+  const [directsOpen, setDirectsOpen] = useState(true);
+  const [activeChannel, setActiveChannel] = useState('chat');
   const activeId = useChatStore((s) => s.activeConversationId);
   const setActive = useChatStore((s) => s.setActiveConversation);
   const totalUnread = useChatStore(selectTotalUnread);
 
-  const filtered = useMemo(() => {
-    let list = conversations;
-
-    // Folder filter
-    if (folder === 'unread') list = list.filter((c) => c.unread_count > 0);
-    if (folder === 'muted') list = list.filter((c) => c.is_muted);
-
-    // Search filter
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (c) =>
-          c.counterparty_name.toLowerCase().includes(q) ||
-          c.counterparty_nickname.toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  }, [conversations, folder, search]);
-
-  const folderBtn = (f: Folder, label: string) => (
-    <button
-      onClick={() => setFolder(f)}
-      style={{
-        padding: '4px 10px', fontSize: 10, fontWeight: 700, border: 'none',
-        borderRadius: 4, cursor: 'pointer',
-        background: folder === f ? 'var(--brand)' : 'transparent',
-        color: folder === f ? '#fff' : 'var(--muted)',
-        transition: 'all 0.12s',
-      }}
-    >
-      {label}
-    </button>
-  );
+  // Compute per-channel badge counts (approvals from conversations for now)
+  const approvalCount = 2; // placeholder
 
   return (
-    <div style={{
-      width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
-      borderRight: '1px solid var(--line)', height: '100%', overflow: 'hidden',
-      background: 'var(--panel)',
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: '14px 14px 10px', borderBottom: '1px solid var(--line)',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <MessageCircle size={16} style={{ color: 'var(--brand)' }} />
-            <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>Messages</span>
-            {totalUnread > 0 && (
-              <span style={{
-                background: 'var(--brand)', color: '#fff', borderRadius: 50,
-                fontSize: 10, fontWeight: 800, minWidth: 18, height: 18,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '0 5px',
-              }}>
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </span>
-            )}
-          </div>
-        </div>
+    <div className="flex flex-col h-full w-[220px] flex-shrink-0 border-r border-border bg-card overflow-hidden">
 
-        {/* Search */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'var(--input-bg)', border: '1px solid var(--line)',
-          borderRadius: 6, padding: '5px 8px',
-        }}>
-          <Search size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversations..."
-            style={{
-              flex: 1, border: 'none', background: 'transparent', outline: 'none',
-              color: 'var(--text)', fontSize: 11,
-            }}
-          />
-        </div>
+      {/* ── Channels Section ── */}
+      <button
+        onClick={() => setChannelsOpen(!channelsOpen)}
+        className="flex items-center gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent/30 transition-colors w-full text-left"
+      >
+        {channelsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <span>Channels</span>
+      </button>
 
-        {/* Folder tabs */}
-        <div style={{ display: 'flex', gap: 2, marginTop: 8 }}>
-          {folderBtn('all', 'All')}
-          {folderBtn('unread', 'Unread')}
-          {folderBtn('muted', 'Muted')}
+      {channelsOpen && (
+        <div className="flex flex-col">
+          {CHANNEL_ITEMS.map((ch) => {
+            const Icon = ch.icon;
+            const isActive = activeChannel === ch.key;
+            const badge = ch.key === 'approvals' ? approvalCount : ch.key === 'chat' && totalUnread > 0 ? totalUnread : 0;
+            return (
+              <button
+                key={ch.key}
+                onClick={() => setActiveChannel(ch.key)}
+                className={`flex items-center gap-2.5 px-4 py-1.5 text-[12px] font-semibold transition-colors w-full text-left ${
+                  isActive
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted-foreground hover:bg-accent/20 hover:text-foreground'
+                }`}
+              >
+                <Icon size={14} style={{ color: isActive ? 'hsl(var(--primary))' : undefined }} />
+                <span className="flex-1">{ch.label}</span>
+                {badge > 0 && (
+                  <span className="bg-destructive text-destructive-foreground text-[9px] font-extrabold rounded px-1.5 py-0.5 min-w-[18px] text-center">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      </div>
+      )}
 
-      {/* Conversation list */}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {filtered.length === 0 ? (
-          <div style={{
-            padding: '32px 16px', textAlign: 'center',
-            color: 'var(--muted)', fontSize: 12,
-          }}>
-            {search ? 'No conversations match your search' : 'No conversations'}
-          </div>
-        ) : (
-          filtered.map((conv) => (
-            <ConversationRow
-              key={conv.relationship_id}
-              conv={conv}
-              isActive={conv.relationship_id === activeId}
-              currentUserId={currentUserId}
-              onClick={() => setActive(conv.relationship_id)}
-            />
-          ))
-        )}
-      </div>
+      {/* ── Directs Section ── */}
+      <button
+        onClick={() => setDirectsOpen(!directsOpen)}
+        className="flex items-center gap-2 px-3 py-2.5 mt-1 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent/30 transition-colors w-full text-left"
+      >
+        {directsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <Mail size={12} />
+        <span>Directs</span>
+      </button>
+
+      {directsOpen && (
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {conversations.length === 0 ? (
+            <div className="px-4 py-6 text-center text-muted-foreground text-[11px]">
+              No contacts yet
+            </div>
+          ) : (
+            conversations.map((conv) => {
+              const isActive = conv.relationship_id === activeId;
+              const palette = getPalette(conv.counterparty_name);
+              return (
+                <button
+                  key={conv.relationship_id}
+                  onClick={() => setActive(conv.relationship_id)}
+                  className={`flex items-center gap-2.5 px-3 py-1.5 w-full text-left transition-colors ${
+                    isActive
+                      ? 'bg-primary/15 text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/20 hover:text-foreground'
+                  }`}
+                >
+                  {/* Avatar */}
+                  <div
+                    className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-extrabold"
+                    style={{ background: palette.bg, color: palette.text }}
+                  >
+                    {conv.counterparty_name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="flex-1 text-[12px] font-semibold truncate">
+                    {conv.counterparty_nickname || conv.counterparty_name}
+                  </span>
+                  {conv.unread_count > 0 && (
+                    <span className="bg-destructive text-destructive-foreground text-[9px] font-extrabold rounded px-1.5 py-0.5 min-w-[18px] text-center">
+                      {conv.unread_count > 99 ? '99+' : conv.unread_count}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }
