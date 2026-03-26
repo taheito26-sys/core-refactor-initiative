@@ -3,21 +3,16 @@
  * 
  * Tracks: active conversation, active module, window focus, scroll position.
  * Used by notification system to suppress badges when user is actively viewing.
+ * Supports deep-linking via targetConversationId + anchorMessageId.
  */
-import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 
 interface ChatState {
-  /** Currently active (open) conversation relationship_id */
   activeConversationId: string | null;
-  /** Whether the user is inside the chat module */
   inChatModule: boolean;
-  /** Whether the browser tab is focused */
   isTabFocused: boolean;
-  /** Whether the user is scrolled to bottom (messages are "visible") */
   isAtBottom: boolean;
-  /** Target message to scroll to and highlight (from notification deep-link) */
   anchorMessageId: string | null;
-  /** Target conversation to open (from notification deep-link) */
   targetConversationId: string | null;
 }
 
@@ -25,11 +20,8 @@ interface ChatContextValue extends ChatState {
   setActiveConversation: (id: string | null) => void;
   setInChatModule: (v: boolean) => void;
   setIsAtBottom: (v: boolean) => void;
-  /** Navigate to a specific conversation and optionally anchor to a message */
   navigateToMessage: (conversationId: string, messageId?: string) => void;
-  /** Clear the anchor after it's been consumed */
   clearAnchor: () => void;
-  /** Check if a conversation's messages should suppress notification badges */
   shouldSuppressNotification: (conversationId: string) => boolean;
 }
 
@@ -45,13 +37,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     targetConversationId: null,
   });
 
-  // Track tab focus
   useEffect(() => {
     const onFocus = () => setState(s => ({ ...s, isTabFocused: true }));
     const onBlur = () => setState(s => ({ ...s, isTabFocused: false }));
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
-    // Set initial state
     setState(s => ({ ...s, isTabFocused: document.hasFocus() }));
     return () => {
       window.removeEventListener('focus', onFocus);
@@ -113,7 +103,6 @@ export function useChatContext(): ChatContextValue {
   return ctx;
 }
 
-/** Safe version that returns null if outside provider */
 export function useChatContextSafe(): ChatContextValue | null {
   return useContext(ChatCtx);
 }
