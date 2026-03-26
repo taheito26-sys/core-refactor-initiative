@@ -19,7 +19,7 @@ const merchantUserByMerchantId = new Map([
 describe('workspace deal scoping', () => {
   it('A workspace sees A-B deal', () => {
     const visible = isDealVisibleInWorkspace({
-      deal: { relationship_id: 'rel-ab' },
+      deal: { relationship_id: 'rel-ab', created_by: 'user-a' },
       workspaceMerchantId: 'A',
       workspaceRelationshipIds: new Set(['rel-ab']),
     });
@@ -28,7 +28,7 @@ describe('workspace deal scoping', () => {
 
   it('B workspace also sees A-B deal', () => {
     const visible = isDealVisibleInWorkspace({
-      deal: { relationship_id: 'rel-ab' },
+      deal: { relationship_id: 'rel-ab', created_by: 'user-b' },
       workspaceMerchantId: 'B',
       workspaceRelationshipIds: new Set(['rel-ab']),
     });
@@ -37,7 +37,7 @@ describe('workspace deal scoping', () => {
 
   it('C workspace does not see A-B deal', () => {
     const visible = isDealVisibleInWorkspace({
-      deal: { relationship_id: 'rel-ab' },
+      deal: { relationship_id: 'rel-ab', created_by: 'user-a' },
       workspaceMerchantId: 'C',
       workspaceRelationshipIds: new Set(['rel-cd']),
     });
@@ -46,8 +46,8 @@ describe('workspace deal scoping', () => {
 
   it('multiple relationships only include matching relationship_id', () => {
     const workspaceRelationshipIds = new Set(['rel-cd']);
-    expect(isDealVisibleInWorkspace({ deal: { relationship_id: 'rel-ab' }, workspaceMerchantId: 'C', workspaceRelationshipIds })).toBe(false);
-    expect(isDealVisibleInWorkspace({ deal: { relationship_id: 'rel-cd' }, workspaceMerchantId: 'C', workspaceRelationshipIds })).toBe(true);
+    expect(isDealVisibleInWorkspace({ deal: { relationship_id: 'rel-ab', created_by: 'user-a' }, workspaceMerchantId: 'C', workspaceRelationshipIds })).toBe(false);
+    expect(isDealVisibleInWorkspace({ deal: { relationship_id: 'rel-cd', created_by: 'user-c' }, workspaceMerchantId: 'C', workspaceRelationshipIds })).toBe(true);
   });
 
   it('created_by matches user but relationship mismatch still hidden', () => {

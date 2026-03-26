@@ -278,7 +278,7 @@ function useChatStore() {
         sender_id: index % 2 ? `${conversationId}-remote` : CURRENT_USER_ID,
         content: `Older message ${index + 1}`,
         timestamp: firstTs - (index + 1) * 60_000,
-        status: index % 2 ? 'delivered' : 'seen',
+        status: (index % 2 ? 'delivered' : 'seen') as MessageStatus,
         read_state: 'read' as ReadState,
         type: 'text' as MessageType,
         mine: index % 2 === 0,
@@ -706,12 +706,13 @@ function ChatLayout() {
     setMobileConversationOpen(true);
   };
 
-  const onNotificationRoute = (notificationId: string) => {
+  const onNotificationRoute = (notificationId: string): { conversationId: string; messageId: string } => {
     const routed = handleNotificationClick(notificationId);
-    if (!routed) return;
+    if (!routed) return { conversationId: '', messageId: '' };
     setMobileConversationOpen(true);
     setHighlightedMessageId(routed.messageId);
     setTimeout(() => setHighlightedMessageId(null), 2000);
+    return routed;
   };
 
   return (
