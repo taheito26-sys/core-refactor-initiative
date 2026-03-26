@@ -19,11 +19,11 @@ export async function getRoomPolicy(roomId: string): Promise<DeterministicResult
 
 export async function applyRoomPolicy(roomId: string, security: Record<string, unknown>, retention: Record<string, unknown>): Promise<DeterministicResult<boolean>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_apply_room_policy', {
+    const { data, error } = await (supabase.rpc as any)('fn_chat_apply_room_policy', {
       _room_id: roomId,
       _security: security,
       _retention: retention,
-    } as any);
+    });
     if (error) throw error;
     return ok(Boolean(data));
   } catch (error) {

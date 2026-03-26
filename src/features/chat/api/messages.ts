@@ -11,7 +11,7 @@ export async function getRoomMessages(roomId: string, limit = 100): Promise<Dete
       .order('created_at', { ascending: true })
       .limit(limit);
     if (error) throw error;
-    return ok((data ?? []) as ChatMessage[]);
+    return ok((data ?? []) as unknown as ChatMessage[]);
   } catch (error) {
     return fail([], error);
   }
@@ -26,14 +26,14 @@ export async function sendMessage(input: {
   replyToMessageId?: string | null;
 }): Promise<DeterministicResult<ChatMessage | null>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_send_message', {
+    const { data, error } = await (supabase.rpc as any)('fn_chat_send_message', {
       _room_id: input.roomId,
       _body: input.body,
       _body_json: input.bodyJson ?? {},
       _message_type: input.messageType ?? 'text',
       _client_nonce: input.clientNonce ?? null,
       _reply_to_message_id: input.replyToMessageId ?? null,
-    } as any);
+    });
     if (error) throw error;
     return ok((data ?? null) as ChatMessage | null);
   } catch (error) {
@@ -43,7 +43,7 @@ export async function sendMessage(input: {
 
 export async function markRead(roomId: string, messageId: string): Promise<DeterministicResult<boolean>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_mark_read', { _room_id: roomId, _message_id: messageId });
+    const { data, error } = await (supabase.rpc as any)('fn_chat_mark_read', { _room_id: roomId, _message_id: messageId });
     if (error) throw error;
     return ok(Boolean(data));
   } catch (error) {

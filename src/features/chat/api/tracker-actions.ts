@@ -40,7 +40,7 @@ export async function createOrderDraftFromMessage(input: {
       room_id: input.roomId,
       message_id: input.messageId,
       link_type: 'order',
-      linked_id: deal.id,
+      linked_id: (deal as any).id,
       linked_path: '/trading/orders',
       merchant_relationship_id: input.relationshipId,
       created_by: userId,
@@ -48,7 +48,7 @@ export async function createOrderDraftFromMessage(input: {
     });
     if (linkError) throw linkError;
 
-    return ok({ dealId: deal.id as string });
+    return ok({ dealId: (deal as any).id as string });
   } catch (error) {
     return fail({ dealId: null }, error);
   }
@@ -79,14 +79,14 @@ export async function createActionItemFromMessage(input: {
       room_id: input.roomId,
       message_id: input.messageId,
       link_type: input.kind,
-      linked_id: item.id,
+      linked_id: (item as any).id,
       linked_path: '/chat',
       created_by: userId,
       metadata: input.payload ?? {},
     });
     if (linkError) throw linkError;
 
-    return ok({ itemId: item.id as string });
+    return ok({ itemId: (item as any).id as string });
   } catch (error) {
     return fail({ itemId: null }, error);
   }
