@@ -124,6 +124,7 @@ export type LedgerEntryType =
   | 'stock_purchase'
   | 'stock_refund'
   | 'stock_edit_adjust'
+  | 'sale_deposit'
   | 'reconcile';
 
 export interface CashAccount {

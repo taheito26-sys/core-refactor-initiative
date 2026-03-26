@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal,
+  fmtPrice, fmtTotal, getAccountBalance, getAllAccountBalances, deriveCashQAR,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
+  type CashLedgerEntry, type CashAccount,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
@@ -73,6 +74,7 @@ export default function OrdersPage() {
   const [saleMessage, setSaleMessage] = useState('');
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
+  const [cashDepositAccountId, setCashDepositAccountId] = useState<string>('');
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -422,7 +424,7 @@ export default function OrdersPage() {
     setNewBuyerName(''); setNewBuyerPhone(''); setNewBuyerTier('C');
   };
 
-  // Helper: apply cash deposit to state if enabled
+  // Helper: apply cash deposit to state if enabled (uses new Cash Management ledger)
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
     if (cashDepositMode === 'none') return nextState;
     const revenue = amountUSDT * sell;
@@ -430,22 +432,43 @@ export default function OrdersPage() {
       ? revenue
       : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
     if (depositAmt <= 0) return nextState;
-    const currentCash = nextState.cashQAR || 0;
-    const newCash = currentCash + depositAmt;
-    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+
+    const accounts = nextState.cashAccounts ?? [];
+    const ledger = nextState.cashLedger ?? [];
+
+    // Find target account — prefer selected, fallback to first active QAR account
+    const targetId = cashDepositAccountId
+      || accounts.find(a => a.status === 'active' && a.currency === 'QAR')?.id
+      || '';
+
+    if (!targetId) {
+      // Legacy fallback if no accounts exist
+      const currentCash = nextState.cashQAR || 0;
+      const newCash = currentCash + depositAmt;
+      const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+        id: uid(), ts: Date.now(), type: 'sale_deposit' as any,
+        amount: depositAmt, balanceAfter: newCash,
+        owner: nextState.cashOwner || '', bankAccount: '', note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      };
+      return { ...nextState, cashQAR: newCash, cashHistory: [...(nextState.cashHistory || []), cashTx] };
+    }
+
+    // Write proper ledger entry
+    const entry: CashLedgerEntry = {
       id: uid(),
       ts: Date.now(),
-      type: 'sale_deposit' as any,
+      type: 'sale_deposit',
+      accountId: targetId,
+      direction: 'in',
       amount: depositAmt,
-      balanceAfter: newCash,
-      owner: nextState.cashOwner || '',
-      bankAccount: '',
+      currency: 'QAR',
       note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     };
+    const newLedger = [...ledger, entry];
     return {
       ...nextState,
-      cashQAR: newCash,
-      cashHistory: [...(nextState.cashHistory || []), cashTx],
+      cashLedger: newLedger,
+      cashQAR: deriveCashQAR(accounts, newLedger),
     };
   };
 
@@ -788,6 +811,7 @@ export default function OrdersPage() {
     setAllocations([]);
     setCashDepositMode('none');
     setCashDepositAmount('');
+    setCashDepositAccountId('');
   };
 
   const exportCsv = () => {
@@ -2306,24 +2330,43 @@ export default function OrdersPage() {
                 </div>
                 )}
 
-                {/* Cash Deposit Option */}
-                {salePreview && salePreview.revenue > 0 && (
+                {/* Cash Deposit Option — integrated with Cash Management */}
+                {salePreview && salePreview.revenue > 0 && (() => {
+                  const activeAccounts = (state.cashAccounts ?? []).filter(a => a.status === 'active');
+                  const balances = getAllAccountBalances(activeAccounts, state.cashLedger ?? []);
+                  const hasAccounts = activeAccounts.length > 0;
+                  // Auto-select first QAR account if none selected
+                  const selectedAccId = cashDepositAccountId || activeAccounts.find(a => a.currency === 'QAR')?.id || '';
+                  const selectedAcc = activeAccounts.find(a => a.id === selectedAccId);
+                  const currentBal = selectedAccId ? (balances.get(selectedAccId) ?? 0) : (state.cashQAR || 0);
+                  const depositVal = parseFloat(cashDepositAmount) || 0;
+
+                  return (
                   <div style={{
-                    padding: '8px 10px',
+                    padding: '10px 12px',
                     borderRadius: 8,
                     background: 'color-mix(in srgb, var(--good) 6%, transparent)',
                     border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
                     marginBottom: 6,
                   }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>💰 Add sale proceeds to cash?</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)' }}>💰 {t('addSaleProceeds') || 'Add sale proceeds to cash?'}</div>
+                      {hasAccounts && cashDepositMode !== 'none' && selectedAcc && (
+                        <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>
+                          Balance: {fmtQ(currentBal)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Mode toggle buttons */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: cashDepositMode !== 'none' ? 8 : 0 }}>
                       {(['none', 'full', 'partial'] as const).map(mode => (
                         <button
                           key={mode}
                           onClick={() => {
                             setCashDepositMode(mode);
                             if (mode === 'full') setCashDepositAmount(String(Math.round(salePreview.revenue * 100) / 100));
-                            if (mode === 'none') setCashDepositAmount('');
+                            if (mode === 'none') { setCashDepositAmount(''); setCashDepositAccountId(''); }
                           }}
                           style={{
                             padding: '4px 10px',
@@ -2340,33 +2383,106 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? "Don't add" : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : 'Custom amount'}
+                          {mode === 'none' ? (t('dontAdd') || "Don't add") : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : (t('customAmount') || 'Custom amount')}
                         </button>
                       ))}
                     </div>
-                    {cashDepositMode === 'partial' && (
-                      <div style={{ marginTop: 6 }}>
-                        <div className="inputBox" style={{ maxWidth: 180 }}>
-                          <input
-                            inputMode="decimal"
-                            placeholder="Amount in QAR"
-                            value={cashDepositAmount}
-                            onChange={numericOnly(setCashDepositAmount)}
-                            style={{ fontSize: 11 }}
-                          />
-                        </div>
-                        {parseFloat(cashDepositAmount) > salePreview.revenue && (
-                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>Amount exceeds sale revenue</div>
-                        )}
-                      </div>
-                    )}
+
+                    {/* Account selector + amount input (visible when not 'none') */}
                     {cashDepositMode !== 'none' && (
-                      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
-                        Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* Account selector */}
+                        {hasAccounts && (
+                          <div>
+                            <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--t2)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              {t('destinationAccount') || 'Destination Account'}
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              {activeAccounts.map(acc => {
+                                const bal = balances.get(acc.id) ?? 0;
+                                const isSelected = acc.id === selectedAccId;
+                                return (
+                                  <button
+                                    key={acc.id}
+                                    onClick={() => setCashDepositAccountId(acc.id)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: 6,
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      border: isSelected
+                                        ? '1.5px solid var(--brand)'
+                                        : '1px solid var(--line)',
+                                      background: isSelected
+                                        ? 'color-mix(in srgb, var(--brand) 12%, transparent)'
+                                        : 'var(--panel2)',
+                                      color: isSelected ? 'var(--brand)' : 'var(--t2)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                    }}
+                                  >
+                                    <span>{acc.type === 'hand' ? '🤲' : acc.type === 'bank' ? '🏦' : '🔐'}</span>
+                                    <span>{acc.name}</span>
+                                    <span style={{ fontSize: 9, opacity: 0.7 }}>{fmtQ(bal)}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* No accounts — link to create */}
+                        {!hasAccounts && (
+                          <div style={{ fontSize: 9, color: 'var(--warn)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span>⚠</span>
+                            <span>{t('noAccountsYet') || 'No cash accounts yet.'}</span>
+                            <button
+                              onClick={() => navigate('/trading/stock?tab=cash')}
+                              style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontWeight: 600, fontSize: 9, padding: 0, textDecoration: 'underline' }}
+                            >
+                              {t('createOne') || 'Create one'}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Custom amount input */}
+                        {cashDepositMode === 'partial' && (
+                          <div>
+                            <div className="inputBox" style={{ maxWidth: 180 }}>
+                              <input
+                                inputMode="decimal"
+                                placeholder={t('amountInQar') || 'Amount in QAR'}
+                                value={cashDepositAmount}
+                                onChange={numericOnly(setCashDepositAmount)}
+                                style={{ fontSize: 11 }}
+                              />
+                            </div>
+                            {depositVal > salePreview.revenue && (
+                              <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>{t('amountExceedsRevenue') || 'Amount exceeds sale revenue'}</div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Balance preview */}
+                        <div style={{
+                          fontSize: 9, color: 'var(--muted)', marginTop: 2,
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          background: 'color-mix(in srgb, var(--good) 4%, transparent)',
+                        }}>
+                          <span>{selectedAcc?.name || (t('cash') || 'Cash')}</span>
+                          <span>
+                            {fmtQ(currentBal)} → <strong style={{ color: 'var(--good)' }}>{fmtQ(currentBal + depositVal)}</strong>
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
+                  );
+                })()}
 
                 <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>

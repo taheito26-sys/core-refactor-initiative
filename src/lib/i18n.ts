@@ -1193,9 +1193,19 @@ const translations = {
   ledgerStockPurchase:   { en: 'Stock Purchase',               ar: 'شراء مخزون' },
   ledgerStockRefund:     { en: 'Stock Refund',                 ar: 'استرداد مخزون' },
   ledgerEditAdjust:      { en: 'Batch Edit Adjust',            ar: 'تعديل دفعة' },
+  ledgerSaleDeposit:     { en: 'Sale Deposit',                 ar: 'إيداع مبيعات' },
   ledgerReconcile:       { en: 'Reconciliation',               ar: 'تسوية حساب' },
 
-  // Add / Edit account modal
+  // Sale proceeds cash deposit
+  addSaleProceeds:       { en: 'Add sale proceeds to cash?',    ar: 'إضافة عائدات البيع إلى النقد؟' },
+  dontAdd:               { en: "Don't add",                     ar: 'عدم الإضافة' },
+  customAmount:          { en: 'Custom amount',                 ar: 'مبلغ مخصص' },
+  destinationAccount:    { en: 'Destination Account',           ar: 'حساب الوجهة' },
+  noAccountsYet:         { en: 'No cash accounts yet.',         ar: 'لا توجد حسابات نقدية بعد.' },
+  createOne:             { en: 'Create one',                    ar: 'إنشاء حساب' },
+  amountInQar:           { en: 'Amount in QAR',                 ar: 'المبلغ بالريال' },
+  amountExceedsRevenue:  { en: 'Amount exceeds sale revenue',   ar: 'المبلغ يتجاوز عائد البيع' },
+
   addCashAccount:        { en: '➕ Add Cash Account',          ar: '➕ إضافة حساب نقدي' },
   editAccountTitle:      { en: '✏️ Edit Account',              ar: '✏️ تعديل الحساب' },
   accountName:           { en: 'Account Name',                 ar: 'اسم الحساب' },
