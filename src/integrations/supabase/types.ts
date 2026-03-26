@@ -1566,6 +1566,41 @@ export type Database = {
         Args: { _relationship_id: string }
         Returns: undefined
       }
+      os_capture_snapshot: {
+        Args: { _target_business_object_id: string; _trigger_event: string }
+        Returns: string
+      }
+      os_convert_message: {
+        Args: { _message_id: string; _payload?: Json; _target_type: string }
+        Returns: string
+      }
+      os_get_unread_counts: {
+        Args: { _merchant_id?: string }
+        Returns: {
+          room_id: string
+          unread_count: number
+        }[]
+      }
+      os_promote_thread: {
+        Args: {
+          _room_id: string
+          _routing_target?: string
+          _source_message_ids: string[]
+        }
+        Returns: string
+      }
+      os_record_presence: {
+        Args: {
+          _is_focused: boolean
+          _last_read_message_id?: string
+          _room_id: string
+        }
+        Returns: undefined
+      }
+      os_send_notification: {
+        Args: { _message_id: string; _room_id: string; _urgency?: string }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
