@@ -1,9 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
-   MessageItem — individual message bubble in the timeline
+   MessageItem — Rocket.Chat-style message bubble
+   Left-aligned with sender name, own messages highlighted
    ═══════════════════════════════════════════════════════════════ */
 
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { Check, CheckCheck, Reply, Copy, Forward, Star, Trash2, Edit3 } from 'lucide-react';
+import { Check, CheckCheck, Reply, Copy } from 'lucide-react';
 import type { ChatMessage } from '@/lib/chat-store';
 import { parseMsg, splitLinks, fmtMsgTime, getPalette } from '../lib/message-codec';
 
@@ -28,12 +29,13 @@ export function MessageItem({
   const parsed = useMemo(() => parseMsg(message.content), [message.content]);
   const palette = getPalette(counterpartyName);
 
-  // Delivery status
   const isPending = !!message._pending;
-  const isDelivered = !isPending && !message.read_at;
   const isRead = !!message.read_at;
 
-  // ── Voice message playback ─────────────────────────────────────
+  // Sender display name
+  const senderName = isOwn ? 'You' : counterpartyName;
+
+  // ── Voice player ─────────────────────────────────────────────
   const VoicePlayer = () => {
     const [playing, setPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -57,32 +59,21 @@ export function MessageItem({
         a.ontimeupdate = () => setProgress((a.currentTime / a.duration) * 100 || 0);
         a.onended = () => { setPlaying(false); setProgress(0); };
       }
-      if (playing) { audioRef.current.pause(); }
-      else { audioRef.current.play(); }
+      if (playing) audioRef.current.pause();
+      else audioRef.current.play();
       setPlaying(!playing);
     };
 
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 }}>
-        <button onClick={toggle} style={{
-          width: 32, height: 32, borderRadius: 50, border: 'none', cursor: 'pointer',
-          background: 'color-mix(in srgb, var(--brand) 20%, transparent)',
-          color: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14,
-        }}>
+      <div className="flex items-center gap-2 min-w-[180px]">
+        <button onClick={toggle} className="w-8 h-8 rounded-full border-none cursor-pointer bg-primary/20 text-primary flex items-center justify-center text-sm">
           {playing ? '⏸' : '▶'}
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{
-            height: 4, borderRadius: 2, background: 'color-mix(in srgb, var(--text) 15%, transparent)',
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              width: `${progress}%`, height: '100%', background: 'var(--brand)',
-              borderRadius: 2, transition: 'width 0.1s linear',
-            }} />
+        <div className="flex-1">
+          <div className="h-1 rounded bg-muted overflow-hidden">
+            <div className="h-full bg-primary rounded transition-[width] duration-100" style={{ width: `${progress}%` }} />
           </div>
-          <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+          <div className="text-[9px] text-muted-foreground mt-0.5">
             {parsed.voiceDuration ? `${Math.floor(parsed.voiceDuration / 60)}:${String(parsed.voiceDuration % 60).padStart(2, '0')}` : '0:00'}
           </div>
         </div>
@@ -90,7 +81,7 @@ export function MessageItem({
     );
   };
 
-  // ── Poll rendering ─────────────────────────────────────────────
+  // ── Poll ──────────────────────────────────────────────────────
   const PollBubble = () => {
     const [votes, setVotes] = useState<Record<string, string[]>>(() => {
       try { return JSON.parse(localStorage.getItem(`poll_${message.id}`) || '{}'); } catch { return {}; }
@@ -107,40 +98,32 @@ export function MessageItem({
 
     return (
       <div>
-        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>📊 {parsed.pollQuestion}</div>
+        <div className="text-xs font-bold mb-1.5">📊 {parsed.pollQuestion}</div>
         {(parsed.pollOptions || []).map((opt) => {
           const count = (votes[opt] || []).length;
           const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
           return (
-            <div key={opt} onClick={() => vote(opt)} style={{
-              padding: '5px 8px', marginBottom: 3, borderRadius: 4, cursor: hasVoted ? 'default' : 'pointer',
-              border: '1px solid var(--line)', background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
-              position: 'relative', overflow: 'hidden', fontSize: 11,
-            }}>
+            <div key={opt} onClick={() => vote(opt)} className="px-2 py-1 mb-0.5 rounded border border-border bg-primary/5 relative overflow-hidden text-[11px] cursor-pointer">
               {hasVoted && (
-                <div style={{
-                  position: 'absolute', left: 0, top: 0, bottom: 0,
-                  width: `${pct}%`, background: 'color-mix(in srgb, var(--brand) 15%, transparent)',
-                  transition: 'width 0.3s',
-                }} />
+                <div className="absolute left-0 top-0 bottom-0 bg-primary/15 transition-[width] duration-300" style={{ width: `${pct}%` }} />
               )}
-              <span style={{ position: 'relative', zIndex: 1 }}>{opt}</span>
-              {hasVoted && <span style={{ position: 'relative', zIndex: 1, float: 'right', fontWeight: 700 }}>{pct}%</span>}
+              <span className="relative z-10">{opt}</span>
+              {hasVoted && <span className="relative z-10 float-right font-bold">{pct}%</span>}
             </div>
           );
         })}
-        {hasVoted && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 3 }}>{totalVotes} votes</div>}
+        {hasVoted && <div className="text-[9px] text-muted-foreground mt-1">{totalVotes} votes</div>}
       </div>
     );
   };
 
-  // ── Render text with links ─────────────────────────────────────
+  // ── Text with links ──────────────────────────────────────────
   const TextContent = ({ text }: { text: string }) => (
     <>
       {splitLinks(text).map((part, i) =>
         part.type === 'link' ? (
           <a key={i} href={part.value} target="_blank" rel="noopener noreferrer"
-            style={{ color: 'inherit', textDecoration: 'underline', opacity: 0.85 }}
+            className="text-primary underline opacity-85"
             onClick={(e) => e.stopPropagation()}>
             {part.value}
           </a>
@@ -154,45 +137,45 @@ export function MessageItem({
   return (
     <div
       data-msg-id={message.id}
-      className={isHighlighted ? 'msg-highlight' : ''}
-      style={{
-        display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start',
-        padding: `${isFirstInGroup ? 6 : 1}px 16px 1px`,
-        position: 'relative',
-      }}
+      className={`relative px-4 ${isFirstInGroup ? 'pt-2' : 'pt-0.5'} ${isHighlighted ? 'msg-highlight' : ''}`}
       onContextMenu={(e) => { e.preventDefault(); setShowCtx(true); }}
     >
-      <div style={{
-        maxWidth: '70%', minWidth: 80,
-        background: isOwn
-          ? 'color-mix(in srgb, var(--brand) 15%, transparent)'
-          : 'color-mix(in srgb, var(--text) 6%, transparent)',
-        borderRadius: isOwn
-          ? `12px 12px ${isLastInGroup ? '4px' : '12px'} 12px`
-          : `12px 12px 12px ${isLastInGroup ? '4px' : '12px'}`,
-        padding: '8px 12px',
-        position: 'relative',
-      }}>
+      {/* Bubble — Rocket.Chat style: all left-aligned, own messages get warm bg */}
+      <div
+        className={`rounded-md px-3 py-2 max-w-[75%] ${
+          isOwn
+            ? 'bg-amber-400/20 border border-amber-400/30 ml-auto'
+            : 'bg-card border border-border'
+        }`}
+      >
+        {/* Sender name — bold, colored */}
+        {isFirstInGroup && (
+          <div
+            className="text-[11px] font-extrabold mb-0.5"
+            style={{ color: isOwn ? 'hsl(var(--primary))' : palette.text === '#fff' ? undefined : palette.text }}
+          >
+            <span className={isOwn ? 'text-primary' : 'text-sky-400'}>
+              {senderName}
+            </span>
+          </div>
+        )}
+
         {/* Reply quote */}
         {parsed.isReply && parsed.replyPreview && (
           <div
             onClick={() => parsed.replyId && onScrollToMessage?.(parsed.replyId)}
-            style={{
-              borderLeft: '2px solid var(--brand)', paddingLeft: 8,
-              marginBottom: 4, cursor: 'pointer',
-              fontSize: 10, color: 'var(--muted)', lineHeight: 1.3,
-            }}
+            className="border-l-2 border-primary pl-2 mb-1 cursor-pointer"
           >
-            <div style={{ fontWeight: 700, color: 'var(--brand)', fontSize: 9 }}>{parsed.replySender}</div>
-            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+            <div className="text-[9px] font-bold text-primary">{parsed.replySender}</div>
+            <div className="text-[10px] text-muted-foreground truncate max-w-[200px]">
               {parsed.replyPreview}
             </div>
           </div>
         )}
 
-        {/* Forward banner */}
+        {/* Forward */}
         {parsed.isFwd && (
-          <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 3, fontStyle: 'italic' }}>
+          <div className="text-[9px] text-muted-foreground mb-1 italic">
             ↪ Forwarded from {parsed.fwdSender}
           </div>
         )}
@@ -201,31 +184,28 @@ export function MessageItem({
         {parsed.isVoice ? <VoicePlayer /> :
          parsed.isPoll ? <PollBubble /> :
          parsed.isSystemEvent ? (
-          <div style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', textAlign: 'center' }}>
+          <div className="text-[11px] text-muted-foreground italic text-center">
             ℹ️ {parsed.systemEventFields?.join(' · ') || 'System event'}
           </div>
         ) : (
-          <div style={{ fontSize: 12, lineHeight: 1.4, color: 'var(--text)', wordBreak: 'break-word' }}>
+          <div className="text-[12px] leading-relaxed text-foreground break-words">
             <TextContent text={parsed.text} />
           </div>
         )}
 
-        {/* Meta row: time + edited + delivery status */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-          gap: 4, marginTop: 3,
-        }}>
+        {/* Meta: time + status */}
+        <div className="flex items-center justify-end gap-1 mt-1">
           {parsed.isEdited && (
-            <span style={{ fontSize: 8, color: 'var(--muted)', fontStyle: 'italic' }}>edited</span>
+            <span className="text-[8px] text-muted-foreground italic">edited</span>
           )}
-          <span style={{ fontSize: 9, color: 'var(--muted)' }}>{fmtMsgTime(message.created_at)}</span>
+          <span className="text-[9px] text-muted-foreground">{fmtMsgTime(message.created_at)}</span>
           {isOwn && (
             isPending ? (
-              <span style={{ fontSize: 9, color: 'var(--muted)' }}>○</span>
+              <span className="text-[9px] text-muted-foreground">○</span>
             ) : isRead ? (
-              <CheckCheck size={12} style={{ color: 'var(--brand)' }} />
+              <CheckCheck size={12} className="text-primary" />
             ) : (
-              <Check size={12} style={{ color: 'var(--muted)' }} />
+              <Check size={12} className="text-muted-foreground" />
             )
           )}
         </div>
@@ -234,24 +214,11 @@ export function MessageItem({
       {/* Context menu */}
       {showCtx && (
         <>
-          <div
-            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-            onClick={() => setShowCtx(false)}
-          />
-          <div style={{
-            position: 'absolute', top: 0, [isOwn ? 'left' : 'right']: 16,
-            zIndex: 1000, background: 'var(--panel2)', border: '1px solid var(--line)',
-            borderRadius: 8, padding: 4, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            display: 'flex', flexDirection: 'column', minWidth: 120,
-          }}>
-            <CtxBtn icon={<Reply size={12} />} label="Reply" onClick={() => {
-              setShowCtx(false);
-              onReply(message);
-            }} />
-            <CtxBtn icon={<Copy size={12} />} label="Copy" onClick={() => {
-              navigator.clipboard.writeText(parsed.text);
-              setShowCtx(false);
-            }} />
+          <div className="fixed inset-0 z-[999]" onClick={() => setShowCtx(false)} />
+          <div className="absolute top-0 z-[1000] bg-popover border border-border rounded-lg p-1 shadow-lg flex flex-col min-w-[120px]"
+            style={{ [isOwn ? 'left' : 'right']: 16 }}>
+            <CtxBtn icon={<Reply size={12} />} label="Reply" onClick={() => { setShowCtx(false); onReply(message); }} />
+            <CtxBtn icon={<Copy size={12} />} label="Copy" onClick={() => { navigator.clipboard.writeText(parsed.text); setShowCtx(false); }} />
           </div>
         </>
       )}
@@ -261,12 +228,7 @@ export function MessageItem({
 
 function CtxBtn({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-      border: 'none', background: 'transparent', cursor: 'pointer',
-      color: 'var(--text)', fontSize: 11, borderRadius: 4, width: '100%',
-      textAlign: 'left',
-    }}>
+    <button onClick={onClick} className="flex items-center gap-2 px-2.5 py-1.5 border-none bg-transparent cursor-pointer text-foreground text-[11px] rounded w-full text-left hover:bg-accent/30 transition-colors">
       {icon} {label}
     </button>
   );

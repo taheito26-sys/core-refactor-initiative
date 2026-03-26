@@ -1,9 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════
-   ConversationHeader — sticky top bar of the active conversation
+   ConversationHeader — Rocket.Chat-style top bar
+   Avatar + Name/subtitle + action icons
    ═══════════════════════════════════════════════════════════════ */
 
-import { useMemo } from 'react';
-import { ArrowLeft, Search, Phone, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Search, Phone, Users, MessageSquare, RefreshCw, MoreVertical } from 'lucide-react';
 import { useChatStore } from '@/lib/chat-store';
 import { getPalette } from '../lib/message-codec';
 
@@ -23,81 +23,54 @@ export function ConversationHeader({ name, nickname, onBack, onSearchToggle, isM
   });
   const typing = typingUsers ?? [];
   const palette = getPalette(name);
-
   const displayName = nickname || name;
   const isTyping = typing.length > 0;
 
+  const iconBtnClass = "bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground p-1.5 flex items-center rounded transition-colors";
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-      borderBottom: '1px solid var(--line)', flexShrink: 0,
-      background: 'var(--panel)',
-    }}>
-      {/* Back button (mobile or always visible) */}
+    <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border flex-shrink-0 bg-card">
+      {/* Back (mobile) */}
       {isMobile && (
-        <button
-          onClick={onBack}
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--muted)', padding: 4, display: 'flex',
-          }}
-        >
+        <button onClick={onBack} className={iconBtnClass}>
           <ArrowLeft size={18} />
         </button>
       )}
 
       {/* Avatar */}
-      <div style={{
-        width: 34, height: 34, borderRadius: 50, flexShrink: 0,
-        background: palette.bg, color: palette.text,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 13, fontWeight: 800,
-      }}>
+      <div
+        className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-[14px] font-extrabold"
+        style={{ background: palette.bg, color: palette.text }}
+      >
         {name.charAt(0).toUpperCase()}
       </div>
 
-      {/* Name + status */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 13, fontWeight: 700, color: 'var(--text)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+      {/* Name + subtitle */}
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-bold text-foreground truncate">
           {displayName}
         </div>
-        <div style={{ fontSize: 10, color: isTyping ? 'var(--brand)' : 'var(--muted)' }}>
-          {isTyping ? 'typing...' : 'online'}
+        <div className={`text-[10px] ${isTyping ? 'text-primary' : 'text-muted-foreground'}`}>
+          {isTyping ? 'typing...' : 'Merchant conversation'}
         </div>
       </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-        <button
-          onClick={onSearchToggle}
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--muted)', padding: 6, display: 'flex', borderRadius: 6,
-          }}
-          title="Search in conversation"
-        >
-          <Search size={16} />
+      {/* Action icons — matching the reference */}
+      <div className="flex items-center gap-0.5">
+        <button className={iconBtnClass} title="Search in conversation" onClick={onSearchToggle}>
+          <MessageSquare size={15} />
         </button>
-        <button
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--muted)', padding: 6, display: 'flex', borderRadius: 6,
-          }}
-          title="Voice call"
-        >
-          <Phone size={16} />
+        <button className={iconBtnClass} title="Members">
+          <Users size={15} />
         </button>
-        <button
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--muted)', padding: 6, display: 'flex', borderRadius: 6,
-          }}
-          title="More options"
-        >
-          <MoreVertical size={16} />
+        <button className={iconBtnClass} title="Discussion">
+          <Search size={15} />
+        </button>
+        <button className={iconBtnClass} title="Refresh">
+          <RefreshCw size={15} />
+        </button>
+        <button className={iconBtnClass} title="More options">
+          <MoreVertical size={15} />
         </button>
       </div>
     </div>

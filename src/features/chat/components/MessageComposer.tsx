@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
-   MessageComposer — pinned input bar at bottom of chat
-   Always visible, never scrolls out of view.
+   MessageComposer — Rocket.Chat-style input bar
+   Attach | Voice | 😊  Type a message...  🎤  [Send]
    ═══════════════════════════════════════════════════════════════ */
 
 import { useState, useRef, useCallback } from 'react';
-import { Send, Smile, Mic, MicOff, StopCircle, X, Reply, Image as ImageIcon } from 'lucide-react';
+import { Send, Paperclip, Mic, MicOff, StopCircle, X, Reply, Smile } from 'lucide-react';
 import { encodeReply, encodeVoice } from '../lib/message-codec';
 
 interface ReplyContext {
@@ -43,27 +43,17 @@ export function MessageComposer({ onSend, onTyping, replyTo, onCancelReply, disa
 
     onSend(content);
     setText('');
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
   }, [text, replyTo, onSend, onCancelReply]);
 
   const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-    if (e.key === 'Escape' && replyTo) {
-      onCancelReply();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Escape' && replyTo) onCancelReply();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
     onTyping();
-    // Auto-expand
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
@@ -74,107 +64,85 @@ export function MessageComposer({ onSend, onTyping, replyTo, onCancelReply, disa
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-
       const mr = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm',
+          ? 'audio/webm;codecs=opus' : 'audio/webm',
       });
       mediaRecorderRef.current = mr;
-
       const chunks: Blob[] = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-
-      // onstop MUST be attached before .start() — race condition fix
       mr.onstop = async () => {
         const durationSec = recordingTimeRef.current || 1;
         const blob = new Blob(chunks, { type: mr.mimeType });
         const reader = new FileReader();
         reader.onloadend = () => {
           const b64 = (reader.result as string).split(',')[1] || '';
-          if (b64) {
-            onSend(encodeVoice(durationSec, b64));
-          }
+          if (b64) onSend(encodeVoice(durationSec, b64));
         };
         reader.readAsDataURL(blob);
       };
-
       mr.start(100);
       setIsRecording(true);
       recordingTimeRef.current = 0;
       setRecordingTime(0);
-
       timerRef.current = setInterval(() => {
         recordingTimeRef.current += 1;
         setRecordingTime((t) => t + 1);
       }, 1000);
-    } catch {
-      // Microphone permission denied
-    }
+    } catch { /* mic denied */ }
   };
 
   const stopRecording = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setIsRecording(false);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
   };
 
   const fmtRecTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div style={{ flexShrink: 0, borderTop: '1px solid var(--line)', background: 'var(--panel)' }}>
+    <div className="flex-shrink-0 border-t border-border bg-card">
       {/* Reply bar */}
       {replyTo && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px',
-          borderBottom: '1px solid var(--line)',
-          background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
-        }}>
-          <Reply size={13} style={{ color: 'var(--brand)', flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand)' }}>
-              {replyTo.sender}
-            </div>
-            <div style={{
-              fontSize: 10, color: 'var(--muted)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {replyTo.preview}
-            </div>
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-primary/5">
+          <Reply size={13} className="text-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-bold text-primary">{replyTo.sender}</div>
+            <div className="text-[10px] text-muted-foreground truncate">{replyTo.preview}</div>
           </div>
-          <button
-            onClick={onCancelReply}
-            style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: 'var(--muted)', padding: 2, display: 'flex',
-            }}
-          >
+          <button onClick={onCancelReply} className="bg-transparent border-none cursor-pointer text-muted-foreground p-0.5 flex">
             <X size={14} />
           </button>
         </div>
       )}
 
-      {/* Input row */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-end', gap: 6, padding: '8px 12px',
-      }}>
-        {/* Emoji button */}
-        <button
-          style={{
-            background: 'transparent', border: 'none', cursor: 'pointer',
-            color: 'var(--muted)', padding: 6, display: 'flex', flexShrink: 0,
-          }}
-        >
-          <Smile size={18} />
+      {/* Input row — Rocket.Chat style */}
+      <div className="flex items-end gap-0 px-3 py-2">
+        {/* Attach + Voice toolbar buttons */}
+        <div className="flex items-center gap-0 border-r border-border mr-2 pr-2">
+          <button className="bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground p-1.5 flex items-center text-[11px] font-semibold gap-1 transition-colors" title="Attach file">
+            <Paperclip size={14} />
+            <span className="hidden sm:inline">Attach</span>
+          </button>
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={`bg-transparent border-none cursor-pointer p-1.5 flex items-center text-[11px] font-semibold gap-1 transition-colors ${
+              isRecording ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            title="Voice message"
+          >
+            {isRecording ? <StopCircle size={14} /> : <Mic size={14} />}
+            <span className="hidden sm:inline">{isRecording ? fmtRecTime(recordingTime) : 'Voice'}</span>
+          </button>
+        </div>
+
+        {/* Emoji */}
+        <button className="bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground p-1.5 flex flex-shrink-0 transition-colors">
+          <Smile size={16} />
         </button>
 
-        {/* Textarea */}
+        {/* Text input */}
         <textarea
           ref={textareaRef}
           value={isRecording ? `🔴 Recording… ${fmtRecTime(recordingTime)}` : text}
@@ -183,53 +151,24 @@ export function MessageComposer({ onSend, onTyping, replyTo, onCancelReply, disa
           disabled={disabled || isRecording}
           placeholder="Type a message..."
           rows={1}
-          style={{
-            flex: 1, resize: 'none', border: '1px solid var(--line)',
-            borderRadius: 8, padding: '8px 12px', fontSize: 12,
-            background: 'var(--input-bg)', color: 'var(--text)',
-            outline: 'none', maxHeight: 120, lineHeight: 1.4,
-            fontFamily: 'inherit',
-          }}
+          className="flex-1 resize-none border-none bg-transparent text-foreground text-xs outline-none max-h-[120px] leading-relaxed px-2 py-1.5 placeholder:text-muted-foreground"
         />
 
-        {/* Voice / Send / Stop */}
-        {isRecording ? (
-          <button
-            onClick={stopRecording}
-            style={{
-              background: 'var(--bad)', border: 'none', borderRadius: 50,
-              width: 36, height: 36, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            <StopCircle size={18} style={{ color: '#fff' }} />
-          </button>
-        ) : text.trim() ? (
-          <button
-            onClick={handleSend}
-            disabled={disabled}
-            style={{
-              background: 'var(--brand)', border: 'none', borderRadius: 50,
-              width: 36, height: 36, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
-              opacity: disabled ? 0.5 : 1,
-            }}
-          >
-            <Send size={16} style={{ color: '#fff' }} />
-          </button>
-        ) : (
-          <button
-            onClick={startRecording}
-            style={{
-              background: 'transparent', border: '1px solid var(--line)',
-              borderRadius: 50, width: 36, height: 36,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', flexShrink: 0, color: 'var(--muted)',
-            }}
-          >
+        {/* Mic icon (right side) */}
+        {!text.trim() && !isRecording && (
+          <button onClick={startRecording} className="bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground p-1.5 flex flex-shrink-0 transition-colors">
             <Mic size={16} />
           </button>
         )}
+
+        {/* Send button */}
+        <button
+          onClick={handleSend}
+          disabled={disabled || !text.trim()}
+          className="bg-primary text-primary-foreground border-none rounded-md px-4 py-1.5 text-xs font-bold cursor-pointer flex-shrink-0 disabled:opacity-40 hover:opacity-90 transition-opacity ml-1"
+        >
+          Send
+        </button>
       </div>
     </div>
   );
