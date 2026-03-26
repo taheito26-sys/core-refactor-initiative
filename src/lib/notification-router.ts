@@ -87,6 +87,12 @@ export function handleNotificationClick(
 
   // ── Entity notification with routing metadata ──────────────────
   if (notification.entity_type && notification.entity_id) {
+    if (notification.entity_type === 'os_room') {
+      const roomId = encodeURIComponent(notification.entity_id);
+      const anchor = notification.anchor_id ? `&message_id=${encodeURIComponent(notification.anchor_id)}` : '';
+      navigate(`/chat?room_id=${roomId}${anchor}`);
+      return;
+    }
     const route = entityRoute(notification.entity_type, notification.entity_id);
     navigate(route);
     return;
@@ -101,6 +107,11 @@ export function handleNotificationClick(
  * Does NOT navigate or modify state — pure function.
  */
 export function getNotificationRoute(n: EnrichedNotification): string {
+  if (n.entity_type === 'os_room' && n.entity_id) {
+    const roomId = encodeURIComponent(n.entity_id);
+    const anchor = n.anchor_id ? `&message_id=${encodeURIComponent(n.anchor_id)}` : '';
+    return `/chat?room_id=${roomId}${anchor}`;
+  }
   if (n.category === 'message' && n.conversation_id) return '/chat';
   if (n.entity_type && n.entity_id) return entityRoute(n.entity_type, n.entity_id);
   return legacyRoute(n);

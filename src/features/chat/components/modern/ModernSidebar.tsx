@@ -5,9 +5,10 @@ interface Props {
   conversations: OsRoom[];
   activeRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
+  unreadCounts?: Record<string, number>;
 }
 
-export function ModernSidebar({ conversations, activeRoomId, onSelectRoom }: Props) {
+export function ModernSidebar({ conversations, activeRoomId, onSelectRoom, unreadCounts = {} }: Props) {
   // Feature 5: Split Inbox Architecture
   const grouped = conversations.reduce((acc, room) => {
     if (!acc[room.lane]) acc[room.lane] = [];
@@ -51,6 +52,7 @@ export function ModernSidebar({ conversations, activeRoomId, onSelectRoom }: Pro
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {grouped[lane].map(room => {
                 const isSecure = room.security_policies.disable_export || room.security_policies.disable_forwarding;
+                const unread = unreadCounts[room.id] || 0;
                 return (
                   <button 
                     key={room.id}
@@ -64,8 +66,7 @@ export function ModernSidebar({ conversations, activeRoomId, onSelectRoom }: Pro
                   >
                     {isSecure ? <Lock size={15} style={{ color: '#f59e0b', opacity: 0.8 }} /> : <Hash size={15} style={{ opacity: 0.6 }} />}
                     <span style={{ fontSize: 15, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{room.name}</span>
-                    {/* Unread badge mock logic */}
-                    {room.lane === 'Customers' && <span style={{ background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}>3</span>}
+                    {unread > 0 && <span style={{ background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12 }}>{unread > 99 ? '99+' : unread}</span>}
                   </button>
                 );
               })}

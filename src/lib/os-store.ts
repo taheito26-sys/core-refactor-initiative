@@ -69,7 +69,7 @@ export interface OsMessage extends BaseTimelineItem {
 // Actionable Objects tracking real-world state natively inside chat
 export interface OsBusinessObject extends BaseTimelineItem {
   type: 'business_object';
-  object_type: 'order' | 'payment' | 'agreement' | 'dispute' | 'task' | 'deal_offer' | 'snapshot';
+  object_type: 'order' | 'payment' | 'agreement' | 'dispute' | 'task' | 'reminder' | 'deal_offer' | 'snapshot';
   source_message_id?: string;
   created_by: string;
   state_snapshot_hash?: string; // Feature 18
