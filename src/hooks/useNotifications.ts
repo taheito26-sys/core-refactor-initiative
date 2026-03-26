@@ -21,6 +21,12 @@ export interface Notification {
 
 /** Map notification categories to app routes */
 export function notificationRoute(n: Notification): string {
+  if (n.category === 'message' && n.conversation_id) {
+    const params = new URLSearchParams({ roomId: n.conversation_id });
+    if (n.message_id) params.set('messageId', n.message_id);
+    return `/chat?${params.toString()}`;
+  }
+
   switch (n.category) {
     case 'deal':
     case 'order':
@@ -33,7 +39,7 @@ export function notificationRoute(n: Notification): string {
     case 'merchant':
       return '/merchants';
     case 'message':
-      return '/merchants?tab=chat';
+      return '/chat';
     default:
       return '/dashboard';
   }
