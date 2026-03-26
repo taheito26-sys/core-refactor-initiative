@@ -4,9 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal, getAccountBalance, getAllAccountBalances, deriveCashQAR,
+  fmtPrice, fmtTotal,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
-  type CashLedgerEntry, type CashAccount,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
@@ -23,7 +22,6 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
-import { allocateFunding, appendCashLedger, getCashAccounts } from '@/lib/cash-ledger';
 import '@/styles/tracker.css';
 
 // ─── Multi-Merchant Allocation Row Type ──────────────────────────────
@@ -75,8 +73,6 @@ export default function OrdersPage() {
   const [saleMessage, setSaleMessage] = useState('');
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
-  const [cashDepositAccountId, setCashDepositAccountId] = useState<string>('auto');
-  const [fundingAccountId, setFundingAccountId] = useState<string>('auto');
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,7 +142,6 @@ export default function OrdersPage() {
   const [editDealFee, setEditDealFee] = useState('0');
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
-  const cashAccounts = useMemo(() => getCashAccounts(state), [state]);
 
 
   const reloadMerchantData = useCallback(async () => {
@@ -427,7 +422,7 @@ export default function OrdersPage() {
     setNewBuyerName(''); setNewBuyerPhone(''); setNewBuyerTier('C');
   };
 
-  // Helper: apply cash deposit to state if enabled (uses new Cash Management ledger)
+  // Helper: apply cash deposit to state if enabled
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
     if (cashDepositMode === 'none') return nextState;
     const revenue = amountUSDT * sell;
@@ -437,38 +432,21 @@ export default function OrdersPage() {
     if (depositAmt <= 0) return nextState;
     const currentCash = nextState.cashQAR || 0;
     const newCash = currentCash + depositAmt;
-    const targetAccount = cashDepositAccountId === 'auto'
-      ? (cashAccounts[0]?.name || '')
-      : (cashAccounts.find(a => a.id === cashDepositAccountId)?.name || '');
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
       id: uid(),
       ts: Date.now(),
-      type: 'sale_proceeds',
+      type: 'sale_deposit' as any,
       amount: depositAmt,
       balanceAfter: newCash,
       owner: nextState.cashOwner || '',
-      bankAccount: targetAccount,
+      bankAccount: '',
       note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     };
-    const newLedger = [...ledger, entry];
     return {
       ...nextState,
-      cashLedger: newLedger,
-      cashQAR: deriveCashQAR(accounts, newLedger),
+      cashQAR: newCash,
+      cashHistory: [...(nextState.cashHistory || []), cashTx],
     };
-  };
-  const applyOrderRefund = (nextState: TrackerState, tr?: Trade | null): TrackerState => {
-    if (!tr || tr.fundingRefunded || !tr.fundingAllocations?.length) return nextState;
-    const refundTxs = tr.fundingAllocations.map(a => ({
-      type: 'order_refund' as const,
-      amount: a.amount,
-      owner: nextState.cashOwner || '',
-      bankAccount: a.accountName,
-      note: `Order refund: ${tr.id}`,
-      orderId: tr.id,
-    }));
-    const markedTrades = nextState.trades.map(t => t.id === tr.id ? { ...t, fundingRefunded: true } : t);
-    return appendCashLedger({ ...nextState, trades: markedTrades }, refundTxs);
   };
 
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
@@ -546,25 +524,6 @@ export default function OrdersPage() {
       merchantPct: isNewAllocFlowActive ? undefined : (tmpl ? (tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio) : undefined),
       approvalStatus: merchantOrderEnabled ? 'pending_approval' : undefined,
     };
-
-    const fundingCostQAR = (() => {
-      if (priceMode === 'manual') return amountUSDT * (parseFloat(manualBuyPrice) || 0);
-      const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
-      return c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
-    })();
-    const fundingAllocations = allocateFunding(cashAccounts, fundingCostQAR, fundingAccountId === 'auto' ? 'auto' : fundingAccountId);
-    if (fundingCostQAR > 0 && fundingAllocations.length === 0) {
-      setSaleMessage('Insufficient funds in selected account');
-      return;
-    }
-    const fundingTxs = fundingAllocations.map(a => ({
-      type: 'order_funding' as const,
-      amount: a.amount,
-      owner: state.cashOwner || '',
-      bankAccount: a.accountName,
-      note: `Order funding: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
-      orderId: baseTrade.id,
-    }));
 
     // ─── NEW: Multi-Merchant Allocation Flow ─────────────────────────
     if (merchantOrderEnabled && isNewAllocFlowActive) {
@@ -670,7 +629,6 @@ export default function OrdersPage() {
         const persistedTrade: Trade = {
           ...baseTrade,
           linkedDealId: createdDealIds[0] || undefined,
-          fundingAllocations,
         };
         const next: TrackerState = {
           ...state,
@@ -678,7 +636,7 @@ export default function OrdersPage() {
           trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
-        applyState(applyCashDeposit(appendCashLedger(next, fundingTxs), sell, amountUSDT));
+        applyState(applyCashDeposit(next, sell, amountUSDT));
         await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
 
@@ -796,7 +754,6 @@ export default function OrdersPage() {
         const persistedTrade: Trade = {
           ...baseTrade,
           linkedDealId: data?.id,
-          fundingAllocations,
         };
         const next: TrackerState = {
           ...state,
@@ -804,7 +761,7 @@ export default function OrdersPage() {
           trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
-        applyState(applyCashDeposit(appendCashLedger(next, fundingTxs), sell, baseTrade.amountUSDT));
+        applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
 
         await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
@@ -813,14 +770,13 @@ export default function OrdersPage() {
         toast.error(err.message || t('failedCreateDeal'));
       }
     } else {
-      const persistedTrade: Trade = { ...baseTrade, fundingAllocations };
       const next: TrackerState = {
         ...state,
         customers: nextCustomers,
-        trades: [...state.trades, persistedTrade],
+        trades: [...state.trades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
       };
-      applyState(applyCashDeposit(appendCashLedger(next, fundingTxs), sell, baseTrade.amountUSDT));
+      applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
       setSaleMessage(t('tradeLogged'));
     }
 
@@ -832,7 +788,6 @@ export default function OrdersPage() {
     setAllocations([]);
     setCashDepositMode('none');
     setCashDepositAmount('');
-    setCashDepositAccountId('');
   };
 
   const exportCsv = () => {
@@ -843,10 +798,9 @@ export default function OrdersPage() {
       let net = c?.ok ? revenue - cost - t.feeQAR : NaN;
       const linked = !!(t.agreementFamily || t.linkedDealId || t.linkedRelId);
       if (linked && t.merchantPct && Number.isFinite(net)) net = net * (t.merchantPct / 100);
-      const funding = t.fundingAllocations?.map(f => `${f.accountName}:${f.amount}`).join(';') || '';
-      return [new Date(t.ts).toISOString(), t.amountUSDT, t.sellPriceQAR, revenue, Number.isFinite(cost) ? cost : '', Number.isFinite(net) ? net : '', funding].join(',');
+      return [new Date(t.ts).toISOString(), t.amountUSDT, t.sellPriceQAR, revenue, Number.isFinite(cost) ? cost : '', Number.isFinite(net) ? net : ''].join(',');
     });
-    const csv = `Date,Qty USDT,Sell QAR,Revenue QAR,Cost QAR,Net QAR,Funding Source\n${rows.join('\n')}`;
+    const csv = `Date,Qty USDT,Sell QAR,Revenue QAR,Cost QAR,Net QAR\n${rows.join('\n')}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1067,8 +1021,7 @@ export default function OrdersPage() {
       toast.error(t('cannotDeleteApprovedTrade'));
       return;
     }
-    const nextState = { ...state, trades: state.trades.filter(t => t.id !== editingTradeId) };
-    applyState(applyOrderRefund(nextState, tr));
+    applyState({ ...state, trades: state.trades.filter(t => t.id !== editingTradeId) });
     setEditingTradeId(null);
   };
 
@@ -1091,7 +1044,7 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === tradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState(applyOrderRefund({ ...state, trades: nextTrades }, tr));
+    applyState({ ...state, trades: nextTrades });
     if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
   };
 
@@ -1108,7 +1061,7 @@ export default function OrdersPage() {
     const nextTrades = state.trades.map(t =>
       t.id === cancelTradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
-    applyState(applyOrderRefund({ ...state, trades: nextTrades }, tr || null));
+    applyState({ ...state, trades: nextTrades });
     setCancelTradeId(null);
     toast.success(t('tradeCancelled'));
   };
@@ -1390,7 +1343,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th>Funding Source</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1416,7 +1369,6 @@ export default function OrdersPage() {
                               {isMerchantLinked ? '🤝' : '👤'}
                             </td>
                             <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                            <td>{tr.fundingAllocations?.length ? <span className="tradeBuyerChip" style={{ maxWidth: 150 }}>{tr.fundingAllocations.length > 1 ? `${tr.fundingAllocations[0].accountName} +${tr.fundingAllocations.length - 1}` : tr.fundingAllocations[0].accountName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                             <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
@@ -1445,7 +1397,7 @@ export default function OrdersPage() {
                           </tr>
                           {detailsOpen[tr.id] && (
                             <tr>
-                              <td colSpan={11} style={{ padding: 0 }}>
+                              <td colSpan={10} style={{ padding: 0 }}>
                                 {renderDetail(tr, c)}
                               </td>
                             </tr>
@@ -2333,21 +2285,6 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-                {/* Funding Source */}
-                {salePreview && Number.isFinite(salePreview.cost) && salePreview.cost > 0 && (
-                  <div className="field2">
-                    <div className="lbl">Funding Source</div>
-                    <div className="inputBox">
-                      <select value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 11 }}>
-                        <option value="auto">Auto split across accounts</option>
-                        {cashAccounts.map(a => (
-                          <option key={a.id} value={a.id}>{a.name} · {fmtQ(a.balance)} QAR</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-
                 {/* Live Preview */}
                 {(
                 <div className="previewBox">
@@ -2369,43 +2306,24 @@ export default function OrdersPage() {
                 </div>
                 )}
 
-                {/* Cash Deposit Option — integrated with Cash Management */}
-                {salePreview && salePreview.revenue > 0 && (() => {
-                  const activeAccounts = (state.cashAccounts ?? []).filter(a => a.status === 'active');
-                  const balances = getAllAccountBalances(activeAccounts, state.cashLedger ?? []);
-                  const hasAccounts = activeAccounts.length > 0;
-                  // Auto-select first QAR account if none selected
-                  const selectedAccId = cashDepositAccountId || activeAccounts.find(a => a.currency === 'QAR')?.id || '';
-                  const selectedAcc = activeAccounts.find(a => a.id === selectedAccId);
-                  const currentBal = selectedAccId ? (balances.get(selectedAccId) ?? 0) : (state.cashQAR || 0);
-                  const depositVal = parseFloat(cashDepositAmount) || 0;
-
-                  return (
+                {/* Cash Deposit Option */}
+                {salePreview && salePreview.revenue > 0 && (
                   <div style={{
-                    padding: '10px 12px',
+                    padding: '8px 10px',
                     borderRadius: 8,
                     background: 'color-mix(in srgb, var(--good) 6%, transparent)',
                     border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
                     marginBottom: 6,
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)' }}>💰 {t('addSaleProceeds') || 'Add sale proceeds to cash?'}</div>
-                      {hasAccounts && cashDepositMode !== 'none' && selectedAcc && (
-                        <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>
-                          Balance: {fmtQ(currentBal)}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Mode toggle buttons */}
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: cashDepositMode !== 'none' ? 8 : 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>💰 Add sale proceeds to cash?</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {(['none', 'full', 'partial'] as const).map(mode => (
                         <button
                           key={mode}
                           onClick={() => {
                             setCashDepositMode(mode);
                             if (mode === 'full') setCashDepositAmount(String(Math.round(salePreview.revenue * 100) / 100));
-                            if (mode === 'none') { setCashDepositAmount(''); setCashDepositAccountId(''); }
+                            if (mode === 'none') setCashDepositAmount('');
                           }}
                           style={{
                             padding: '4px 10px',
@@ -2422,28 +2340,33 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? (t('dontAdd') || "Don't add") : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : (t('customAmount') || 'Custom amount')}
+                          {mode === 'none' ? "Don't add" : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : 'Custom amount'}
                         </button>
                       ))}
                     </div>
-
-                    {/* Account selector + amount input (visible when not 'none') */}
+                    {cashDepositMode === 'partial' && (
+                      <div style={{ marginTop: 6 }}>
+                        <div className="inputBox" style={{ maxWidth: 180 }}>
+                          <input
+                            inputMode="decimal"
+                            placeholder="Amount in QAR"
+                            value={cashDepositAmount}
+                            onChange={numericOnly(setCashDepositAmount)}
+                            style={{ fontSize: 11 }}
+                          />
+                        </div>
+                        {parseFloat(cashDepositAmount) > salePreview.revenue && (
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>Amount exceeds sale revenue</div>
+                        )}
+                      </div>
+                    )}
                     {cashDepositMode !== 'none' && (
-                      <>
-                        <div className="inputBox" style={{ marginTop: 6, maxWidth: 260 }}>
-                          <select value={cashDepositAccountId} onChange={e => setCashDepositAccountId(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 10 }}>
-                            <option value="auto">Default cash account</option>
-                            {cashAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                          </select>
-                        </div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
-                          Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
-                        </div>
-                      </>
+                      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
+                        Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                      </div>
                     )}
                   </div>
-                  );
-                })()}
+                )}
 
                 <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
