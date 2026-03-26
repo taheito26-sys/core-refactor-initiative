@@ -8,7 +8,7 @@ export async function getRooms(): Promise<DeterministicResult<ChatRoom[]>> {
       .select('*')
       .order('updated_at', { ascending: false });
     if (error) throw error;
-    return ok((data ?? []) as ChatRoom[]);
+    return ok((data ?? []) as unknown as ChatRoom[]);
   } catch (error) {
     return fail([], error);
   }
@@ -36,9 +36,10 @@ export async function createRoom(input: {
       .single();
     if (roomError) throw roomError;
 
+    const roomData = room as any;
     const uniqueUsers = Array.from(new Set([uid, ...input.userIds]));
     const members = uniqueUsers.map((userId) => ({
-      room_id: room.id,
+      room_id: roomData.id,
       user_id: userId,
       role: userId === uid ? 'owner' : 'member',
     }));
@@ -46,7 +47,7 @@ export async function createRoom(input: {
     const { error: memberError } = await supabase.from('room_members' as any).insert(members);
     if (memberError) throw memberError;
 
-    return ok({ roomId: room.id as string });
+    return ok({ roomId: roomData.id as string });
   } catch (error) {
     return fail({ roomId: null }, error);
   }
@@ -60,7 +61,7 @@ export async function getRoomMembers(roomId: string): Promise<DeterministicResul
       .eq('room_id', roomId)
       .is('left_at', null);
     if (error) throw error;
-    return ok((data ?? []) as Array<{ user_id: string; role: string }>);
+    return ok((data ?? []) as unknown as Array<{ user_id: string; role: string }>);
   } catch (error) {
     return fail([], error);
   }

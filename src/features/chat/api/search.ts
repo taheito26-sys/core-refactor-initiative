@@ -11,7 +11,7 @@ export async function searchInRoom(roomId: string, query: string): Promise<Deter
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) throw error;
-    return ok((data ?? []) as ChatSearchResult[]);
+    return ok((data ?? []) as unknown as ChatSearchResult[]);
   } catch (error) {
     return fail([], error);
   }
@@ -26,7 +26,7 @@ export async function globalSearch(query: string): Promise<DeterministicResult<C
       .order('created_at', { ascending: false })
       .limit(200);
     if (error) throw error;
-    return ok((data ?? []) as ChatSearchResult[]);
+    return ok((data ?? []) as unknown as ChatSearchResult[]);
   } catch (error) {
     return fail([], error);
   }
