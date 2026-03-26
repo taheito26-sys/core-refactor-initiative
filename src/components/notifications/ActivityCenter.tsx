@@ -18,9 +18,9 @@ import {
   useMarkNotificationRead,
   useMarkAllRead,
   useMarkCategoryRead,
-  notificationRoute,
   type Notification,
 } from '@/hooks/useNotifications';
+import { handleNotificationClick } from '@/lib/notification-router';
 import { useT } from '@/lib/i18n';
 
 // ─── Category Config ────────────────────────────────────────────────
@@ -255,7 +255,7 @@ export default function ActivityCenter() {
     const idsToMark = n.groupIds?.length ? n.groupIds : (n.read_at ? [] : [n.id]);
     idsToMark.forEach(id => markRead.mutate(id));
     setOpen(false);
-    navigate(notificationRoute(n));
+    handleNotificationClick(n, navigate);
   };
 
   // Reset to "all" every time the panel opens — prevents phantom count where
