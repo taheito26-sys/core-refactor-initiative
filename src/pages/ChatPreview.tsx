@@ -1,207 +1,175 @@
-/* Temporary preview page — renders chat UI with mock data, no auth required */
+/* ═══════════════════════════════════════════════════════════════
+   ChatPreview — standalone preview with mock data, no auth required.
+   Demonstrates the full three-column chat workspace.
+   ═══════════════════════════════════════════════════════════════ */
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useChatStore } from '@/lib/chat-store';
+import type { ConversationSummary, ChatMessage } from '@/lib/chat-store';
 import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar';
 import { ConversationHeader } from '@/features/chat/components/ConversationHeader';
 import { MessageTimeline } from '@/features/chat/components/MessageTimeline';
 import { MessageComposer } from '@/features/chat/components/MessageComposer';
 import { ContextPanel } from '@/features/chat/components/ContextPanel';
-import type { ConversationSummary, ChatMessage } from '@/lib/chat-store';
+import { encodeReply, encodeVoice, encodePoll } from '@/features/chat/lib/message-codec';
+import '@/styles/tracker.css';
 
-const MOCK_USER = 'user-me-123';
+const ME = 'user-me-123';
 
-const MOCK_CONVERSATIONS: ConversationSummary[] = [
-  {
-    relationship_id: 'rel-1',
-    counterparty_name: 'Ahmad Trading Co.',
-    counterparty_nickname: 'Ahmad',
-    last_message: 'The shipment is ready for pickup tomorrow morning',
-    last_message_at: new Date(Date.now() - 2 * 60_000).toISOString(),
-    last_sender_id: 'user-ahmad',
-    unread_count: 3,
-    is_muted: false,
-    is_pinned: true,
-  },
-  {
-    relationship_id: 'rel-2',
-    counterparty_name: 'Dubai Gold Suppliers',
-    counterparty_nickname: 'DGS',
-    last_message: 'Invoice #4521 has been settled',
-    last_message_at: new Date(Date.now() - 15 * 60_000).toISOString(),
-    last_sender_id: MOCK_USER,
-    unread_count: 0,
-    is_muted: false,
-    is_pinned: false,
-  },
-  {
-    relationship_id: 'rel-3',
-    counterparty_name: 'Al Rashid Metals',
-    counterparty_nickname: 'Rashid',
-    last_message: 'Can we discuss the new pricing?',
-    last_message_at: new Date(Date.now() - 45 * 60_000).toISOString(),
-    last_sender_id: 'user-rashid',
-    unread_count: 1,
-    is_muted: false,
-    is_pinned: false,
-  },
-  {
-    relationship_id: 'rel-4',
-    counterparty_name: 'Karachi Exports Ltd',
-    counterparty_nickname: 'KEL',
-    last_message: 'Order confirmed, processing now',
-    last_message_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
-    last_sender_id: 'user-kel',
-    unread_count: 0,
-    is_muted: true,
-    is_pinned: false,
-  },
-  {
-    relationship_id: 'rel-5',
-    counterparty_name: 'Istanbul Bazaar Group',
-    counterparty_nickname: 'IBG',
-    last_message: '🎤 Voice message',
-    last_message_at: new Date(Date.now() - 6 * 3600_000).toISOString(),
-    last_sender_id: 'user-ibg',
-    unread_count: 0,
-    is_muted: false,
-    is_pinned: false,
-  },
+/* ── Mock relationships ──────────────────────────────────────── */
+const RELS = [
+  { id: 'rel-1', counterparty_name: 'Ahmad Trading Co.', counterparty_nickname: 'Ahmad', counterparty_code: 'ATC-001', merchant_a_id: ME, merchant_b_id: 'user-ahmad' },
+  { id: 'rel-2', counterparty_name: 'Dubai Gold Suppliers', counterparty_nickname: 'DGS', counterparty_code: 'DGS-042', merchant_a_id: ME, merchant_b_id: 'user-dgs' },
+  { id: 'rel-3', counterparty_name: 'Al Rashid Metals', counterparty_nickname: 'Rashid', counterparty_code: 'ARM-018', merchant_a_id: ME, merchant_b_id: 'user-rashid' },
+  { id: 'rel-4', counterparty_name: 'Karachi Exports Ltd', counterparty_nickname: 'KEL', counterparty_code: 'KEL-077', merchant_a_id: ME, merchant_b_id: 'user-kel' },
+  { id: 'rel-5', counterparty_name: 'Istanbul Bazaar Group', counterparty_nickname: 'IBG', counterparty_code: 'IBG-103', merchant_a_id: ME, merchant_b_id: 'user-ibg' },
 ];
 
-const MOCK_MESSAGES: ChatMessage[] = [
-  {
-    id: 'msg-1',
-    relationship_id: 'rel-1',
-    sender_id: 'user-ahmad',
-    content: 'Hi, I wanted to check on the latest order status',
-    read_at: new Date(Date.now() - 60 * 60_000).toISOString(),
-    created_at: new Date(Date.now() - 65 * 60_000).toISOString(),
-  },
-  {
-    id: 'msg-2',
-    relationship_id: 'rel-1',
-    sender_id: MOCK_USER,
-    content: 'Sure! Order #1247 is currently being processed. Should be ready by end of day.',
-    read_at: new Date(Date.now() - 58 * 60_000).toISOString(),
-    created_at: new Date(Date.now() - 60 * 60_000).toISOString(),
-  },
-  {
-    id: 'msg-3',
-    relationship_id: 'rel-1',
-    sender_id: 'user-ahmad',
-    content: 'Perfect. What about the settlement for last week?',
-    read_at: new Date(Date.now() - 50 * 60_000).toISOString(),
-    created_at: new Date(Date.now() - 55 * 60_000).toISOString(),
-  },
-  {
-    id: 'msg-4',
-    relationship_id: 'rel-1',
-    sender_id: MOCK_USER,
-    content: 'Settlement was completed yesterday. I can share the receipt if you need it.',
-    read_at: new Date(Date.now() - 48 * 60_000).toISOString(),
-    created_at: new Date(Date.now() - 50 * 60_000).toISOString(),
-  },
-  {
-    id: 'msg-5',
-    relationship_id: 'rel-1',
-    sender_id: 'user-ahmad',
-    content: 'Yes please, that would be great. Also, I have a new deal proposal to discuss when you have time.',
-    read_at: null,
-    created_at: new Date(Date.now() - 10 * 60_000).toISOString(),
-  },
-  {
-    id: 'msg-6',
-    relationship_id: 'rel-1',
-    sender_id: 'user-ahmad',
-    content: 'It involves 500 units at the revised rate we talked about last month.',
-    read_at: null,
-    created_at: new Date(Date.now() - 8 * 60_000).toISOString(),
-  },
-  {
-    id: 'msg-7',
-    relationship_id: 'rel-1',
-    sender_id: 'user-ahmad',
-    content: 'The shipment is ready for pickup tomorrow morning',
-    read_at: null,
-    created_at: new Date(Date.now() - 2 * 60_000).toISOString(),
-  },
+function hrs(n: number) { return new Date(Date.now() - n * 3600_000).toISOString(); }
+function mins(n: number) { return new Date(Date.now() - n * 60_000).toISOString(); }
+
+const SEED_MESSAGES: ChatMessage[] = [
+  // rel-1 — Ahmad Trading Co.
+  { id: 'm01', relationship_id: 'rel-1', sender_id: 'user-ahmad', content: 'Hi, I wanted to check on the latest order status', read_at: hrs(2), created_at: hrs(2.1) },
+  { id: 'm02', relationship_id: 'rel-1', sender_id: ME, content: 'Sure! Order #1247 is currently being processed. Should be ready by end of day.', read_at: hrs(1.9), created_at: hrs(2) },
+  { id: 'm03', relationship_id: 'rel-1', sender_id: 'user-ahmad', content: 'Perfect. What about the settlement for last week?', read_at: hrs(1.5), created_at: hrs(1.8) },
+  { id: 'm04', relationship_id: 'rel-1', sender_id: ME, content: 'Settlement was completed yesterday. I can share the receipt if you need it.', read_at: hrs(1.3), created_at: hrs(1.5) },
+  { id: 'm05', relationship_id: 'rel-1', sender_id: 'user-ahmad', content: 'Yes please, that would be great. Also, I have a new deal proposal to discuss when you have time.', read_at: null, created_at: mins(12) },
+  { id: 'm06', relationship_id: 'rel-1', sender_id: 'user-ahmad', content: 'It involves 500 units at the revised rate we talked about last month.', read_at: null, created_at: mins(10) },
+  { id: 'm07', relationship_id: 'rel-1', sender_id: 'user-ahmad', content: 'The shipment is ready for pickup tomorrow morning', read_at: null, created_at: mins(2) },
+
+  // rel-2 — Dubai Gold Suppliers
+  { id: 'm08', relationship_id: 'rel-2', sender_id: 'user-dgs', content: 'We have new pricing for Q2, shall I send the sheet?', read_at: hrs(5), created_at: hrs(5.5) },
+  { id: 'm09', relationship_id: 'rel-2', sender_id: ME, content: 'Yes please, email it over and we will review.', read_at: hrs(5), created_at: hrs(5.2) },
+  { id: 'm10', relationship_id: 'rel-2', sender_id: ME, content: 'Invoice #4521 has been settled', read_at: hrs(3), created_at: hrs(4) },
+  { id: 'm11', relationship_id: 'rel-2', sender_id: 'user-dgs', content: 'Confirmed, thank you for the quick turnaround!', read_at: hrs(2), created_at: hrs(3) },
+
+  // rel-3 — Al Rashid Metals
+  { id: 'm12', relationship_id: 'rel-3', sender_id: 'user-rashid', content: 'Can we discuss the new pricing?', read_at: null, created_at: mins(45) },
+
+  // rel-4 — Karachi Exports
+  { id: 'm13', relationship_id: 'rel-4', sender_id: 'user-kel', content: 'Order confirmed, processing now', read_at: hrs(3), created_at: hrs(3) },
+
+  // rel-5 — Istanbul Bazaar — a reply example
+  { id: 'm14', relationship_id: 'rel-5', sender_id: 'user-ibg', content: 'When can you deliver the next batch?', read_at: hrs(8), created_at: hrs(8) },
+  { id: 'm15', relationship_id: 'rel-5', sender_id: ME, content: encodeReply('m14', 'IBG', 'When can you deliver the next batch?', 'We can ship by Thursday if payment clears'), read_at: hrs(7), created_at: hrs(7.5) },
 ];
 
-const MOCK_REL = {
-  id: 'rel-1',
-  counterparty_name: 'Ahmad Trading Co.',
-  counterparty_nickname: 'Ahmad',
-  counterparty_code: 'ATC-001',
-  merchant_a_id: MOCK_USER,
-  merchant_b_id: 'user-ahmad',
-};
+/* ═══════════════════════════════════════════════════════════════ */
 
 export default function ChatPreview() {
-  const activeConversationId = useChatStore((s) => s.activeConversationId);
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const activeId = useChatStore((s) => s.activeConversationId);
+  const setActive = useChatStore((s) => s.setActiveConversation);
+  const [messages, setMessages] = useState<ChatMessage[]>(SEED_MESSAGES);
+  const [replyTo, setReplyTo] = useState<{ id: string; sender: string; preview: string } | null>(null);
 
-  // Auto-select first conversation on mount
+  // Select first conversation on mount
   useEffect(() => {
-    if (!activeConversationId) {
-      setActiveConversation('rel-1');
-    }
-  }, [activeConversationId, setActiveConversation]);
+    if (!activeId) setActive('rel-1');
+    return () => { useChatStore.getState().reset(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activeMessages = MOCK_MESSAGES.filter(
-    (m) => m.relationship_id === activeConversationId
+  // Build summaries
+  const conversations: ConversationSummary[] = useMemo(() => {
+    return RELS.map((r) => {
+      const relMsgs = messages.filter((m) => m.relationship_id === r.id);
+      const last = relMsgs[relMsgs.length - 1];
+      return {
+        relationship_id: r.id,
+        counterparty_name: r.counterparty_name,
+        counterparty_nickname: r.counterparty_nickname,
+        last_message: last?.content || '',
+        last_message_at: last?.created_at || '',
+        last_sender_id: last?.sender_id || '',
+        unread_count: relMsgs.filter((m) => m.sender_id !== ME && !m.read_at).length,
+        is_muted: r.id === 'rel-4',
+        is_pinned: r.id === 'rel-1',
+      };
+    }).sort((a, b) => (b.last_message_at || '').localeCompare(a.last_message_at || ''));
+  }, [messages]);
+
+  const activeRel = RELS.find((r) => r.id === activeId) || null;
+  const activeMessages = useMemo(
+    () => messages.filter((m) => m.relationship_id === activeId),
+    [messages, activeId]
   );
 
-  const activeRel = activeConversationId === 'rel-1' ? MOCK_REL : null;
+  // Send message handler — works locally in preview
+  const handleSend = useCallback((content: string) => {
+    if (!activeId) return;
+    const newMsg: ChatMessage = {
+      id: `m-${Date.now()}`,
+      relationship_id: activeId,
+      sender_id: ME,
+      content,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, newMsg]);
+    setReplyTo(null);
+
+    // Simulate counterparty reply after 2.5s
+    setTimeout(() => {
+      const replies = [
+        'Got it, thanks!',
+        'I will get back to you on that.',
+        'Sounds good, let me check.',
+        'Understood. Processing now.',
+        'Perfect, will confirm shortly.',
+      ];
+      const counterpartyId = RELS.find((r) => r.id === activeId)?.merchant_b_id || 'unknown';
+      setMessages((prev) => [...prev, {
+        id: `m-${Date.now()}-reply`,
+        relationship_id: activeId,
+        sender_id: counterpartyId,
+        content: replies[Math.floor(Math.random() * replies.length)],
+        read_at: null,
+        created_at: new Date().toISOString(),
+      }]);
+    }, 2500);
+  }, [activeId]);
+
+  const handleReply = useCallback((msg: ChatMessage) => {
+    const cpName = activeRel?.counterparty_nickname || activeRel?.counterparty_name || '';
+    const sender = msg.sender_id === ME ? 'You' : cpName;
+    const preview = msg.content.startsWith('||VOICE||') ? '🎤 Voice' : msg.content.slice(0, 80);
+    setReplyTo({ id: msg.id, sender, preview });
+  }, [activeRel]);
 
   return (
-    <div style={{
+    <div className="tracker-root" style={{
       display: 'flex', height: '100vh', overflow: 'hidden',
-      background: 'var(--bg, #0d1117)',
-      // Inject CSS variables for dark theme
-      ['--bg' as any]: '#0d1117',
-      ['--panel' as any]: '#161b22',
-      ['--panel2' as any]: '#1c2128',
-      ['--text' as any]: '#e6edf3',
-      ['--muted' as any]: '#8b949e',
-      ['--brand' as any]: '#6c63ff',
-      ['--line' as any]: '#30363d',
-      ['--input-bg' as any]: '#0d1117',
-      ['--good' as any]: '#3fb950',
-      ['--bad' as any]: '#f85149',
+      background: 'var(--bg)',
+      color: 'var(--text)',
     }}>
-      {/* LEFT — Conversation Sidebar */}
-      <ConversationSidebar
-        conversations={MOCK_CONVERSATIONS}
-        currentUserId={MOCK_USER}
-      />
+      {/* LEFT — sidebar */}
+      <ConversationSidebar conversations={conversations} currentUserId={ME} />
 
-      {/* CENTER — Active Conversation */}
-      {activeConversationId && activeRel ? (
+      {/* CENTER — conversation */}
+      {activeId && activeRel ? (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           height: '100%', overflow: 'hidden', minWidth: 0,
+          background: 'var(--bg)',
         }}>
           <ConversationHeader
             name={activeRel.counterparty_name}
             nickname={activeRel.counterparty_nickname}
-            onBack={() => setActiveConversation(null)}
+            onBack={() => setActive(null)}
             onSearchToggle={() => {}}
           />
-
           <MessageTimeline
             messages={activeMessages}
-            currentUserId={MOCK_USER}
+            currentUserId={ME}
             counterpartyName={activeRel.counterparty_name}
             scrollRef={() => {}}
-            onReply={() => {}}
+            onReply={handleReply}
           />
-
           <MessageComposer
-            onSend={(content) => console.log('Send:', content)}
+            onSend={handleSend}
             onTyping={() => {}}
-            replyTo={null}
-            onCancelReply={() => {}}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(null)}
           />
         </div>
       ) : (
@@ -210,17 +178,19 @@ export default function ChatPreview() {
           color: 'var(--muted)', fontSize: 13,
         }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Select a conversation</div>
-            <div style={{ fontSize: 11 }}>Choose a conversation from the left to start messaging</div>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>💬</div>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6, color: 'var(--text)' }}>
+              Select a conversation
+            </div>
+            <div style={{ fontSize: 12 }}>
+              Choose from the sidebar to start messaging
+            </div>
           </div>
         </div>
       )}
 
-      {/* RIGHT — Context Panel */}
-      {activeConversationId && (
-        <ContextPanel relationship={activeRel} />
-      )}
+      {/* RIGHT — context */}
+      {activeId && <ContextPanel relationship={activeRel} />}
     </div>
   );
 }
