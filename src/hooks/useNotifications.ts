@@ -11,6 +11,12 @@ export interface Notification {
   category: string;
   read_at: string | null;
   created_at: string;
+  // Routing metadata for deep linking
+  conversation_id?: string | null;
+  message_id?: string | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  anchor_id?: string | null;
 }
 
 /** Map notification categories to app routes */
@@ -42,7 +48,7 @@ export function useNotifications() {
     queryFn: async (): Promise<Notification[]> => {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id, title, body, category, read_at, created_at')
+        .select('id, title, body, category, read_at, created_at, conversation_id, message_id, entity_type, entity_id, anchor_id')
         .eq('user_id', userId!)
         .order('created_at', { ascending: false })
         .limit(50);

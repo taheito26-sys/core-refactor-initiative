@@ -56,6 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
 
   const loadUserProfiles = useCallback(async (currentUserId?: string | null) => {
+    if (import.meta.env.DEV) return; // Keep dev mocks intact
+
     const resolvedUserId = currentUserId ?? (await supabase.auth.getUser()).data.user?.id ?? null;
 
     if (!resolvedUserId) {
@@ -90,6 +92,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const syncAuthState = async (newSession: Session | null) => {
       if (!isMounted) return;
+
+      // BYPASS AUTHENTICATION IN DEV MODE
+      if (import.meta.env.DEV) {
+        const mockUser = {
+          id: 'dev-user-id',
+          email: 'developer@local.dev',
+          role: 'authenticated',
+          aud: 'authenticated',
+        } as User;
+        
+        const mockProfile = {
+          id: 'dev-profile-id',
+          user_id: mockUser.id,
+          email: mockUser.email!,
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+          approved_by: 'system',
+          rejection_reason: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Profile;
+        
+        const mockMerchantProfile = {
+          id: 'dev-merchant-id',
+          user_id: mockUser.id,
+          merchant_id: 'DEV01',
+          nickname: 'DevUser',
+          display_name: 'Local Developer',
+          bio: 'Development environment automatically authenticated.',
+          region: 'US',
+          default_currency: 'USD',
+          merchant_code: 'DEV',
+          status: 'approved',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as MerchantProfile;
+
+        console.info('[Auth] Development mode: Bypassing authentication with mock user.');
+
+        setSession({ user: mockUser, access_token: 'fake-dev-token' } as Session);
+        setUser(mockUser);
+        setProfile(mockProfile);
+        setMerchantProfile(mockMerchantProfile);
+        setIsLoading(false);
+        return;
+      }
 
       setSession(newSession);
       setUser(newSession?.user ?? null);
