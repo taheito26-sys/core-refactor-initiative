@@ -278,7 +278,7 @@ function useChatStore() {
         sender_id: index % 2 ? `${conversationId}-remote` : CURRENT_USER_ID,
         content: `Older message ${index + 1}`,
         timestamp: firstTs - (index + 1) * 60_000,
-        status: index % 2 ? 'delivered' : 'seen',
+        status: (index % 2 ? 'delivered' : 'seen') as MessageStatus,
         read_state: 'read' as ReadState,
         type: 'text' as MessageType,
         mine: index % 2 === 0,
