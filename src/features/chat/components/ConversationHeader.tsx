@@ -30,12 +30,10 @@ export function ConversationHeader({ name, nickname, onBack, onSearchToggle, isM
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border flex-shrink-0 bg-card">
-      {/* Back (mobile) */}
-      {isMobile && (
-        <button onClick={onBack} className={iconBtnClass}>
-          <ArrowLeft size={18} />
-        </button>
-      )}
+      {/* Back button — always visible on mobile */}
+      <button onClick={onBack} className={`${iconBtnClass} md:hidden`}>
+        <ArrowLeft size={18} />
+      </button>
 
       {/* Avatar */}
       <div
