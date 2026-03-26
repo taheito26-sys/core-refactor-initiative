@@ -359,6 +359,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
     stock_purchase: t('ledgerStockPurchase'),
     stock_refund: t('ledgerStockRefund'),
     stock_edit_adjust: t('ledgerEditAdjust'),
+    sale_deposit: t('ledgerSaleDeposit') || 'Sale Deposit',
     reconcile: t('ledgerReconcile'),
   }), [t]);
 
