@@ -4,6 +4,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSendMessage } from '@/hooks/useRelationshipMessages';
+import { useChatContextSafe } from '@/features/chat/chat-context';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Send, Search, MessageCircle, ChevronDown, Smile, Reply, Copy,
@@ -310,9 +311,22 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const sendMessage = useSendMessage();
+  const chatCtx = useChatContextSafe();
 
   // ── Core state ───────────────────────────────────────────────────────────
-  const [activeRelId, setActiveRelId] = useState<string | null>(null);
+  const [activeRelId, setActiveRelIdLocal] = useState<string | null>(null);
+
+  // Sync active conversation with ChatContext
+  const setActiveRelId = useCallback((id: string | null) => {
+    setActiveRelIdLocal(id);
+    chatCtx?.setActiveConversation(id);
+  }, [chatCtx]);
+
+  // Register/unregister from chat module
+  useEffect(() => {
+    chatCtx?.setInChatModule(true);
+    return () => { chatCtx?.setInChatModule(false); };
+  }, [chatCtx]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: string; sender: string; preview: string } | null>(null);
@@ -498,11 +512,30 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
     if (isAtBottom && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [activeMessages, isAtBottom]);
 
+  // ── Sync scroll state with ChatContext ─────────────────────────────────────
   const onScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    setIsAtBottom(scrollHeight - scrollTop - clientHeight < 60);
-  }, []);
+    const atBottom = scrollHeight - scrollTop - clientHeight < 60;
+    setIsAtBottom(atBottom);
+    chatCtx?.setIsAtBottom(atBottom);
+  }, [chatCtx]);
+
+  // ── Deep-link: open conversation from notification ─────────────────────────
+  useEffect(() => {
+    if (!chatCtx?.targetConversationId || !relationships.length) return;
+    const target = chatCtx.targetConversationId;
+    // targetConversationId may be a sender name (from notification) — resolve to relationship
+    const rel = relationships.find(r =>
+      r.counterparty_name.toLowerCase() === target.toLowerCase() ||
+      r.counterparty_nickname.toLowerCase() === target.toLowerCase() ||
+      r.id === target
+    );
+    if (rel) {
+      setActiveRelId(rel.id);
+      chatCtx.clearAnchor();
+    }
+  }, [chatCtx?.targetConversationId, relationships, setActiveRelId, chatCtx]);
 
   // ── LS helpers ────────────────────────────────────────────────────────────
   const toggleMute = (relId: string) => { const next = mutedRels.includes(relId) ? mutedRels.filter(x => x !== relId) : [...mutedRels, relId]; setMutedRels(next); lsSet('cmute', next); };
