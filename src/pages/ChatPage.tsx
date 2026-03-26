@@ -261,10 +261,15 @@ export default function ChatPage() {
     enabled: rooms.length > 0,
     queryFn: async (): Promise<Record<string, ChannelIdentity>> => {
       const roomIds = rooms.map((r) => r.id);
+<<<<<<< HEAD
+      const membersRes = await supabase.from('os_room_members').select('merchant_id').in('room_id', roomIds);
+=======
       const membersRes = await (supabase as any)
         .from('os_room_members')
         .select('merchant_id')
         .in('room_id', roomIds);
+
+>>>>>>> c880d2771adc9c43b273f162abb366d26b3f48fc
       if (membersRes.error) throw membersRes.error;
       const merchantIds = Array.from(new Set((membersRes.data || []).map((m: any) => m.merchant_id).filter(Boolean)));
       if (merchantIds.length === 0) return {};
@@ -417,6 +422,7 @@ export default function ChatPage() {
       if (!activeRoom) return;
       const isVanish = content.startsWith('||VANISH||');
 
+<<<<<<< HEAD
       const { error } = await supabase.rpc('os_create_message', {
         _room_id: activeRoom.id,
         _content: content,
@@ -425,6 +431,41 @@ export default function ChatPage() {
         _expires_at: isVanish ? new Date(Date.now() + 5000).toISOString() : null,
         _view_limit: isVanish ? 1 : null,
       } as any);
+=======
+      const payload = {
+        room_id: activeRoom.id,
+        sender_merchant_id: merchantId,
+        content,
+        permissions: {
+          forwardable: !activeRoom.security_policies.disable_forwarding,
+          exportable: !activeRoom.security_policies.disable_export,
+          copyable: !activeRoom.security_policies.disable_copy,
+          ai_readable: true,
+        },
+        retention_policy: activeRoom.retention_policy,
+      };
+
+      const { error } = await (supabase as any).from('os_messages').insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['os-timeline', activeRoomId] });
+    },
+  });
+
+  const convertMutation = useMutation({
+    mutationFn: async (input: { messageId: string; targetType: 'task' | 'order' }) => {
+      if (!activeRoom || !merchantId) return;
+
+      const { error } = await (supabase as any).from('os_business_objects').insert({
+        room_id: activeRoom.id,
+        object_type: input.targetType,
+        source_message_id: input.messageId,
+        created_by_merchant_id: merchantId,
+        payload: input.targetType === 'task' ? { description: 'Extracted task automatically' } : { default_terms: true },
+        status: 'pending',
+      });
+>>>>>>> c880d2771adc9c43b273f162abb366d26b3f48fc
 
       if (error) throw error;
     },
@@ -448,11 +489,23 @@ export default function ChatPage() {
 
   const acceptDealMutation = useMutation({
     mutationFn: async (dealId: string) => {
+<<<<<<< HEAD
       const rpc = await supabase.rpc('os_accept_negotiation_terms', {
         _business_object_id: dealId,
         _trigger_event: 'deal_accepted',
       } as any);
       if (rpc.error) throw rpc.error;
+=======
+      const { error } = await (supabase as any)
+        .from('os_business_objects')
+        .update({ status: 'locked', state_snapshot_hash: generateSnapshotHash() })
+        .eq('id', dealId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['os-timeline', activeRoomId] });
+>>>>>>> c880d2771adc9c43b273f162abb366d26b3f48fc
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['os-timeline', activeRoomId] }),
   });
