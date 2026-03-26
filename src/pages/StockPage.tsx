@@ -14,7 +14,11 @@ import {
   batchCycleTime,
   computeFIFO,
   uid,
+  getAccountBalance,
+  getAllAccountBalances,
+  deriveCashQAR,
   type TrackerState,
+  type CashLedgerEntry,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -25,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { CashManagement } from '@/features/stock/components/CashManagement';
 import '@/styles/tracker.css';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 
@@ -73,6 +78,28 @@ export default function StockPage() {
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
   const activeTab = searchParams.get('tab') === 'cash' ? 'cash' : 'stock';
+
+  // ── Cash Management tab ──────────────────────────────────────────
+  const [searchParams] = useSearchParams();
+  const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
+    searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
+  );
+  const [fundingAccountId, setFundingAccountId] = useState<string>('');
+
+  // Derive account balances for funding source selector
+  const cashAccounts = state.cashAccounts || [];
+  const cashLedger = state.cashLedger || [];
+  const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);
+  const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
+
+  // Auto-select first account if none selected and accounts exist
+  useEffect(() => {
+    if (!fundingAccountId && activeAccounts.length > 0) {
+      // Prefer the account with highest balance
+      const best = [...activeAccounts].sort((a, b) => (accountBalances.get(b.id) || 0) - (accountBalances.get(a.id) || 0));
+      setFundingAccountId(best[0]?.id || '');
+    }
+  }, [activeAccounts, fundingAccountId, accountBalances]);
 
   useEffect(() => {
     const next: TrackerState = {
@@ -181,35 +208,72 @@ export default function StockPage() {
     }
 
     const batchCostQAR = volumeQAR;
+    const batchId = uid();
 
-    // Auto-deduct from cash
+    // ── Multi-account cash deduction (new system) ──────────────────
+    let nextCashLedger = [...(state.cashLedger || [])];
+    let fundingLedgerEntryId: string | undefined;
+    let selectedFundingAccountId: string | undefined;
+
+    if (activeAccounts.length > 0 && fundingAccountId) {
+      const selectedAcc = activeAccounts.find(a => a.id === fundingAccountId);
+      if (!selectedAcc) { setBatchMsg(t('fundingAccNotFound')); return; }
+      const availBal = accountBalances.get(fundingAccountId) || 0;
+      if (availBal < batchCostQAR) {
+        setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} QAR, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} QAR`);
+        return;
+      }
+      const entryId = uid();
+      const purchaseEntry: CashLedgerEntry = {
+        id: entryId,
+        ts: Date.now(),
+        type: 'stock_purchase',
+        accountId: fundingAccountId,
+        direction: 'out',
+        amount: batchCostQAR,
+        currency: 'QAR',
+        linkedEntityType: 'batch',
+        linkedEntityId: batchId,
+        note: `Stock purchase: ${fmtU(totalUSDT)} USDT @ ${fmtP(px)} from ${source}`,
+      };
+      nextCashLedger = [...nextCashLedger, purchaseEntry];
+      fundingLedgerEntryId = entryId;
+      selectedFundingAccountId = fundingAccountId;
+    }
+
+    // ── Legacy cashQAR backward-compat deduction ────────────────────
     const currentCash = num(state.cashQAR, 0);
-    const newCash = Math.max(0, currentCash - batchCostQAR);
+    const newCashFromLedger = activeAccounts.length > 0
+      ? deriveCashQAR(cashAccounts, nextCashLedger)
+      : Math.max(0, currentCash - batchCostQAR);
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
       id: uid(),
       ts: Date.now(),
       type: 'batch_purchase',
       amount: Math.min(batchCostQAR, currentCash),
-      balanceAfter: newCash,
+      balanceAfter: newCashFromLedger,
       owner: state.cashOwner || '',
-      bankAccount: '',
+      bankAccount: activeAccounts.find(a => a.id === fundingAccountId)?.name || '',
       note: `Stock purchase: ${fmtU(totalUSDT)} USDT @ ${fmtP(px)} from ${source}`,
     };
 
     const next: TrackerState = {
       ...state,
-      cashQAR: newCash,
+      cashQAR: newCashFromLedger,
       cashHistory: [...(state.cashHistory || []), cashTx],
+      cashLedger: nextCashLedger,
       batches: [
         ...state.batches,
         {
-          id: uid(),
+          id: batchId,
           ts,
           source,
           note: batchNote.trim(),
           buyPriceQAR: px,
           initialUSDT: totalUSDT,
           revisions: [],
+          fundingAccountId: selectedFundingAccountId,
+          fundingLedgerEntryId,
         },
       ],
     };
@@ -220,7 +284,10 @@ export default function StockPage() {
     setBatchUsdtQty('');
     setBatchSupplier('');
     setBatchNote('');
-    const deductMsg = currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR deducted from cash` : '';
+    const fundingAccName = activeAccounts.find(a => a.id === fundingAccountId)?.name;
+    const deductMsg = fundingAccName
+      ? ` · ${fmtTotal(batchCostQAR)} QAR deducted from "${fundingAccName}"`
+      : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR deducted from cash` : '';
     setBatchMsg(t('batchAdded') + deductMsg);
   };
 
@@ -246,6 +313,29 @@ export default function StockPage() {
       return;
     }
 
+    const existingBatch = state.batches.find(b => b.id === editingBatchId);
+    const oldCost = existingBatch ? existingBatch.initialUSDT * existingBatch.buyPriceQAR : 0;
+    const newCost = qty * px;
+    const delta = newCost - oldCost; // positive = extra spend, negative = refund
+
+    // ── Ledger adjustment if multi-account is active ─────────────
+    let nextCashLedger = [...(state.cashLedger || [])];
+    if (Math.abs(delta) > 0.01 && existingBatch?.fundingAccountId) {
+      const adjustEntry: CashLedgerEntry = {
+        id: uid(),
+        ts: Date.now(),
+        type: 'stock_edit_adjust',
+        accountId: existingBatch.fundingAccountId,
+        direction: delta > 0 ? 'out' : 'in',
+        amount: Math.abs(delta),
+        currency: 'QAR',
+        linkedEntityType: 'batch',
+        linkedEntityId: editingBatchId,
+        note: `Batch edit: cost ${delta > 0 ? 'increased' : 'reduced'} by ${fmtTotal(Math.abs(delta))} QAR`,
+      };
+      nextCashLedger = [...nextCashLedger, adjustEntry];
+    }
+
     const nextBatches = state.batches.map((b) => {
       if (b.id !== editingBatchId) return b;
       return {
@@ -262,7 +352,11 @@ export default function StockPage() {
       };
     });
 
-    applyState({ ...state, batches: nextBatches });
+    const newCashQAR = (state.cashAccounts || []).length > 0
+      ? deriveCashQAR(state.cashAccounts, nextCashLedger)
+      : Math.max(0, num(state.cashQAR, 0) - delta);
+
+    applyState({ ...state, batches: nextBatches, cashLedger: nextCashLedger, cashQAR: newCashQAR });
     setEditingBatchId(null);
   };
 
@@ -271,26 +365,59 @@ export default function StockPage() {
     const batch = state.batches.find(b => b.id === editingBatchId);
     if (!batch) return;
 
-    // Refund the batch cost back to cash
     const batchCostQAR = batch.initialUSDT * batch.buyPriceQAR;
+
+    // ── Double-refund guard ───────────────────────────────────────
+    const alreadyRefunded = (state.cashLedger || []).some(
+      e => e.type === 'stock_refund' && e.linkedEntityId === editingBatchId
+    );
+    if (alreadyRefunded) {
+      // Batch already refunded — just remove from list
+      applyState({ ...state, batches: state.batches.filter(b => b.id !== editingBatchId) });
+      setEditingBatchId(null);
+      return;
+    }
+
+    // ── Multi-account refund (new system) ─────────────────────────
+    let nextCashLedger = [...(state.cashLedger || [])];
+    if (batch.fundingAccountId && (state.cashAccounts || []).length > 0) {
+      const refundEntry: CashLedgerEntry = {
+        id: uid(),
+        ts: Date.now(),
+        type: 'stock_refund',
+        accountId: batch.fundingAccountId,
+        direction: 'in',
+        amount: batchCostQAR,
+        currency: 'QAR',
+        linkedEntityType: 'batch',
+        linkedEntityId: editingBatchId,
+        note: `Batch refund: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${batch.source || 'unknown'}`,
+      };
+      nextCashLedger = [...nextCashLedger, refundEntry];
+    }
+
+    // ── Legacy cashQAR refund ─────────────────────────────────────
     const currentCash = num(state.cashQAR, 0);
-    const newCash = currentCash + batchCostQAR;
+    const newCashQAR = (state.cashAccounts || []).length > 0
+      ? deriveCashQAR(state.cashAccounts, nextCashLedger)
+      : currentCash + batchCostQAR;
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
       id: uid(),
       ts: Date.now(),
       type: 'batch_refund' as any,
       amount: batchCostQAR,
-      balanceAfter: newCash,
+      balanceAfter: newCashQAR,
       owner: state.cashOwner || '',
-      bankAccount: '',
+      bankAccount: state.cashAccounts?.find(a => a.id === batch.fundingAccountId)?.name || '',
       note: `Batch deleted: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${batch.source || 'unknown'}`,
     };
 
     applyState({
       ...state,
       batches: state.batches.filter(b => b.id !== editingBatchId),
-      cashQAR: newCash,
+      cashQAR: newCashQAR,
       cashHistory: [...(state.cashHistory || []), cashTx],
+      cashLedger: nextCashLedger,
     });
     setEditingBatchId(null);
   };
@@ -599,8 +726,39 @@ export default function StockPage() {
                 <div className="inputBox"><input placeholder={t('optionalNote')} value={batchNote} onChange={(e) => setBatchNote(e.target.value)} /></div>
               </div>
 
+              {/* ── Funding Source (multi-account) ── */}
+              {activeAccounts.length > 0 && (
+                <div className="field2">
+                  <div className="lbl">{t('fundingSourceLbl')}</div>
+                  <select
+                    value={fundingAccountId}
+                    onChange={e => setFundingAccountId(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: `1px solid ${!fundingAccountId ? 'color-mix(in srgb, var(--warn) 50%, transparent)' : 'var(--line)'}`, background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+                    <option value="">{t('selectFundingAccPh')}</option>
+                    {activeAccounts.map(a => {
+                      const bal = accountBalances.get(a.id) || 0;
+                      return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                    })}
+                  </select>
+                  {fundingAccountId && (() => {
+                    const acc = activeAccounts.find(a => a.id === fundingAccountId);
+                    const bal = accountBalances.get(fundingAccountId) || 0;
+                    return (
+                      <div style={{ fontSize: 10, marginTop: 4, color: 'var(--muted)' }}>
+                        {t('availableLbl')}: <strong style={{ color: bal < 10000 ? 'var(--warn)' : 'var(--good)' }}>{fmtTotal(bal)} {acc?.currency}</strong>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              {activeAccounts.length === 0 && (
+                <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
+                  💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => setStockTab('cash')} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
+                </div>
+              )}
+
               <div className="formActions"><button className="btn" onClick={addBatch}>{t('addBatchTitle')}</button></div>
-              <div className={`msg ${batchMsg.includes(t('fixFields')) ? 'bad' : ''}`}>{batchMsg}</div>
+              <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
             </div>
           </div>
         </div>
