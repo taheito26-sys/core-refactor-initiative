@@ -1,0 +1,43 @@
+import { supabase } from '@/integrations/supabase/client';
+import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
+
+export async function addReaction(roomId: string, messageId: string, reaction: string): Promise<DeterministicResult<boolean>> {
+  try {
+    const { data, error } = await supabase.rpc('fn_chat_add_reaction', {
+      _room_id: roomId,
+      _message_id: messageId,
+      _reaction: reaction,
+    } as any);
+    if (error) throw error;
+    return ok(Boolean(data));
+  } catch (error) {
+    return fail(false, error);
+  }
+}
+
+export async function removeReaction(roomId: string, messageId: string, reaction: string): Promise<DeterministicResult<boolean>> {
+  try {
+    const { data, error } = await supabase.rpc('fn_chat_remove_reaction', {
+      _room_id: roomId,
+      _message_id: messageId,
+      _reaction: reaction,
+    } as any);
+    if (error) throw error;
+    return ok(Boolean(data));
+  } catch (error) {
+    return fail(false, error);
+  }
+}
+
+export async function getMessageReactions(roomId: string): Promise<DeterministicResult<Array<{ message_id: string; user_id: string; reaction: string }>>> {
+  try {
+    const { data, error } = await supabase
+      .from('message_reactions' as any)
+      .select('message_id, user_id, reaction')
+      .eq('room_id', roomId);
+    if (error) throw error;
+    return ok((data ?? []) as Array<{ message_id: string; user_id: string; reaction: string }>);
+  } catch (error) {
+    return fail([], error);
+  }
+}

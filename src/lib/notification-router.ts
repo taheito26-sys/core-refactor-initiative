@@ -74,14 +74,15 @@ export function handleNotificationClick(
 
   // ── Chat message notification with conversation deep link ──────
   if (notification.category === 'message' && notification.conversation_id) {
-    // Queue the nav target — ChatPage will consume it once mounted
-    store.setPendingNav({
-      conversationId: notification.conversation_id,
-      messageId: notification.message_id ?? null,
-      notificationId: notification.id,
-    });
+    store.setActiveConversation(notification.conversation_id);
 
-    navigate('/chat');
+    if (notification.message_id) {
+      store.setAnchor(notification.message_id);
+    }
+
+    const params = new URLSearchParams({ roomId: notification.conversation_id });
+    if (notification.message_id) params.set('messageId', notification.message_id);
+    navigate(`/chat?${params.toString()}`);
     return;
   }
 
@@ -101,7 +102,11 @@ export function handleNotificationClick(
  * Does NOT navigate or modify state — pure function.
  */
 export function getNotificationRoute(n: EnrichedNotification): string {
-  if (n.category === 'message' && n.conversation_id) return '/chat';
+  if (n.category === 'message' && n.conversation_id) {
+    const params = new URLSearchParams({ roomId: n.conversation_id });
+    if (n.message_id) params.set('messageId', n.message_id);
+    return `/chat?${params.toString()}`;
+  }
   if (n.entity_type && n.entity_id) return entityRoute(n.entity_type, n.entity_id);
   return legacyRoute(n);
 }
