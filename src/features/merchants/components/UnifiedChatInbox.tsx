@@ -359,6 +359,8 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimeRef = useRef<number>(0);
+  const streamRef = useRef<MediaStream | null>(null);
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const relIds = useMemo(() => relationships.map(r => r.id), [relationships]);
@@ -592,14 +594,47 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
+      recordingTimeRef.current = 0;
+      streamRef.current = stream;
       // Prefer opus/webm for compression; fall back to whatever browser supports
       const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(m => MediaRecorder.isTypeSupported(m)) || '';
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.start(100); // collect every 100ms
+
+      // IMPORTANT: attach onstop BEFORE mr.start() so the event is never missed
+      mr.onstop = async () => {
+        const durationSec = recordingTimeRef.current || 1;
+        const blobMime = mr.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: blobMime });
+        // Convert to base64 for storage in the message content
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const dataUrl = reader.result as string;
+          // dataUrl = "data:audio/webm;base64,AAAA..."
+          const base64 = dataUrl.split(',')[1];
+          if (!base64 || !activeRelId) return;
+          const content = encodeVoice(durationSec, base64);
+          // Send directly (bypass text state)
+          const tempId = `opt_${Date.now()}`;
+          setOptimistic(p => [...p, { id: tempId, relationship_id: activeRelId, sender_id: userId!, content, read_at: null, created_at: new Date().toISOString(), _pending: true }]);
+          try {
+            await sendMessage.mutateAsync({ relationship_id: activeRelId, content });
+            setOptimistic(p => p.filter(m => m.id !== tempId));
+            queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
+          } catch { setOptimistic(p => p.filter(m => m.id !== tempId)); }
+        };
+        reader.readAsDataURL(blob);
+        audioChunksRef.current = [];
+        mediaRecorderRef.current = null;
+      };
+
+      mr.start(100); // collect every 100ms — onstop is already wired above
       mediaRecorderRef.current = mr;
       setIsRecording(true); setRecordingTime(0);
-      recordingTimer.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+      recordingTimer.current = setInterval(() => {
+        recordingTimeRef.current += 1;
+        setRecordingTime(t => t + 1);
+      }, 1000);
     } catch (err: any) {
       toast.error('Microphone access denied. Please allow microphone permissions.');
     }
@@ -608,37 +643,14 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   const stopRecording = () => {
     const mr = mediaRecorderRef.current;
     if (!mr) return;
-    mr.stop();
-    // Stop all tracks to release microphone
-    mr.stream.getTracks().forEach(t => t.stop());
+    // Clear timer and update UI immediately
     if (recordingTimer.current) clearInterval(recordingTimer.current);
-
-    mr.onstop = async () => {
-      const durationSec = recordingTime || 1;
-      const mimeType = mr.mimeType || 'audio/webm';
-      const blob = new Blob(audioChunksRef.current, { type: mimeType });
-      // Convert to base64 for storage in the message content
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const dataUrl = reader.result as string;
-        // dataUrl = "data:audio/webm;base64,AAAA..."
-        const base64 = dataUrl.split(',')[1];
-        if (!base64 || !activeRelId) return;
-        const content = encodeVoice(durationSec, base64);
-        // Send directly (bypass text state)
-        const tempId = `opt_${Date.now()}`;
-        setOptimistic(p => [...p, { id: tempId, relationship_id: activeRelId, sender_id: userId!, content, read_at: null, created_at: new Date().toISOString(), _pending: true }]);
-        try {
-          await sendMessage.mutateAsync({ relationship_id: activeRelId, content });
-          setOptimistic(p => p.filter(m => m.id !== tempId));
-          queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
-        } catch { setOptimistic(p => p.filter(m => m.id !== tempId)); }
-      };
-      reader.readAsDataURL(blob);
-      setIsRecording(false);
-      mediaRecorderRef.current = null;
-      audioChunksRef.current = [];
-    };
+    setIsRecording(false);
+    // Stop all tracks to release microphone
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    // Calling mr.stop() triggers the pre-attached onstop handler (which processes & sends audio)
+    mr.stop();
   };
 
   const scrollToMsg = (msgId: string) => {
