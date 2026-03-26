@@ -19,7 +19,7 @@ const merchantUserByMerchantId = new Map([
 describe('workspace deal scoping', () => {
   it('A workspace sees A-B deal', () => {
     const visible = isDealVisibleInWorkspace({
-      deal: { relationship_id: 'rel-ab' },
+      deal: { relationship_id: 'rel-ab', created_by: 'user-a' },
       workspaceMerchantId: 'A',
       workspaceRelationshipIds: new Set(['rel-ab']),
     });

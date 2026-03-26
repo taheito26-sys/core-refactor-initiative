@@ -437,9 +437,11 @@ export default function OrdersPage() {
     if (depositAmt <= 0) return nextState;
     const currentCash = nextState.cashQAR || 0;
     const newCash = currentCash + depositAmt;
-    const targetAccount = cashDepositAccountId === 'auto'
-      ? (cashAccounts[0]?.name || '')
-      : (cashAccounts.find(a => a.id === cashDepositAccountId)?.name || '');
+    const stateAccounts = nextState.cashAccounts || [];
+    const targetAccountId = cashDepositAccountId === 'auto'
+      ? (stateAccounts[0]?.id || '')
+      : cashDepositAccountId;
+    const targetAccountName = stateAccounts.find(a => a.id === targetAccountId)?.name || '';
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
       id: uid(),
       ts: Date.now(),
@@ -447,14 +449,34 @@ export default function OrdersPage() {
       amount: depositAmt,
       balanceAfter: newCash,
       owner: nextState.cashOwner || '',
-      bankAccount: targetAccount,
+      bankAccount: targetAccountName,
       note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     };
-    const newLedger = [...ledger, entry];
+    // If user has cash accounts, also write a formal ledger entry
+    const currentLedger = nextState.cashLedger || [];
+    if (targetAccountId && stateAccounts.length > 0) {
+      const ledgerEntry: CashLedgerEntry = {
+        id: uid(),
+        ts: Date.now(),
+        type: 'sale_deposit',
+        accountId: targetAccountId,
+        direction: 'in',
+        amount: depositAmt,
+        currency: 'QAR',
+        note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      };
+      const newLedger = [...currentLedger, ledgerEntry];
+      return {
+        ...nextState,
+        cashHistory: [...(nextState.cashHistory || []), cashTx],
+        cashLedger: newLedger,
+        cashQAR: deriveCashQAR(stateAccounts, newLedger),
+      };
+    }
     return {
       ...nextState,
-      cashLedger: newLedger,
-      cashQAR: deriveCashQAR(accounts, newLedger),
+      cashQAR: newCash,
+      cashHistory: [...(nextState.cashHistory || []), cashTx],
     };
   };
   const applyOrderRefund = (nextState: TrackerState, tr?: Trade | null): TrackerState => {
