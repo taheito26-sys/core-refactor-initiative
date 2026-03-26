@@ -237,10 +237,8 @@ export default function ChatPage() {
   return (
     <div
       dir={isRTL ? 'rtl' : 'ltr'}
-      style={{
-        display: 'flex', height: 'calc(100vh - 56px)', overflow: 'hidden',
-        background: 'var(--bg)',
-      }}
+      className="flex overflow-hidden bg-background"
+      style={{ height: 'calc(100vh - 56px)' }}
     >
       {/* LEFT — Conversation Sidebar */}
       <ConversationSidebar
@@ -250,19 +248,13 @@ export default function ChatPage() {
 
       {/* CENTER — Active Conversation */}
       {activeConversationId && activeRel ? (
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          height: '100%', overflow: 'hidden', minWidth: 0,
-        }}>
-          {/* Sticky header */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
           <ConversationHeader
             name={activeRel.counterparty_name}
             nickname={activeRel.counterparty_nickname}
             onBack={() => setActiveConversation(null)}
             onSearchToggle={() => setShowMsgSearch((v) => !v)}
           />
-
-          {/* Scrollable message timeline */}
           <MessageTimeline
             messages={activeMessages}
             currentUserId={userId || ''}
@@ -270,8 +262,6 @@ export default function ChatPage() {
             scrollRef={setScrollRef}
             onReply={handleReply}
           />
-
-          {/* Pinned composer — flex-shrink: 0 means it never collapses */}
           <MessageComposer
             onSend={handleSend}
             onTyping={signalTyping}
@@ -280,19 +270,16 @@ export default function ChatPage() {
           />
         </div>
       ) : (
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'var(--muted)', fontSize: 13,
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Select a conversation</div>
-            <div style={{ fontSize: 11 }}>Choose a conversation from the left to start messaging</div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+          <div className="text-center">
+            <div className="text-4xl mb-3">💬</div>
+            <div className="font-bold mb-1">Select a conversation</div>
+            <div className="text-[11px]">Choose a conversation from the left to start messaging</div>
           </div>
         </div>
       )}
 
-      {/* RIGHT — Context Panel (hidden on mobile / when no conversation) */}
+      {/* RIGHT — Context Panel */}
       {activeConversationId && (
         <ContextPanel relationship={activeRel} />
       )}
