@@ -74,11 +74,12 @@ export function handleNotificationClick(
 
   // ── Chat message notification with conversation deep link ──────
   if (notification.category === 'message' && notification.conversation_id) {
-    store.setActiveConversation(notification.conversation_id);
-
-    if (notification.message_id) {
-      store.setAnchor(notification.message_id);
-    }
+    // Queue the nav target — ChatPage will consume it once mounted
+    store.setPendingNav({
+      conversationId: notification.conversation_id,
+      messageId: notification.message_id ?? null,
+      notificationId: notification.id,
+    });
 
     navigate('/chat');
     return;

@@ -42,6 +42,8 @@ export default function ChatPage() {
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const setUnreadCounts = useChatStore((s) => s.setUnreadCounts);
   const markConversationRead = useChatStore((s) => s.markConversationRead);
+  const consumePendingNav = useChatStore((s) => s.consumePendingNav);
+  const setAnchor = useChatStore((s) => s.setAnchor);
 
   // ── Reply state ───────────────────────────────────────────────
   const [replyTo, setReplyTo] = useState<{ id: string; sender: string; preview: string } | null>(null);
