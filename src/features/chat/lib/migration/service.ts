@@ -1,70 +1,91 @@
 import { supabase } from '@/integrations/supabase/client';
-import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
+import { parseLegacyContent } from './legacy-parser';
+import { ok, fail, DeterministicResult } from '../types';
 
-export interface MigrationHealth {
-  legacy_count: number;
-  canonical_count: number;
-  failed_count: number;
-  last_run: Record<string, unknown>;
-}
-
-export interface MigrationRunResult {
+export interface MigrationStats {
+  total: number;
   migrated: number;
-  inserted: number;
   skipped: number;
   failed: number;
-  repaired: number;
-  orphaned: number;
-  dry_run: boolean;
+  audit: any[];
 }
 
-export async function migrateLegacyMessages(dryRun = true): Promise<DeterministicResult<MigrationRunResult>> {
-  try {
-    const { data, error } = await supabase.rpc('fn_chat_migrate_legacy_messages', { _dry_run: dryRun });
-    if (error) throw error;
-    return ok((data ?? {
+export class MigrationService {
+  async runMigration(dryRun = true): Promise<DeterministicResult<MigrationStats>> {
+    const stats: MigrationStats = {
+      total: 0,
       migrated: 0,
-      inserted: 0,
       skipped: 0,
       failed: 0,
-      repaired: 0,
-      orphaned: 0,
-      dry_run: dryRun,
-    }) as MigrationRunResult);
-  } catch (error) {
-    return fail({
-      migrated: 0,
-      inserted: 0,
-      skipped: 0,
-      failed: 1,
-      repaired: 0,
-      orphaned: 0,
-      dry_run: dryRun,
-    }, error);
-  }
-}
+      audit: [],
+    };
 
-export async function getMigrationHealth(): Promise<DeterministicResult<MigrationHealth>> {
-  try {
-    const { data, error } = await supabase.rpc('fn_chat_migration_health');
-    if (error) throw error;
-    return ok((data ?? {
-      legacy_count: 0,
-      canonical_count: 0,
-      failed_count: 0,
-      last_run: {},
-    }) as MigrationHealth);
-  } catch (error) {
-    return fail({ legacy_count: 0, canonical_count: 0, failed_count: 0, last_run: {} }, error);
-  }
-}
+    try {
+      // 1. Fetch legacy messages (merchant_messages)
+      // Note: Assuming a legacy table exists for migration
+      const { data: legacy, error: fetchError } = await supabase
+        .from('merchant_messages' as any)
+        .select('*')
+        .order('created_at', { ascending: true });
 
-export async function runScheduledMessages(limit = 50): Promise<DeterministicResult<number>> {
-  try {
-    const { data, error } = await supabase.rpc('fn_chat_run_scheduled_messages', { _limit: limit });
-    if (error) throw error;
-    return ok(Number(data ?? 0));
-  } catch (error) {
-    return fail(0, error);
+      if (fetchError) throw fetchError;
+      stats.total = legacy?.length ?? 0;
+
+      for (const row of (legacy ?? []) as any[]) {
+        try {
+          // 2. Check for existing migration (idempotency)
+          const { data: existing } = await supabase
+            .from('messages' as any)
+            .select('id')
+            .eq('client_nonce', `migrated_${row.id}`)
+            .maybeSingle();
+
+          if (existing) {
+            stats.skipped++;
+            continue;
+          }
+
+          // 3. Parse content
+          const parsed = parseLegacyContent(row.body);
+
+          // 4. Transform to new schema
+          const newMessage = {
+            room_id: row.room_id || row.relationship_id, // Map accordingly
+            sender_id: row.sender_id,
+            body: parsed.body,
+            body_json: parsed.bodyJson,
+            message_type: parsed.type,
+            client_nonce: `migrated_${row.id}`,
+            created_at: row.created_at,
+            status: 'sent',
+          };
+
+          if (!dryRun) {
+            const { error: insertError } = await supabase
+              .from('messages' as any)
+              .insert(newMessage);
+            
+            if (insertError) throw insertError;
+            
+            // Log to audit table
+            await supabase.from('migration_audit_log' as any).insert({
+              legacy_id: row.id,
+              new_id: null, // If auto-gen
+              status: 'success',
+              payload: newMessage
+            });
+          }
+
+          stats.migrated++;
+        } catch (err) {
+          stats.failed++;
+          stats.audit.push({ id: row.id, error: String(err) });
+        }
+      }
+
+      return ok(stats);
+    } catch (error) {
+      return fail(stats, error);
+    }
   }
 }

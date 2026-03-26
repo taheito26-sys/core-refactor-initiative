@@ -1,29 +1,45 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getTyping, setTyping } from '@/features/chat/api/presence';
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function useTypingPresence(roomId: string | null) {
-  const qc = useQueryClient();
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const channelRef = useRef<any>(null);
 
-  const query = useQuery({
-    queryKey: ['chat', 'typing', roomId],
-    enabled: !!roomId,
-    refetchInterval: 4000,
-    queryFn: async () => {
-      const res = await getTyping(roomId!);
-      if (!res.ok) throw new Error(res.error ?? 'Typing failed');
-      return res.data;
-    },
-  });
+  useEffect(() => {
+    if (!roomId) return;
 
-  const updateTyping = useMutation({
-    mutationFn: async (isTyping: boolean) => {
-      if (!roomId) return false;
-      const res = await setTyping(roomId, isTyping);
-      if (!res.ok) throw new Error(res.error ?? 'Typing update failed');
-      return res.data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat', 'typing', roomId] }),
-  });
+    const channel = supabase.channel(`room:${roomId}:presence`);
+    channelRef.current = channel;
 
-  return { ...query, updateTyping };
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const users = Object.values(state)
+          .flat()
+          .filter((p: any) => p.is_typing)
+          .map((p: any) => p.user_id);
+        setTypingUsers(Array.from(new Set(users)));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId]);
+
+  const updateTyping = {
+    mutate: async (isTyping: boolean) => {
+      if (!channelRef.current) return;
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) return;
+
+      await channelRef.current.track({
+        user_id: user.data.user.id,
+        is_typing: isTyping,
+        at: new Date().toISOString(),
+      });
+    }
+  };
+
+  return { typingUsers, updateTyping };
 }

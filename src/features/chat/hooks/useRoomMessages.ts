@@ -23,7 +23,30 @@ export function useRoomMessages(roomId: string | null) {
       if (!res.ok) throw new Error(res.error ?? 'Send failed');
       return res.data;
     },
-    onSuccess: () => {
+    onMutate: async (newMsg) => {
+      await qc.cancelQueries({ queryKey: ['chat', 'messages', roomId] });
+      const previous = qc.getQueryData(['chat', 'messages', roomId]);
+
+      qc.setQueryData(['chat', 'messages', roomId], (old: any) => [
+        ...(old || []),
+        {
+          id: `temp-${Date.now()}`,
+          room_id: roomId,
+          body: newMsg.body,
+          body_json: newMsg.bodyJson || {},
+          message_type: newMsg.messageType || 'text',
+          status: 'sending',
+          created_at: new Date().toISOString(),
+          reply_to_message_id: newMsg.replyToMessageId,
+        },
+      ]);
+
+      return { previous };
+    },
+    onError: (err, newMsg, context: any) => {
+      qc.setQueryData(['chat', 'messages', roomId], context.previous);
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['chat', 'messages', roomId] });
       qc.invalidateQueries({ queryKey: ['chat', 'rooms'] });
     },

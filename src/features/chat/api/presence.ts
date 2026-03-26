@@ -31,7 +31,7 @@ export async function getTyping(roomId: string): Promise<DeterministicResult<Arr
       .eq('room_id', roomId)
       .gte('expires_at', new Date().toISOString());
     if (error) throw error;
-    return ok((data ?? []) as Array<{ user_id: string; is_typing: boolean; expires_at: string }>);
+    return ok((data as unknown) as Array<{ user_id: string; is_typing: boolean; expires_at: string }>);
   } catch (error) {
     return fail([], error);
   }

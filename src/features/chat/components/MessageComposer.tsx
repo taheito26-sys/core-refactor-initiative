@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Sparkles, Pocket, Flame, SendHorizontal } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Sparkles, Pocket, Flame, SendHorizontal, X, User } from 'lucide-react';
+import { encodeReply } from '@/features/chat/lib/message-codec';
 
 interface Props {
   sending?: boolean;
-  onSend: ((payload: { body: string; messageType?: string; bodyJson?: Record<string, unknown> }) => void) | ((content: string) => void);
+  onSend: (payload: { body: string; messageType?: string; bodyJson?: Record<string, unknown> }) => void;
   onTyping?: (typing: boolean) => void;
   onSchedule?: (body: string, runAt: string) => void;
   replyTo?: any;
@@ -11,7 +12,7 @@ interface Props {
   onOpenApp?: (app: 'calculator' | 'order') => void;
 }
 
-export function MessageComposer({ sending, onSend, onTyping, onSchedule, onOpenApp }: Props) {
+export function MessageComposer({ sending, onSend, onTyping, onSchedule, onOpenApp, replyTo, onCancelReply }: Props) {
   const [body, setBody] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
   const [isVanish, setIsVanish] = useState(false);
@@ -24,12 +25,17 @@ export function MessageComposer({ sending, onSend, onTyping, onSchedule, onOpenA
       setAiLoading(false);
     }, 800);
   };
-
   const submit = () => {
     const rawText = body.trim();
     if (!rawText) return;
 
-    const text = isVanish ? `||VANISH||${rawText}` : rawText;
+    let text = isVanish ? `||VANISH||${rawText}` : rawText;
+
+    if (replyTo) {
+      const replyPreview = replyTo.body ? replyTo.body.slice(0, 60) : 'Media';
+      text = encodeReply(replyTo.id, replyTo.sender_id || 'Merchant', replyPreview, text);
+      onCancelReply?.();
+    }
 
     if (scheduleAt && onSchedule) {
       onSchedule(text, scheduleAt);
@@ -39,9 +45,7 @@ export function MessageComposer({ sending, onSend, onTyping, onSchedule, onOpenA
       return;
     }
 
-    if (typeof onSend === 'function') {
-      (onSend as any)({ body: text, message_type: 'text' });
-    }
+    onSend({ body: text, messageType: 'text' });
     setBody('');
     setIsVanish(false);
     onTyping?.(false);
@@ -73,6 +77,20 @@ export function MessageComposer({ sending, onSend, onTyping, onSchedule, onOpenA
         </div>
       </div>
       
+      {replyTo && (
+        <div className="mx-3 -mt-12 mb-2 p-2 bg-accent/20 border border-border rounded-lg flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold text-primary flex items-center gap-1 uppercase">
+              <User size={10} /> Replying to merchant
+            </p>
+            <p className="text-xs truncate opacity-70 italic line-clamp-1">{replyTo.body || 'Media message'}</p>
+          </div>
+          <button onClick={onCancelReply} className="p-1 hover:bg-accent rounded-full transition">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 mb-3">
         <button 
           onClick={generateAIDraft}
@@ -88,6 +106,12 @@ export function MessageComposer({ sending, onSend, onTyping, onSchedule, onOpenA
         >
           <Pocket size={12} />
           Mini App
+        </button>
+        <button 
+          onClick={() => setBody(prev => prev + '@')}
+          className="flex items-center gap-1.5 px-3 py-1 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[10px] font-bold hover:bg-sky-100 transition shadow-sm"
+        >
+          @ Mention
         </button>
       </div>
       <div className="flex gap-2">

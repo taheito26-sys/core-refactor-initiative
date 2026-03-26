@@ -1,21 +1,18 @@
+import { MigrationService, MigrationStats } from '@/features/chat/lib/migration/service';
+import { DeterministicResult, ok, fail } from '@/features/chat/lib/types';
 import { supabase } from '@/integrations/supabase/client';
-import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
 
-export async function runLegacyMigration(dryRun = true) {
-  try {
-    const { data, error } = await supabase.rpc('fn_chat_migrate_legacy_messages', { _dry_run: dryRun } as any);
-    if (error) throw error;
-    return ok(data as Record<string, unknown>);
-  } catch (error) {
-    return fail({}, error);
-  }
+const svc = new MigrationService();
+
+export async function runLegacyMigration(dryRun = true): Promise<DeterministicResult<MigrationStats>> {
+  return svc.runMigration(dryRun);
 }
 
-export async function migrationHealth() {
+export async function migrationHealth(): Promise<DeterministicResult<any>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_migration_health');
+    const { data, error } = await (supabase.rpc as any)('fn_chat_migration_health');
     if (error) throw error;
-    return ok((data ?? {}) as Record<string, unknown>);
+    return ok(data);
   } catch (error) {
     return fail({}, error);
   }

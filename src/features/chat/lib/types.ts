@@ -1,12 +1,13 @@
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type RoomKind = 'direct' | 'group' | 'system';
+export type CallStatus = 'ringing' | 'active' | 'ended' | 'missed' | 'cancelled';
 
-import { InboxLane } from '@/lib/os-store';
-export { type InboxLane };
+import { InboxLane, SecurityPolicies, RetentionPolicy } from '@/lib/os-store';
 
 export interface ChatRoom {
   room_id: string;
-  kind: 'direct' | 'group' | 'system';
-  lane?: InboxLane;
+  kind: RoomKind;
+  lane: InboxLane;
   title: string | null;
   relationship_id: string | null;
   member_role: 'owner' | 'admin' | 'member';
@@ -15,6 +16,8 @@ export interface ChatRoom {
   last_message_body: string | null;
   last_message_at: string | null;
   updated_at: string;
+  security_policies?: SecurityPolicies;
+  retention_policy?: RetentionPolicy;
 }
 
 export interface ChatMessage {
@@ -37,6 +40,16 @@ export interface ChatMessage {
     exportable: boolean;
     copyable: boolean;
     ai_readable: boolean;
+  };
+  metadata?: {
+    is_edited?: boolean;
+    edited_at?: string;
+    vanish_at?: string;
+    is_forwarded?: boolean;
+    original_sender_name?: string;
+    voice_duration?: number;
+    poll_question?: string;
+    poll_options?: string[];
   };
 }
 
@@ -79,12 +92,20 @@ export interface ChatSearchResult {
 export interface ChatCallSession {
   id: string;
   room_id: string;
-  status: 'ringing' | 'active' | 'ended' | 'missed' | 'cancelled';
+  status: CallStatus;
   started_by: string;
   started_at: string;
   answered_at: string | null;
   ended_at: string | null;
   ended_reason: string | null;
+}
+
+export interface ChatCallParticipant {
+  session_id: string;
+  user_id: string;
+  joined_at: string;
+  left_at: string | null;
+  is_muted: boolean;
 }
 
 export interface DeterministicResult<T> {
@@ -101,3 +122,4 @@ export function fail<T>(fallback: T, error: unknown): DeterministicResult<T> {
   const msg = error instanceof Error ? error.message : String(error ?? 'Unknown error');
   return { ok: false, data: fallback, error: msg };
 }
+export { type InboxLane };

@@ -41,6 +41,7 @@ export default function ChatWorkspacePage() {
   const rooms = roomsQuery.data ?? [];
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [searchHits, setSearchHits] = useState<any[]>([]);
+  const [replyTo, setReplyTo] = useState<any | null>(null);
   
   // Feature 16: Smart Unread Presence
   const roomFocusRef = useRef(true);
@@ -208,6 +209,7 @@ export default function ChatWorkspacePage() {
               onDeleteForEveryone={(messageId) => actions.deleteForEveryone.mutate(messageId)}
               onCreateOrder={(messageId) => tracker.createOrderDraft.mutate({ messageId, title: 'Order from chat message' })}
               onCreateTask={(messageId) => tracker.createTask.mutate({ messageId, title: 'Task from chat message' })}
+              onReply={(m) => setReplyTo(m)}
               onConvert={(messageId, type) => {
                 if (type === 'task') tracker.createTask.mutate({ messageId, title: 'Extracted Task' });
                 else tracker.createOrderDraft.mutate({ messageId, title: 'Extracted Order' });
@@ -225,6 +227,8 @@ export default function ChatWorkspacePage() {
               onTyping={(isTyping) => typing.updateTyping.mutate(isTyping)}
               onSend={(payload) => messages.send.mutate(payload)}
               onSchedule={(body, runAt) => messages.schedule.mutate({ body, runAt })}
+              replyTo={replyTo}
+              onCancelReply={() => setReplyTo(null)}
               onOpenApp={(app) => {
                 alert(`Mounting Embedded OS Mini-App: ${app}`);
               }}

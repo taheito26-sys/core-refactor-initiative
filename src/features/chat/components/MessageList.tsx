@@ -19,6 +19,7 @@ interface Props {
   onCreateTask: (messageId: string) => void;
   onAcceptDeal?: (id: string) => void;
   onConvert?: (messageId: string, type: 'task' | 'order') => void;
+  onReply?: (message: any) => void;
 }
 
 export function MessageList(props: Props) {
@@ -59,6 +60,7 @@ export function MessageList(props: Props) {
               onCreateOrder={() => props.onCreateOrder(m.id)}
               onCreateTask={() => props.onCreateTask(m.id)}
               onConvert={(type) => props.onConvert?.(m.id, type)}
+              onReply={() => props.onReply?.(m)}
             />
           </div>
         );
