@@ -150,7 +150,7 @@ export interface CashLedgerEntry {
   amount: number;
   currency: CashCurrency;
   fxRate?: number;
-  linkedEntityType?: 'batch';
+  linkedEntityType?: 'batch' | 'trade';
   linkedEntityId?: string;
   note?: string;
 }
