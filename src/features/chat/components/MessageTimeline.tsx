@@ -18,10 +18,12 @@ interface Props {
   counterpartyName: string;
   scrollRef: (el: HTMLDivElement | null) => void;
   onReply: (msg: ChatMessage) => void;
+  onForward?: (msg: ChatMessage) => void;
+  relationshipId?: string;
 }
 
 export function MessageTimeline({
-  messages, currentUserId, counterpartyName, scrollRef, onReply,
+  messages, currentUserId, counterpartyName, scrollRef, onReply, onForward, relationshipId,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -136,6 +138,8 @@ export function MessageTimeline({
                       isHighlighted={highlightId === msg.id}
                       onReply={onReply}
                       onScrollToMessage={scrollToMessage}
+                      onForward={onForward}
+                      relationshipId={relationshipId}
                     />
                   </div>
                 );
