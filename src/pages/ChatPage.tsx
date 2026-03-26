@@ -146,6 +146,21 @@ export default function ChatPage() {
     });
   }, [userId, allMessages, setUnreadCounts]);
 
+  // ── Consume pending notification deep-link ──────────────────
+  useEffect(() => {
+    if (isLoading || !relationships.length) return;
+    const nav = consumePendingNav();
+    if (!nav) return;
+
+    // Activate the target conversation
+    setActiveConversation(nav.conversationId);
+
+    // Schedule anchor after conversation messages render
+    if (nav.messageId) {
+      requestAnimationFrame(() => setAnchor(nav.messageId));
+    }
+  }, [isLoading, relationships, consumePendingNav, setActiveConversation, setAnchor]);
+
   // ── Attention tracking ────────────────────────────────────────
   const { setScrollRef } = useChatAttention();
 
