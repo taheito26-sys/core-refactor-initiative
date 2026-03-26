@@ -115,7 +115,7 @@ export default function ChatPage() {
     queryKey: ['os-rooms', merchantId],
     enabled: !!merchantId,
     queryFn: async (): Promise<OsRoom[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('os_room_members')
         .select('room_id, os_rooms(*)')
         .eq('merchant_id', merchantId);
@@ -125,7 +125,7 @@ export default function ChatPage() {
       const list = (data || [])
         .map((row: any) => row.os_rooms as DbRoom | null)
         .filter((room): room is DbRoom => Boolean(room))
-        .map((room) => ({
+        .map((room: DbRoom) => ({
           id: room.id,
           name: room.name,
           type: room.type,

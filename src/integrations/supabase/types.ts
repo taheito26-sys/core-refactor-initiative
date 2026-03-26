@@ -1557,6 +1557,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_os_room_member: { Args: { _room_id: string }; Returns: boolean }
       is_relationship_member: {
         Args: { _relationship_id: string }
         Returns: boolean
