@@ -4,6 +4,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSendMessage } from '@/hooks/useRelationshipMessages';
+import { useChatContextSafe } from '@/features/chat/chat-context';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Send, Search, MessageCircle, ChevronDown, Smile, Reply, Copy,
