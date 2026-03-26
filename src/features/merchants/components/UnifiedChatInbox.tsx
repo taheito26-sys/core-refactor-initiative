@@ -311,9 +311,22 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const sendMessage = useSendMessage();
+  const chatCtx = useChatContextSafe();
 
   // ── Core state ───────────────────────────────────────────────────────────
-  const [activeRelId, setActiveRelId] = useState<string | null>(null);
+  const [activeRelId, setActiveRelIdLocal] = useState<string | null>(null);
+
+  // Sync active conversation with ChatContext
+  const setActiveRelId = useCallback((id: string | null) => {
+    setActiveRelIdLocal(id);
+    chatCtx?.setActiveConversation(id);
+  }, [chatCtx]);
+
+  // Register/unregister from chat module
+  useEffect(() => {
+    chatCtx?.setInChatModule(true);
+    return () => { chatCtx?.setInChatModule(false); };
+  }, [chatCtx]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: string; sender: string; preview: string } | null>(null);
