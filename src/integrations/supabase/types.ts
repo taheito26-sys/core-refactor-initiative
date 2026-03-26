@@ -152,6 +152,50 @@ export type Database = {
           },
         ]
       }
+      conversation_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          muted_until: string | null
+          relationship_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          muted_until?: string | null
+          relationship_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          muted_until?: string | null
+          relationship_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_settings_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deal_capital_ledger: {
         Row: {
           amount: number
@@ -368,25 +412,40 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          delivered_at: string | null
+          edited_at: string | null
           id: string
+          metadata: Json | null
+          msg_type: string
           read_at: string | null
           relationship_id: string
+          reply_to: string | null
           sender_id: string
         }
         Insert: {
           content: string
           created_at?: string
+          delivered_at?: string | null
+          edited_at?: string | null
           id?: string
+          metadata?: Json | null
+          msg_type?: string
           read_at?: string | null
           relationship_id: string
+          reply_to?: string | null
           sender_id: string
         }
         Update: {
           content?: string
           created_at?: string
+          delivered_at?: string | null
+          edited_at?: string | null
           id?: string
+          metadata?: Json | null
+          msg_type?: string
           read_at?: string | null
           relationship_id?: string
+          reply_to?: string | null
           sender_id?: string
         }
         Relationships: [
@@ -395,6 +454,13 @@ export type Database = {
             columns: ["relationship_id"]
             isOneToOne: false
             referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "merchant_messages"
             referencedColumns: ["id"]
           },
         ]
@@ -593,33 +659,63 @@ export type Database = {
       }
       notifications: {
         Row: {
+          anchor_id: string | null
           body: string | null
           category: string
+          conversation_id: string | null
           created_at: string
+          entity_id: string | null
+          entity_type: string | null
           id: string
+          message_id: string | null
           read_at: string | null
           title: string
           user_id: string
         }
         Insert: {
+          anchor_id?: string | null
           body?: string | null
           category?: string
+          conversation_id?: string | null
           created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          message_id?: string | null
           read_at?: string | null
           title: string
           user_id: string
         }
         Update: {
+          anchor_id?: string | null
           body?: string | null
           category?: string
+          conversation_id?: string | null
           created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          message_id?: string | null
           read_at?: string | null
           title?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_allocations: {
         Row: {
@@ -1023,6 +1119,13 @@ export type Database = {
       }
       current_merchant_id: { Args: never; Returns: string }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
+      get_unread_counts: {
+        Args: { _user_id?: string }
+        Returns: {
+          relationship_id: string
+          unread_count: number
+        }[]
+      }
       has_relationship_with: {
         Args: { _target_merchant_id: string; _viewer_merchant_id: string }
         Returns: boolean
@@ -1037,6 +1140,10 @@ export type Database = {
       is_relationship_member: {
         Args: { _relationship_id: string }
         Returns: boolean
+      }
+      mark_conversation_read: {
+        Args: { _relationship_id: string }
+        Returns: undefined
       }
     }
     Enums: {
