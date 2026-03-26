@@ -150,7 +150,7 @@ export default function ChatPage() {
     enabled: rooms.length > 0,
     queryFn: async (): Promise<Record<string, ChannelIdentity>> => {
       const roomIds = rooms.map((r) => r.id);
-      const membersRes = await supabase
+      const membersRes = await (supabase as any)
         .from('os_room_members')
         .select('merchant_id')
         .in('room_id', roomIds);
@@ -160,7 +160,7 @@ export default function ChatPage() {
       const merchantIds = Array.from(new Set((membersRes.data || []).map((m: any) => m.merchant_id).filter(Boolean)));
       if (merchantIds.length === 0) return {};
 
-      const identitiesRes = await supabase
+      const identitiesRes = await (supabase as any)
         .from('os_channel_identities')
         .select('id, provider_type, provider_uid, confidence_level')
         .in('merchant_id', merchantIds);
@@ -171,9 +171,9 @@ export default function ChatPage() {
       for (const row of identitiesRes.data || []) {
         out[row.id] = {
           id: row.id,
-          provider_type: row.provider_type,
+          provider_type: row.provider_type as ChannelIdentity['provider_type'],
           provider_uid: row.provider_uid,
-          confidence_level: row.confidence_level,
+          confidence_level: row.confidence_level as ChannelIdentity['confidence_level'],
         };
       }
       return out;
@@ -186,12 +186,12 @@ export default function ChatPage() {
     enabled: !!activeRoomId,
     queryFn: async (): Promise<(OsMessage | OsBusinessObject)[]> => {
       const [messagesRes, objectsRes] = await Promise.all([
-        supabase
+        (supabase as any)
           .from('os_messages')
           .select('id, room_id, thread_id, sender_merchant_id, sender_identity_id, content, permissions, expires_at, retention_policy, view_limit, read_at, created_at')
           .eq('room_id', activeRoomId)
           .order('created_at', { ascending: true }),
-        supabase
+        (supabase as any)
           .from('os_business_objects')
           .select('id, room_id, object_type, source_message_id, created_by_merchant_id, state_snapshot_hash, payload, status, created_at')
           .eq('room_id', activeRoomId)
@@ -228,7 +228,7 @@ export default function ChatPage() {
         retention_policy: activeRoom.retention_policy,
       };
 
-      const { error } = await supabase.from('os_messages').insert(payload as any);
+      const { error } = await (supabase as any).from('os_messages').insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -240,14 +240,14 @@ export default function ChatPage() {
     mutationFn: async (input: { messageId: string; targetType: 'task' | 'order' }) => {
       if (!activeRoom || !merchantId) return;
 
-      const { error } = await supabase.from('os_business_objects').insert({
+      const { error } = await (supabase as any).from('os_business_objects').insert({
         room_id: activeRoom.id,
         object_type: input.targetType,
         source_message_id: input.messageId,
         created_by_merchant_id: merchantId,
         payload: input.targetType === 'task' ? { description: 'Extracted task automatically' } : { default_terms: true },
         status: 'pending',
-      } as any);
+      });
 
       if (error) throw error;
     },
@@ -258,9 +258,9 @@ export default function ChatPage() {
 
   const acceptDealMutation = useMutation({
     mutationFn: async (dealId: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('os_business_objects')
-        .update({ status: 'locked', state_snapshot_hash: generateSnapshotHash() } as any)
+        .update({ status: 'locked', state_snapshot_hash: generateSnapshotHash() })
         .eq('id', dealId);
 
       if (error) throw error;
