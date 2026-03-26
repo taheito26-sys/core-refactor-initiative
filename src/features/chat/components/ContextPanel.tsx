@@ -1,11 +1,13 @@
 /* ═══════════════════════════════════════════════════════════════
    ContextPanel — Right panel showing real orders, agreements,
-   and settlement status for the selected relationship
+   and settlement status for the selected relationship.
+   Items are clickable: orders → /orders, agreements → drawer.
    ═══════════════════════════════════════════════════════════════ */
 
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Package, FileText, Receipt, Loader2 } from 'lucide-react';
+import { Package, FileText, Receipt, Loader2, ExternalLink } from 'lucide-react';
 
 interface Relationship {
   id: string;
@@ -18,6 +20,7 @@ interface Relationship {
 
 interface Props {
   relationship: Relationship | null;
+  onOpenRelationship?: (relationshipId: string) => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -36,16 +39,16 @@ const STATUS_COLORS: Record<string, string> = {
 
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span className={`font-semibold capitalize ${STATUS_COLORS[status] || 'text-muted-foreground'}`}>
+    <span className={`font-semibold capitalize text-[10px] ${STATUS_COLORS[status] || 'text-muted-foreground'}`}>
       {status}
     </span>
   );
 }
 
-export function ContextPanel({ relationship }: Props) {
+export function ContextPanel({ relationship, onOpenRelationship }: Props) {
+  const navigate = useNavigate();
   const relId = relationship?.id;
 
-  // Fetch recent orders for this relationship
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ['context-orders', relId],
     queryFn: async () => {
@@ -61,7 +64,6 @@ export function ContextPanel({ relationship }: Props) {
     staleTime: 15_000,
   });
 
-  // Fetch agreements for this relationship
   const { data: agreements = [], isLoading: agreementsLoading } = useQuery({
     queryKey: ['context-agreements', relId],
     queryFn: async () => {
@@ -77,7 +79,6 @@ export function ContextPanel({ relationship }: Props) {
     staleTime: 15_000,
   });
 
-  // Fetch settlement periods for this relationship
   const { data: settlements = [], isLoading: settlementsLoading } = useQuery({
     queryKey: ['context-settlements', relId],
     queryFn: async () => {
@@ -103,6 +104,22 @@ export function ContextPanel({ relationship }: Props) {
 
   const isLoading = ordersLoading || agreementsLoading || settlementsLoading;
 
+  const handleOrderClick = (orderId: string) => {
+    navigate(`/orders?deal=${orderId}`);
+  };
+
+  const handleAgreementClick = () => {
+    if (onOpenRelationship && relId) {
+      onOpenRelationship(relId);
+    } else {
+      navigate(`/merchants?rel=${relId}&tab=deals`);
+    }
+  };
+
+  const handleSettlementClick = () => {
+    navigate(`/merchants?rel=${relId}&tab=settlements`);
+  };
+
   return (
     <div className="w-[260px] flex-shrink-0 border-l border-border overflow-y-auto bg-card h-full hidden lg:block">
       <div className="p-3 space-y-3">
@@ -113,10 +130,14 @@ export function ContextPanel({ relationship }: Props) {
             <Empty>No orders yet</Empty>
           ) : (
             orders.map((o: any) => (
-              <div key={o.id} className="rounded border border-border bg-background p-2.5 space-y-1">
+              <button
+                key={o.id}
+                onClick={() => handleOrderClick(o.id)}
+                className="rounded border border-border bg-background p-2.5 space-y-1 w-full text-left hover:border-primary/40 hover:bg-accent/30 transition-colors cursor-pointer group"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-foreground truncate flex-1">{o.title}</span>
-                  <span className="text-[10px] text-muted-foreground ml-1">{o.deal_type}</span>
+                  <span className="text-[11px] font-bold text-foreground truncate flex-1 group-hover:text-primary transition-colors">{o.title}</span>
+                  <ExternalLink size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-1 flex-shrink-0" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-muted-foreground">
@@ -124,7 +145,7 @@ export function ContextPanel({ relationship }: Props) {
                   </span>
                   <StatusBadge status={o.status} />
                 </div>
-              </div>
+              </button>
             ))
           )}
         </Section>
@@ -135,9 +156,13 @@ export function ContextPanel({ relationship }: Props) {
             <Empty>No agreements</Empty>
           ) : (
             agreements.map((a: any) => (
-              <div key={a.id} className="rounded border border-border bg-background p-2.5 space-y-1">
+              <button
+                key={a.id}
+                onClick={handleAgreementClick}
+                className="rounded border border-border bg-background p-2.5 space-y-1 w-full text-left hover:border-primary/40 hover:bg-accent/30 transition-colors cursor-pointer group"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-foreground">
+                  <span className="text-[11px] font-bold text-foreground group-hover:text-primary transition-colors">
                     {a.merchant_ratio}/{a.partner_ratio} split
                   </span>
                   <StatusBadge status={a.status} />
@@ -145,7 +170,7 @@ export function ContextPanel({ relationship }: Props) {
                 <div className="text-[10px] text-muted-foreground capitalize">
                   {a.settlement_cadence} settlement
                 </div>
-              </div>
+              </button>
             ))
           )}
         </Section>
@@ -156,10 +181,14 @@ export function ContextPanel({ relationship }: Props) {
             <Empty>No settlement periods</Empty>
           ) : (
             settlements.map((s: any) => (
-              <div key={s.id} className="rounded border border-border bg-background p-2.5 space-y-1">
+              <button
+                key={s.id}
+                onClick={handleSettlementClick}
+                className="rounded border border-border bg-background p-2.5 space-y-1 w-full text-left hover:border-primary/40 hover:bg-accent/30 transition-colors cursor-pointer group"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-foreground">{s.period_key}</span>
-                  <StatusBadge status={s.status} />
+                  <span className="text-[11px] font-bold text-foreground group-hover:text-primary transition-colors">{s.period_key}</span>
+                  <ExternalLink size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-1 flex-shrink-0" />
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                   <span>Net: {Number(s.net_profit).toLocaleString()}</span>
@@ -167,7 +196,7 @@ export function ContextPanel({ relationship }: Props) {
                     <span className="capitalize text-primary font-semibold">{s.resolution}</span>
                   )}
                 </div>
-              </div>
+              </button>
             ))
           )}
         </Section>
