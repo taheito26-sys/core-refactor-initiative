@@ -43,7 +43,7 @@ export function MessageItem({
   if (vanished) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', position: 'relative', zIndex: 10 }}>
+    <div data-msg-id={message.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', position: 'relative', zIndex: 10 }}>
       <div style={{ 
         width: '90%', maxWidth: 700, display: 'flex', flexDirection: 'column', alignItems: isOwn ? 'flex-end' : 'flex-start',
       }}>

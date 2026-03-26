@@ -6,7 +6,7 @@ interface Props {
   onTyping?: () => void;
   replyTo?: any;
   onCancelReply?: () => void;
-  onOpenApp?: (app: 'calculator' | 'order') => void;
+  onOpenApp?: (app: 'calculator' | 'order_form' | 'balance_checker' | 'schedule_tool') => void;
 }
 
 export function MessageComposer({ onSend, onTyping, replyTo, onCancelReply, onOpenApp }: Props) {
@@ -117,6 +117,7 @@ export function MessageComposer({ onSend, onTyping, replyTo, onCancelReply, onOp
           ) : (
             <textarea
               ref={textareaRef}
+              data-chat-composer="true"
               value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={handleKey}
