@@ -15,6 +15,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
+import { STOCK_CASH_ROUTE } from '@/lib/navigation-routes';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell,
@@ -341,7 +342,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       {/* KPI Cards Row 1 */}
       <div className="kpis">
-        <div className="kpi-card">
+        <div className="kpi-card" role="button" onClick={() => navigate(STOCK_CASH_ROUTE)} style={{ cursor: 'pointer' }}>
           <div className="kpi-head">
             <span className="kpi-badge" style={badgeStyle(dR.net >= 0 ? 'good' : 'bad')}>{rLabel}</span>
           </div>
@@ -384,70 +385,17 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       {/* Cash · Buying Power · Net Position · Stock Cost Est */}
       <div className="kpis" style={{ marginTop: 0 }}>
-        {/* ── Upgraded Cash KPI ── */}
-        {(() => {
-          const cashAccounts = state.cashAccounts || [];
-          const cashLedger = state.cashLedger || [];
-          const hasAccounts = cashAccounts.length > 0;
-          const balances = hasAccounts ? getAllAccountBalances(cashAccounts, cashLedger) : null;
-          const totalCash = hasAccounts ? deriveCashQAR(cashAccounts, cashLedger) : num(state.cashQAR, 0);
-          const inHandQAR = hasAccounts
-            ? cashAccounts.filter(a => a.type === 'hand' && a.status === 'active' && a.currency === 'QAR').reduce((s, a) => s + (balances!.get(a.id) || 0), 0)
-            : totalCash;
-          const bankQAR = hasAccounts
-            ? cashAccounts.filter(a => a.type === 'bank' && a.status === 'active' && a.currency === 'QAR').reduce((s, a) => s + (balances!.get(a.id) || 0), 0)
-            : 0;
-          const activeAccounts = cashAccounts.filter(a => a.status === 'active');
-          const lowBal = hasAccounts ? activeAccounts.filter(a => (balances!.get(a.id) || 0) < 1000 && a.currency === 'QAR') : [];
-          const overdueRecon = hasAccounts ? activeAccounts.filter(a => !a.lastReconciled || Date.now() - a.lastReconciled > 7 * 86400000) : [];
-          const topAccounts = hasAccounts
-            ? [...activeAccounts].filter(a => a.currency === 'QAR').sort((a, b) => (balances!.get(b.id) || 0) - (balances!.get(a.id) || 0)).slice(0, 2)
-            : [];
-
-          return (
-            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/stock?tab=cash') : undefined}>
-              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>
-                  💰 {hasAccounts ? `${activeAccounts.length} ACCOUNTS` : t('cash')}
-                </span>
-                {(lowBal.length > 0 || overdueRecon.length > 0) && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--warn)', background: 'color-mix(in srgb,var(--warn) 12%, transparent)', border: '1px solid color-mix(in srgb,var(--warn) 30%,transparent)', borderRadius: 4, padding: '2px 6px' }}>
-                    ⚠ {lowBal.length + overdueRecon.length} {t('cashAlerts')}
-                  </span>
-                )}
-              </div>
-              <div className="kpi-lbl">{t('cashAvailable')}</div>
-              <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(totalCash)}</div>
-
-              {hasAccounts ? (
-                <div style={{ marginTop: 4 }}>
-                  {/* Hand vs Bank split */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 5 }}>
-                    {inHandQAR > 0 && <span style={{ fontSize: 10, color: 'var(--muted)' }}>✋ {fmtTotal(inHandQAR)}</span>}
-                    {bankQAR > 0 && <span style={{ fontSize: 10, color: 'var(--muted)' }}>🏦 {fmtTotal(bankQAR)}</span>}
-                  </div>
-                  {/* Top accounts */}
-                  {topAccounts.map(a => (
-                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>{a.name}</span>
-                      <span className="mono" style={{ color: 'var(--text)', fontWeight: 600 }}>{fmtTotal(balances!.get(a.id) || 0)}</span>
-                    </div>
-                  ))}
-                  {!isAdminView && (
-                    <div style={{ marginTop: 4 }}>
-                      <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="kpi-sub" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {!isAdminView && <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }} onClick={e => { e.stopPropagation(); setShowCashBox(true); }}>{t('manageCash')}</button>}
-                  <span className="muted" style={{ fontSize: 10 }}>{state.cashOwner ? `${t('owner')}: ${state.cashOwner}` : `${t('owner')}: —`}</span>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        <div className="kpi-card">
+          <div className="kpi-head">
+            <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>{t('cash')}</span>
+          </div>
+          <div className="kpi-lbl">{t('cashAvailable')}</div>
+          <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(num(state.cashQAR, 0))}</div>
+          <div className="kpi-sub" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {!isAdminView && <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }} onClick={(e) => { e.stopPropagation(); navigate(STOCK_CASH_ROUTE); }}>{t('manageCash')}</button>}
+            <span className="muted" style={{ fontSize: 10 }}>{state.cashOwner ? `${t('owner')}: ${state.cashOwner}` : `${t('owner')}: —`}</span>
+          </div>
+        </div>
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>@{t('avPrice')}</span>
