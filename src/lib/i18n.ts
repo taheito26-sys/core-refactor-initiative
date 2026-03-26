@@ -1193,6 +1193,7 @@ const translations = {
   ledgerStockPurchase:   { en: 'Stock Purchase',               ar: 'شراء مخزون' },
   ledgerStockRefund:     { en: 'Stock Refund',                 ar: 'استرداد مخزون' },
   ledgerEditAdjust:      { en: 'Batch Edit Adjust',            ar: 'تعديل دفعة' },
+  ledgerSaleDeposit:     { en: 'Sale Deposit',                 ar: 'إيداع مبيعات' },
   ledgerReconcile:       { en: 'Reconciliation',               ar: 'تسوية حساب' },
 
   // Add / Edit account modal
