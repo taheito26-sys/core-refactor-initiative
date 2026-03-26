@@ -5,7 +5,6 @@ import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInb
 import { useChatAttention } from '@/hooks/useChatAttention';
 import { useChatRealtime } from '@/hooks/useChatRealtime';
 import { useChatStore } from '@/lib/chat-store';
-import { useEffect as useEffectAlias } from 'react';
 
 export default function ChatPage() {
   const { userId, merchantProfile } = useAuth();
