@@ -706,12 +706,13 @@ function ChatLayout() {
     setMobileConversationOpen(true);
   };
 
-  const onNotificationRoute = (notificationId: string) => {
+  const onNotificationRoute = (notificationId: string): { conversationId: string; messageId: string } => {
     const routed = handleNotificationClick(notificationId);
-    if (!routed) return;
+    if (!routed) return { conversationId: '', messageId: '' };
     setMobileConversationOpen(true);
     setHighlightedMessageId(routed.messageId);
     setTimeout(() => setHighlightedMessageId(null), 2000);
+    return routed;
   };
 
   return (
