@@ -5,7 +5,6 @@ import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-
 import { saveTrackerState, loadTrackerStateFromCloud } from './tracker-sync';
 import { getCurrentTrackerState } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
-import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 
 interface UseTrackerOptions {
   lowStockThreshold?: number;
@@ -30,7 +29,6 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const [state, setState] = useState<TrackerState>(initial.state);
   const [derived, setDerived] = useState<DerivedState>(initial.derived);
   const stateRef = useRef(state);
-  const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const applyState = useCallback((next: TrackerState) => {
     // In admin preloaded mode, don't persist
@@ -44,13 +42,6 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     stateRef.current = next;
     setDerived(computeFIFO(next.batches, next.trades));
     saveTrackerState(next);
-    // Debounced sync to dedicated cash tables
-    if (next.cashAccounts?.length || next.cashLedger?.length) {
-      if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
-      cashSaveTimer.current = setTimeout(() => {
-        void saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
-      }, 2500);
-    }
   }, [options.preloadedState]);
 
   // Handle preloaded state (admin view)
@@ -101,17 +92,6 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setDerived(rebuilt.derived);
       // Also update localStorage with merged state
       saveTrackerState(rebuilt.state);
-
-      // Load dedicated cash tables and prefer them over blob data
-      loadCashFromCloud().then(cashData => {
-        if (!cashData) return;
-        if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
-        setState(prev => ({
-          ...prev,
-          cashAccounts: cashData.accounts,
-          cashLedger:   cashData.ledger,
-        }));
-      }).catch(() => {});
     }).catch(() => {
       setCloudLoaded(true);
     });
