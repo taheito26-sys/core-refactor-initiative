@@ -512,11 +512,30 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
     if (isAtBottom && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [activeMessages, isAtBottom]);
 
+  // ── Sync scroll state with ChatContext ─────────────────────────────────────
   const onScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    setIsAtBottom(scrollHeight - scrollTop - clientHeight < 60);
-  }, []);
+    const atBottom = scrollHeight - scrollTop - clientHeight < 60;
+    setIsAtBottom(atBottom);
+    chatCtx?.setIsAtBottom(atBottom);
+  }, [chatCtx]);
+
+  // ── Deep-link: open conversation from notification ─────────────────────────
+  useEffect(() => {
+    if (!chatCtx?.targetConversationId || !relationships.length) return;
+    const target = chatCtx.targetConversationId;
+    // targetConversationId may be a sender name (from notification) — resolve to relationship
+    const rel = relationships.find(r =>
+      r.counterparty_name.toLowerCase() === target.toLowerCase() ||
+      r.counterparty_nickname.toLowerCase() === target.toLowerCase() ||
+      r.id === target
+    );
+    if (rel) {
+      setActiveRelId(rel.id);
+      chatCtx.clearAnchor();
+    }
+  }, [chatCtx?.targetConversationId, relationships, setActiveRelId, chatCtx]);
 
   // ── LS helpers ────────────────────────────────────────────────────────────
   const toggleMute = (relId: string) => { const next = mutedRels.includes(relId) ? mutedRels.filter(x => x !== relId) : [...mutedRels, relId]; setMutedRels(next); lsSet('cmute', next); };
