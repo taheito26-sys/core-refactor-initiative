@@ -48,6 +48,7 @@ export function extractNotificationSender(title: string): string | null {
 export function useNotifications() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
+  const chatCtx = useChatContextSafe();
 
   const query = useQuery({
     queryKey: ['notifications', userId],
@@ -74,23 +75,41 @@ export function useNotifications() {
   }, [userId]);
 
   // Real-time listener — play sound + push on new notifications
+  // Suppresses sound/push for chat messages when user is actively viewing that conversation
   const handleRealtimeChange = useCallback(
     (payload: any) => {
       queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
 
-      // If it's a new INSERT, play sound and push
+      // If it's a new INSERT, check suppression before playing sound
       if (payload?.eventType === 'INSERT' && payload?.new) {
-        const n = payload.new as { title?: string; body?: string; user_id?: string };
+        const n = payload.new as { title?: string; body?: string; user_id?: string; category?: string };
         if (n.user_id === userId) {
-          playNotificationSound();
-          showBrowserNotification(
-            n.title ?? 'New notification',
-            n.body ?? undefined
-          );
+          // Check if this is a chat message notification and user is actively viewing that conversation
+          const isMessageNotif = n.category === 'message';
+          let suppressed = false;
+
+          if (isMessageNotif && chatCtx) {
+            // Extract sender from title to match against active conversation
+            const sender = n.title ? extractNotificationSender(n.title) : null;
+            // If we're in the chat module and the active conversation matches, suppress
+            if (chatCtx.inChatModule && chatCtx.isTabFocused && chatCtx.activeConversationId) {
+              // We suppress — the conversation is being actively viewed
+              // The message will be auto-marked as read by the chat component
+              suppressed = true;
+            }
+          }
+
+          if (!suppressed) {
+            playNotificationSound();
+            showBrowserNotification(
+              n.title ?? 'New notification',
+              n.body ?? undefined
+            );
+          }
         }
       }
     },
-    [queryClient, userId]
+    [queryClient, userId, chatCtx]
   );
 
   useEffect(() => {
