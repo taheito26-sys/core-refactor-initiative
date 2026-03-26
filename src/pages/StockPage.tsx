@@ -79,6 +79,28 @@ export default function StockPage() {
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
   const activeTab = searchParams.get('tab') === 'cash' ? 'cash' : 'stock';
 
+  // ── Cash Management tab ──────────────────────────────────────────
+  const [searchParams] = useSearchParams();
+  const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
+    searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
+  );
+  const [fundingAccountId, setFundingAccountId] = useState<string>('');
+
+  // Derive account balances for funding source selector
+  const cashAccounts = state.cashAccounts || [];
+  const cashLedger = state.cashLedger || [];
+  const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);
+  const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
+
+  // Auto-select first account if none selected and accounts exist
+  useEffect(() => {
+    if (!fundingAccountId && activeAccounts.length > 0) {
+      // Prefer the account with highest balance
+      const best = [...activeAccounts].sort((a, b) => (accountBalances.get(b.id) || 0) - (accountBalances.get(a.id) || 0));
+      setFundingAccountId(best[0]?.id || '');
+    }
+  }, [activeAccounts, fundingAccountId, accountBalances]);
+
   useEffect(() => {
     const next: TrackerState = {
       ...state,
