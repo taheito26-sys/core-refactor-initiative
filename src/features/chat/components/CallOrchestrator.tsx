@@ -1,7 +1,7 @@
 import { Phone, PhoneOff, Video, Mic, MicOff, X } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useAuth } from '@/features/auth/auth-context';
-import { MOCK_OS_USER } from '@/lib/os-store';
+
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
@@ -11,7 +11,7 @@ interface Props {
 
 export function CallOrchestrator({ roomId }: Props) {
   const { userId: authUserId } = useAuth();
-  const userId = authUserId || MOCK_OS_USER.id;
+  const userId = authUserId || '';
   const { callState, isIncoming, callerId, remoteStream, localStream, acceptCall, endCall } = useWebRTC({ roomId, userId });
   const [isMuted, setIsMuted] = useState(false);
 

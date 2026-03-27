@@ -14,7 +14,7 @@ import { CallOrchestrator } from '@/features/chat/components/CallOrchestrator';
 import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
 import { Shield, BarChart3, Cloud } from 'lucide-react';
 
-import { MOCK_OS_USER } from '@/lib/os-store';
+
 import { SecureTradePanel } from '@/features/chat/components/SecureTradePanel';
 import { TradingActionBar } from '@/features/chat/components/TradingActionBar';
 import { randomUUID } from '@/features/chat/utils/uuid';
@@ -22,7 +22,7 @@ import { randomUUID } from '@/features/chat/utils/uuid';
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
   const { userId: authUserId, merchantProfile } = useAuth();
-  const userId = merchantProfile?.merchant_id || authUserId || MOCK_OS_USER.id;
+  const userId = merchantProfile?.merchant_id || authUserId || '';
   const roomsQuery = useRooms();
   const rooms = roomsQuery.data ?? [];
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
