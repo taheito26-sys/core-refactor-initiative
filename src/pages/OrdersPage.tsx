@@ -73,6 +73,7 @@ export default function OrdersPage() {
   const [saleMessage, setSaleMessage] = useState('');
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
+  const [cashDepositAccountId, setCashDepositAccountId] = useState('');
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -430,6 +431,27 @@ export default function OrdersPage() {
       ? revenue
       : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
     if (depositAmt <= 0) return nextState;
+
+    // If user selected a specific cash account, create a ledger entry
+    const targetAccountId = cashDepositAccountId || (nextState.cashAccounts?.find(a => a.status === 'active')?.id ?? '');
+    if (targetAccountId && nextState.cashAccounts?.length) {
+      const ledgerEntry: import('@/lib/tracker-helpers').CashLedgerEntry = {
+        id: uid(),
+        ts: Date.now(),
+        type: 'sale_deposit' as any,
+        accountId: targetAccountId,
+        direction: 'in',
+        amount: depositAmt,
+        currency: 'QAR',
+        note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      };
+      return {
+        ...nextState,
+        cashLedger: [...(nextState.cashLedger || []), ledgerEntry],
+      };
+    }
+
+    // Fallback: legacy cashQAR
     const currentCash = nextState.cashQAR || 0;
     const newCash = currentCash + depositAmt;
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
@@ -788,6 +810,7 @@ export default function OrdersPage() {
     setAllocations([]);
     setCashDepositMode('none');
     setCashDepositAmount('');
+    setCashDepositAccountId('');
   };
 
   const exportCsv = () => {
