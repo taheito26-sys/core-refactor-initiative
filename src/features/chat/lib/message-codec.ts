@@ -83,12 +83,12 @@ export function parseMsg(raw: string): ParsedMessage {
   // Voice
   if (text.startsWith('||VOICE||')) {
     const end = text.indexOf('||/VOICE||');
-    if (end !== -1) {
-      const meta = text.slice(9, end).split(SEP);
-      voiceDuration = Number(meta[0]) || 0;
-      voiceBase64 = meta[1] || '';
-      text = ''; isVoice = true;
-    }
+    const payload = end !== -1 ? text.slice(9, end) : text.slice(9);
+    const meta = payload.split(SEP);
+    voiceDuration = Number(meta[0]) || 0;
+    voiceBase64 = meta.slice(1).join(SEP) || '';
+    text = '';
+    isVoice = true;
   }
   // Reply
   else if (text.startsWith('||REPLY||')) {
@@ -111,19 +111,17 @@ export function parseMsg(raw: string): ParsedMessage {
   // Poll
   else if (text.startsWith('||POLL||')) {
     const end = text.indexOf('||/POLL||');
-    if (end !== -1) {
-      const meta = text.slice(8, end).split(SEP);
-      pollQuestion = meta[0]; pollOptions = meta[1]?.split(';;') || [];
-      text = ''; isPoll = true;
-    }
+    const payload = end !== -1 ? text.slice(8, end) : text.slice(8);
+    const meta = payload.split(SEP);
+    pollQuestion = meta[0]; pollOptions = meta[1]?.split(';;') || [];
+    text = ''; isPoll = true;
   }
   // Scheduled
   else if (text.startsWith('||SCHED||')) {
     const end = text.indexOf('||/SCHED||');
-    if (end !== -1) {
-      const meta = text.slice(9, end).split(SEP);
-      schedAt = meta[0]; text = meta[1] || ''; isScheduled = true;
-    }
+    const payload = end !== -1 ? text.slice(9, end) : text.slice(9);
+    const meta = payload.split(SEP);
+    schedAt = meta[0]; text = meta[1] || ''; isScheduled = true;
   }
   // System event (generic: ||SYS_ORDER||...||/SYS_ORDER||)
   else if (text.startsWith('||SYS_')) {
