@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 import type { ChatRoom } from '@/features/chat/lib/types';
-import { 
-  Search,
-  SlidersHorizontal
-} from 'lucide-react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 
 interface Props {
   rooms?: ChatRoom[];
@@ -11,9 +8,10 @@ interface Props {
   activeRoomId?: string | null;
   onSelectRoom?: (roomId: string) => void;
   currentUserId: string;
+  isMobile?: boolean;
 }
 
-export function ConversationSidebar({ rooms, conversations, activeRoomId, onSelectRoom }: Props) {
+export function ConversationSidebar({ rooms, conversations, activeRoomId, onSelectRoom, isMobile }: Props) {
   const normalizedRooms = useMemo(() => {
     if (rooms && rooms.length) return rooms;
     return (conversations ?? []).map((c) => ({
@@ -30,27 +28,27 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
   }, [rooms, conversations]);
 
   return (
-    <aside className="w-[200px] bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0">
+    <aside className={`${isMobile ? 'w-full' : 'w-[200px]'} bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0`}>
       <div className="p-4 pb-2 shrink-0">
         <h2 className="text-base font-black text-foreground tracking-tighter mb-3 flex items-center justify-between">
           Inbox
           <SlidersHorizontal size={14} className="text-muted-foreground/50 cursor-pointer hover:text-primary transition-colors" />
         </h2>
         <div className="relative mb-3">
-           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
-           <input 
-             type="text" 
-             placeholder="Search..." 
-             className="w-full bg-muted border border-transparent rounded-lg py-2 pl-9 pr-2 text-[10px] font-medium text-foreground placeholder:text-muted-foreground outline-none focus:bg-background focus:border-primary/20 transition-all shadow-inner"
-           />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full bg-muted border border-transparent rounded-lg py-2 pl-9 pr-2 text-[10px] font-medium text-foreground placeholder:text-muted-foreground outline-none focus:bg-background focus:border-primary/20 transition-all shadow-inner"
+          />
         </div>
-        
+
         <div className="flex gap-3 px-1 border-b border-border pb-1">
-           <button className="relative text-[9px] font-black text-foreground uppercase tracking-widest pb-1.5 group">
-             All
-             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-           </button>
-           <button className="text-[9px] font-black text-muted-foreground uppercase tracking-widest pb-1.5 hover:text-foreground transition-colors">VIP</button>
+          <button className="relative text-[9px] font-black text-foreground uppercase tracking-widest pb-1.5 group">
+            All
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+          </button>
+          <button className="text-[9px] font-black text-muted-foreground uppercase tracking-widest pb-1.5 hover:text-foreground transition-colors">VIP</button>
         </div>
       </div>
 
@@ -83,11 +81,11 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
                     <span className={`text-[11px] font-black tracking-tight truncate ${isActive ? 'text-foreground' : 'text-foreground/70'}`}>{room.title}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                     <span className="text-[7.5px] text-muted-foreground font-bold uppercase tracking-widest truncate">{room.type === 'deal' ? 'SECURE Trade' : 'M-ID 2947'}</span>
+                    <span className="text-[7.5px] text-muted-foreground font-bold uppercase tracking-widest truncate">{room.type === 'deal' ? 'SECURE Trade' : 'M-ID 2947'}</span>
                   </div>
                 </div>
               </div>
-              
+
               <p className={`text-[10px] line-clamp-1 text-left leading-tight ${isActive ? 'text-foreground/70' : 'text-muted-foreground'}`}>
                 {room.last_message_body || 'Initiating trade...'}
               </p>
