@@ -2361,7 +2361,7 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)} QAR)` : t('customAmount')}
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)})` : t('customAmount')}
                         </button>
                       ))}
                     </div>
@@ -2412,7 +2412,7 @@ export default function OrdersPage() {
                                 }}
                               >
                                 <span>{typeIcon} {acc.name}</span>
-                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)} {acc.currency}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)}</span>
                               </button>
                             );
                           })}
@@ -2428,7 +2428,7 @@ export default function OrdersPage() {
                               .filter(e => e.accountId === selectedAcc.id)
                               .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
                             const deposit = parseFloat(cashDepositAmount) || 0;
-                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)} ${selectedAcc.currency}`;
+                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)}`;
                           }
                           return `${t('cashBalanceLbl')}: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
                         })()}
