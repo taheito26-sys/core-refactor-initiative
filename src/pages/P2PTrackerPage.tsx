@@ -256,7 +256,8 @@ export default function P2PTrackerPage() {
       .select('data, fetched_at')
       .eq('market', market)
       .gte('fetched_at', cutoff)
-      .order('fetched_at', { ascending: true });
+      .order('fetched_at', { ascending: true })
+      .limit(5000);
 
     setHistory((histRows || []).map((row: any) => {
       const normalized = toSnapshot(row.data, row.fetched_at);
