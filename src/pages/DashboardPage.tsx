@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -10,7 +10,11 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/features/auth/auth-context';
+import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
+import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell,
@@ -38,6 +42,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const d1 = kpiFor(state, derived, 'today');
   const d7 = kpiFor(state, derived, '7d');
+  const d30 = kpiFor(state, derived, '30d');
   const dR = kpiFor(state, derived, settings.range);
   const stk = totalStock(derived);
   const stCost = stockCostQAR(derived);
@@ -82,7 +87,133 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const [showCashBox, setShowCashBox] = useState(false);
   const [expandedNewKpi, setExpandedNewKpi] = useState<string | null>(null);
+  const [roiPeriod, setRoiPeriod] = useState<'7d' | '30d'>('7d');
+  const { user, merchantProfile } = useAuth();
+  const userId = adminUserId || user?.id;
+  const workspaceMerchantId = adminMerchantId || merchantProfile?.merchant_id;
 
+  // Merchant deals KPIs
+  interface DealDetail {
+    id: string;
+    title: string;
+    merchantName: string;
+    net: number;
+    myShare: number;
+    partnerShare: number;
+    vol: number;
+    status: string;
+    direction: 'outgoing' | 'incoming';
+    dealType: string;
+  }
+
+  const { data: merchantDealKpis } = useQuery({
+    queryKey: ['dashboard-merchant-deals', userId, workspaceMerchantId],
+    staleTime: 15_000,       // re-fetch after 15 s so edits in Orders page show quickly
+    refetchInterval: 30_000, // poll every 30 s in background
+    queryFn: async () => {
+      if (!userId || !workspaceMerchantId) return null;
+      const relsScopedRes = await supabase
+        .from('merchant_relationships')
+        .select('id, merchant_a_id, merchant_b_id')
+        .eq('status', 'active')
+        .or(`merchant_a_id.eq.${workspaceMerchantId},merchant_b_id.eq.${workspaceMerchantId}`);
+      if (relsScopedRes.error) throw relsScopedRes.error;
+      const relIds = (relsScopedRes.data || []).map(r => r.id);
+      const { data: deals } = relIds.length > 0
+        ? await supabase
+            .from('merchant_deals')
+            .select('id, amount, status, created_by, notes, deal_type, relationship_id, title')
+            .in('relationship_id', relIds)
+            .order('created_at', { ascending: false })
+        : { data: [] as any[] };
+      if (!deals || deals.length === 0) return null;
+
+      const activeDeals = deals.filter(d => d.status !== 'cancelled' && d.status !== 'voided');
+      // Fetch merchant profiles for names
+      const dealRelIds = [...new Set(activeDeals.map(d => d.relationship_id))];
+      const { data: rels } = dealRelIds.length > 0
+        ? await supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id').in('id', dealRelIds)
+        : { data: [] as any[] };
+
+      const allMerchantIds = new Set<string>();
+      for (const r of (rels || [])) { allMerchantIds.add(r.merchant_a_id); allMerchantIds.add(r.merchant_b_id); }
+
+      const { data: profiles } = allMerchantIds.size > 0
+        ? await supabase.from('merchant_profiles').select('merchant_id, display_name, user_id').in('merchant_id', [...allMerchantIds])
+        : { data: [] as any[] };
+
+      const profileMap = new Map<string, { name: string; userId: string }>();
+      for (const p of (profiles || [])) profileMap.set(p.merchant_id, { name: p.display_name, userId: p.user_id });
+
+      const relMap = new Map<string, { merchant_a_id: string; merchant_b_id: string }>();
+      for (const r of (rels || [])) relMap.set(r.id, r);
+
+      let outCount = 0, outVol = 0, outNet = 0;
+      let inCount = 0, inVol = 0, inNet = 0;
+      let pendingCount = 0, approvedCount = 0;
+      let totalMyShare = 0, totalPartnerShare = 0;
+      const dealDetails: DealDetail[] = [];
+
+      for (const d of activeDeals) {
+        const direction = d.created_by === userId ? 'outgoing' as const : 'incoming' as const;
+        const row = buildDealRowModel({
+          deal: d,
+          perspective: direction,
+          locale: t.isRTL ? 'ar' : 'en',
+        });
+        const vol = row.volume;
+        const dealNet = row.fullNet ?? 0;
+        const myShare = direction === 'outgoing' ? (row.creatorNet ?? 0) : (row.partnerNet ?? 0);
+        const partnerShare = direction === 'outgoing' ? (row.partnerNet ?? 0) : (row.creatorNet ?? 0);
+
+        if (d.status === 'pending') pendingCount++;
+        if (d.status === 'approved') approvedCount++;
+
+        const rel = relMap.get(d.relationship_id);
+        let merchantName = 'Unknown';
+        if (rel) {
+          const myProfile = [...profileMap.values()].find(p => p.userId === userId);
+          const myMerchantId = myProfile ? [...profileMap.entries()].find(([, v]) => v.userId === userId)?.[0] : null;
+          const counterId = myMerchantId === rel.merchant_a_id ? rel.merchant_b_id : rel.merchant_a_id;
+          merchantName = profileMap.get(counterId)?.name || 'Unknown';
+        }
+
+        if (direction === 'outgoing') {
+          outCount++; outVol += vol; outNet += dealNet;
+        } else {
+          inCount++; inVol += vol; inNet += dealNet;
+        }
+
+        totalMyShare += myShare;
+        totalPartnerShare += partnerShare;
+
+        dealDetails.push({
+          id: d.id,
+          title: d.title,
+          merchantName,
+          net: Math.round(dealNet * 100) / 100,
+          myShare: Math.round(myShare * 100) / 100,
+          partnerShare: Math.round(partnerShare * 100) / 100,
+          vol: Math.round(vol * 100) / 100,
+          status: d.status,
+          direction,
+          dealType: d.deal_type,
+        });
+      }
+
+      return {
+        totalDeals: activeDeals.length,
+        outCount, outVol, outNet,
+        inCount, inVol, inNet,
+        pendingCount, approvedCount,
+        totalVol: outVol + inVol,
+        totalNet: outNet + inNet,
+        totalMyShare, totalPartnerShare,
+        dealDetails,
+      };
+    },
+    enabled: !!userId && !!workspaceMerchantId,
+  });
 
   const handleCashSave = useCallback((newCash: number, owner: string, history?: import('@/lib/tracker-helpers').CashTransaction[]) => {
     applyState({ ...state, cashQAR: newCash, cashOwner: owner, cashHistory: history ?? state.cashHistory ?? [] });
@@ -342,11 +473,12 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         </div>
       </div>
 
-      {/* New KPIs: Daily ROI · Avg Cycle Time · Trade Velocity */}
+      {/* New KPIs: ROI · Cycle Time · Velocity · Outgoing Net · Incoming Net */}
       <div className="kpis" style={{ marginTop: 0 }}>
-        {/* Daily ROI */}
+        {/* Daily ROI (7D / 30D toggle) */}
         {(() => {
-          const dailyRoi = stCost > 0 ? (d1.net / stCost) * 100 : 0;
+          const roiData = roiPeriod === '7d' ? d7 : d30;
+          const roiVal = stCost > 0 ? (roiData.net / stCost) * 100 : 0;
           const isExpanded = expandedNewKpi === 'roi';
           return (
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'roi')}>
@@ -355,20 +487,41 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                   💹 NEW
                 </span>
               </div>
-              <div className="kpi-lbl">DAILY ROI</div>
-              <div className={`kpi-val ${dailyRoi >= 0 ? 'good' : 'bad'}`}>{fmtPrice(dailyRoi)}%</div>
+              <div className="kpi-lbl">ROI</div>
+              <div className={`kpi-val ${roiVal >= 0 ? 'good' : 'bad'}`}>{fmtPrice(roiVal)}%</div>
               <div className="kpi-sub">{t('netProfitLabel')} ÷ total invested</div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>{t('oneDay')}</span>
+              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span
+                  className="kpi-badge"
+                  style={{
+                    fontSize: 9, padding: '1px 6px', cursor: 'pointer',
+                    color: roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)',
+                    borderColor: `color-mix(in srgb,${roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)'} 30%,transparent)`,
+                    background: `color-mix(in srgb,${roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)'} 10%,transparent)`,
+                    fontWeight: roiPeriod === '7d' ? 700 : 400,
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setRoiPeriod('7d'); }}
+                >7D</span>
+                <span
+                  className="kpi-badge"
+                  style={{
+                    fontSize: 9, padding: '1px 6px', cursor: 'pointer',
+                    color: roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)',
+                    borderColor: `color-mix(in srgb,${roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)'} 30%,transparent)`,
+                    background: `color-mix(in srgb,${roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)'} 10%,transparent)`,
+                    fontWeight: roiPeriod === '30d' ? 700 : 400,
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setRoiPeriod('30d'); }}
+                >30D</span>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Orders</span>
                 <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? 'collapse' : 'tap to expand'}</span>
               </div>
               {isExpanded && (
                 <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
-                  <p>Return on invested capital for today — normalizes profit vs full book.</p>
+                  <p>Return on invested capital for {roiPeriod === '7d' ? '7 days' : '30 days'} — normalizes profit vs full book.</p>
                   <p style={{ marginTop: 4 }}><strong style={{ color: 'var(--warn)' }}>Why:</strong> Raw QAR profit is misleading without context of how much capital is deployed.</p>
                   <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--panel2)', fontFamily: 'monospace', fontSize: 10, color: 'var(--good)' }}>
-                    = today.netQAR ÷ stockCostQAR × 100
+                    = {roiPeriod}.netQAR ÷ stockCostQAR × 100
                   </div>
                 </div>
               )}
@@ -438,6 +591,38 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             </div>
           );
         })()}
+
+        {/* Outgoing Deals Net Profit */}
+        {merchantDealKpis && (
+          <div className="kpi-card">
+            <div className="kpi-head">
+              <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>
+                📤 {merchantDealKpis.outCount} deals
+              </span>
+            </div>
+            <div className="kpi-lbl">Outgoing Net</div>
+            <div className={`kpi-val ${merchantDealKpis.outNet >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.outNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outNet)}
+            </div>
+            <div className="kpi-sub">My cut: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing').reduce((s, d) => s + d.myShare, 0))}</div>
+          </div>
+        )}
+
+        {/* Incoming Deals Net Profit */}
+        {merchantDealKpis && (
+          <div className="kpi-card">
+            <div className="kpi-head">
+              <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
+                📥 {merchantDealKpis.inCount} deals
+              </span>
+            </div>
+            <div className="kpi-lbl">Incoming Net</div>
+            <div className={`kpi-val ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
+            </div>
+            <div className="kpi-sub">My cut: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}</div>
+          </div>
+        )}
       </div>
 
       {/* Bottom panels */}
