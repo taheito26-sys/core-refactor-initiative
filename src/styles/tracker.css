@@ -455,12 +455,35 @@
   }
 }
 
+/* ── Orders Tab Bar ── */
+.orders-tab-bar {
+  display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 2px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.orders-tab-bar::-webkit-scrollbar { display: none; }
+.orders-tab-btn {
+  padding: 9px 18px; font-size: 11px; font-weight: 500;
+  color: var(--muted); border: none; border-bottom: 2px solid transparent;
+  background: transparent; cursor: pointer; transition: all 0.15s;
+  letter-spacing: .2px; white-space: nowrap; flex-shrink: 0;
+}
+.orders-tab-btn.active { font-weight: 700; color: var(--brand); border-bottom-color: var(--brand); }
+
+/* ── Orders two-col: on mobile, reverse so form appears first ── */
+@media (max-width: 768px) {
+  .tracker-root .orders-two-col {
+    display: flex; flex-direction: column-reverse; gap: 10px;
+  }
+  .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
+}
+
 /* ── Extra small screens (≤ 400px) ── */
 @media (max-width: 400px) {
   .tracker-root thead th { padding: 4px 3px; font-size: 7px; }
   .tracker-root tbody td { padding: 4px 3px; font-size: 9px; max-width: 70px; }
   .tracker-root .kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
   .tracker-root .formPanel .inner { padding: 4px; }
+  .orders-tab-btn { padding: 7px 10px; font-size: 9px; }
 }
 
 /* ══════════════════════════════════════════════════════════════
