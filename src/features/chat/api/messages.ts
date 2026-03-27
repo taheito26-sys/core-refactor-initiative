@@ -41,7 +41,10 @@ export async function sendMessage(input: {
       _expires_at: input.expiresAt ?? null
     });
     if (error) throw error;
-    if (data) (data as any).body = (data as any).content;
+    if (data) {
+      (data as any).body = (data as any).content;
+      (data as any).sender_id = (data as any).sender_merchant_id;
+    }
     return ok(data ?? null);
   } catch (error) {
     return fail(null, error);
