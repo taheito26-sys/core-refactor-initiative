@@ -1431,7 +1431,7 @@ export default function OrdersPage() {
                     <thead>
                       <tr>
                         {/* Identical header columns as Outgoing tab */}
-                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th className="hide-mobile">{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1542,7 +1542,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th className="hide-mobile">{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
