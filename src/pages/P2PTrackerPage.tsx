@@ -579,9 +579,18 @@ export default function P2PTrackerPage() {
             <div className="kpi-card">
               <div className="kpi-lbl">{t('p2pProfitIfSoldNow')}</div>
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {profitIfSold.currency}
+                {profitIfSold.profit >= 0 ? '+' : ''}${fmtTotal(profitIfSold.profit)}
               </div>
               <div className="kpi-sub">{fmtPrice(profitIfSold.stock)} USDT · {t('p2pCostBasis')}</div>
+            </div>
+          )}
+          {roundTripSim && (
+            <div className="kpi-card">
+              <div className="kpi-lbl">Round-Trip Spread</div>
+              <div className="kpi-val" style={{ color: roundTripSim.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)}
+              </div>
+              <div className="kpi-sub">{fmtPrice(roundTripSim.pct)}% · sim</div>
             </div>
           )}
         </div>
