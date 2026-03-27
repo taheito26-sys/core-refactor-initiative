@@ -11,7 +11,8 @@ import {
   LayoutGrid,
   StopCircle,
   X,
-  CheckSquare
+  CheckSquare,
+  MapPin
 } from 'lucide-react';
 import { encodeVoice, encodePoll, encodeScheduled } from '../lib/message-codec';
 
@@ -38,6 +39,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
   const [scheduleTime, setScheduleTime] = useState('');
   const [isOneTime, setIsOneTime] = useState(false);
   const [has24hTimer, setHas24hTimer] = useState(false);
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingTimeRef = useRef(0);
@@ -104,6 +106,25 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
   };
 
   const fmtRecTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+
+  const shareCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation || sending || isRecording) return;
+    setIsSharingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const mapUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
+        onSend({ content: `📍 Shared location
+${mapUrl}`, type: 'location' });
+        setIsSharingLocation(false);
+      },
+      () => {
+        setIsSharingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [onSend, sending, isRecording]);
 
   return (
     <div className={cn("bg-background space-y-2 border-t border-border", compact ? "p-2" : "p-3")}>
@@ -198,6 +219,17 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
         </div>
 
         <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
+          {!compact && (
+            <button
+              type="button"
+              onClick={shareCurrentLocation}
+              disabled={isSharingLocation}
+              className="p-2 text-muted-foreground hover:text-primary transition-all disabled:opacity-50"
+              title="Share current location"
+            >
+              <MapPin size={18} />
+            </button>
+          )}
           {!compact && (
             <button
               type="button"
