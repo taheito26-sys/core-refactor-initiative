@@ -292,20 +292,66 @@ export interface DerivedState {
 
 // ── FIFO computation ──
 
+/** Returns true if a trade should be excluded from FIFO stock consumption */
+function isTradeInactive(t: Trade): boolean {
+  if (t.voided) return true;
+  const status = t.approvalStatus;
+  if (status === 'cancelled' || status === 'rejected') return true;
+  return false;
+}
+
+/**
+ * Select eligible batches for a trade using merchant-aware FIFO.
+ * If the trade is linked to a merchant (via linkedMerchantId or linkedRelId),
+ * prefer batches whose source matches the merchant/supplier name.
+ * Fall back to all remaining batches if merchant pool is exhausted.
+ */
+function selectEligibleBatches(
+  trade: Trade,
+  sortedBatches: Batch[],
+  remaining: Map<string, number>,
+): Batch[] {
+  // If the trade is merchant-linked, try to identify supplier-specific batches
+  const merchantId = trade.linkedMerchantId;
+  if (merchantId) {
+    const merchantBatches = sortedBatches.filter(b => {
+      const rem = remaining.get(b.id) || 0;
+      if (rem <= 0) return false;
+      // Match by source containing the merchant ID (case-insensitive)
+      const src = (b.source || '').toLowerCase();
+      return src.includes(merchantId.toLowerCase());
+    });
+    if (merchantBatches.length > 0) {
+      // Merchant pool first, then remaining global pool as fallback
+      const globalFallback = sortedBatches.filter(b => {
+        const rem = remaining.get(b.id) || 0;
+        return rem > 0 && !merchantBatches.includes(b);
+      });
+      return [...merchantBatches, ...globalFallback];
+    }
+  }
+  // Default: global FIFO order
+  return sortedBatches;
+}
+
 export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
   const sortedBatches = [...batches].sort((a, b) => a.ts - b.ts);
   const remaining = new Map<string, number>();
   for (const b of sortedBatches) remaining.set(b.id, b.initialUSDT);
 
   const tradeCalc = new Map<string, TradeCalcResult>();
-  const sortedTrades = [...trades].filter(t => !t.voided && t.usesStock).sort((a, b) => a.ts - b.ts);
+  // Filter out inactive trades (voided, cancelled, rejected) from stock consumption
+  const sortedTrades = [...trades].filter(t => !isTradeInactive(t) && t.usesStock).sort((a, b) => a.ts - b.ts);
 
   for (const t of sortedTrades) {
     let qtyLeft = t.amountUSDT;
     const slices: { batchId: string; qty: number; cost: number }[] = [];
     let totalCost = 0;
 
-    for (const b of sortedBatches) {
+    // Use merchant-aware batch selection
+    const eligibleBatches = selectEligibleBatches(t, sortedBatches, remaining);
+
+    for (const b of eligibleBatches) {
       if (qtyLeft <= 0) break;
       const rem = remaining.get(b.id) || 0;
       if (rem <= 0) continue;
@@ -332,7 +378,8 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
   }
 
   // Non-stock trades (manual mode) — use manualBuyPrice for cost
-  for (const t of trades.filter(t => !t.voided && !t.usesStock)) {
+  // Also exclude inactive trades here
+  for (const t of trades.filter(t => !isTradeInactive(t) && !t.usesStock)) {
     const rev = t.amountUSDT * t.sellPriceQAR;
     const cost = t.manualBuyPrice ? t.amountUSDT * t.manualBuyPrice : 0;
     const netQAR = rev - cost - t.feeQAR;
