@@ -42,6 +42,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const d1 = kpiFor(state, derived, 'today');
   const d7 = kpiFor(state, derived, '7d');
+  const d30 = kpiFor(state, derived, '30d');
   const dR = kpiFor(state, derived, settings.range);
   const stk = totalStock(derived);
   const stCost = stockCostQAR(derived);
@@ -67,7 +68,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
   const [showCashBox, setShowCashBox] = useState(false);
-  const [showDealsDrilldown, setShowDealsDrilldown] = useState(false);
+  const [expandedNewKpi, setExpandedNewKpi] = useState<string | null>(null);
+  const [roiPeriod, setRoiPeriod] = useState<'7d' | '30d'>('7d');
   const { user, merchantProfile } = useAuth();
   const userId = adminUserId || user?.id;
   const workspaceMerchantId = adminMerchantId || merchantProfile?.merchant_id;
