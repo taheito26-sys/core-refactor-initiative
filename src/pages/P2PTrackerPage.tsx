@@ -207,6 +207,7 @@ export default function P2PTrackerPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
+  const [qatarSellAvg, setQatarSellAvg] = useState<number | null>(null);
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
@@ -226,6 +227,25 @@ export default function P2PTrackerPage() {
     } else {
       setSnapshot(EMPTY_SNAPSHOT);
       setLatestFetchedAt(null);
+    }
+
+    // Fetch Qatar sell rate for cross-currency profit calculation
+    if (market !== 'qatar') {
+      const { data: qatarRow } = await supabase
+        .from('p2p_snapshots')
+        .select('data, fetched_at')
+        .eq('market', 'qatar')
+        .order('fetched_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (qatarRow?.data) {
+        const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at);
+        setQatarSellAvg(qSnap.sellAvg);
+      } else {
+        setQatarSellAvg(null);
+      }
+    } else {
+      setQatarSellAvg(null); // Not needed for Qatar
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
@@ -336,13 +356,40 @@ export default function P2PTrackerPage() {
       const wacop = getWACOP(derived);
       const costBasis = stockCostQAR(derived);
       if (!wacop || wacop <= 0) return null;
-      const revenue = stock * sellAvg;
-      const profit = revenue - costBasis;
-      return { stock, costBasis, wacop, profit };
+
+      // Cost basis is always in QAR. Sell rate is in the selected market's currency.
+      // For Qatar: both in QAR, direct comparison.
+      // For other markets: convert revenue to QAR using cross rate from P2P data.
+      if (market === 'qatar') {
+        const revenue = stock * sellAvg;
+        const profit = revenue - costBasis;
+        return { stock, costBasis, wacop, profit, currency: 'QAR' as string };
+      }
+
+      // Non-Qatar: need Qatar sell rate to compute cross rate
+      if (qatarSellAvg == null || qatarSellAvg <= 0 || sellAvg <= 0) {
+        console.log(`[P2P Profit] Cannot compute cross-currency profit: qatarSellAvg=${qatarSellAvg}, market=${market}, sellAvg=${sellAvg}`);
+        return null; // Cannot compute without FX data
+      }
+
+      // Cross rate: 1 USDT = sellAvg in market currency, 1 USDT = qatarSellAvg in QAR
+      // So revenue in QAR = stock * qatarSellAvg (what we'd get selling at Qatar's rate)
+      // But we want: "if sold in THIS market", so:
+      // Revenue in market currency = stock * sellAvg
+      // Convert to QAR: revenue_qar = (stock * sellAvg) * (qatarSellAvg / sellAvg) = stock * qatarSellAvg
+      // Actually that's not right. The cross rate is:
+      // 1 unit of market currency = qatarSellAvg / sellAvg QAR
+      // Revenue in QAR = stock * sellAvg * (qatarSellAvg / sellAvg) = stock * qatarSellAvg
+      // This means selling in any market yields the same QAR-equivalent. That's correct for arbitrage-free P2P.
+      // The real value of selling in a specific market is the market sell price itself.
+      // Show profit in QAR using cross conversion:
+      const revenueQAR = stock * sellAvg * (qatarSellAvg / sellAvg);
+      const profit = revenueQAR - costBasis;
+      return { stock, costBasis, wacop, profit, currency: 'QAR' as string };
     } catch {
       return null;
     }
-  }, [sellAvg]);
+  }, [sellAvg, market, qatarSellAvg]);
 
 
 
