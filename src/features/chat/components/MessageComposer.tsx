@@ -50,7 +50,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
     let expiresAt: string | null = null;
     if (isOneTime) {
       const d = new Date();
-      d.setHours(d.getHours() + 1); // 1h for one-time
+      d.setHours(d.getHours() + 1);
       expiresAt = d.toISOString();
     } else if (has24hTimer) {
       const d = new Date();
@@ -105,13 +105,13 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
   const fmtRecTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className="p-3 bg-white space-y-2 border-t border-slate-100">
+    <div className="p-3 bg-background space-y-2 border-t border-border">
       {/* Poll creator */}
       {showPoll && (
-        <div className="px-4 py-3 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-2 mb-2">
+        <div className="px-4 py-3 border border-border rounded-2xl bg-muted/50 space-y-2 mb-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">📊 Create Poll</span>
-            <button onClick={() => setShowPoll(false)} className="text-slate-400 hover:text-slate-900 bg-transparent border-none cursor-pointer p-0.5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">📊 Create Poll</span>
+            <button onClick={() => setShowPoll(false)} className="text-muted-foreground hover:text-foreground bg-transparent border-none cursor-pointer p-0.5">
               <X size={14} />
             </button>
           </div>
@@ -119,7 +119,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
             value={pollQuestion}
             onChange={(e) => setPollQuestion(e.target.value)}
             placeholder="Question..."
-            className="w-full bg-white border border-slate-100 rounded-xl text-[12px] px-3 py-2 text-slate-900 outline-none focus:border-violet-200"
+            className="w-full bg-background border border-border rounded-xl text-[12px] px-3 py-2 text-foreground outline-none focus:border-primary/40"
           />
           {pollOpts.map((opt, i) => (
             <div key={i} className="flex gap-2">
@@ -127,7 +127,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
                 value={opt}
                 onChange={(e) => { const n = [...pollOpts]; n[i] = e.target.value; setPollOpts(n); }}
                 placeholder={`Option ${i + 1}`}
-                className="flex-1 bg-white border border-slate-100 rounded-xl text-[12px] px-3 py-2 text-slate-900 outline-none focus:border-violet-200"
+                className="flex-1 bg-background border border-border rounded-xl text-[12px] px-3 py-2 text-foreground outline-none focus:border-primary/40"
               />
             </div>
           ))}
@@ -138,7 +138,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
               onSend({ content: encodePoll(pollQuestion.trim(), filteredOpts), type: 'poll' });
               setShowPoll(false);
             }} 
-            className="w-full bg-violet-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl py-2.5 border-none cursor-pointer hover:bg-violet-700 transition-all font-bold"
+            className="w-full bg-primary text-primary-foreground text-[11px] font-black uppercase tracking-[0.2em] rounded-xl py-2.5 border-none cursor-pointer hover:bg-primary/90 transition-all font-bold"
           >
             Send Poll
           </button>
@@ -152,7 +152,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
             onClick={isRecording ? stopRecording : startRecording}
             className={cn(
               "p-2 rounded-lg transition-all",
-              isRecording ? "text-rose-600 bg-rose-50 animate-pulse" : "text-slate-400 hover:text-violet-600 hover:bg-slate-50"
+              isRecording ? "text-destructive bg-destructive/10 animate-pulse" : "text-muted-foreground hover:text-primary hover:bg-accent"
             )}
             title="Audio Message"
           >
@@ -160,7 +160,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
           </button>
         </div>
 
-        <div className="flex-1 relative flex items-center bg-slate-50 border border-slate-100 rounded-full px-4 min-h-[40px] transition-all focus-within:border-violet-200 focus-within:bg-white focus-within:shadow-sm">
+        <div className="flex-1 relative flex items-center bg-muted border border-border rounded-full px-4 min-h-[40px] transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm">
           <input
             value={isRecording ? `Recording... ${fmtRecTime(recordingTime)}` : content}
             onChange={(e) => {
@@ -169,7 +169,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
             }}
             disabled={isRecording}
             placeholder={isRecording ? "Listening..." : "Type a message..."}
-            className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-slate-700 placeholder:text-slate-400 placeholder:font-medium"
+            className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-foreground placeholder:text-muted-foreground placeholder:font-medium"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -181,18 +181,18 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
             <button 
                type="button" 
                onClick={() => { setIsOneTime(!isOneTime); if (!isOneTime) setHas24hTimer(false); }}
-               className={cn("p-1.5 rounded transition-all", isOneTime ? "text-violet-600 bg-violet-50" : "text-slate-400 hover:text-violet-600")}
+               className={cn("p-1.5 rounded transition-all", isOneTime ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
             >
-               <Eye size={16} title="One-time view" />
+               <Eye size={16} />
             </button>
             <button 
                type="button" 
                onClick={() => { setHas24hTimer(!has24hTimer); if (!has24hTimer) setIsOneTime(false); }}
-               className={cn("p-1.5 rounded transition-all", has24hTimer ? "text-violet-600 bg-violet-50" : "text-slate-400 hover:text-violet-600")}
+               className={cn("p-1.5 rounded transition-all", has24hTimer ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
             >
-               <Clock size={16} title="24h Timer" />
+               <Clock size={16} />
             </button>
-            <button type="button" className="text-slate-400 hover:text-violet-600"><Smile size={16} /></button>
+            <button type="button" className="text-muted-foreground hover:text-primary"><Smile size={16} /></button>
           </div>
         </div>
 
@@ -200,14 +200,14 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
            <button 
              type="button" 
              onClick={() => setShowPoll(!showPoll)}
-             className="p-2 text-slate-400 hover:text-violet-600 transition-all"
+             className="p-2 text-muted-foreground hover:text-primary transition-all"
            >
              <CheckSquare size={18} />
            </button>
            <button
              type="submit"
              disabled={(!content.trim() && !isRecording) || sending}
-             className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all disabled:opacity-50 disabled:shadow-none"
+             className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:shadow-none"
            >
              <Send size={16} className={cn(sending && "animate-pulse")} />
            </button>

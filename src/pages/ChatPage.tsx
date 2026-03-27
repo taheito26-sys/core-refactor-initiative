@@ -135,9 +135,9 @@ export default function ChatPage() {
   const activeRel = useMemo(() => relationships.find((r) => r.id === activeConversationId) || null, [relationships, activeConversationId]);
   const activeMessages = useMemo(() => allMessages.filter((m) => m.relationship_id === activeConversationId), [allMessages, activeConversationId]);
 
-  const handleSend = useCallback((content: string) => {
+  const handleSend = useCallback((payload: { content: string; type: string; expiresAt?: string }) => {
     if (!activeConversationId || !userId) return;
-    sendMessage.mutateAsync({ relationship_id: activeConversationId, content }).then(() => queryClient.invalidateQueries({ queryKey: ['unified-chat'] }));
+    sendMessage.mutateAsync({ relationship_id: activeConversationId, content: payload.content }).then(() => queryClient.invalidateQueries({ queryKey: ['unified-chat'] }));
   }, [activeConversationId, userId, sendMessage, queryClient]);
 
   const handleReply = useCallback((msg: ChatMessage) => {
@@ -165,13 +165,13 @@ export default function ChatPage() {
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} className="flex overflow-hidden bg-background" style={{ height: 'calc(100vh - 56px)' }}>
-      <ConversationSidebar conversations={conversations} currentUserId={userId || ''} />
+      <ConversationSidebar conversations={conversations} currentUserId={userId || ''} activeRoomId={activeConversationId} onSelectRoom={setActiveConversation} />
 
       {activeConversationId && activeRel ? (
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
           <ConversationHeader name={activeRel.counterparty_name} nickname={activeRel.counterparty_nickname} onBack={() => setActiveConversation(null)} onSearchToggle={() => setShowMsgSearch((v) => !v)} />
           <MessageTimeline messages={activeMessages} currentUserId={userId || ''} counterpartyName={activeRel.counterparty_name} scrollRef={setScrollRef} onReply={handleReply} onForward={setForwardMsg} relationshipId={activeConversationId} />
-          <MessageComposer onSend={handleSend} onTyping={signalTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+          <MessageComposer sending={sendMessage.isPending} onSend={handleSend} onTyping={signalTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">

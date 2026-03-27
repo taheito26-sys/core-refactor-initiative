@@ -198,7 +198,8 @@ export default function ChatPreview() {
           />
 
           <MessageComposer
-            onSend={(content) => console.log('Send:', content)}
+            sending={false}
+            onSend={(payload) => console.log('Send:', payload)}
             onTyping={() => {}}
             replyTo={null}
             onCancelReply={() => {}}

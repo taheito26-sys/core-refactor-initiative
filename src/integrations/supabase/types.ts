@@ -852,6 +852,13 @@ export type Database = {
             foreignKeyName: "os_audit_events_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_audit_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
             referencedRelation: "os_rooms"
             referencedColumns: ["id"]
           },
@@ -895,6 +902,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "os_business_objects_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "os_business_objects_room_id_fkey"
             columns: ["room_id"]
@@ -986,6 +1000,13 @@ export type Database = {
             foreignKeyName: "os_messages_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
             referencedRelation: "os_rooms"
             referencedColumns: ["id"]
           },
@@ -1035,6 +1056,13 @@ export type Database = {
             foreignKeyName: "os_policies_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_policies_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
             referencedRelation: "os_rooms"
             referencedColumns: ["id"]
           },
@@ -1063,6 +1091,13 @@ export type Database = {
           room_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "os_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "os_room_members_room_id_fkey"
             columns: ["room_id"]
@@ -1103,6 +1138,13 @@ export type Database = {
             columns: ["last_read_message_id"]
             isOneToOne: false
             referencedRelation: "os_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_room_presence_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
             referencedColumns: ["id"]
           },
           {
@@ -1180,6 +1222,13 @@ export type Database = {
             foreignKeyName: "os_threads_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_threads_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
             referencedRelation: "os_rooms"
             referencedColumns: ["id"]
           },
@@ -1220,6 +1269,13 @@ export type Database = {
           workflow_name?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "os_workflow_runs_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "os_workflow_runs_room_id_fkey"
             columns: ["room_id"]
@@ -1502,7 +1558,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      chat_room_summary_v: {
+        Row: {
+          id: string | null
+          lane: string | null
+          last_message_at: string | null
+          last_message_content: string | null
+          last_message_sender: string | null
+          message_count: number | null
+          name: string | null
+          retention_policy: string | null
+          security_policies: Json | null
+          type: string | null
+        }
+        Insert: {
+          id?: string | null
+          lane?: string | null
+          last_message_at?: string | null
+          last_message_content?: never
+          last_message_sender?: never
+          message_count?: never
+          name?: string | null
+          retention_policy?: string | null
+          security_policies?: Json | null
+          type?: string | null
+        }
+        Update: {
+          id?: string | null
+          lane?: string | null
+          last_message_at?: string | null
+          last_message_content?: never
+          last_message_sender?: never
+          message_count?: never
+          name?: string | null
+          retention_policy?: string | null
+          security_policies?: Json | null
+          type?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       admin_broadcast_notification: {
@@ -1539,6 +1633,22 @@ export type Database = {
       }
       current_merchant_id: { Args: never; Returns: string }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
+      fn_chat_mark_read: {
+        Args: { _message_id: string; _room_id: string }
+        Returns: boolean
+      }
+      fn_chat_send_message: {
+        Args: {
+          _body: string
+          _body_json?: Json
+          _client_nonce?: string
+          _expires_at?: string
+          _message_type?: string
+          _reply_to_message_id?: string
+          _room_id: string
+        }
+        Returns: Json
+      }
       get_unread_counts: {
         Args: { _user_id?: string }
         Returns: {

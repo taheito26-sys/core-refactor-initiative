@@ -3,9 +3,9 @@ import { ChatCallSession, DeterministicResult, fail, ok } from '@/features/chat/
 
 export async function startCall(roomId: string): Promise<DeterministicResult<ChatCallSession | null>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_start_call', { _room_id: roomId } as any);
+    const { data, error } = await (supabase.rpc as any)('fn_chat_start_call', { _room_id: roomId });
     if (error) throw error;
-    return ok((data ?? null) as ChatCallSession | null);
+    return ok((data ?? null) as unknown as ChatCallSession | null);
   } catch (error) {
     return fail(null, error);
   }
@@ -13,7 +13,7 @@ export async function startCall(roomId: string): Promise<DeterministicResult<Cha
 
 export async function joinCall(callSessionId: string): Promise<DeterministicResult<boolean>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_join_call', { _call_session_id: callSessionId } as any);
+    const { data, error } = await (supabase.rpc as any)('fn_chat_join_call', { _call_session_id: callSessionId });
     if (error) throw error;
     return ok(Boolean(data));
   } catch (error) {
@@ -23,7 +23,7 @@ export async function joinCall(callSessionId: string): Promise<DeterministicResu
 
 export async function leaveCall(callSessionId: string): Promise<DeterministicResult<boolean>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_leave_call', { _call_session_id: callSessionId } as any);
+    const { data, error } = await (supabase.rpc as any)('fn_chat_leave_call', { _call_session_id: callSessionId });
     if (error) throw error;
     return ok(Boolean(data));
   } catch (error) {
@@ -33,7 +33,7 @@ export async function leaveCall(callSessionId: string): Promise<DeterministicRes
 
 export async function endCall(callSessionId: string): Promise<DeterministicResult<boolean>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_end_call', { _call_session_id: callSessionId } as any);
+    const { data, error } = await (supabase.rpc as any)('fn_chat_end_call', { _call_session_id: callSessionId });
     if (error) throw error;
     return ok(Boolean(data));
   } catch (error) {
