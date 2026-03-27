@@ -229,7 +229,7 @@ export default function P2PTrackerPage() {
       setLatestFetchedAt(null);
     }
 
-    // Fetch Qatar sell rate for cross-currency profit calculation
+    // Fetch Qatar rates for cross-currency FX derivation
     if (market !== 'qatar') {
       const { data: qatarRow } = await supabase
         .from('p2p_snapshots')
@@ -240,12 +240,14 @@ export default function P2PTrackerPage() {
         .maybeSingle();
       if (qatarRow?.data) {
         const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at);
-        setQatarSellAvg(qSnap.sellAvg);
+        setQatarRates(qSnap.sellAvg != null && qSnap.buyAvg != null
+          ? { sellAvg: qSnap.sellAvg, buyAvg: qSnap.buyAvg }
+          : null);
       } else {
-        setQatarSellAvg(null);
+        setQatarRates(null);
       }
     } else {
-      setQatarSellAvg(null); // Not needed for Qatar
+      setQatarRates(null); // Not needed for Qatar
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
