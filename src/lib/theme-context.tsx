@@ -152,249 +152,17 @@ const CIPHER: LayoutDef = {
   },
 };
 
-// ═══ PRISM — Bold Fintech (LIGHT layout) ═══
-const PRISM: LayoutDef = {
-  id: 'prism', name: 'Prism', desc: 'Bold fintech · geometric',
-  font: 'Space Grotesk', fontMono: 'JetBrains Mono',
-  radius: '6px', radiusSm: '4px', radiusLg: '10px',
-  shadow: '0 2px 12px rgba(0,0,0,.08)',
-  swatches: ['#1c2a8c','#991b1b','#14532d','#a16207','#0f172a','#182a64','#7e22ce','#7c4614'],
-  themes: {
-    t1: { // Vector-style light
-      bg:'#f0f4f8', panel:'#ffffff', panel2:'#e8eef5', panel3:'#d8e4ee',
-      text:'#1a2b3d', muted:'#4a6076', muted2:'#7a94a8',
-      line:'rgba(26,43,61,.1)', line2:'rgba(26,43,61,.06)',
-      brand:'#1c2a8c', brand2:'#3b4ec8', brand3:'rgba(28,42,140,.1)',
-      good:'#166534', bad:'#991b1b', warn:'#a16207',
-      sidebarBg:'#1a2b3d', topbarBg:'rgba(255,255,255,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(28,42,140,.05)',
-      hoverCard:'rgba(28,42,140,.04)', glow:'rgba(59,78,200,.15)',
-    },
-    t2: {
-      bg:'#fef2f2', panel:'#ffffff', panel2:'#fee2e2', panel3:'#fecaca',
-      text:'#1c1111', muted:'#6b3030', muted2:'#9c5858',
-      line:'rgba(153,27,27,.09)', line2:'rgba(153,27,27,.05)',
-      brand:'#991b1b', brand2:'#dc2626', brand3:'rgba(153,27,27,.1)',
-      good:'#166534', bad:'#7f1d1d', warn:'#a16207',
-      sidebarBg:'#450a0a', topbarBg:'rgba(255,255,255,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(153,27,27,.05)',
-      hoverCard:'rgba(153,27,27,.04)', glow:'rgba(220,38,38,.15)',
-    },
-    t3: {
-      bg:'#f0fdf4', panel:'#ffffff', panel2:'#dcfce7', panel3:'#bbf7d0',
-      text:'#0a2014', muted:'#2d5a3a', muted2:'#5a8a6a',
-      line:'rgba(20,83,45,.09)', line2:'rgba(20,83,45,.05)',
-      brand:'#14532d', brand2:'#166534', brand3:'rgba(20,83,45,.1)',
-      good:'#15803d', bad:'#991b1b', warn:'#a16207',
-      sidebarBg:'#052e16', topbarBg:'rgba(255,255,255,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(20,83,45,.05)',
-      hoverCard:'rgba(20,83,45,.04)', glow:'rgba(22,101,52,.15)',
-    },
-    t4: {
-      bg:'#fffbeb', panel:'#ffffff', panel2:'#fef3c7', panel3:'#fde68a',
-      text:'#1c1400', muted:'#6b4e10', muted2:'#a08030',
-      line:'rgba(161,98,7,.09)', line2:'rgba(161,98,7,.05)',
-      brand:'#a16207', brand2:'#ca8a04', brand3:'rgba(161,98,7,.1)',
-      good:'#166534', bad:'#991b1b', warn:'#78350f',
-      sidebarBg:'#451a03', topbarBg:'rgba(255,255,255,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(161,98,7,.05)',
-      hoverCard:'rgba(161,98,7,.04)', glow:'rgba(202,138,4,.15)',
-    },
-    t5: {
-      bg:'#f8fafc', panel:'#ffffff', panel2:'#f1f5f9', panel3:'#e2e8f0',
-      text:'#0f172a', muted:'#475569', muted2:'#94a3b8',
-      line:'rgba(15,23,42,.09)', line2:'rgba(15,23,42,.05)',
-      brand:'#0f172a', brand2:'#1e293b', brand3:'rgba(15,23,42,.08)',
-      good:'#166534', bad:'#991b1b', warn:'#a16207',
-      sidebarBg:'#0f172a', topbarBg:'rgba(255,255,255,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(15,23,42,.05)',
-      hoverCard:'rgba(15,23,42,.04)', glow:'rgba(30,41,59,.15)',
-    },
-  },
-};
 
-// ═══ PULSE — CoinPulse dark glass (DARK layout) ═══
-const PULSE: LayoutDef = {
-  id: 'pulse', name: 'Pulse', desc: 'CoinPulse-inspired · dark glass',
-  font: 'DM Sans', fontMono: 'JetBrains Mono',
-  radius: '10px', radiusSm: '6px', radiusLg: '14px',
-  shadow: '0 8px 24px rgba(0,0,0,.3)',
-  swatches: ['#071018','#27e0a3','#2bb8ff','#8b7bff','#ff627e','#ffb84d','#0b1d2d','#12283d'],
-  themes: {
-    t1: {
-      bg:'#071018', panel:'#0b1d2d', panel2:'#0f2840', panel3:'#123350',
-      text:'#d0f0e8', muted:'#4a9080', muted2:'#2a7060',
-      line:'rgba(39,224,163,.1)', line2:'rgba(39,224,163,.05)',
-      brand:'#27e0a3', brand2:'#1fb88a', brand3:'rgba(39,224,163,.1)',
-      good:'#27e0a3', bad:'#ff627e', warn:'#ffb84d',
-      sidebarBg:'#050e14', topbarBg:'rgba(7,16,24,.98)',
-      cardBg:'#0b1d2d', inputBg:'rgba(39,224,163,.06)',
-      hoverCard:'rgba(39,224,163,.05)', glow:'rgba(39,224,163,.2)',
-    },
-    t2: {
-      bg:'#061020', panel:'#0a1830', panel2:'#0e2040', panel3:'#122850',
-      text:'#c8e4ff', muted:'#4888b8', muted2:'#2868a0',
-      line:'rgba(43,184,255,.1)', line2:'rgba(43,184,255,.05)',
-      brand:'#2bb8ff', brand2:'#1a9de0', brand3:'rgba(43,184,255,.1)',
-      good:'#27e0a3', bad:'#ff627e', warn:'#ffb84d',
-      sidebarBg:'#040c18', topbarBg:'rgba(6,16,32,.98)',
-      cardBg:'#0a1830', inputBg:'rgba(43,184,255,.07)',
-      hoverCard:'rgba(43,184,255,.05)', glow:'rgba(43,184,255,.2)',
-    },
-    t3: {
-      bg:'#0c0820', panel:'#140e30', panel2:'#1c1440', panel3:'#241a50',
-      text:'#d4c8ff', muted:'#6858b0', muted2:'#4838a0',
-      line:'rgba(139,123,255,.1)', line2:'rgba(139,123,255,.05)',
-      brand:'#8b7bff', brand2:'#6b5be0', brand3:'rgba(139,123,255,.1)',
-      good:'#27e0a3', bad:'#ff627e', warn:'#ffb84d',
-      sidebarBg:'#0a0618', topbarBg:'rgba(12,8,32,.98)',
-      cardBg:'#140e30', inputBg:'rgba(139,123,255,.07)',
-      hoverCard:'rgba(139,123,255,.05)', glow:'rgba(139,123,255,.25)',
-    },
-    t4: {
-      bg:'#180810', panel:'#241018', panel2:'#301820', panel3:'#3c2028',
-      text:'#ffc8d8', muted:'#a04860', muted2:'#802840',
-      line:'rgba(255,98,126,.1)', line2:'rgba(255,98,126,.05)',
-      brand:'#ff627e', brand2:'#e04060', brand3:'rgba(255,98,126,.1)',
-      good:'#27e0a3', bad:'#ff4060', warn:'#ffb84d',
-      sidebarBg:'#14060c', topbarBg:'rgba(24,8,16,.98)',
-      cardBg:'#241018', inputBg:'rgba(255,98,126,.07)',
-      hoverCard:'rgba(255,98,126,.06)', glow:'rgba(255,98,126,.25)',
-    },
-    t5: {
-      bg:'#100c00', panel:'#1a1400', panel2:'#241c00', panel3:'#2e2400',
-      text:'#ffe8a8', muted:'#a08830', muted2:'#806818',
-      line:'rgba(255,184,77,.1)', line2:'rgba(255,184,77,.05)',
-      brand:'#ffb84d', brand2:'#e09830', brand3:'rgba(255,184,77,.1)',
-      good:'#27e0a3', bad:'#ff627e', warn:'#e09830',
-      sidebarBg:'#0e0a00', topbarBg:'rgba(16,12,0,.98)',
-      cardBg:'#1a1400', inputBg:'rgba(255,184,77,.07)',
-      hoverCard:'rgba(255,184,77,.06)', glow:'rgba(255,184,77,.25)',
-    },
-  },
-};
 
-// ═══ SOLID ADVISORY — Clean structured consulting ═══
-const SOLID_ADVISORY: LayoutDef = {
-  id: 'solid_advisory', name: 'Solid Advisory', desc: 'Structured consulting · professional',
-  font: 'DM Sans', fontMono: 'JetBrains Mono',
-  radius: '8px', radiusSm: '4px', radiusLg: '12px',
-  shadow: '0 1px 3px rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.04)',
-  swatches: ['#f7f8fa','#1a365d','#2b6cb0','#276749','#c53030','#dd6b20','#2c5282','#2d3748'],
-  themes: {
-    t1: { // Navy Professional
-      bg:'#f7f8fa', panel:'#ffffff', panel2:'#edf2f7', panel3:'#e2e8f0',
-      text:'#1a202c', muted:'#4a5568', muted2:'#a0aec0',
-      line:'rgba(26,54,93,.08)', line2:'rgba(26,54,93,.04)',
-      brand:'#1a365d', brand2:'#2b6cb0', brand3:'rgba(26,54,93,.08)',
-      good:'#276749', bad:'#c53030', warn:'#dd6b20',
-      sidebarBg:'#1a365d', topbarBg:'rgba(247,248,250,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(26,54,93,.03)',
-      hoverCard:'rgba(26,54,93,.03)', glow:'rgba(43,108,176,.12)',
-    },
-    t2: { // Warm Stone
-      bg:'#faf9f7', panel:'#ffffff', panel2:'#f5f0eb', panel3:'#ebe0d5',
-      text:'#2d2319', muted:'#6b5c4d', muted2:'#a89b8c',
-      line:'rgba(45,35,25,.08)', line2:'rgba(45,35,25,.04)',
-      brand:'#7b5e3b', brand2:'#a37840', brand3:'rgba(123,94,59,.08)',
-      good:'#2f6846', bad:'#c53030', warn:'#b7791f',
-      sidebarBg:'#3d2e1e', topbarBg:'rgba(250,249,247,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(123,94,59,.03)',
-      hoverCard:'rgba(123,94,59,.03)', glow:'rgba(163,120,64,.12)',
-    },
-    t3: { // Forest Advisory
-      bg:'#f4f7f5', panel:'#ffffff', panel2:'#e6f0ea', panel3:'#d0e4d8',
-      text:'#1a2e22', muted:'#3d6b50', muted2:'#7aab90',
-      line:'rgba(26,46,34,.08)', line2:'rgba(26,46,34,.04)',
-      brand:'#1e5a3a', brand2:'#2f8a5a', brand3:'rgba(30,90,58,.08)',
-      good:'#276749', bad:'#c53030', warn:'#dd6b20',
-      sidebarBg:'#1a3328', topbarBg:'rgba(244,247,245,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(30,90,58,.03)',
-      hoverCard:'rgba(30,90,58,.03)', glow:'rgba(47,138,90,.12)',
-    },
-    t4: { // Slate Corp
-      bg:'#f8f9fb', panel:'#ffffff', panel2:'#eef1f6', panel3:'#dde3ed',
-      text:'#1e2a3a', muted:'#506278', muted2:'#8a9ab0',
-      line:'rgba(30,42,58,.08)', line2:'rgba(30,42,58,.04)',
-      brand:'#3a506b', brand2:'#5a7aa0', brand3:'rgba(58,80,107,.08)',
-      good:'#276749', bad:'#c53030', warn:'#dd6b20',
-      sidebarBg:'#283848', topbarBg:'rgba(248,249,251,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(58,80,107,.03)',
-      hoverCard:'rgba(58,80,107,.03)', glow:'rgba(90,122,160,.12)',
-    },
-    t5: { // Charcoal
-      bg:'#f5f5f5', panel:'#ffffff', panel2:'#ebebeb', panel3:'#d9d9d9',
-      text:'#1a1a1a', muted:'#555555', muted2:'#999999',
-      line:'rgba(0,0,0,.07)', line2:'rgba(0,0,0,.04)',
-      brand:'#333333', brand2:'#555555', brand3:'rgba(51,51,51,.08)',
-      good:'#276749', bad:'#c53030', warn:'#dd6b20',
-      sidebarBg:'#1a1a1a', topbarBg:'rgba(245,245,245,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(0,0,0,.02)',
-      hoverCard:'rgba(0,0,0,.02)', glow:'rgba(85,85,85,.1)',
-    },
-  },
-};
 
-// ═══ EDITORIAL FINANCE — Report-like editorial style ═══
-const EDITORIAL_FINANCE: LayoutDef = {
-  id: 'editorial_finance', name: 'Editorial Finance', desc: 'Editorial report · narrative',
-  font: 'Space Grotesk', fontMono: 'JetBrains Mono',
-  radius: '3px', radiusSm: '2px', radiusLg: '6px',
-  shadow: '0 1px 2px rgba(0,0,0,.05)',
-  swatches: ['#fefdfb','#1b1b1b','#8b0000','#004d40','#bf360c','#1a237e','#4a148c','#e65100'],
-  themes: {
-    t1: { // Classic Editorial
-      bg:'#fefdfb', panel:'#ffffff', panel2:'#f8f5f0', panel3:'#f0ebe3',
-      text:'#1b1b1b', muted:'#5c5c5c', muted2:'#9a9a9a',
-      line:'rgba(27,27,27,.1)', line2:'rgba(27,27,27,.05)',
-      brand:'#1b1b1b', brand2:'#3a3a3a', brand3:'rgba(27,27,27,.06)',
-      good:'#004d40', bad:'#8b0000', warn:'#bf360c',
-      sidebarBg:'#1b1b1b', topbarBg:'rgba(254,253,251,.98)',
-      cardBg:'#ffffff', inputBg:'rgba(27,27,27,.03)',
-      hoverCard:'rgba(27,27,27,.02)', glow:'rgba(58,58,58,.08)',
-    },
-    t2: { // Burgundy Report
-      bg:'#fdf8f6', panel:'#ffffff', panel2:'#f5ebe6', panel3:'#ecddd5',
-      text:'#2a1515', muted:'#6b4040', muted2:'#a87878',
-      line:'rgba(139,0,0,.08)', line2:'rgba(139,0,0,.04)',
-      brand:'#8b0000', brand2:'#b71c1c', brand3:'rgba(139,0,0,.06)',
-      good:'#004d40', bad:'#6d0000', warn:'#bf360c',
-      sidebarBg:'#3c1010', topbarBg:'rgba(253,248,246,.98)',
-      cardBg:'#ffffff', inputBg:'rgba(139,0,0,.03)',
-      hoverCard:'rgba(139,0,0,.02)', glow:'rgba(183,28,28,.1)',
-    },
-    t3: { // Teal Journal
-      bg:'#f5faf9', panel:'#ffffff', panel2:'#e0f2f0', panel3:'#c8e6e0',
-      text:'#0a2820', muted:'#2e6b5a', muted2:'#6aab98',
-      line:'rgba(0,77,64,.08)', line2:'rgba(0,77,64,.04)',
-      brand:'#004d40', brand2:'#00796b', brand3:'rgba(0,77,64,.06)',
-      good:'#1b5e20', bad:'#8b0000', warn:'#bf360c',
-      sidebarBg:'#002820', topbarBg:'rgba(245,250,249,.98)',
-      cardBg:'#ffffff', inputBg:'rgba(0,77,64,.03)',
-      hoverCard:'rgba(0,77,64,.02)', glow:'rgba(0,121,107,.1)',
-    },
-    t4: { // Deep Indigo
-      bg:'#f8f8fc', panel:'#ffffff', panel2:'#eeedf8', panel3:'#dddcf0',
-      text:'#111330', muted:'#4040a0', muted2:'#8080c0',
-      line:'rgba(26,35,126,.08)', line2:'rgba(26,35,126,.04)',
-      brand:'#1a237e', brand2:'#3949ab', brand3:'rgba(26,35,126,.06)',
-      good:'#004d40', bad:'#8b0000', warn:'#e65100',
-      sidebarBg:'#111340', topbarBg:'rgba(248,248,252,.98)',
-      cardBg:'#ffffff', inputBg:'rgba(26,35,126,.03)',
-      hoverCard:'rgba(26,35,126,.02)', glow:'rgba(57,73,171,.1)',
-    },
-    t5: { // Sepia Warm
-      bg:'#faf7f2', panel:'#ffffff', panel2:'#f2ece2', panel3:'#e8dfd0',
-      text:'#2a2015', muted:'#6b5840', muted2:'#a89878',
-      line:'rgba(42,32,21,.08)', line2:'rgba(42,32,21,.04)',
-      brand:'#5d4037', brand2:'#795548', brand3:'rgba(93,64,55,.06)',
-      good:'#2e7d32', bad:'#c62828', warn:'#e65100',
-      sidebarBg:'#3e2723', topbarBg:'rgba(250,247,242,.98)',
-      cardBg:'#ffffff', inputBg:'rgba(93,64,55,.03)',
-      hoverCard:'rgba(93,64,55,.02)', glow:'rgba(121,85,72,.1)',
-    },
-  },
-};
+
+
+
+
+
+
+
+
 
 // ═══ DARK LEDGER — Premium dark finance dashboard ═══
 const DARK_LEDGER: LayoutDef = {
@@ -457,46 +225,8 @@ const DARK_LEDGER: LayoutDef = {
   },
 };
 
-// ═══ EXECUTIVE HUB — Clean overview, card-based, generous spacing ═══
-const EXECUTIVE_HUB: LayoutDef = {
-  id: 'executive_hub', name: 'Executive Hub', desc: 'Card-based overview · spacious',
-  font: 'Plus Jakarta Sans', fontMono: 'JetBrains Mono',
-  radius: '14px', radiusSm: '10px', radiusLg: '20px',
-  shadow: '0 8px 30px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)',
-  swatches: ['#f5f7fb','#1e40af','#0891b2','#059669','#dc2626','#7c3aed','#f59e0b','#0f172a'],
-  themes: {
-    t1: { // Sapphire Executive
-      bg:'#f5f7fb', panel:'#ffffff', panel2:'#eef2f9', panel3:'#dfe6f2',
-      text:'#0c1a2e', muted:'#4b6382', muted2:'#8ba3be',
-      line:'rgba(30,64,175,.07)', line2:'rgba(30,64,175,.03)',
-      brand:'#1e40af', brand2:'#2563eb', brand3:'rgba(30,64,175,.08)',
-      good:'#059669', bad:'#dc2626', warn:'#f59e0b',
-      sidebarBg:'#0c1a2e', topbarBg:'rgba(245,247,251,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(30,64,175,.04)',
-      hoverCard:'rgba(30,64,175,.03)', glow:'rgba(37,99,235,.12)',
-    },
-    t2: { // Teal Summit
-      bg:'#f0fafb', panel:'#ffffff', panel2:'#e0f5f7', panel3:'#c4eaef',
-      text:'#0a2024', muted:'#2e6b78', muted2:'#68a8b8',
-      line:'rgba(8,145,178,.07)', line2:'rgba(8,145,178,.03)',
-      brand:'#0891b2', brand2:'#06b6d4', brand3:'rgba(8,145,178,.08)',
-      good:'#059669', bad:'#dc2626', warn:'#f59e0b',
-      sidebarBg:'#0a2024', topbarBg:'rgba(240,250,251,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(8,145,178,.04)',
-      hoverCard:'rgba(8,145,178,.03)', glow:'rgba(6,182,212,.12)',
-    },
-    t3: { // Violet Board
-      bg:'#f8f5ff', panel:'#ffffff', panel2:'#f0eaff', panel3:'#e2d8ff',
-      text:'#1a0e30', muted:'#5b3d8a', muted2:'#9578c0',
-      line:'rgba(124,58,237,.07)', line2:'rgba(124,58,237,.03)',
-      brand:'#7c3aed', brand2:'#8b5cf6', brand3:'rgba(124,58,237,.08)',
-      good:'#059669', bad:'#dc2626', warn:'#f59e0b',
-      sidebarBg:'#1a0e30', topbarBg:'rgba(248,245,255,.97)',
-      cardBg:'#ffffff', inputBg:'rgba(124,58,237,.04)',
-      hoverCard:'rgba(124,58,237,.03)', glow:'rgba(139,92,246,.12)',
-    },
-  },
-};
+
+
 
 // ═══ OPERATIONS DESK — Table-focused, medium-high density, ops workflow ═══
 const OPERATIONS_DESK: LayoutDef = {
@@ -539,87 +269,11 @@ const OPERATIONS_DESK: LayoutDef = {
   },
 };
 
-// ═══ LEDGER PRO — Maximum density, financial power-user ═══
-const LEDGER_PRO: LayoutDef = {
-  id: 'ledger_pro', name: 'Ledger Pro', desc: 'Max density · financial review',
-  font: 'IBM Plex Mono', fontMono: 'IBM Plex Mono',
-  radius: '3px', radiusSm: '2px', radiusLg: '4px',
-  shadow: '0 0 0 1px rgba(0,0,0,.08)',
-  swatches: ['#fafafa','#18181b','#16a34a','#dc2626','#ca8a04','#6366f1','#0891b2','#9333ea'],
-  themes: {
-    t1: { // Monochrome Ledger
-      bg:'#fafafa', panel:'#ffffff', panel2:'#f4f4f5', panel3:'#e4e4e7',
-      text:'#18181b', muted:'#52525b', muted2:'#a1a1aa',
-      line:'rgba(24,24,27,.1)', line2:'rgba(24,24,27,.05)',
-      brand:'#18181b', brand2:'#3f3f46', brand3:'rgba(24,24,27,.06)',
-      good:'#16a34a', bad:'#dc2626', warn:'#ca8a04',
-      sidebarBg:'#18181b', topbarBg:'rgba(250,250,250,.98)',
-      cardBg:'#ffffff', inputBg:'rgba(24,24,27,.03)',
-      hoverCard:'rgba(24,24,27,.02)', glow:'rgba(63,63,70,.08)',
-    },
-    t2: { // Indigo Ledger
-      bg:'#f8f8ff', panel:'#ffffff', panel2:'#eef0ff', panel3:'#dde0f8',
-      text:'#1e1b4b', muted:'#4338a0', muted2:'#818cf8',
-      line:'rgba(99,102,241,.08)', line2:'rgba(99,102,241,.04)',
-      brand:'#6366f1', brand2:'#818cf8', brand3:'rgba(99,102,241,.06)',
-      good:'#16a34a', bad:'#dc2626', warn:'#ca8a04',
-      sidebarBg:'#1e1b4b', topbarBg:'rgba(248,248,255,.98)',
-      cardBg:'#ffffff', inputBg:'rgba(99,102,241,.03)',
-      hoverCard:'rgba(99,102,241,.02)', glow:'rgba(129,140,248,.1)',
-    },
-    t3: { // Dark Ledger Terminal
-      bg:'#09090b', panel:'#18181b', panel2:'#27272a', panel3:'#3f3f46',
-      text:'#e4e4e7', muted:'#a1a1aa', muted2:'#71717a',
-      line:'rgba(228,228,231,.08)', line2:'rgba(228,228,231,.04)',
-      brand:'#0891b2', brand2:'#22d3ee', brand3:'rgba(8,145,178,.1)',
-      good:'#16a34a', bad:'#dc2626', warn:'#ca8a04',
-      sidebarBg:'#050506', topbarBg:'rgba(9,9,11,.98)',
-      cardBg:'#18181b', inputBg:'rgba(8,145,178,.06)',
-      hoverCard:'rgba(8,145,178,.04)', glow:'rgba(34,211,238,.12)',
-    },
-  },
-};
 
-// ═══ AURORA — Luminous dark with organic warmth, northern-lights inspired ═══
-const AURORA: LayoutDef = {
-  id: 'aurora', name: 'Aurora', desc: 'Luminous dark · organic warmth',
-  font: 'Outfit', fontMono: 'JetBrains Mono',
-  radius: '18px', radiusSm: '12px', radiusLg: '24px',
-  shadow: '0 12px 40px rgba(0,0,0,.35), 0 0 80px rgba(120,80,255,.06)',
-  swatches: ['#0e0b1a','#7b5cff','#22d3a7','#ff6b9d','#f4a942','#3b9eff','#1a1528','#e040fb'],
-  themes: {
-    t1: { // Northern Glow — green-violet aurora
-      bg:'#0e0b1a', panel:'#16122a', panel2:'#1e1838', panel3:'#282048',
-      text:'#e8e0ff', muted:'#8878b8', muted2:'#6050a0',
-      line:'rgba(123,92,255,.1)', line2:'rgba(123,92,255,.05)',
-      brand:'#7b5cff', brand2:'#a78bfa', brand3:'rgba(123,92,255,.12)',
-      good:'#22d3a7', bad:'#ff6b9d', warn:'#f4a942',
-      sidebarBg:'#0a0814', topbarBg:'rgba(14,11,26,.96)',
-      cardBg:'#16122a', inputBg:'rgba(123,92,255,.08)',
-      hoverCard:'rgba(123,92,255,.06)', glow:'rgba(167,139,250,.2)',
-    },
-    t2: { // Coral Dusk — warm sunset aurora
-      bg:'#1a0e14', panel:'#281620', panel2:'#361e2c', panel3:'#442638',
-      text:'#ffe0ec', muted:'#c07090', muted2:'#a05070',
-      line:'rgba(255,107,157,.1)', line2:'rgba(255,107,157,.05)',
-      brand:'#ff6b9d', brand2:'#ff8eb8', brand3:'rgba(255,107,157,.12)',
-      good:'#22d3a7', bad:'#ff4d6d', warn:'#f4a942',
-      sidebarBg:'#14080e', topbarBg:'rgba(26,14,20,.96)',
-      cardBg:'#281620', inputBg:'rgba(255,107,157,.08)',
-      hoverCard:'rgba(255,107,157,.06)', glow:'rgba(255,142,184,.2)',
-    },
-    t3: { // Ocean Frost — cool aqua aurora
-      bg:'#080e1a', panel:'#0e1828', panel2:'#142236', panel3:'#1a2c44',
-      text:'#d8f0ff', muted:'#5898c8', muted2:'#3878a8',
-      line:'rgba(59,158,255,.1)', line2:'rgba(59,158,255,.05)',
-      brand:'#3b9eff', brand2:'#6ab8ff', brand3:'rgba(59,158,255,.12)',
-      good:'#22d3a7', bad:'#ff6b9d', warn:'#f4a942',
-      sidebarBg:'#04080e', topbarBg:'rgba(8,14,26,.96)',
-      cardBg:'#0e1828', inputBg:'rgba(59,158,255,.08)',
-      hoverCard:'rgba(59,158,255,.06)', glow:'rgba(106,184,255,.2)',
-    },
-  },
-};
+
+
+
+
 
 // ═══ ATLAS GRID — Command-center, spatial ops board ═══
 const ATLAS_GRID: LayoutDef = {
@@ -744,7 +398,7 @@ const PAPERWIRE: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER, EXECUTIVE_HUB, OPERATIONS_DESK, LEDGER_PRO, AURORA, ATLAS_GRID, VELVET_MONO, PAPERWIRE];
+export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
 export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto','Manrope','Fraunces','Instrument Serif','Public Sans'];
 export const FONT_SIZES = [9,10,11,12,13,14];
@@ -861,7 +515,7 @@ function isDark(hex: string): boolean {
 }
 
 // Removed layout IDs that must migrate to valid replacements
-const REMOVED_LAYOUTS: Record<string, string> = { aurora: 'pulse', carbon: 'cipher' };
+const REMOVED_LAYOUTS: Record<string, string> = { aurora: 'cipher', carbon: 'cipher', prism: 'flux', pulse: 'cipher', solid_advisory: 'flux', editorial_finance: 'flux', executive_hub: 'flux', ledger_pro: 'dark_ledger' };
 
 function loadSavedSettings(): AppSettings {
   try {
