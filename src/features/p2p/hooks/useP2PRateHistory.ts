@@ -28,8 +28,8 @@ export function useP2PRateHistory(market: string, limit = 20) {
           id: row.id,
           market: row.market,
           fetched_at: row.fetched_at,
-          buyRate: typeof snapshot.buyRate === 'number' ? snapshot.buyRate : null,
-          sellRate: typeof snapshot.sellRate === 'number' ? snapshot.sellRate : null,
+          buyRate: typeof snapshot.buyAvg === 'number' ? snapshot.buyAvg : null,
+          sellRate: typeof snapshot.sellAvg === 'number' ? snapshot.sellAvg : null,
         };
       });
     },

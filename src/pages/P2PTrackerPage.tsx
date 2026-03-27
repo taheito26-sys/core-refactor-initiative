@@ -207,7 +207,7 @@ export default function P2PTrackerPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
-  const [qatarSellAvg, setQatarSellAvg] = useState<number | null>(null);
+  const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
