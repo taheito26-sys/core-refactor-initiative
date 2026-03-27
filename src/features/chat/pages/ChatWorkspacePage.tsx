@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,6 +34,7 @@ export default function ChatWorkspacePage() {
   const [showSidebar, setShowSidebar] = useState(true);
   const consumePendingNav = useChatStore((s) => s.consumePendingNav);
   const [pendingNotificationMessageId, setPendingNotificationMessageId] = useState<string | null>(null);
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null);
 
   const activeRoom = useMemo(
     () => rooms.find((r) => String(r.id) === String(activeRoomId) || String(r.room_id) === String(activeRoomId)) ?? null,
@@ -169,6 +170,18 @@ export default function ChatWorkspacePage() {
     }, 220);
   }, [pendingNotificationMessageId, activeRoomId, messages.data, scrollToMessage]);
 
+
+  useEffect(() => {
+    if (!timelineScrollRef.current) return;
+    if (!messages.data?.length) return;
+
+    const hasDirectMessageTarget = Boolean(searchParams.get('messageId')) || Boolean(pendingNotificationMessageId);
+    if (hasDirectMessageTarget) return;
+
+    // Keep newest messages anchored at the bottom of the timeline.
+    timelineScrollRef.current.scrollTop = timelineScrollRef.current.scrollHeight;
+  }, [activeRoomId, messages.data, searchParams, pendingNotificationMessageId]);
+
   return (
     <div className="flex h-[calc(100vh-50px)] w-full overflow-hidden bg-background select-none relative">
       <CallOrchestrator
@@ -227,7 +240,7 @@ export default function ChatWorkspacePage() {
                     </div>
                   )}
 
-                  <div className="flex-1 overflow-y-auto custom-scrollbar relative z-10 py-2">
+                  <div ref={timelineScrollRef} className="flex-1 overflow-y-auto custom-scrollbar relative z-10 py-2">
                     <div className={isMobile ? "w-full" : "max-w-4xl mx-auto w-full"}>
                       <MessageList
                         messages={messages.data ?? []}
