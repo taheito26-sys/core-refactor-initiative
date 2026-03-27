@@ -73,6 +73,7 @@ export default function OrdersPage() {
   const [saleMessage, setSaleMessage] = useState('');
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
+  const [cashDepositAccountId, setCashDepositAccountId] = useState('');
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -430,6 +431,27 @@ export default function OrdersPage() {
       ? revenue
       : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
     if (depositAmt <= 0) return nextState;
+
+    // If user selected a specific cash account, create a ledger entry
+    const targetAccountId = cashDepositAccountId || (nextState.cashAccounts?.find(a => a.status === 'active')?.id ?? '');
+    if (targetAccountId && nextState.cashAccounts?.length) {
+      const ledgerEntry: import('@/lib/tracker-helpers').CashLedgerEntry = {
+        id: uid(),
+        ts: Date.now(),
+        type: 'sale_deposit' as any,
+        accountId: targetAccountId,
+        direction: 'in',
+        amount: depositAmt,
+        currency: 'QAR',
+        note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      };
+      return {
+        ...nextState,
+        cashLedger: [...(nextState.cashLedger || []), ledgerEntry],
+      };
+    }
+
+    // Fallback: legacy cashQAR
     const currentCash = nextState.cashQAR || 0;
     const newCash = currentCash + depositAmt;
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
@@ -788,6 +810,7 @@ export default function OrdersPage() {
     setAllocations([]);
     setCashDepositMode('none');
     setCashDepositAmount('');
+    setCashDepositAccountId('');
   };
 
   const exportCsv = () => {
@@ -2317,7 +2340,11 @@ export default function OrdersPage() {
                           onClick={() => {
                             setCashDepositMode(mode);
                             if (mode === 'full') setCashDepositAmount(String(Math.round(salePreview.revenue * 100) / 100));
-                            if (mode === 'none') setCashDepositAmount('');
+                            if (mode === 'none') { setCashDepositAmount(''); setCashDepositAccountId(''); }
+                            if (mode !== 'none' && !cashDepositAccountId) {
+                              const first = state.cashAccounts?.find(a => a.status === 'active');
+                              if (first) setCashDepositAccountId(first.id);
+                            }
                           }}
                           style={{
                             padding: '4px 10px',
@@ -2354,9 +2381,57 @@ export default function OrdersPage() {
                         )}
                       </div>
                     )}
+                    {cashDepositMode !== 'none' && (state.cashAccounts?.filter(a => a.status === 'active').length ?? 0) > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>📍 Deposit to:</div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {state.cashAccounts!.filter(a => a.status === 'active').map(acc => {
+                            const isSelected = cashDepositAccountId === acc.id;
+                            const typeIcon = acc.type === 'hand' ? '💵' : acc.type === 'bank' ? '🏦' : '🔐';
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === acc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            return (
+                              <button
+                                key={acc.id}
+                                onClick={() => setCashDepositAccountId(acc.id)}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: 8,
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  border: isSelected ? '1.5px solid var(--good)' : '1px solid var(--line)',
+                                  background: isSelected ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'var(--panel2)',
+                                  color: isSelected ? 'var(--good)' : 'var(--t2)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'flex-start',
+                                  gap: 2,
+                                  minWidth: 90,
+                                }}
+                              >
+                                <span>{typeIcon} {acc.name}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)} {acc.currency}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {cashDepositMode !== 'none' && (
                       <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
-                        Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                        {(() => {
+                          const selectedAcc = state.cashAccounts?.find(a => a.id === cashDepositAccountId);
+                          if (selectedAcc) {
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === selectedAcc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            const deposit = parseFloat(cashDepositAmount) || 0;
+                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)} ${selectedAcc.currency}`;
+                          }
+                          return `Cash balance: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                        })()}
                       </div>
                     )}
                   </div>
