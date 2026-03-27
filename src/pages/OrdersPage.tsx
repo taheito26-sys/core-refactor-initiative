@@ -2340,7 +2340,11 @@ export default function OrdersPage() {
                           onClick={() => {
                             setCashDepositMode(mode);
                             if (mode === 'full') setCashDepositAmount(String(Math.round(salePreview.revenue * 100) / 100));
-                            if (mode === 'none') setCashDepositAmount('');
+                            if (mode === 'none') { setCashDepositAmount(''); setCashDepositAccountId(''); }
+                            if (mode !== 'none' && !cashDepositAccountId) {
+                              const first = state.cashAccounts?.find(a => a.status === 'active');
+                              if (first) setCashDepositAccountId(first.id);
+                            }
                           }}
                           style={{
                             padding: '4px 10px',
