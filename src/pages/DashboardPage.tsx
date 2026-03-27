@@ -567,6 +567,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             </div>
           );
         })()}
+      </div>
 
       {/* Bottom panels */}
       <div className="dash-bottom">
