@@ -7,16 +7,13 @@ export async function getRoomMessages(roomId: string, limit = 100): Promise<Dete
       .from('os_messages')
       .select('*')
       .eq('room_id', roomId)
-      .is('deleted_for_everyone_at', null)
       .order('created_at', { ascending: true })
       .limit(limit);
     if (error) throw error;
     
-    // Map 'content' to 'body' for compatibility with existing UI if needed, 
-    // but better to fix UI to use 'content'
     return ok((data ?? []).map(m => ({
        ...m,
-       body: m.content || m.body
+       body: m.content
     })));
   } catch (error) {
     return fail([], error);
@@ -33,7 +30,7 @@ export async function sendMessage(input: {
   expiresAt?: string | null;
 }): Promise<DeterministicResult<any | null>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_send_message', {
+    const { data, error } = await (supabase.rpc as any)('fn_chat_send_message', {
       _room_id: input.roomId,
       _body: input.body,
       _body_json: input.bodyJson ?? {},
@@ -52,7 +49,7 @@ export async function sendMessage(input: {
 
 export async function markRead(roomId: string, messageId: string): Promise<DeterministicResult<boolean>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_mark_read', { 
+    const { data, error } = await (supabase.rpc as any)('fn_chat_mark_read', { 
       _room_id: roomId, 
       _message_id: messageId 
     });
