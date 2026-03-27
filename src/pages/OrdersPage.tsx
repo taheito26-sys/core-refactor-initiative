@@ -379,8 +379,8 @@ export default function OrdersPage() {
   const submitCapitalTransfer = useSubmitCapitalTransfer();
 
   const handleCapitalTransfer = async () => {
-    if (!linkedRelId) { toast.error('Select a partner first'); return; }
-    if (!transferAmount || !transferCostBasis) { toast.error('Amount and cost basis are required'); return; }
+    if (!linkedRelId) { toast.error(t('selectPartnerFirst')); return; }
+    if (!transferAmount || !transferCostBasis) { toast.error(t('amountCostRequired')); return; }
     try {
       await submitCapitalTransfer.mutateAsync({
         relationship_id: linkedRelId,
@@ -443,7 +443,7 @@ export default function OrdersPage() {
         direction: 'in',
         amount: depositAmt,
         currency: 'QAR',
-        note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+        note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
       };
       return {
         ...nextState,
@@ -462,7 +462,7 @@ export default function OrdersPage() {
       balanceAfter: newCash,
       owner: nextState.cashOwner || '',
       bankAccount: '',
-      note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     };
     return {
       ...nextState,
@@ -505,20 +505,20 @@ export default function OrdersPage() {
 
     // Multi-merchant allocation validation
     if (merchantOrderEnabled && isNewAllocFlow) {
-      if (allocations.length === 0) { setSaleMessage('Add at least one merchant allocation'); return; }
+      if (allocations.length === 0) { setSaleMessage(t('addAtLeastOneAlloc')); return; }
       const totalAllocated = allocations.reduce((s, a) => s + (parseFloat(a.allocatedUsdt) || 0), 0);
       if (Math.abs(totalAllocated - amountUSDT) > 0.01) {
-        setSaleMessage(`Allocation mismatch: allocated ${totalAllocated.toFixed(2)} USDT but sale is ${amountUSDT.toFixed(2)} USDT`);
+        setSaleMessage(`${t('allocMismatch')}: ${t('allocMismatchDetail').replace('{0}', totalAllocated.toFixed(2)).replace('{1}', amountUSDT.toFixed(2))}`);
         return;
       }
       for (const alloc of allocations) {
-        if (!alloc.relationshipId) { setSaleMessage('Each allocation must have a merchant selected'); return; }
+        if (!alloc.relationshipId) { setSaleMessage(t('allocNeedsMerchant')); return; }
         if (alloc.family === 'profit_share' && !alloc.agreementId) {
-          setSaleMessage(`Profit Share allocation for ${alloc.merchantName || 'merchant'} requires an approved agreement`);
+          setSaleMessage(`${t('profitShareLabel')} ${alloc.merchantName || t('merchant')} ${t('allocNeedsAgreement')}`);
           return;
         }
-        if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage('Each allocation must have USDT amount > 0'); return; }
-        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage('Each allocation must have a merchant cost > 0'); return; }
+        if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage(t('allocNeedsUsdt')); return; }
+        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
       }
     }
 
@@ -562,7 +562,7 @@ export default function OrdersPage() {
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-          const familyLabel = alloc.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+          const familyLabel = alloc.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
           const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
           const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
 
@@ -671,7 +671,7 @@ export default function OrdersPage() {
         return;
       } catch (err: any) {
         console.error('Failed to create allocations:', err);
-        toast.error(err.message || 'Failed to create merchant allocations');
+        toast.error(err.message || t('failedCreateAllocations'));
         return;
       }
     }
@@ -686,7 +686,7 @@ export default function OrdersPage() {
         const sell = Number(saleSell) || 0;
         const fee = parseFloat(saleFee) || 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
         // Store trade data in notes so partner can see qty/sell/cost
@@ -872,7 +872,7 @@ export default function OrdersPage() {
     // ── Handle linking to partner deal ──
     if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
       const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
-      if (!tmpl) { toast.error('Invalid template'); return; }
+      if (!tmpl) { toast.error(t('invalidTemplate')); return; }
 
       try {
         const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
@@ -883,7 +883,7 @@ export default function OrdersPage() {
         const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
           const noteLines = [
@@ -1028,7 +1028,7 @@ export default function OrdersPage() {
         await reloadMerchantData();
         // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
-        toast.success('Deal updated — sent for re-approval');
+        toast.success(t('dealUpdatedReapproval'));
       } catch (err: any) {
         console.error('Failed to update linked deal:', err);
       }
@@ -1739,7 +1739,7 @@ export default function OrdersPage() {
                 {priceMode === 'manual' && (
                   <div className="g2tight">
                     <div className="field2">
-                      <div className="lbl">{t('buyPrice') || 'Buy Price'}</div>
+                      <div className="lbl">{t('buyPrice')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} /></div>
                     </div>
                     <div className="field2">
@@ -2332,7 +2332,7 @@ export default function OrdersPage() {
                     border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
                     marginBottom: 6,
                   }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>💰 Add sale proceeds to cash?</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>{t('addSaleProceedsToCash')}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {(['none', 'full', 'partial'] as const).map(mode => (
                         <button
@@ -2361,7 +2361,7 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? "Don't add" : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : 'Custom amount'}
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)} QAR)` : t('customAmount')}
                         </button>
                       ))}
                     </div>
@@ -2370,20 +2370,20 @@ export default function OrdersPage() {
                         <div className="inputBox" style={{ maxWidth: 180 }}>
                           <input
                             inputMode="decimal"
-                            placeholder="Amount in QAR"
+                            placeholder={t('amountInQar')}
                             value={cashDepositAmount}
                             onChange={numericOnly(setCashDepositAmount)}
                             style={{ fontSize: 11 }}
                           />
                         </div>
                         {parseFloat(cashDepositAmount) > salePreview.revenue && (
-                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>Amount exceeds sale revenue</div>
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>{t('amountExceedsSaleRevenue')}</div>
                         )}
                       </div>
                     )}
                     {cashDepositMode !== 'none' && (state.cashAccounts?.filter(a => a.status === 'active').length ?? 0) > 0 && (
                       <div style={{ marginTop: 6 }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>📍 Deposit to:</div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>{t('depositTo')}</div>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                           {state.cashAccounts!.filter(a => a.status === 'active').map(acc => {
                             const isSelected = cashDepositAccountId === acc.id;
@@ -2430,7 +2430,7 @@ export default function OrdersPage() {
                             const deposit = parseFloat(cashDepositAmount) || 0;
                             return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)} ${selectedAcc.currency}`;
                           }
-                          return `Cash balance: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                          return `${t('cashBalanceLbl')}: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
                         })()}
                       </div>
                     )}
@@ -2532,7 +2532,7 @@ export default function OrdersPage() {
                         <tr>
                           <th>{t('date')}</th>
                           <th>{t('direction')}</th>
-                          <th>{t('merchant') || 'Partner'}</th>
+                          <th>{t('merchant')}</th>
                           <th className="r">USDT</th>
                           <th className="r">{t('costBasisQar')}</th>
                           <th className="r">{t('totalCostQar')}</th>
@@ -2550,7 +2550,7 @@ export default function OrdersPage() {
                               </td>
                               <td>
                                 <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                  {isIn ? '💸 ' + (t('capitalIn') || 'In') : '↩️ ' + (t('capitalReturn') || 'Out')}
+                                  {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
                                 </span>
                               </td>
                               <td style={{ fontSize: 10 }}>
@@ -2690,7 +2690,7 @@ export default function OrdersPage() {
                   🤝 {t('alreadyLinkedToPartner')}
                   {editingTrade.agreementFamily && (
                     <span style={{ marginLeft: 8 }}>
-                      ({editingTrade.agreementFamily === 'profit_share' ? 'Profit Share' : 'Sales Deal'}
+                      ({editingTrade.agreementFamily === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel')}
                       {editingTrade.partnerPct != null ? ` · ${editingTrade.partnerPct}/${editingTrade.merchantPct}` : ''})
                     </span>
                   )}

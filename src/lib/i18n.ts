@@ -1306,6 +1306,31 @@ const translations = {
   transferLbl:           { en: 'Transfer',                     ar: 'تحويل' },
   neverReconciled:       { en: 'Never reconciled',             ar: 'لم تتم التسوية قط' },
   openingBalanceDesc:    { en: '? This will be recorded as the opening balance.', ar: '؟ سيتم تسجيله كالرصيد الافتتاحي.' },
+
+  // ── Orders Page — Cash Deposit & Allocations ──
+  addSaleProceedsToCash:   { en: '💰 Add sale proceeds to cash?',       ar: '💰 إضافة عائدات البيع للنقد؟' },
+  dontAdd:                 { en: "Don't add",                           ar: 'لا تضف' },
+  fullAmount:              { en: 'Full',                                ar: 'كامل' },
+  customAmount:            { en: 'Custom amount',                       ar: 'مبلغ مخصص' },
+  amountInQar:             { en: 'Amount in QAR',                       ar: 'المبلغ بالريال' },
+  amountExceedsSaleRevenue:{ en: 'Amount exceeds sale revenue',         ar: 'المبلغ يتجاوز إيرادات البيع' },
+  depositTo:               { en: '📍 Deposit to:',                      ar: '📍 إيداع إلى:' },
+  cashBalanceLbl:          { en: 'Cash balance',                        ar: 'الرصيد النقدي' },
+  selectPartnerFirst:      { en: 'Select a partner first',              ar: 'اختر شريكاً أولاً' },
+  amountCostRequired:      { en: 'Amount and cost basis are required',  ar: 'المبلغ وأساس التكلفة مطلوبان' },
+  failedCreateAllocations: { en: 'Failed to create merchant allocations', ar: 'فشل إنشاء تخصيصات التاجر' },
+  invalidTemplate:         { en: 'Invalid template',                    ar: 'قالب غير صالح' },
+  dealUpdatedReapproval:   { en: 'Deal updated — sent for re-approval', ar: 'تم تحديث الصفقة — أُرسلت لإعادة الموافقة' },
+  addAtLeastOneAlloc:      { en: 'Add at least one merchant allocation', ar: 'أضف تخصيص تاجر واحد على الأقل' },
+  allocMismatch:           { en: 'Allocation mismatch',                 ar: 'عدم تطابق التخصيص' },
+  allocMismatchDetail:     { en: 'allocated {0} USDT but sale is {1} USDT', ar: 'تم تخصيص {0} USDT لكن البيع {1} USDT' },
+  allocNeedsMerchant:      { en: 'Each allocation must have a merchant selected', ar: 'كل تخصيص يجب أن يحتوي على تاجر محدد' },
+  allocNeedsAgreement:     { en: 'requires an approved agreement',      ar: 'يتطلب اتفاقية معتمدة' },
+  allocNeedsUsdt:          { en: 'Each allocation must have USDT amount > 0', ar: 'كل تخصيص يجب أن يحتوي على مبلغ USDT أكبر من 0' },
+  allocNeedsCost:          { en: 'Each allocation must have a merchant cost > 0', ar: 'كل تخصيص يجب أن يحتوي على تكلفة تاجر أكبر من 0' },
+  
+  salesDealLabel:          { en: 'Sales Deal',                          ar: 'صفقة بيع' },
+  saleProceeds:            { en: 'Sale proceeds',                       ar: 'عائدات البيع' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
