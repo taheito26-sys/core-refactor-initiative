@@ -440,7 +440,7 @@ function applyMyShare(trade: Trade, fullNet: number): number {
 }
 
 export function kpiFor(state: TrackerState, derived: DerivedState, range: string) {
-  const trades = state.trades.filter(t => !t.voided && inRange(t.ts, range));
+  const trades = state.trades.filter(t => !isTradeInactive(t) && inRange(t.ts, range));
   let rev = 0, net = 0, qty = 0, fee = 0;
   for (const t of trades) {
     const c = derived.tradeCalc.get(t.id);
