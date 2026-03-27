@@ -488,8 +488,15 @@ export type Database = {
           body: string | null
           category: string
           created_at: string
+          entity_id: string | null
+          entity_type: string | null
           id: string
+          message_id: string | null
+          notification_type: string | null
           read_at: string | null
+          relationship_id: string | null
+          route_params: Json | null
+          route_path: string | null
           title: string
           user_id: string
         }
@@ -497,8 +504,15 @@ export type Database = {
           body?: string | null
           category?: string
           created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          message_id?: string | null
+          notification_type?: string | null
           read_at?: string | null
+          relationship_id?: string | null
+          route_params?: Json | null
+          route_path?: string | null
           title: string
           user_id: string
         }
@@ -506,8 +520,15 @@ export type Database = {
           body?: string | null
           category?: string
           created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          message_id?: string | null
+          notification_type?: string | null
           read_at?: string | null
+          relationship_id?: string | null
+          route_params?: Json | null
+          route_path?: string | null
           title?: string
           user_id?: string
         }
