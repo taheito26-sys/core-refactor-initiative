@@ -31,7 +31,7 @@ function normalizeRoom(r: any) {
     title: r.name ?? r.title ?? 'Room',
     name: r.name ?? r.title ?? 'Room',
     last_message_body: r.last_message_content ?? r.last_message_body ?? '',
-    unread_count: r.message_count ?? r.unread_count ?? 0,
+    unread_count: Number(r.unread_count ?? r.unread_messages ?? r.unread_total ?? 0),
     kind: r.type === 'standard' ? 'direct' : 'group',
     lane: r.lane ?? 'Personal',
     updated_at: r.last_message_at ?? r.updated_at ?? new Date().toISOString(),
