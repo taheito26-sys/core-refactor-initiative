@@ -10,6 +10,7 @@ export interface Message {
   content: string;
   read_at: string | null;
   created_at: string;
+  expires_at?: string | null;
 }
 
 export function useRelationshipMessages(relationshipId: string) {

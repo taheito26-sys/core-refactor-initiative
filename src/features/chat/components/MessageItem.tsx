@@ -4,6 +4,7 @@ import { Check, CheckCheck, Shield, Eye, Clock, Phone, Video, Mic, BarChart3, Fo
 import { BusinessObjectCard } from './BusinessObjectCard';
 import { parseMsg, splitLinks } from '../lib/message-codec';
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MessageProps {
   message: {
@@ -36,7 +37,6 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
     );
   }
 
-  const isOneTime = !!message.expires_at && !message.metadata?.timer;
 
   // ── Voice message renderer ──
   const VoicePlayer = () => {
@@ -45,14 +45,26 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
     const [currentTime, setCurrentTime] = useState(0);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const animRef = useRef<number>(0);
+    const [audioReady, setAudioReady] = useState(false);
     const totalDuration = parsed.voiceDuration || 0;
-    const mins = Math.floor(totalDuration / 60);
-    const secs = totalDuration % 60;
 
-    const audioSrc = useMemo(() => {
+    const audioUrl = useMemo(() => {
       if (!parsed.voiceBase64) return '';
-      return `data:audio/webm;base64,${parsed.voiceBase64}`;
+      try {
+        const bin = atob(parsed.voiceBase64);
+        const uint = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) uint[i] = bin.charCodeAt(i);
+        const b = new Blob([uint], { type: 'audio/webm;codecs=opus' });
+        return URL.createObjectURL(b);
+      } catch (e) {
+        console.error('Failed to prepare voice:', e);
+        return '';
+      }
     }, []);
+
+    useEffect(() => {
+      return () => { if (audioUrl) URL.revokeObjectURL(audioUrl); };
+    }, [audioUrl]);
 
     const tick = useCallback(() => {
       const audio = audioRef.current;
@@ -64,17 +76,11 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
     }, []);
 
     const toggle = useCallback(() => {
-      if (!audioRef.current) {
-        const audio = new Audio(audioSrc);
-        audioRef.current = audio;
-        audio.onended = () => { setPlaying(false); setProgress(0); setCurrentTime(0); };
-        audio.onpause = () => { cancelAnimationFrame(animRef.current); };
-        audio.onplay = () => { animRef.current = requestAnimationFrame(tick); };
-      }
       const audio = audioRef.current;
+      if (!audio) return;
       if (audio.paused) { audio.play(); setPlaying(true); }
       else { audio.pause(); setPlaying(false); }
-    }, [audioSrc, tick]);
+    }, []);
 
     useEffect(() => () => { audioRef.current?.pause(); cancelAnimationFrame(animRef.current); }, []);
 
@@ -86,10 +92,19 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
 
     return (
       <div className="flex items-center gap-3 min-w-[180px]">
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          onCanPlay={() => setAudioReady(true)}
+          onEnded={() => { setPlaying(false); setProgress(0); setCurrentTime(0); }}
+          onPlay={() => { animRef.current = requestAnimationFrame(tick); }}
+          onPause={() => { cancelAnimationFrame(animRef.current); }}
+        />
         <button
           onClick={toggle}
+          disabled={!audioReady}
           className={cn(
-            "w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer border-none",
+            "w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer border-none disabled:opacity-50",
             isMe ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground" : "bg-primary/15 hover:bg-primary/25 text-primary"
           )}
         >
@@ -180,8 +195,48 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
     );
   };
 
+  // ── One-time view handling ──
+  const [showOneTime, setShowOneTime] = useState(false);
+  const isOneTime = !!message.expires_at && !message.metadata?.timer;
+  const isViewed = parsed.isViewed || (message.metadata?.viewed === true);
+
+  const handleReveal = async () => {
+    if (isMe || isViewed) return;
+    setShowOneTime(true);
+    // Mark as viewed in DB
+    try {
+      const viewedContent = `${message.content}||VIEWED||${new Date().toISOString()}||/VIEWED||`;
+      await supabase.from('merchant_messages').update({ content: viewedContent, metadata: { ...message.metadata, viewed: true } }).eq('id', message.id);
+      // Attempt OS update as well if applicable
+      await supabase.from('os_messages').update({ content: viewedContent }).eq('id', message.id);
+    } catch (e) {
+      console.error('Failed to mark as viewed:', e);
+    }
+  };
+
   // ── Pick content renderer ──
   const renderContent = () => {
+    if (isOneTime && isViewed && !isMe) {
+      return (
+        <div className="flex items-center gap-2 py-1 opacity-50">
+          <Eye size={14} />
+          <span className="italic text-[11px]">Message viewed</span>
+        </div>
+      );
+    }
+
+    if (isOneTime && !showOneTime && !isMe && !isViewed) {
+      return (
+        <button
+          onClick={handleReveal}
+          className="flex items-center gap-2 py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary/20 transition-all border-none cursor-pointer w-full"
+        >
+          <Shield size={14} className="text-primary" />
+          <span className="font-bold text-[12px] text-primary">Reveal one-time message</span>
+        </button>
+      );
+    }
+
     if (message.type === 'business_object' && message.metadata?.object_type) {
       return (
         <div className="scale-95 origin-top-left -mx-1">
@@ -204,12 +259,12 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
       <div className={cn("flex flex-col max-w-[80%]", isMe ? "items-end" : "items-start")}>
 
         <div className="flex items-center gap-2 mb-1.5 px-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-300">
-           {!isMe && <span className="text-[10px] font-black text-foreground uppercase tracking-widest">zakaria</span>}
+           {!isMe && <span className="text-[10px] font-black text-foreground uppercase tracking-widest">User</span>}
            <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-tighter">{format(new Date(message.created_at), 'HH:mm')}</span>
         </div>
 
         <div className="relative flex items-end gap-2 text-wrap break-all">
-          {!isMe && <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center text-[10px] font-black text-muted-foreground border border-border">Z</div>}
+          {!isMe && <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center text-[10px] font-black text-muted-foreground border border-border">?</div>}
 
           <div
             className={cn(
@@ -221,9 +276,9 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
           >
             {renderContent()}
 
-            {isOneTime && (
+            {isOneTime && !isViewed && (
                <div className="absolute top-0 right-0 p-1.5 bg-background/10 rounded-bl-xl backdrop-blur-md border-l border-b border-background/20">
-                  <Eye size={10} className="text-primary-foreground" />
+                  <Eye size={10} className={isMe ? "text-primary-foreground" : "text-primary"} />
                </div>
             )}
           </div>

@@ -66,6 +66,10 @@ export interface ParsedMessage {
   text: string;
   isEdited: boolean;
   editedAt?: string;
+  // One-time / viewed state
+  isOneTime?: boolean;
+  isViewed?: boolean;
+  expiresAt?: string;
 }
 
 // ── Parser ───────────────────────────────────────────────────────
@@ -145,6 +149,18 @@ export function parseMsg(raw: string): ParsedMessage {
     editedAt = text.slice(editIdx + 10); text = text.slice(0, editIdx); isEdited = true;
   }
 
+  // Viewed marker (generic: ||VIEWED||ts||/VIEWED||)
+  let isViewed = false;
+  const viewedIdx = raw.indexOf('||VIEWED||');
+  if (viewedIdx !== -1) {
+    isViewed = true;
+    const viewedEndIdx = raw.indexOf('||/VIEWED||');
+    if (viewedEndIdx !== -1) {
+      // Strip it from text if it's at the end or integrated
+      text = text.replace(/\|\|VIEWED\|\|.*?\|\|\/VIEWED\|\|/, '').trim();
+    }
+  }
+
   return {
     isReply, replyId, replySender, replyPreview,
     isFwd, fwdSender, fwdText,
@@ -153,6 +169,7 @@ export function parseMsg(raw: string): ParsedMessage {
     isVoice, voiceDuration, voiceBase64,
     isSystemEvent, systemEventType, systemEventFields,
     text, isEdited, editedAt,
+    isViewed
   };
 }
 

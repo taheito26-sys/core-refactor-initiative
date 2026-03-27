@@ -11,6 +11,7 @@ import { MessageComposer } from '@/features/chat/components/MessageComposer';
 import { MessageList } from '@/features/chat/components/MessageList';
 import { JumpToUnreadButton } from '@/features/chat/components/JumpToUnreadButton';
 import { CallOrchestrator } from '@/features/chat/components/CallOrchestrator';
+import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
 import { Shield, BarChart3, Cloud } from 'lucide-react';
 
 import { MOCK_OS_USER } from '@/lib/os-store';
@@ -48,14 +49,10 @@ export default function ChatWorkspacePage() {
   const messages = useRoomMessages(activeRoomId);
   const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
   
+  const { initiateCall } = useWebRTC({ roomId: activeRoomId, userId });
+  
   const handleCall = (is_video: boolean) => {
-    if (!activeRoomId) return;
-    const callSessionId = randomUUID();
-    supabase.channel(`room:${activeRoomId}:calls`).send({
-      type: 'broadcast',
-      event: 'offer',
-      payload: { callSessionId, started_by: userId, is_video }
-    });
+    initiateCall(is_video);
   };
 
   const isSecure = activeRoom?.type === 'deal' || !!activeRoom?.order_id;
