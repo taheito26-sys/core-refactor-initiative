@@ -1282,7 +1282,7 @@ export default function OrdersPage() {
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
+      <div className="orders-tab-bar">
         {(['my', 'incoming', 'outgoing', 'transfers'] as const).map(tab => (
           <button
             key={tab}
@@ -1295,13 +1295,7 @@ export default function OrdersPage() {
                 setSaleAmount('');
               }
             }}
-            style={{
-              padding: '9px 18px', fontSize: 11, fontWeight: activeTab === tab ? 700 : 500,
-              color: activeTab === tab ? 'var(--brand)' : 'var(--muted)',
-              borderBottom: activeTab === tab ? '2px solid var(--brand)' : '2px solid transparent',
-              background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer',
-              transition: 'all 0.15s', letterSpacing: '.2px',
-            }}
+            className={`orders-tab-btn ${activeTab === tab ? 'active' : ''}`}
           >
             {tab === 'my' ? `👤 ${t('myOrders')}`
               : tab === 'incoming' ? `📥 ${t('incomingOrders')}`
@@ -1311,7 +1305,7 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      <div className="twoColPage">
+      <div className="twoColPage orders-two-col">
 
         {/* ═══════════ LEFT PANEL ═══════════ */}
         <div>
@@ -1437,7 +1431,7 @@ export default function OrdersPage() {
                     <thead>
                       <tr>
                         {/* Identical header columns as Outgoing tab */}
-                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th className="hide-mobile">{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1470,11 +1464,11 @@ export default function OrdersPage() {
                             {/* MERCHANT — counterparty who created the deal */}
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             {/* BUYER — same customer field stored in deal notes */}
-                            <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
-                            <td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
+                            <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
                             {/* NET — same dual display as Outgoing: crossed-out full net + "my cut" */}
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
@@ -1494,7 +1488,7 @@ export default function OrdersPage() {
                                 </span>
                               )}
                             </td>
-                            <td>
+                            <td className="hide-mobile">
                               <div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>
@@ -1548,7 +1542,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th className="hide-mobile">{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1577,11 +1571,11 @@ export default function OrdersPage() {
                               </div>
                             </td>
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                            <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
-                            <td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
+                            <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
                                 <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
@@ -1600,7 +1594,7 @@ export default function OrdersPage() {
                                 </span>
                               )}
                             </td>
-                            <td>
+                            <td className="hide-mobile">
                               <div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>
