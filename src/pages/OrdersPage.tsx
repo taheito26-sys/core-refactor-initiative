@@ -380,13 +380,13 @@ export default function OrdersPage() {
 
   const handleCapitalTransfer = async () => {
     if (!linkedRelId) { toast.error(t('selectPartnerFirst')); return; }
-    if (!transferAmount || !transferCostBasis) { toast.error(t('amountCostRequired')); return; }
+    if (!transferAmount) { toast.error(t('amountCostRequired')); return; }
     try {
       await submitCapitalTransfer.mutateAsync({
         relationship_id: linkedRelId,
         direction: transferDirection,
         amount: parseFloat(transferAmount),
-        cost_basis: parseFloat(transferCostBasis),
+        cost_basis: 0,
         note: transferNote || undefined,
       });
       toast.success(t('capitalTransferSubmitted') || 'Capital transfer submitted');
@@ -2175,27 +2175,12 @@ export default function OrdersPage() {
                                     </div>
                                   );
                                 })()}
-                                <div className="g2tight">
-                                  <div className="field2">
-                                    <div className="lbl">USDT {t('amount')}</div>
-                                    <div className="inputBox">
-                                      <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" />
-                                    </div>
-                                  </div>
-                                  <div className="field2">
-                                    <div className="lbl">{t('costBasisQar')}</div>
-                                    <div className="inputBox">
-                                      <input type="number" step="0.01" value={transferCostBasis} onChange={e => setTransferCostBasis(e.target.value)} placeholder="3.65" />
-                                    </div>
+                                <div className="field2">
+                                  <div className="lbl">USDT {t('amount')}</div>
+                                  <div className="inputBox">
+                                    <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" />
                                   </div>
                                 </div>
-                                {transferAmount && transferCostBasis && (
-                                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                                    {t('totalCostQar')}: <span className="mono" style={{ fontWeight: 700 }}>
-                                      {(parseFloat(transferAmount) * parseFloat(transferCostBasis)).toLocaleString()} QAR
-                                    </span>
-                                  </div>
-                                )}
                                 <div className="field2" style={{ marginTop: 6 }}>
                                   <div className="lbl">{t('noteOptional')}</div>
                                   <div className="inputBox">

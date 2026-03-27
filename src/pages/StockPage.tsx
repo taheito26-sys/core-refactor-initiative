@@ -94,7 +94,7 @@ export default function StockPage() {
     if (!fundingAccountId && activeAccounts.length > 0) {
       // Prefer the account with highest balance
       const best = [...activeAccounts].sort((a, b) => (accountBalances.get(b.id) || 0) - (accountBalances.get(a.id) || 0));
-      setFundingAccountId(best[0]?.id || '');
+      setFundingAccountId(best[0]?.id || 'none');
     }
   }, [activeAccounts, fundingAccountId, accountBalances]);
 
@@ -212,7 +212,7 @@ export default function StockPage() {
     let fundingLedgerEntryId: string | undefined;
     let selectedFundingAccountId: string | undefined;
 
-    if (activeAccounts.length > 0 && fundingAccountId) {
+    if (activeAccounts.length > 0 && fundingAccountId && fundingAccountId !== 'none') {
       const selectedAcc = activeAccounts.find(a => a.id === fundingAccountId);
       if (!selectedAcc) { setBatchMsg(t('fundingAccNotFound')); return; }
       const availBal = accountBalances.get(fundingAccountId) || 0;
@@ -736,14 +736,15 @@ export default function StockPage() {
                   <select
                     value={fundingAccountId}
                     onChange={e => setFundingAccountId(e.target.value)}
-                    style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: `1px solid ${!fundingAccountId ? 'color-mix(in srgb, var(--warn) 50%, transparent)' : 'var(--line)'}`, background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-                    <option value="">{t('selectFundingAccPh')}</option>
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    style={{ color: 'hsl(var(--foreground))' }}>
+                    <option value="none">🚫 {t('noFundingSource')}</option>
                     {activeAccounts.map(a => {
                       const bal = accountBalances.get(a.id) || 0;
                       return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
                     })}
                   </select>
-                  {fundingAccountId && (() => {
+                  {fundingAccountId && fundingAccountId !== 'none' && (() => {
                     const acc = activeAccounts.find(a => a.id === fundingAccountId);
                     const bal = accountBalances.get(fundingAccountId) || 0;
                     return (
