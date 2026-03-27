@@ -2332,7 +2332,7 @@ export default function OrdersPage() {
                     border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
                     marginBottom: 6,
                   }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>💰 Add sale proceeds to cash?</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>{t('addSaleProceedsToCash')}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {(['none', 'full', 'partial'] as const).map(mode => (
                         <button
