@@ -2213,7 +2213,7 @@ export default function OrdersPage() {
                             {(selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family') && allocations.length > 0 && salePreview && (() => {
                               const alloc = allocations[0];
                               const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-                              const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+                              const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
                               const sellP = Number(saleSell) || 0;
                               const totalFee = parseFloat(saleFee) || 0;
 
