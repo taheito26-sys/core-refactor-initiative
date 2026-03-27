@@ -2361,7 +2361,7 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? "Don't add" : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : 'Custom amount'}
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)} QAR)` : t('customAmount')}
                         </button>
                       ))}
                     </div>
