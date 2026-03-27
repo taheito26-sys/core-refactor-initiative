@@ -49,7 +49,7 @@ export function MessageList(props: Props) {
           <div key={m.id} id={`msg-${m.id}`}>
             {showUnread && unreadCount > 0 && <UnreadDivider count={unreadCount} />}
             <MessageItem
-              message={m}
+              message={{ ...m, content: m.content || (m as any).body || '' }}
               isOwn={m.sender_id === props.currentUserId}
               reactions={props.reactionsByMessage[m.id] ?? []}
               pinned={props.pinnedSet.has(m.id)}
