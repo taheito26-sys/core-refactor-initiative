@@ -191,7 +191,7 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
         </div>
       );
     }
-    if (parsed.isVoice) return renderVoice();
+    if (parsed.isVoice) return <VoicePlayer />;
     if (parsed.isPoll) return renderPoll();
     if (parsed.isFwd) return renderForward();
     if (parsed.isReply) return renderReply();
