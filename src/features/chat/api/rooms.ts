@@ -60,3 +60,17 @@ export async function createRoom(input: {
     return fail(null, error);
   }
 }
+
+
+export async function getOrCreateDirectRoom(counterpartyMerchantId: string, roomTitle?: string | null): Promise<DeterministicResult<string | null>> {
+  try {
+    const { data, error } = await (supabase.rpc as any)('fn_chat_get_or_create_direct_room', {
+      _counterparty_merchant_id: counterpartyMerchantId,
+      _room_title: roomTitle ?? null,
+    });
+    if (error) throw error;
+    return ok((data as string) ?? null);
+  } catch (error) {
+    return fail(null, error);
+  }
+}

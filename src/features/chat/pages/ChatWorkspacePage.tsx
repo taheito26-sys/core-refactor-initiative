@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRooms } from '@/features/chat/hooks/useRooms';
+import { getOrCreateDirectRoom } from '@/features/chat/api/rooms';
 import { useRoomMessages } from '@/features/chat/hooks/useRoomMessages';
 import { useUnreadState } from '@/features/chat/hooks/useUnreadState';
 import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar';
@@ -19,6 +20,9 @@ import { Shield } from 'lucide-react';
 import { SecureTradePanel } from '@/features/chat/components/SecureTradePanel';
 import { useChatStore } from '@/lib/chat-store';
 
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
   const { userId: authUserId, merchantProfile } = useAuth();
@@ -26,6 +30,7 @@ export default function ChatWorkspacePage() {
   const isMobile = useIsMobile();
   const roomsQuery = useRooms();
   const rooms = roomsQuery.data ?? [];
+  const refetchRooms = roomsQuery.refetch;
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<any | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -52,6 +57,31 @@ export default function ChatWorkspacePage() {
       if (isMobile) setShowSidebar(false);
     }
   }, [searchParams, activeRoomId, isMobile]);
+
+
+  useEffect(() => {
+    const roomIdParam = searchParams.get('roomId');
+    const merchantIdParam = searchParams.get('merchantId');
+
+    const resolveRoom = async (counterpartyMerchantId: string) => {
+      const result = await getOrCreateDirectRoom(counterpartyMerchantId);
+      if (!result.ok || !result.data) return;
+      if (String(result.data) !== String(activeRoomId)) {
+        setActiveRoomId(String(result.data));
+      }
+      refetchRooms();
+      if (isMobile) setShowSidebar(false);
+    };
+
+    if (merchantIdParam && merchantIdParam !== userId) {
+      void resolveRoom(merchantIdParam);
+      return;
+    }
+
+    if (roomIdParam && !UUID_RE.test(roomIdParam) && roomIdParam !== userId) {
+      void resolveRoom(roomIdParam);
+    }
+  }, [searchParams, userId, activeRoomId, refetchRooms, isMobile]);
 
 
   useEffect(() => {
