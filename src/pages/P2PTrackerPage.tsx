@@ -207,7 +207,7 @@ export default function P2PTrackerPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
-  const [qatarSellAvg, setQatarSellAvg] = useState<number | null>(null);
+  const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
@@ -229,7 +229,7 @@ export default function P2PTrackerPage() {
       setLatestFetchedAt(null);
     }
 
-    // Fetch Qatar sell rate for cross-currency profit calculation
+    // Fetch Qatar rates for cross-currency FX derivation
     if (market !== 'qatar') {
       const { data: qatarRow } = await supabase
         .from('p2p_snapshots')
@@ -240,12 +240,14 @@ export default function P2PTrackerPage() {
         .maybeSingle();
       if (qatarRow?.data) {
         const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at);
-        setQatarSellAvg(qSnap.sellAvg);
+        setQatarRates(qSnap.sellAvg != null && qSnap.buyAvg != null
+          ? { sellAvg: qSnap.sellAvg, buyAvg: qSnap.buyAvg }
+          : null);
       } else {
-        setQatarSellAvg(null);
+        setQatarRates(null);
       }
     } else {
-      setQatarSellAvg(null); // Not needed for Qatar
+      setQatarRates(null); // Not needed for Qatar
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
@@ -344,6 +346,12 @@ export default function P2PTrackerPage() {
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
+  // ── FX helper: derive mid-rate from P2P data (market-driven FX proxy) ──
+  const deriveMid = (s: number | null, b: number | null): number | null => {
+    if (s != null && b != null && s > 0 && b > 0) return (s + b) / 2;
+    return s ?? b ?? null;
+  };
+
   const profitIfSold = useMemo(() => {
     try {
       const stateRaw = getCurrentTrackerState(localStorage);
@@ -357,42 +365,48 @@ export default function P2PTrackerPage() {
       const costBasis = stockCostQAR(derived);
       if (!wacop || wacop <= 0) return null;
 
-      // Cost basis is always in QAR. Sell rate is in the selected market's currency.
-      // For Qatar: both in QAR, direct comparison.
-      // For other markets: convert revenue to QAR using cross rate from P2P data.
-      if (market === 'qatar') {
-        const revenue = stock * sellAvg;
-        const profit = revenue - costBasis;
-        return { stock, costBasis, wacop, profit, currency: 'QAR' as string };
+      // FX: derive mid-rate from P2P data for both local and QAR markets
+      const localMid = deriveMid(sellAvg, buyAvg);
+      const qatarMid = market === 'qatar'
+        ? localMid
+        : qatarRates ? deriveMid(qatarRates.sellAvg, qatarRates.buyAvg) : null;
+
+      if (!localMid || localMid <= 0 || !qatarMid || qatarMid <= 0 || !sellAvg || sellAvg <= 0) {
+        console.log(`[P2P Profit] Missing FX data: localMid=${localMid}, qatarMid=${qatarMid}, sellAvg=${sellAvg}`);
+        return null;
       }
 
-      // Non-Qatar: need Qatar sell rate to compute cross rate
-      if (qatarSellAvg == null || qatarSellAvg <= 0 || sellAvg <= 0) {
-        console.log(`[P2P Profit] Cannot compute cross-currency profit: qatarSellAvg=${qatarSellAvg}, market=${market}, sellAvg=${sellAvg}`);
-        return null; // Cannot compute without FX data
-      }
+      // Step 1: proceedsLocal = stock × sellAvgLocal
+      const proceedsLocal = stock * sellAvg;
+      // Step 2: proceedsUSD = proceedsLocal × FX(local→USD) = proceedsLocal / localMid
+      const proceedsUSD = proceedsLocal / localMid;
+      // Step 3: costBasisUSD = costBasisQAR × FX(QAR→USD) = costBasisQAR / qatarMid
+      const costBasisUSD = costBasis / qatarMid;
+      // Step 4: profitUSD = proceedsUSD − costBasisUSD
+      const profitUSD = proceedsUSD - costBasisUSD;
 
-      // Cross rate: 1 USDT = sellAvg in market currency, 1 USDT = qatarSellAvg in QAR
-      // So revenue in QAR = stock * qatarSellAvg (what we'd get selling at Qatar's rate)
-      // But we want: "if sold in THIS market", so:
-      // Revenue in market currency = stock * sellAvg
-      // Convert to QAR: revenue_qar = (stock * sellAvg) * (qatarSellAvg / sellAvg) = stock * qatarSellAvg
-      // Actually that's not right. The cross rate is:
-      // 1 unit of market currency = qatarSellAvg / sellAvg QAR
-      // Revenue in QAR = stock * sellAvg * (qatarSellAvg / sellAvg) = stock * qatarSellAvg
-      // This means selling in any market yields the same QAR-equivalent. That's correct for arbitrage-free P2P.
-      // The real value of selling in a specific market is the market sell price itself.
-      // Show profit in QAR using cross conversion:
-      const revenueQAR = stock * sellAvg * (qatarSellAvg / sellAvg);
-      const profit = revenueQAR - costBasis;
-      return { stock, costBasis, wacop, profit, currency: 'QAR' as string };
+      return { stock, costBasis, costBasisUSD, wacop, profit: profitUSD, currency: 'USD' as string };
     } catch {
       return null;
     }
-  }, [sellAvg, market, qatarSellAvg]);
+  }, [sellAvg, buyAvg, market, qatarRates]);
 
+  // ── Round-trip market spread simulation (USD) ──
+  const roundTripSim = useMemo(() => {
+    if (!profitIfSold) return null;
+    if (!sellAvg || !buyAvg || sellAvg <= 0 || buyAvg <= 0) return null;
 
+    // startingCapitalUSD = costBasisQAR / qatarMid (already computed)
+    const startingCapitalUSD = profitIfSold.costBasisUSD;
+    // Round-trip: convert USD → local → buy USDT → sell USDT → local → USD
+    // Simplifies to: finalUSD = startingCapitalUSD × (sellAvg / buyAvg)
+    const spreadRatio = sellAvg / buyAvg;
+    const finalUSD = startingCapitalUSD * spreadRatio;
+    const profit = finalUSD - startingCapitalUSD;
+    const pct = startingCapitalUSD > 0 ? (profit / startingCapitalUSD) * 100 : 0;
 
+    return { startingCapitalUSD, finalUSD, profit, spreadRatio, pct };
+  }, [profitIfSold, sellAvg, buyAvg]);
 
   const priceBarData = useMemo(() => {
     if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellValues: [], buyValues: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
@@ -526,7 +540,7 @@ export default function P2PTrackerPage() {
       </div>
 
       <div className="tracker-root" style={{ background: 'transparent' }}>
-        <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
+        <div className="kpis" style={{ gridTemplateColumns: `repeat(${6 + (profitIfSold ? 1 : 0) + (roundTripSim ? 1 : 0)}, minmax(0, 1fr))` }}>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pBestSell')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell ? fmtPrice(snapshot.bestSell) : '—'}</div>
@@ -565,9 +579,18 @@ export default function P2PTrackerPage() {
             <div className="kpi-card">
               <div className="kpi-lbl">{t('p2pProfitIfSoldNow')}</div>
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {profitIfSold.currency}
+                {profitIfSold.profit >= 0 ? '+' : ''}${fmtTotal(profitIfSold.profit)}
               </div>
               <div className="kpi-sub">{fmtPrice(profitIfSold.stock)} USDT · {t('p2pCostBasis')}</div>
+            </div>
+          )}
+          {roundTripSim && (
+            <div className="kpi-card">
+              <div className="kpi-lbl">Round-Trip Spread</div>
+              <div className="kpi-val" style={{ color: roundTripSim.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)}
+              </div>
+              <div className="kpi-sub">{fmtPrice(roundTripSim.pct)}% · sim</div>
             </div>
           )}
         </div>
@@ -673,10 +696,20 @@ export default function P2PTrackerPage() {
             {profitIfSold && (
               <div className="border-t border-[var(--line)] px-3 py-1.5">
                 <div className="text-[10px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {profitIfSold.currency}
+                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}${fmtTotal(profitIfSold.profit)}
                 </div>
                 <div className="mt-0.5 text-[9px] text-muted-foreground">
                   {fmtPrice(profitIfSold.stock)} USDT · WACOP {fmtPrice(profitIfSold.wacop)} QAR
+                </div>
+              </div>
+            )}
+            {roundTripSim && (
+              <div className="border-t border-[var(--line)] px-3 py-1.5">
+                <div className="text-[10px] font-extrabold" style={{ color: roundTripSim.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                  ↻ Round-Trip: {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)} ({fmtPrice(roundTripSim.pct)}%)
+                </div>
+                <div className="mt-0.5 text-[9px] text-muted-foreground">
+                  Spread ratio: {fmtPrice(roundTripSim.spreadRatio)}
                 </div>
               </div>
             )}

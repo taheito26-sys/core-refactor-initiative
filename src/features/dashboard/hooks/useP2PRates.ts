@@ -36,8 +36,8 @@ export function useP2PRates(market = 'qatar') {
       }
 
       const snapshot = data.data as Record<string, unknown>;
-      const buyRate = typeof snapshot.buyRate === 'number' ? snapshot.buyRate : null;
-      const sellRate = typeof snapshot.sellRate === 'number' ? snapshot.sellRate : null;
+      const buyRate = typeof snapshot.buyAvg === 'number' ? snapshot.buyAvg : null;
+      const sellRate = typeof snapshot.sellAvg === 'number' ? snapshot.sellAvg : null;
       const spread = buyRate && sellRate ? sellRate - buyRate : null;
       const spreadPercent = spread && buyRate ? (spread / buyRate) * 100 : null;
 

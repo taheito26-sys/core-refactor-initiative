@@ -171,6 +171,8 @@ Deno.serve(async (req: Request) => {
           fetchBinanceP2P(market.fiat, "BUY", market.asset),
         ]);
 
+        console.log(`[${market.id}] API response: SELL=${sellRaw.length} offers, BUY=${buyRaw.length} offers`);
+
         const snapshot = buildSnapshot(sellRaw, buyRaw);
 
         const { error } = await supabase.from("p2p_snapshots").insert({
@@ -179,7 +181,9 @@ Deno.serve(async (req: Request) => {
         });
 
         if (error) {
-          console.error(`Failed to insert snapshot for ${market.id}:`, error);
+          console.error(`[${market.id}] DB insert FAILED:`, error.message);
+        } else {
+          console.log(`[${market.id}] Snapshot inserted: sellAvg=${snapshot.sellAvg}, buyAvg=${snapshot.buyAvg}, ts=${new Date().toISOString()}`);
         }
 
         results[market.id] = {
@@ -192,7 +196,7 @@ Deno.serve(async (req: Request) => {
           },
         };
       } catch (err) {
-        console.error(`Error scraping ${market.id}:`, err);
+        console.error(`[${market.id}] Scrape ERROR:`, String(err));
         results[market.id] = { error: String(err) };
       }
     }
