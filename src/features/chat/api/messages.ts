@@ -13,7 +13,8 @@ export async function getRoomMessages(roomId: string, limit = 100): Promise<Dete
     
     return ok((data ?? []).map(m => ({
        ...m,
-       body: m.content
+       body: m.content,
+       sender_id: m.sender_merchant_id,
     })));
   } catch (error) {
     return fail([], error);
@@ -40,7 +41,10 @@ export async function sendMessage(input: {
       _expires_at: input.expiresAt ?? null
     });
     if (error) throw error;
-    if (data) (data as any).body = (data as any).content;
+    if (data) {
+      (data as any).body = (data as any).content;
+      (data as any).sender_id = (data as any).sender_merchant_id;
+    }
     return ok(data ?? null);
   } catch (error) {
     return fail(null, error);

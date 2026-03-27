@@ -42,6 +42,8 @@ export function useRoomMessages(roomId: string | null) {
           id: `temp-${Date.now()}`,
           room_id: roomId,
           sender_id: userId,
+          sender_merchant_id: userId,
+          content: newMsg.content,
           body: newMsg.content,
           body_json: newMsg.bodyJson || {},
           message_type: newMsg.type || 'text',

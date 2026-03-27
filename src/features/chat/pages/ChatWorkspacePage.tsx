@@ -21,8 +21,8 @@ import { randomUUID } from '@/features/chat/utils/uuid';
 
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
-  const { userId: authUserId } = useAuth();
-  const userId = authUserId || MOCK_OS_USER.id;
+  const { userId: authUserId, merchantProfile } = useAuth();
+  const userId = merchantProfile?.merchant_id || authUserId || MOCK_OS_USER.id;
   const roomsQuery = useRooms();
   const rooms = roomsQuery.data ?? [];
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);

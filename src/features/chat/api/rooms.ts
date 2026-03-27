@@ -15,13 +15,27 @@ export async function getRooms(): Promise<DeterministicResult<any[]>> {
         .select('*')
         .order('updated_at', { ascending: false });
       if (tableError) throw tableError;
-      return ok(tableData ?? []);
+      return ok((tableData ?? []).map(normalizeRoom));
     }
     
-    return ok(data ?? []);
+    return ok((data ?? []).map(normalizeRoom));
   } catch (error) {
     return fail([], error);
   }
+}
+
+function normalizeRoom(r: any) {
+  return {
+    ...r,
+    room_id: r.id ?? r.room_id,
+    title: r.name ?? r.title ?? 'Room',
+    name: r.name ?? r.title ?? 'Room',
+    last_message_body: r.last_message_content ?? r.last_message_body ?? '',
+    unread_count: r.message_count ?? r.unread_count ?? 0,
+    kind: r.type === 'standard' ? 'direct' : 'group',
+    lane: r.lane ?? 'Personal',
+    updated_at: r.last_message_at ?? r.updated_at ?? new Date().toISOString(),
+  };
 }
 
 export async function createRoom(input: {
