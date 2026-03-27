@@ -30,27 +30,27 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
   }, [rooms, conversations]);
 
   return (
-    <aside className="w-[200px] bg-white border-r border-slate-100 flex flex-col h-full overflow-hidden shrink-0">
+    <aside className="w-[200px] bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0">
       <div className="p-4 pb-2 shrink-0">
-        <h2 className="text-base font-black text-slate-900 tracking-tighter mb-3 flex items-center justify-between">
+        <h2 className="text-base font-black text-foreground tracking-tighter mb-3 flex items-center justify-between">
           Inbox
-          <SlidersHorizontal size={14} className="text-slate-300 cursor-pointer hover:text-violet-600 transition-colors" />
+          <SlidersHorizontal size={14} className="text-muted-foreground/50 cursor-pointer hover:text-primary transition-colors" />
         </h2>
         <div className="relative mb-3">
-           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
            <input 
              type="text" 
              placeholder="Search..." 
-             className="w-full bg-[#F8FAFC] border border-transparent rounded-lg py-2 pl-9 pr-2 text-[10px] font-medium outline-none focus:bg-white focus:border-violet-100 transition-all shadow-inner"
+             className="w-full bg-muted border border-transparent rounded-lg py-2 pl-9 pr-2 text-[10px] font-medium text-foreground placeholder:text-muted-foreground outline-none focus:bg-background focus:border-primary/20 transition-all shadow-inner"
            />
         </div>
         
-        <div className="flex gap-3 px-1 border-b border-slate-50 pb-1">
-           <button className="relative text-[9px] font-black text-slate-900 uppercase tracking-widest pb-1.5 group">
+        <div className="flex gap-3 px-1 border-b border-border pb-1">
+           <button className="relative text-[9px] font-black text-foreground uppercase tracking-widest pb-1.5 group">
              All
-             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600" />
+             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
            </button>
-           <button className="text-[9px] font-black text-slate-400 uppercase tracking-widest pb-1.5 hover:text-slate-600 transition-colors">VIP</button>
+           <button className="text-[9px] font-black text-muted-foreground uppercase tracking-widest pb-1.5 hover:text-foreground transition-colors">VIP</button>
         </div>
       </div>
 
@@ -62,33 +62,33 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
               key={room.room_id}
               onClick={() => onSelectRoom?.(String(room.room_id))}
               className={`w-full group flex flex-col p-2.5 rounded-xl transition-all duration-200 relative ${
-                isActive ? 'bg-slate-50 shadow-sm' : 'hover:bg-slate-50/50'
+                isActive ? 'bg-accent shadow-sm' : 'hover:bg-accent/50'
               }`}
             >
               <div className="flex items-center gap-2 w-full mb-1">
                 <div className="relative shrink-0">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-[12px] font-black transition-all ${
-                    isActive ? 'bg-violet-600' : 'bg-slate-100 text-slate-400'
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-black transition-all ${
+                    isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                   }`}>
                     {room.title?.charAt(0).toUpperCase()}
                   </div>
                   {room.unread_count > 0 && (
-                    <div className="absolute -top-1 -right-1 bg-[#F43F5E] text-white text-[7px] font-black px-1 py-0.5 rounded-[3px] border border-white">
+                    <div className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[7px] font-black px-1 py-0.5 rounded-[3px] border border-background">
                       {room.unread_count}
                     </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0">
-                    <span className={`text-[11px] font-black tracking-tight truncate ${isActive ? 'text-slate-900' : 'text-slate-600'}`}>{room.title}</span>
+                    <span className={`text-[11px] font-black tracking-tight truncate ${isActive ? 'text-foreground' : 'text-foreground/70'}`}>{room.title}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                     <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest truncate">{room.type === 'deal' ? 'SECURE Trade' : 'M-ID 2947'}</span>
+                     <span className="text-[7.5px] text-muted-foreground font-bold uppercase tracking-widest truncate">{room.type === 'deal' ? 'SECURE Trade' : 'M-ID 2947'}</span>
                   </div>
                 </div>
               </div>
               
-              <p className={`text-[10px] line-clamp-1 text-left leading-tight ${isActive ? 'text-slate-600' : 'text-slate-400'}`}>
+              <p className={`text-[10px] line-clamp-1 text-left leading-tight ${isActive ? 'text-foreground/70' : 'text-muted-foreground'}`}>
                 {room.last_message_body || 'Initiating trade...'}
               </p>
             </button>
