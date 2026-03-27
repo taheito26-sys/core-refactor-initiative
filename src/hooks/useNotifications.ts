@@ -39,6 +39,22 @@ export function notificationRoute(n: Notification): string {
   }
 }
 
+
+function applyReadStateToCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  ids: string[],
+  readAt: string,
+) {
+  queryClient.setQueriesData(
+    { queryKey: ['notifications'] },
+    (prev: Notification[] | undefined) => {
+      if (!prev) return prev;
+      const idSet = new Set(ids);
+      return prev.map((n) => (idSet.has(n.id) ? { ...n, read_at: readAt } : n));
+    }
+  );
+}
+
 export function useNotifications() {
   const { userId } = useAuth();
   const queryClient = useQueryClient();
@@ -109,11 +125,44 @@ export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      const readAt = new Date().toISOString();
       const { error } = await supabase
         .from('notifications')
-        .update({ read_at: new Date().toISOString() })
+        .update({ read_at: readAt })
         .eq('id', id);
       if (error) throw error;
+      return { id, readAt };
+    },
+    onMutate: async (id: string) => {
+      const readAt = new Date().toISOString();
+      applyReadStateToCache(queryClient, [id], readAt);
+      return { id, readAt };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+
+export function useMarkNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!ids.length) return;
+      const readAt = new Date().toISOString();
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: readAt })
+        .in('id', ids)
+        .is('read_at', null);
+      if (error) throw error;
+      return { ids, readAt };
+    },
+    onMutate: async (ids: string[]) => {
+      const readAt = new Date().toISOString();
+      applyReadStateToCache(queryClient, ids, readAt);
+      return { ids, readAt };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
