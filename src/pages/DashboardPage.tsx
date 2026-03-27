@@ -83,9 +83,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const [showCashBox, setShowCashBox] = useState(false);
   const [expandedNewKpi, setExpandedNewKpi] = useState<string | null>(null);
-  const { user, merchantProfile } = useAuth();
-  const userId = adminUserId || user?.id;
-  const workspaceMerchantId = adminMerchantId || merchantProfile?.merchant_id;
 
 
   const handleCashSave = useCallback((newCash: number, owner: string, history?: import('@/lib/tracker-helpers').CashTransaction[]) => {
