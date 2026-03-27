@@ -10,83 +10,10 @@ import {
   ArrowLeft, Send, Search, MessageCircle, ChevronDown, Smile, Reply, Copy,
   Trash2, X, Pin, Star, Forward, Edit3, Lock, Volume2, VolumeX, Clock,
   CheckSquare, Megaphone, Filter, AtSign, Phone, MoreVertical, Image,
-  Mic, MicOff, StopCircle, BookmarkCheck
+  Mic, MicOff, StopCircle, BookmarkCheck, Eye, Shield
 } from 'lucide-react';
+import { parseMsg, encodeVoice, encodeReply, encodeForward, encodeEdited, encodeScheduled, encodePoll, fmtDateSeparator as fmtDateSep, fmtMsgTime } from '@/features/chat/lib/message-codec';
 
-// ─── Encoding helpers ───────────────────────────────────────────────────────
-const SEP = '||~||';
-
-function encodeReply(replyId: string, sender: string, preview: string, text: string) {
-  return `||REPLY||${replyId}${SEP}${sender}${SEP}${preview.slice(0, 120).replace(/\|\|/g, '|')}||/REPLY||\n${text}`;
-}
-function encodeForward(originalSender: string, originalText: string, newText: string) {
-  return `||FWD||${originalSender}${SEP}${originalText.slice(0, 200).replace(/\|\|/g, '|')}||/FWD||\n${newText}`;
-}
-function encodeEdited(text: string, ts: string) { return `${text}||EDITED||${ts}`; }
-function encodeScheduled(sendAt: string, content: string) { return `||SCHED||${sendAt}${SEP}${content}||/SCHED||`; }
-function encodePoll(question: string, opts: string[]) { return `||POLL||${question}${SEP}${opts.join(';;')}||/POLL||`; }
-function encodeVoice(durationSec: number, base64: string) { return `||VOICE||${durationSec}${SEP}${base64}||/VOICE||`; }
-
-function parseMsg(raw: string): {
-  isReply: boolean; replyId?: string; replySender?: string; replyPreview?: string;
-  isFwd: boolean; fwdSender?: string; fwdText?: string;
-  isPoll: boolean; pollQuestion?: string; pollOptions?: string[];
-  isScheduled: boolean; schedAt?: string;
-  isVoice: boolean; voiceDuration?: number; voiceBase64?: string;
-  text: string; isEdited: boolean; editedAt?: string;
-} {
-  let text = raw;
-  let isReply = false, replyId: string | undefined, replySender: string | undefined, replyPreview: string | undefined;
-  let isFwd = false, fwdSender: string | undefined, fwdText: string | undefined;
-  let isPoll = false, pollQuestion: string | undefined, pollOptions: string[] | undefined;
-  let isScheduled = false, schedAt: string | undefined;
-  let isVoice = false, voiceDuration: number | undefined, voiceBase64: string | undefined;
-  let isEdited = false, editedAt: string | undefined;
-
-  if (text.startsWith('||VOICE||')) {
-    const end = text.indexOf('||/VOICE||');
-    if (end !== -1) {
-      const meta = text.slice(9, end).split(SEP);
-      voiceDuration = Number(meta[0]) || 0;
-      voiceBase64 = meta[1] || '';
-      text = ''; isVoice = true;
-    }
-  } else if (text.startsWith('||REPLY||')) {
-    const end = text.indexOf('||/REPLY||\n');
-    if (end !== -1) {
-      const meta = text.slice(9, end).split(SEP);
-      replyId = meta[0]; replySender = meta[1]; replyPreview = meta[2];
-      text = text.slice(end + 11); isReply = true;
-    }
-  } else if (text.startsWith('||FWD||')) {
-    const end = text.indexOf('||/FWD||\n');
-    if (end !== -1) {
-      const meta = text.slice(7, end).split(SEP);
-      fwdSender = meta[0]; fwdText = meta[1];
-      text = text.slice(end + 9); isFwd = true;
-    }
-  } else if (text.startsWith('||POLL||')) {
-    const end = text.indexOf('||/POLL||');
-    if (end !== -1) {
-      const meta = text.slice(8, end).split(SEP);
-      pollQuestion = meta[0]; pollOptions = meta[1]?.split(';;') || [];
-      text = ''; isPoll = true;
-    }
-  } else if (text.startsWith('||SCHED||')) {
-    const end = text.indexOf('||/SCHED||');
-    if (end !== -1) {
-      const meta = text.slice(9, end).split(SEP);
-      schedAt = meta[0]; text = meta[1] || ''; isScheduled = true;
-    }
-  }
-
-  const editIdx = text.lastIndexOf('||EDITED||');
-  if (editIdx !== -1) {
-    editedAt = text.slice(editIdx + 10); text = text.slice(0, editIdx); isEdited = true;
-  }
-
-  return { isReply, replyId, replySender, replyPreview, isFwd, fwdSender, fwdText, isPoll, pollQuestion, pollOptions, isScheduled, schedAt, isVoice, voiceDuration, voiceBase64, text, isEdited, editedAt };
-}
 
 // ─── Link renderer ─────────────────────────────────────────────────────────
 function renderLinks(text: string) {
@@ -118,12 +45,6 @@ function fmtListTime(s: string) {
   if (diff === 1) return 'Yesterday';
   if (diff < 7) return d.toLocaleDateString([], { weekday: 'short' });
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-function fmtMsgTime(s: string) { return new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
-function fmtDateSep(s: string) {
-  const d = new Date(s), diff = Math.floor((Date.now() - d.getTime()) / 86400000);
-  if (diff === 0) return 'Today'; if (diff === 1) return 'Yesterday';
-  return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -168,7 +89,7 @@ function lsSet(key: string, val: unknown) {
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-interface Message { id: string; relationship_id: string; sender_id: string; content: string; read_at: string | null; created_at: string }
+interface Message { id: string; relationship_id: string; sender_id: string; content: string; read_at: string | null; created_at: string; expires_at?: string | null }
 interface OptMsg extends Message { _pending: true }
 interface ConvSummary { relationship_id: string; counterparty_name: string; counterparty_nickname: string; last_message: string; last_message_at: string; last_sender_id: string; unread_count: number }
 interface CtxMenu { msgId: string; x: number; y: number; isOwn: boolean; text: string; raw: string }
@@ -245,7 +166,7 @@ function VoicePlayer({ base64, duration, isOwn }: { base64: string; duration: nu
   };
 
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-  const displayDur = currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration);
+  const displayDur = playing || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration);
 
   return (
     <div className={`chat-voice-player ${isOwn ? 'own' : 'other'}`}>
@@ -375,6 +296,8 @@ export function UnifiedChatInbox({
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimeRef = useRef<number>(0);
+  const streamRef = useRef<MediaStream | null>(null);
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const relIds = useMemo(() => relationships.map(r => r.id), [relationships]);
@@ -660,14 +583,47 @@ export function UnifiedChatInbox({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
+      recordingTimeRef.current = 0;
+      streamRef.current = stream;
       // Prefer opus/webm for compression; fall back to whatever browser supports
       const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(m => MediaRecorder.isTypeSupported(m)) || '';
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.start(100); // collect every 100ms
+
+      // IMPORTANT: attach onstop BEFORE mr.start() so the event is never missed
+      mr.onstop = async () => {
+        const durationSec = recordingTimeRef.current || 1;
+        const blobMime = mr.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: blobMime });
+        // Convert to base64 for storage in the message content
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const dataUrl = reader.result as string;
+          // dataUrl = "data:audio/webm;base64,AAAA..."
+          const base64 = dataUrl.split(',')[1];
+          if (!base64 || !activeRelId) return;
+          const content = encodeVoice(durationSec, base64);
+          // Send directly (bypass text state)
+          const tempId = `opt_${Date.now()}`;
+          setOptimistic(p => [...p, { id: tempId, relationship_id: activeRelId, sender_id: userId!, content, read_at: null, created_at: new Date().toISOString(), _pending: true }]);
+          try {
+            await sendMessage.mutateAsync({ relationship_id: activeRelId, content });
+            setOptimistic(p => p.filter(m => m.id !== tempId));
+            queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
+          } catch { setOptimistic(p => p.filter(m => m.id !== tempId)); }
+        };
+        reader.readAsDataURL(blob);
+        audioChunksRef.current = [];
+        mediaRecorderRef.current = null;
+      };
+
+      mr.start(100); // collect every 100ms — onstop is already wired above
       mediaRecorderRef.current = mr;
       setIsRecording(true); setRecordingTime(0);
-      recordingTimer.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+      recordingTimer.current = setInterval(() => {
+        recordingTimeRef.current += 1;
+        setRecordingTime(t => t + 1);
+      }, 1000);
     } catch (err: any) {
       toast.error('Microphone access denied. Please allow microphone permissions.');
     }
@@ -676,37 +632,14 @@ export function UnifiedChatInbox({
   const stopRecording = () => {
     const mr = mediaRecorderRef.current;
     if (!mr) return;
-    mr.stop();
-    // Stop all tracks to release microphone
-    mr.stream.getTracks().forEach(t => t.stop());
+    // Clear timer and update UI immediately
     if (recordingTimer.current) clearInterval(recordingTimer.current);
-
-    mr.onstop = async () => {
-      const durationSec = recordingTime || 1;
-      const mimeType = mr.mimeType || 'audio/webm';
-      const blob = new Blob(audioChunksRef.current, { type: mimeType });
-      // Convert to base64 for storage in the message content
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const dataUrl = reader.result as string;
-        // dataUrl = "data:audio/webm;base64,AAAA..."
-        const base64 = dataUrl.split(',')[1];
-        if (!base64 || !activeRelId) return;
-        const content = encodeVoice(durationSec, base64);
-        // Send directly (bypass text state)
-        const tempId = `opt_${Date.now()}`;
-        setOptimistic(p => [...p, { id: tempId, relationship_id: activeRelId, sender_id: userId!, content, read_at: null, created_at: new Date().toISOString(), _pending: true }]);
-        try {
-          await sendMessage.mutateAsync({ relationship_id: activeRelId, content });
-          setOptimistic(p => p.filter(m => m.id !== tempId));
-          queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
-        } catch { setOptimistic(p => p.filter(m => m.id !== tempId)); }
-      };
-      reader.readAsDataURL(blob);
-      setIsRecording(false);
-      mediaRecorderRef.current = null;
-      audioChunksRef.current = [];
-    };
+    setIsRecording(false);
+    // Stop all tracks to release microphone
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    // Calling mr.stop() triggers the pre-attached onstop handler (which processes & sends audio)
+    mr.stop();
   };
 
   const scrollToMsg = (msgId: string, strongHighlight = false) => {
@@ -946,7 +879,26 @@ export function UnifiedChatInbox({
                           ) : parsed.isPoll ? (
                             <PollBubble msgId={m.id} question={parsed.pollQuestion!} options={parsed.pollOptions!} isOwn={isOwn} />
                           ) : (
-                            <div className="chat-bubble-content">{renderLinks(parsed.text)}</div>
+                            <div className="chat-bubble-content">
+                               {!!m.expires_at && !isOwn && parsed.isViewed ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.5 }}>
+                                     <Eye style={{ width: 12, height: 12 }} />
+                                     <span style={{ fontStyle: 'italic', fontSize: 11 }}>Message viewed</span>
+                                  </div>
+                               ) : !!m.expires_at && !isOwn && !parsed.isViewed ? (
+                                  <button
+                                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'inherit', cursor: 'pointer' }}
+                                     onClick={async () => {
+                                        const viewed = `${m.content}||VIEWED||${new Date().toISOString()}||/VIEWED||`;
+                                        await supabase.from('merchant_messages').update({ content: viewed }).eq('id', m.id);
+                                        queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
+                                     }}
+                                  >
+                                     <Shield style={{ width: 12, height: 12 }} />
+                                     <span style={{ fontWeight: 700, fontSize: 11 }}>Reveal one-time message</span>
+                                  </button>
+                               ) : renderLinks(parsed.text)}
+                            </div>
                           )}
                           <div className="chat-bubble-meta">
                             {isStarred && <Star style={{ width: 9, height: 9, color: '#f59e0b' }} />}

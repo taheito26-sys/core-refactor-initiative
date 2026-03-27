@@ -112,6 +112,74 @@ export function uid(): string {
 
 // ── Types matching the repo state model ──
 
+// ── Cash Management System Types ──────────────────────────────
+export type CashAccountType = 'hand' | 'bank' | 'vault';
+export type CashCurrency = 'QAR' | 'USDT' | 'USD';
+export type LedgerEntryType =
+  | 'opening'
+  | 'deposit'
+  | 'withdrawal'
+  | 'transfer_in'
+  | 'transfer_out'
+  | 'stock_purchase'
+  | 'stock_refund'
+  | 'stock_edit_adjust'
+  | 'reconcile';
+
+export interface CashAccount {
+  id: string;
+  name: string;
+  type: CashAccountType;
+  currency: CashCurrency;
+  status: 'active' | 'inactive';
+  bankName?: string;
+  branch?: string;
+  nickname?: string;
+  lastReconciled?: number;
+  notes?: string;
+  createdAt: number;
+}
+
+export interface CashLedgerEntry {
+  id: string;
+  ts: number;
+  type: LedgerEntryType;
+  accountId: string;
+  contraAccountId?: string;
+  direction: 'in' | 'out';
+  amount: number;
+  currency: CashCurrency;
+  fxRate?: number;
+  linkedEntityType?: 'batch';
+  linkedEntityId?: string;
+  note?: string;
+}
+
+export function getAccountBalance(accountId: string, ledger: CashLedgerEntry[]): number {
+  return (ledger || [])
+    .filter(e => e.accountId === accountId)
+    .reduce((sum, e) => sum + (e.direction === 'in' ? e.amount : -e.amount), 0);
+}
+
+export function getAllAccountBalances(accounts: CashAccount[], ledger: CashLedgerEntry[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const acc of accounts || []) {
+    map.set(acc.id, getAccountBalance(acc.id, ledger));
+  }
+  return map;
+}
+
+/** Derive the legacy cashQAR total from the new multi-account ledger */
+export function deriveCashQAR(cashAccounts: CashAccount[], cashLedger: CashLedgerEntry[]): number {
+  if (!cashAccounts || cashAccounts.length === 0) return 0;
+  let total = 0;
+  for (const acc of cashAccounts) {
+    if (acc.status !== 'active' || acc.currency !== 'QAR') continue;
+    total += getAccountBalance(acc.id, cashLedger);
+  }
+  return total;
+}
+
 export interface Batch {
   id: string;
   ts: number;
@@ -120,6 +188,10 @@ export interface Batch {
   buyPriceQAR: number;
   initialUSDT: number;
   revisions: any[];
+  /** ID of the CashAccount used to fund this batch */
+  fundingAccountId?: string;
+  /** ID of the CashLedgerEntry for this batch's purchase */
+  fundingLedgerEntryId?: string;
 }
 
 export type LinkedTradeStatus = 'pending_approval' | 'approved' | 'rejected' | 'cancellation_pending' | 'cancelled';
@@ -208,6 +280,10 @@ export interface TrackerState {
   cashQAR: number;
   cashOwner: string;
   cashHistory: CashTransaction[];
+  /** Multi-wallet cash accounts (replaces single cashQAR for multi-account users) */
+  cashAccounts: CashAccount[];
+  /** Immutable cash ledger — every balance change appends here */
+  cashLedger: CashLedgerEntry[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }

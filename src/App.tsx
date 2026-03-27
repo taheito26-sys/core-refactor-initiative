@@ -42,6 +42,7 @@ import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
 import RelationshipPage from './pages/RelationshipPage';
 import ChatPage from './pages/ChatPage';
+import ChatPreview from './pages/ChatPreview';
 
 
 import NotificationsPage from './pages/NotificationsPage';
@@ -165,6 +166,7 @@ const App = () => (
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/verify-email" element={<VerifyEmailPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/chat-preview" element={<ChatPreview />} />
 
                 {/* Pending approval — requires auth but not profile */}
                 <Route path="/pending-approval" element={

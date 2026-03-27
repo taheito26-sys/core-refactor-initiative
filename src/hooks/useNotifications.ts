@@ -18,6 +18,12 @@ export interface Notification {
   route_params?: Record<string, string> | null;
   read_at: string | null;
   created_at: string;
+  // Routing metadata for deep linking
+  conversation_id?: string | null;
+  message_id?: string | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  anchor_id?: string | null;
 }
 
 /** Map notification categories to app routes */

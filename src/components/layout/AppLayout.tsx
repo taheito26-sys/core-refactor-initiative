@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { AppSidebar, MobileBottomNav } from './AppSidebar';
 import { TopBar } from './TopBar';
@@ -12,6 +12,9 @@ export function AppLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings } = useTheme();
   const isRTL = settings.language === 'ar';
+
+  const location = useLocation();
+  const isChat = location.pathname.startsWith('/chat');
 
   return (
     <div
@@ -36,13 +39,21 @@ export function AppLayout() {
           isMobile={isMobile}
           onMenuClick={isMobile ? () => setMobileSidebarOpen(true) : undefined}
         />
-        <div className="app-content-scroll flex-1 overflow-y-auto">
-          <div className="app-page-shell">
-            <div className="app-page-content">
-              <Outlet />
+        
+        {isChat ? (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+             <Outlet />
+          </div>
+        ) : (
+          <div className="app-content-scroll flex-1 overflow-y-auto">
+            <div className="app-page-shell">
+              <div className="app-page-content">
+                <Outlet />
+              </div>
             </div>
           </div>
-        </div>
+        )}
+        
         {isMobile && <MobileBottomNav onMoreClick={() => setMobileSidebarOpen(true)} />}
       </div>
 
