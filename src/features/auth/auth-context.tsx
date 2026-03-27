@@ -44,6 +44,7 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  devLogin: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -90,6 +91,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const syncAuthState = async (newSession: Session | null) => {
       if (!isMounted) return;
+
+      // Handle Dev Mode Bypass
+      if (localStorage.getItem('p2p_dev_mode') === 'true') {
+        const mockUser: User = {
+          id: '00000000-0000-0000-0000-000000000000',
+          email: 'dev@local.test',
+          app_metadata: {},
+          user_metadata: { full_name: 'Dev Admin' },
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+        } as any;
+
+        const mockSession: Session = {
+          access_token: 'mock-access-token',
+          user: mockUser,
+        } as any;
+
+        const mockProfile: Profile = {
+          id: 'dev-profile-123',
+          user_id: mockUser.id,
+          email: mockUser.email!,
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+        } as any;
+
+        const mockMerchant: MerchantProfile = {
+          id: 'dev-merchant-123',
+          user_id: mockUser.id,
+          merchant_id: 'M-TEST-001',
+          nickname: 'Alpha',
+          display_name: 'Alpha Merchant (DEV)',
+          status: 'active',
+          default_currency: 'USDT',
+        } as any;
+
+        setSession(mockSession);
+        setUser(mockUser);
+        setProfile(mockProfile);
+        setMerchantProfile(mockMerchant);
+        setIsLoading(false);
+        return;
+      }
 
       setSession(newSession);
       setUser(newSession?.user ?? null);
@@ -201,6 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    localStorage.removeItem('p2p_dev_mode');
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setUser(null);
@@ -214,6 +258,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     if (error) throw error;
+  }, []);
+
+  const devLogin = useCallback(() => {
+    console.info('[Auth] Triggering Dev Login (No Auth Required)');
+    localStorage.setItem('p2p_dev_mode', 'true');
+    window.location.reload(); // Reload to apply mock state everywhere
+  }, []);
+
+  const clearDevMode = useCallback(() => {
+    localStorage.removeItem('p2p_dev_mode');
+    window.location.reload();
   }, []);
 
   return (
@@ -233,6 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         refreshProfile,
         resetPassword,
+        devLogin,
       }}
     >
       {children}

@@ -8,6 +8,44 @@ async function currentUserId(): Promise<string> {
   return userId;
 }
 
+export async function createBusinessObjectFromMessage(input: {
+  roomId: string;
+  messageId: string;
+  objectType: 'order' | 'payment' | 'agreement' | 'dispute' | 'task' | 'deal_offer' | 'snapshot';
+  payload: Record<string, unknown>;
+  title: string;
+}): Promise<DeterministicResult<{ objectId: string | null }>> {
+  try {
+    const userId = await currentUserId();
+    const { data: obj, error: objError } = await supabase
+      .from('os_business_objects' as any)
+      .insert({
+        room_id: input.roomId,
+        object_type: input.objectType,
+        source_message_id: input.messageId,
+        created_by: userId,
+        payload: input.payload,
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+    if (objError) throw objError;
+
+    // Track in original tracker links for backward compatibility
+    await createActionItemFromMessage({
+      roomId: input.roomId,
+      messageId: input.messageId,
+      kind: input.objectType === 'task' ? 'task' : 'reminder',
+      title: input.title,
+      payload: input.payload,
+    });
+
+    return ok({ objectId: (obj as any).id as string });
+  } catch (error) {
+    return fail({ objectId: null }, error);
+  }
+}
+
 export async function createOrderDraftFromMessage(input: {
   roomId: string;
   messageId: string;
@@ -40,7 +78,7 @@ export async function createOrderDraftFromMessage(input: {
       room_id: input.roomId,
       message_id: input.messageId,
       link_type: 'order',
-      linked_id: deal.id,
+      linked_id: (deal as any).id,
       linked_path: '/trading/orders',
       merchant_relationship_id: input.relationshipId,
       created_by: userId,
@@ -48,7 +86,7 @@ export async function createOrderDraftFromMessage(input: {
     });
     if (linkError) throw linkError;
 
-    return ok({ dealId: deal.id as string });
+    return ok({ dealId: (deal as any).id as string });
   } catch (error) {
     return fail({ dealId: null }, error);
   }
@@ -79,14 +117,14 @@ export async function createActionItemFromMessage(input: {
       room_id: input.roomId,
       message_id: input.messageId,
       link_type: input.kind,
-      linked_id: item.id,
+      linked_id: (item as any).id,
       linked_path: '/chat',
       created_by: userId,
       metadata: input.payload ?? {},
     });
     if (linkError) throw linkError;
 
-    return ok({ itemId: item.id as string });
+    return ok({ itemId: (item as any).id as string });
   } catch (error) {
     return fail({ itemId: null }, error);
   }

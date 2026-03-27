@@ -4,11 +4,10 @@ interface Props {
 
 export function UnreadDivider({ count }: Props) {
   return (
-    <div className="relative my-3">
-      <div className="h-px bg-border" />
-      <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-background px-2 text-[11px] text-muted-foreground">
-        {count} unread
-      </div>
+    <div className="relative my-10 px-12 flex items-center gap-6 animate-in fade-in duration-700">
+      <div className="flex-1 h-[1px] bg-slate-100" />
+      <span className="text-[12px] font-black text-rose-500 uppercase tracking-[0.2em]">{count} unread messages</span>
+      <div className="flex-1 h-[1px] bg-transparent" />
     </div>
   );
 }

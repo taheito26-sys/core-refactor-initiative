@@ -20,6 +20,7 @@ interface Props {
   onAcceptDeal?: (id: string) => void;
   onConvert?: (messageId: string, type: 'task' | 'order') => void;
   onReply?: (message: any) => void;
+  disableForward?: boolean;
 }
 
 export function MessageList(props: Props) {
@@ -61,6 +62,7 @@ export function MessageList(props: Props) {
               onCreateTask={() => props.onCreateTask(m.id)}
               onConvert={(type) => props.onConvert?.(m.id, type)}
               onReply={() => props.onReply?.(m)}
+              disableForward={props.disableForward}
             />
           </div>
         );

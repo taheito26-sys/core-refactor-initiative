@@ -1,14 +1,26 @@
 import { supabase } from '@/integrations/supabase/client';
-import { ChatRoom, DeterministicResult, fail, ok } from '@/features/chat/lib/types';
+import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
 
-export async function getRooms(): Promise<DeterministicResult<ChatRoom[]>> {
+export async function getRooms(): Promise<DeterministicResult<any[]>> {
   try {
+    // Standard OS UI expects 'chat_room_summary_v'
     const { data, error } = await supabase
-      .from('chat_room_summary_v' as any)
+      .from('chat_room_summary_v')
       .select('*')
-      .order('updated_at', { ascending: false });
-    if (error) throw error;
-    return ok((data ?? []) as ChatRoom[]);
+      .order('last_message_at', { ascending: false });
+    
+    if (error) {
+      // Fallback to table if view missing
+      console.warn('chat_room_summary_v missing, falling back to os_rooms');
+      const { data: tableData, error: tableError } = await supabase
+        .from('os_rooms')
+        .select('*')
+        .order('last_message_at', { ascending: false });
+      if (tableError) throw tableError;
+      return ok(tableData ?? []);
+    }
+    
+    return ok(data ?? []);
   } catch (error) {
     return fail([], error);
   }
@@ -16,52 +28,24 @@ export async function getRooms(): Promise<DeterministicResult<ChatRoom[]>> {
 
 export async function createRoom(input: {
   title: string;
-  kind?: 'direct' | 'group';
-  userIds: string[];
-}): Promise<DeterministicResult<{ roomId: string | null }>> {
-  try {
-    const user = await supabase.auth.getUser();
-    const uid = user.data.user?.id;
-    if (!uid) throw new Error('Not authenticated');
-
-    const { data: room, error: roomError } = await supabase
-      .from('chat_rooms' as any)
-      .insert({
-        title: input.title,
-        kind: input.kind ?? 'group',
-        owner_user_id: uid,
-        created_by: uid,
-      })
-      .select('id')
-      .single();
-    if (roomError) throw roomError;
-
-    const uniqueUsers = Array.from(new Set([uid, ...input.userIds]));
-    const members = uniqueUsers.map((userId) => ({
-      room_id: room.id,
-      user_id: userId,
-      role: userId === uid ? 'owner' : 'member',
-    }));
-
-    const { error: memberError } = await supabase.from('room_members' as any).insert(members);
-    if (memberError) throw memberError;
-
-    return ok({ roomId: room.id as string });
-  } catch (error) {
-    return fail({ roomId: null }, error);
-  }
-}
-
-export async function getRoomMembers(roomId: string): Promise<DeterministicResult<Array<{ user_id: string; role: string }>>> {
+  type?: string;
+  lane?: string;
+  orderId?: string;
+}): Promise<DeterministicResult<any | null>> {
   try {
     const { data, error } = await supabase
-      .from('room_members' as any)
-      .select('user_id, role, left_at')
-      .eq('room_id', roomId)
-      .is('left_at', null);
+      .from('os_rooms')
+      .insert({
+        name: input.title, // Standardized column name
+        type: input.type || 'standard',
+        lane: input.lane || 'Personal',
+        order_id: input.orderId
+      })
+      .select()
+      .single();
     if (error) throw error;
-    return ok((data ?? []) as Array<{ user_id: string; role: string }>);
+    return ok(data);
   } catch (error) {
-    return fail([], error);
+    return fail(null, error);
   }
 }

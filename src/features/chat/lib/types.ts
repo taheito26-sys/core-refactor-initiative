@@ -18,6 +18,7 @@ export interface ChatRoom {
   updated_at: string;
   security_policies?: SecurityPolicies;
   retention_policy?: RetentionPolicy;
+  type?: 'standard' | 'broadcast' | 'approval' | 'incident' | 'deal' | 'temporary';
 }
 
 export interface ChatMessage {

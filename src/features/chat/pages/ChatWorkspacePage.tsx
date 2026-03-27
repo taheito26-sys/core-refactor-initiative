@@ -1,315 +1,225 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { useRooms } from '@/features/chat/hooks/useRooms';
 import { useRoomMessages } from '@/features/chat/hooks/useRoomMessages';
 import { useUnreadState } from '@/features/chat/hooks/useUnreadState';
-import { useTypingPresence } from '@/features/chat/hooks/useTypingPresence';
-import { useRealtimeRoom } from '@/features/chat/hooks/useRealtimeRoom';
-import { useMessageActions } from '@/features/chat/hooks/useMessageActions';
-import { useCallSession } from '@/features/chat/hooks/useCallSession';
-import { useVoiceCall } from '@/features/chat/hooks/useVoiceCall';
-import { useRoomPolicy } from '@/features/chat/hooks/useRoomPolicy';
-import { useTrackerActions } from '@/features/chat/hooks/useTrackerActions';
-import { useMigrationHealth } from '@/features/chat/hooks/useMigrationHealth';
-import { searchInRoom, globalSearch } from '@/features/chat/api/search';
 import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar';
 import { ConversationHeader } from '@/features/chat/components/ConversationHeader';
 import { MessageComposer } from '@/features/chat/components/MessageComposer';
 import { MessageList } from '@/features/chat/components/MessageList';
 import { JumpToUnreadButton } from '@/features/chat/components/JumpToUnreadButton';
-import { PinnedMessagesPanel } from '@/features/chat/components/PinnedMessagesPanel';
-import { RoomSearchPanel } from '@/features/chat/components/RoomSearchPanel';
-import { GlobalSearchPanel } from '@/features/chat/components/GlobalSearchPanel';
-import { SharedMediaPanel } from '@/features/chat/components/SharedMediaPanel';
-import { RoomContextPanel } from '@/features/chat/components/RoomContextPanel';
-import { CallPanel } from '@/features/chat/components/CallPanel';
-import { CallHistoryPanel } from '@/features/chat/components/CallHistoryPanel';
-import { PolicyCenterPanel } from '@/features/chat/components/PolicyCenterPanel';
-import { CannedResponsesPanel } from '@/features/chat/components/CannedResponsesPanel';
-import { MigrationHealthPanel } from '@/features/chat/components/MigrationHealthPanel';
-import { supabase } from '@/integrations/supabase/client';
-import { useRef } from 'react';
+import { CallOrchestrator } from '@/features/chat/components/CallOrchestrator';
+import { Shield, BarChart3, Cloud } from 'lucide-react';
 
-// Messaging OS Primitives
 import { MOCK_OS_USER } from '@/lib/os-store';
+import { SecureTradePanel } from '@/features/chat/components/SecureTradePanel';
+import { TradingActionBar } from '@/features/chat/components/TradingActionBar';
+import { randomUUID } from '@/features/chat/utils/uuid';
 
 export default function ChatWorkspacePage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { userId } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { userId: authUserId } = useAuth();
+  const userId = authUserId || MOCK_OS_USER.id;
   const roomsQuery = useRooms();
   const rooms = roomsQuery.data ?? [];
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [searchHits, setSearchHits] = useState<any[]>([]);
   const [replyTo, setReplyTo] = useState<any | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(true);
   
-  // Feature 16: Smart Unread Presence
-  const roomFocusRef = useRef(true);
-
-  useEffect(() => {
-    const handleFocus = () => { roomFocusRef.current = true; };
-    const handleBlur = () => { roomFocusRef.current = false; };
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, []);
-
   const activeRoom = useMemo(
-    () => rooms.find((r) => r.room_id === activeRoomId) ?? null,
+    () => rooms.find((r) => String(r.id) === String(activeRoomId)) ?? null,
     [rooms, activeRoomId]
   );
 
   useEffect(() => {
-    if (!activeRoomId && rooms.length > 0) setActiveRoomId(rooms[0].room_id);
+    if (!activeRoomId && rooms.length > 0) setActiveRoomId(String(rooms[0].id));
   }, [rooms, activeRoomId]);
 
   useEffect(() => {
     const roomId = searchParams.get('roomId');
-    if (roomId && roomId !== activeRoomId) {
-      setActiveRoomId(roomId);
+    if (roomId && String(roomId) !== String(activeRoomId)) {
+      setActiveRoomId(String(roomId));
     }
   }, [searchParams, activeRoomId]);
 
   const messages = useRoomMessages(activeRoomId);
-  useRealtimeRoom(activeRoomId);
-  const typing = useTypingPresence(activeRoomId);
-  const actions = useMessageActions(activeRoomId);
-  const calls = useCallSession(activeRoomId);
-  const latestCall = (calls.history.data ?? []).find((c: any) => c.status === 'ringing' || c.status === 'active') ?? null;
-  const voice = useVoiceCall(latestCall?.call_session_id || latestCall?.id || null, activeRoomId);
-  const policy = useRoomPolicy(activeRoomId);
-  const tracker = useTrackerActions(activeRoomId, activeRoom?.relationship_id ?? null);
-  const migration = useMigrationHealth();
-  const { activeRoomUnread } = useUnreadState(activeRoomId);
-
-  useEffect(() => {
-    const health = migration.health.data as any;
-    if (!health) return;
-    const legacyCount = Number(health.legacy_count ?? 0);
-    const canonicalCount = Number(health.canonical_count ?? 0);
-    if (legacyCount > canonicalCount && !migration.runLive.isPending && !migration.runLive.isSuccess) {
-      migration.runLive.mutate();
-    }
-  }, [migration.health.data, migration.runLive]);
-
-  const reactionsByMessage = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    (actions.reactionsQuery.data ?? []).forEach((r) => {
-      map[r.message_id] = map[r.message_id] ? [...map[r.message_id], r.reaction] : [r.reaction];
-    });
-    return map;
-  }, [actions.reactionsQuery.data]);
-
-  const pinnedSet = useMemo(
-    () => new Set((actions.pinsQuery.data ?? []).map((p) => p.message_id)),
-    [actions.pinsQuery.data]
-  );
-
-  const policyValue = {
-    disable_forward: Boolean(policy.policy.data?.security?.disable_forward),
-    disable_copy: Boolean(policy.policy.data?.security?.disable_copy),
-    disable_export: Boolean(policy.policy.data?.security?.disable_export),
-    disable_attachment_download: Boolean(policy.policy.data?.security?.disable_attachment_download),
-    restricted_badge: Boolean(policy.policy.data?.security?.restricted_badge),
-    watermark_enabled: Boolean(policy.policy.data?.security?.watermark_enabled),
-  };
-
-  const [policyDraft, setPolicyDraft] = useState(policyValue);
-  useEffect(() => {
-    setPolicyDraft(policyValue);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRoomId, policy.policy.data?.security]);
-
-  const [attachments, setAttachments] = useState<any[]>([]);
-  useEffect(() => {
+  const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
+  
+  const handleCall = (is_video: boolean) => {
     if (!activeRoomId) return;
-    supabase
-      .from('message_attachments' as any)
-      .select('id, file_name, kind')
-      .eq('room_id', activeRoomId)
-      .order('created_at', { ascending: false })
-      .limit(40)
-      .then(({ data }) => setAttachments((data ?? []) as any[]));
-  }, [activeRoomId, messages.data]);
-
-  const firstUnread = useMemo(() => {
-    const list = messages.data ?? [];
-    const ownId = userId ?? '';
-    return list.find((m) => m.sender_id !== ownId && m.status !== 'read')?.id ?? null;
-  }, [messages.data, userId]);
-
-  const jumpToUnread = () => {
-    if (!firstUnread) return;
-    const el = document.getElementById(`msg-${firstUnread}`);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const callSessionId = randomUUID();
+    supabase.channel(`room:${activeRoomId}:calls`).send({
+      type: 'broadcast',
+      event: 'offer',
+      payload: { callSessionId, started_by: userId, is_video }
+    });
   };
 
-  useEffect(() => {
-    const messageId = searchParams.get('messageId');
-    if (!messageId) return;
-    const timer = setTimeout(() => {
-      const el = document.getElementById(`msg-${messageId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setSearchParams((prev) => {
-          const next = new URLSearchParams(prev);
-          next.delete('messageId');
-          return next;
-        }, { replace: true });
-      }
-    }, 80);
-    return () => clearTimeout(timer);
-  }, [messages.data, searchParams, setSearchParams]);
-
-  const isWatermarked = policyDraft.watermark_enabled || policyDraft.disable_export;
-  const isCopyDisabled = policyDraft.disable_copy;
-
-  const watermarkBg = isWatermarked 
-    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' opacity='0.03' transform='rotate(-45)'><text x='50' y='150' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23000'>CONFIDENTIAL - ${MOCK_OS_USER.id}</text></svg>")`
+  const isSecure = activeRoom?.type === 'deal' || !!activeRoom?.order_id;
+  
+  const watermarkText = `SECURE TRADING SURFACE - ${userId} - ${new Date().toISOString().split('T')[0]}`;
+  const watermarkBg = isSecure
+    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='300' opacity='0.008' transform='rotate(-20)'><text x='0' y='150' font-family='sans-serif' font-size='8' font-weight='900' fill='%23000'>${watermarkText}</text></svg>")`
     : 'none';
 
   return (
-    <div 
-      className="h-full flex overflow-hidden"
-      style={{
-        userSelect: isCopyDisabled ? 'none' : 'auto',
-        WebkitUserSelect: isCopyDisabled ? 'none' : 'auto'
-      }}
-    >
-      <ConversationSidebar rooms={rooms} activeRoomId={activeRoomId} onSelectRoom={setActiveRoomId} />
+    <div className="flex h-[calc(100vh-50px)] w-full overflow-hidden bg-white select-none relative">
+      <CallOrchestrator roomId={activeRoomId} />
+      
+      {/* NO SIDEBAR OVERRIDES - Reverting to Standard OS Global Sidebar */}
 
-      <main className="flex-1 min-w-0 flex flex-col relative">
-        {/* Feature 2: Watermark Overlay */}
-        <div 
-          className="absolute inset-0 pointer-events-none z-0" 
-          style={{ backgroundImage: watermarkBg }} 
-        />
+      {/* Column 2: Inbox Sidebar */}
+      <ConversationSidebar 
+        rooms={rooms} 
+        activeRoomId={activeRoomId} 
+        onSelectRoom={setActiveRoomId} 
+        currentUserId={userId}
+      />
+
+      {/* Column 3: Innovative Main Window - ZERO SCROLL ENFORCED */}
+      <main className="flex-1 flex flex-col relative h-full min-w-0 bg-[#f8fafc] border-l border-slate-100 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none z-[99]" style={{ backgroundImage: watermarkBg }} />
         
         {activeRoom ? (
           <>
             <ConversationHeader
-              title={activeRoom.title || 'Room'}
-              restricted={policyDraft.restricted_badge}
-              onStartCall={() => calls.start.mutate()}
+              title={activeRoom.name || activeRoom.title || 'Conversation'}
+              onSummarize={() => {}}
+              onSearchToggle={() => setShowSearch(!showSearch)}
+              onDashboardToggle={() => setShowDashboard(!showDashboard)}
+              onCallVoice={() => handleCall(false)}
+              onCallVideo={() => handleCall(true)}
+              showDashboard={showDashboard}
             />
 
-            <MessageList
-              messages={messages.data ?? []}
-              currentUserId={userId ?? ''}
-              unreadMessageId={firstUnread}
-              reactionsByMessage={reactionsByMessage}
-              pinnedSet={pinnedSet}
-              onReact={(messageId, emoji, remove) => actions.react.mutate({ messageId, reaction: emoji, remove })}
-              onPinToggle={(messageId, pinned) => (pinned ? actions.unpin.mutate(messageId) : actions.pin.mutate(messageId))}
-              onMarkRead={(messageId) => messages.read.mutate(messageId)}
-              onDeleteForMe={(messageId) => actions.deleteForMe.mutate(messageId)}
-              onDeleteForEveryone={(messageId) => actions.deleteForEveryone.mutate(messageId)}
-              onCreateOrder={(messageId) => tracker.createOrderDraft.mutate({ messageId, title: 'Order from chat message' })}
-              onCreateTask={(messageId) => tracker.createTask.mutate({ messageId, title: 'Task from chat message' })}
-              onReply={(m) => setReplyTo(m)}
-              onConvert={(messageId, type) => {
-                if (type === 'task') tracker.createTask.mutate({ messageId, title: 'Extracted Task' });
-                else tracker.createOrderDraft.mutate({ messageId, title: 'Extracted Order' });
-              }}
-              onAcceptDeal={(id) => {
-                alert(`Signing Deal Snapshot: ${id}`);
-                // Implementation would call update mutation with status: 'locked'
-              }}
-            />
+            <div className="flex-1 flex flex-col overflow-hidden w-full relative">
+              <div className="mx-auto w-full flex-1 flex flex-col overflow-hidden bg-white/40 relative">
+                
+                {isSecure && (
+                  <div className="px-4 py-1 shrink-0 scale-90 origin-top z-40">
+                    <SecureTradePanel
+                      orderId={activeRoom.order_id || 'ORD-1042'}
+                      buyer="Mohamed"
+                      amount="20k USDT"
+                      rate="3.672"
+                      total="73.4k"
+                      expiresIn="29m"
+                      onSettle={() => {}}
+                      onCancel={() => {}}
+                    />
+                  </div>
+                )}
 
-            <JumpToUnreadButton visible={activeRoomUnread > 0} onClick={jumpToUnread} />
+                <div className="flex-1 overflow-y-auto custom-scrollbar relative z-10 py-2">
+                  <div className="max-w-4xl mx-auto w-full">
+                    <MessageList
+                      messages={messages.data ?? []}
+                      currentUserId={userId}
+                      unreadMessageId={firstUnread}
+                      reactionsByMessage={{}}
+                      pinnedSet={new Set()}
+                      onReact={() => {}}
+                      onPinToggle={() => {}}
+                      onMarkRead={(id) => messages.read.mutate(id)}
+                      onDeleteForMe={() => {}}
+                      onDeleteForEveryone={() => {}}
+                      onCreateOrder={() => {}}
+                      onCreateTask={() => {}}
+                      onReply={(m) => setReplyTo(m)}
+                    />
+                  </div>
+                  <JumpToUnreadButton visible={(roomUnreadCount || 0) > 0} onClick={() => {}} />
+                </div>
 
-            <MessageComposer
-              sending={messages.send.isPending}
-              onTyping={(isTyping) => typing.updateTyping.mutate(isTyping)}
-              onSend={(payload) => messages.send.mutate(payload)}
-              onSchedule={(body, runAt) => messages.schedule.mutate({ body, runAt })}
-              replyTo={replyTo}
-              onCancelReply={() => setReplyTo(null)}
-              onOpenApp={(app) => {
-                alert(`Mounting Embedded OS Mini-App: ${app}`);
-              }}
-            />
+                <div className="shrink-0 bg-white/60 backdrop-blur-lg border-t border-slate-100 relative z-20">
+                  <div className="max-w-4xl mx-auto w-full scale-95 origin-bottom">
+                    <MessageComposer
+                      sending={messages.send.isPending}
+                      onTyping={() => {}}
+                      onSend={(payload) => messages.send.mutate(payload)}
+                      replyTo={replyTo}
+                      onCancelReply={() => setReplyTo(null)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </>
         ) : (
-          <div className="flex-1 grid place-items-center text-sm text-muted-foreground">No rooms</div>
+          <div className="flex-1 flex flex-col items-center justify-center bg-white space-y-4">
+             <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-200">
+                <Shield size={32} />
+             </div>
+             <div className="text-center">
+                <p className="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em]">Operational Readiness</p>
+                <p className="text-[9px] text-slate-300 font-bold mt-1">Select valid room to start session</p>
+             </div>
+          </div>
         )}
       </main>
 
-      <aside className="w-[340px] border-l border-border bg-background/60 overflow-auto p-3 space-y-3">
-        <PinnedMessagesPanel pinned={actions.pinsQuery.data ?? []} onJump={(messageId) => {
-          const el = document.getElementById(`msg-${messageId}`);
-          el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }} />
-
-        <RoomSearchPanel onSearch={async (query) => {
-          if (!activeRoomId || !query.trim()) return;
-          const res = await searchInRoom(activeRoomId, query.trim());
-          setSearchHits(res.data ?? []);
-        }} />
-
-        <GlobalSearchPanel onSearch={async (query) => {
-          if (!query.trim()) return;
-          const res = await globalSearch(query.trim());
-          setSearchHits(res.data ?? []);
-        }} />
-
-        {searchHits.length > 0 && (
-          <section className="border rounded-md p-3 bg-card">
-            <h3 className="text-xs font-semibold mb-2">Search Results</h3>
-            <div className="space-y-1 max-h-40 overflow-auto">
-              {searchHits.map((hit) => (
-                <button
-                  key={hit.message_id}
-                  className="w-full text-left text-xs border rounded px-2 py-1"
-                  onClick={() => {
-                    if (hit.room_id) setActiveRoomId(hit.room_id);
-                    setTimeout(() => {
-                      const el = document.getElementById(`msg-${hit.message_id}`);
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 50);
-                  }}
-                >
-                  {hit.snippet || hit.body}
-                </button>
-              ))}
+      {/* Column 4: Elegant Right Dashboard (Modern Command Center) */}
+      <aside 
+        className={`bg-white border-l border-slate-100 transition-all duration-300 relative z-30 flex flex-col h-full overflow-hidden ${
+          showDashboard ? 'w-[210px]' : 'w-0 border-l-0'
+        }`}
+      >
+        <div className="flex-1 flex flex-col h-full overflow-hidden w-[210px]">
+          <div className="p-6 pb-4 flex flex-col items-center text-center space-y-4 border-b border-slate-50 shrink-0">
+            <div className="w-16 h-16 rounded-[24px] bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center text-white text-3xl font-black shadow-xl shadow-violet-200 ring-4 ring-white">
+              {(activeRoom?.name || activeRoom?.title || 'M').charAt(0)}
             </div>
-          </section>
-        )}
+            <div>
+              <h3 className="text-[15px] font-black text-slate-900 leading-tight truncate w-[170px] uppercase tracking-tighter">{activeRoom?.name || activeRoom?.title || 'Merchant'}</h3>
+              <p className="text-[9px] text-violet-500 font-black uppercase tracking-widest mt-1">Verified Node: 2947</p>
+            </div>
+          </div>
 
-        <SharedMediaPanel attachments={attachments} />
-        <RoomContextPanel roomTitle={activeRoom?.title || 'Room'} relationshipId={activeRoom?.relationship_id || null} />
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
+             <div className="space-y-4">
+                <TradingActionBar 
+                   onCreateOrder={() => {}}
+                   onCheckStock={() => {}}
+                   onPaymentRequest={() => {}}
+                   onOffsetRequest={() => {}}
+                />
+             </div>
 
-        <CallPanel
-          connected={voice.connected}
-          muted={voice.muted}
-          error={voice.error}
-          onToggleMute={voice.toggleMute}
-          onLeave={() => {
-            const id = latestCall?.call_session_id || latestCall?.id;
-            if (id) calls.leave.mutate(id);
-          }}
-        />
+             <div className="space-y-3 border-t border-slate-100 pt-5">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                   <BarChart3 size={11} className="text-slate-300" />
+                   Session Intel
+                </h4>
+                <div className="space-y-2">
+                   <div className="p-3 rounded-xl bg-slate-50/50 border border-slate-100 flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[9px] font-black text-slate-500 uppercase">
+                         Orders
+                         <span className="text-slate-900">03</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                         <div className="bg-emerald-500 h-full w-[60%]" />
+                      </div>
+                   </div>
+                </div>
+             </div>
 
-        <CallHistoryPanel history={calls.history.data ?? []} />
-
-        <PolicyCenterPanel
-          value={policyDraft}
-          onChange={(next) => setPolicyDraft((p) => ({ ...p, ...next }))}
-          onSave={() => policy.update.mutate({ security: policyDraft, retention: { retention_mode: 'keep' } })}
-        />
-
-        <CannedResponsesPanel onSelect={(text) => messages.send.mutate({ body: text })} />
-
-        <MigrationHealthPanel
-          health={migration.health.data as any}
-          running={migration.runDry.isPending || migration.runLive.isPending}
-          onDryRun={() => migration.runDry.mutate()}
-          onMigrate={() => migration.runLive.mutate()}
-        />
+             <div className="pt-2">
+                <div className="p-4 rounded-2xl bg-[#020617] text-white shadow-lg shadow-slate-200">
+                   <div className="flex items-center gap-2 mb-3">
+                      <Cloud size={14} className="text-blue-400" />
+                      <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Cloud Sync</span>
+                   </div>
+                   <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-white/40 uppercase">Safe Liquid</span>
+                      <span className="text-xl font-black tracking-tighter">75.4k <span className="text-[10px] text-white/30 ml-1">USDT</span></span>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
       </aside>
     </div>
   );

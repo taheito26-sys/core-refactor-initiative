@@ -1,19 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Loader2, TrendingUp, Shield, BarChart3, Users, Zap } from 'lucide-react';
-import { toast } from 'sonner';
-
-// Import hooks but handle context-missing gracefully inside the component
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Loader2, TrendingUp, BarChart3, Shield, Zap, Users } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, devLogin, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const t = useT();
   const { settings, update } = useTheme();
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   // On mount: proactively update stale service workers that cause mobile render failures
   useEffect(() => {
@@ -164,6 +171,24 @@ export default function LoginPage() {
               </svg>
             )}
             {t('continueWithGoogle')}
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-muted" />
+            </div>
+            <div className="relative flex justify-center text-[10px] uppercase">
+              <span className="bg-background px-2 text-muted-foreground/60 font-bold tracking-widest">Dev Mode</span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-11 text-xs font-bold gap-2 rounded-xl border-dashed border-2 hover:bg-primary/5 hover:border-primary/50 transition-all opacity-60 hover:opacity-100"
+            onClick={devLogin}
+          >
+            Skip Authentication
           </Button>
 
           <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground/60">

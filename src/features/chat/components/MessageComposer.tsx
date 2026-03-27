@@ -1,144 +1,80 @@
-import { useState, useMemo } from 'react';
-import { Sparkles, Pocket, Flame, SendHorizontal, X, User } from 'lucide-react';
-import { encodeReply } from '@/features/chat/lib/message-codec';
+import { useState, useRef } from 'react';
+import { cn } from '@/lib/utils';
+import { 
+  Send, 
+  Mic, 
+  Smile, 
+  Paperclip, 
+  Timer, 
+  Eye,
+  Clock,
+  LayoutGrid
+} from 'lucide-react';
 
 interface Props {
-  sending?: boolean;
-  onSend: (payload: { body: string; messageType?: string; bodyJson?: Record<string, unknown> }) => void;
-  onTyping?: (typing: boolean) => void;
-  onSchedule?: (body: string, runAt: string) => void;
+  onSend: (payload: { content: string; type: 'text' }) => void;
+  onTyping: () => void;
+  sending: boolean;
   replyTo?: any;
   onCancelReply?: () => void;
-  onOpenApp?: (app: 'calculator' | 'order') => void;
 }
 
-export function MessageComposer({ sending, onSend, onTyping, onSchedule, onOpenApp, replyTo, onCancelReply }: Props) {
-  const [body, setBody] = useState('');
-  const [scheduleAt, setScheduleAt] = useState('');
-  const [isVanish, setIsVanish] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
+export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelReply }: Props) {
+  const [content, setContent] = useState('');
+  const [showOptions, setShowOptions] = useState(false);
 
-  const generateAIDraft = () => {
-    setAiLoading(true);
-    setTimeout(() => {
-      setBody(prev => prev + " [AI Suggestion: Proceed with the Alpha deal at current USDT rates.]");
-      setAiLoading(false);
-    }, 800);
-  };
-  const submit = () => {
-    const rawText = body.trim();
-    if (!rawText) return;
-
-    let text = isVanish ? `||VANISH||${rawText}` : rawText;
-
-    if (replyTo) {
-      const replyPreview = replyTo.body ? replyTo.body.slice(0, 60) : 'Media';
-      text = encodeReply(replyTo.id, replyTo.sender_id || 'Merchant', replyPreview, text);
-      onCancelReply?.();
-    }
-
-    if (scheduleAt && onSchedule) {
-      onSchedule(text, scheduleAt);
-      setBody('');
-      setScheduleAt('');
-      onTyping?.(false);
-      return;
-    }
-
-    onSend({ body: text, messageType: 'text' });
-    setBody('');
-    setIsVanish(false);
-    onTyping?.(false);
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!content.trim() || sending) return;
+    onSend({ content: content.trim(), type: 'text' });
+    setContent('');
   };
 
   return (
-    <div className="border-t border-border p-3 bg-background/80">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex gap-2">
+    <div className="p-3 bg-white space-y-2">
+      <form onSubmit={handleSubmit} className="flex items-center gap-2 group">
+        <div className="flex items-center gap-1 shrink-0">
+          <button type="button" className="p-2 text-slate-400 hover:text-blue-600 transition-all" title="Audio Message">
+            <Mic size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 relative flex items-center bg-slate-50 border border-slate-100 rounded-full px-4 min-h-[40px] transition-all focus-within:border-blue-200 focus-within:bg-white focus-within:shadow-sm">
           <input
-            type="datetime-local"
-            className="rounded-md border border-input bg-background px-2 py-1 text-[10px] h-7"
-            value={scheduleAt}
-            onChange={(e) => setScheduleAt(e.target.value)}
-            title="Schedule message"
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              onTyping();
+            }}
+            placeholder="Type a message..."
+            className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-slate-700 placeholder:text-slate-400 placeholder:font-medium"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
           />
-          <button 
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold border transition ${isVanish ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-background hover:bg-accent'}`}
-            onClick={() => setIsVanish(!isVanish)}
-          >
-            <Flame size={12} className={isVanish ? 'animate-pulse' : ''} />
-            VANISH {isVanish ? 'ON' : 'OFF'}
-          </button>
-        </div>
-
-        <div className="flex gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-          <span>{body.length} CH</span>
-          {scheduleAt && <span className="text-primary tracking-widest animate-pulse">SCHEDULED</span>}
-        </div>
-      </div>
-      
-      {replyTo && (
-        <div className="mx-3 -mt-12 mb-2 p-2 bg-accent/20 border border-border rounded-lg flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200">
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-primary flex items-center gap-1 uppercase">
-              <User size={10} /> Replying to merchant
-            </p>
-            <p className="text-xs truncate opacity-70 italic line-clamp-1">{replyTo.body || 'Media message'}</p>
+          <div className="flex items-center gap-1.5 pr-1 opacity-60 group-focus-within:opacity-100 transition-opacity">
+            <button type="button" className="text-slate-400 hover:text-blue-600"><Eye size={16} title="One-time view" /></button>
+            <button type="button" className="text-slate-400 hover:text-blue-600"><Clock size={16} title="24h Timer" /></button>
+            <button type="button" className="text-slate-400 hover:text-blue-600"><Smile size={16} /></button>
           </div>
-          <button onClick={onCancelReply} className="p-1 hover:bg-accent rounded-full transition">
-            <X size={14} />
-          </button>
         </div>
-      )}
 
-      <div className="flex items-center gap-2 mb-3">
-        <button 
-          onClick={generateAIDraft}
-          disabled={aiLoading}
-          className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-[10px] font-bold hover:bg-indigo-100 transition shadow-sm"
-        >
-          <Sparkles size={12} className={aiLoading ? 'animate-spin' : ''} />
-          {aiLoading ? 'Thinking...' : 'AI Assist'}
-        </button>
-        <button 
-          onClick={() => onOpenApp?.('calculator')}
-          className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-[10px] font-bold hover:bg-amber-100 transition shadow-sm"
-        >
-          <Pocket size={12} />
-          Mini App
-        </button>
-        <button 
-          onClick={() => setBody(prev => prev + '@')}
-          className="flex items-center gap-1.5 px-3 py-1 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[10px] font-bold hover:bg-sky-100 transition shadow-sm"
-        >
-          @ Mention
-        </button>
-      </div>
-      <div className="flex gap-2">
-        <textarea
-          className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[42px] max-h-28"
-          value={body}
-          onChange={(e) => {
-            setBody(e.target.value);
-            onTyping?.(e.target.value.trim().length > 0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder="Type message"
-        />
-        <button
-          disabled={sending || !body.trim()}
-          onClick={submit}
-          className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm disabled:opacity-50 flex items-center gap-2 font-bold shadow-lg"
-        >
-          <SendHorizontal size={16} />
-          SEND
-        </button>
-      </div>
+        <div className="flex items-center gap-1 shrink-0">
+           <button type="button" className="p-2 text-slate-400 hover:text-blue-600">
+             <LayoutGrid size={18} />
+           </button>
+           <button
+             type="submit"
+             disabled={!content.trim() || sending}
+             className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-200 hover:bg-blue-600 transition-all disabled:opacity-50 disabled:shadow-none"
+           >
+             <Send size={16} className={cn(sending && "animate-pulse")} />
+           </button>
+        </div>
+      </form>
     </div>
   );
 }

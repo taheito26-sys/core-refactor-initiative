@@ -6,8 +6,8 @@ export function useRooms() {
     queryKey: ['chat', 'rooms'],
     queryFn: async () => {
       const res = await getRooms();
-      if (!res.ok) throw new Error(res.error ?? 'Failed to load rooms');
-      return res.data;
+      if (!res.ok) throw new Error(res.error ?? 'Fetch failed');
+      return res.data || [];
     },
     staleTime: 5000,
   });
