@@ -225,7 +225,7 @@ const translations = {
   customMultiMerchant: { en: '👥 Custom Multi-Merchant', ar: '👥 تاجر متعدد مخصص' },
   merchantN: { en: 'Merchant', ar: 'تاجر' },
   removeMerchant: { en: '✕ Remove', ar: '✕ إزالة' },
-  selectMerchant: { en: 'Select merchant…', ar: 'اختر تاجر…' },
+  selectMerchantPlaceholder: { en: 'Select merchant…', ar: 'اختر تاجر…' },
   addAnotherMerchant: { en: '+ Add Another Merchant', ar: '+ إضافة تاجر آخر' },
   volumeLabel: { en: 'Volume', ar: 'الحجم' },
   netLabel: { en: 'Net', ar: 'صافي' },
