@@ -165,7 +165,7 @@ export default function ChatPage() {
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} className="flex overflow-hidden bg-background" style={{ height: 'calc(100vh - 56px)' }}>
-      <ConversationSidebar conversations={conversations} currentUserId={userId || ''} />
+      <ConversationSidebar conversations={conversations} currentUserId={userId || ''} activeRoomId={activeConversationId} onSelectRoom={setActiveConversation} />
 
       {activeConversationId && activeRel ? (
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
