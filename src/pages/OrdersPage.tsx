@@ -686,7 +686,7 @@ export default function OrdersPage() {
         const sell = Number(saleSell) || 0;
         const fee = parseFloat(saleFee) || 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
         // Store trade data in notes so partner can see qty/sell/cost
@@ -883,7 +883,7 @@ export default function OrdersPage() {
         const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
           const noteLines = [
@@ -2690,7 +2690,7 @@ export default function OrdersPage() {
                   🤝 {t('alreadyLinkedToPartner')}
                   {editingTrade.agreementFamily && (
                     <span style={{ marginLeft: 8 }}>
-                      ({editingTrade.agreementFamily === 'profit_share' ? 'Profit Share' : 'Sales Deal'}
+                      ({editingTrade.agreementFamily === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel')}
                       {editingTrade.partnerPct != null ? ` · ${editingTrade.partnerPct}/${editingTrade.merchantPct}` : ''})
                     </span>
                   )}
