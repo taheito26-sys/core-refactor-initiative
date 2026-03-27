@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Check, CheckCheck, Shield, Eye, Clock, Phone, Video, Mic, BarChart3, Forward, Reply } from 'lucide-react';
+import { Check, CheckCheck, Shield, Eye, Clock, Phone, Video, Mic, BarChart3, Forward, Reply, Play, Pause } from 'lucide-react';
 import { BusinessObjectCard } from './BusinessObjectCard';
 import { parseMsg, splitLinks } from '../lib/message-codec';
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 
 interface MessageProps {
   message: {
@@ -39,22 +39,84 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
   const isOneTime = !!message.expires_at && !message.metadata?.timer;
 
   // ── Voice message renderer ──
-  const renderVoice = () => {
-    const mins = Math.floor((parsed.voiceDuration || 0) / 60);
-    const secs = (parsed.voiceDuration || 0) % 60;
+  const VoicePlayer = () => {
+    const [playing, setPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const animRef = useRef<number>(0);
+    const totalDuration = parsed.voiceDuration || 0;
+    const mins = Math.floor(totalDuration / 60);
+    const secs = totalDuration % 60;
+
+    const audioSrc = useMemo(() => {
+      if (!parsed.voiceBase64) return '';
+      return `data:audio/webm;base64,${parsed.voiceBase64}`;
+    }, []);
+
+    const tick = useCallback(() => {
+      const audio = audioRef.current;
+      if (!audio || audio.paused) return;
+      const pct = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+      setProgress(pct);
+      setCurrentTime(audio.currentTime);
+      animRef.current = requestAnimationFrame(tick);
+    }, []);
+
+    const toggle = useCallback(() => {
+      if (!audioRef.current) {
+        const audio = new Audio(audioSrc);
+        audioRef.current = audio;
+        audio.onended = () => { setPlaying(false); setProgress(0); setCurrentTime(0); };
+        audio.onpause = () => { cancelAnimationFrame(animRef.current); };
+        audio.onplay = () => { animRef.current = requestAnimationFrame(tick); };
+      }
+      const audio = audioRef.current;
+      if (audio.paused) { audio.play(); setPlaying(true); }
+      else { audio.pause(); setPlaying(false); }
+    }, [audioSrc, tick]);
+
+    useEffect(() => () => { audioRef.current?.pause(); cancelAnimationFrame(animRef.current); }, []);
+
+    const elapsed = playing || currentTime > 0 ? currentTime : totalDuration;
+    const eM = Math.floor(elapsed / 60);
+    const eS = Math.floor(elapsed % 60);
+
+    const BARS = [3, 5, 8, 6, 9, 4, 7, 5, 3, 6, 8, 4, 7, 5, 3];
+
     return (
-      <div className="flex items-center gap-3 min-w-[160px]">
-        <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center">
-          <Mic size={14} />
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-1.5">
-            {/* Simple waveform bars */}
-            {[3, 5, 8, 6, 9, 4, 7, 5, 3, 6, 8, 4, 7, 5, 3].map((h, i) => (
-              <div key={i} className={cn("w-[2px] rounded-full", isMe ? "bg-primary-foreground/50" : "bg-foreground/30")} style={{ height: `${h * 2}px` }} />
-            ))}
+      <div className="flex items-center gap-3 min-w-[180px]">
+        <button
+          onClick={toggle}
+          className={cn(
+            "w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer border-none",
+            isMe ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground" : "bg-primary/15 hover:bg-primary/25 text-primary"
+          )}
+        >
+          {playing ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-end gap-[2px] h-5">
+            {BARS.map((h, i) => {
+              const barPct = (i / BARS.length) * 100;
+              const filled = barPct < progress;
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "w-[2.5px] rounded-full transition-colors duration-150",
+                    filled
+                      ? (isMe ? "bg-primary-foreground" : "bg-primary")
+                      : (isMe ? "bg-primary-foreground/30" : "bg-foreground/20")
+                  )}
+                  style={{ height: `${h * 2}px` }}
+                />
+              );
+            })}
           </div>
-          <span className="text-[10px] opacity-70 mt-0.5 block">{mins}:{String(secs).padStart(2, '0')}</span>
+          <span className="text-[10px] opacity-70 mt-0.5 block tabular-nums">
+            {eM}:{String(eS).padStart(2, '0')}
+          </span>
         </div>
       </div>
     );
