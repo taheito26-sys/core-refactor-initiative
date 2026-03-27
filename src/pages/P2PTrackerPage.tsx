@@ -565,7 +565,7 @@ export default function P2PTrackerPage() {
             <div className="kpi-card">
               <div className="kpi-lbl">{t('p2pProfitIfSoldNow')}</div>
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {ccy}
+                {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {profitIfSold.currency}
               </div>
               <div className="kpi-sub">{fmtPrice(profitIfSold.stock)} USDT · {t('p2pCostBasis')}</div>
             </div>
