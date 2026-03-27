@@ -237,14 +237,38 @@ export default function OrdersPage() {
   const query = (settings.searchQuery || '').trim().toLowerCase();
 
   const cancelledDealIds = useMemo(() => new Set(
-    allMerchantDeals.filter(d => d.status === 'cancelled' || (d.status as string) === 'voided').map(d => d.id)
+    allMerchantDeals.filter(d => d.status === 'cancelled' || d.status === 'rejected' || (d.status as string) === 'voided').map(d => d.id)
   ), [allMerchantDeals]);
   const cancelledLocalTradeIds = useMemo(() => new Set(
     allMerchantDeals
-      .filter(d => d.status === 'cancelled' || (d.status as string) === 'voided')
+      .filter(d => d.status === 'cancelled' || d.status === 'rejected' || (d.status as string) === 'voided')
       .map(d => parseDealMeta(d.notes).local_trade)
       .filter(Boolean)
   ), [allMerchantDeals]);
+
+  // Sync: void local trades whose server-side deals are cancelled/rejected/voided
+  // This ensures computeFIFO never consumes stock for dead deals
+  useEffect(() => {
+    if (cancelledLocalTradeIds.size === 0 && cancelledDealIds.size === 0) return;
+    let changed = false;
+    const nextTrades = state.trades.map(tr => {
+      if (tr.voided) return tr; // already voided
+      // Check by linkedDealId
+      if (tr.linkedDealId && cancelledDealIds.has(tr.linkedDealId) && !tr.voided) {
+        changed = true;
+        return { ...tr, voided: true };
+      }
+      // Check by local_trade reference in cancelled deal notes
+      if (cancelledLocalTradeIds.has(tr.id) && !tr.voided) {
+        changed = true;
+        return { ...tr, voided: true };
+      }
+      return tr;
+    });
+    if (changed) {
+      applyState({ ...state, trades: nextTrades });
+    }
+  }, [cancelledDealIds, cancelledLocalTradeIds]); // intentionally minimal deps to avoid loops
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
   const list = useMemo(() => allTrades.filter(t => {
@@ -1044,7 +1068,11 @@ export default function OrdersPage() {
       toast.error(t('cannotDeleteApprovedTrade'));
       return;
     }
-    applyState({ ...state, trades: state.trades.filter(t => t.id !== editingTradeId) });
+    // Mark as voided instead of removing — preserves audit trail and releases FIFO stock
+    const nextTrades = state.trades.map(t =>
+      t.id === editingTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+    );
+    applyState({ ...state, trades: nextTrades });
     setEditingTradeId(null);
   };
 
@@ -1063,9 +1091,9 @@ export default function OrdersPage() {
       } catch (err: any) { toast.error(err.message); return; }
     }
 
-    // Also update local trade state
+    // Also update local trade state — set voided so FIFO releases stock
     const nextTrades = state.trades.map(t =>
-      t.id === tradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+      t.id === tradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
     applyState({ ...state, trades: nextTrades });
     if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
@@ -1081,8 +1109,9 @@ export default function OrdersPage() {
         await reloadMerchantData();
       } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
     }
+    // Set voided so FIFO releases stock
     const nextTrades = state.trades.map(t =>
-      t.id === cancelTradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+      t.id === cancelTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
     applyState({ ...state, trades: nextTrades });
     setCancelTradeId(null);
