@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,7 @@ import { ContextPanel } from '@/features/chat/components/ContextPanel';
 import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
 import { Shield } from 'lucide-react';
 import { SecureTradePanel } from '@/features/chat/components/SecureTradePanel';
+import { useChatStore } from '@/lib/chat-store';
 
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
@@ -31,6 +32,8 @@ export default function ChatWorkspacePage() {
   const [showDashboard, setShowDashboard] = useState(!isMobile);
   // On mobile: true = show sidebar, false = show chat
   const [showSidebar, setShowSidebar] = useState(true);
+  const consumePendingNav = useChatStore((s) => s.consumePendingNav);
+  const [pendingNotificationMessageId, setPendingNotificationMessageId] = useState<string | null>(null);
 
   const activeRoom = useMemo(
     () => rooms.find((r) => String(r.id) === String(activeRoomId) || String(r.room_id) === String(activeRoomId)) ?? null,
@@ -49,9 +52,43 @@ export default function ChatWorkspacePage() {
     }
   }, [searchParams, activeRoomId, isMobile]);
 
+
+  useEffect(() => {
+    const pending = consumePendingNav();
+    if (!pending) return;
+
+    setActiveRoomId(String(pending.conversationId));
+    if (pending.messageId) setPendingNotificationMessageId(String(pending.messageId));
+    if (isMobile) setShowSidebar(false);
+  }, [consumePendingNav, isMobile]);
+
   const messages = useRoomMessages(activeRoomId);
   const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
-  const { initiateCall } = useWebRTC({ roomId: activeRoomId, userId });
+  const {
+    callState,
+    isIncoming,
+    callerId,
+    remoteStream,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    toggleMute,
+    endCall,
+  } = useWebRTC({
+    roomId: activeRoomId,
+    userId,
+    onTimelineEvent: (eventType) => {
+      const labels: Record<string, string> = {
+        call_started: 'Call started',
+        call_accepted: 'Call accepted',
+        call_rejected: 'Call rejected',
+        call_missed: 'Call missed',
+        call_ended: 'Call ended',
+      };
+      const label = labels[eventType] ?? eventType;
+      messages.send.mutate({ content: `||SYS_CALL||${label}||/SYS_CALL||`, type: 'system' });
+    },
+  });
 
   const handleCall = (is_video: boolean) => initiateCall(is_video);
 
@@ -63,6 +100,18 @@ export default function ChatWorkspacePage() {
   const handleBack = () => {
     setShowSidebar(true);
   };
+
+
+  const scrollToMessage = useCallback((messageId: string | null, highlight = false) => {
+    if (!messageId) return;
+    const el = document.getElementById(`msg-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (highlight) {
+      el.classList.add('ring-2', 'ring-primary/60', 'rounded-xl');
+      window.setTimeout(() => el.classList.remove('ring-2', 'ring-primary/60', 'rounded-xl'), 1800);
+    }
+  }, []);
 
   // ── Resolve relationship for the active room ──
   const { data: relationship } = useQuery({
@@ -101,9 +150,37 @@ export default function ChatWorkspacePage() {
   const isSecure = activeRoom?.type === 'deal' || !!activeRoom?.order_id;
   const roomTitle = relationship?.counterparty_nickname || relationship?.counterparty_name || activeRoom?.name || activeRoom?.title || 'Conversation';
 
+
+  useEffect(() => {
+    const messageId = searchParams.get('messageId');
+    if (messageId) {
+      window.setTimeout(() => scrollToMessage(messageId, true), 160);
+    }
+  }, [searchParams, scrollToMessage, messages.data]);
+
+
+  useEffect(() => {
+    if (!pendingNotificationMessageId) return;
+    if (!activeRoomId) return;
+
+    window.setTimeout(() => {
+      scrollToMessage(pendingNotificationMessageId, true);
+      setPendingNotificationMessageId(null);
+    }, 220);
+  }, [pendingNotificationMessageId, activeRoomId, messages.data, scrollToMessage]);
+
   return (
     <div className="flex h-[calc(100vh-50px)] w-full overflow-hidden bg-background select-none relative">
-      <CallOrchestrator roomId={activeRoomId} />
+      <CallOrchestrator
+        callState={callState}
+        isIncoming={isIncoming}
+        callerId={callerId}
+        remoteStream={remoteStream}
+        acceptCall={acceptCall}
+        rejectCall={rejectCall}
+        toggleMute={toggleMute}
+        endCall={endCall}
+      />
 
       {/* Sidebar — full-screen on mobile, fixed-width on desktop */}
       {(!isMobile || showSidebar) && (
@@ -168,7 +245,7 @@ export default function ChatWorkspacePage() {
                         onReply={(m) => setReplyTo(m)}
                       />
                     </div>
-                    <JumpToUnreadButton visible={(roomUnreadCount || 0) > 0} onClick={() => {}} />
+                    <JumpToUnreadButton visible={(roomUnreadCount || 0) > 0} onClick={() => scrollToMessage(firstUnread, true)} />
                   </div>
 
                   <div className="shrink-0 bg-background/60 backdrop-blur-lg border-t border-border relative z-20">

@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Check, CheckCheck, Shield, Eye, Clock, Phone, Video, Mic, BarChart3, Forward, Reply, Play, Pause } from 'lucide-react';
+import { Check, CheckCheck, Shield, Eye, Clock, Phone, Video, Mic, BarChart3, Forward, Reply, Play, Pause, MapPin } from 'lucide-react';
 import { BusinessObjectCard } from './BusinessObjectCard';
 import { parseMsg, splitLinks } from '../lib/message-codec';
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
@@ -214,6 +214,28 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
     }
   };
 
+
+  const renderLocation = () => {
+    const match = message.content.match(/https?:\/\/maps\.google\.com\/\?q=([-\d.]+),([-\d.]+)/);
+    if (!match) return renderText();
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
+    return (
+      <a
+        href={`https://maps.google.com/?q=${lat},${lng}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn('block rounded-xl border p-3 no-underline', isMe ? 'border-primary-foreground/20' : 'border-border')}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <MapPin size={14} />
+          <span className="text-[11px] font-bold">Location shared</span>
+        </div>
+        <p className="text-[10px] opacity-80">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
+      </a>
+    );
+  };
+
   // ── Pick content renderer ──
   const renderContent = () => {
     if (isOneTime && isViewed && !isMe) {
@@ -246,6 +268,7 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
         </div>
       );
     }
+    if (message.type === 'location') return renderLocation();
     if (parsed.isVoice) return <VoicePlayer />;
     if (parsed.isPoll) return renderPoll();
     if (parsed.isFwd) return renderForward();
