@@ -50,7 +50,7 @@ export function MessageList(props: Props) {
           <div key={m.id} id={`msg-${m.id}`}>
             {showUnread && unreadCount > 0 && <UnreadDivider count={unreadCount} />}
             <MessageItem
-              message={{ id: msg.id, content: msg.content || msg.body || '', sender_id: msg.sender_id, created_at: msg.created_at, type: msg.message_type, status: msg.status, expires_at: msg.expires_at }}
+              message={{ id: msg.id, content: msg.content || msg.body || '', sender_id: msg.sender_id || msg.sender_merchant_id || '', created_at: msg.created_at, type: msg.message_type, status: msg.status, expires_at: msg.expires_at, metadata: msg.metadata }}
               currentUserId={props.currentUserId}
             />
           </div>
