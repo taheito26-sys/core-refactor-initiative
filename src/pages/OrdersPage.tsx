@@ -562,7 +562,7 @@ export default function OrdersPage() {
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-          const familyLabel = alloc.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+          const familyLabel = alloc.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
           const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
           const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
 
@@ -671,7 +671,7 @@ export default function OrdersPage() {
         return;
       } catch (err: any) {
         console.error('Failed to create allocations:', err);
-        toast.error(err.message || 'Failed to create merchant allocations');
+        toast.error(err.message || t('failedCreateAllocations'));
         return;
       }
     }
@@ -872,7 +872,7 @@ export default function OrdersPage() {
     // ── Handle linking to partner deal ──
     if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
       const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
-      if (!tmpl) { toast.error('Invalid template'); return; }
+      if (!tmpl) { toast.error(t('invalidTemplate')); return; }
 
       try {
         const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
@@ -1028,7 +1028,7 @@ export default function OrdersPage() {
         await reloadMerchantData();
         // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
-        toast.success('Deal updated — sent for re-approval');
+        toast.success(t('dealUpdatedReapproval'));
       } catch (err: any) {
         console.error('Failed to update linked deal:', err);
       }
