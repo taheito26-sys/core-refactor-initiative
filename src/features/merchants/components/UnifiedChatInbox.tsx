@@ -4,6 +4,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSendMessage } from '@/hooks/useRelationshipMessages';
+import { shouldAutoMarkSeen } from '@/features/chat/attention';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Send, Search, MessageCircle, ChevronDown, Smile, Reply, Copy,
@@ -92,7 +93,14 @@ interface Message { id: string; relationship_id: string; sender_id: string; cont
 interface OptMsg extends Message { _pending: true }
 interface ConvSummary { relationship_id: string; counterparty_name: string; counterparty_nickname: string; last_message: string; last_message_at: string; last_sender_id: string; unread_count: number }
 interface CtxMenu { msgId: string; x: number; y: number; isOwn: boolean; text: string; raw: string }
-interface Props { relationships: Array<{ id: string; counterparty_name: string; counterparty_nickname: string; merchant_a_id: string; merchant_b_id: string }>; fullPage?: boolean }
+interface Props {
+  relationships: Array<{ id: string; counterparty_name: string; counterparty_nickname: string; merchant_a_id: string; merchant_b_id: string }>;
+  fullPage?: boolean;
+  initialRelationshipId?: string | null;
+  targetMessageId?: string | null;
+  highlightTargetMessage?: boolean;
+  onAnchorHandled?: () => void;
+}
 
 // ─── Poll vote component ────────────────────────────────────────────────────
 function PollBubble({ msgId, question, options, isOwn }: { msgId: string; question: string; options: string[]; isOwn: boolean }) {
@@ -226,7 +234,14 @@ function VoicePlayer({ base64, duration, isOwn }: { base64: string; duration: nu
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
-export function UnifiedChatInbox({ relationships, fullPage }: Props) {
+export function UnifiedChatInbox({
+  relationships,
+  fullPage,
+  initialRelationshipId,
+  targetMessageId,
+  highlightTargetMessage,
+  onAnchorHandled,
+}: Props) {
   const t = useT();
   const { userId } = useAuth();
   const queryClient = useQueryClient();
@@ -240,6 +255,7 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   const [showEmoji, setShowEmoji] = useState(false);
   const [optimistic, setOptimistic] = useState<OptMsg[]>([]);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isWindowFocused, setIsWindowFocused] = useState<boolean>(typeof document !== 'undefined' ? document.visibilityState === 'visible' : true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [ctx, setCtx] = useState<CtxMenu | null>(null);
 
@@ -304,11 +320,46 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   useEffect(() => {
     if (!relIds.length) return;
     const ch = supabase.channel('uchat-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_messages' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'merchant_messages' }, async (payload: any) => {
+        if (payload?.eventType === 'INSERT' && payload?.new && userId) {
+          const inserted = payload.new as Message;
+          const shouldAutoSeen = inserted.sender_id !== userId && shouldAutoMarkSeen({
+            activeModule: 'chat',
+            activeConversationId: activeRelId,
+            incomingConversationId: inserted.relationship_id,
+            isWindowFocused,
+            isMessageListAtBottom: isAtBottom,
+          });
+          if (shouldAutoSeen) {
+            await supabase.from('merchant_messages').update({ read_at: new Date().toISOString() }).eq('id', inserted.id);
+            await supabase
+              .from('notifications')
+              .update({ read_at: new Date().toISOString() })
+              .eq('user_id', userId)
+              .is('read_at', null)
+              .eq('category', 'message')
+              .eq('relationship_id', inserted.relationship_id)
+              .eq('message_id', inserted.id);
+          }
+        }
         queryClient.invalidateQueries({ queryKey: ['unified-chat'] });
       }).subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [relIds, queryClient]);
+  }, [relIds, queryClient, userId, activeRelId, isWindowFocused, isAtBottom]);
+
+  useEffect(() => {
+    const onVisibility = () => setIsWindowFocused(document.visibilityState === 'visible');
+    const onFocus = () => setIsWindowFocused(true);
+    const onBlur = () => setIsWindowFocused(false);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
 
   // ── Typing presence ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -333,8 +384,25 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
   useEffect(() => {
     if (!activeRelId || !userId || !allMessages.length) return;
     const unread = allMessages.filter(m => m.relationship_id === activeRelId && m.sender_id !== userId && !m.read_at);
-    if (unread.length) Promise.all(unread.map(m => supabase.from('merchant_messages').update({ read_at: new Date().toISOString() }).eq('id', m.id))).then(() => queryClient.invalidateQueries({ queryKey: ['unified-chat'] }));
-  }, [activeRelId, allMessages, userId, queryClient]);
+    if (!unread.length) return;
+    if (!isWindowFocused || !isAtBottom) return;
+
+    Promise.all(
+      unread.map((m) =>
+        Promise.all([
+          supabase.from('merchant_messages').update({ read_at: new Date().toISOString() }).eq('id', m.id),
+          supabase
+            .from('notifications')
+            .update({ read_at: new Date().toISOString() })
+            .eq('user_id', userId)
+            .is('read_at', null)
+            .eq('category', 'message')
+            .eq('relationship_id', activeRelId)
+            .eq('message_id', m.id),
+        ]),
+      ),
+    ).then(() => queryClient.invalidateQueries({ queryKey: ['unified-chat'] }));
+  }, [activeRelId, allMessages, userId, queryClient, isWindowFocused, isAtBottom]);
 
   // ── Conversations ──────────────────────────────────────────────────────────
   const conversations: ConvSummary[] = useMemo(() =>
@@ -574,9 +642,13 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
     mr.stop();
   };
 
-  const scrollToMsg = (msgId: string) => {
+  const scrollToMsg = (msgId: string, strongHighlight = false) => {
     const el = msgRefs.current[msgId];
-    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.background = 'rgba(255,255,255,0.12)'; setTimeout(() => { if (el) el.style.background = ''; }, 1200); }
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.background = strongHighlight ? 'rgba(254,240,138,0.38)' : 'rgba(255,255,255,0.12)';
+      setTimeout(() => { if (el) el.style.background = ''; }, strongHighlight ? 2000 : 1200);
+    }
   };
 
   const onKey = useCallback((e: React.KeyboardEvent) => {
@@ -603,6 +675,24 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
 
   const openConv = (relId: string) => { setActiveRelId(relId); setText(''); setReplyTo(null); setIsAtBottom(true); setShowMsgSearch(false); setMsgSearch(''); setShowChatInfo(false); setShowStarred(false); };
   const closeConv = () => { setActiveRelId(null); setText(''); setReplyTo(null); setShowChatInfo(false); setShowStarred(false); setShowMsgSearch(false); };
+
+  useEffect(() => {
+    if (!initialRelationshipId) return;
+    if (activeRelId === initialRelationshipId) return;
+    if (!relationships.some((r) => r.id === initialRelationshipId)) return;
+    openConv(initialRelationshipId);
+  }, [initialRelationshipId, activeRelId, relationships]);
+
+  useEffect(() => {
+    if (!activeRelId || !targetMessageId) return;
+    const exists = activeMessages.some((m) => m.id === targetMessageId);
+    if (!exists) return;
+    const t = setTimeout(() => {
+      scrollToMsg(targetMessageId, !!highlightTargetMessage);
+      onAnchorHandled?.();
+    }, 120);
+    return () => clearTimeout(t);
+  }, [activeRelId, targetMessageId, highlightTargetMessage, activeMessages, onAnchorHandled]);
 
   const isSecret = activeRelId ? secretChats.includes(activeRelId) : false;
   const isMuted = activeRelId ? mutedRels.includes(activeRelId) : false;
