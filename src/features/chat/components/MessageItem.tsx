@@ -255,8 +255,8 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
   };
 
   return (
-    <div className={cn("flex w-full mb-4 px-6 group/msg", isMe ? "justify-end" : "justify-start")}>
-      <div className={cn("flex flex-col max-w-[80%]", isMe ? "items-end" : "items-start")}>
+    <div className={cn("flex w-full mb-4 px-3 md:px-6 group/msg", isMe ? "justify-end" : "justify-start")}>
+      <div className={cn("flex flex-col max-w-[85%] md:max-w-[80%]", isMe ? "items-end" : "items-start")}>
 
         <div className="flex items-center gap-2 mb-1.5 px-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-300">
            {!isMe && <span className="text-[10px] font-black text-foreground uppercase tracking-widest">User</span>}

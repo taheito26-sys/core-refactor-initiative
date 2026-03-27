@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { 
-  Send, 
-  Mic, 
-  Smile, 
-  Paperclip, 
-  Timer, 
+import {
+  Send,
+  Mic,
+  Smile,
+  Paperclip,
+  Timer,
   Eye,
   Clock,
   LayoutGrid,
@@ -21,11 +21,12 @@ interface Props {
   sending: boolean;
   replyTo?: any;
   onCancelReply?: () => void;
+  compact?: boolean;
 }
 
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '👎', '🔥', '🎉', '😢', '😮', '🙏', '💯', '✅', '❌', '👋', '🤝', '💰'];
 
-export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelReply }: Props) {
+export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelReply, compact }: Props) {
   const [content, setContent] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -46,7 +47,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!content.trim() || sending) return;
-    
+
     let expiresAt: string | null = null;
     if (isOneTime) {
       const d = new Date();
@@ -64,7 +65,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
     setHas24hTimer(false);
   };
 
-  // ── Voice recording ──────────────────────────────────────────
+  // ── Voice recording ──
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -105,7 +106,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
   const fmtRecTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className="p-3 bg-background space-y-2 border-t border-border">
+    <div className={cn("bg-background space-y-2 border-t border-border", compact ? "p-2" : "p-3")}>
       {/* Poll creator */}
       {showPoll && (
         <div className="px-4 py-3 border border-border rounded-2xl bg-muted/50 space-y-2 mb-2">
@@ -131,13 +132,13 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
               />
             </div>
           ))}
-          <button 
+          <button
             onClick={() => {
               const filteredOpts = pollOpts.filter((o) => o.trim());
               if (!pollQuestion.trim() || filteredOpts.length < 2) return;
               onSend({ content: encodePoll(pollQuestion.trim(), filteredOpts), type: 'poll' });
               setShowPoll(false);
-            }} 
+            }}
             className="w-full bg-primary text-primary-foreground text-[11px] font-black uppercase tracking-[0.2em] rounded-xl py-2.5 border-none cursor-pointer hover:bg-primary/90 transition-all font-bold"
           >
             Send Poll
@@ -145,22 +146,20 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 group">
-        <div className="flex items-center gap-1 shrink-0">
-          <button 
-            type="button" 
-            onClick={isRecording ? stopRecording : startRecording}
-            className={cn(
-              "p-2 rounded-lg transition-all",
-              isRecording ? "text-destructive bg-destructive/10 animate-pulse" : "text-muted-foreground hover:text-primary hover:bg-accent"
-            )}
-            title="Audio Message"
-          >
-            {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
-          </button>
-        </div>
+      <form onSubmit={handleSubmit} className="flex items-center gap-1.5 md:gap-2 group">
+        <button
+          type="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          className={cn(
+            "p-2 rounded-lg transition-all shrink-0",
+            isRecording ? "text-destructive bg-destructive/10 animate-pulse" : "text-muted-foreground hover:text-primary hover:bg-accent"
+          )}
+          title="Audio Message"
+        >
+          {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
+        </button>
 
-        <div className="flex-1 relative flex items-center bg-muted border border-border rounded-full px-4 min-h-[40px] transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm">
+        <div className="flex-1 relative flex items-center bg-muted border border-border rounded-full px-3 md:px-4 min-h-[40px] transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm">
           <input
             value={isRecording ? `Recording... ${fmtRecTime(recordingTime)}` : content}
             onChange={(e) => {
@@ -169,7 +168,7 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
             }}
             disabled={isRecording}
             placeholder={isRecording ? "Listening..." : "Type a message..."}
-            className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-foreground placeholder:text-muted-foreground placeholder:font-medium"
+            className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-foreground placeholder:text-muted-foreground placeholder:font-medium min-w-0"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -177,40 +176,44 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
               }
             }}
           />
-          <div className="flex items-center gap-2 pr-1 opacity-60 group-focus-within:opacity-100 transition-opacity">
-            <button 
-               type="button" 
-               onClick={() => { setIsOneTime(!isOneTime); if (!isOneTime) setHas24hTimer(false); }}
-               className={cn("p-1.5 rounded transition-all", isOneTime ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
-            >
-               <Eye size={16} />
-            </button>
-            <button 
-               type="button" 
-               onClick={() => { setHas24hTimer(!has24hTimer); if (!has24hTimer) setIsOneTime(false); }}
-               className={cn("p-1.5 rounded transition-all", has24hTimer ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
-            >
-               <Clock size={16} />
-            </button>
-            <button type="button" className="text-muted-foreground hover:text-primary"><Smile size={16} /></button>
-          </div>
+          {!compact && (
+            <div className="flex items-center gap-2 pr-1 opacity-60 group-focus-within:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={() => { setIsOneTime(!isOneTime); if (!isOneTime) setHas24hTimer(false); }}
+                className={cn("p-1.5 rounded transition-all", isOneTime ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
+              >
+                <Eye size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setHas24hTimer(!has24hTimer); if (!has24hTimer) setIsOneTime(false); }}
+                className={cn("p-1.5 rounded transition-all", has24hTimer ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
+              >
+                <Clock size={16} />
+              </button>
+              <button type="button" className="text-muted-foreground hover:text-primary"><Smile size={16} /></button>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-           <button 
-             type="button" 
-             onClick={() => setShowPoll(!showPoll)}
-             className="p-2 text-muted-foreground hover:text-primary transition-all"
-           >
-             <CheckSquare size={18} />
-           </button>
-           <button
-             type="submit"
-             disabled={(!content.trim() && !isRecording) || sending}
-             className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:shadow-none"
-           >
-             <Send size={16} className={cn(sending && "animate-pulse")} />
-           </button>
+        <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
+          {!compact && (
+            <button
+              type="button"
+              onClick={() => setShowPoll(!showPoll)}
+              className="p-2 text-muted-foreground hover:text-primary transition-all"
+            >
+              <CheckSquare size={18} />
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={(!content.trim() && !isRecording) || sending}
+            className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:shadow-none"
+          >
+            <Send size={16} className={cn(sending && "animate-pulse")} />
+          </button>
         </div>
       </form>
     </div>
