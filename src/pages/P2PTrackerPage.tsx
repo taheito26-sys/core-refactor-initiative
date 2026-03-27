@@ -540,7 +540,7 @@ export default function P2PTrackerPage() {
       </div>
 
       <div className="tracker-root" style={{ background: 'transparent' }}>
-        <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
+        <div className="kpis" style={{ gridTemplateColumns: `repeat(${6 + (profitIfSold ? 1 : 0) + (roundTripSim ? 1 : 0)}, minmax(0, 1fr))` }}>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pBestSell')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell ? fmtPrice(snapshot.bestSell) : '—'}</div>
