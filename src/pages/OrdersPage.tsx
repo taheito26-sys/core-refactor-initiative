@@ -443,7 +443,7 @@ export default function OrdersPage() {
         direction: 'in',
         amount: depositAmt,
         currency: 'QAR',
-        note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+        note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
       };
       return {
         ...nextState,
@@ -462,7 +462,7 @@ export default function OrdersPage() {
       balanceAfter: newCash,
       owner: nextState.cashOwner || '',
       bankAccount: '',
-      note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     };
     return {
       ...nextState,
