@@ -469,9 +469,11 @@ export default function OrdersPage() {
         currency: 'QAR',
         note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
       };
+      const updatedLedger = [...(nextState.cashLedger || []), ledgerEntry];
       return {
         ...nextState,
-        cashLedger: [...(nextState.cashLedger || []), ledgerEntry],
+        cashLedger: updatedLedger,
+        cashQAR: deriveCashQAR(nextState.cashAccounts, updatedLedger),
       };
     }
 
