@@ -1502,7 +1502,7 @@ export default function OrdersPage() {
                                     {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span>
+                                     {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
@@ -1608,7 +1608,7 @@ export default function OrdersPage() {
                                     {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span>
+                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
@@ -1664,8 +1664,8 @@ export default function OrdersPage() {
                     <span className="bVal">{priceMode === 'fifo' && wacop ? fmtP(wacop) : '—'}</span>
                   </div>
                   <div className="modeToggle" style={{ fontSize: 9 }}>
-                    <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }}>FIFO</button>
-                    <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }}>Manual</button>
+                     <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }}>{t('fifoLabel')}</button>
+                     <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }}>{t('manualLabel')}</button>
                   </div>
                 </div>
 
@@ -1991,11 +1991,10 @@ export default function OrdersPage() {
                                 </div>
 
                                 {/* Template presets */}
-                                <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>Quick Template</div>
+                                <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>{t('quickTemplate')}</div>
                                 <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
                                    <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
-                                    onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>
-                                    🤝 50/50 Equal
+                                     onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>{t('equalSplit')}
                                   </button>
                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations.length > 1 ? '1.5px solid var(--brand)' : undefined }}
                                     onClick={() => {
@@ -2016,8 +2015,8 @@ export default function OrdersPage() {
                                           note: '',
                                         }]);
                                       }
-                                    }}>
-                                    👥 Custom Multi-Merchant
+                                     }}>
+                                     {t('customMultiMerchant')}
                                   </button>
                                 </div>
 
@@ -2030,12 +2029,12 @@ export default function OrdersPage() {
                                   }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                       <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--good)' }}>
-                                        {idx === 0 ? `📊 ${cpName}` : `📊 Merchant ${idx + 1}`}
+                                        {idx === 0 ? `📊 ${cpName}` : `📊 ${t('merchantN')} ${idx + 1}`}
                                       </span>
                                       {idx > 0 && (
                                         <button type="button" style={{ fontSize: 9, color: 'var(--bad)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
                                           onClick={() => setAllocations(prev => prev.filter((_, i) => i !== idx))}>
-                                          ✕ Remove
+                                          {t('removeMerchant')}
                                         </button>
                                       )}
                                     </div>
@@ -2043,7 +2042,7 @@ export default function OrdersPage() {
                                     {/* Merchant selector for additional allocations */}
                                     {idx > 0 && (
                                       <div className="field2" style={{ marginBottom: 4 }}>
-                                        <div className="lbl" style={{ fontSize: 9 }}>Merchant</div>
+                                        <div className="lbl" style={{ fontSize: 9 }}>{t('merchantN')}</div>
                                         <select
                                           value={alloc.relationshipId}
                                           onChange={e => {
@@ -2058,7 +2057,7 @@ export default function OrdersPage() {
                                           }}
                                           style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                                         >
-                                          <option value="">Select merchant…</option>
+                                          <option value="">{t('selectMerchantPlaceholder')}</option>
                                           {relationships.filter(r => r.id !== linkedRelId).map(r => (
                                             <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
                                           ))}
@@ -2151,7 +2150,7 @@ export default function OrdersPage() {
                                       merchantSharePct: 0,
                                       note: '',
                                     }])}>
-                                    + Add Another Merchant
+                                    {t('addAnotherMerchant')}
                                   </button>
                                 )}
                               </div>
@@ -2612,11 +2611,11 @@ export default function OrdersPage() {
                 <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
                   <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)' }}>Volume</span>
+                     <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
                     <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(currentVolume)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)' }}>Net</span>
+                     <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                     <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: currentNet != null ? (currentNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
                       {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtQ(currentNet)}` : '—'}
                     </strong>
@@ -2886,11 +2885,11 @@ export default function OrdersPage() {
               <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
                 <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text)' }}>Volume</span>
+                  <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
                   <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text)' }}>Net</span>
+                  <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                   <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: Number.isFinite(dealNet) ? (dealNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
                     {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
                   </strong>

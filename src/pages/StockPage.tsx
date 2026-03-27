@@ -187,8 +187,8 @@ export default function StockPage() {
       volumeQAR = Number(batchAmount);
       const errs: string[] = [];
       if (!Number.isFinite(ts)) errs.push(t('date'));
-      if (!(totalUSDT > 0)) errs.push('USDT Qty');
-      if (!(volumeQAR > 0)) errs.push('Total QAR');
+       if (!(totalUSDT > 0)) errs.push(t('usdtQtyValidation'));
+       if (!(volumeQAR > 0)) errs.push(t('totalQarValidation'));
       if (!source) errs.push(t('supplier'));
       if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
       px = volumeQAR / totalUSDT;
@@ -197,7 +197,7 @@ export default function StockPage() {
       px = Number(batchPrice);
       const errs: string[] = [];
       if (!Number.isFinite(ts)) errs.push(t('date'));
-      if (!(totalUSDT > 0)) errs.push('USDT Qty');
+      if (!(totalUSDT > 0)) errs.push(t('usdtQtyValidation'));
       if (!(px > 0)) errs.push(t('price'));
       if (!source) errs.push(t('supplier'));
       if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
@@ -283,8 +283,8 @@ export default function StockPage() {
     setBatchNote('');
     const fundingAccName = activeAccounts.find(a => a.id === fundingAccountId)?.name;
     const deductMsg = fundingAccName
-      ? ` · ${fmtTotal(batchCostQAR)} QAR deducted from "${fundingAccName}"`
-      : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR deducted from cash` : '';
+       ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
+       : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
     setBatchMsg(t('batchAdded') + deductMsg);
   };
 
@@ -569,16 +569,16 @@ export default function StockPage() {
                 <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
               </div>
               <div className="field2">
-                <div className="lbl">Entry Mode</div>
+                <div className="lbl">{t('entryModeLabel')}</div>
                 <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
                   <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 9, padding: '6px 4px' }}>
-                    💲 Price + Vol
+                    {t('entryModePriceVol')}
                   </button>
                   <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 9, padding: '6px 4px' }}>
-                    📦 USDT + QAR
+                    {t('entryModeUsdtQar')}
                   </button>
                   <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 9, padding: '6px 4px' }}>
-                    📊 USDT + Price
+                    {t('entryModeUsdtPrice')}
                   </button>
                 </div>
               </div>
@@ -609,17 +609,17 @@ export default function StockPage() {
                 <>
                   <div className="g2tight">
                     <div className="field2">
-                      <div className="lbl">USDT Bought</div>
+                      <div className="lbl">{t('usdtBought')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">Total QAR Paid</div>
+                      <div className="lbl">{t('totalQarPaid')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                   </div>
                   {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
                     <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
-                      <span style={{ color: 'var(--t2)' }}>Avg Price: </span>
+                      <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
                         {fmtP(Number(batchAmount) / Number(batchUsdtQty))} QAR/USDT
                       </span>
@@ -632,7 +632,7 @@ export default function StockPage() {
                 <>
                   <div className="g2tight">
                     <div className="field2">
-                      <div className="lbl">USDT Bought</div>
+                      <div className="lbl">{t('usdtBought')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
@@ -642,7 +642,7 @@ export default function StockPage() {
                   </div>
                   {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
                     <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
-                      <span style={{ color: 'var(--t2)' }}>Total QAR: </span>
+                      <span style={{ color: 'var(--t2)' }}>{t('totalQarCalc')} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
                         {fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} QAR
                       </span>
@@ -845,7 +845,7 @@ export default function StockPage() {
               </div>
               {editUsed > 1e-9 && (
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>
-                  Min {fmtU(editUsed)} (already used)
+                  {t('minAlreadyUsed').replace('{qty}', fmtU(editUsed))}
                 </div>
               )}
 
@@ -872,7 +872,7 @@ export default function StockPage() {
                     {t('usedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtU(editUsed)}</strong>
                   </span>
                   <span style={{ padding: '4px 10px', borderRadius: 999, border: `1px solid color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 30%, transparent)`, background: `color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 10%, transparent)`, fontSize: 11, color: editProfit >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                    Profit {editProfit >= 0 ? '+' : ''}{fmtQ(editProfit)}
+                    {t('profitLabel')} {editProfit >= 0 ? '+' : ''}{fmtQ(editProfit)}
                   </span>
                   <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
                     {t('investedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtQ(editInvested)}</strong>
