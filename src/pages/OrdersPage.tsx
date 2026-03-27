@@ -2370,20 +2370,20 @@ export default function OrdersPage() {
                         <div className="inputBox" style={{ maxWidth: 180 }}>
                           <input
                             inputMode="decimal"
-                            placeholder="Amount in QAR"
+                            placeholder={t('amountInQar')}
                             value={cashDepositAmount}
                             onChange={numericOnly(setCashDepositAmount)}
                             style={{ fontSize: 11 }}
                           />
                         </div>
                         {parseFloat(cashDepositAmount) > salePreview.revenue && (
-                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>Amount exceeds sale revenue</div>
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>{t('amountExceedsSaleRevenue')}</div>
                         )}
                       </div>
                     )}
                     {cashDepositMode !== 'none' && (state.cashAccounts?.filter(a => a.status === 'active').length ?? 0) > 0 && (
                       <div style={{ marginTop: 6 }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>📍 Deposit to:</div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>{t('depositTo')}</div>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                           {state.cashAccounts!.filter(a => a.status === 'active').map(acc => {
                             const isSelected = cashDepositAccountId === acc.id;
@@ -2430,7 +2430,7 @@ export default function OrdersPage() {
                             const deposit = parseFloat(cashDepositAmount) || 0;
                             return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)} ${selectedAcc.currency}`;
                           }
-                          return `Cash balance: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                          return `${t('cashBalanceLbl')}: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
                         })()}
                       </div>
                     )}
