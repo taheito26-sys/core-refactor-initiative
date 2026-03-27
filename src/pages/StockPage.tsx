@@ -283,8 +283,8 @@ export default function StockPage() {
     setBatchNote('');
     const fundingAccName = activeAccounts.find(a => a.id === fundingAccountId)?.name;
     const deductMsg = fundingAccName
-      ? ` · ${fmtTotal(batchCostQAR)} QAR deducted from "${fundingAccName}"`
-      : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR deducted from cash` : '';
+       ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
+       : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
     setBatchMsg(t('batchAdded') + deductMsg);
   };
 

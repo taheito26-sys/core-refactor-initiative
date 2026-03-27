@@ -231,6 +231,8 @@ const translations = {
   netLabel: { en: 'Net', ar: 'صافي' },
   usdtQtyValidation: { en: 'USDT Qty', ar: 'كمية USDT' },
   totalQarValidation: { en: 'Total QAR', ar: 'إجمالي ر.ق' },
+  deductedFromAccount: { en: 'deducted from', ar: 'خُصم من' },
+  deductedFromCash: { en: 'deducted from cash', ar: 'خُصم من النقد' },
 
   // ── Calendar ──
   monthlyProfit: { en: 'Monthly Profit', ar: 'الربح الشهري' },
