@@ -2377,9 +2377,57 @@ export default function OrdersPage() {
                         )}
                       </div>
                     )}
+                    {cashDepositMode !== 'none' && (state.cashAccounts?.filter(a => a.status === 'active').length ?? 0) > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>📍 Deposit to:</div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {state.cashAccounts!.filter(a => a.status === 'active').map(acc => {
+                            const isSelected = cashDepositAccountId === acc.id;
+                            const typeIcon = acc.type === 'hand' ? '💵' : acc.type === 'bank' ? '🏦' : '🔐';
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === acc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            return (
+                              <button
+                                key={acc.id}
+                                onClick={() => setCashDepositAccountId(acc.id)}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: 8,
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  border: isSelected ? '1.5px solid var(--good)' : '1px solid var(--line)',
+                                  background: isSelected ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'var(--panel2)',
+                                  color: isSelected ? 'var(--good)' : 'var(--t2)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'flex-start',
+                                  gap: 2,
+                                  minWidth: 90,
+                                }}
+                              >
+                                <span>{typeIcon} {acc.name}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)} {acc.currency}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {cashDepositMode !== 'none' && (
                       <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
-                        Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                        {(() => {
+                          const selectedAcc = state.cashAccounts?.find(a => a.id === cashDepositAccountId);
+                          if (selectedAcc) {
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === selectedAcc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            const deposit = parseFloat(cashDepositAmount) || 0;
+                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)} ${selectedAcc.currency}`;
+                          }
+                          return `Cash balance: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                        })()}
                       </div>
                     )}
                   </div>
