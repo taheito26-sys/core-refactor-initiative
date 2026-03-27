@@ -1464,11 +1464,11 @@ export default function OrdersPage() {
                             {/* MERCHANT — counterparty who created the deal */}
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             {/* BUYER — same customer field stored in deal notes */}
-                            <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
-                            <td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
+                            <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
                             {/* NET — same dual display as Outgoing: crossed-out full net + "my cut" */}
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
@@ -1488,7 +1488,7 @@ export default function OrdersPage() {
                                 </span>
                               )}
                             </td>
-                            <td>
+                            <td className="hide-mobile">
                               <div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>
