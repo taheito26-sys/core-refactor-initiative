@@ -168,7 +168,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       className={cn(
         'flex flex-col bg-sidebar border-sidebar-border h-full transition-all duration-200',
         'ltr:border-r rtl:border-l',
-        collapsed ? 'w-[52px]' : 'w-[154px]'
+        collapsed ? 'w-[52px]' : 'w-fit min-w-[120px] max-w-[200px]'
       )}
     >
       {/* Header */}
