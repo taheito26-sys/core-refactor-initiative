@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import {
   useNotifications,
   useMarkNotificationRead,
+  useMarkNotificationsRead,
   useMarkAllRead,
   useMarkCategoryRead,
   type Notification,
@@ -217,6 +218,7 @@ export default function ActivityCenter() {
   const t = useT();
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const markManyRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllRead();
   const markCategoryRead = useMarkCategoryRead();
 
@@ -248,12 +250,17 @@ export default function ActivityCenter() {
     return counts;
   }, [notifications]);
 
-  const handleNavigate = (n: SmartNotification) => {
-    // Mark every notification in the group as read, not just the representative one.
-    // This is the root cause of the phantom unread count — grouped notifications
-    // previously only marked 1 of N items read.
+  const handleNavigate = async (n: SmartNotification) => {
+    // Mark every notification in the group as read in one mutation so the cache
+    // and unread badge stay consistent for grouped entries.
     const idsToMark = n.groupIds?.length ? n.groupIds : (n.read_at ? [] : [n.id]);
-    idsToMark.forEach(id => markRead.mutate(id));
+
+    if (idsToMark.length > 1) {
+      await markManyRead.mutateAsync(idsToMark);
+    } else if (idsToMark.length === 1) {
+      await markRead.mutateAsync(idsToMark[0]);
+    }
+
     setOpen(false);
     handleNotificationClick(n, navigate);
   };
