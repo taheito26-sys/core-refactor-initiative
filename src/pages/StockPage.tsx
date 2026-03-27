@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU,
@@ -25,6 +26,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import '@/styles/tracker.css';
+import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -34,6 +36,7 @@ function inputFromTs(ts: number) {
 }
 
 export default function StockPage() {
+  const [stockSearchParams, setStockSearchParams] = useSearchParams();
   const { settings, update } = useTheme();
   const t = useT();
 
@@ -69,6 +72,7 @@ export default function StockPage() {
   const [editNote, setEditNote] = useState('');
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
+  const activeTab = stockSearchParams.get('tab') === 'cash' ? 'cash' : 'stock';
 
   useEffect(() => {
     const next: TrackerState = {
@@ -293,6 +297,23 @@ export default function StockPage() {
 
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
+        <button onClick={() => setStockSearchParams({ tab: 'stock' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'stock' ? 700 : 500, color: activeTab === 'stock' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'stock' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>📦 {t('stock')}</button>
+        <button onClick={() => setStockSearchParams({ tab: 'cash' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'cash' ? 700 : 500, color: activeTab === 'cash' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'cash' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>💰 {t('cash')}</button>
+      </div>
+      {activeTab === 'cash' ? (
+        <div className="formPanel salePanel">
+          <div className="inner">
+            <CashBoxManager
+              currentCash={num(state.cashQAR, 0)}
+              currentOwner={state.cashOwner || ''}
+              cashHistory={state.cashHistory || []}
+              onSave={(newCash, owner, history) => applyState({ ...state, cashQAR: newCash, cashOwner: owner, cashHistory: history })}
+              onClose={() => setStockSearchParams({ tab: 'stock' })}
+            />
+          </div>
+        </div>
+      ) : (
       <div className="twoColPage">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -584,6 +605,7 @@ export default function StockPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ─── EDIT BATCH DIALOG ─── */}
       {(() => {
