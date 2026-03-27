@@ -621,9 +621,132 @@ const AURORA: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER, EXECUTIVE_HUB, OPERATIONS_DESK, LEDGER_PRO, AURORA];
+// ═══ ATLAS GRID — Command-center, spatial ops board ═══
+const ATLAS_GRID: LayoutDef = {
+  id: 'atlas_grid', name: 'Atlas Grid', desc: 'Command-center · spatial ops',
+  font: 'Manrope', fontMono: 'IBM Plex Mono',
+  radius: '4px', radiusSm: '2px', radiusLg: '6px',
+  shadow: '0 0 0 1px rgba(44,36,26,.08)',
+  swatches: ['#E9E2D3','#8E3B2E','#355C4B','#3E6B57','#A43A32','#C17A1C','#3B3124','#B7AA8B'],
+  themes: {
+    t1: { // Earth Grid
+      bg:'#E9E2D3', panel:'#D6CCB8', panel2:'#B7AA8B', panel3:'#8C7A5B',
+      text:'#2C241A', muted:'#5F5442', muted2:'#7B6E58',
+      line:'rgba(44,36,26,.12)', line2:'rgba(44,36,26,.06)',
+      brand:'#8E3B2E', brand2:'#355C4B', brand3:'rgba(142,59,46,.10)',
+      good:'#3E6B57', bad:'#A43A32', warn:'#C17A1C',
+      sidebarBg:'#3B3124', topbarBg:'rgba(233,226,211,.95)',
+      cardBg:'#DCCFB7', inputBg:'rgba(142,59,46,.05)',
+      hoverCard:'rgba(53,92,75,.06)', glow:'rgba(193,122,28,.08)',
+    },
+    t2: { // Survey Copper
+      bg:'#EDE5D6', panel:'#DDD2BC', panel2:'#C4B59A', panel3:'#9A8768',
+      text:'#2A1F14', muted:'#6B5038', muted2:'#8A7054',
+      line:'rgba(42,31,20,.12)', line2:'rgba(42,31,20,.06)',
+      brand:'#A85C3A', brand2:'#7A4A2F', brand3:'rgba(168,92,58,.10)',
+      good:'#4A7D5E', bad:'#B24430', warn:'#D4882A',
+      sidebarBg:'#3A281C', topbarBg:'rgba(237,229,214,.95)',
+      cardBg:'#E0D4BE', inputBg:'rgba(168,92,58,.05)',
+      hoverCard:'rgba(122,74,47,.06)', glow:'rgba(212,136,42,.08)',
+    },
+    t3: { // Moss Command
+      bg:'#E4E2D4', panel:'#D0CCBA', panel2:'#AAA88E', panel3:'#7E7C64',
+      text:'#1E2A1E', muted:'#445040', muted2:'#667860',
+      line:'rgba(30,42,30,.12)', line2:'rgba(30,42,30,.06)',
+      brand:'#355C4B', brand2:'#4A7A5E', brand3:'rgba(53,92,75,.10)',
+      good:'#2E6A4F', bad:'#9E3A30', warn:'#B07820',
+      sidebarBg:'#2A3828', topbarBg:'rgba(228,226,212,.95)',
+      cardBg:'#D4D0B8', inputBg:'rgba(53,92,75,.05)',
+      hoverCard:'rgba(74,122,94,.06)', glow:'rgba(46,106,79,.08)',
+    },
+  },
+};
+
+// ═══ VELVET MONO — Luxury private desk, dark premium ═══
+const VELVET_MONO: LayoutDef = {
+  id: 'velvet_mono', name: 'Velvet Mono', desc: 'Luxury dark · editorial restraint',
+  font: 'Fraunces', fontMono: 'IBM Plex Mono',
+  radius: '10px', radiusSm: '6px', radiusLg: '14px',
+  shadow: '0 4px 16px rgba(0,0,0,.2)',
+  swatches: ['#161116','#D3A15F','#8C6A9F','#7FA483','#C46A6A','#D9A441','#120D12','#3A2B37'],
+  themes: {
+    t1: { // Gold Reserve
+      bg:'#161116', panel:'#211821', panel2:'#2B202A', panel3:'#3A2B37',
+      text:'#F4E9E2', muted:'#B9A6AE', muted2:'#8E7C84',
+      line:'rgba(244,233,226,.08)', line2:'rgba(244,233,226,.04)',
+      brand:'#D3A15F', brand2:'#8C6A9F', brand3:'rgba(211,161,95,.10)',
+      good:'#7FA483', bad:'#C46A6A', warn:'#D9A441',
+      sidebarBg:'#120D12', topbarBg:'rgba(22,17,22,.95)',
+      cardBg:'#241B24', inputBg:'rgba(211,161,95,.05)',
+      hoverCard:'rgba(140,106,159,.06)', glow:'rgba(211,161,95,.10)',
+    },
+    t2: { // Plum Ledger
+      bg:'#18101A', panel:'#261A28', panel2:'#342438', panel3:'#442E48',
+      text:'#EDE0F0', muted:'#A890B0', muted2:'#886E98',
+      line:'rgba(237,224,240,.08)', line2:'rgba(237,224,240,.04)',
+      brand:'#9E6AB8', brand2:'#C89ADF', brand3:'rgba(158,106,184,.10)',
+      good:'#78A880', bad:'#C46A6A', warn:'#D4A040',
+      sidebarBg:'#140C16', topbarBg:'rgba(24,16,26,.95)',
+      cardBg:'#2A1E2E', inputBg:'rgba(158,106,184,.05)',
+      hoverCard:'rgba(200,154,223,.06)', glow:'rgba(158,106,184,.10)',
+    },
+    t3: { // Steel Orchid
+      bg:'#141418', panel:'#1E1E26', panel2:'#282832', panel3:'#38384A',
+      text:'#E8E4F0', muted:'#9A98B0', muted2:'#7A7890',
+      line:'rgba(232,228,240,.08)', line2:'rgba(232,228,240,.04)',
+      brand:'#7A8A9F', brand2:'#9F7AAF', brand3:'rgba(122,138,159,.10)',
+      good:'#7AAF8A', bad:'#BF6868', warn:'#D0A040',
+      sidebarBg:'#0E0E14', topbarBg:'rgba(20,20,24,.95)',
+      cardBg:'#222228', inputBg:'rgba(122,138,159,.05)',
+      hoverCard:'rgba(159,122,175,.06)', glow:'rgba(122,138,159,.10)',
+    },
+  },
+};
+
+// ═══ PAPERWIRE — Analytical newsroom, audit-desk ═══
+const PAPERWIRE: LayoutDef = {
+  id: 'paperwire', name: 'Paperwire', desc: 'Audit-desk · document-first',
+  font: 'Instrument Serif', fontMono: 'IBM Plex Mono',
+  radius: '2px', radiusSm: '0px', radiusLg: '3px',
+  shadow: 'none',
+  swatches: ['#F3EFE6','#005F73','#9B2226','#2D6A4F','#AE2012','#BB7A00','#2A2118','#CFC1AA'],
+  themes: {
+    t1: { // Blue Dossier
+      bg:'#F3EFE6', panel:'#FFFDF8', panel2:'#E7DECF', panel3:'#CFC1AA',
+      text:'#181512', muted:'#6A6056', muted2:'#94877A',
+      line:'rgba(24,21,18,.10)', line2:'rgba(24,21,18,.05)',
+      brand:'#005F73', brand2:'#9B2226', brand3:'rgba(0,95,115,.08)',
+      good:'#2D6A4F', bad:'#AE2012', warn:'#BB7A00',
+      sidebarBg:'#2A2118', topbarBg:'rgba(243,239,230,.96)',
+      cardBg:'#FFFDF8', inputBg:'rgba(0,95,115,.04)',
+      hoverCard:'rgba(155,34,38,.04)', glow:'rgba(0,95,115,.06)',
+    },
+    t2: { // Redline Review
+      bg:'#F5F0E8', panel:'#FFFCF6', panel2:'#EBDDD0', panel3:'#D4C0A8',
+      text:'#1A1210', muted:'#6E4A3A', muted2:'#9A7466',
+      line:'rgba(26,18,16,.10)', line2:'rgba(26,18,16,.05)',
+      brand:'#9B2226', brand2:'#005F73', brand3:'rgba(155,34,38,.08)',
+      good:'#2D6A4F', bad:'#7A1510', warn:'#C47A00',
+      sidebarBg:'#2C1A14', topbarBg:'rgba(245,240,232,.96)',
+      cardBg:'#FFFCF6', inputBg:'rgba(155,34,38,.04)',
+      hoverCard:'rgba(0,95,115,.04)', glow:'rgba(155,34,38,.06)',
+    },
+    t3: { // Archive Moss
+      bg:'#F0EDE4', panel:'#FDFBF4', panel2:'#E2DDD0', panel3:'#C8C0AC',
+      text:'#161810', muted:'#4A5842', muted2:'#788A6E',
+      line:'rgba(22,24,16,.10)', line2:'rgba(22,24,16,.05)',
+      brand:'#2D6A4F', brand2:'#9B2226', brand3:'rgba(45,106,79,.08)',
+      good:'#1E5A3A', bad:'#AE2012', warn:'#A87800',
+      sidebarBg:'#1E2A1C', topbarBg:'rgba(240,237,228,.96)',
+      cardBg:'#FDFBF4', inputBg:'rgba(45,106,79,.04)',
+      hoverCard:'rgba(155,34,38,.04)', glow:'rgba(45,106,79,.06)',
+    },
+  },
+};
+
+export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, PRISM, PULSE, SOLID_ADVISORY, EDITORIAL_FINANCE, DARK_LEDGER, EXECUTIVE_HUB, OPERATIONS_DESK, LEDGER_PRO, AURORA, ATLAS_GRID, VELVET_MONO, PAPERWIRE];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
-export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto'];
+export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto','Manrope','Fraunces','Instrument Serif','Public Sans'];
 export const FONT_SIZES = [9,10,11,12,13,14];
 export const VISION_PROFILES = ['standard','large','xlarge','compact'] as const;
 
