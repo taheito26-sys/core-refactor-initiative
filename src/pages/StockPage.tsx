@@ -41,7 +41,7 @@ function inputFromTs(ts: number) {
 }
 
 export default function StockPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [stockSearchParams, setStockSearchParams] = useSearchParams();
   const { settings, update } = useTheme();
   const t = useT();
 
@@ -77,29 +77,7 @@ export default function StockPage() {
   const [editNote, setEditNote] = useState('');
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
-  const activeTab = searchParams.get('tab') === 'cash' ? 'cash' : 'stock';
-
-  // ── Cash Management tab ──────────────────────────────────────────
-  const [searchParams] = useSearchParams();
-  const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
-    searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
-  );
-  const [fundingAccountId, setFundingAccountId] = useState<string>('');
-
-  // Derive account balances for funding source selector
-  const cashAccounts = state.cashAccounts || [];
-  const cashLedger = state.cashLedger || [];
-  const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);
-  const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
-
-  // Auto-select first account if none selected and accounts exist
-  useEffect(() => {
-    if (!fundingAccountId && activeAccounts.length > 0) {
-      // Prefer the account with highest balance
-      const best = [...activeAccounts].sort((a, b) => (accountBalances.get(b.id) || 0) - (accountBalances.get(a.id) || 0));
-      setFundingAccountId(best[0]?.id || '');
-    }
-  }, [activeAccounts, fundingAccountId, accountBalances]);
+  const activeTab = stockSearchParams.get('tab') === 'cash' ? 'cash' : 'stock';
 
   useEffect(() => {
     const next: TrackerState = {
@@ -425,8 +403,8 @@ export default function StockPage() {
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
-        <button onClick={() => setSearchParams({ tab: 'stock' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'stock' ? 700 : 500, color: activeTab === 'stock' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'stock' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>📦 {t('stock')}</button>
-        <button onClick={() => setSearchParams({ tab: 'cash' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'cash' ? 700 : 500, color: activeTab === 'cash' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'cash' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>💰 {t('cash')}</button>
+        <button onClick={() => setStockSearchParams({ tab: 'stock' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'stock' ? 700 : 500, color: activeTab === 'stock' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'stock' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>📦 {t('stock')}</button>
+        <button onClick={() => setStockSearchParams({ tab: 'cash' })} style={{ padding: '9px 18px', fontSize: 11, fontWeight: activeTab === 'cash' ? 700 : 500, color: activeTab === 'cash' ? 'var(--brand)' : 'var(--muted)', borderBottom: activeTab === 'cash' ? '2px solid var(--brand)' : '2px solid transparent', background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer' }}>💰 {t('cash')}</button>
       </div>
       {activeTab === 'cash' ? (
         <div className="formPanel salePanel">
@@ -436,7 +414,7 @@ export default function StockPage() {
               currentOwner={state.cashOwner || ''}
               cashHistory={state.cashHistory || []}
               onSave={(newCash, owner, history) => applyState({ ...state, cashQAR: newCash, cashOwner: owner, cashHistory: history })}
-              onClose={() => setSearchParams({ tab: 'stock' })}
+              onClose={() => setStockSearchParams({ tab: 'stock' })}
             />
           </div>
         </div>
