@@ -489,24 +489,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
         {/* Avg Cycle Time */}
         {(() => {
-          // Compute avg hours from batch purchase to FIFO sell
-          const cycleHours = useMemo(() => {
-            const tradesSorted = [...allTrades].sort((a, b) => a.ts - b.ts);
-            const deltas: number[] = [];
-            for (const tr of tradesSorted) {
-              const c = derived.tradeCalc.get(tr.id);
-              if (!c?.ok || !c.slices?.length) continue;
-              for (const sl of c.slices) {
-                const batch = state.batches.find(b => b.id === sl.batchId);
-                if (batch) {
-                  const delta = (tr.ts - batch.ts) / (1000 * 60 * 60);
-                  if (delta > 0 && delta < 10000) deltas.push(delta);
-                }
-              }
-            }
-            return deltas.length ? deltas.reduce((s, v) => s + v, 0) / deltas.length : null;
-          }, [allTrades, derived, state.batches]);
-
           const isExpanded = expandedNewKpi === 'cycle';
           return (
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'cycle')}>
