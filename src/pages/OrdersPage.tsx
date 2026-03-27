@@ -1282,7 +1282,7 @@ export default function OrdersPage() {
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
+      <div className="orders-tab-bar">
         {(['my', 'incoming', 'outgoing', 'transfers'] as const).map(tab => (
           <button
             key={tab}
@@ -1295,13 +1295,7 @@ export default function OrdersPage() {
                 setSaleAmount('');
               }
             }}
-            style={{
-              padding: '9px 18px', fontSize: 11, fontWeight: activeTab === tab ? 700 : 500,
-              color: activeTab === tab ? 'var(--brand)' : 'var(--muted)',
-              borderBottom: activeTab === tab ? '2px solid var(--brand)' : '2px solid transparent',
-              background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer',
-              transition: 'all 0.15s', letterSpacing: '.2px',
-            }}
+            className={`orders-tab-btn ${activeTab === tab ? 'active' : ''}`}
           >
             {tab === 'my' ? `👤 ${t('myOrders')}`
               : tab === 'incoming' ? `📥 ${t('incomingOrders')}`
@@ -1311,7 +1305,7 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      <div className="twoColPage">
+      <div className="twoColPage orders-two-col">
 
         {/* ═══════════ LEFT PANEL ═══════════ */}
         <div>
