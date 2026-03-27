@@ -72,16 +72,23 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
 
-  // Fetch unread message count
+  // Fetch unread message count (scoped to this merchant's relationships only)
   useEffect(() => {
     if (!userId) return;
+    const relationshipIds = relationships.map((r) => r.id).filter(Boolean);
+    if (!relationshipIds.length) {
+      setUnreadChatCount(0);
+      return;
+    }
+
     supabase
       .from('merchant_messages')
       .select('id', { count: 'exact', head: true })
+      .in('relationship_id', relationshipIds)
       .neq('sender_id', userId)
       .is('read_at', null)
       .then(({ count }) => setUnreadChatCount(count || 0));
-  }, [userId]);
+  }, [userId, relationships]);
 
   const handleOpenRelationship = useCallback((relationshipId: string) => {
     navigate(`/merchants/${relationshipId}`);
@@ -100,11 +107,10 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
       // ── CRITICAL: filter to only THIS merchant's data ──────────────────────
       // Without these filters every merchant sees ALL other merchants' relationships,
       // invites, and deals — causing ghost connections and data leakage.
-      const [relsRes, dealsRes, invitesRes, profilesRes] = await Promise.all([
+      const [relsRes, invitesRes, profilesRes] = await Promise.all([
         supabase.from('merchant_relationships').select('*')
           .or(`merchant_a_id.eq.${myMerchantId},merchant_b_id.eq.${myMerchantId}`)
           .order('created_at', { ascending: false }),
-        supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
         supabase.from('merchant_invites').select('*')
           .or(`from_merchant_id.eq.${myMerchantId},to_merchant_id.eq.${myMerchantId}`)
           .order('created_at', { ascending: false }),
@@ -125,6 +131,12 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
           counterparty_code: (cp as any)?.merchant_code || '',
         };
       });
+
+      const relationshipIds = enrichedRels.map((r) => r.id);
+      const dealsRes = relationshipIds.length
+        ? await supabase.from('merchant_deals').select('*').in('relationship_id', relationshipIds).order('created_at', { ascending: false })
+        : { data: [], error: null };
+      if (dealsRes.error) throw dealsRes.error;
 
       const enrichedDeals: AgreementRow[] = (dealsRes.data || []).map(d => {
         const rel = enrichedRels.find(r => r.id === d.relationship_id);
