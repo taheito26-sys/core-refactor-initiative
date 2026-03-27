@@ -346,6 +346,12 @@ export default function P2PTrackerPage() {
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
+  // ── FX helper: derive mid-rate from P2P data (market-driven FX proxy) ──
+  const deriveMid = (s: number | null, b: number | null): number | null => {
+    if (s != null && b != null && s > 0 && b > 0) return (s + b) / 2;
+    return s ?? b ?? null;
+  };
+
   const profitIfSold = useMemo(() => {
     try {
       const stateRaw = getCurrentTrackerState(localStorage);
@@ -359,42 +365,48 @@ export default function P2PTrackerPage() {
       const costBasis = stockCostQAR(derived);
       if (!wacop || wacop <= 0) return null;
 
-      // Cost basis is always in QAR. Sell rate is in the selected market's currency.
-      // For Qatar: both in QAR, direct comparison.
-      // For other markets: convert revenue to QAR using cross rate from P2P data.
-      if (market === 'qatar') {
-        const revenue = stock * sellAvg;
-        const profit = revenue - costBasis;
-        return { stock, costBasis, wacop, profit, currency: 'QAR' as string };
+      // FX: derive mid-rate from P2P data for both local and QAR markets
+      const localMid = deriveMid(sellAvg, buyAvg);
+      const qatarMid = market === 'qatar'
+        ? localMid
+        : qatarRates ? deriveMid(qatarRates.sellAvg, qatarRates.buyAvg) : null;
+
+      if (!localMid || localMid <= 0 || !qatarMid || qatarMid <= 0 || !sellAvg || sellAvg <= 0) {
+        console.log(`[P2P Profit] Missing FX data: localMid=${localMid}, qatarMid=${qatarMid}, sellAvg=${sellAvg}`);
+        return null;
       }
 
-      // Non-Qatar: need Qatar sell rate to compute cross rate
-      if (qatarSellAvg == null || qatarSellAvg <= 0 || sellAvg <= 0) {
-        console.log(`[P2P Profit] Cannot compute cross-currency profit: qatarSellAvg=${qatarSellAvg}, market=${market}, sellAvg=${sellAvg}`);
-        return null; // Cannot compute without FX data
-      }
+      // Step 1: proceedsLocal = stock × sellAvgLocal
+      const proceedsLocal = stock * sellAvg;
+      // Step 2: proceedsUSD = proceedsLocal × FX(local→USD) = proceedsLocal / localMid
+      const proceedsUSD = proceedsLocal / localMid;
+      // Step 3: costBasisUSD = costBasisQAR × FX(QAR→USD) = costBasisQAR / qatarMid
+      const costBasisUSD = costBasis / qatarMid;
+      // Step 4: profitUSD = proceedsUSD − costBasisUSD
+      const profitUSD = proceedsUSD - costBasisUSD;
 
-      // Cross rate: 1 USDT = sellAvg in market currency, 1 USDT = qatarSellAvg in QAR
-      // So revenue in QAR = stock * qatarSellAvg (what we'd get selling at Qatar's rate)
-      // But we want: "if sold in THIS market", so:
-      // Revenue in market currency = stock * sellAvg
-      // Convert to QAR: revenue_qar = (stock * sellAvg) * (qatarSellAvg / sellAvg) = stock * qatarSellAvg
-      // Actually that's not right. The cross rate is:
-      // 1 unit of market currency = qatarSellAvg / sellAvg QAR
-      // Revenue in QAR = stock * sellAvg * (qatarSellAvg / sellAvg) = stock * qatarSellAvg
-      // This means selling in any market yields the same QAR-equivalent. That's correct for arbitrage-free P2P.
-      // The real value of selling in a specific market is the market sell price itself.
-      // Show profit in QAR using cross conversion:
-      const revenueQAR = stock * sellAvg * (qatarSellAvg / sellAvg);
-      const profit = revenueQAR - costBasis;
-      return { stock, costBasis, wacop, profit, currency: 'QAR' as string };
+      return { stock, costBasis, costBasisUSD, wacop, profit: profitUSD, currency: 'USD' as string };
     } catch {
       return null;
     }
-  }, [sellAvg, market, qatarSellAvg]);
+  }, [sellAvg, buyAvg, market, qatarRates]);
 
+  // ── Round-trip market spread simulation (USD) ──
+  const roundTripSim = useMemo(() => {
+    if (!profitIfSold) return null;
+    if (!sellAvg || !buyAvg || sellAvg <= 0 || buyAvg <= 0) return null;
 
+    // startingCapitalUSD = costBasisQAR / qatarMid (already computed)
+    const startingCapitalUSD = profitIfSold.costBasisUSD;
+    // Round-trip: convert USD → local → buy USDT → sell USDT → local → USD
+    // Simplifies to: finalUSD = startingCapitalUSD × (sellAvg / buyAvg)
+    const spreadRatio = sellAvg / buyAvg;
+    const finalUSD = startingCapitalUSD * spreadRatio;
+    const profit = finalUSD - startingCapitalUSD;
+    const pct = startingCapitalUSD > 0 ? (profit / startingCapitalUSD) * 100 : 0;
 
+    return { startingCapitalUSD, finalUSD, profit, spreadRatio, pct };
+  }, [profitIfSold, sellAvg, buyAvg]);
 
   const priceBarData = useMemo(() => {
     if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellValues: [], buyValues: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
