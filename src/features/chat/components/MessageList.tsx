@@ -45,24 +45,13 @@ export function MessageList(props: Props) {
         }
 
         const showUnread = props.unreadMessageId === m.id;
+        const msg = m as any;
         return (
           <div key={m.id} id={`msg-${m.id}`}>
             {showUnread && unreadCount > 0 && <UnreadDivider count={unreadCount} />}
             <MessageItem
-              message={{ ...m, content: m.content || (m as any).body || '' }}
-              isOwn={m.sender_id === props.currentUserId}
-              reactions={props.reactionsByMessage[m.id] ?? []}
-              pinned={props.pinnedSet.has(m.id)}
-              onReact={(emoji, remove) => props.onReact(m.id, emoji, remove)}
-              onPinToggle={() => props.onPinToggle(m.id, props.pinnedSet.has(m.id))}
-              onMarkRead={() => props.onMarkRead(m.id)}
-              onDeleteForMe={() => props.onDeleteForMe(m.id)}
-              onDeleteForEveryone={() => props.onDeleteForEveryone(m.id)}
-              onCreateOrder={() => props.onCreateOrder(m.id)}
-              onCreateTask={() => props.onCreateTask(m.id)}
-              onConvert={(type) => props.onConvert?.(m.id, type)}
-              onReply={() => props.onReply?.(m)}
-              disableForward={props.disableForward}
+              message={{ id: msg.id, content: msg.content || msg.body || '', sender_id: msg.sender_id, created_at: msg.created_at, type: msg.message_type, status: msg.status, expires_at: msg.expires_at }}
+              currentUserId={props.currentUserId}
             />
           </div>
         );

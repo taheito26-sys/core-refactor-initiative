@@ -57,7 +57,7 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
             {message.type === 'business_object' && message.metadata?.object_type ? (
               <div className="scale-95 origin-top-left -mx-1">
                 <BusinessObjectCard 
-                  obj={{ id: message.metadata.object_id, object_type: message.metadata.object_type, payload: message.metadata.object_data || {}, status: 'pending', room_id: '', created_by_merchant_id: '', state_snapshot_hash: null, created_at: '', updated_at: '' }}
+                  obj={{ id: message.metadata.object_id, type: 'business_object', object_type: message.metadata.object_type as any, payload: message.metadata.object_data || {}, status: 'pending', room_id: '', created_by: '', created_at: '' }}
                 />
               </div>
             ) : (
