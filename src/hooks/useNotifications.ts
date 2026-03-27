@@ -9,13 +9,6 @@ export interface Notification {
   title: string;
   body: string | null;
   category: string;
-  notification_type?: 'chat_message' | 'approval_event' | 'settlement_event' | 'agreement_event' | 'system_event' | null;
-  entity_type?: string | null;
-  entity_id?: string | null;
-  relationship_id?: string | null;
-  message_id?: string | null;
-  route_path?: string | null;
-  route_params?: Record<string, string> | null;
   read_at: string | null;
   created_at: string;
   // Routing metadata for deep linking
@@ -28,26 +21,6 @@ export interface Notification {
 
 /** Map notification categories to app routes */
 export function notificationRoute(n: Notification): string {
-  if (n.route_path) {
-    const qp = new URLSearchParams();
-    if (n.route_params) {
-      Object.entries(n.route_params).forEach(([k, v]) => {
-        if (v != null && v !== '') qp.set(k, String(v));
-      });
-    }
-    if (n.relationship_id) qp.set('conversation', n.relationship_id);
-    if (n.message_id) qp.set('message', n.message_id);
-    const query = qp.toString();
-    return query ? `${n.route_path}?${query}` : n.route_path;
-  }
-
-  if (n.category === 'message' && n.relationship_id) {
-    const qp = new URLSearchParams({ conversation: n.relationship_id });
-    if (n.message_id) qp.set('message', n.message_id);
-    qp.set('highlight', '1');
-    return `/chat?${qp.toString()}`;
-  }
-
   switch (n.category) {
     case 'deal':
     case 'order':
@@ -60,7 +33,7 @@ export function notificationRoute(n: Notification): string {
     case 'merchant':
       return '/merchants';
     case 'message':
-      return '/chat';
+      return '/merchants?tab=chat';
     default:
       return '/dashboard';
   }
@@ -75,7 +48,7 @@ export function useNotifications() {
     queryFn: async (): Promise<Notification[]> => {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id, title, body, category, notification_type, entity_type, entity_id, relationship_id, message_id, route_path, route_params, read_at, created_at')
+        .select('id, title, body, category, read_at, created_at, conversation_id, message_id, entity_type, entity_id, anchor_id')
         .eq('user_id', userId!)
         .order('created_at', { ascending: false })
         .limit(50);

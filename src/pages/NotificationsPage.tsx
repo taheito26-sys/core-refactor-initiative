@@ -18,7 +18,7 @@ import {
 import { useT } from '@/lib/i18n';
 
 // ─── Category Config ────────────────────────────────────────────────
-type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'message' | 'system';
+type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
 
 const CATEGORY_KEYS: { key: CategoryKey; labelKey: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }[] = [
   { key: 'all', labelKey: 'notifAllActivity', icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
@@ -26,7 +26,6 @@ const CATEGORY_KEYS: { key: CategoryKey; labelKey: string; icon: React.Component
   { key: 'order', labelKey: 'orders', icon: Package, color: 'text-warning', bg: 'bg-warning/10' },
   { key: 'invite', labelKey: 'notifInvites', icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
   { key: 'approval', labelKey: 'notifApprovals', icon: ShieldCheck, color: 'text-success', bg: 'bg-success/10' },
-  { key: 'message', labelKey: 'notifMessages', icon: Bell, color: 'text-[hsl(200,70%,50%)]', bg: 'bg-[hsl(200,70%,50%)]/10' },
   { key: 'system', labelKey: 'notifSystem', icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
 ];
 
@@ -93,7 +92,6 @@ function extractSender(title: string): string {
 function normalizeCategory(cat: string): CategoryKey {
   if (cat === 'network' || cat === 'invite') return 'invite';
   if (cat === 'merchant' || cat === 'deal') return 'deal';
-  if (cat === 'message') return 'message';
   if (CATEGORY_KEYS.some(c => c.key === cat)) return cat as CategoryKey;
   return 'system';
 }
