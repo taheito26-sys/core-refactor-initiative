@@ -10,6 +10,7 @@ export interface Message {
   content: string;
   read_at: string | null;
   created_at: string;
+  expires_at?: string | null;
 }
 
 export function useRelationshipMessages(relationshipId: string) {
@@ -67,7 +68,7 @@ export function useSendMessage() {
           relationship_id: input.relationship_id,
           sender_id: userId!,
           content: input.content,
-        });
+        } as any);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
