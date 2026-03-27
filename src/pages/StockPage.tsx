@@ -744,7 +744,7 @@ export default function StockPage() {
                       return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
                     })}
                   </select>
-                  {fundingAccountId && (() => {
+                  {fundingAccountId && fundingAccountId !== 'none' && (() => {
                     const acc = activeAccounts.find(a => a.id === fundingAccountId);
                     const bal = accountBalances.get(fundingAccountId) || 0;
                     return (

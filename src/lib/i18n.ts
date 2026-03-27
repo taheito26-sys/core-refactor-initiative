@@ -1315,6 +1315,7 @@ const translations = {
   // Stock page funding integration
   fundingSourceLbl:      { en: '💰 Funding Source',            ar: '💰 مصدر التمويل' },
   selectFundingAccPh:    { en: '— Select funding account —',   ar: '— اختر حساب التمويل —' },
+  noFundingSource:       { en: 'None (external funds)',         ar: 'بدون (أموال خارجية)' },
   fundingAccNotFound:    { en: 'Selected funding account not found.', ar: 'لم يتم العثور على حساب التمويل المحدد.' },
   insufficientInAcc:     { en: 'Insufficient funds in',        ar: 'رصيد غير كافٍ في' },
   availableLbl:          { en: 'Available',                    ar: 'المتاح' },
