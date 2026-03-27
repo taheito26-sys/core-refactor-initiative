@@ -26,7 +26,7 @@ export function BusinessObjectCard({ obj, onAccept }: Props) {
           <div className="flex flex-col">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{typeLabel}</span>
             <h4 className="text-[14px] font-black text-slate-900 tracking-tight">
-              {obj.status === 'draft' ? 'Draft Protocol' : 'Active Agreement'}
+              {(obj.status as string) === 'draft' ? 'Draft Protocol' : 'Active Agreement'}
             </h4>
           </div>
         </div>

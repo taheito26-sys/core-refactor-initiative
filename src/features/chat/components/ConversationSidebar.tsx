@@ -8,8 +8,8 @@ import {
 interface Props {
   rooms?: ChatRoom[];
   conversations?: any[];
-  activeRoomId: string | null;
-  onSelectRoom: (roomId: string) => void;
+  activeRoomId?: string | null;
+  onSelectRoom?: (roomId: string) => void;
   currentUserId: string;
 }
 

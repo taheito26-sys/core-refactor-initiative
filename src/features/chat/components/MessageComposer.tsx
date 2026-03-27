@@ -183,14 +183,14 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
                onClick={() => { setIsOneTime(!isOneTime); if (!isOneTime) setHas24hTimer(false); }}
                className={cn("p-1.5 rounded transition-all", isOneTime ? "text-violet-600 bg-violet-50" : "text-slate-400 hover:text-violet-600")}
             >
-               <Eye size={16} title="One-time view" />
+               <Eye size={16} />
             </button>
             <button 
                type="button" 
                onClick={() => { setHas24hTimer(!has24hTimer); if (!has24hTimer) setIsOneTime(false); }}
                className={cn("p-1.5 rounded transition-all", has24hTimer ? "text-violet-600 bg-violet-50" : "text-slate-400 hover:text-violet-600")}
             >
-               <Clock size={16} title="24h Timer" />
+               <Clock size={16} />
             </button>
             <button type="button" className="text-slate-400 hover:text-violet-600"><Smile size={16} /></button>
           </div>

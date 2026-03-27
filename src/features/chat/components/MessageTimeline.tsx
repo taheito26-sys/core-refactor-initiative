@@ -129,17 +129,8 @@ export function MessageTimeline({
                   <div key={msg.id}>
                     {showUnreadDivider && <UnreadDivider count={unreadCount} />}
                     <MessageItem
-                      message={msg}
-                      isOwn={isOwn}
-                      isFirstInGroup={isFirst}
-                      isLastInGroup={isLast}
+                      message={{ id: msg.id, content: msg.content, sender_id: msg.sender_id, created_at: msg.created_at, type: (msg as any).msg_type, status: (msg as any).status, expires_at: (msg as any).expires_at }}
                       currentUserId={currentUserId}
-                      counterpartyName={counterpartyName}
-                      isHighlighted={highlightId === msg.id}
-                      onReply={onReply}
-                      onScrollToMessage={scrollToMessage}
-                      onForward={onForward}
-                      relationshipId={relationshipId}
                     />
                   </div>
                 );
