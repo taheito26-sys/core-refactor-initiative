@@ -1328,7 +1328,7 @@ const translations = {
   allocNeedsAgreement:     { en: 'requires an approved agreement',      ar: 'يتطلب اتفاقية معتمدة' },
   allocNeedsUsdt:          { en: 'Each allocation must have USDT amount > 0', ar: 'كل تخصيص يجب أن يحتوي على مبلغ USDT أكبر من 0' },
   allocNeedsCost:          { en: 'Each allocation must have a merchant cost > 0', ar: 'كل تخصيص يجب أن يحتوي على تكلفة تاجر أكبر من 0' },
-  profitShareLabel:        { en: 'Profit Share',                        ar: 'حصة الأرباح' },
+  
   salesDealLabel:          { en: 'Sales Deal',                          ar: 'صفقة بيع' },
   saleProceeds:            { en: 'Sale proceeds',                       ar: 'عائدات البيع' },
 } as const;
