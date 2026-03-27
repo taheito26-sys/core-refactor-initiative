@@ -17,6 +17,7 @@ import { ContextPanel } from '@/features/chat/components/ContextPanel';
 import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
 import { Shield } from 'lucide-react';
 import { SecureTradePanel } from '@/features/chat/components/SecureTradePanel';
+import { useChatStore } from '@/lib/chat-store';
 
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
@@ -31,6 +32,8 @@ export default function ChatWorkspacePage() {
   const [showDashboard, setShowDashboard] = useState(!isMobile);
   // On mobile: true = show sidebar, false = show chat
   const [showSidebar, setShowSidebar] = useState(true);
+  const consumePendingNav = useChatStore((s) => s.consumePendingNav);
+  const [pendingNotificationMessageId, setPendingNotificationMessageId] = useState<string | null>(null);
 
   const activeRoom = useMemo(
     () => rooms.find((r) => String(r.id) === String(activeRoomId) || String(r.room_id) === String(activeRoomId)) ?? null,
@@ -48,6 +51,16 @@ export default function ChatWorkspacePage() {
       if (isMobile) setShowSidebar(false);
     }
   }, [searchParams, activeRoomId, isMobile]);
+
+
+  useEffect(() => {
+    const pending = consumePendingNav();
+    if (!pending) return;
+
+    setActiveRoomId(String(pending.conversationId));
+    if (pending.messageId) setPendingNotificationMessageId(String(pending.messageId));
+    if (isMobile) setShowSidebar(false);
+  }, [consumePendingNav, isMobile]);
 
   const messages = useRoomMessages(activeRoomId);
   const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
@@ -144,6 +157,17 @@ export default function ChatWorkspacePage() {
       window.setTimeout(() => scrollToMessage(messageId, true), 160);
     }
   }, [searchParams, scrollToMessage, messages.data]);
+
+
+  useEffect(() => {
+    if (!pendingNotificationMessageId) return;
+    if (!activeRoomId) return;
+
+    window.setTimeout(() => {
+      scrollToMessage(pendingNotificationMessageId, true);
+      setPendingNotificationMessageId(null);
+    }, 220);
+  }, [pendingNotificationMessageId, activeRoomId, messages.data, scrollToMessage]);
 
   return (
     <div className="flex h-[calc(100vh-50px)] w-full overflow-hidden bg-background select-none relative">
