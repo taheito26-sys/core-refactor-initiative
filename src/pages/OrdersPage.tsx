@@ -2034,7 +2034,7 @@ export default function OrdersPage() {
                                       {idx > 0 && (
                                         <button type="button" style={{ fontSize: 9, color: 'var(--bad)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
                                           onClick={() => setAllocations(prev => prev.filter((_, i) => i !== idx))}>
-                                          ✕ {t('removeMerchant').replace('✕ ', '')}
+                                          {t('removeMerchant')}
                                         </button>
                                       )}
                                     </div>
