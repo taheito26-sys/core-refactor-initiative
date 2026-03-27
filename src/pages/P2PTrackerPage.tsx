@@ -673,10 +673,10 @@ export default function P2PTrackerPage() {
             {profitIfSold && (
               <div className="border-t border-[var(--line)] px-3 py-1.5">
                 <div className="text-[10px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {ccy}
+                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {profitIfSold.currency}
                 </div>
                 <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  {fmtPrice(profitIfSold.stock)} USDT · WACOP {fmtPrice(profitIfSold.wacop)} {ccy}
+                  {fmtPrice(profitIfSold.stock)} USDT · WACOP {fmtPrice(profitIfSold.wacop)} QAR
                 </div>
               </div>
             )}
