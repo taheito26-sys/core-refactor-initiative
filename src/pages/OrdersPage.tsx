@@ -1739,7 +1739,7 @@ export default function OrdersPage() {
                 {priceMode === 'manual' && (
                   <div className="g2tight">
                     <div className="field2">
-                      <div className="lbl">{t('buyPrice') || 'Buy Price'}</div>
+                      <div className="lbl">{t('buyPrice')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} /></div>
                     </div>
                     <div className="field2">
@@ -2532,7 +2532,7 @@ export default function OrdersPage() {
                         <tr>
                           <th>{t('date')}</th>
                           <th>{t('direction')}</th>
-                          <th>{t('merchant') || 'Partner'}</th>
+                          <th>{t('merchant')}</th>
                           <th className="r">USDT</th>
                           <th className="r">{t('costBasisQar')}</th>
                           <th className="r">{t('totalCostQar')}</th>
@@ -2550,7 +2550,7 @@ export default function OrdersPage() {
                               </td>
                               <td>
                                 <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                  {isIn ? '💸 ' + (t('capitalIn') || 'In') : '↩️ ' + (t('capitalReturn') || 'Out')}
+                                  {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
                                 </span>
                               </td>
                               <td style={{ fontSize: 10 }}>
