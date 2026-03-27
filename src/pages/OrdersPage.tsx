@@ -379,8 +379,8 @@ export default function OrdersPage() {
   const submitCapitalTransfer = useSubmitCapitalTransfer();
 
   const handleCapitalTransfer = async () => {
-    if (!linkedRelId) { toast.error('Select a partner first'); return; }
-    if (!transferAmount || !transferCostBasis) { toast.error('Amount and cost basis are required'); return; }
+    if (!linkedRelId) { toast.error(t('selectPartnerFirst')); return; }
+    if (!transferAmount || !transferCostBasis) { toast.error(t('amountCostRequired')); return; }
     try {
       await submitCapitalTransfer.mutateAsync({
         relationship_id: linkedRelId,
@@ -505,20 +505,20 @@ export default function OrdersPage() {
 
     // Multi-merchant allocation validation
     if (merchantOrderEnabled && isNewAllocFlow) {
-      if (allocations.length === 0) { setSaleMessage('Add at least one merchant allocation'); return; }
+      if (allocations.length === 0) { setSaleMessage(t('addAtLeastOneAlloc')); return; }
       const totalAllocated = allocations.reduce((s, a) => s + (parseFloat(a.allocatedUsdt) || 0), 0);
       if (Math.abs(totalAllocated - amountUSDT) > 0.01) {
-        setSaleMessage(`Allocation mismatch: allocated ${totalAllocated.toFixed(2)} USDT but sale is ${amountUSDT.toFixed(2)} USDT`);
+        setSaleMessage(`${t('allocMismatch')}: ${t('allocMismatchDetail').replace('{0}', totalAllocated.toFixed(2)).replace('{1}', amountUSDT.toFixed(2))}`);
         return;
       }
       for (const alloc of allocations) {
-        if (!alloc.relationshipId) { setSaleMessage('Each allocation must have a merchant selected'); return; }
+        if (!alloc.relationshipId) { setSaleMessage(t('allocNeedsMerchant')); return; }
         if (alloc.family === 'profit_share' && !alloc.agreementId) {
-          setSaleMessage(`Profit Share allocation for ${alloc.merchantName || 'merchant'} requires an approved agreement`);
+          setSaleMessage(`${t('profitShareLabel')} ${alloc.merchantName || t('merchant')} ${t('allocNeedsAgreement')}`);
           return;
         }
-        if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage('Each allocation must have USDT amount > 0'); return; }
-        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage('Each allocation must have a merchant cost > 0'); return; }
+        if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage(t('allocNeedsUsdt')); return; }
+        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
       }
     }
 
