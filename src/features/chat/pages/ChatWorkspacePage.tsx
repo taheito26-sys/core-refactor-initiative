@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,7 +51,31 @@ export default function ChatWorkspacePage() {
 
   const messages = useRoomMessages(activeRoomId);
   const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
-  const { initiateCall } = useWebRTC({ roomId: activeRoomId, userId });
+  const {
+    callState,
+    isIncoming,
+    callerId,
+    remoteStream,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    toggleMute,
+    endCall,
+  } = useWebRTC({
+    roomId: activeRoomId,
+    userId,
+    onTimelineEvent: (eventType) => {
+      const labels: Record<string, string> = {
+        call_started: 'Call started',
+        call_accepted: 'Call accepted',
+        call_rejected: 'Call rejected',
+        call_missed: 'Call missed',
+        call_ended: 'Call ended',
+      };
+      const label = labels[eventType] ?? eventType;
+      messages.send.mutate({ content: `||SYS_CALL||${label}||/SYS_CALL||`, type: 'system' });
+    },
+  });
 
   const handleCall = (is_video: boolean) => initiateCall(is_video);
 
@@ -63,6 +87,18 @@ export default function ChatWorkspacePage() {
   const handleBack = () => {
     setShowSidebar(true);
   };
+
+
+  const scrollToMessage = useCallback((messageId: string | null, highlight = false) => {
+    if (!messageId) return;
+    const el = document.getElementById(`msg-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (highlight) {
+      el.classList.add('ring-2', 'ring-primary/60', 'rounded-xl');
+      window.setTimeout(() => el.classList.remove('ring-2', 'ring-primary/60', 'rounded-xl'), 1800);
+    }
+  }, []);
 
   // ── Resolve relationship for the active room ──
   const { data: relationship } = useQuery({
@@ -101,9 +137,26 @@ export default function ChatWorkspacePage() {
   const isSecure = activeRoom?.type === 'deal' || !!activeRoom?.order_id;
   const roomTitle = relationship?.counterparty_nickname || relationship?.counterparty_name || activeRoom?.name || activeRoom?.title || 'Conversation';
 
+
+  useEffect(() => {
+    const messageId = searchParams.get('messageId');
+    if (messageId) {
+      window.setTimeout(() => scrollToMessage(messageId, true), 160);
+    }
+  }, [searchParams, scrollToMessage, messages.data]);
+
   return (
     <div className="flex h-[calc(100vh-50px)] w-full overflow-hidden bg-background select-none relative">
-      <CallOrchestrator roomId={activeRoomId} />
+      <CallOrchestrator
+        callState={callState}
+        isIncoming={isIncoming}
+        callerId={callerId}
+        remoteStream={remoteStream}
+        acceptCall={acceptCall}
+        rejectCall={rejectCall}
+        toggleMute={toggleMute}
+        endCall={endCall}
+      />
 
       {/* Sidebar — full-screen on mobile, fixed-width on desktop */}
       {(!isMobile || showSidebar) && (
@@ -168,7 +221,7 @@ export default function ChatWorkspacePage() {
                         onReply={(m) => setReplyTo(m)}
                       />
                     </div>
-                    <JumpToUnreadButton visible={(roomUnreadCount || 0) > 0} onClick={() => {}} />
+                    <JumpToUnreadButton visible={(roomUnreadCount || 0) > 0} onClick={() => scrollToMessage(firstUnread, true)} />
                   </div>
 
                   <div className="shrink-0 bg-background/60 backdrop-blur-lg border-t border-border relative z-20">
