@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { 
   Send, 
@@ -8,45 +8,167 @@ import {
   Timer, 
   Eye,
   Clock,
-  LayoutGrid
+  LayoutGrid,
+  StopCircle,
+  X,
+  CheckSquare
 } from 'lucide-react';
+import { encodeVoice, encodePoll, encodeScheduled } from '../lib/message-codec';
 
 interface Props {
-  onSend: (payload: { content: string; type: 'text' }) => void;
+  onSend: (payload: { content: string; type: string; expiresAt?: string | null }) => void;
   onTyping: () => void;
   sending: boolean;
   replyTo?: any;
   onCancelReply?: () => void;
 }
 
+const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '👎', '🔥', '🎉', '😢', '😮', '🙏', '💯', '✅', '❌', '👋', '🤝', '💰'];
+
 export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelReply }: Props) {
   const [content, setContent] = useState('');
-  const [showOptions, setShowOptions] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showPoll, setShowPoll] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOpts, setPollOpts] = useState(['', '']);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [isOneTime, setIsOneTime] = useState(false);
+  const [has24hTimer, setHas24hTimer] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimeRef = useRef(0);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!content.trim() || sending) return;
-    onSend({ content: content.trim(), type: 'text' });
+    
+    let expiresAt: string | null = null;
+    if (isOneTime) {
+      const d = new Date();
+      d.setHours(d.getHours() + 1); // 1h for one-time
+      expiresAt = d.toISOString();
+    } else if (has24hTimer) {
+      const d = new Date();
+      d.setHours(d.getHours() + 24);
+      expiresAt = d.toISOString();
+    }
+
+    onSend({ content: content.trim(), type: 'text', expiresAt });
     setContent('');
+    setIsOneTime(false);
+    setHas24hTimer(false);
   };
 
+  // ── Voice recording ──────────────────────────────────────────
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = mr;
+      const chunks: Blob[] = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      mr.onstop = async () => {
+        const durationSec = recordingTimeRef.current || 1;
+        const blob = new Blob(chunks, { type: mr.mimeType });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const b64 = (reader.result as string).split(',')[1] || '';
+          if (b64) onSend({ content: encodeVoice(durationSec, b64), type: 'voice' });
+        };
+        reader.readAsDataURL(blob);
+      };
+      mr.start(100);
+      setIsRecording(true);
+      recordingTimeRef.current = 0;
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        recordingTimeRef.current += 1;
+        setRecordingTime((t) => t + 1);
+      }, 1000);
+    } catch { /* mic denied */ }
+  };
+
+  const stopRecording = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setIsRecording(false);
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+  };
+
+  const fmtRecTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
   return (
-    <div className="p-3 bg-white space-y-2">
+    <div className="p-3 bg-white space-y-2 border-t border-slate-100">
+      {/* Poll creator */}
+      {showPoll && (
+        <div className="px-4 py-3 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-2 mb-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">📊 Create Poll</span>
+            <button onClick={() => setShowPoll(false)} className="text-slate-400 hover:text-slate-900 bg-transparent border-none cursor-pointer p-0.5">
+              <X size={14} />
+            </button>
+          </div>
+          <input
+            value={pollQuestion}
+            onChange={(e) => setPollQuestion(e.target.value)}
+            placeholder="Question..."
+            className="w-full bg-white border border-slate-100 rounded-xl text-[12px] px-3 py-2 text-slate-900 outline-none focus:border-violet-200"
+          />
+          {pollOpts.map((opt, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                value={opt}
+                onChange={(e) => { const n = [...pollOpts]; n[i] = e.target.value; setPollOpts(n); }}
+                placeholder={`Option ${i + 1}`}
+                className="flex-1 bg-white border border-slate-100 rounded-xl text-[12px] px-3 py-2 text-slate-900 outline-none focus:border-violet-200"
+              />
+            </div>
+          ))}
+          <button 
+            onClick={() => {
+              const filteredOpts = pollOpts.filter((o) => o.trim());
+              if (!pollQuestion.trim() || filteredOpts.length < 2) return;
+              onSend({ content: encodePoll(pollQuestion.trim(), filteredOpts), type: 'poll' });
+              setShowPoll(false);
+            }} 
+            className="w-full bg-violet-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl py-2.5 border-none cursor-pointer hover:bg-violet-700 transition-all font-bold"
+          >
+            Send Poll
+          </button>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="flex items-center gap-2 group">
         <div className="flex items-center gap-1 shrink-0">
-          <button type="button" className="p-2 text-slate-400 hover:text-blue-600 transition-all" title="Audio Message">
-            <Mic size={18} />
+          <button 
+            type="button" 
+            onClick={isRecording ? stopRecording : startRecording}
+            className={cn(
+              "p-2 rounded-lg transition-all",
+              isRecording ? "text-rose-600 bg-rose-50 animate-pulse" : "text-slate-400 hover:text-violet-600 hover:bg-slate-50"
+            )}
+            title="Audio Message"
+          >
+            {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
           </button>
         </div>
 
-        <div className="flex-1 relative flex items-center bg-slate-50 border border-slate-100 rounded-full px-4 min-h-[40px] transition-all focus-within:border-blue-200 focus-within:bg-white focus-within:shadow-sm">
+        <div className="flex-1 relative flex items-center bg-slate-50 border border-slate-100 rounded-full px-4 min-h-[40px] transition-all focus-within:border-violet-200 focus-within:bg-white focus-within:shadow-sm">
           <input
-            value={content}
+            value={isRecording ? `Recording... ${fmtRecTime(recordingTime)}` : content}
             onChange={(e) => {
               setContent(e.target.value);
               onTyping();
             }}
-            placeholder="Type a message..."
+            disabled={isRecording}
+            placeholder={isRecording ? "Listening..." : "Type a message..."}
             className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-slate-700 placeholder:text-slate-400 placeholder:font-medium"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -55,21 +177,37 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
               }
             }}
           />
-          <div className="flex items-center gap-1.5 pr-1 opacity-60 group-focus-within:opacity-100 transition-opacity">
-            <button type="button" className="text-slate-400 hover:text-blue-600"><Eye size={16} title="One-time view" /></button>
-            <button type="button" className="text-slate-400 hover:text-blue-600"><Clock size={16} title="24h Timer" /></button>
-            <button type="button" className="text-slate-400 hover:text-blue-600"><Smile size={16} /></button>
+          <div className="flex items-center gap-2 pr-1 opacity-60 group-focus-within:opacity-100 transition-opacity">
+            <button 
+               type="button" 
+               onClick={() => { setIsOneTime(!isOneTime); if (!isOneTime) setHas24hTimer(false); }}
+               className={cn("p-1.5 rounded transition-all", isOneTime ? "text-violet-600 bg-violet-50" : "text-slate-400 hover:text-violet-600")}
+            >
+               <Eye size={16} title="One-time view" />
+            </button>
+            <button 
+               type="button" 
+               onClick={() => { setHas24hTimer(!has24hTimer); if (!has24hTimer) setIsOneTime(false); }}
+               className={cn("p-1.5 rounded transition-all", has24hTimer ? "text-violet-600 bg-violet-50" : "text-slate-400 hover:text-violet-600")}
+            >
+               <Clock size={16} title="24h Timer" />
+            </button>
+            <button type="button" className="text-slate-400 hover:text-violet-600"><Smile size={16} /></button>
           </div>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-           <button type="button" className="p-2 text-slate-400 hover:text-blue-600">
-             <LayoutGrid size={18} />
+           <button 
+             type="button" 
+             onClick={() => setShowPoll(!showPoll)}
+             className="p-2 text-slate-400 hover:text-violet-600 transition-all"
+           >
+             <CheckSquare size={18} />
            </button>
            <button
              type="submit"
-             disabled={!content.trim() || sending}
-             className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-200 hover:bg-blue-600 transition-all disabled:opacity-50 disabled:shadow-none"
+             disabled={(!content.trim() && !isRecording) || sending}
+             className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all disabled:opacity-50 disabled:shadow-none"
            >
              <Send size={16} className={cn(sending && "animate-pulse")} />
            </button>

@@ -1,3 +1,7 @@
+/* ═══════════════════════════════════════════════════════════════
+   UnreadDivider — visual separator showing unread message count
+   ═══════════════════════════════════════════════════════════════ */
+
 interface Props {
   count: number;
 }

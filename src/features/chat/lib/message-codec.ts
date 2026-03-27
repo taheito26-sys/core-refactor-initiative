@@ -66,8 +66,6 @@ export interface ParsedMessage {
   text: string;
   isEdited: boolean;
   editedAt?: string;
-  // Mentions
-  mentions?: string[];
 }
 
 // ── Parser ───────────────────────────────────────────────────────
@@ -149,10 +147,6 @@ export function parseMsg(raw: string): ParsedMessage {
     editedAt = text.slice(editIdx + 10); text = text.slice(0, editIdx); isEdited = true;
   }
 
-  // Mentions (@user_id)
-  const mentionMatches = text.match(/@([a-zA-Z0-9_-]+)/g);
-  const mentions = mentionMatches ? mentionMatches.map((m) => m.slice(1)) : [];
-
   return {
     isReply, replyId, replySender, replyPreview,
     isFwd, fwdSender, fwdText,
@@ -160,7 +154,7 @@ export function parseMsg(raw: string): ParsedMessage {
     isScheduled, schedAt,
     isVoice, voiceDuration, voiceBase64,
     isSystemEvent, systemEventType, systemEventFields,
-    text, isEdited, editedAt, mentions,
+    text, isEdited, editedAt,
   };
 }
 

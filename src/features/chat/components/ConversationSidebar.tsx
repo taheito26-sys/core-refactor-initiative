@@ -7,10 +7,10 @@ import {
 
 interface Props {
   rooms?: ChatRoom[];
-  conversations?: Array<any>;
-  currentUserId?: string;
-  activeRoomId?: string | null;
-  onSelectRoom?: (roomId: string) => void;
+  conversations?: any[];
+  activeRoomId: string | null;
+  onSelectRoom: (roomId: string) => void;
+  currentUserId: string;
 }
 
 export function ConversationSidebar({ rooms, conversations, activeRoomId, onSelectRoom }: Props) {
