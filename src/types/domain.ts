@@ -345,6 +345,7 @@ export interface JournalEntry {
 
 // ─── Profit Share Agreements (Standing Agreements) ──────────────────
 export type AgreementStatus = 'approved' | 'rejected' | 'expired';
+export type ProfitShareAgreementType = 'standard' | 'operator_priority';
 
 export interface ProfitShareAgreement {
   id: string;
@@ -363,6 +364,13 @@ export interface ProfitShareAgreement {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  // ── Operator Priority fields (only set when agreement_type = 'operator_priority') ──
+  agreement_type: ProfitShareAgreementType;
+  operator_ratio: number | null;
+  operator_merchant_id: string | null;
+  operator_contribution: number | null;
+  lender_contribution: number | null;
+  terms_snapshot: Record<string, unknown> | null;
   // Enriched (client-side joins)
   counterparty_name?: string;
   counterparty_merchant_id?: string;
