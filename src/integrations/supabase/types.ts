@@ -408,6 +408,101 @@ export type Database = {
           },
         ]
       }
+      merchant_liquidity_profiles: {
+        Row: {
+          auto_sync_enabled: boolean
+          cash_publish_mode: string
+          cash_range_max: number | null
+          cash_range_min: number | null
+          cash_status: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_published_at: string | null
+          merchant_id: string
+          publish_cash_enabled: boolean
+          publish_usdt_enabled: boolean
+          published_cash_amount: number | null
+          published_usdt_amount: number | null
+          reserve_buffer_cash: number
+          reserve_buffer_usdt: number
+          reserved_cash_commitments: number
+          reserved_usdt_commitments: number
+          status: string
+          updated_at: string
+          usdt_publish_mode: string
+          usdt_range_max: number | null
+          usdt_range_min: number | null
+          usdt_status: string
+          user_id: string
+          visibility_scope: string
+        }
+        Insert: {
+          auto_sync_enabled?: boolean
+          cash_publish_mode?: string
+          cash_range_max?: number | null
+          cash_range_min?: number | null
+          cash_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_published_at?: string | null
+          merchant_id: string
+          publish_cash_enabled?: boolean
+          publish_usdt_enabled?: boolean
+          published_cash_amount?: number | null
+          published_usdt_amount?: number | null
+          reserve_buffer_cash?: number
+          reserve_buffer_usdt?: number
+          reserved_cash_commitments?: number
+          reserved_usdt_commitments?: number
+          status?: string
+          updated_at?: string
+          usdt_publish_mode?: string
+          usdt_range_max?: number | null
+          usdt_range_min?: number | null
+          usdt_status?: string
+          user_id: string
+          visibility_scope?: string
+        }
+        Update: {
+          auto_sync_enabled?: boolean
+          cash_publish_mode?: string
+          cash_range_max?: number | null
+          cash_range_min?: number | null
+          cash_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_published_at?: string | null
+          merchant_id?: string
+          publish_cash_enabled?: boolean
+          publish_usdt_enabled?: boolean
+          published_cash_amount?: number | null
+          published_usdt_amount?: number | null
+          reserve_buffer_cash?: number
+          reserve_buffer_usdt?: number
+          reserved_cash_commitments?: number
+          reserved_usdt_commitments?: number
+          status?: string
+          updated_at?: string
+          usdt_publish_mode?: string
+          usdt_range_max?: number | null
+          usdt_range_min?: number | null
+          usdt_status?: string
+          user_id?: string
+          visibility_scope?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_liquidity_profiles_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: true
+            referencedRelation: "merchant_profiles"
+            referencedColumns: ["merchant_id"]
+          },
+        ]
+      }
       merchant_messages: {
         Row: {
           content: string
