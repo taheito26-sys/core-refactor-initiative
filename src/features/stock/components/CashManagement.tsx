@@ -209,15 +209,34 @@ interface DepositWithdrawModalProps {
   mode: 'deposit' | 'withdrawal';
   onSave: (entry: CashLedgerEntry) => void;
   onClose: () => void;
+  isMobile?: boolean;
 }
-function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose }: DepositWithdrawModalProps) {
+function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, isMobile = false }: DepositWithdrawModalProps) {
   const t = useT();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const amtNum = num(amount, 0);
 
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return;
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      setViewportHeight(vv ? vv.height : window.innerHeight);
+    };
+    updateViewport();
+    window.visualViewport?.addEventListener('resize', updateViewport);
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateViewport);
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, [isMobile]);
+
   const handle = () => {
+    if (isMobile && !confirmChecked) { setErr(t('confirmBeforeSubmit')); return; }
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
     if (mode === 'withdrawal' && amtNum > currentBalance) {
       setErr(`${t('insufficientBalMsg')} ${fmtTotal(currentBalance)} ${account.currency}`);
@@ -236,9 +255,9 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
-      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? Math.max(320, (viewportHeight || window.innerHeight) - 16) : '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
             {mode === 'deposit' ? '➕' : '➖'} {mode === 'deposit' ? t('depositTitle') : t('withdrawTitle')} — {account.name}
@@ -264,10 +283,16 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose }
           <div className="lbl">{t('noteOptional')}</div>
           <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('sourceReasonPh')} /></div>
         </div>
+        {isMobile && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, color: 'var(--muted)' }}>
+            <input type="checkbox" checked={confirmChecked} onChange={e => setConfirmChecked(e.target.checked)} />
+            {mode === 'deposit' ? t('confirmDeposit') : t('confirmWithdrawal')}
+          </label>
+        )}
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
-        <div className="formActions">
+        <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" style={{ background: mode === 'deposit' ? 'var(--good)' : 'var(--warn)', color: '#000' }} onClick={handle}>
+          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: mode === 'deposit' ? 'var(--good)' : 'var(--warn)', color: '#000' }} onClick={handle}>
             {mode === 'deposit' ? t('addDepositBtn') : t('recordWithdrawalBtn')}
           </button>
         </div>
@@ -282,8 +307,9 @@ interface TransferModalProps {
   defaultFromId?: string;
   onSave: (entries: [CashLedgerEntry, CashLedgerEntry]) => void;
   onClose: () => void;
+  isMobile?: boolean;
 }
-function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: TransferModalProps) {
+function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isMobile = false }: TransferModalProps) {
   const t = useT();
   const active = accounts.filter(a => a.status === 'active');
   const [fromId, setFromId] = useState(defaultFromId || (active[0]?.id || ''));
@@ -291,13 +317,31 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: T
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   const fromAcc = active.find(a => a.id === fromId);
   const toAcc = active.find(a => a.id === toId);
   const fromBal = balances.get(fromId) || 0;
   const amtNum = num(amount, 0);
 
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return;
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      setViewportHeight(vv ? vv.height : window.innerHeight);
+    };
+    updateViewport();
+    window.visualViewport?.addEventListener('resize', updateViewport);
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateViewport);
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, [isMobile]);
+
   const handle = () => {
+    if (isMobile && !confirmChecked) { setErr(t('confirmBeforeTransfer')); return; }
     if (!fromId || !toId) { setErr(t('selectBothAccounts')); return; }
     if (fromId === toId) { setErr(t('cannotSameAccount')); return; }
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
@@ -320,14 +364,14 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: T
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
-      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? Math.max(320, (viewportHeight || window.innerHeight) - 16) : '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{t('quickTransfer')}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
-        <div className="g2tight" style={{ marginBottom: 10, alignItems: 'end' }}>
+        <div className="g2tight" style={{ marginBottom: 10, alignItems: 'end', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           <div className="field2">
             <div className="lbl">{t('transferFromLbl')}</div>
             <select value={fromId} onChange={e => setFromId(e.target.value)}
@@ -356,10 +400,16 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose }: T
           <div className="lbl">{t('noteOptional')}</div>
           <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('reasonTransferPh')} /></div>
         </div>
+        {isMobile && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, color: 'var(--muted)' }}>
+            <input type="checkbox" checked={confirmChecked} onChange={e => setConfirmChecked(e.target.checked)} />
+            {t('confirmTransferReview')}
+          </label>
+        )}
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
-        <div className="formActions">
+        <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" onClick={handle}>{t('transferFundsBtn')}</button>
+          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={handle}>{t('transferFundsBtn')}</button>
         </div>
       </div>
     </div>
@@ -403,6 +453,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   const [transferFromId, setTransferFromId] = useState<string | undefined>();
   const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' } | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: '', type: '' });
+  const [reconcilePromptId, setReconcilePromptId] = useState<string | null>(null);
 
   const balances = useMemo(() => getAllAccountBalances(accounts, ledger), [accounts, ledger]);
 
@@ -712,7 +763,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                           <IconTransfer /> {t('transferLbl')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, gridColumn: isMobile ? 'span 2' : undefined }} onClick={() => reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, gridColumn: isMobile ? 'span 2' : undefined }} onClick={() => isMobile ? setReconcilePromptId(acc.id) : reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
                       </div>
                     )}
                     {isInactive && (
@@ -764,6 +815,31 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
             <div className="empty" style={{ padding: '24px 0' }}>
               <div className="empty-t">{t('noLedgerEntries')}</div>
               <div className="empty-s">{t('cashMovementsAppear')}</div>
+            </div>
+          ) : isMobile ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {filteredLedger.map(entry => {
+                const acc = accounts.find(a => a.id === entry.accountId);
+                const contraAcc = entry.contraAccountId ? accounts.find(a => a.id === entry.contraAccountId) : null;
+                const runBal = runningBalances.get(entry.id);
+                const isIn = entry.direction === 'in';
+                const isStockType = entry.type === 'stock_purchase' || entry.type === 'stock_refund' || entry.type === 'stock_edit_adjust';
+                return (
+                  <div key={entry.id} className="panel" style={{ padding: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700 }}>{acc?.name || '—'}</div>
+                      <span className={`pill ${isStockType ? 'warn' : isIn ? 'good' : 'bad'}`} style={{ fontSize: 10 }}>{LEDGER_TYPE_LABELS[entry.type]}</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 5 }}>{fmtTs(entry.ts)}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
+                      <div><span className="muted">{t('ledgerColAmount')}:</span> <strong className="mono" style={{ color: isIn ? 'var(--good)' : 'var(--bad)' }}>{isIn ? '+' : '−'}{fmtAmt(entry.amount, entry.currency)}</strong></div>
+                      <div><span className="muted">{t('ledgerColBalance')}:</span> <strong className="mono">{runBal !== undefined ? fmtTotal(runBal) : '—'}</strong></div>
+                      {contraAcc && <div style={{ gridColumn: 'span 2' }}><span className="muted">{t('transferLbl')}:</span> <strong>↔ {contraAcc.name}</strong></div>}
+                      {entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="tableWrap">
@@ -941,6 +1017,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           accounts={accounts}
           balances={balances}
           defaultFromId={transferFromId}
+          isMobile={isMobile}
           onSave={addTransfer}
           onClose={() => { setShowTransfer(false); setTransferFromId(undefined); }}
         />
@@ -960,9 +1037,23 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           account={showDeposit.account}
           currentBalance={balances.get(showDeposit.account.id) || 0}
           mode={showDeposit.mode}
+          isMobile={isMobile}
           onSave={addLedgerEntry}
           onClose={() => setShowDeposit(null)}
         />
+      )}
+      {reconcilePromptId && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setReconcilePromptId(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>{t('reconcileBtn')}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('confirmReconcilePrompt')}</div>
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setReconcilePromptId(null)}>{t('cancel')}</button>
+              <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={() => { reconcileAccount(reconcilePromptId); setReconcilePromptId(null); }}>{t('confirmReconcile')}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

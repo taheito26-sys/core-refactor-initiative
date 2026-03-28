@@ -1321,6 +1321,9 @@ const translations = {
   sourceReasonPh:        { en: 'Source, reason...',            ar: 'المصدر، السبب...' },
   addDepositBtn:         { en: 'Add Deposit',                  ar: 'إضافة إيداع' },
   recordWithdrawalBtn:   { en: 'Record Withdrawal',            ar: 'تسجيل سحب' },
+  confirmDeposit:        { en: 'I confirm this deposit amount and account', ar: 'أؤكد مبلغ الإيداع والحساب' },
+  confirmWithdrawal:     { en: 'I confirm this withdrawal amount and account', ar: 'أؤكد مبلغ السحب والحساب' },
+  confirmBeforeSubmit:   { en: 'Please confirm before submitting', ar: 'يرجى التأكيد قبل الإرسال' },
   enterValidAmount:      { en: 'Enter a valid amount',         ar: 'أدخل مبلغاً صحيحاً' },
   insufficientBalMsg:    { en: 'Insufficient balance. Available:', ar: 'الرصيد غير كافٍ. المتاح:' },
 
@@ -1330,6 +1333,8 @@ const translations = {
   transferToLbl:         { en: 'To',                           ar: 'إلى' },
   reasonTransferPh:      { en: 'Reason for transfer...',       ar: 'سبب التحويل...' },
   transferFundsBtn:      { en: 'Transfer Funds',               ar: 'تحويل الأموال' },
+  confirmTransferReview: { en: 'I reviewed from/to accounts and transfer amount', ar: 'راجعت حساب التحويل من/إلى والمبلغ' },
+  confirmBeforeTransfer: { en: 'Please confirm transfer details before continuing', ar: 'يرجى تأكيد تفاصيل التحويل قبل المتابعة' },
   selectBothAccounts:    { en: 'Select both accounts',         ar: 'اختر كلا الحسابين' },
   cannotSameAccount:     { en: 'Cannot transfer to the same account', ar: 'لا يمكن التحويل لنفس الحساب' },
   need2AccountsTitle:    { en: 'Need 2+ Accounts',             ar: 'تحتاج حسابين على الأقل' },
@@ -1359,6 +1364,8 @@ const translations = {
   bankWalletHandDesc:    { en: 'Bank, wallet, or cash in hand', ar: 'بنك، محفظة، أو نقد باليد' },
   addAccountBtn:         { en: 'Add Account',                  ar: 'إضافة حساب' },
   reconcileBtn:          { en: '✓ Reconcile',                  ar: '✓ تسوية' },
+  confirmReconcilePrompt:{ en: 'Confirm reconciliation for this account. This logs a reconciliation entry and updates last reconciled time.', ar: 'أكد تسوية هذا الحساب. سيتم تسجيل إدخال تسوية وتحديث وقت آخر تسوية.' },
+  confirmReconcile:      { en: 'Confirm Reconcile',            ar: 'تأكيد التسوية' },
   in24h:                 { en: 'in 24h',                       ar: 'خلال 24س' },
   lastActivity:          { en: 'Last',                         ar: 'آخر' },
 
