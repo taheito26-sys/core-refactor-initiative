@@ -8,6 +8,7 @@ import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
+import { AgreementsGlobalTab } from '@/features/merchants/components/AgreementsGlobalTab';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
