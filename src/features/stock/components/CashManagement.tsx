@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   uid, fmtTotal, fmtDate, num,
   type TrackerState,
@@ -7,6 +7,7 @@ import {
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
 } from '@/lib/tracker-helpers';
 import { useT } from '@/lib/i18n';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
 const IconHand = () => (
@@ -76,8 +77,9 @@ interface AddAccountModalProps {
   existingAccount?: CashAccount;
   onSave: (account: CashAccount) => void;
   onClose: () => void;
+  isMobile?: boolean;
 }
-function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalProps) {
+function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }: AddAccountModalProps) {
   const t = useT();
   const [name, setName] = useState(existingAccount?.name || '');
   const [type, setType] = useState<CashAccountType>(existingAccount?.type || 'hand');
@@ -86,6 +88,22 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
   const [branch, setBranch] = useState(existingAccount?.branch || '');
   const [notes, setNotes] = useState(existingAccount?.notes || '');
   const [err, setErr] = useState('');
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') return;
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      setViewportHeight(vv ? vv.height : window.innerHeight);
+    };
+    updateViewport();
+    window.visualViewport?.addEventListener('resize', updateViewport);
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateViewport);
+      window.removeEventListener('resize', updateViewport);
+    };
+  }, [isMobile]);
 
   const handleSave = () => {
     if (!name.trim()) { setErr(t('accountNameRequired')); return; }
@@ -105,14 +123,28 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
-      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: '22px 24px', width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          background: 'var(--panel2)',
+          border: '1px solid var(--line)',
+          borderRadius: isMobile ? 14 : 12,
+          padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px',
+          width: '100%',
+          maxWidth: 460,
+          boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+          maxHeight: isMobile ? Math.max(320, (viewportHeight || window.innerHeight) - 16) : '88vh',
+          overflowY: 'auto',
+        }}
+        onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
             {existingAccount ? t('editAccountTitle') : t('addCashAccount')}
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 20, lineHeight: 1, minHeight: 36, minWidth: 36 }}>✕</button>
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
@@ -124,7 +156,7 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
           <div className="field2">
             <div className="lbl">{t('accountTypeLbl')}</div>
             <select value={type} onChange={e => setType(e.target.value as CashAccountType)}
-              style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
               <option value="hand">💵 {t('accTypeHand')}</option>
               <option value="bank">🏦 {t('accTypeBank')}</option>
               <option value="vault">🔒 {t('accTypeVault')}</option>
@@ -133,7 +165,7 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
           <div className="field2">
             <div className="lbl">{t('accountCurrencyLbl')}</div>
             <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
-              style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
               <option value="QAR">🇶🇦 QAR</option>
               <option value="USDT">💲 USDT</option>
               <option value="USD">🇺🇸 USD</option>
@@ -160,8 +192,8 @@ function AddAccountModal({ existingAccount, onSave, onClose }: AddAccountModalPr
         </div>
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
-        <div className="formActions">
-          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+        <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
+          <button className="btn secondary" style={{ minHeight: isMobile ? 42 : undefined }} onClick={onClose}>{t('cancel')}</button>
           <button className="btn" onClick={handleSave}>
             {existingAccount ? t('saveChanges') : t('createAccountBtn')}
           </button>
@@ -342,6 +374,7 @@ interface CashManagementProps {
 
 export function CashManagement({ state, applyState }: CashManagementProps) {
   const t = useT();
+  const isMobile = useIsMobile();
   const accounts = state.cashAccounts || [];
   const ledger = state.cashLedger || [];
 
@@ -526,47 +559,47 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   };
 
   return (
-    <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
       {/* ── Summary Strip ── */}
-      <div className="cash-summary-strip">
+      <div className="cash-summary-strip" style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: 8 } : undefined}>
         <div className="cash-summary-item">
           <div className="cash-summary-label">💰 {t('totalCashLbl')}</div>
-          <div className="cash-summary-value mono">{fmtTotal(totalQAR)} <span style={{ fontSize: 11, fontWeight: 600 }}>QAR</span></div>
+          <div className="cash-summary-value mono" style={isMobile ? { fontSize: 18, lineHeight: 1.15, wordBreak: 'break-word' } : undefined}>{fmtTotal(totalQAR)} <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 600 }}>QAR</span></div>
         </div>
-        <div className="cash-summary-sep" />
+        {!isMobile && <div className="cash-summary-sep" />}
         <div className="cash-summary-item">
           <div className="cash-summary-label">✋ {t('inHandLbl')}</div>
-          <div className="cash-summary-value mono" style={{ fontSize: 15 }}>{fmtTotal(inHandQAR)}</div>
+          <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 15 }}>{fmtTotal(inHandQAR)}</div>
         </div>
-        <div className="cash-summary-sep" />
+        {!isMobile && <div className="cash-summary-sep" />}
         <div className="cash-summary-item">
           <div className="cash-summary-label">🏦 {t('banksLbl')}</div>
-          <div className="cash-summary-value mono" style={{ fontSize: 15 }}>{fmtTotal(bankQAR)}</div>
+          <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 15 }}>{fmtTotal(bankQAR)}</div>
         </div>
         {vaultQAR > 0 && <>
-          <div className="cash-summary-sep" />
+          {!isMobile && <div className="cash-summary-sep" />}
           <div className="cash-summary-item">
             <div className="cash-summary-label">🔒 {t('vaultLbl')}</div>
-            <div className="cash-summary-value mono" style={{ fontSize: 15 }}>{fmtTotal(vaultQAR)}</div>
+            <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 15 }}>{fmtTotal(vaultQAR)}</div>
           </div>
         </>}
-        <div className="cash-summary-sep" />
+        {!isMobile && <div className="cash-summary-sep" />}
         <div className="cash-summary-item">
           <div className="cash-summary-label">{t('movement24h')}</div>
-          <div className="cash-summary-value mono" style={{ fontSize: 14, color: total24hMovement >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+          <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 14, color: total24hMovement >= 0 ? 'var(--good)' : 'var(--bad)' }}>
             {total24hMovement >= 0 ? '+' : ''}{fmtTotal(total24hMovement)}
           </div>
         </div>
-        <div style={{ flex: 1 }} />
+        {!isMobile && <div style={{ flex: 1 }} />}
         <button
           className="btn"
-          style={{ padding: '7px 14px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
+          style={{ padding: isMobile ? '10px 14px' : '7px 14px', minHeight: isMobile ? 42 : undefined, fontSize: isMobile ? 12 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, gridColumn: isMobile ? 'span 1' : undefined }}
           onClick={() => setShowTransfer(true)}>
           <IconTransfer /> {t('transferLbl')}
         </button>
         <button
           className="btn secondary"
-          style={{ padding: '7px 14px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
+          style={{ padding: isMobile ? '10px 14px' : '7px 14px', minHeight: isMobile ? 42 : undefined, fontSize: isMobile ? 12 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, gridColumn: isMobile ? 'span 1' : undefined }}
           onClick={() => setShowAddAccount(true)}>
           <IconPlus /> {t('addAccountBtn')}
         </button>
@@ -614,7 +647,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
               <button className="btn" style={{ marginTop: 12 }} onClick={() => setShowAddAccount(true)}>{t('addFirstAccountBtn')}</button>
             </div>
           ) : (
-            <div className="cash-accounts-grid">
+            <div className="cash-accounts-grid" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 10 } : undefined}>
               {accounts.map(acc => {
                 const bal = balances.get(acc.id) || 0;
                 const mov24h = get24hMovement(acc.id, ledger);
@@ -625,7 +658,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                 const needsReconcile = !acc.lastReconciled || (Date.now() - acc.lastReconciled > 7 * 86400000);
 
                 return (
-                  <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1 }}>
+                  <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '12px 12px 14px' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
@@ -636,16 +669,17 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                           {acc.bankName && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{acc.bankName}{acc.branch ? ` · ${acc.branch}` : ''}</div>}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <span className={`pill ${isInactive ? '' : 'good'}`} style={{ fontSize: 9 }}>{ACCOUNT_TYPE_LABELS[acc.type]}</span>
                         <span className="pill" style={{ fontSize: 9 }}>{acc.currency}</span>
+                        <span className={`pill ${isInactive ? '' : 'good'}`} style={{ fontSize: 9 }}>{isInactive ? t('accountInactiveLbl') : t('active')}</span>
                       </div>
                     </div>
 
                     {/* Balance */}
                     <div style={{ marginBottom: 10 }}>
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{t('availableBalanceLbl')}</div>
-                      <div className="mono" style={{ fontSize: 22, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1 }}>
+                      <div className="mono" style={{ fontSize: isMobile ? 'clamp(22px, 6vw, 30px)' : 22, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1.05 }}>
                         {fmtTotal(bal)}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>{acc.currency}</span>
                       </div>
                       {mov24h !== 0 && (
@@ -664,21 +698,21 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
                     {/* Actions */}
                     {!isInactive && (
-                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                        <button className="rowBtn" style={{ fontSize: 10, display: 'flex', gap: 3, alignItems: 'center' }}
+                      <div style={{ display: 'grid', gap: 6, flexWrap: 'wrap', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, auto)' }}>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                           onClick={() => setShowDeposit({ account: acc, mode: 'deposit' })}>
                           <IconPlus /> {t('depositTitle')}
                         </button>
-                        <button className="rowBtn" style={{ fontSize: 10, display: 'flex', gap: 3, alignItems: 'center' }}
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                           onClick={() => setShowDeposit({ account: acc, mode: 'withdrawal' })}>
                           <IconMinus /> {t('withdrawTitle')}
                         </button>
-                        <button className="rowBtn" style={{ fontSize: 10, display: 'flex', gap: 3, alignItems: 'center' }}
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                           onClick={() => { setTransferFromId(acc.id); setShowTransfer(true); }}>
                           <IconTransfer /> {t('transferLbl')}
                         </button>
-                        <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, gridColumn: isMobile ? 'span 2' : undefined }} onClick={() => reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
                       </div>
                     )}
                     {isInactive && (
@@ -870,6 +904,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
       {/* ── Modals ── */}
       {(showAddAccount || editingAccount) && (
         <AddAccountModal
+          isMobile={isMobile}
           existingAccount={editingAccount}
           onSave={handleAccountSaved}
           onClose={() => { setShowAddAccount(false); setEditingAccount(undefined); }}
