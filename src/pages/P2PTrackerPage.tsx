@@ -59,7 +59,6 @@ interface DaySummary {
   polls: number;
 }
 
-type SnapshotTimestampMode = 'latest' | 'history';
 interface MerchantStat {
   nick: string;
   appearances: number;
@@ -108,14 +107,22 @@ function extractProjectRefFromPublishableKey(key: string | undefined): string | 
   }
 }
 
-function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string, mode: SnapshotTimestampMode = 'latest'): number {
+/** Time axis for chart/history rows: DB `fetched_at` only. Payload `data.ts` is fallback if row time is missing (never `Date.now()`). */
+function historyRowTimestampMs(row: Pick<HistoryRow, 'fetched_at' | 'ts_val'>): number {
+  if (row.fetched_at) {
+    const ms = new Date(row.fetched_at).getTime();
+    if (Number.isFinite(ms)) return ms;
+  }
+  const raw = toFiniteNumber(row.ts_val);
+  if (raw == null || !Number.isFinite(raw)) return NaN;
+  const normalizedRaw = raw < 1e12 ? raw * 1000 : raw;
+  return Number.isFinite(normalizedRaw) ? normalizedRaw : NaN;
+}
+
+/** Live snapshot cards: reconcile payload `ts` with `fetched_at` when drift is suspicious. */
+function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string): number {
   const fetchedAtMs = fetchedAt ? new Date(fetchedAt).getTime() : null;
   const hasValidFetchedAt = fetchedAtMs != null && Number.isFinite(fetchedAtMs);
-
-  // History mode always uses DB row time as canonical source.
-  if (mode === 'history' && hasValidFetchedAt) {
-    return fetchedAtMs;
-  }
 
   const raw = toFiniteNumber(rawTs);
   if (raw == null || !Number.isFinite(raw)) {
@@ -167,9 +174,9 @@ function toOffer(value: unknown): P2POffer | null {
   };
 }
 
-function toSnapshot(value: unknown, fetchedAt?: string, mode: SnapshotTimestampMode = 'latest'): P2PSnapshot {
+function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const ts = normalizeSnapshotTimestamp(source.ts, fetchedAt, mode);
+  const ts = normalizeSnapshotTimestamp(source.ts, fetchedAt);
 
   // Detect pre-fix data: if sellAvg < buyAvg, the data has sell/buy swapped
   const rawSellAvg = toFiniteNumber(source.sellAvg);
@@ -298,7 +305,7 @@ export default function P2PTrackerPage() {
     if (latestError) throw latestError;
 
     if (latestRow?.data) {
-      setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at, 'latest'));
+      setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at));
       setLatestFetchedAt(latestRow.fetched_at ?? null);
     } else {
       setSnapshot(EMPTY_SNAPSHOT);
@@ -316,7 +323,7 @@ export default function P2PTrackerPage() {
         .maybeSingle();
       if (qatarError) throw qatarError;
       if (qatarRow?.data) {
-        const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at, 'latest');
+        const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at);
         setQatarRates(qSnap.sellAvg != null && qSnap.buyAvg != null
           ? { sellAvg: qSnap.sellAvg, buyAvg: qSnap.buyAvg }
           : null);
@@ -337,15 +344,16 @@ export default function P2PTrackerPage() {
       .limit(5000);
     if (historyError) throw historyError;
 
-    const historyPoints = ((histRows || []) as HistoryRow[]).map((row) => {
-      const ts = normalizeSnapshotTimestamp(row.ts_val, row.fetched_at ?? undefined, 'history');
-      return {
+    const historyPoints = ((histRows || []) as HistoryRow[]).flatMap((row) => {
+      const ts = historyRowTimestampMs(row);
+      if (!Number.isFinite(ts)) return [];
+      return [{
         ts,
         sellAvg: toFiniteNumber(row.sell_avg),
         buyAvg: toFiniteNumber(row.buy_avg),
         spread: toFiniteNumber(row.spread_val),
         spreadPct: toFiniteNumber(row.spread_pct_val),
-      };
+      }];
     });
     setHistory(historyPoints);
 
