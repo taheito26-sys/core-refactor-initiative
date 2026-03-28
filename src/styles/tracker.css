@@ -445,6 +445,33 @@
   .tracker-root .formActions { padding: 0; }
   .tracker-root .formActions .btn { width: 100%; }
 
+  /* ── Mobile entry mode toggles: allow wrapping ── */
+  .tracker-root .modeToggle {
+    flex-wrap: wrap;
+  }
+  .tracker-root .modeToggle button {
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: 9px !important;
+    padding: 6px 4px !important;
+    white-space: nowrap;
+  }
+
+  /* ── Mobile KPI bands: shrink text ── */
+  .tracker-root .kpi-band-title { font-size: 9px; }
+  .tracker-root .kpi-cell-val { font-size: 12px; }
+  .tracker-root .kpi-cell-sub { font-size: 7px; }
+  .tracker-root .kpi-lbl { font-size: 9px; }
+  .tracker-root .kpi-val { font-size: 15px; }
+
+  /* ── Field labels: ensure they don't overflow ── */
+  .tracker-root .lbl {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* ── Prevent any child from exceeding viewport ── */
   .tracker-root,
   .tracker-root > *,
@@ -452,6 +479,18 @@
   .tracker-root .twoColPage > * {
     max-width: 100%;
     box-sizing: border-box;
+  }
+
+  /* ── Mobile select dropdowns ── */
+  .tracker-root select {
+    font-size: 11px;
+    max-width: 100%;
+  }
+
+  /* ── Lookup shell: ensure it doesn't overflow ── */
+  .tracker-root .lookupShell,
+  .tracker-root .lookupBox {
+    max-width: 100%;
   }
 }
 

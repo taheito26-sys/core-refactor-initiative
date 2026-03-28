@@ -349,13 +349,38 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{t('oneDay')}</div>
               <div className={`kpi-cell-val ${d1.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d1.net)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d1.fee)}</div>
+              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
             <div>
               <div className="kpi-period">{t('sevenDays')}</div>
               <div className={`kpi-cell-val ${d7.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d7.net)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d7.fee)}</div>
+              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
           </div>
+          {/* Incoming deals net profit */}
+          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+            <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount})</span>
+                <span className={`mono ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
+                  {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
+                </span>
+              </div>
+              <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                {t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}
+              </div>
+            </div>
+          )}
+          {/* Combined total */}
+          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+            <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
+              <span className={`mono ${(dR.net + merchantDealKpis.inNet) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                {(dR.net + merchantDealKpis.inNet) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inNet)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -484,7 +509,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'roi')}>
               <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
-                  💹 NEW
+                  💹
                 </span>
               </div>
               <div className="kpi-lbl">{t('roiLabel')}</div>
@@ -513,8 +538,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                   }}
                   onClick={(e) => { e.stopPropagation(); setRoiPeriod('30d'); }}
                 >30D</span>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Orders</span>
-                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? 'collapse' : 'tap to expand'}</span>
+                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{t('orders')}</span>
+                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
               </div>
               {isExpanded && (
                 <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
@@ -536,7 +561,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'cycle')}>
               <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>
-                  ⏱️ NEW
+                  ⏱️
                 </span>
               </div>
               <div className="kpi-lbl">{t('avgCycleTime')}</div>
@@ -545,7 +570,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>FIFO</span>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Stock</span>
-                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? 'collapse' : 'tap to expand'}</span>
+                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
               </div>
               {isExpanded && (
                 <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
@@ -568,7 +593,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'velocity')}>
               <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>
-                  📅 NEW
+                  📅
                 </span>
               </div>
               <div className="kpi-lbl">{t('tradeVelocity')}</div>
@@ -576,8 +601,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-sub">{t('tradeVelocitySub')}</div>
               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>7D avg</span>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Orders</span>
-                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? 'collapse' : 'tap to expand'}</span>
+                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{t('orders')}</span>
+                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
               </div>
               {isExpanded && (
                 <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
@@ -604,7 +629,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className={`kpi-val ${merchantDealKpis.outNet >= 0 ? 'good' : 'bad'}`}>
               {merchantDealKpis.outNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outNet)}
             </div>
-            <div className="kpi-sub">My cut: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing').reduce((s, d) => s + d.myShare, 0))}</div>
+            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing').reduce((s, d) => s + d.myShare, 0))}</div>
           </div>
         )}
 
@@ -620,7 +645,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className={`kpi-val ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`}>
               {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
             </div>
-            <div className="kpi-sub">My cut: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}</div>
+            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}</div>
           </div>
         )}
       </div>
