@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import type { OrderAllocation, AllocationFamily } from '@/types/domain';
+import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 
 const ALLOCATIONS_KEY = 'order-allocations';
 
