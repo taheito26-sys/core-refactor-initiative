@@ -281,3 +281,21 @@
     @apply bg-card/80 backdrop-blur-xl border;
   }
 }
+
+@layer utilities {
+  .native-safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .native-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .native-safe-left {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .native-safe-right {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
