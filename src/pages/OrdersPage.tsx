@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import '@/styles/tracker.css';
@@ -51,6 +52,7 @@ export default function OrdersPage() {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
@@ -402,6 +404,8 @@ export default function OrdersPage() {
 
   const isCapitalTransfer = selectedTemplateId === 'capital_transfer';
   const submitCapitalTransfer = useSubmitCapitalTransfer();
+  const mobileInputStyle = isMobile ? { fontSize: 16, minHeight: 42 } : undefined;
+  const mobileActionStyle = isMobile ? { minHeight: 42, fontSize: 12 } : undefined;
 
   const handleCapitalTransfer = async () => {
     if (!linkedRelId) { toast.error(t('selectPartnerFirst')); return; }
@@ -1648,7 +1652,7 @@ export default function OrdersPage() {
           {activeTab === 'my' && (
             <div className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
-              <div className="inner">
+              <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
                 {!isCapitalTransfer && (<>
 
@@ -1659,22 +1663,22 @@ export default function OrdersPage() {
                     <span className="bVal">{priceMode === 'fifo' && wacop ? fmtP(wacop) : '—'}</span>
                   </div>
                   <div className="modeToggle" style={{ fontSize: 9 }}>
-                     <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }}>{t('fifoLabel')}</button>
-                     <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }}>{t('manualLabel')}</button>
+                     <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
+                     <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }} style={mobileActionStyle}>{t('manualLabel')}</button>
                   </div>
                 </div>
 
                 <div className="field2">
                   <div className="lbl">{t('dateTime')}</div>
-                  <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
+                  <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} style={mobileInputStyle} /></div>
                 </div>
 
                 <div className="field2">
                   <div className="lbl">{t('inputMode')}</div>
                   <div className="modeToggle">
-                    <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')}>{t('entryModePriceVol')}</button>
-                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')}>{t('entryModeUsdtQar')}</button>
-                    <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')}>{t('entryModeUsdtPrice')}</button>
+                    <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')} style={mobileActionStyle}>{t('entryModePriceVol')}</button>
+                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')} style={mobileActionStyle}>{t('entryModeUsdtQar')}</button>
+                    <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')} style={mobileActionStyle}>{t('entryModeUsdtPrice')}</button>
                   </div>
                 </div>
 
@@ -1682,15 +1686,15 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
-                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>USDT</button>
-                        <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>QAR</button>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>USDT</button>
+                        <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')} style={mobileActionStyle}>QAR</button>
                       </div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
@@ -1699,11 +1703,11 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('totalQarReceived')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleAmount) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
                           {t('autoCalcSellPrice')}: {fmtPrice(Number(saleAmount) / Number(saleUsdtQty))} QAR/USDT
@@ -1717,11 +1721,11 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
                           {t('autoCalcTotalQar')}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} QAR
@@ -1735,11 +1739,11 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('buyPrice')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
@@ -1747,7 +1751,7 @@ export default function OrdersPage() {
                 {priceMode === 'fifo' && (
                   <div className="field2">
                     <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} style={mobileInputStyle} /></div>
                   </div>
                 )}
 
@@ -1755,17 +1759,19 @@ export default function OrdersPage() {
                   <div className="lbl">{t('buyerName')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                   <div className="lookupShell">
                     <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input placeholder={t('searchOrTypeBuyer')} style={{ flex: 1, paddingRight: 0 }} autoComplete="off" value={buyerName}
+                      <input placeholder={t('searchOrTypeBuyer')} autoComplete="off" value={buyerName}
                         onFocus={() => setBuyerMenuOpen(true)}
                         onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerMenuOpen(true); }}
+                        onBlur={() => window.setTimeout(() => setBuyerMenuOpen(false), 150)}
+                        style={isMobile ? { flex: 1, paddingRight: 0, fontSize: 16, minHeight: 40 } : { flex: 1, paddingRight: 0 }}
                       />
-                      <button className="sideAction" title={t('buyer')} type="button" onClick={() => setBuyerMenuOpen(v => !v)}>⌄</button>
-                      <button className="sideAction" title={t('addBuyerTitle')} type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }}>+</button>
+                      <button className="sideAction" title={t('buyer')} type="button" onClick={() => setBuyerMenuOpen(v => !v)} style={isMobile ? { minWidth: 40, minHeight: 40 } : undefined}>⌄</button>
+                      <button className="sideAction" title={t('addBuyerTitle')} type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }} style={isMobile ? { minWidth: 40, minHeight: 40 } : undefined}>+</button>
                     </div>
                     {buyerMenuOpen && (
-                      <div className="lookupMenu">
+                      <div className="lookupMenu" style={isMobile ? { maxHeight: 220 } : undefined}>
                         {filteredCustomers.length ? filteredCustomers.map(c => (
-                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }}>
+                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
                             <span>{c.name}</span><span className="lookupMeta">{c.phone || c.tier}</span>
                           </button>
                         )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
@@ -1778,14 +1784,14 @@ export default function OrdersPage() {
                   <div className="previewBox" style={{ marginTop: 2 }}>
                     <div className="pt">{t('addBuyerTitle')}</div>
                     <div className="g2tight" style={{ marginBottom: 6 }}>
-                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
-                      <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} style={mobileInputStyle} /></div></div>
+                      <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." style={mobileInputStyle} /></div></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('tier')}</div>
-                      <div className="modeToggle">{['A', 'B', 'C', 'D'].map(tier => (<button key={tier} type="button" className={newBuyerTier === tier ? 'active' : ''} onClick={() => setNewBuyerTier(tier)}>{tier}</button>))}</div>
+                      <div className="modeToggle">{['A', 'B', 'C', 'D'].map(tier => (<button key={tier} type="button" className={newBuyerTier === tier ? 'active' : ''} onClick={() => setNewBuyerTier(tier)} style={mobileActionStyle}>{tier}</button>))}</div>
                     </div>
-                    <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal}>{t('addBuyerTitle')}</button></div>
+                    <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)} style={mobileActionStyle}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal} style={mobileActionStyle}>{t('addBuyerTitle')}</button></div>
                   </div>
                 )}
 
@@ -2283,7 +2289,7 @@ export default function OrdersPage() {
 
                 {/* Live Preview */}
                 {(
-                <div className="previewBox">
+                <div className="previewBox" style={isMobile ? { padding: 12 } : undefined}>
                   <div className="pt">{t('livePreview')}</div>
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
                     <>
@@ -2326,11 +2332,12 @@ export default function OrdersPage() {
                             }
                           }}
                           style={{
-                            padding: '4px 10px',
+                            padding: isMobile ? '8px 10px' : '4px 10px',
                             borderRadius: 6,
-                            fontSize: 10,
+                            fontSize: isMobile ? 11 : 10,
                             fontWeight: 600,
                             cursor: 'pointer',
+                            minHeight: isMobile ? 40 : undefined,
                             border: cashDepositMode === mode
                               ? '1.5px solid var(--good)'
                               : '1px solid var(--line)',
@@ -2346,13 +2353,13 @@ export default function OrdersPage() {
                     </div>
                     {cashDepositMode === 'partial' && (
                       <div style={{ marginTop: 6 }}>
-                        <div className="inputBox" style={{ maxWidth: 180 }}>
+                        <div className="inputBox" style={{ maxWidth: isMobile ? '100%' : 180 }}>
                           <input
                             inputMode="decimal"
                             placeholder={t('amountInQar')}
                             value={cashDepositAmount}
                             onChange={numericOnly(setCashDepositAmount)}
-                            style={{ fontSize: 11 }}
+                            style={mobileInputStyle}
                           />
                         </div>
                         {parseFloat(cashDepositAmount) > salePreview.revenue && (
@@ -2390,7 +2397,7 @@ export default function OrdersPage() {
                                   minWidth: 90,
                                 }}
                               >
-                                <span>{typeIcon} {acc.name}</span>
+                                <span style={isMobile ? { fontSize: 11 } : undefined}>{typeIcon} {acc.name}</span>
                                 <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)}</span>
                               </button>
                             );
@@ -2416,7 +2423,14 @@ export default function OrdersPage() {
                   </div>
                 )}
 
-                <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
+                <div
+                  className="formActions"
+                  style={isMobile ? { position: 'sticky', bottom: 0, background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
+                >
+                  <button className="btn" onClick={addTrade} style={isMobile ? { width: '100%', minHeight: 46, fontSize: 13 } : undefined}>
+                    {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
+                  </button>
+                </div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
 
                 </>)}
