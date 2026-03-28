@@ -52,10 +52,13 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const rejected = agreements.filter(a => a.status === 'rejected');
 
   const handleCreate = async () => {
+    // Standard type needs valid ratio; operator_priority skips it
     const ratio = parseFloat(partnerRatio);
-    if (isNaN(ratio) || ratio <= 0 || ratio >= 100) {
-      toast.error(t('ratioValidation'));
-      return;
+    if (agreementType === 'standard') {
+      if (isNaN(ratio) || ratio <= 0 || ratio >= 100) {
+        toast.error(t('ratioValidation'));
+        return;
+      }
     }
 
     // ── Operator Priority validation ──
