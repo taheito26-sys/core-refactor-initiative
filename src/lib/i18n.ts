@@ -1412,7 +1412,7 @@ const translations = {
   pendingDecisionLabel:         { en: 'Awaiting decision',                 ar: 'بانتظار القرار' },
   autoFinalizedLabel:           { en: 'Auto-finalized (default)',           ar: 'تم تلقائياً (افتراضي)' },
   effectiveCapitalLabel:        { en: 'Effective Capital',                  ar: 'رأس المال الفعلي' },
-  nextCycleCapital:             { en: 'Next Cycle Capital',                ar: 'رأس مال الدورة التالية' },
+  nextCycleCapitalLabel:        { en: 'Next Cycle Capital',                ar: 'رأس مال الدورة التالية' },
   confirmDecisionBtn:           { en: 'Confirm Decision',                  ar: 'تأكيد القرار' },
   decisionSaved:                { en: 'Decision saved',                    ar: 'تم حفظ القرار' },
   finalizedLabel:               { en: 'Finalized',                         ar: 'مُنجز' },
