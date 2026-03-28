@@ -347,6 +347,8 @@ export interface JournalEntry {
 export type AgreementStatus = 'approved' | 'rejected' | 'expired';
 export type ProfitShareAgreementType = 'standard' | 'operator_priority';
 
+export type DefaultProfitHandling = 'reinvest' | 'withdraw';
+
 export interface ProfitShareAgreement {
   id: string;
   relationship_id: string;
@@ -371,6 +373,9 @@ export interface ProfitShareAgreement {
   operator_contribution: number | null;
   lender_contribution: number | null;
   terms_snapshot: Record<string, unknown> | null;
+  // ── Monthly profit handling defaults (operator priority) ──
+  operator_default_profit_handling: DefaultProfitHandling;
+  counterparty_default_profit_handling: DefaultProfitHandling;
   // Enriched (client-side joins)
   counterparty_name?: string;
   counterparty_merchant_id?: string;
