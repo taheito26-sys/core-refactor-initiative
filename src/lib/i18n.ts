@@ -65,7 +65,7 @@ const translations = {
   addBatchesFirst: { en: 'Add batches first', ar: 'أضف دفعات أولاً' },
   netPosition: { en: 'NET POSITION', ar: 'الموقف الصافي' },
   stockCostEst: { en: 'STOCK COST EST.', ar: 'تقدير تكلفة المخزون' },
-  roi: { en: 'ROI', ar: 'العائد على الاستثمار' },
+  roiLabel: { en: 'ROI', ar: 'العائد على الاستثمار' },
   roiSub: { en: 'Net profit ÷ total invested', ar: 'صافي الربح ÷ إجمالي الاستثمار' },
   avgCycleTime: { en: 'AVG CYCLE TIME', ar: 'متوسط وقت الدورة' },
   avgCycleTimeSub: { en: 'Batch purchase → FIFO sell', ar: 'شراء دفعة → بيع FIFO' },
