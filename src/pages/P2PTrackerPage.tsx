@@ -59,6 +59,16 @@ interface DaySummary {
   polls: number;
 }
 
+type SnapshotTimestampMode = 'latest' | 'history';
+type HistoryRow = {
+  fetched_at: string | null;
+  ts_val: string | number | null;
+  sell_avg: string | number | null;
+  buy_avg: string | number | null;
+  spread_val: string | number | null;
+  spread_pct_val: string | number | null;
+};
+
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -66,6 +76,55 @@ function toFiniteNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function extractProjectRefFromUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+  return match?.[1] ?? null;
+}
+
+function extractProjectRefFromPublishableKey(key: string | undefined): string | null {
+  if (!key) return null;
+  const parts = key.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(payloadJson) as { ref?: unknown };
+    return typeof payload.ref === 'string' ? payload.ref : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string, mode: SnapshotTimestampMode = 'latest'): number {
+  const fetchedAtMs = fetchedAt ? new Date(fetchedAt).getTime() : null;
+  const hasValidFetchedAt = fetchedAtMs != null && Number.isFinite(fetchedAtMs);
+
+  // History mode always uses DB row time as canonical source.
+  if (mode === 'history' && hasValidFetchedAt) {
+    return fetchedAtMs;
+  }
+
+  const raw = toFiniteNumber(rawTs);
+  if (raw == null || !Number.isFinite(raw)) {
+    return hasValidFetchedAt ? fetchedAtMs : Date.now();
+  }
+
+  const normalizedRaw = raw < 1e12 ? raw * 1000 : raw;
+  if (!Number.isFinite(normalizedRaw)) {
+    return hasValidFetchedAt ? fetchedAtMs : Date.now();
+  }
+
+  if (hasValidFetchedAt) {
+    const driftMs = Math.abs(normalizedRaw - fetchedAtMs);
+    const suspiciousDriftMs = 12 * 60 * 60 * 1000; // 12h
+    if (driftMs > suspiciousDriftMs) {
+      return fetchedAtMs;
+    }
+  }
+
+  return normalizedRaw;
 }
 
 function simplifyMethod(m: string): string {
@@ -97,9 +156,9 @@ function toOffer(value: unknown): P2POffer | null {
   };
 }
 
-function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
+function toSnapshot(value: unknown, fetchedAt?: string, mode: SnapshotTimestampMode = 'latest'): P2PSnapshot {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const ts = toFiniteNumber(source.ts) ?? (fetchedAt ? new Date(fetchedAt).getTime() : Date.now());
+  const ts = normalizeSnapshotTimestamp(source.ts, fetchedAt, mode);
 
   // Detect pre-fix data: if sellAvg < buyAvg, the data has sell/buy swapped
   const rawSellAvg = toFiniteNumber(source.sellAvg);
@@ -211,18 +270,23 @@ export default function P2PTrackerPage() {
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
+  const runtimeSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const runtimePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  const runtimeProjectRefFromUrl = extractProjectRefFromUrl(runtimeSupabaseUrl);
+  const runtimeProjectRefFromKey = extractProjectRefFromPublishableKey(runtimePublishableKey);
 
   const loadFromDb = useCallback(async () => {
-    const { data: latestRow } = await supabase
+    const { data: latestRow, error: latestError } = await supabase
       .from('p2p_snapshots')
       .select('*')
       .eq('market', market)
       .order('fetched_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (latestError) throw latestError;
 
     if (latestRow?.data) {
-      setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at));
+      setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at, 'latest'));
       setLatestFetchedAt(latestRow.fetched_at ?? null);
     } else {
       setSnapshot(EMPTY_SNAPSHOT);
@@ -231,15 +295,16 @@ export default function P2PTrackerPage() {
 
     // Fetch Qatar rates for cross-currency FX derivation
     if (market !== 'qatar') {
-      const { data: qatarRow } = await supabase
+      const { data: qatarRow, error: qatarError } = await supabase
         .from('p2p_snapshots')
         .select('data, fetched_at')
         .eq('market', 'qatar')
         .order('fetched_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (qatarError) throw qatarError;
       if (qatarRow?.data) {
-        const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at);
+        const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at, 'latest');
         setQatarRates(qSnap.sellAvg != null && qSnap.buyAvg != null
           ? { sellAvg: qSnap.sellAvg, buyAvg: qSnap.buyAvg }
           : null);
@@ -251,28 +316,43 @@ export default function P2PTrackerPage() {
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: histRows } = await supabase
+    const { data: histRows, error: historyError } = await supabase
       .from('p2p_snapshots')
-      .select('data, fetched_at')
+      .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
       .eq('market', market)
       .gte('fetched_at', cutoff)
       .order('fetched_at', { ascending: true })
       .limit(5000);
+    if (historyError) throw historyError;
 
-    setHistory((histRows || []).map((row: any) => {
-      const normalized = toSnapshot(row.data, row.fetched_at);
-      // Use fetched_at as canonical timestamp for history (not data.ts which may be legacy/unreliable)
-      const canonicalTs = row.fetched_at ? new Date(row.fetched_at).getTime() : normalized.ts;
+    const historyPoints = ((histRows || []) as HistoryRow[]).map((row) => {
+      const ts = normalizeSnapshotTimestamp(row.ts_val, row.fetched_at ?? undefined, 'history');
       return {
-        ts: canonicalTs,
-        sellAvg: normalized.sellAvg,
-        buyAvg: normalized.buyAvg,
-        spread: normalized.spread,
-        spreadPct: normalized.spreadPct,
+        ts,
+        sellAvg: toFiniteNumber(row.sell_avg),
+        buyAvg: toFiniteNumber(row.buy_avg),
+        spread: toFiniteNumber(row.spread_val),
+        spreadPct: toFiniteNumber(row.spread_pct_val),
       };
-    }));
+    });
+    setHistory(historyPoints);
+
+    const rowCount = histRows?.length ?? 0;
+    const firstFetchedAt = rowCount > 0 ? histRows?.[0]?.fetched_at ?? 'n/a' : 'n/a';
+    const lastFetchedAt = rowCount > 0 ? histRows?.[rowCount - 1]?.fetched_at ?? 'n/a' : 'n/a';
+    const firstNormalizedTs = historyPoints.length > 0 ? new Date(historyPoints[0].ts).toISOString() : 'n/a';
+    const lastNormalizedTs = historyPoints.length > 0 ? new Date(historyPoints[historyPoints.length - 1].ts).toISOString() : 'n/a';
+    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+    const final24hCount = historyPoints.filter(point => point.ts >= cutoff24h).length;
+
+    console.debug(
+      `[P2P load] market=${market} rows=${rowCount} fetched_at=${firstFetchedAt}..${lastFetchedAt} normalized_ts=${firstNormalizedTs}..${lastNormalizedTs} last24h=${final24hCount}`,
+    );
+    console.debug(
+      `[P2P runtime] market=${market} supabaseUrl=${runtimeSupabaseUrl ?? 'n/a'} ref(url)=${runtimeProjectRefFromUrl ?? 'n/a'} ref(key)=${runtimeProjectRefFromKey ?? 'n/a'} latestFetchedAt=${latestRow?.fetched_at ?? 'n/a'} historyRows=${historyPoints.length} last24hRows=${final24hCount}`,
+    );
     setLastUpdate(new Date().toISOString());
-  }, [market]);
+  }, [market, runtimeSupabaseUrl, runtimeProjectRefFromUrl, runtimeProjectRefFromKey]);
 
   const load = useCallback(async () => {
     setLoading(true);
