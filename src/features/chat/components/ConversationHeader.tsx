@@ -39,7 +39,10 @@ export function ConversationHeader({
     <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-6 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
       <div className="flex items-center gap-2 md:gap-3.5 min-w-0 flex-1">
         {onBack && (
-          <button onClick={onBack} className="p-1.5 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0">
+          <button
+            onClick={onBack}
+            className="w-10 h-10 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 inline-flex items-center justify-center rounded-lg hover:bg-accent"
+          >
             <ArrowLeft size={20} />
           </button>
         )}
@@ -63,14 +66,14 @@ export function ConversationHeader({
       </div>
 
       <div className="flex items-center gap-0.5 md:gap-1.5 md:bg-accent/50 md:p-1 rounded-xl md:border md:border-border shrink-0">
-        <button onClick={onCallVoice} className="p-2 text-muted-foreground hover:text-primary hover:bg-background rounded-lg transition-all">
+        <button onClick={onCallVoice} className="w-10 h-10 md:w-auto md:h-auto md:p-2 text-muted-foreground hover:text-primary hover:bg-background rounded-lg transition-all inline-flex items-center justify-center">
           <Phone size={15} />
         </button>
-        <button onClick={onCallVideo} className="p-2 text-muted-foreground hover:text-primary hover:bg-background rounded-lg transition-all">
+        <button onClick={onCallVideo} className="w-10 h-10 md:w-auto md:h-auto md:p-2 text-muted-foreground hover:text-primary hover:bg-background rounded-lg transition-all inline-flex items-center justify-center">
           <Video size={16} />
         </button>
 
-        <button onClick={onSearchToggle} className="p-2 text-muted-foreground hover:text-foreground hover:bg-background rounded-lg transition-all">
+        <button onClick={onSearchToggle} className="w-10 h-10 md:w-auto md:h-auto md:p-2 text-muted-foreground hover:text-foreground hover:bg-background rounded-lg transition-all inline-flex items-center justify-center">
           <Search size={16} />
         </button>
 
