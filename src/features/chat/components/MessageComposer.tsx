@@ -127,7 +127,7 @@ ${mapUrl}`, type: 'location' });
   }, [onSend, sending, isRecording]);
 
   return (
-    <div className={cn("bg-background space-y-2 border-t border-border", compact ? "p-2" : "p-3")}>
+    <div className={cn("bg-background space-y-2 border-t border-border", compact ? "p-2.5" : "p-3")}>
       {/* Poll creator */}
       {showPoll && (
         <div className="px-4 py-3 border border-border rounded-2xl bg-muted/50 space-y-2 mb-2">
@@ -167,12 +167,13 @@ ${mapUrl}`, type: 'location' });
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex items-center gap-1.5 md:gap-2 group">
+      <form onSubmit={handleSubmit} className="flex items-end gap-1.5 md:gap-2 group">
         <button
           type="button"
           onClick={isRecording ? stopRecording : startRecording}
           className={cn(
-            "p-2 rounded-lg transition-all shrink-0",
+            "rounded-lg transition-all shrink-0 flex items-center justify-center",
+            compact ? "w-11 h-11" : "p-2",
             isRecording ? "text-destructive bg-destructive/10 animate-pulse" : "text-muted-foreground hover:text-primary hover:bg-accent"
           )}
           title="Audio Message"
@@ -180,7 +181,10 @@ ${mapUrl}`, type: 'location' });
           {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
         </button>
 
-        <div className="flex-1 relative flex items-center bg-muted border border-border rounded-full px-3 md:px-4 min-h-[40px] transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm">
+        <div className={cn(
+          "flex-1 relative flex items-center bg-muted border border-border rounded-full px-3 md:px-4 transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm",
+          compact ? "min-h-[48px]" : "min-h-[40px]"
+        )}>
           <input
             value={isRecording ? `Recording... ${fmtRecTime(recordingTime)}` : content}
             onChange={(e) => {
@@ -189,7 +193,10 @@ ${mapUrl}`, type: 'location' });
             }}
             disabled={isRecording}
             placeholder={isRecording ? "Listening..." : "Type a message..."}
-            className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-foreground placeholder:text-muted-foreground placeholder:font-medium min-w-0"
+            className={cn(
+              "flex-1 bg-transparent border-none focus:outline-none text-foreground placeholder:text-muted-foreground placeholder:font-medium min-w-0",
+              compact ? "text-[15px] py-2" : "text-[13px] py-1.5"
+            )}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -242,7 +249,10 @@ ${mapUrl}`, type: 'location' });
           <button
             type="submit"
             disabled={(!content.trim() && !isRecording) || sending}
-            className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:shadow-none"
+            className={cn(
+              "rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:shadow-none",
+              compact ? "w-11 h-11" : "w-10 h-10"
+            )}
           >
             <Send size={16} className={cn(sending && "animate-pulse")} />
           </button>
