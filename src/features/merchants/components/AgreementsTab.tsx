@@ -52,10 +52,13 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const rejected = agreements.filter(a => a.status === 'rejected');
 
   const handleCreate = async () => {
+    // Standard type needs valid ratio; operator_priority skips it
     const ratio = parseFloat(partnerRatio);
-    if (isNaN(ratio) || ratio <= 0 || ratio >= 100) {
-      toast.error(t('ratioValidation'));
-      return;
+    if (agreementType === 'standard') {
+      if (isNaN(ratio) || ratio <= 0 || ratio >= 100) {
+        toast.error(t('ratioValidation'));
+        return;
+      }
     }
 
     // ── Operator Priority validation ──
@@ -89,16 +92,19 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             operator_ratio: opRatioNum,
             operator_contribution: opContribNum,
             lender_contribution: lnContribNum,
-            partner_ratio: ratio,
-            merchant_ratio: 100 - ratio,
+            partner_ratio: 0,
+            merchant_ratio: 0,
             settlement_cadence: cadence,
           }) as unknown as Record<string, unknown>
         : null;
 
+      // For operator_priority, partner_ratio/merchant_ratio are irrelevant — use 0 placeholders
+      const payloadRatio = agreementType === 'standard' ? ratio : 0;
+
       await createAgreement.mutateAsync({
         relationship_id: relationshipId,
-        partner_ratio: ratio,
-        merchant_ratio: 100 - ratio,
+        partner_ratio: payloadRatio,
+        merchant_ratio: agreementType === 'standard' ? 100 - ratio : 0,
         settlement_cadence: cadence,
         effective_from: new Date(effectiveFrom).toISOString(),
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
@@ -263,7 +269,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             </div>
           )}
 
-          {/* Standard ratio fields */}
+          {/* Standard ratio fields — hidden for operator_priority */}
+          {agreementType === 'standard' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
@@ -294,6 +301,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               </div>
             </div>
           </div>
+          )}
 
           {/* ── Operator Priority Conditional Fields ── */}
           {agreementType === 'operator_priority' && (
@@ -432,17 +440,30 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               {t('settlement')}: {cadenceLabel(cadence)}.
             </div>
           ) : (
-            <div style={{
-              padding: '8px 12px', borderRadius: 6, marginBottom: 10,
-              background: 'color-mix(in srgb, var(--warn) 8%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--warn) 20%, transparent)',
-              fontSize: 10, lineHeight: 1.6,
-            }}>
-              <strong>{t('previewAgreement')}</strong><br />
-              ① {t('operatorFeeFirst')}: {operatorRatio}% → {operatorIsMe ? t('you') : (counterpartyName || t('partner'))}<br />
-              ② {t('thenCapitalSplit')}: {operatorContribution || '0'} vs {lenderContribution || '0'}<br />
-              {t('settlement')}: {cadenceLabel(cadence)}.
-            </div>
+            (() => {
+              const opC = parseFloat(operatorContribution) || 0;
+              const lnC = parseFloat(lenderContribution) || 0;
+              const totalC = opC + lnC;
+              const opWt = totalC > 0 ? Math.round((opC / totalC) * 100) : 0;
+              const lnWt = totalC > 0 ? Math.round((lnC / totalC) * 100) : 0;
+              const operatorName = operatorIsMe ? t('you') : (counterpartyName || t('partner'));
+              const lenderName = operatorIsMe ? (counterpartyName || t('partner')) : t('you');
+              return (
+                <div style={{
+                  padding: '8px 12px', borderRadius: 6, marginBottom: 10,
+                  background: 'color-mix(in srgb, var(--warn) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--warn) 20%, transparent)',
+                  fontSize: 10, lineHeight: 1.6,
+                }}>
+                  <strong>{t('previewAgreement')}</strong><br />
+                  ① {t('operatorFeeFirst')}: {operatorRatio}% → {operatorName}<br />
+                  ② {t('thenCapitalSplit')}:<br />
+                  &nbsp;&nbsp;{operatorName}: {fmtU(opC)} ({opWt}% {t('weight')})<br />
+                  &nbsp;&nbsp;{lenderName}: {fmtU(lnC)} ({lnWt}% {t('weight')})<br />
+                  {t('settlement')}: {cadenceLabel(cadence)}.
+                </div>
+              );
+            })()
           )}
 
           <div style={{ display: 'flex', gap: 8 }}>
