@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/i18n';
+import { useAuth } from '@/features/auth/auth-context';
 import { isAgreementActive } from '@/lib/deal-engine';
 import { AgreementsTab } from './AgreementsTab';
 import type { ProfitShareAgreement } from '@/types/domain';
@@ -17,6 +18,8 @@ interface Props {
 
 export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreementCount, onOpenRelationship }: Props) {
   const t = useT();
+  const { merchantProfile } = useAuth();
+  const myMerchantId = merchantProfile?.merchant_id;
   const [createForRelId, setCreateForRelId] = useState<string | null>(null);
 
   const selectedRel = relationships.find((r: any) => r.id === createForRelId);
