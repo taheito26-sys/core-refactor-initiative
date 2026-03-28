@@ -328,13 +328,13 @@ export default function P2PTrackerPage() {
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: histRows, error: historyError } = await supabase
+    const { data: histRows, error: historyError } = await (supabase
       .from('p2p_snapshots')
       .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
       .eq('market', market)
       .gte('fetched_at', cutoff)
       .order('fetched_at', { ascending: true })
-      .limit(5000);
+      .limit(5000) as unknown as Promise<{ data: HistoryRow[] | null; error: Error | null }>);
     if (historyError) throw historyError;
 
     const historyPoints = ((histRows || []) as HistoryRow[]).map((row) => {
