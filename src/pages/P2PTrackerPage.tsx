@@ -934,50 +934,6 @@ export default function P2PTrackerPage() {
           </div>
         </div>
 
-        <div className="tracker-root panel">
-          <div className="panel-head" style={{ padding: '8px 12px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>{t('p2pMarketInfo')}</h2>
-            <span className="pill" style={{ fontSize: 9 }}>{currentMarket.pair}</span>
-          </div>
-          <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pSellAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'} {ccy}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pBuyAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'} {ccy}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pSellDepth')}</span>
-              <span className="font-mono text-[12px] font-extrabold text-muted-foreground">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pBuyDepth')}</span>
-              <span className="font-mono text-[12px] font-extrabold text-muted-foreground">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
-            </div>
-            {profitIfSold && (
-              <div className="border-t border-[var(--line)] px-3 py-1.5">
-                <div className="text-[10px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}${fmtTotal(profitIfSold.profit)}
-                </div>
-                <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  {fmtPrice(profitIfSold.stock)} USDT · WACOP {fmtPrice(profitIfSold.wacop)} QAR
-                </div>
-              </div>
-            )}
-            {roundTripSim && (
-              <div className="border-t border-[var(--line)] px-3 py-1.5">
-                <div className="text-[10px] font-extrabold" style={{ color: roundTripSim.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  ↻ Round-Trip: {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)} ({fmtPrice(roundTripSim.pct)}%)
-                </div>
-                <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  Spread ratio: {fmtPrice(roundTripSim.spreadRatio)}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
