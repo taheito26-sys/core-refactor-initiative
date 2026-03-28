@@ -233,7 +233,7 @@ const EMPTY_SNAPSHOT: P2PSnapshot = {
 function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
   const byDate = new Map<string, DaySummary>();
   for (const pt of history) {
-    const date = new Date(pt.ts).toISOString().slice(0, 10);
+    const date = format(new Date(pt.ts), 'yyyy-MM-dd');
     let day = byDate.get(date);
     if (!day) {
       day = { date, highSell: 0, lowSell: null, highBuy: 0, lowBuy: null, polls: 0 };
@@ -453,8 +453,8 @@ export default function P2PTrackerPage() {
   }, []);
 
   const todaySummary = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayPts = history.filter(h => new Date(h.ts).toISOString().slice(0, 10) === todayStr);
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayPts = history.filter(h => format(new Date(h.ts), 'yyyy-MM-dd') === todayStr);
     if (!todayPts.length) return null;
     return {
       highSell: Math.max(...todayPts.map(p => p.sellAvg ?? 0)),
