@@ -40,6 +40,7 @@ export default function ChatWorkspacePage() {
   const consumePendingNav = useChatStore((s) => s.consumePendingNav);
   const [pendingNotificationMessageId, setPendingNotificationMessageId] = useState<string | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const [mobileBottomInset, setMobileBottomInset] = useState(0);
 
   const activeRoom = useMemo(
     () => rooms.find((r) => String(r.id) === String(activeRoomId) || String(r.room_id) === String(activeRoomId)) ?? null,
@@ -212,8 +213,43 @@ export default function ChatWorkspacePage() {
     timelineScrollRef.current.scrollTop = timelineScrollRef.current.scrollHeight;
   }, [activeRoomId, messages.data, searchParams, pendingNotificationMessageId]);
 
+  useEffect(() => {
+    if (!isMobile || typeof window === 'undefined') {
+      setMobileBottomInset(0);
+      return;
+    }
+
+    const updateInset = () => {
+      const viewport = window.visualViewport;
+      const safeAreaBottom = 12;
+
+      if (!viewport) {
+        setMobileBottomInset(safeAreaBottom);
+        return;
+      }
+
+      const keyboardOverlap = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      setMobileBottomInset(Math.max(safeAreaBottom, keyboardOverlap + 8));
+    };
+
+    updateInset();
+
+    window.visualViewport?.addEventListener('resize', updateInset);
+    window.visualViewport?.addEventListener('scroll', updateInset);
+    window.addEventListener('orientationchange', updateInset);
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateInset);
+      window.visualViewport?.removeEventListener('scroll', updateInset);
+      window.removeEventListener('orientationchange', updateInset);
+    };
+  }, [isMobile]);
+
   return (
-    <div className="flex h-[calc(100vh-50px)] w-full overflow-hidden bg-background select-none relative">
+    <div
+      className="flex h-[calc(100vh-50px)] w-full overflow-hidden bg-background select-none relative"
+      style={isMobile ? { height: '100dvh' } : undefined}
+    >
       <CallOrchestrator
         callState={callState}
         isIncoming={isIncoming}
@@ -291,7 +327,10 @@ export default function ChatWorkspacePage() {
                     <JumpToUnreadButton visible={(roomUnreadCount || 0) > 0} onClick={() => scrollToMessage(firstUnread, true)} />
                   </div>
 
-                  <div className="shrink-0 bg-background/60 backdrop-blur-lg border-t border-border relative z-20">
+                  <div
+                    className="shrink-0 bg-background/60 backdrop-blur-lg border-t border-border relative z-20"
+                    style={isMobile ? { paddingBottom: `max(env(safe-area-inset-bottom, 0px), ${mobileBottomInset}px)` } : undefined}
+                  >
                     <div className={isMobile ? "w-full" : "max-w-4xl mx-auto w-full scale-95 origin-bottom"}>
                       <MessageComposer
                         sending={messages.send.isPending}
