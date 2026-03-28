@@ -335,17 +335,21 @@ export default function P2PTrackerPage() {
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    // Must take the *newest* rows first: ascending + limit only kept the oldest 5k rows, cutting off all
+    // recent data when a market had >5k snapshots in the window (shows "0 pts · 24h" despite fresh DB rows).
     // @ts-ignore – deep type instantiation from jsonb->> selects
-    const { data: histRows, error: historyError } = await supabase
+    const { data: histRowsDesc, error: historyError } = await supabase
       .from('p2p_snapshots')
       .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
       .eq('market', market)
       .gte('fetched_at', cutoff)
-      .order('fetched_at', { ascending: true })
-      .limit(5000);
+      .order('fetched_at', { ascending: false })
+      .limit(10_000);
     if (historyError) throw historyError;
 
-    const historyPoints = ((histRows || []) as HistoryRow[]).flatMap((row) => {
+    const histRows = [...(histRowsDesc || [])].reverse();
+
+    const historyPoints = (histRows as HistoryRow[]).flatMap((row) => {
       const ts = historyRowTimestampMs(row);
       if (!Number.isFinite(ts)) return [];
       return [{
@@ -367,17 +371,18 @@ export default function P2PTrackerPage() {
     const final24hCount = historyPoints.filter(point => point.ts >= cutoff24h).length;
 
     const cutoff24hIso = new Date(cutoff24h).toISOString();
+    // Newest-first + generous limit so dense cron (e.g. 1-min) still covers recent 24h; asc+500 missed latest polls.
     // @ts-ignore – deep type instantiation from jsonb-> selects
-    const { data: merchantRows, error: merchantError } = await supabase
+    const { data: merchantRowsDesc, error: merchantError } = await supabase
       .from('p2p_snapshots')
       .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
       .eq('market', market)
       .gte('fetched_at', cutoff24hIso)
-      .order('fetched_at', { ascending: true })
-      .limit(500);
+      .order('fetched_at', { ascending: false })
+      .limit(2500);
     if (merchantError) throw merchantError;
 
-    const rows = (merchantRows || []) as MerchantRow[];
+    const rows = [...(merchantRowsDesc || [])].reverse() as MerchantRow[];
     const marketPolls = Math.max(rows.length, 1);
     const merchantMap = new Map<string, { appearances: number; totalAvailable: number; sampleCount: number; maxAvailable: number }>();
 
@@ -463,22 +468,24 @@ export default function P2PTrackerPage() {
   }, []);
 
   const todaySummary = useMemo(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayStr = format(new Date(now), 'yyyy-MM-dd');
     const todayPts = history.filter(h => format(new Date(h.ts), 'yyyy-MM-dd') === todayStr);
     if (!todayPts.length) return null;
+    const sellPresent = todayPts.filter(p => p.sellAvg != null);
+    const buyPresent = todayPts.filter(p => p.buyAvg != null);
     return {
-      highSell: Math.max(...todayPts.map(p => p.sellAvg ?? 0)),
-      lowSell: Math.min(...todayPts.filter(p => p.sellAvg != null).map(p => p.sellAvg!)),
-      highBuy: Math.max(...todayPts.map(p => p.buyAvg ?? 0)),
-      lowBuy: Math.min(...todayPts.filter(p => p.buyAvg != null).map(p => p.buyAvg!)),
+      highSell: sellPresent.length ? Math.max(...sellPresent.map(p => p.sellAvg!)) : null,
+      lowSell: sellPresent.length ? Math.min(...sellPresent.map(p => p.sellAvg!)) : null,
+      highBuy: buyPresent.length ? Math.max(...buyPresent.map(p => p.buyAvg!)) : null,
+      lowBuy: buyPresent.length ? Math.min(...buyPresent.map(p => p.buyAvg!)) : null,
       polls: todayPts.length,
     };
-  }, [history]);
+  }, [history, now]);
 
   const last24hHistory = useMemo(() => {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const cutoff = now - 24 * 60 * 60 * 1000;
     return history.filter(h => h.ts >= cutoff);
-  }, [history]);
+  }, [history, now]);
 
   const dailySummaries = useMemo(() => computeDailySummaries(history), [history]);
   const topAlwaysAvailableMerchants = useMemo(
