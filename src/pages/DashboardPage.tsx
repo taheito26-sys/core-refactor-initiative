@@ -349,13 +349,38 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{t('oneDay')}</div>
               <div className={`kpi-cell-val ${d1.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d1.net)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d1.fee)}</div>
+              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
             <div>
               <div className="kpi-period">{t('sevenDays')}</div>
               <div className={`kpi-cell-val ${d7.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d7.net)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d7.fee)}</div>
+              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
           </div>
+          {/* Incoming deals net profit */}
+          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+            <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount})</span>
+                <span className={`mono ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
+                  {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
+                </span>
+              </div>
+              <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                {t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}
+              </div>
+            </div>
+          )}
+          {/* Combined total */}
+          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+            <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
+              <span className={`mono ${(dR.net + merchantDealKpis.inNet) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                {(dR.net + merchantDealKpis.inNet) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inNet)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
