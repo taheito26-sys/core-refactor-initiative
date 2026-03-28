@@ -221,7 +221,6 @@ export function calculateOperatorPriorityAllocationEconomics(input: AllocationCa
   const net = revenue - cost - feeShare;
 
   // Use the operator priority calculation
-  const { calculateOperatorPriorityProfit } = require('@/lib/trading/operator-priority');
   const result = calculateOperatorPriorityProfit({
     grossProfit: net,
     operatorRatio: input.operatorRatio,
