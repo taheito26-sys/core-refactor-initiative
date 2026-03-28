@@ -1,20 +1,15 @@
 # Core Refactor Initiative
 
-This repository stays as a **single Vite + React codebase** for:
+This repository remains a **single Vite + React codebase** for desktop web, mobile web/PWA, and Capacitor native wrappers.
 
-- Desktop web (first-class)
-- Mobile web / PWA
-- Native Android + iOS wrappers via Capacitor
+## What was added in this step
 
-No React Native rewrite is used.
+- Capacitor dependency wiring in `package.json`
+- Capacitor config in `capacitor.config.ts` (uses Vite `dist/` output)
+- Scripts to add/sync/open Android and iOS projects
+- Safe platform detection helpers in `src/platform/runtime.ts`
 
-## Capacitor foundation
-
-Capacitor is configured to wrap the existing Vite output in `dist/`.
-
-- Config file: `capacitor.config.ts`
-- Runtime guard utilities: `src/platform/runtime.ts`
-- Native bootstrap hooks (deep-link + push scaffolding): `src/platform/native-bridge.tsx`
+No desktop layout/navigation/business-logic rewrite is included.
 
 ## Install dependencies
 
@@ -22,7 +17,7 @@ Capacitor is configured to wrap the existing Vite output in `dist/`.
 npm install
 ```
 
-## Build and run web
+## Run web (unchanged)
 
 ```bash
 npm run dev
@@ -30,64 +25,35 @@ npm run build
 npm run preview
 ```
 
-## Capacitor workflow
+## Capacitor setup (Android + iOS)
 
-Build + sync native platforms:
+Create native projects once:
+
+```bash
+npm run cap:add:android
+npm run cap:add:ios
+```
+
+Sync web build into native projects:
 
 ```bash
 npm run cap:sync
 ```
 
-Open Android Studio project:
+Open native IDE projects:
 
 ```bash
 npm run cap:android
-```
-
-Open Xcode project:
-
-```bash
 npm run cap:ios
 ```
 
-If this is the first native run and platform folders do not exist yet, create them once:
+## Platform helper usage
 
-```bash
-npx cap add android
-npx cap add ios
-```
+Use `src/platform/runtime.ts` utilities for guarded checks:
 
-## Shared vs platform-aware boundaries
+- `isNativeApp()`
+- `isAndroid()`
+- `isIOS()`
+- `isWebBrowser()`
 
-### Shared across desktop web, mobile web, and native wrappers
-
-- Business logic and calculations
-- React Router route definitions
-- Supabase integrations
-- Hooks/state management
-- Existing desktop-first screens and workflows
-
-### Platform-aware (guarded) additions
-
-- Runtime detection helpers (`isNativeApp`, `isAndroid`, `isIOS`, `isWebBrowser`)
-- Native deep-link listener scaffold (App URL open)
-- Native push registration scaffold (no-op on web)
-- Safe-area helper utilities
-
-## Rules to avoid desktop regressions
-
-1. Keep desktop navigation/layout and data workflows unchanged.
-2. Add native-only code behind runtime guards.
-3. Do not replace React Router.
-4. Do not remove PWA support.
-5. Treat Capacitor as additive container infrastructure only.
-
-## Verification checklist
-
-- [ ] Desktop web still builds and runs unchanged.
-- [ ] Existing Vite `dist/` output is still used as source of truth.
-- [ ] Capacitor Android project opens successfully.
-- [ ] Capacitor iOS project opens successfully.
-- [ ] Native-only code paths are guarded from browser execution.
-- [ ] PWA support remains intact.
-- [ ] No global desktop navigation/layout regression introduced.
+Keep native-only behavior behind these checks so browser desktop remains unaffected.

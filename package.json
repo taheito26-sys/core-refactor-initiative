@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
     "cap:copy": "npm run build && npx cap copy",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "npm run cap:sync && npx cap open android",
@@ -70,11 +72,7 @@
     "workbox-window": "^7.4.0",
     "zod": "^3.25.76",
     "zustand": "^5.0.12",
-    "@capacitor/core": "^7.4.2",
-    "@capacitor/app": "^7.0.1",
-    "@capacitor/push-notifications": "^7.0.2",
-    "@capacitor/keyboard": "^7.0.1",
-    "@capacitor/status-bar": "^7.0.1"
+    "@capacitor/core": "^7.4.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
