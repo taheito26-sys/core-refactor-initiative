@@ -118,6 +118,7 @@ export type CashCurrency = 'QAR' | 'USDT' | 'USD';
 export type LedgerEntryType =
   | 'opening'
   | 'deposit'
+  | 'sale_deposit'
   | 'withdrawal'
   | 'transfer_in'
   | 'transfer_out'
@@ -260,7 +261,7 @@ export interface TradeCalcResult {
 export interface CashTransaction {
   id: string;
   ts: number;
-  type: 'deposit' | 'withdraw' | 'batch_purchase';
+  type: 'deposit' | 'withdraw' | 'batch_purchase' | 'sale_deposit';
   amount: number;
   balanceAfter: number;
   owner: string;

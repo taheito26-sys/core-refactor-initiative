@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal, deriveCashQAR,
+  fmtPrice, fmtTotal,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
@@ -22,6 +22,7 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
+import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import '@/styles/tracker.css';
 
 // ─── Multi-Merchant Allocation Row Type ──────────────────────────────
@@ -449,52 +450,15 @@ export default function OrdersPage() {
 
   // Helper: apply cash deposit to state if enabled
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
-    if (cashDepositMode === 'none') return nextState;
-    const revenue = amountUSDT * sell;
-    const depositAmt = cashDepositMode === 'full'
-      ? revenue
-      : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
-    if (depositAmt <= 0) return nextState;
-
-    // If user selected a specific cash account, create a ledger entry
-    const targetAccountId = cashDepositAccountId || (nextState.cashAccounts?.find(a => a.status === 'active')?.id ?? '');
-    if (targetAccountId && nextState.cashAccounts?.length) {
-      const ledgerEntry: import('@/lib/tracker-helpers').CashLedgerEntry = {
-        id: uid(),
-        ts: Date.now(),
-        type: 'sale_deposit' as any,
-        accountId: targetAccountId,
-        direction: 'in',
-        amount: depositAmt,
-        currency: 'QAR',
-        note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
-      };
-      const updatedLedger = [...(nextState.cashLedger || []), ledgerEntry];
-      return {
-        ...nextState,
-        cashLedger: updatedLedger,
-        cashQAR: deriveCashQAR(nextState.cashAccounts, updatedLedger),
-      };
-    }
-
-    // Fallback: legacy cashQAR
-    const currentCash = nextState.cashQAR || 0;
-    const newCash = currentCash + depositAmt;
-    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
-      id: uid(),
-      ts: Date.now(),
-      type: 'sale_deposit' as any,
-      amount: depositAmt,
-      balanceAfter: newCash,
-      owner: nextState.cashOwner || '',
-      bankAccount: '',
+    return applyOrderCashDeposit({
+      nextState,
+      cashDepositMode,
+      cashDepositAmountRaw: cashDepositAmount,
+      cashDepositAccountId,
+      sell,
+      amountUSDT,
       note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
-    };
-    return {
-      ...nextState,
-      cashQAR: newCash,
-      cashHistory: [...(nextState.cashHistory || []), cashTx],
-    };
+    });
   };
 
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
