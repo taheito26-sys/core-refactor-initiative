@@ -531,7 +531,7 @@ export default function P2PTrackerPage() {
       const costBasis = stockCostQAR(derived);
       if (!wacop || wacop <= 0) return null;
 
-      // FX: derive mid-rate from P2P data for both local and QAR markets
+      // FX source: derive mid-rate from P2P data for both local and QAR markets
       const localMid = deriveMid(sellAvg, buyAvg);
       const qatarMid = market === 'qatar'
         ? localMid
@@ -542,16 +542,43 @@ export default function P2PTrackerPage() {
         return null;
       }
 
-      // Step 1: proceedsLocal = stock × sellAvgLocal
-      const proceedsLocal = stock * sellAvg;
-      // Step 2: proceedsUSD = proceedsLocal × FX(local→USD) = proceedsLocal / localMid
-      const proceedsUSD = proceedsLocal / localMid;
-      // Step 3: costBasisUSD = costBasisQAR × FX(QAR→USD) = costBasisQAR / qatarMid
-      const costBasisUSD = costBasis / qatarMid;
-      // Step 4: profitUSD = proceedsUSD − costBasisUSD
-      const profitUSD = proceedsUSD - costBasisUSD;
+      // Explicit FX conversion path:
+      // local->USD = 1 / localMid
+      // QAR->USD = 1 / qatarMid
+      // QAR->local = localMid / qatarMid
+      const localToUsd = 1 / localMid;
+      const qarToUsd = 1 / qatarMid;
+      const qarToLocal = localMid / qatarMid;
 
-      return { stock, costBasis, costBasisUSD, wacop, profit: profitUSD, currency: 'USD' as string };
+      // Profit if sold now:
+      // 1) costQAR (from FIFO cost basis)
+      const costQAR = costBasis;
+      // 2) costLocal = costQAR × FX(QAR->local)
+      const costLocal = costQAR * qarToLocal;
+      // 3) sellValueLocal = stockUSDT × sellAvgLocal
+      const sellValueLocal = stock * sellAvg;
+      // 4) profitLocal = sellValueLocal - costLocal
+      const profitLocal = sellValueLocal - costLocal;
+      // 5) profitUSD = profitLocal × FX(local->USD)
+      const profitUSD = profitLocal * localToUsd;
+
+      // Equivalent normalized values in USD for diagnostics/consistency
+      const costBasisUSD = costQAR * qarToUsd;
+      const sellValueUSD = sellValueLocal * localToUsd;
+
+      return {
+        stock,
+        wacop,
+        costQAR,
+        costLocal,
+        costBasisUSD,
+        sellValueLocal,
+        sellValueUSD,
+        profitLocal,
+        profit: profitUSD,
+        fx: { localToUsd, qarToUsd, qarToLocal },
+        currency: 'USD' as string,
+      };
     } catch {
       return null;
     }
@@ -561,17 +588,36 @@ export default function P2PTrackerPage() {
   const roundTripSim = useMemo(() => {
     if (!profitIfSold) return null;
     if (!sellAvg || !buyAvg || sellAvg <= 0 || buyAvg <= 0) return null;
+    const { qarToLocal, localToUsd } = profitIfSold.fx;
+    if (!qarToLocal || !localToUsd || qarToLocal <= 0 || localToUsd <= 0) return null;
 
-    // startingCapitalUSD = costBasisQAR / qatarMid (already computed)
-    const startingCapitalUSD = profitIfSold.costBasisUSD;
-    // Round-trip: convert USD → local → buy USDT → sell USDT → local → USD
-    // Simplifies to: finalUSD = startingCapitalUSD × (sellAvg / buyAvg)
-    const spreadRatio = sellAvg / buyAvg;
-    const finalUSD = startingCapitalUSD * spreadRatio;
-    const profit = finalUSD - startingCapitalUSD;
-    const pct = startingCapitalUSD > 0 ? (profit / startingCapitalUSD) * 100 : 0;
+    // Round-trip simulation:
+    // 1) startingCostQAR = inventory cost basis in QAR
+    const startingCostQAR = profitIfSold.costQAR;
+    // 2) startingCapitalLocal = startingCostQAR × FX(QAR->local)
+    const startingCapitalLocal = startingCostQAR * qarToLocal;
+    if (startingCapitalLocal <= 0) return null;
+    // 3) boughtUSDT = startingCapitalLocal / buyAvgLocal
+    const boughtUSDT = startingCapitalLocal / buyAvg;
+    // 4) finalLocal = boughtUSDT × sellAvgLocal
+    const finalLocal = boughtUSDT * sellAvg;
+    // 5) roundTripProfitLocal = finalLocal - startingCapitalLocal
+    const roundTripProfitLocal = finalLocal - startingCapitalLocal;
+    // 6) roundTripProfitUSD = roundTripProfitLocal × FX(local->USD)
+    const profit = roundTripProfitLocal * localToUsd;
+    // 7) percent on local starting capital
+    const pct = (roundTripProfitLocal / startingCapitalLocal) * 100;
 
-    return { startingCapitalUSD, finalUSD, profit, spreadRatio, pct };
+    return {
+      startingCapitalLocal,
+      startingCapitalUSD: startingCapitalLocal * localToUsd,
+      finalLocal,
+      finalUSD: finalLocal * localToUsd,
+      boughtUSDT,
+      profit,
+      spreadRatio: sellAvg / buyAvg,
+      pct,
+    };
   }, [profitIfSold, sellAvg, buyAvg]);
 
   const priceBarData = useMemo(() => {
@@ -888,50 +934,6 @@ export default function P2PTrackerPage() {
           </div>
         </div>
 
-        <div className="tracker-root panel">
-          <div className="panel-head" style={{ padding: '8px 12px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>{t('p2pMarketInfo')}</h2>
-            <span className="pill" style={{ fontSize: 9 }}>{currentMarket.pair}</span>
-          </div>
-          <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pSellAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'} {ccy}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pBuyAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'} {ccy}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pSellDepth')}</span>
-              <span className="font-mono text-[12px] font-extrabold text-muted-foreground">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pBuyDepth')}</span>
-              <span className="font-mono text-[12px] font-extrabold text-muted-foreground">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
-            </div>
-            {profitIfSold && (
-              <div className="border-t border-[var(--line)] px-3 py-1.5">
-                <div className="text-[10px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}${fmtTotal(profitIfSold.profit)}
-                </div>
-                <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  {fmtPrice(profitIfSold.stock)} USDT · WACOP {fmtPrice(profitIfSold.wacop)} QAR
-                </div>
-              </div>
-            )}
-            {roundTripSim && (
-              <div className="border-t border-[var(--line)] px-3 py-1.5">
-                <div className="text-[10px] font-extrabold" style={{ color: roundTripSim.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  ↻ Round-Trip: {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)} ({fmtPrice(roundTripSim.pct)}%)
-                </div>
-                <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  Spread ratio: {fmtPrice(roundTripSim.spreadRatio)}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
