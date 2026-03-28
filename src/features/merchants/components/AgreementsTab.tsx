@@ -161,6 +161,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     setOperatorIsMe(true);
     setOperatorContribution('');
     setLenderContribution('');
+    setOperatorDefaultHandling('reinvest');
+    setCounterpartyDefaultHandling('withdraw');
   };
 
   const statusPill = (status: string, isActive: boolean) => {
