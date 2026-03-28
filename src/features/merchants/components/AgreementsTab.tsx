@@ -92,7 +92,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             partner_ratio: ratio,
             merchant_ratio: 100 - ratio,
             settlement_cadence: cadence,
-          })
+          }) as unknown as Record<string, unknown>
         : null;
 
       await createAgreement.mutateAsync({
