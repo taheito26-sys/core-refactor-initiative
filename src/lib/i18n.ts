@@ -1396,6 +1396,26 @@ const translations = {
   weight:                  { en: 'weight',                               ar: 'وزن' },
   feeLabel:                { en: 'fee',                                 ar: 'رسوم' },
   capitalShareLabel:       { en: 'capital share',                       ar: 'حصة رأس المال' },
+  // ── Monthly Profit Handling ──
+  defaultProfitHandling:        { en: 'Default Profit Handling',           ar: 'التعامل الافتراضي مع الأرباح' },
+  operatorDefaultHandling:      { en: 'Operator Default',                  ar: 'الافتراضي للمشغل' },
+  counterpartyDefaultHandling:  { en: 'Counterparty Default',              ar: 'الافتراضي للطرف الآخر' },
+  reinvestOption:               { en: 'Reinvest',                          ar: 'إعادة استثمار' },
+  withdrawOption:               { en: 'Withdraw',                          ar: 'سحب' },
+  reinvestDesc:                 { en: 'Add profit to next cycle capital',  ar: 'إضافة الربح لرأس مال الدورة التالية' },
+  withdrawDesc:                 { en: 'Take profit out as payout',         ar: 'سحب الربح كدفعة' },
+  defaultHandlingHint:          { en: 'Used if merchant does not respond before cutoff', ar: 'يُستخدم إذا لم يستجب التاجر قبل الموعد النهائي' },
+  monthlyDecisionRequired:      { en: 'Monthly Profit Decision',           ar: 'قرار الربح الشهري' },
+  yourProfitShare:              { en: 'Your profit share',                 ar: 'حصتك من الربح' },
+  decisionDueBy:                { en: 'Decision due by',                   ar: 'الموعد النهائي للقرار' },
+  decidedLabel:                 { en: 'Decided',                           ar: 'تم القرار' },
+  pendingDecisionLabel:         { en: 'Awaiting decision',                 ar: 'بانتظار القرار' },
+  autoFinalizedLabel:           { en: 'Auto-finalized (default)',           ar: 'تم تلقائياً (افتراضي)' },
+  effectiveCapitalLabel:        { en: 'Effective Capital',                  ar: 'رأس المال الفعلي' },
+  nextCycleCapitalLabel:        { en: 'Next Cycle Capital',                ar: 'رأس مال الدورة التالية' },
+  confirmDecisionBtn:           { en: 'Confirm Decision',                  ar: 'تأكيد القرار' },
+  decisionSaved:                { en: 'Decision saved',                    ar: 'تم حفظ القرار' },
+  finalizedLabel:               { en: 'Finalized',                         ar: 'مُنجز' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

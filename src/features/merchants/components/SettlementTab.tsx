@@ -5,6 +5,7 @@ import { useDealCapital, useReinvestProfit, usePayoutProfit } from '@/hooks/useD
 import { fmtU } from '@/lib/tracker-helpers';
 import { toast } from 'sonner';
 import type { Cadence } from '@/lib/settlement-periods';
+import { DecisionCard } from './DecisionCard';
 import '@/styles/tracker.css';
 
 interface DealInfo {
@@ -186,6 +187,11 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
 
       {period.status === 'overdue' && (
         <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 4 }}>⚠️ {t('graceExpired')}</div>
+      )}
+
+      {/* Monthly profit handling decisions (operator priority only) */}
+      {dealType === 'partnership' && (period.status === 'due' || period.status === 'overdue' || period.status === 'settled') && (
+        <DecisionCard periodId={period.id} periodKey={period.period_key} />
       )}
     </div>
   );

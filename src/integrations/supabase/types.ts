@@ -1354,6 +1354,7 @@ export type Database = {
           agreement_type: string
           approved_at: string | null
           approved_by: string | null
+          counterparty_default_profit_handling: string
           created_at: string
           created_by: string
           effective_from: string
@@ -1363,6 +1364,7 @@ export type Database = {
           merchant_ratio: number
           notes: string | null
           operator_contribution: number | null
+          operator_default_profit_handling: string
           operator_merchant_id: string | null
           operator_ratio: number | null
           partner_ratio: number
@@ -1376,6 +1378,7 @@ export type Database = {
           agreement_type?: string
           approved_at?: string | null
           approved_by?: string | null
+          counterparty_default_profit_handling?: string
           created_at?: string
           created_by: string
           effective_from?: string
@@ -1385,6 +1388,7 @@ export type Database = {
           merchant_ratio: number
           notes?: string | null
           operator_contribution?: number | null
+          operator_default_profit_handling?: string
           operator_merchant_id?: string | null
           operator_ratio?: number | null
           partner_ratio: number
@@ -1398,6 +1402,7 @@ export type Database = {
           agreement_type?: string
           approved_at?: string | null
           approved_by?: string | null
+          counterparty_default_profit_handling?: string
           created_at?: string
           created_by?: string
           effective_from?: string
@@ -1407,6 +1412,7 @@ export type Database = {
           merchant_ratio?: number
           notes?: string | null
           operator_contribution?: number | null
+          operator_default_profit_handling?: string
           operator_merchant_id?: string | null
           operator_ratio?: number | null
           partner_ratio?: number
@@ -1422,6 +1428,84 @@ export type Database = {
             columns: ["relationship_id"]
             isOneToOne: false
             referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlement_decisions: {
+        Row: {
+          agreement_id: string
+          created_at: string
+          decision: string
+          decision_confirmed_at: string | null
+          decision_due_at: string | null
+          default_behavior: string
+          effective_capital_after: number
+          effective_capital_before: number
+          finalization_snapshot: Json | null
+          finalized_at: string | null
+          id: string
+          merchant_id: string
+          profit_amount: number
+          reinvested_amount: number
+          role: string
+          settlement_period_id: string
+          updated_at: string
+          withdrawn_amount: number
+        }
+        Insert: {
+          agreement_id: string
+          created_at?: string
+          decision?: string
+          decision_confirmed_at?: string | null
+          decision_due_at?: string | null
+          default_behavior?: string
+          effective_capital_after?: number
+          effective_capital_before?: number
+          finalization_snapshot?: Json | null
+          finalized_at?: string | null
+          id?: string
+          merchant_id: string
+          profit_amount?: number
+          reinvested_amount?: number
+          role?: string
+          settlement_period_id: string
+          updated_at?: string
+          withdrawn_amount?: number
+        }
+        Update: {
+          agreement_id?: string
+          created_at?: string
+          decision?: string
+          decision_confirmed_at?: string | null
+          decision_due_at?: string | null
+          default_behavior?: string
+          effective_capital_after?: number
+          effective_capital_before?: number
+          finalization_snapshot?: Json | null
+          finalized_at?: string | null
+          id?: string
+          merchant_id?: string
+          profit_amount?: number
+          reinvested_amount?: number
+          role?: string
+          settlement_period_id?: string
+          updated_at?: string
+          withdrawn_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_decisions_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "profit_share_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlement_decisions_settlement_period_id_fkey"
+            columns: ["settlement_period_id"]
+            isOneToOne: false
+            referencedRelation: "settlement_periods"
             referencedColumns: ["id"]
           },
         ]

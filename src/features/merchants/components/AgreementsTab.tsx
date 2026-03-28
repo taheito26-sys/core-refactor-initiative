@@ -45,6 +45,9 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [operatorIsMe, setOperatorIsMe] = useState(true);
   const [operatorContribution, setOperatorContribution] = useState('');
   const [lenderContribution, setLenderContribution] = useState('');
+  // ── Monthly profit handling defaults ──
+  const [operatorDefaultHandling, setOperatorDefaultHandling] = useState<'reinvest' | 'withdraw'>('reinvest');
+  const [counterpartyDefaultHandling, setCounterpartyDefaultHandling] = useState<'reinvest' | 'withdraw'>('withdraw');
 
   // Group agreements by status
   const approved = agreements.filter(a => a.status === 'approved' && isAgreementActive(a));
@@ -117,6 +120,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           operator_contribution: opContribNum,
           lender_contribution: lnContribNum,
           terms_snapshot: termsSnapshot,
+          operator_default_profit_handling: operatorDefaultHandling,
+          counterparty_default_profit_handling: counterpartyDefaultHandling,
         } : {}),
       });
       toast.success(t('agreementCreatedSuccess'));
@@ -156,6 +161,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     setOperatorIsMe(true);
     setOperatorContribution('');
     setLenderContribution('');
+    setOperatorDefaultHandling('reinvest');
+    setCounterpartyDefaultHandling('withdraw');
   };
 
   const statusPill = (status: string, isActive: boolean) => {
@@ -390,6 +397,60 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   </div>
                 </div>
               </div>
+
+              {/* Default Monthly Profit Handling */}
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 6, border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', background: 'color-mix(in srgb, var(--brand) 3%, transparent)' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>
+                  📅 {t('defaultProfitHandling')}
+                </div>
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginBottom: 8, lineHeight: 1.4 }}>
+                  {t('defaultHandlingHint')}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
+                      {t('operatorDefaultHandling')}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button
+                        className={`pill ${operatorDefaultHandling === 'reinvest' ? 'good' : ''}`}
+                        style={{ cursor: 'pointer', padding: '3px 8px', fontSize: 9 }}
+                        onClick={() => setOperatorDefaultHandling('reinvest')}
+                      >
+                        🔄 {t('reinvestOption')}
+                      </button>
+                      <button
+                        className={`pill ${operatorDefaultHandling === 'withdraw' ? 'good' : ''}`}
+                        style={{ cursor: 'pointer', padding: '3px 8px', fontSize: 9 }}
+                        onClick={() => setOperatorDefaultHandling('withdraw')}
+                      >
+                        💰 {t('withdrawOption')}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
+                      {t('counterpartyDefaultHandling')}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button
+                        className={`pill ${counterpartyDefaultHandling === 'reinvest' ? 'good' : ''}`}
+                        style={{ cursor: 'pointer', padding: '3px 8px', fontSize: 9 }}
+                        onClick={() => setCounterpartyDefaultHandling('reinvest')}
+                      >
+                        🔄 {t('reinvestOption')}
+                      </button>
+                      <button
+                        className={`pill ${counterpartyDefaultHandling === 'withdraw' ? 'good' : ''}`}
+                        style={{ cursor: 'pointer', padding: '3px 8px', fontSize: 9 }}
+                        onClick={() => setCounterpartyDefaultHandling('withdraw')}
+                      >
+                        💰 {t('withdrawOption')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -460,6 +521,9 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   ② {t('thenCapitalSplit')}:<br />
                   &nbsp;&nbsp;{operatorName}: {fmtU(opC)} ({opWt}% {t('weight')})<br />
                   &nbsp;&nbsp;{lenderName}: {fmtU(lnC)} ({lnWt}% {t('weight')})<br />
+                  ③ {t('defaultProfitHandling')}:<br />
+                  &nbsp;&nbsp;{operatorName}: {operatorDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
+                  &nbsp;&nbsp;{lenderName}: {counterpartyDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
                   {t('settlement')}: {cadenceLabel(cadence)}.
                 </div>
               );
