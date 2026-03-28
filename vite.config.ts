@@ -6,6 +6,15 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(
+      process.env.VERCEL_GIT_COMMIT_SHA ||
+      process.env.GITHUB_SHA ||
+      process.env.CF_PAGES_COMMIT_SHA ||
+      process.env.COMMIT_SHA ||
+      new Date().toISOString()
+    ),
+  },
   server: {
     host: "::",
     port: 5000,
