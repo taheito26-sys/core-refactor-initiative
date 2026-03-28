@@ -5,6 +5,7 @@ import { useDealCapital, useReinvestProfit, usePayoutProfit } from '@/hooks/useD
 import { fmtU } from '@/lib/tracker-helpers';
 import { toast } from 'sonner';
 import type { Cadence } from '@/lib/settlement-periods';
+import { DecisionCard } from './DecisionCard';
 import '@/styles/tracker.css';
 
 interface DealInfo {
