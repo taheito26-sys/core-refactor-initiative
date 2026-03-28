@@ -78,6 +78,25 @@ function toFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+function extractProjectRefFromUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+  return match?.[1] ?? null;
+}
+
+function extractProjectRefFromPublishableKey(key: string | undefined): string | null {
+  if (!key) return null;
+  const parts = key.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(payloadJson) as { ref?: unknown };
+    return typeof payload.ref === 'string' ? payload.ref : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string, mode: SnapshotTimestampMode = 'latest'): number {
   const fetchedAtMs = fetchedAt ? new Date(fetchedAt).getTime() : null;
   const hasValidFetchedAt = fetchedAtMs != null && Number.isFinite(fetchedAtMs);
@@ -251,6 +270,10 @@ export default function P2PTrackerPage() {
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
+  const runtimeSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const runtimePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  const runtimeProjectRefFromUrl = extractProjectRefFromUrl(runtimeSupabaseUrl);
+  const runtimeProjectRefFromKey = extractProjectRefFromPublishableKey(runtimePublishableKey);
 
   const loadFromDb = useCallback(async () => {
     const { data: latestRow, error: latestError } = await supabase
@@ -325,8 +348,11 @@ export default function P2PTrackerPage() {
     console.debug(
       `[P2P load] market=${market} rows=${rowCount} fetched_at=${firstFetchedAt}..${lastFetchedAt} normalized_ts=${firstNormalizedTs}..${lastNormalizedTs} last24h=${final24hCount}`,
     );
+    console.debug(
+      `[P2P runtime] market=${market} supabaseUrl=${runtimeSupabaseUrl ?? 'n/a'} ref(url)=${runtimeProjectRefFromUrl ?? 'n/a'} ref(key)=${runtimeProjectRefFromKey ?? 'n/a'} latestFetchedAt=${latestRow?.fetched_at ?? 'n/a'} historyRows=${historyPoints.length} last24hRows=${final24hCount}`,
+    );
     setLastUpdate(new Date().toISOString());
-  }, [market]);
+  }, [market, runtimeSupabaseUrl, runtimeProjectRefFromUrl, runtimeProjectRefFromKey]);
 
   const load = useCallback(async () => {
     setLoading(true);
