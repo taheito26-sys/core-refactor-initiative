@@ -328,6 +328,7 @@ export default function P2PTrackerPage() {
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    // @ts-ignore – deep type instantiation from jsonb->> selects
     const { data: histRows, error: historyError } = await supabase
       .from('p2p_snapshots')
       .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
@@ -358,6 +359,7 @@ export default function P2PTrackerPage() {
     const final24hCount = historyPoints.filter(point => point.ts >= cutoff24h).length;
 
     const cutoff24hIso = new Date(cutoff24h).toISOString();
+    // @ts-ignore – deep type instantiation from jsonb-> selects
     const { data: merchantRows, error: merchantError } = await supabase
       .from('p2p_snapshots')
       .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
