@@ -521,6 +521,9 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   ② {t('thenCapitalSplit')}:<br />
                   &nbsp;&nbsp;{operatorName}: {fmtU(opC)} ({opWt}% {t('weight')})<br />
                   &nbsp;&nbsp;{lenderName}: {fmtU(lnC)} ({lnWt}% {t('weight')})<br />
+                  ③ {t('defaultProfitHandling')}:<br />
+                  &nbsp;&nbsp;{operatorName}: {operatorDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
+                  &nbsp;&nbsp;{lenderName}: {counterpartyDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
                   {t('settlement')}: {cadenceLabel(cadence)}.
                 </div>
               );
