@@ -1372,6 +1372,27 @@ const translations = {
   
   salesDealLabel:          { en: 'Sales Deal',                          ar: 'صفقة بيع' },
   saleProceeds:            { en: 'Sale proceeds',                       ar: 'عائدات البيع' },
+
+  // ── Operator Priority Profit Share ──
+  agreementTypeLabel:      { en: 'Agreement Type',                      ar: 'نوع الاتفاقية' },
+  standardProfitShare:     { en: 'Standard Profit Share',               ar: 'مشاركة أرباح عادية' },
+  operatorPriorityLabel:   { en: 'Operator Priority Profit Share',      ar: 'مشاركة أرباح بأولوية المشغل' },
+  operatorPriorityDesc:    { en: 'Operator takes a fee from profit first, then remaining is split by capital contribution weight.', ar: 'المشغل يأخذ رسوماً من الربح أولاً، ثم يُقسّم المتبقي حسب وزن المساهمة الرأسمالية.' },
+  operatorRatioLabel:      { en: 'Operator Fee %',                      ar: 'نسبة رسوم المشغل %' },
+  operatorRatioHint:       { en: 'Deducted from gross profit before capital split', ar: 'تُخصم من الربح الإجمالي قبل توزيع رأس المال' },
+  operatorMerchantLabel:   { en: 'Operator Merchant',                   ar: 'التاجر المشغل' },
+  youAreOperator:          { en: 'I am the operator',                   ar: 'أنا المشغل' },
+  partnerIsOperator:       { en: 'Partner is the operator',             ar: 'الشريك هو المشغل' },
+  operatorContribLabel:    { en: 'Operator Capital',                    ar: 'رأس مال المشغل' },
+  lenderContribLabel:      { en: 'Lender Capital',                      ar: 'رأس مال المُقرض' },
+  contributionRequired:    { en: 'Total contribution must be > 0',      ar: 'مجموع المساهمة يجب أن يكون أكبر من 0' },
+  operatorRatioRequired:   { en: 'Operator fee % is required (0-100)',  ar: 'نسبة رسوم المشغل مطلوبة (0-100)' },
+  operatorFeeFirst:        { en: 'Operator fee deducted first',         ar: 'رسوم المشغل تُخصم أولاً' },
+  thenCapitalSplit:        { en: 'then split by capital weight',        ar: 'ثم يُقسّم حسب وزن رأس المال' },
+  operatorGets:            { en: 'Operator gets',                       ar: 'المشغل يحصل على' },
+  lenderGets:              { en: 'Lender gets',                         ar: 'المُقرض يحصل على' },
+  feeLabel:                { en: 'fee',                                 ar: 'رسوم' },
+  capitalShareLabel:       { en: 'capital share',                       ar: 'حصة رأس المال' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

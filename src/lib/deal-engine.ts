@@ -241,10 +241,11 @@ export function calculateAllocation(
 // ─── Agreement-Based Allocation (New Model) ─────────────────────────
 
 import type { ProfitShareAgreement } from '@/types/domain';
+import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 
 /**
  * Calculate allocation for a standing profit share agreement.
- * Uses net profit as the base for profit share agreements.
+ * Supports both standard and operator_priority agreement types.
  */
 export function calculateAgreementAllocation(
   agreement: ProfitShareAgreement,
@@ -253,6 +254,24 @@ export function calculateAgreementAllocation(
   orderFee: number,
 ): { partnerAmount: number; merchantAmount: number; netProfit: number } {
   const netProfit = orderRevenue - orderCost - orderFee;
+
+  // ── Operator Priority: fee first, then capital-weighted split ──
+  if (agreement.agreement_type === 'operator_priority' && agreement.operator_ratio != null) {
+    const result = calculateOperatorPriorityProfit({
+      grossProfit: netProfit,
+      operatorRatio: agreement.operator_ratio,
+      operatorContribution: agreement.operator_contribution ?? 0,
+      lenderContribution: agreement.lender_contribution ?? 0,
+    });
+    // Convention: "merchant" = operator, "partner" = lender
+    return {
+      partnerAmount: Math.round(result.lenderTotal * 100) / 100,
+      merchantAmount: Math.round(result.operatorTotal * 100) / 100,
+      netProfit: Math.round(netProfit * 100) / 100,
+    };
+  }
+
+  // ── Standard profit share ──
   const partnerAmount = (netProfit * agreement.partner_ratio) / 100;
   const merchantAmount = netProfit - partnerAmount;
   return {
@@ -281,6 +300,9 @@ export function isAgreementActive(agreement: ProfitShareAgreement): boolean {
  * Get a human-readable label for an agreement.
  */
 export function getAgreementLabel(agreement: ProfitShareAgreement): string {
+  if (agreement.agreement_type === 'operator_priority') {
+    return `Operator Priority ${agreement.operator_ratio ?? 0}% fee`;
+  }
   return `Profit Share ${agreement.partner_ratio}/${agreement.merchant_ratio}`;
 }
 

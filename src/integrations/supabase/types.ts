@@ -1351,6 +1351,7 @@ export type Database = {
       }
       profit_share_agreements: {
         Row: {
+          agreement_type: string
           approved_at: string | null
           approved_by: string | null
           created_at: string
@@ -1358,15 +1359,21 @@ export type Database = {
           effective_from: string
           expires_at: string | null
           id: string
+          lender_contribution: number | null
           merchant_ratio: number
           notes: string | null
+          operator_contribution: number | null
+          operator_merchant_id: string | null
+          operator_ratio: number | null
           partner_ratio: number
           relationship_id: string
           settlement_cadence: string
           status: string
+          terms_snapshot: Json | null
           updated_at: string
         }
         Insert: {
+          agreement_type?: string
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
@@ -1374,15 +1381,21 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          lender_contribution?: number | null
           merchant_ratio: number
           notes?: string | null
+          operator_contribution?: number | null
+          operator_merchant_id?: string | null
+          operator_ratio?: number | null
           partner_ratio: number
           relationship_id: string
           settlement_cadence?: string
           status?: string
+          terms_snapshot?: Json | null
           updated_at?: string
         }
         Update: {
+          agreement_type?: string
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
@@ -1390,12 +1403,17 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          lender_contribution?: number | null
           merchant_ratio?: number
           notes?: string | null
+          operator_contribution?: number | null
+          operator_merchant_id?: string | null
+          operator_ratio?: number | null
           partner_ratio?: number
           relationship_id?: string
           settlement_cadence?: string
           status?: string
+          terms_snapshot?: Json | null
           updated_at?: string
         }
         Relationships: [

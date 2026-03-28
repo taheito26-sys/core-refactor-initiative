@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import type { OrderAllocation, AllocationFamily } from '@/types/domain';
+import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 
 const ALLOCATIONS_KEY = 'order-allocations';
 
@@ -200,5 +201,44 @@ export function calculateAllocationEconomics(input: AllocationCalcInput) {
     merchantAmount: Math.round(merchantAmount * 100) / 100,
     partnerSharePct,
     merchantSharePct,
+  };
+}
+
+/**
+ * Operator Priority allocation: uses operator fee + capital-weighted split.
+ * Call this instead of calculateAllocationEconomics when the agreement is operator_priority.
+ */
+export function calculateOperatorPriorityAllocationEconomics(input: AllocationCalcInput & {
+  operatorRatio: number;
+  operatorContribution: number;
+  lenderContribution: number;
+}) {
+  const { allocatedUsdt, merchantCostPerUsdt, sellPrice, totalFee, totalUsdt } = input;
+
+  const revenue = allocatedUsdt * sellPrice;
+  const cost = allocatedUsdt * merchantCostPerUsdt;
+  const feeShare = totalUsdt > 0 ? (allocatedUsdt / totalUsdt) * totalFee : 0;
+  const net = revenue - cost - feeShare;
+
+  // Use the operator priority calculation
+  const result = calculateOperatorPriorityProfit({
+    grossProfit: net,
+    operatorRatio: input.operatorRatio,
+    operatorContribution: input.operatorContribution,
+    lenderContribution: input.lenderContribution,
+  });
+
+  return {
+    revenue: Math.round(revenue * 100) / 100,
+    cost: Math.round(cost * 100) / 100,
+    feeShare: Math.round(feeShare * 100) / 100,
+    net: Math.round(net * 100) / 100,
+    partnerAmount: Math.round(result.lenderTotal * 100) / 100,
+    merchantAmount: Math.round(result.operatorTotal * 100) / 100,
+    partnerSharePct: result.lenderWeightPct,
+    merchantSharePct: result.operatorWeightPct,
+    operatorFee: result.operatorFee,
+    operatorCapitalShare: result.operatorCapitalShare,
+    lenderCapitalShare: result.lenderCapitalShare,
   };
 }

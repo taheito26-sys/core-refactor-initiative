@@ -126,6 +126,13 @@ interface CreateAgreementInput {
   effective_from: string;
   expires_at?: string | null;
   notes?: string | null;
+  // Operator Priority fields (optional, only set for operator_priority type)
+  agreement_type?: string;
+  operator_ratio?: number | null;
+  operator_merchant_id?: string | null;
+  operator_contribution?: number | null;
+  lender_contribution?: number | null;
+  terms_snapshot?: Record<string, unknown> | null;
 }
 
 export function useCreateAgreement() {
