@@ -1096,7 +1096,6 @@ const translations = {
   agreementsCreatedInWorkspace: { en: 'Profit Share Agreements are created in the merchant workspace. Once approved, they appear in the Orders page when creating profit share orders. Sales Deals and Capital Transfers don\'t require agreements.', ar: 'اتفاقيات تقاسم الأرباح تُنشأ في مساحة عمل التاجر. بمجرد الموافقة، تظهر في صفحة الطلبات عند إنشاء طلبات تقاسم الأرباح. صفقات البيع وتحويلات رأس المال لا تتطلب اتفاقيات.' },
   noAgreementsGlobal: { en: 'No agreements yet', ar: 'لا توجد اتفاقيات بعد' },
   openMerchantToCreate: { en: 'Open a merchant workspace to create Profit Share agreements.', ar: 'افتح مساحة عمل التاجر لإنشاء اتفاقيات تقاسم الأرباح.' },
-  selectMerchant: { en: 'Select merchant...', ar: 'اختر تاجر...' },
   pickToCreateAgreement: { en: 'Pick a merchant to create an agreement', ar: 'اختر تاجر لإنشاء اتفاقية' },
   selectMerchantAbove: { en: 'Select a merchant above to create your first agreement.', ar: 'اختر تاجر أعلاه لإنشاء أول اتفاقية.' },
 
