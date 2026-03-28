@@ -60,6 +60,13 @@ interface DaySummary {
 }
 
 type SnapshotTimestampMode = 'latest' | 'history';
+interface MerchantStat {
+  nick: string;
+  appearances: number;
+  availabilityRatio: number;
+  avgAvailable: number;
+  maxAvailable: number;
+}
 type HistoryRow = {
   fetched_at: string | null;
   ts_val: string | number | null;
@@ -67,6 +74,10 @@ type HistoryRow = {
   buy_avg: string | number | null;
   spread_val: string | number | null;
   spread_pct_val: string | number | null;
+};
+type MerchantRow = {
+  sell_offers: unknown;
+  buy_offers: unknown;
 };
 
 function toFiniteNumber(value: unknown): number | null {
@@ -267,6 +278,7 @@ export default function P2PTrackerPage() {
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
   const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
+  const [merchantStats, setMerchantStats] = useState<MerchantStat[]>([]);
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
@@ -345,6 +357,57 @@ export default function P2PTrackerPage() {
     const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
     const final24hCount = historyPoints.filter(point => point.ts >= cutoff24h).length;
 
+    const cutoff24hIso = new Date(cutoff24h).toISOString();
+    const { data: merchantRows, error: merchantError } = await supabase
+      .from('p2p_snapshots')
+      .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
+      .eq('market', market)
+      .gte('fetched_at', cutoff24hIso)
+      .order('fetched_at', { ascending: true })
+      .limit(500);
+    if (merchantError) throw merchantError;
+
+    const rows = (merchantRows || []) as MerchantRow[];
+    const marketPolls = Math.max(rows.length, 1);
+    const merchantMap = new Map<string, { appearances: number; totalAvailable: number; sampleCount: number; maxAvailable: number }>();
+
+    for (const row of rows) {
+      const seenInSnapshot = new Set<string>();
+      const offersRaw = [
+        ...(Array.isArray(row.sell_offers) ? row.sell_offers : []),
+        ...(Array.isArray(row.buy_offers) ? row.buy_offers : []),
+      ];
+      const offers = offersRaw.map(toOffer).filter((offer): offer is P2POffer => offer !== null);
+
+      for (const offer of offers) {
+        const nick = offer.nick.trim();
+        if (!nick) continue;
+        let stat = merchantMap.get(nick);
+        if (!stat) {
+          stat = { appearances: 0, totalAvailable: 0, sampleCount: 0, maxAvailable: 0 };
+          merchantMap.set(nick, stat);
+        }
+        if (!seenInSnapshot.has(nick)) {
+          stat.appearances += 1;
+          seenInSnapshot.add(nick);
+        }
+        stat.totalAvailable += offer.available;
+        stat.sampleCount += 1;
+        stat.maxAvailable = Math.max(stat.maxAvailable, offer.available);
+      }
+    }
+
+    const computedMerchantStats = Array.from(merchantMap.entries())
+      .map(([nick, stat]) => ({
+        nick,
+        appearances: stat.appearances,
+        availabilityRatio: stat.appearances / marketPolls,
+        avgAvailable: stat.sampleCount > 0 ? stat.totalAvailable / stat.sampleCount : 0,
+        maxAvailable: stat.maxAvailable,
+      }))
+      .filter((stat) => stat.appearances > 0);
+    setMerchantStats(computedMerchantStats);
+
     console.debug(
       `[P2P load] market=${market} rows=${rowCount} fetched_at=${firstFetchedAt}..${lastFetchedAt} normalized_ts=${firstNormalizedTs}..${lastNormalizedTs} last24h=${final24hCount}`,
     );
@@ -408,6 +471,26 @@ export default function P2PTrackerPage() {
   }, [history]);
 
   const dailySummaries = useMemo(() => computeDailySummaries(history), [history]);
+  const topAlwaysAvailableMerchants = useMemo(
+    () => [...merchantStats]
+      .sort((a, b) =>
+        b.appearances - a.appearances ||
+        b.availabilityRatio - a.availabilityRatio ||
+        b.avgAvailable - a.avgAvailable,
+      )
+      .slice(0, 5),
+    [merchantStats],
+  );
+  const topQuantityMerchants = useMemo(
+    () => [...merchantStats]
+      .sort((a, b) =>
+        b.maxAvailable - a.maxAvailable ||
+        b.avgAvailable - a.avgAvailable ||
+        b.appearances - a.appearances,
+      )
+      .slice(0, 5),
+    [merchantStats],
+  );
 
   const filteredSummaries = useMemo(() => {
     const days = historyRange === '15d' ? 15 : 7;
@@ -750,6 +833,57 @@ export default function P2PTrackerPage() {
             <div className="flex gap-2">
               <span className="pill" style={{ fontSize: 9 }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.sellChange)}</span>
               <span className="pill" style={{ fontSize: 9 }}>{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.buyChange)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="tracker-root panel">
+          <div className="panel-head" style={{ padding: '8px 12px' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+              Merchant Depth Stats (24h)
+            </h2>
+            <span className="pill" style={{ fontSize: 9 }}>
+              {merchantStats.length} tracked
+            </span>
+          </div>
+          <div className="panel-body" style={{ padding: '8px 12px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <div className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted mb-2">Top 5 Always Available</div>
+              {topAlwaysAvailableMerchants.length === 0 ? (
+                <div className="text-[10px] text-muted-foreground">No merchant data in last 24h.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {topAlwaysAvailableMerchants.map((stat, idx) => (
+                    <div key={`always-${stat.nick}`} className="flex items-center justify-between gap-2 text-[10px]">
+                      <span className="truncate">
+                        <span className="font-extrabold mr-1">{idx + 1}.</span>{stat.nick}
+                      </span>
+                      <span className="font-mono text-muted-foreground">
+                        {Math.round(stat.availabilityRatio * 100)}% · {stat.appearances} polls
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted mb-2">Top 5 Biggest USDT Qty</div>
+              {topQuantityMerchants.length === 0 ? (
+                <div className="text-[10px] text-muted-foreground">No merchant data in last 24h.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {topQuantityMerchants.map((stat, idx) => (
+                    <div key={`qty-${stat.nick}`} className="flex items-center justify-between gap-2 text-[10px]">
+                      <span className="truncate">
+                        <span className="font-extrabold mr-1">{idx + 1}.</span>{stat.nick}
+                      </span>
+                      <span className="font-mono text-muted-foreground">
+                        max {fmtTotal(stat.maxAvailable)} · avg {fmtTotal(stat.avgAvailable)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
