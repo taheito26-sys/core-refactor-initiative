@@ -92,8 +92,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             operator_ratio: opRatioNum,
             operator_contribution: opContribNum,
             lender_contribution: lnContribNum,
-            partner_ratio: ratio,
-            merchant_ratio: 100 - ratio,
+            partner_ratio: 0,
+            merchant_ratio: 0,
             settlement_cadence: cadence,
           }) as unknown as Record<string, unknown>
         : null;
