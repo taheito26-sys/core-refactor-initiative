@@ -45,6 +45,9 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [operatorIsMe, setOperatorIsMe] = useState(true);
   const [operatorContribution, setOperatorContribution] = useState('');
   const [lenderContribution, setLenderContribution] = useState('');
+  // ── Monthly profit handling defaults ──
+  const [operatorDefaultHandling, setOperatorDefaultHandling] = useState<'reinvest' | 'withdraw'>('reinvest');
+  const [counterpartyDefaultHandling, setCounterpartyDefaultHandling] = useState<'reinvest' | 'withdraw'>('withdraw');
 
   // Group agreements by status
   const approved = agreements.filter(a => a.status === 'approved' && isAgreementActive(a));
@@ -117,6 +120,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           operator_contribution: opContribNum,
           lender_contribution: lnContribNum,
           terms_snapshot: termsSnapshot,
+          operator_default_profit_handling: operatorDefaultHandling,
+          counterparty_default_profit_handling: counterpartyDefaultHandling,
         } : {}),
       });
       toast.success(t('agreementCreatedSuccess'));
