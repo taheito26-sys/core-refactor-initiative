@@ -82,15 +82,9 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
             relationshipId={createForRelId}
             counterpartyName={selectedRel.counterparty_name}
             counterpartyMerchantId={
-              selectedRel.merchant_a_id === selectedRel.counterparty_name
-                ? selectedRel.merchant_a_id
-                : (selectedRel.merchant_a_id !== selectedRel.counterparty_name
-                  ? (() => {
-                      // Determine counterparty merchant ID
-                      const myMerchantId = relationships.find((r: any) => r.id === createForRelId)?.counterparty_name;
-                      return undefined; // Will be resolved by the AgreementsTab from the relationship
-                    })()
-                  : undefined)
+              selectedRel.merchant_a_id === myMerchantId
+                ? selectedRel.merchant_b_id
+                : selectedRel.merchant_a_id
             }
           />
         </div>
