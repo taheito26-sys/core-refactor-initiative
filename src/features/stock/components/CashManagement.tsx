@@ -353,6 +353,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   const LEDGER_TYPE_LABELS: Record<LedgerEntryType, string> = useMemo(() => ({
     opening: t('ledgerOpening'),
     deposit: t('ledgerDeposit'),
+    sale_deposit: 'Sale deposit',
     withdrawal: t('ledgerWithdrawal'),
     transfer_in: t('ledgerTransferIn'),
     transfer_out: t('ledgerTransferOut'),
