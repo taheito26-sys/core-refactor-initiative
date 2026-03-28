@@ -9,7 +9,6 @@ import { buildLiquidityActions, type LiquidityBoardEntry, type LiquidityFilters,
 import { Filter, ExternalLink, MessageSquare, Plus } from 'lucide-react';
 
 interface Props {
-  entries: LiquidityBoardEntry[];
   filter: (filters: LiquidityFilters) => LiquidityBoardEntry[];
   onOpenRelationship: (id: string) => void;
   onOpenChat: (id: string) => void;
@@ -39,7 +38,7 @@ function renderAmount(side: {
   return <span className="font-mono text-xs font-bold">{fmtU(side.exactAmount || 0)}</span>;
 }
 
-export function LiquidityBoardTable({ entries, filter, onOpenRelationship, onOpenChat, onOpenDeal, t }: Props) {
+export function LiquidityBoardTable({ filter, onOpenRelationship, onOpenChat, onOpenDeal, t }: Props) {
   const [filters, setFilters] = useState<LiquidityFilters>({
     side: 'both',
     minAmount: 0,

@@ -71,7 +71,6 @@ export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: Liq
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2">
           <LiquidityBoardTable
-            entries={[]}
             filter={filter}
             onOpenRelationship={onOpenRelationship}
             onOpenChat={onOpenChat}
