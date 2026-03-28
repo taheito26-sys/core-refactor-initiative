@@ -1393,6 +1393,7 @@ const translations = {
   thenCapitalSplit:        { en: 'then split by capital weight',        ar: 'ثم يُقسّم حسب وزن رأس المال' },
   operatorGets:            { en: 'Operator gets',                       ar: 'المشغل يحصل على' },
   lenderGets:              { en: 'Lender gets',                         ar: 'المُقرض يحصل على' },
+  weight:                  { en: 'weight',                               ar: 'وزن' },
   feeLabel:                { en: 'fee',                                 ar: 'رسوم' },
   capitalShareLabel:       { en: 'capital share',                       ar: 'حصة رأس المال' },
 } as const;
