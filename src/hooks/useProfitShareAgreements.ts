@@ -133,6 +133,9 @@ interface CreateAgreementInput {
   operator_contribution?: number | null;
   lender_contribution?: number | null;
   terms_snapshot?: Record<string, unknown> | null;
+  // Monthly profit handling defaults
+  operator_default_profit_handling?: string;
+  counterparty_default_profit_handling?: string;
 }
 
 export function useCreateAgreement() {
