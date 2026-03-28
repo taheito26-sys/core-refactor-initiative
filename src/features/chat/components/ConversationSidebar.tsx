@@ -43,7 +43,7 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
   return (
     <aside className={`${isMobile ? 'w-full' : 'w-[260px]'} bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0`}>
       {/* Header */}
-      <div className="p-4 pb-2 shrink-0">
+      <div className={`p-4 pb-2 shrink-0 ${isMobile ? 'pt-[max(16px,env(safe-area-inset-top,0px))]' : ''}`}>
         <h2 className="text-lg font-black text-foreground tracking-tight mb-3 flex items-center justify-between">
           Inbox
           <SlidersHorizontal size={16} className="text-muted-foreground/60 cursor-pointer hover:text-primary transition-colors" />
@@ -58,16 +58,16 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
         </div>
 
         <div className="flex gap-4 px-1 border-b border-border pb-2">
-          <button className="relative text-xs font-bold text-foreground pb-1 group">
+          <button className="relative text-xs font-bold text-foreground pb-1 group min-h-[36px] min-w-[44px]">
             ALL
             <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full" />
           </button>
-          <button className="text-xs font-bold text-muted-foreground/60 pb-1 hover:text-foreground transition-colors">VIP</button>
+          <button className="text-xs font-bold text-muted-foreground/60 pb-1 hover:text-foreground transition-colors min-h-[36px] min-w-[44px]">VIP</button>
         </div>
       </div>
 
       {/* Room list */}
-      <div className="flex-1 overflow-y-auto px-2 pb-6 pt-2 space-y-1">
+      <div className={`flex-1 overflow-y-auto px-2 pt-2 space-y-1 ${isMobile ? 'pb-[max(12px,env(safe-area-inset-bottom,0px))]' : 'pb-6'}`}>
         {normalizedRooms.map((room) => {
           const isActive = activeRoomId && String(activeRoomId) === String(room.room_id);
           const palette = getPalette(room.title || 'R');
@@ -78,11 +78,11 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
             <button
               key={room.room_id}
               onClick={() => onSelectRoom?.(String(room.room_id))}
-              className={`w-full group flex items-start gap-3 p-3 rounded-2xl transition-all duration-200 text-left relative ${
+              className={`w-full group flex items-start gap-3 rounded-2xl transition-all duration-200 text-left relative ${
                 isActive
                   ? 'bg-primary/10 ring-1 ring-primary/20'
                   : 'hover:bg-muted/60'
-              }`}
+              } ${isMobile ? 'p-3.5 min-h-[72px]' : 'p-3'}`}
             >
               {/* Avatar */}
               <div className="relative shrink-0 mt-0.5">
