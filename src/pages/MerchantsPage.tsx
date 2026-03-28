@@ -13,6 +13,7 @@ import { LiquidityTab } from '@/features/merchants/liquidity/LiquidityTab';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
+import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 
 type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat' | 'liquidity';
@@ -49,6 +50,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const merchantProfile = effectiveMerchantProfile;
   const t = useT();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
 
   const [tab, setTab] = useState<MerchantTab>(() => {
@@ -318,15 +320,25 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   ];
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+    <div
+      className="tracker-root"
+      dir={t.isRTL ? 'rtl' : 'ltr'}
+      style={{
+        padding: isMobile ? 'max(12px, env(safe-area-inset-top, 0px)) 12px max(14px, env(safe-area-inset-bottom, 0px))' : 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        minHeight: '100%',
+      }}
+    >
 
       {/* ─── HEADER ─── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 800 }}>🏪 {t('theMerchants') || 'The Merchants'}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('merchantOrchestratorDesc') || 'Relationship orchestration hub'}</div>
         </div>
-        <div className="inputBox" style={{ maxWidth: 240, padding: '6px 10px' }}>
+        <div className="inputBox" style={{ maxWidth: isMobile ? '100%' : 240, width: isMobile ? '100%' : undefined, padding: '6px 10px' }}>
           <input
             placeholder={t('search') || 'Search...'}
             value={search}
@@ -337,10 +349,10 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
       {/* ─── FIND A MERCHANT ─── */}
       <div style={{
-        display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0',
+        display: 'flex', gap: 8, alignItems: isMobile ? 'stretch' : 'center', flexWrap: isMobile ? 'wrap' : 'nowrap', padding: '8px 0',
         borderBottom: '1px solid var(--line)',
       }}>
-        <div className="inputBox" style={{ flex: 1, maxWidth: 320, padding: '6px 10px' }}>
+        <div className="inputBox" style={{ flex: 1, maxWidth: isMobile ? '100%' : 320, width: isMobile ? '100%' : undefined, padding: '6px 10px' }}>
           <input
             placeholder={t('findMerchantPlaceholder') || 'Enter merchant code, nickname, or ID...'}
             value={findQuery}
@@ -352,7 +364,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
           className="btn"
           onClick={handleFind}
           disabled={!findQuery.trim() || findStatus === 'searching'}
-          style={{ whiteSpace: 'nowrap' }}
+          style={{ whiteSpace: 'nowrap', minHeight: 44, width: isMobile ? '100%' : undefined }}
         >
           🔍 {findStatus === 'searching' ? (t('loading') || '...') : (t('findMerchant') || 'Find a Merchant')}
         </button>
@@ -397,8 +409,8 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                 {t('memberSince') || 'Member since'}: {new Date(findResult.created_at).toLocaleDateString()}
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-              <div className="inputBox" style={{ maxWidth: 220, padding: '4px 8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: isMobile ? 'stretch' : 'flex-end', width: isMobile ? '100%' : undefined }}>
+              <div className="inputBox" style={{ maxWidth: isMobile ? '100%' : 220, width: isMobile ? '100%' : undefined, padding: '4px 8px' }}>
                 <input
                   placeholder={t('addANote') || 'Add a note (optional)...'}
                   value={inviteMessage}
@@ -406,7 +418,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                   style={{ fontSize: 10 }}
                 />
               </div>
-              <button className="btn" onClick={handleSendInvite} disabled={sendingInvite} style={{ fontSize: 11 }}>
+              <button className="btn" onClick={handleSendInvite} disabled={sendingInvite} style={{ fontSize: 11, minHeight: 42 }}>
                 📨 {sendingInvite ? (t('loading') || '...') : (t('sendInvite') || 'Send Invite')}
               </button>
             </div>
@@ -415,18 +427,20 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
       )}
 
       {/* ─── TAB BAR ─── */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2, overflowX: 'auto', paddingBottom: 2 }}>
         {tabs.map(({ key, label, icon, badge }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             style={{
-              padding: '9px 18px', fontSize: 11, fontWeight: tab === key ? 700 : 500,
+              padding: isMobile ? '10px 14px' : '9px 18px', fontSize: 11, fontWeight: tab === key ? 700 : 500,
               color: tab === key ? 'var(--brand)' : 'var(--muted)',
               borderBottom: tab === key ? '2px solid var(--brand)' : '2px solid transparent',
               background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer',
               transition: 'all 0.15s', letterSpacing: '.2px',
               display: 'flex', alignItems: 'center', gap: 4,
+              minHeight: 44,
+              whiteSpace: 'nowrap',
             }}
           >
             {icon} {label}
@@ -498,18 +512,18 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                             <span className="pill warn" style={{ fontSize: 8, padding: '1px 6px' }}>{t('pendingStatus')}</span>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 6, width: isMobile ? '100%' : undefined }}>
                           <button
                             className="btn"
                             onClick={() => handleAcceptInvite(inv)}
-                            style={{ fontSize: 11, background: 'var(--good)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 700 }}
+                            style={{ fontSize: 11, background: 'var(--good)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 700, minHeight: 40, flex: isMobile ? 1 : undefined }}
                           >
                             ✓ {t('accept')}
                           </button>
                           <button
                             className="rowBtn"
                             onClick={() => handleRejectInvite(inv.id)}
-                            style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 700 }}
+                            style={{ fontSize: 11, color: 'var(--bad)', fontWeight: 700, minHeight: 40, flex: isMobile ? 1 : undefined }}
                           >
                             ✗ {t('reject')}
                           </button>
@@ -571,8 +585,8 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                             )}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button className="rowBtn" onClick={() => handleWithdrawInvite(inv.id)} style={{ fontSize: 10, color: 'var(--bad)' }}>
+                        <div style={{ display: 'flex', gap: 6, width: isMobile ? '100%' : undefined }}>
+                          <button className="rowBtn" onClick={() => handleWithdrawInvite(inv.id)} style={{ fontSize: 10, color: 'var(--bad)', minHeight: 40, width: isMobile ? '100%' : undefined }}>
                             ↩ {t('withdraw')}
                           </button>
                         </div>
@@ -593,6 +607,50 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                 <div className="empty">
                   <div className="empty-t">{t('noRelationships')}</div>
                   <div className="empty-s">{t('sendInviteToStart')}</div>
+                </div>
+              ) : isMobile ? (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {filteredRels.map(r => {
+                    const relDeals = agreements.filter(a => a.relationship_id === r.id && a.status !== 'cancelled');
+                    return (
+                      <div key={r.id} className="panel" style={{ padding: 10, borderRadius: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.counterparty_name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>@{r.counterparty_nickname || '—'}</div>
+                            <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                              {(t('code') || 'Code')}: {r.counterparty_code || '—'}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                            {statusPill(r.status)}
+                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{relDeals.length} {t('deals')}</span>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--muted)' }}>
+                          {(t('since') || 'Since')}: {new Date(r.created_at).toLocaleDateString()}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, marginTop: 10 }}>
+                          <button className="rowBtn" type="button" onClick={() => handleOpenRelationship(r.id)} style={{ minHeight: 40 }}>
+                            {t('openWorkspaceLabel')}
+                          </button>
+                          <button className="rowBtn" type="button" onClick={() => handleOpenOrders(r.id)} style={{ minHeight: 40 }}>
+                            {t('orders')}
+                          </button>
+                          <button
+                            className="rowBtn"
+                            type="button"
+                            onClick={() => {
+                              setTab('chat');
+                            }}
+                            style={{ minHeight: 40, gridColumn: '1 / -1' }}
+                          >
+                            {t('chatTab') || 'Chat'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="tableWrap">
@@ -664,31 +722,55 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
             <>
               {/* KPI row */}
               {settlementOverview && (
-                <div className="kpi-band" style={{ marginBottom: 10 }}>
-                  <div className="kpi-band-title">{t('settlementTracker')}</div>
-                  <div className="kpi-band-cols">
-                    <div>
-                      <div className="kpi-period">{t('dueNow')}</div>
-                      <div className="kpi-cell-val" style={{ color: settlementOverview.dueCount > 0 ? 'orange' : 'var(--muted)' }}>
-                        {settlementOverview.dueCount}
+                isMobile ? (
+                  <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>{t('settlementTracker')}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                      <div className="panel" style={{ padding: 8 }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('dueNow')}</div>
+                        <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: settlementOverview.dueCount > 0 ? 'orange' : 'var(--muted)' }}>{settlementOverview.dueCount}</div>
                       </div>
-                    </div>
-                    <div>
-                      <div className="kpi-period">{t('overdueSettlement')}</div>
-                      <div className="kpi-cell-val" style={{ color: settlementOverview.overdueCount > 0 ? 'var(--bad)' : 'var(--muted)' }}>
-                        {settlementOverview.overdueCount}
+                      <div className="panel" style={{ padding: 8 }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('overdueSettlement')}</div>
+                        <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: settlementOverview.overdueCount > 0 ? 'var(--bad)' : 'var(--muted)' }}>{settlementOverview.overdueCount}</div>
                       </div>
-                    </div>
-                    <div>
-                      <div className="kpi-period">{t('settledThisMonth')}</div>
-                      <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{settlementOverview.settledThisMonth}</div>
-                    </div>
-                    <div>
-                      <div className="kpi-period">{t('totalOutstandingLabel')}</div>
-                      <div className="kpi-cell-val">{fmtU(settlementOverview.totalOutstanding)}</div>
+                      <div className="panel" style={{ padding: 8 }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('settledThisMonth')}</div>
+                        <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: 'var(--good)' }}>{settlementOverview.settledThisMonth}</div>
+                      </div>
+                      <div className="panel" style={{ padding: 8 }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('totalOutstandingLabel')}</div>
+                        <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtU(settlementOverview.totalOutstanding)}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="kpi-band" style={{ marginBottom: 10 }}>
+                    <div className="kpi-band-title">{t('settlementTracker')}</div>
+                    <div className="kpi-band-cols">
+                      <div>
+                        <div className="kpi-period">{t('dueNow')}</div>
+                        <div className="kpi-cell-val" style={{ color: settlementOverview.dueCount > 0 ? 'orange' : 'var(--muted)' }}>
+                          {settlementOverview.dueCount}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="kpi-period">{t('overdueSettlement')}</div>
+                        <div className="kpi-cell-val" style={{ color: settlementOverview.overdueCount > 0 ? 'var(--bad)' : 'var(--muted)' }}>
+                          {settlementOverview.overdueCount}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="kpi-period">{t('settledThisMonth')}</div>
+                        <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{settlementOverview.settledThisMonth}</div>
+                      </div>
+                      <div>
+                        <div className="kpi-period">{t('totalOutstandingLabel')}</div>
+                        <div className="kpi-cell-val">{fmtU(settlementOverview.totalOutstanding)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
 
               {/* Grouped by relationship */}
@@ -700,43 +782,78 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
               ) : (
                 Array.from(settlementOverview.byRelationship.entries()).map(([relId, group]) => (
                   <div key={relId} className="panel" style={{ padding: 10, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>{group.name}</div>
-                      <button className="rowBtn" onClick={() => handleOpenRelationship(relId)} style={{ fontSize: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: 6, gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, minWidth: 0 }}>{group.name}</div>
+                      <button className="rowBtn" onClick={() => handleOpenRelationship(relId)} style={{ fontSize: 10, minHeight: isMobile ? 40 : undefined, width: isMobile ? '100%' : undefined }}>
                         {t('openWorkspace')} →
                       </button>
                     </div>
-                    <div className="tableWrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>{t('title') || 'Deal'}</th>
-                            <th>{t('period') || 'Period'}</th>
-                            <th>{t('settlementCadence')}</th>
-                            <th className="r">{t('partnerShare')}</th>
-                            <th>{t('status')}</th>
-                            <th>{t('dueDate') || 'Due'}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.items.map(item => {
-                            const statusCls = item.status === 'overdue' ? 'bad' : item.status === 'due' ? 'warn' : '';
-                            return (
-                              <tr key={item.period_id}>
-                                <td style={{ fontWeight: 700, fontSize: 11 }}>{item.deal_title}</td>
-                                <td className="mono" style={{ fontSize: 10 }}>{item.period_key}</td>
-                                <td style={{ fontSize: 10 }}>
-                                  {item.cadence === 'per_order' ? '⚡ ' + t('perTrade') : item.cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
-                                </td>
-                                <td className="mono r">{fmtU(item.partner_amount)}</td>
-                                <td><span className={`pill ${statusCls}`}>{item.status === 'overdue' ? '⚠️ ' : ''}{item.status}</span></td>
-                                <td className="mono" style={{ fontSize: 10 }}>{item.due_at ? new Date(item.due_at).toLocaleDateString() : '—'}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                    {isMobile ? (
+                      <div style={{ display: 'grid', gap: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))' }}>
+                        {group.items.map(item => {
+                          const statusCls = item.status === 'overdue' ? 'bad' : item.status === 'due' ? 'warn' : '';
+                          const cadenceLabel = item.cadence === 'per_order' ? '⚡ ' + t('perTrade') : item.cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly');
+                          return (
+                            <div key={item.period_id} className="previewBox" style={{ padding: 10 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                                <div style={{ fontWeight: 700, fontSize: 12, minWidth: 0 }}>{item.deal_title}</div>
+                                <span className={`pill ${statusCls}`} style={{ fontSize: 10 }}>{item.status === 'overdue' ? '⚠️ ' : ''}{item.status}</span>
+                              </div>
+                              <div style={{ display: 'grid', gap: 4 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                  <span className="muted">{t('period') || 'Period'}</span>
+                                  <span className="mono" style={{ fontSize: 11 }}>{item.period_key}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                  <span className="muted">{t('settlementCadence')}</span>
+                                  <span style={{ fontSize: 11 }}>{cadenceLabel}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                  <span className="muted">{t('partnerShare')}</span>
+                                  <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{fmtU(item.partner_amount)}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                  <span className="muted">{t('dueDate') || 'Due'}</span>
+                                  <span className="mono" style={{ fontSize: 11 }}>{item.due_at ? new Date(item.due_at).toLocaleDateString() : '—'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="tableWrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>{t('title') || 'Deal'}</th>
+                              <th>{t('period') || 'Period'}</th>
+                              <th>{t('settlementCadence')}</th>
+                              <th className="r">{t('partnerShare')}</th>
+                              <th>{t('status')}</th>
+                              <th>{t('dueDate') || 'Due'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.items.map(item => {
+                              const statusCls = item.status === 'overdue' ? 'bad' : item.status === 'due' ? 'warn' : '';
+                              return (
+                                <tr key={item.period_id}>
+                                  <td style={{ fontWeight: 700, fontSize: 11 }}>{item.deal_title}</td>
+                                  <td className="mono" style={{ fontSize: 10 }}>{item.period_key}</td>
+                                  <td style={{ fontSize: 10 }}>
+                                    {item.cadence === 'per_order' ? '⚡ ' + t('perTrade') : item.cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
+                                  </td>
+                                  <td className="mono r">{fmtU(item.partner_amount)}</td>
+                                  <td><span className={`pill ${statusCls}`}>{item.status === 'overdue' ? '⚠️ ' : ''}{item.status}</span></td>
+                                  <td className="mono" style={{ fontSize: 10 }}>{item.due_at ? new Date(item.due_at).toLocaleDateString() : '—'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
