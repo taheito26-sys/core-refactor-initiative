@@ -60,6 +60,14 @@ interface DaySummary {
 }
 
 type SnapshotTimestampMode = 'latest' | 'history';
+type HistoryRow = {
+  fetched_at: string | null;
+  ts_val: string | number | null;
+  sell_avg: string | number | null;
+  buy_avg: string | number | null;
+  spread_val: string | number | null;
+  spread_pct_val: string | number | null;
+};
 
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -245,13 +253,14 @@ export default function P2PTrackerPage() {
   const currentMarket = MARKETS.find(m => m.id === market)!;
 
   const loadFromDb = useCallback(async () => {
-    const { data: latestRow } = await supabase
+    const { data: latestRow, error: latestError } = await supabase
       .from('p2p_snapshots')
       .select('*')
       .eq('market', market)
       .order('fetched_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (latestError) throw latestError;
 
     if (latestRow?.data) {
       setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at, 'latest'));
@@ -263,13 +272,14 @@ export default function P2PTrackerPage() {
 
     // Fetch Qatar rates for cross-currency FX derivation
     if (market !== 'qatar') {
-      const { data: qatarRow } = await supabase
+      const { data: qatarRow, error: qatarError } = await supabase
         .from('p2p_snapshots')
         .select('data, fetched_at')
         .eq('market', 'qatar')
         .order('fetched_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (qatarError) throw qatarError;
       if (qatarRow?.data) {
         const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at, 'latest');
         setQatarRates(qSnap.sellAvg != null && qSnap.buyAvg != null
@@ -283,22 +293,23 @@ export default function P2PTrackerPage() {
     }
 
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: histRows } = await supabase
+    const { data: histRows, error: historyError } = await supabase
       .from('p2p_snapshots')
-      .select('data, fetched_at')
+      .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
       .eq('market', market)
       .gte('fetched_at', cutoff)
       .order('fetched_at', { ascending: true })
       .limit(5000);
+    if (historyError) throw historyError;
 
-    const historyPoints = (histRows || []).map((row: any) => {
-      const normalized = toSnapshot(row.data, row.fetched_at, 'history');
+    const historyPoints = ((histRows || []) as HistoryRow[]).map((row) => {
+      const ts = normalizeSnapshotTimestamp(row.ts_val, row.fetched_at ?? undefined, 'history');
       return {
-        ts: normalized.ts,
-        sellAvg: normalized.sellAvg,
-        buyAvg: normalized.buyAvg,
-        spread: normalized.spread,
-        spreadPct: normalized.spreadPct,
+        ts,
+        sellAvg: toFiniteNumber(row.sell_avg),
+        buyAvg: toFiniteNumber(row.buy_avg),
+        spread: toFiniteNumber(row.spread_val),
+        spreadPct: toFiniteNumber(row.spread_pct_val),
       };
     });
     setHistory(historyPoints);
