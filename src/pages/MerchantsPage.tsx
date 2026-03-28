@@ -9,12 +9,13 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { AgreementsGlobalTab } from '@/features/merchants/components/AgreementsGlobalTab';
+import { LiquidityTab } from '@/features/merchants/liquidity/LiquidityTab';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
 import '@/styles/tracker.css';
 
-type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat';
+type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat' | 'liquidity';
 
 interface AgreementRow {
   id: string;
@@ -52,7 +53,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
   const [tab, setTab] = useState<MerchantTab>(() => {
     const qTab = searchParams.get('tab');
-    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements') return qTab as MerchantTab;
+    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements' || qTab === 'liquidity') return qTab as MerchantTab;
     return 'relationships';
   });
   const [relationships, setRelationships] = useState<any[]>([]);
@@ -97,6 +98,10 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
   const handleOpenOrders = useCallback((relationshipId: string) => {
     navigate(`/trading/orders?relationship=${relationshipId}`);
+  }, [navigate]);
+
+  const handleOpenRelationshipChat = useCallback((relationshipId: string) => {
+    navigate(`/trading/merchants?tab=chat&relationship=${relationshipId}`);
   }, [navigate]);
 
   const loadData = async () => {
@@ -306,6 +311,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const activeAgreementCount = allAgreements.filter(a => a.status === 'approved' && isAgreementActive(a)).length;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
+    { key: 'liquidity', label: t('liquidityTab') || 'Liquidity', icon: '💧' },
     { key: 'agreements', label: t('profitShareAgreements'), icon: '🤝' },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
     { key: 'chat', label: t('chatTab') || 'Chat', icon: '💬', badge: unreadChatCount > 0 ? unreadChatCount : undefined },
@@ -632,6 +638,14 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                 </div>
               )}
             </>
+          )}
+
+          {tab === 'liquidity' && (
+            <LiquidityTab
+              onOpenRelationship={handleOpenRelationship}
+              onOpenChat={handleOpenRelationshipChat}
+              onOpenDeal={handleOpenOrders}
+            />
           )}
 
 
