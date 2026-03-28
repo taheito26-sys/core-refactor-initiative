@@ -23,3 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 .claude/launch.json
+
+# Capacitor native build outputs
+android/.gradle
+android/app/build
+android/build
+ios/App/App/public
+ios/App/build
+ios/DerivedData
