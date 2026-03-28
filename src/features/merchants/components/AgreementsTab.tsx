@@ -2,6 +2,7 @@
 // Manages Profit Share standing agreements for a merchant relationship.
 // This is the ONLY place where profit share agreements are created.
 // Agreements have 3 statuses: approved, rejected, expired.
+// Supports two agreement types: standard and operator_priority.
 
 import { useState } from 'react';
 import { useT } from '@/lib/i18n';
@@ -13,15 +14,18 @@ import {
   useUpdateAgreementStatus,
 } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
+import { buildOperatorPrioritySnapshot } from '@/lib/trading/operator-priority';
+import type { ProfitShareAgreementType } from '@/types/domain';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
 interface Props {
   relationshipId: string;
   counterpartyName?: string;
+  counterpartyMerchantId?: string;
 }
 
-export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
+export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMerchantId }: Props) {
   const t = useT();
   const { userId, merchantProfile } = useAuth();
   const { data: agreements = [], isLoading } = useProfitShareAgreements(relationshipId);
@@ -29,11 +33,18 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
   const updateStatus = useUpdateAgreementStatus();
 
   const [showForm, setShowForm] = useState(false);
+  const [agreementType, setAgreementType] = useState<ProfitShareAgreementType>('standard');
   const [partnerRatio, setPartnerRatio] = useState('50');
   const [cadence, setCadence] = useState<'monthly' | 'weekly' | 'per_order'>('monthly');
   const [effectiveFrom, setEffectiveFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [expiresAt, setExpiresAt] = useState('');
   const [notes, setNotes] = useState('');
+
+  // ── Operator Priority fields ──
+  const [operatorRatio, setOperatorRatio] = useState('20');
+  const [operatorIsMe, setOperatorIsMe] = useState(true);
+  const [operatorContribution, setOperatorContribution] = useState('');
+  const [lenderContribution, setLenderContribution] = useState('');
 
   // Group agreements by status
   const approved = agreements.filter(a => a.status === 'approved' && isAgreementActive(a));
@@ -47,7 +58,43 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
       return;
     }
 
+    // ── Operator Priority validation ──
+    if (agreementType === 'operator_priority') {
+      const opRatio = parseFloat(operatorRatio);
+      if (isNaN(opRatio) || opRatio < 0 || opRatio > 100) {
+        toast.error(t('operatorRatioRequired'));
+        return;
+      }
+      const opContrib = parseFloat(operatorContribution) || 0;
+      const lnContrib = parseFloat(lenderContribution) || 0;
+      if (opContrib + lnContrib <= 0) {
+        toast.error(t('contributionRequired'));
+        return;
+      }
+    }
+
+    const operatorMerchantId = operatorIsMe
+      ? merchantProfile?.merchant_id
+      : counterpartyMerchantId;
+
     try {
+      const opRatioNum = parseFloat(operatorRatio) || 0;
+      const opContribNum = parseFloat(operatorContribution) || 0;
+      const lnContribNum = parseFloat(lenderContribution) || 0;
+
+      // Build terms snapshot for operator priority
+      const termsSnapshot = agreementType === 'operator_priority'
+        ? buildOperatorPrioritySnapshot({
+            operator_merchant_id: operatorMerchantId || '',
+            operator_ratio: opRatioNum,
+            operator_contribution: opContribNum,
+            lender_contribution: lnContribNum,
+            partner_ratio: ratio,
+            merchant_ratio: 100 - ratio,
+            settlement_cadence: cadence,
+          })
+        : null;
+
       await createAgreement.mutateAsync({
         relationship_id: relationshipId,
         partner_ratio: ratio,
@@ -56,6 +103,15 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
         effective_from: new Date(effectiveFrom).toISOString(),
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
         notes: notes.trim() || null,
+        // Operator priority fields
+        agreement_type: agreementType,
+        ...(agreementType === 'operator_priority' ? {
+          operator_ratio: opRatioNum,
+          operator_merchant_id: operatorMerchantId || null,
+          operator_contribution: opContribNum,
+          lender_contribution: lnContribNum,
+          terms_snapshot: termsSnapshot,
+        } : {}),
       });
       toast.success(t('agreementCreatedSuccess'));
       setShowForm(false);
@@ -84,11 +140,16 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
   };
 
   const resetForm = () => {
+    setAgreementType('standard');
     setPartnerRatio('50');
     setCadence('monthly');
     setEffectiveFrom(new Date().toISOString().slice(0, 10));
     setExpiresAt('');
     setNotes('');
+    setOperatorRatio('20');
+    setOperatorIsMe(true);
+    setOperatorContribution('');
+    setLenderContribution('');
   };
 
   const statusPill = (status: string, isActive: boolean) => {
@@ -103,6 +164,13 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
     if (c === 'per_order') return t('perOrderCadence');
     if (c === 'weekly') return t('weeklyCadence');
     return t('monthlyCadence');
+  };
+
+  const agreementDisplayLabel = (a: any) => {
+    if (a.agreement_type === 'operator_priority') {
+      return `⚙️ ${t('operatorPriorityLabel')} · ${a.operator_ratio ?? 0}% ${t('feeLabel')}`;
+    }
+    return `🤝 ${a.partner_ratio}/${a.merchant_ratio}`;
   };
 
   if (isLoading) {
@@ -148,23 +216,54 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
         }}>
           <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>{t('newProfitShareAgreement')}</div>
 
-          {/* Quick presets */}
+          {/* ── Agreement Type Selector ── */}
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t('quickPresets')}</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[30, 40, 50, 60, 70].map(r => (
-                <button
-                  key={r}
-                  className={`pill ${partnerRatio === String(r) ? 'good' : ''}`}
-                  style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 10, fontWeight: 700 }}
-                  onClick={() => setPartnerRatio(String(r))}
-                >
-                  {r}/{100 - r}
-                </button>
-              ))}
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+              {t('agreementTypeLabel')}
             </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className={`pill ${agreementType === 'standard' ? 'good' : ''}`}
+                style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 10, fontWeight: 700 }}
+                onClick={() => setAgreementType('standard')}
+              >
+                🤝 {t('standardProfitShare')}
+              </button>
+              <button
+                className={`pill ${agreementType === 'operator_priority' ? 'good' : ''}`}
+                style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 10, fontWeight: 700 }}
+                onClick={() => setAgreementType('operator_priority')}
+              >
+                ⚙️ {t('operatorPriorityLabel')}
+              </button>
+            </div>
+            {agreementType === 'operator_priority' && (
+              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+                {t('operatorPriorityDesc')}
+              </div>
+            )}
           </div>
 
+          {/* Quick presets (standard only) */}
+          {agreementType === 'standard' && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t('quickPresets')}</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[30, 40, 50, 60, 70].map(r => (
+                  <button
+                    key={r}
+                    className={`pill ${partnerRatio === String(r) ? 'good' : ''}`}
+                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 10, fontWeight: 700 }}
+                    onClick={() => setPartnerRatio(String(r))}
+                  >
+                    {r}/{100 - r}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Standard ratio fields */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
@@ -195,6 +294,96 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
               </div>
             </div>
           </div>
+
+          {/* ── Operator Priority Conditional Fields ── */}
+          {agreementType === 'operator_priority' && (
+            <div style={{
+              padding: 12, borderRadius: 6, marginBottom: 10,
+              border: '1px solid color-mix(in srgb, var(--warn) 30%, transparent)',
+              background: 'color-mix(in srgb, var(--warn) 4%, transparent)',
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 8, color: 'var(--warn)' }}>
+                ⚙️ {t('operatorPriorityLabel')}
+              </div>
+
+              {/* Operator merchant selector */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
+                  {t('operatorMerchantLabel')}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className={`pill ${operatorIsMe ? 'good' : ''}`}
+                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 10 }}
+                    onClick={() => setOperatorIsMe(true)}
+                  >
+                    {t('youAreOperator')}
+                  </button>
+                  <button
+                    className={`pill ${!operatorIsMe ? 'good' : ''}`}
+                    style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 10 }}
+                    onClick={() => setOperatorIsMe(false)}
+                  >
+                    {t('partnerIsOperator')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Operator fee ratio */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
+                  {t('operatorRatioLabel')}
+                </div>
+                <div className="inputBox" style={{ padding: '6px 10px' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={operatorRatio}
+                    onChange={e => setOperatorRatio(e.target.value)}
+                    style={{ fontWeight: 700 }}
+                  />
+                </div>
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                  {t('operatorRatioHint')}
+                </div>
+              </div>
+
+              {/* Capital contributions */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
+                    {t('operatorContribLabel')}
+                  </div>
+                  <div className="inputBox" style={{ padding: '6px 10px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={operatorContribution}
+                      onChange={e => setOperatorContribution(e.target.value)}
+                      placeholder="0"
+                      style={{ fontWeight: 700 }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
+                    {t('lenderContribLabel')}
+                  </div>
+                  <div className="inputBox" style={{ padding: '6px 10px' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={lenderContribution}
+                      onChange={e => setLenderContribution(e.target.value)}
+                      placeholder="0"
+                      style={{ fontWeight: 700 }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
@@ -231,16 +420,30 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
           </div>
 
           {/* Preview */}
-          <div style={{
-            padding: '8px 12px', borderRadius: 6, marginBottom: 10,
-            background: 'color-mix(in srgb, var(--good) 8%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
-            fontSize: 10,
-          }}>
-            <strong>{t('previewAgreement')}</strong> {t('profitShareLabel')} {partnerRatio}/{100 - (parseFloat(partnerRatio) || 0)} —
-            {counterpartyName || t('partner')} {t('gets')} {partnerRatio}% {t('ofNetProfit')}, {t('you')} {t('keeps')} {100 - (parseFloat(partnerRatio) || 0)}%.
-            {t('settlement')}: {cadenceLabel(cadence)}.
-          </div>
+          {agreementType === 'standard' ? (
+            <div style={{
+              padding: '8px 12px', borderRadius: 6, marginBottom: 10,
+              background: 'color-mix(in srgb, var(--good) 8%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
+              fontSize: 10,
+            }}>
+              <strong>{t('previewAgreement')}</strong> {t('profitShareLabel')} {partnerRatio}/{100 - (parseFloat(partnerRatio) || 0)} —
+              {counterpartyName || t('partner')} {t('gets')} {partnerRatio}% {t('ofNetProfit')}, {t('you')} {t('keeps')} {100 - (parseFloat(partnerRatio) || 0)}%.
+              {t('settlement')}: {cadenceLabel(cadence)}.
+            </div>
+          ) : (
+            <div style={{
+              padding: '8px 12px', borderRadius: 6, marginBottom: 10,
+              background: 'color-mix(in srgb, var(--warn) 8%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--warn) 20%, transparent)',
+              fontSize: 10, lineHeight: 1.6,
+            }}>
+              <strong>{t('previewAgreement')}</strong><br />
+              ① {t('operatorFeeFirst')}: {operatorRatio}% → {operatorIsMe ? t('you') : (counterpartyName || t('partner'))}<br />
+              ② {t('thenCapitalSplit')}: {operatorContribution || '0'} vs {lenderContribution || '0'}<br />
+              {t('settlement')}: {cadenceLabel(cadence)}.
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={handleCreate} disabled={createAgreement.isPending}>
@@ -274,10 +477,18 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
                   <tr key={a.id}>
                     <td>
                       <div style={{ fontWeight: 700, fontSize: 11 }}>
-                        🤝 {a.partner_ratio}/{a.merchant_ratio}
+                        {agreementDisplayLabel(a)}
                       </div>
                       <div style={{ fontSize: 9, color: 'var(--muted)' }}>
-                        {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}%
+                        {a.agreement_type === 'operator_priority' ? (
+                          <>
+                            {t('operatorFeeFirst')} {a.operator_ratio}% · {t('thenCapitalSplit')}
+                          </>
+                        ) : (
+                          <>
+                            {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}%
+                          </>
+                        )}
                       </div>
                     </td>
                     <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
@@ -318,7 +529,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
               <tbody>
                 {expired.map(a => (
                   <tr key={a.id} style={{ opacity: 0.7 }}>
-                    <td style={{ fontWeight: 700, fontSize: 11 }}>🤝 {a.partner_ratio}/{a.merchant_ratio}</td>
+                    <td style={{ fontWeight: 700, fontSize: 11 }}>{agreementDisplayLabel(a)}</td>
                     <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
                     <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
                     <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
@@ -350,7 +561,7 @@ export function AgreementsTab({ relationshipId, counterpartyName }: Props) {
               <tbody>
                 {rejected.map(a => (
                   <tr key={a.id} style={{ opacity: 0.5 }}>
-                    <td style={{ fontWeight: 700, fontSize: 11 }}>🤝 {a.partner_ratio}/{a.merchant_ratio}</td>
+                    <td style={{ fontWeight: 700, fontSize: 11 }}>{agreementDisplayLabel(a)}</td>
                     <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
                     <td className="mono" style={{ fontSize: 10 }}>{new Date(a.created_at).toLocaleDateString()}</td>
                     <td>{statusPill('rejected', false)}</td>
