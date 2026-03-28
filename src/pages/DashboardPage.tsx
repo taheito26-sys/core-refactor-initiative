@@ -487,9 +487,9 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                   💹 NEW
                 </span>
               </div>
-              <div className="kpi-lbl">ROI</div>
+              <div className="kpi-lbl">{t('roiLabel')}</div>
               <div className={`kpi-val ${roiVal >= 0 ? 'good' : 'bad'}`}>{fmtPrice(roiVal)}%</div>
-              <div className="kpi-sub">{t('netProfitLabel')} ÷ total invested</div>
+              <div className="kpi-sub">{t('roiSub')}</div>
               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span
                   className="kpi-badge"
@@ -539,9 +539,9 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                   ⏱️ NEW
                 </span>
               </div>
-              <div className="kpi-lbl">AVG CYCLE TIME</div>
+              <div className="kpi-lbl">{t('avgCycleTime')}</div>
               <div className="kpi-val" style={{ color: 'var(--warn)' }}>{cycleHours !== null ? `${fmtTotal(cycleHours)}h` : '—'}</div>
-              <div className="kpi-sub">Batch purchase → FIFO sell</div>
+              <div className="kpi-sub">{t('avgCycleTimeSub')}</div>
               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>FIFO</span>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Stock</span>
@@ -571,9 +571,9 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                   📅 NEW
                 </span>
               </div>
-              <div className="kpi-lbl">TRADE VELOCITY</div>
+              <div className="kpi-lbl">{t('tradeVelocity')}</div>
               <div className="kpi-val" style={{ color: 'var(--brand)' }}>{fmtPrice(velocity)}</div>
-              <div className="kpi-sub">Trades per day (7D avg)</div>
+              <div className="kpi-sub">{t('tradeVelocitySub')}</div>
               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>7D avg</span>
                 <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Orders</span>
@@ -600,7 +600,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 📤 {merchantDealKpis.outCount} deals
               </span>
             </div>
-            <div className="kpi-lbl">Outgoing Net</div>
+            <div className="kpi-lbl">{t('outgoingNet')}</div>
             <div className={`kpi-val ${merchantDealKpis.outNet >= 0 ? 'good' : 'bad'}`}>
               {merchantDealKpis.outNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outNet)}
             </div>
@@ -616,7 +616,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 📥 {merchantDealKpis.inCount} deals
               </span>
             </div>
-            <div className="kpi-lbl">Incoming Net</div>
+            <div className="kpi-lbl">{t('incomingNet')}</div>
             <div className={`kpi-val ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`}>
               {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
             </div>
