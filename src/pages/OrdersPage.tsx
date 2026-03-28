@@ -1281,6 +1281,103 @@ export default function OrdersPage() {
     return { count: creatorMerchantDeals.length, vol, net: netVal };
   }, [creatorMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
+  const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
+    const rel = relationships.find(r => r.id === deal.relationship_id);
+    const row = buildDealRowModel({ deal, perspective, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+    const merchantName = rel?.counterparty?.display_name || '—';
+
+    const statusColors: Record<string, { bg: string; color: string }> = {
+      pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
+      approved: { bg: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' },
+      rejected: { bg: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)' },
+      cancelled: { bg: 'color-mix(in srgb, var(--muted) 15%, transparent)', color: 'var(--muted)' },
+    };
+    const sc = statusColors[deal.status] || statusColors.pending;
+    const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—';
+
+    return (
+      <div key={`mobile-${deal.id}`} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+          <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="mono">{row.dateLabel}</span>
+            <span className="pill" style={{ fontSize: 9, background: sc.bg, color: sc.color, fontWeight: 700 }}>{deal.status}</span>
+            <span className="pill" style={{ fontSize: 9, color: 'var(--brand)' }}>{row.familyIcon} {row.familyLabel}</span>
+            {row.splitLabel && <span className="pill" style={{ fontSize: 9, color: 'var(--brand)' }}>{row.splitLabel}</span>}
+          </div>
+          {row.margin != null && <span className="pill" style={{ fontSize: 9 }}>{marginLabel}</span>}
+        </div>
+
+        <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('merchant')}</span>
+            <strong style={{ fontSize: 11, textAlign: 'right' }}>{merchantName}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('buyer')}</span>
+            <strong style={{ fontSize: 11, textAlign: 'right' }}>{row.buyer || '—'}</strong>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(row.quantity)}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(row.volume)}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('net')}</span>
+            {!row.hasAvgBuy ? (
+              <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
+            ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
+              <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
+                {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+              </span>
+            ) : (
+              <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
+                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+          {perspective === 'incoming' && deal.status === 'pending' && (
+            <>
+              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700, minHeight: 40 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
+              <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
+            </>
+          )}
+          {perspective === 'incoming' && deal.status === 'approved' && (
+            <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>✅ {t('approvedStatus')}</span>
+          )}
+          {perspective === 'incoming' && deal.status === 'rejected' && (
+            <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>❌ {t('rejectedStatus')}</span>
+          )}
+
+          {perspective === 'outgoing' && deal.status === 'pending' && (
+            <>
+              <button className="rowBtn" onClick={() => openDealEdit(deal)} style={{ minHeight: 40 }}>{t('edit')}</button>
+              <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+            </>
+          )}
+          {perspective === 'outgoing' && deal.status === 'approved' && (
+            <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+          )}
+        </div>
+      </div>
+    );
+  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit]);
+
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of partnerMerchantDeals) {
@@ -1353,6 +1450,10 @@ export default function OrdersPage() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noTradesYet')}</div>
                   <div className="empty-s">{t('addBatchThenSale')}</div>
+                </div>
+              ) : isMobile ? (
+                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                  {creatorMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1446,6 +1547,10 @@ export default function OrdersPage() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noIncomingTrades')}</div>
                   <div className="empty-s">{t('incomingTradesDesc')}</div>
+                </div>
+              ) : isMobile ? (
+                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                  {partnerMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1558,6 +1663,10 @@ export default function OrdersPage() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
                   <div className="empty-s">{t('outgoingTradesDesc')}</div>
+                </div>
+              ) : isMobile ? (
+                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                  {creatorMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
