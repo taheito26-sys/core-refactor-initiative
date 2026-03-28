@@ -77,6 +77,8 @@ const translations = {
   incomingDealsLabel: { en: 'Incoming Deals', ar: 'الصفقات الواردة' },
   myCutLabel: { en: 'My cut', ar: 'حصتي' },
   combinedTotal: { en: 'COMBINED TOTAL', ar: 'المجموع الكلي' },
+  tapExpand: { en: 'tap to expand', ar: 'اضغط للتوسيع' },
+  collapseLbl: { en: 'collapse', ar: 'طي' },
   profitRevenueTrend: { en: 'Profit & Revenue Trend', ar: 'اتجاه الربح والإيرادات' },
   last14Trades: { en: 'Last 14 trades', ar: 'آخر 14 صفقة' },
   chartRendersLive: { en: 'Chart renders with live trade data', ar: 'الرسم البياني يعمل مع بيانات حية' },
