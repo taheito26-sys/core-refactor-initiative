@@ -484,7 +484,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'roi')}>
               <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
-                  💹 NEW
+                  💹
                 </span>
               </div>
               <div className="kpi-lbl">{t('roiLabel')}</div>
@@ -536,7 +536,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'cycle')}>
               <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>
-                  ⏱️ NEW
+                  ⏱️
                 </span>
               </div>
               <div className="kpi-lbl">{t('avgCycleTime')}</div>
@@ -568,7 +568,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'velocity')}>
               <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>
-                  📅 NEW
+                  📅
                 </span>
               </div>
               <div className="kpi-lbl">{t('tradeVelocity')}</div>
