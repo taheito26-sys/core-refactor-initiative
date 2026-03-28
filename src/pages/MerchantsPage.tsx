@@ -636,86 +636,12 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
           {/* ═══ AGREEMENTS TAB ═══ */}
           {tab === 'agreements' && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{t('profitShareAgreements')}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    {t('standingAgreementsAllRels')} · {activeAgreementCount} {t('active')}
-                  </div>
-                </div>
-              </div>
-
-              {/* Info Banner */}
-              <div style={{
-                padding: '8px 12px', borderRadius: 6, fontSize: 10, lineHeight: 1.5, marginBottom: 10,
-                background: 'color-mix(in srgb, var(--brand) 6%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)',
-                color: 'var(--muted)',
-              }}>
-                <strong style={{ color: 'var(--brand)' }}>{t('profitShareAgreementsGlobal')}</strong> {t('agreementsCreatedInWorkspace')}
-              </div>
-
-              {allAgreements.length === 0 ? (
-                <div className="empty">
-                  <div className="empty-t">{t('noAgreementsGlobal')}</div>
-                  <div className="empty-s">{t('openMerchantToCreate')}</div>
-                </div>
-              ) : (
-                <div className="tableWrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t('merchant') || 'Merchant'}</th>
-                        <th>{t('agreement')}</th>
-                        <th>{t('cadence')}</th>
-                        <th>{t('effective')}</th>
-                        <th>{t('expires')}</th>
-                        <th>{t('status')}</th>
-                        <th>{t('actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allAgreements.map(a => {
-                        const rel = relationships.find((r: any) => r.id === a.relationship_id);
-                        const cpName = rel?.counterparty_name || '—';
-                        const active = a.status === 'approved' && isAgreementActive(a);
-                        const statusCls = active ? 'good' : a.status === 'rejected' ? 'bad' : 'warn';
-                        const statusLabel = active ? t('activeStatus') : a.status === 'rejected' ? t('rejectedStatus') : a.status === 'expired' ? t('expiredStatus') : t('inactiveStatus');
-                        return (
-                          <tr key={a.id} style={{ opacity: active ? 1 : 0.6 }}>
-                            <td>
-                              <div style={{ fontWeight: 700, fontSize: 11 }}>{cpName}</div>
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: 700, fontSize: 11 }}>
-                                🤝 {a.partner_ratio}/{a.merchant_ratio}
-                              </div>
-                              <div style={{ fontSize: 9, color: 'var(--muted)' }}>
-                                {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}%
-                              </div>
-                            </td>
-                            <td style={{ fontSize: 10 }}>
-                              {a.settlement_cadence === 'per_order' ? t('perOrderCadence') : a.settlement_cadence === 'weekly' ? t('weeklyCadence') : t('monthlyCadence')}
-                            </td>
-                            <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
-                            <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
-                            <td><span className={`pill ${statusCls}`}>{statusLabel}</span></td>
-                            <td>
-                              {rel && (
-                                <button className="rowBtn" onClick={() => handleOpenRelationship(rel.id)}>
-                                  {t('openWorkspaceLabel')}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
+            <AgreementsGlobalTab
+              relationships={relationships}
+              allAgreements={allAgreements}
+              activeAgreementCount={activeAgreementCount}
+              onOpenRelationship={handleOpenRelationship}
+            />
           )}
 
           {/* ═══ SETTLEMENTS TAB ═══ */}
