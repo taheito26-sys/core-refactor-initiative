@@ -804,6 +804,7 @@ const translations = {
   // ── P2P Tracker Page ──
   p2pBestSell: { en: 'BEST SELL', ar: 'أفضل بيع' },
   p2pSellAvgTop5: { en: 'SELL AVG (TOP 5)', ar: 'متوسط البيع (أفضل 5)' },
+  p2pSellAvgTop10: { en: 'SELL AVG (TOP 10)', ar: 'متوسط البيع (أفضل 10)' },
   p2pBestRestock: { en: 'BEST RESTOCK', ar: 'أفضل إعادة تخزين' },
   p2pSpread: { en: 'SPREAD', ar: 'الفارق' },
   p2pTodayHighSell: { en: 'TODAY HIGH SELL', ar: 'أعلى بيع اليوم' },
@@ -821,7 +822,9 @@ const translations = {
   p2pSellAvgLabel: { en: 'Sell Avg', ar: 'متوسط البيع' },
   p2pBuyAvgLabel: { en: 'Buy Avg', ar: 'متوسط الشراء' },
   p2pSellAvgTop5Label: { en: 'Sell Avg (Top 5)', ar: 'متوسط البيع (أفضل 5)' },
+  p2pSellAvgTop10Label: { en: 'Sell Avg (Top 10)', ar: 'متوسط البيع (أفضل 10)' },
   p2pBuyAvgTop5Label: { en: 'Buy Avg (Top 5)', ar: 'متوسط الشراء (أفضل 5)' },
+  p2pBuyAvgTop10Label: { en: 'Buy Avg (Top 10)', ar: 'متوسط الشراء (أفضل 10)' },
   p2pSellDepth: { en: 'Sell Depth', ar: 'عمق البيع' },
   p2pBuyDepth: { en: 'Buy Depth', ar: 'عمق الشراء' },
   p2pProfitIfSoldLabel: { en: 'Profit if sold now', ar: 'الربح لو بيع الآن' },

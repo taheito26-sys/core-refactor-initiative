@@ -776,7 +776,7 @@ export default function P2PTrackerPage() {
             <div className="kpi-sub">{t('p2pTopSell')} {ccy}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">{t('p2pSellAvgTop5')}</div>
+            <div className="kpi-lbl">{t(market === 'qatar' ? 'p2pSellAvgTop5' : 'p2pSellAvgTop10')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}</div>
             <div className="kpi-sub" style={{ color: 'var(--good)' }}>
               {snapshot.spreadPct ? `+${fmtPrice(snapshot.spreadPct)}% ${t('p2pSpreadLabel').toLowerCase()}` : t('p2pLiveWeightedAvg')}
