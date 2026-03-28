@@ -17,14 +17,16 @@ export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: Liq
   const t = useT();
   const {
     isLoading,
+    isError,
+    error,
     myProfile,
     internal,
     saveProfile,
     isSaving,
-    boardEntries,
     overview,
     filter,
     rank,
+    liquidityTableMissing,
   } = useMerchantLiquidity();
 
   const [filters, setFilters] = useState<LiquidityFilters>({
@@ -75,12 +77,30 @@ export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: Liq
     return <span className="mono" style={{ fontWeight: 700 }}>{fmtU(side.exactAmount || 0)}</span>;
   };
 
-  if (isLoading || !myProfile || !draft) {
+  if (isLoading) {
     return <div className="empty"><div className="empty-t">{t('loadingLiquidityWorkspace') || 'Loading liquidity workspace…'}</div></div>;
+  }
+  if (isError) {
+    return (
+      <div className="empty">
+        <div className="empty-t">{t('liquidityLoadFailed') || 'Failed to load liquidity workspace.'}</div>
+        <div className="empty-s">{(error as Error | null)?.message || (t('liquidityLoadFailedHint') || 'Please refresh and try again.')}</div>
+      </div>
+    );
+  }
+  if (!myProfile || !draft) {
+    return <div className="empty"><div className="empty-t">{t('liquidityProfileUnavailable') || 'Liquidity profile unavailable.'}</div></div>;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {liquidityTableMissing && (
+        <div className="panel" style={{ padding: 10, borderColor: 'var(--warn)' }}>
+          <div style={{ fontSize: 11, color: 'var(--warn)' }}>
+            {t('liquidityMigrationRequired') || 'Liquidity data table is not installed yet. Apply the latest migration to enable publishing.'}
+          </div>
+        </div>
+      )}
       <div className="kpi-band">
         <div className="kpi-band-title">{t('liquidityMarketOverview') || 'Liquidity Market Overview'}</div>
         <div className="kpi-band-cols" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
@@ -214,6 +234,7 @@ export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: Liq
             onRangeMaxChange={(v) => setDraft((s) => s ? ({ ...s, cashRangeMax: v }) : s)}
             onStatusChange={(v) => setDraft((s) => s ? ({ ...s, cashStatus: v }) : s)}
             onReserveBufferChange={(v) => setDraft((s) => s ? ({ ...s, reserveBufferCash: v }) : s)}
+            t={t}
           />
 
           <SideEditor
@@ -232,6 +253,7 @@ export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: Liq
             onRangeMaxChange={(v) => setDraft((s) => s ? ({ ...s, usdtRangeMax: v }) : s)}
             onStatusChange={(v) => setDraft((s) => s ? ({ ...s, usdtStatus: v }) : s)}
             onReserveBufferChange={(v) => setDraft((s) => s ? ({ ...s, reserveBufferUsdt: v }) : s)}
+            t={t}
           />
         </div>
 
@@ -271,9 +293,11 @@ interface SideEditorProps {
   onRangeMaxChange: (value: number | null) => void;
   onStatusChange: (value: LiquidityStatus) => void;
   onReserveBufferChange: (value: number) => void;
+  t: (key: string, vars?: Record<string, any>) => string;
 }
 
 function SideEditor(props: SideEditorProps) {
+  const t = props.t;
   return (
     <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 10, display: 'grid', gap: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

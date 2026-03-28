@@ -983,6 +983,10 @@ const translations = {
   liquidityStatusAvailable: { en: 'Available', ar: 'متاح' },
   liquidityStatusLimited: { en: 'Limited', ar: 'محدود' },
   liquidityStatusUnavailable: { en: 'Unavailable', ar: 'غير متاح' },
+  liquidityLoadFailed: { en: 'Failed to load liquidity workspace.', ar: 'فشل تحميل مساحة السيولة.' },
+  liquidityLoadFailedHint: { en: 'Please refresh and try again.', ar: 'يرجى التحديث والمحاولة مرة أخرى.' },
+  liquidityProfileUnavailable: { en: 'Liquidity profile unavailable.', ar: 'ملف السيولة غير متاح.' },
+  liquidityMigrationRequired: { en: 'Liquidity data table is not installed yet. Apply the latest migration to enable publishing.', ar: 'جدول بيانات السيولة غير مُثبت بعد. طبّق آخر ترحيل لتفعيل النشر.' },
 
   // ── Settlement & P&L Distribution (Task 3-4) ──
   settlements: { en: 'Settlements', ar: 'التسويات' },

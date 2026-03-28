@@ -82,14 +82,12 @@ export function useMerchantLiquidity() {
 
       if (relationshipsRes.error) throw relationshipsRes.error;
       if (profilesRes.error) throw profilesRes.error;
-      if (postingsRes.error) throw postingsRes.error;
-      if (accountsRes.error) throw accountsRes.error;
-      if (ledgerRes.error) throw ledgerRes.error;
-      if (allocationsRes.error) throw allocationsRes.error;
+      const liquidityTableMissing = postingsRes.error?.code === '42P01';
+      if (postingsRes.error && !liquidityTableMissing) throw postingsRes.error;
 
       const relationships = (relationshipsRes.data || []) as MerchantRelationship[];
       const profiles = profilesRes.data || [];
-      const postings = (postingsRes.data || []) as any[];
+      const postings = ((liquidityTableMissing ? [] : postingsRes.data) || []) as any[];
 
       const profileMap = new Map(profiles.map((p: any) => [p.merchant_id, p]));
       const relByCounterparty = new Map<string, MerchantRelationship>();
@@ -99,14 +97,14 @@ export function useMerchantLiquidity() {
         relByCounterparty.set(cp, rel);
       }
 
-      const activeAccountIds = new Set((accountsRes.data || []).filter((a: any) => a.status === 'active').map((a: any) => a.id));
-      const cashAvailable = (ledgerRes.data || []).reduce((sum: number, row: any) => {
+      const activeAccountIds = new Set(((accountsRes.error ? [] : accountsRes.data) || []).filter((a: any) => a.status === 'active').map((a: any) => a.id));
+      const cashAvailable = ((ledgerRes.error ? [] : ledgerRes.data) || []).reduce((sum: number, row: any) => {
         if (!activeAccountIds.has(row.account_id)) return sum;
         const signed = row.direction === 'in' ? Number(row.amount || 0) : -Number(row.amount || 0);
         return sum + signed;
       }, 0);
 
-      const reservedUsdt = (allocationsRes.data || []).reduce((sum: number, row: any) => {
+      const reservedUsdt = ((allocationsRes.error ? [] : allocationsRes.data) || []).reduce((sum: number, row: any) => {
         if (row.status === 'void' || row.status === 'cancelled') return sum;
         return sum + Number(row.allocated_usdt || 0);
       }, 0);
@@ -223,6 +221,7 @@ export function useMerchantLiquidity() {
         myProfile: profile,
         internal,
         relationships,
+        liquidityTableMissing,
       };
     },
     staleTime: 20_000,
@@ -289,6 +288,7 @@ export function useMerchantLiquidity() {
     myProfile: query.data?.myProfile,
     internal: query.data?.internal,
     relationships: query.data?.relationships || [],
+    liquidityTableMissing: query.data?.liquidityTableMissing || false,
     saveProfile: saveMutation.mutateAsync,
     isSaving: saveMutation.isPending,
     ...helpers,
