@@ -64,7 +64,7 @@ export function useMerchantLiquidity() {
           .from('merchant_profiles')
           .select('merchant_id, display_name, region'),
         supabase
-          .from('merchant_liquidity_profiles' as any)
+          .from('merchant_liquidity_profiles')
           .select('*'),
         supabase
           .from('cash_accounts')
@@ -255,7 +255,7 @@ export function useMerchantLiquidity() {
       };
 
       const { error } = await supabase
-        .from('merchant_liquidity_profiles' as any)
+        .from('merchant_liquidity_profiles')
         .upsert(payload, { onConflict: 'merchant_id' });
 
       if (error) throw error;
