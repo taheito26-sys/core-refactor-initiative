@@ -406,6 +406,20 @@ export default function OrdersPage() {
   const submitCapitalTransfer = useSubmitCapitalTransfer();
   const mobileInputStyle = isMobile ? { fontSize: 16, minHeight: 42 } : undefined;
   const mobileActionStyle = isMobile ? { minHeight: 42, fontSize: 12 } : undefined;
+  const mobileDialogContentStyle = isMobile
+    ? {
+        maxWidth: '96vw',
+        width: '96vw',
+        maxHeight: '92dvh',
+        overflowY: 'auto' as const,
+        borderRadius: 12,
+        padding: 14,
+        paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
+      }
+    : undefined;
+  const mobileDialogFooterStyle = isMobile
+    ? { gap: 8, flexDirection: 'column-reverse' as const, alignItems: 'stretch' as const }
+    : undefined;
 
   const handleCapitalTransfer = async () => {
     if (!linkedRelId) { toast.error(t('selectPartnerFirst')); return; }
@@ -2277,7 +2291,7 @@ export default function OrdersPage() {
                                       <select
                                         value={transferDirection}
                                         onChange={e => setTransferDirection(e.target.value as any)}
-                                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                        style={{ width: '100%', padding: isMobile ? '9px 10px' : '4px 6px', fontSize: isMobile ? 13 : 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
                                       >
                                         <option value="lender_to_operator">💸 {cpName} → {myName}</option>
                                         <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
@@ -2288,16 +2302,16 @@ export default function OrdersPage() {
                                 <div className="field2">
                                   <div className="lbl">USDT {t('amount')}</div>
                                   <div className="inputBox">
-                                    <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" />
+                                    <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" style={mobileInputStyle} />
                                   </div>
                                 </div>
                                 <div className="field2" style={{ marginTop: 6 }}>
                                   <div className="lbl">{t('noteOptional')}</div>
                                   <div className="inputBox">
-                                    <input value={transferNote} onChange={e => setTransferNote(e.target.value)} placeholder={t('noteOptional')} />
+                                    <input value={transferNote} onChange={e => setTransferNote(e.target.value)} placeholder={t('noteOptional')} style={mobileInputStyle} />
                                   </div>
                                 </div>
-                                <button className="btn" style={{ marginTop: 8, width: '100%' }} onClick={handleCapitalTransfer} disabled={submitCapitalTransfer.isPending}>
+                                <button className="btn" style={{ marginTop: 8, width: '100%', minHeight: isMobile ? 44 : undefined, fontSize: isMobile ? 13 : undefined }} onClick={handleCapitalTransfer} disabled={submitCapitalTransfer.isPending}>
                                   💸 {t('submitTransfer')}
                                 </button>
                               </div>
@@ -2627,6 +2641,48 @@ export default function OrdersPage() {
                     <div style={{ fontWeight: 700, marginBottom: 4 }}>{t('noTransfers')}</div>
                     <div style={{ fontSize: 10 }}>{t('createTransferDesc')}</div>
                   </div>
+                ) : isMobile ? (
+                  <div style={{ display: 'grid', gap: 8, paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                    {allTransfers.map((tx: any) => {
+                      const rel = relationships.find(r => r.id === tx.relationship_id);
+                      const isIn = tx.direction === 'lender_to_operator';
+                      return (
+                        <div key={tx.id} className="previewBox" style={{ padding: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span className="mono" style={{ fontSize: 10 }}>{new Date(tx.created_at).toLocaleDateString()}</span>
+                            <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10 }}>
+                              {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
+                            </span>
+                          </div>
+                          <div style={{ display: 'grid', gap: 4 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                              <span className="muted">{t('merchant')}</span>
+                              <strong style={{ fontSize: 11, textAlign: 'right' }}>{rel?.counterparty?.display_name || '—'}</strong>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+                              <div className="panel" style={{ padding: 6 }}>
+                                <div className="muted" style={{ fontSize: 9 }}>USDT</div>
+                                <div className="mono" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
+                                  {isIn ? '+' : '−'}{fmtU(tx.amount)}
+                                </div>
+                              </div>
+                              <div className="panel" style={{ padding: 6 }}>
+                                <div className="muted" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
+                                <div className="mono" style={{ fontWeight: 700 }}>{fmtP(tx.cost_basis)} QAR</div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                              <span className="muted">{t('totalCostQar')}</span>
+                              <strong className="mono">{fmtQ(tx.total_cost)}</strong>
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', wordBreak: 'break-word' }}>
+                              {tx.note || '—'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="tableWrap">
                     <table>
@@ -2693,7 +2749,7 @@ export default function OrdersPage() {
         const isApproved = editingTrade?.approvalStatus === 'approved';
         return (
           <Dialog open={!!editingTradeId} onOpenChange={open => !open && setEditingTradeId(null)}>
-            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
               <DialogHeader style={{ marginBottom: 14 }}>
                 <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('correctTradeTitle')}</DialogTitle>
               </DialogHeader>
@@ -2728,13 +2784,13 @@ export default function OrdersPage() {
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('dateTime')}</div>
-                <div className="inputBox"><input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} disabled={isApproved} /></div>
+                <div className="inputBox"><input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} disabled={isApproved} style={mobileInputStyle} /></div>
               </div>
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('buyerLabel')}</div>
                 <select value={editCustomerId} onChange={e => setEditCustomerId(e.target.value)} disabled={isApproved}
-                  style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                  style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="">{t('noCustomerSelected')}</option>
                   {state.customers.map(c => (
@@ -2746,18 +2802,18 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t('sellPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={numericOnly(setEditSell)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={numericOnly(setEditSell)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
               </div>
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('feeQarLabel')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={numericOnly(setEditFee)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={numericOnly(setEditFee)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6, gap: 10 }}>
                   <input type="checkbox" id="editUsesStockChk" checked={editUsesStock} onChange={e => setEditUsesStock(e.target.checked)} disabled={isApproved} style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer', flexShrink: 0, marginBottom: 2 }} />
@@ -2776,7 +2832,7 @@ export default function OrdersPage() {
                     onChange={e => setEditNote(e.target.value)}
                     rows={2}
                     disabled={isApproved}
-                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: isMobile ? 14 : 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
@@ -2920,21 +2976,21 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...mobileDialogFooterStyle }}>
                 {!isApproved && (
                   <button
                     onClick={deleteTrade}
-                    style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                    style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                   >
                     {t('delete')}
                   </button>
                 )}
-                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                  <button className="btn secondary" style={{ minWidth: 80 }} onClick={() => setEditingTradeId(null)}>{t('cancel')}</button>
+                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', width: isMobile ? '100%' : undefined }}>
+                  <button className="btn secondary" style={{ minWidth: 80, minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }} onClick={() => setEditingTradeId(null)}>{t('cancel')}</button>
                   {!isApproved && (
                     <button
                       onClick={saveTradeEdit}
-                      style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                      style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                     >
                       {t('saveCorrection')}
                     </button>
@@ -2948,18 +3004,18 @@ export default function OrdersPage() {
 
       {/* ─── CANCELLATION REQUEST DIALOG ─── */}
       <Dialog open={!!cancelTradeId} onOpenChange={open => !open && setCancelTradeId(null)}>
-        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--warn) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--warn) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
           <DialogHeader style={{ marginBottom: 14 }}>
             <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('requestCancellationTitle')}</DialogTitle>
           </DialogHeader>
           <div style={{ background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 28%, transparent)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'var(--warn)', marginBottom: 14, lineHeight: 1.5 }}>
             {t('cancellationRequestExplainer')}
           </div>
-          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <button className="btn secondary" onClick={() => setCancelTradeId(null)}>{t('cancel')}</button>
+          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end', ...mobileDialogFooterStyle }}>
+            <button className="btn secondary" onClick={() => setCancelTradeId(null)} style={isMobile ? { minHeight: 42, width: '100%' } : undefined}>{t('cancel')}</button>
             <button
               onClick={submitCancellationRequest}
-              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--warn)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--warn)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
             >
               {t('submitCancellationRequest')}
             </button>
@@ -2976,7 +3032,7 @@ export default function OrdersPage() {
         const dealNet = dealVol - dealCost - Number(editDealFee);
         return (
           <Dialog open={!!editingDealId} onOpenChange={open => !open && setEditingDealId(null)}>
-            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
               <DialogHeader style={{ marginBottom: 14 }}>
                 <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('correctTradeTitle')}</DialogTitle>
               </DialogHeader>
@@ -3002,17 +3058,17 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={numericOnly(setEditDealQty)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={numericOnly(setEditDealQty)} style={mobileInputStyle} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t('sellPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={numericOnly(setEditDealSell)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={numericOnly(setEditDealSell)} style={mobileInputStyle} /></div>
                 </div>
               </div>
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('feeQarLabel')}</div>
-                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={numericOnly(setEditDealFee)} /></div>
+                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={numericOnly(setEditDealFee)} style={mobileInputStyle} /></div>
               </div>
 
               <div className="field2" style={{ marginBottom: 16 }}>
@@ -3022,23 +3078,23 @@ export default function OrdersPage() {
                     value={editDealNote}
                     onChange={e => setEditDealNote(e.target.value)}
                     rows={2}
-                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: isMobile ? 14 : 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
 
-              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...mobileDialogFooterStyle }}>
                 <button
                   onClick={() => setDeleteDealConfirm(editingDealId)}
-                  style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                  style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                 >
                   {t('delete')}
                 </button>
-                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                  <button className="btn secondary" style={{ minWidth: 80 }} onClick={() => setEditingDealId(null)}>{t('cancel')}</button>
+                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', width: isMobile ? '100%' : undefined }}>
+                  <button className="btn secondary" style={{ minWidth: 80, minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }} onClick={() => setEditingDealId(null)}>{t('cancel')}</button>
                   <button
                     onClick={saveDealEdit}
-                    style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                    style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                   >
                     {t('saveCorrection')}
                   </button>
@@ -3051,18 +3107,18 @@ export default function OrdersPage() {
 
       {/* ─── DELETE DEAL CONFIRMATION DIALOG ─── */}
       <Dialog open={!!deleteDealConfirm} onOpenChange={open => !open && setDeleteDealConfirm(null)}>
-        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--bad) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--bad) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
           <DialogHeader style={{ marginBottom: 14 }}>
             <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('confirmDeleteDeal')}</DialogTitle>
           </DialogHeader>
           <div style={{ background: 'color-mix(in srgb, var(--bad) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 28%, transparent)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'var(--bad)', marginBottom: 14, lineHeight: 1.5 }}>
             {t('deleteDealWarning')}
           </div>
-          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <button className="btn secondary" onClick={() => setDeleteDealConfirm(null)}>{t('cancel')}</button>
+          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end', ...mobileDialogFooterStyle }}>
+            <button className="btn secondary" onClick={() => setDeleteDealConfirm(null)} style={isMobile ? { minHeight: 42, width: '100%' } : undefined}>{t('cancel')}</button>
             <button
               onClick={() => deleteDealConfirm && deleteDeal(deleteDealConfirm)}
-              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--bad)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--bad)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
             >
               {t('delete')}
             </button>
