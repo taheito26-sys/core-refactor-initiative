@@ -56,7 +56,7 @@ export default function ChatWorkspacePage() {
 
   const messages = useRoomMessages(activeRoomId);
   const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
-  const { initiateCall } = useWebRTC({ roomId: activeRoomId, userId });
+  const { initiateCall, callState, isIncoming, callerId, remoteStream, acceptCall, rejectCall, toggleMute, endCall } = useWebRTC({ roomId: activeRoomId, userId });
 
   const handleCall = (is_video: boolean) => initiateCall(is_video);
 
@@ -123,7 +123,7 @@ export default function ChatWorkspacePage() {
         {/* Main Chat Area */}
         {(!isMobile || !showSidebar) && (
           <div className="flex-1 flex flex-col min-w-0 bg-white relative overflow-hidden">
-            <CallOrchestrator roomId={activeRoomId} />
+            <CallOrchestrator roomId={activeRoomId} callState={callState} isIncoming={isIncoming} callerId={callerId} remoteStream={remoteStream} acceptCall={acceptCall} rejectCall={rejectCall} toggleMute={toggleMute} endCall={endCall} />
             
             {activeRoom ? (
               <>
