@@ -11,6 +11,7 @@ import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
+import { NativePlatformBootstrap } from "@/platform/native-bridge";
 
 // Auth pages
 import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
@@ -154,6 +155,7 @@ const App = () => (
         <Toaster />
         <Sonner />
          <BrowserRouter>
+          <NativePlatformBootstrap />
           <AuthProvider>
             <AuthDiagnostics />
             <RouteErrorBoundary>

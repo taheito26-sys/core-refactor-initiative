@@ -59,6 +59,26 @@ interface DaySummary {
   polls: number;
 }
 
+interface MerchantStat {
+  nick: string;
+  appearances: number;
+  availabilityRatio: number;
+  avgAvailable: number;
+  maxAvailable: number;
+}
+type HistoryRow = {
+  fetched_at: string | null;
+  ts_val: string | number | null;
+  sell_avg: string | number | null;
+  buy_avg: string | number | null;
+  spread_val: string | number | null;
+  spread_pct_val: string | number | null;
+};
+type MerchantRow = {
+  sell_offers: unknown;
+  buy_offers: unknown;
+};
+
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -66,6 +86,63 @@ function toFiniteNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function extractProjectRefFromUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+  return match?.[1] ?? null;
+}
+
+function extractProjectRefFromPublishableKey(key: string | undefined): string | null {
+  if (!key) return null;
+  const parts = key.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(payloadJson) as { ref?: unknown };
+    return typeof payload.ref === 'string' ? payload.ref : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Time axis for chart/history rows: DB `fetched_at` only. Payload `data.ts` is fallback if row time is missing (never `Date.now()`). */
+function historyRowTimestampMs(row: Pick<HistoryRow, 'fetched_at' | 'ts_val'>): number {
+  if (row.fetched_at) {
+    const ms = new Date(row.fetched_at).getTime();
+    if (Number.isFinite(ms)) return ms;
+  }
+  const raw = toFiniteNumber(row.ts_val);
+  if (raw == null || !Number.isFinite(raw)) return NaN;
+  const normalizedRaw = raw < 1e12 ? raw * 1000 : raw;
+  return Number.isFinite(normalizedRaw) ? normalizedRaw : NaN;
+}
+
+/** Live snapshot cards: reconcile payload `ts` with `fetched_at` when drift is suspicious. */
+function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string): number {
+  const fetchedAtMs = fetchedAt ? new Date(fetchedAt).getTime() : null;
+  const hasValidFetchedAt = fetchedAtMs != null && Number.isFinite(fetchedAtMs);
+
+  const raw = toFiniteNumber(rawTs);
+  if (raw == null || !Number.isFinite(raw)) {
+    return hasValidFetchedAt ? fetchedAtMs : Date.now();
+  }
+
+  const normalizedRaw = raw < 1e12 ? raw * 1000 : raw;
+  if (!Number.isFinite(normalizedRaw)) {
+    return hasValidFetchedAt ? fetchedAtMs : Date.now();
+  }
+
+  if (hasValidFetchedAt) {
+    const driftMs = Math.abs(normalizedRaw - fetchedAtMs);
+    const suspiciousDriftMs = 12 * 60 * 60 * 1000; // 12h
+    if (driftMs > suspiciousDriftMs) {
+      return fetchedAtMs;
+    }
+  }
+
+  return normalizedRaw;
 }
 
 function simplifyMethod(m: string): string {
@@ -99,7 +176,7 @@ function toOffer(value: unknown): P2POffer | null {
 
 function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const ts = toFiniteNumber(source.ts) ?? (fetchedAt ? new Date(fetchedAt).getTime() : Date.now());
+  const ts = normalizeSnapshotTimestamp(source.ts, fetchedAt);
 
   // Detect pre-fix data: if sellAvg < buyAvg, the data has sell/buy swapped
   const rawSellAvg = toFiniteNumber(source.sellAvg);
@@ -163,7 +240,7 @@ const EMPTY_SNAPSHOT: P2PSnapshot = {
 function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
   const byDate = new Map<string, DaySummary>();
   for (const pt of history) {
-    const date = new Date(pt.ts).toISOString().slice(0, 10);
+    const date = format(new Date(pt.ts), 'yyyy-MM-dd');
     let day = byDate.get(date);
     if (!day) {
       day = { date, highSell: 0, lowSell: null, highBuy: 0, lowBuy: null, polls: 0 };
@@ -207,18 +284,25 @@ export default function P2PTrackerPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyRange, setHistoryRange] = useState<'7d' | '15d'>('7d');
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
+  const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
+  const [merchantStats, setMerchantStats] = useState<MerchantStat[]>([]);
   const t = useT();
 
   const currentMarket = MARKETS.find(m => m.id === market)!;
+  const runtimeSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const runtimePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  const runtimeProjectRefFromUrl = extractProjectRefFromUrl(runtimeSupabaseUrl);
+  const runtimeProjectRefFromKey = extractProjectRefFromPublishableKey(runtimePublishableKey);
 
   const loadFromDb = useCallback(async () => {
-    const { data: latestRow } = await supabase
+    const { data: latestRow, error: latestError } = await supabase
       .from('p2p_snapshots')
       .select('*')
       .eq('market', market)
       .order('fetched_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (latestError) throw latestError;
 
     if (latestRow?.data) {
       setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at));
@@ -228,26 +312,125 @@ export default function P2PTrackerPage() {
       setLatestFetchedAt(null);
     }
 
+    // Fetch Qatar rates for cross-currency FX derivation
+    if (market !== 'qatar') {
+      const { data: qatarRow, error: qatarError } = await supabase
+        .from('p2p_snapshots')
+        .select('data, fetched_at')
+        .eq('market', 'qatar')
+        .order('fetched_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (qatarError) throw qatarError;
+      if (qatarRow?.data) {
+        const qSnap = toSnapshot(qatarRow.data, qatarRow.fetched_at);
+        setQatarRates(qSnap.sellAvg != null && qSnap.buyAvg != null
+          ? { sellAvg: qSnap.sellAvg, buyAvg: qSnap.buyAvg }
+          : null);
+      } else {
+        setQatarRates(null);
+      }
+    } else {
+      setQatarRates(null); // Not needed for Qatar
+    }
+
     const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: histRows } = await supabase
+    // Must take the *newest* rows first: ascending + limit only kept the oldest 5k rows, cutting off all
+    // recent data when a market had >5k snapshots in the window (shows "0 pts · 24h" despite fresh DB rows).
+    // @ts-ignore – deep type instantiation from jsonb->> selects
+    const { data: histRowsDesc, error: historyError } = await supabase
       .from('p2p_snapshots')
-      .select('data, fetched_at')
+      .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
       .eq('market', market)
       .gte('fetched_at', cutoff)
-      .order('fetched_at', { ascending: true });
+      .order('fetched_at', { ascending: false })
+      .limit(10_000);
+    if (historyError) throw historyError;
 
-    setHistory((histRows || []).map((row: any) => {
-      const normalized = toSnapshot(row.data, row.fetched_at);
-      return {
-        ts: normalized.ts,
-        sellAvg: normalized.sellAvg,
-        buyAvg: normalized.buyAvg,
-        spread: normalized.spread,
-        spreadPct: normalized.spreadPct,
-      };
-    }));
+    const histRows = [...(histRowsDesc || [])].reverse();
+
+    const historyPoints = (histRows as HistoryRow[]).flatMap((row) => {
+      const ts = historyRowTimestampMs(row);
+      if (!Number.isFinite(ts)) return [];
+      return [{
+        ts,
+        sellAvg: toFiniteNumber(row.sell_avg),
+        buyAvg: toFiniteNumber(row.buy_avg),
+        spread: toFiniteNumber(row.spread_val),
+        spreadPct: toFiniteNumber(row.spread_pct_val),
+      }];
+    });
+    setHistory(historyPoints);
+
+    const rowCount = histRows?.length ?? 0;
+    const firstFetchedAt = rowCount > 0 ? histRows?.[0]?.fetched_at ?? 'n/a' : 'n/a';
+    const lastFetchedAt = rowCount > 0 ? histRows?.[rowCount - 1]?.fetched_at ?? 'n/a' : 'n/a';
+    const firstNormalizedTs = historyPoints.length > 0 ? new Date(historyPoints[0].ts).toISOString() : 'n/a';
+    const lastNormalizedTs = historyPoints.length > 0 ? new Date(historyPoints[historyPoints.length - 1].ts).toISOString() : 'n/a';
+    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+    const final24hCount = historyPoints.filter(point => point.ts >= cutoff24h).length;
+
+    const cutoff24hIso = new Date(cutoff24h).toISOString();
+    // Newest-first + generous limit so dense cron (e.g. 1-min) still covers recent 24h; asc+500 missed latest polls.
+    // @ts-ignore – deep type instantiation from jsonb-> selects
+    const { data: merchantRowsDesc, error: merchantError } = await supabase
+      .from('p2p_snapshots')
+      .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
+      .eq('market', market)
+      .gte('fetched_at', cutoff24hIso)
+      .order('fetched_at', { ascending: false })
+      .limit(2500);
+    if (merchantError) throw merchantError;
+
+    const rows = [...(merchantRowsDesc || [])].reverse() as MerchantRow[];
+    const marketPolls = Math.max(rows.length, 1);
+    const merchantMap = new Map<string, { appearances: number; totalAvailable: number; sampleCount: number; maxAvailable: number }>();
+
+    for (const row of rows) {
+      const seenInSnapshot = new Set<string>();
+      const offersRaw = [
+        ...(Array.isArray(row.sell_offers) ? row.sell_offers : []),
+        ...(Array.isArray(row.buy_offers) ? row.buy_offers : []),
+      ];
+      const offers = offersRaw.map(toOffer).filter((offer): offer is P2POffer => offer !== null);
+
+      for (const offer of offers) {
+        const nick = offer.nick.trim();
+        if (!nick) continue;
+        let stat = merchantMap.get(nick);
+        if (!stat) {
+          stat = { appearances: 0, totalAvailable: 0, sampleCount: 0, maxAvailable: 0 };
+          merchantMap.set(nick, stat);
+        }
+        if (!seenInSnapshot.has(nick)) {
+          stat.appearances += 1;
+          seenInSnapshot.add(nick);
+        }
+        stat.totalAvailable += offer.available;
+        stat.sampleCount += 1;
+        stat.maxAvailable = Math.max(stat.maxAvailable, offer.available);
+      }
+    }
+
+    const computedMerchantStats = Array.from(merchantMap.entries())
+      .map(([nick, stat]) => ({
+        nick,
+        appearances: stat.appearances,
+        availabilityRatio: stat.appearances / marketPolls,
+        avgAvailable: stat.sampleCount > 0 ? stat.totalAvailable / stat.sampleCount : 0,
+        maxAvailable: stat.maxAvailable,
+      }))
+      .filter((stat) => stat.appearances > 0);
+    setMerchantStats(computedMerchantStats);
+
+    console.debug(
+      `[P2P load] market=${market} rows=${rowCount} fetched_at=${firstFetchedAt}..${lastFetchedAt} normalized_ts=${firstNormalizedTs}..${lastNormalizedTs} last24h=${final24hCount}`,
+    );
+    console.debug(
+      `[P2P runtime] market=${market} supabaseUrl=${runtimeSupabaseUrl ?? 'n/a'} ref(url)=${runtimeProjectRefFromUrl ?? 'n/a'} ref(key)=${runtimeProjectRefFromKey ?? 'n/a'} latestFetchedAt=${latestRow?.fetched_at ?? 'n/a'} historyRows=${historyPoints.length} last24hRows=${final24hCount}`,
+    );
     setLastUpdate(new Date().toISOString());
-  }, [market]);
+  }, [market, runtimeSupabaseUrl, runtimeProjectRefFromUrl, runtimeProjectRefFromKey]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -285,24 +468,46 @@ export default function P2PTrackerPage() {
   }, []);
 
   const todaySummary = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayPts = history.filter(h => new Date(h.ts).toISOString().slice(0, 10) === todayStr);
+    const todayStr = format(new Date(now), 'yyyy-MM-dd');
+    const todayPts = history.filter(h => format(new Date(h.ts), 'yyyy-MM-dd') === todayStr);
     if (!todayPts.length) return null;
+    const sellPresent = todayPts.filter(p => p.sellAvg != null);
+    const buyPresent = todayPts.filter(p => p.buyAvg != null);
     return {
-      highSell: Math.max(...todayPts.map(p => p.sellAvg ?? 0)),
-      lowSell: Math.min(...todayPts.filter(p => p.sellAvg != null).map(p => p.sellAvg!)),
-      highBuy: Math.max(...todayPts.map(p => p.buyAvg ?? 0)),
-      lowBuy: Math.min(...todayPts.filter(p => p.buyAvg != null).map(p => p.buyAvg!)),
+      highSell: sellPresent.length ? Math.max(...sellPresent.map(p => p.sellAvg!)) : null,
+      lowSell: sellPresent.length ? Math.min(...sellPresent.map(p => p.sellAvg!)) : null,
+      highBuy: buyPresent.length ? Math.max(...buyPresent.map(p => p.buyAvg!)) : null,
+      lowBuy: buyPresent.length ? Math.min(...buyPresent.map(p => p.buyAvg!)) : null,
       polls: todayPts.length,
     };
-  }, [history]);
+  }, [history, now]);
 
   const last24hHistory = useMemo(() => {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const cutoff = now - 24 * 60 * 60 * 1000;
     return history.filter(h => h.ts >= cutoff);
-  }, [history]);
+  }, [history, now]);
 
   const dailySummaries = useMemo(() => computeDailySummaries(history), [history]);
+  const topAlwaysAvailableMerchants = useMemo(
+    () => [...merchantStats]
+      .sort((a, b) =>
+        b.appearances - a.appearances ||
+        b.availabilityRatio - a.availabilityRatio ||
+        b.avgAvailable - a.avgAvailable,
+      )
+      .slice(0, 5),
+    [merchantStats],
+  );
+  const topQuantityMerchants = useMemo(
+    () => [...merchantStats]
+      .sort((a, b) =>
+        b.maxAvailable - a.maxAvailable ||
+        b.avgAvailable - a.avgAvailable ||
+        b.appearances - a.appearances,
+      )
+      .slice(0, 5),
+    [merchantStats],
+  );
 
   const filteredSummaries = useMemo(() => {
     const days = historyRange === '15d' ? 15 : 7;
@@ -324,6 +529,12 @@ export default function P2PTrackerPage() {
   const sellAvg = snapshot?.sellAvg ?? 0;
   const buyAvg = snapshot?.buyAvg ?? 0;
 
+  // ── FX helper: derive mid-rate from P2P data (market-driven FX proxy) ──
+  const deriveMid = (s: number | null, b: number | null): number | null => {
+    if (s != null && b != null && s > 0 && b > 0) return (s + b) / 2;
+    return s ?? b ?? null;
+  };
+
   const profitIfSold = useMemo(() => {
     try {
       const stateRaw = getCurrentTrackerState(localStorage);
@@ -336,16 +547,95 @@ export default function P2PTrackerPage() {
       const wacop = getWACOP(derived);
       const costBasis = stockCostQAR(derived);
       if (!wacop || wacop <= 0) return null;
-      const revenue = stock * sellAvg;
-      const profit = revenue - costBasis;
-      return { stock, costBasis, wacop, profit };
+
+      // FX source: derive mid-rate from P2P data for both local and QAR markets
+      const localMid = deriveMid(sellAvg, buyAvg);
+      const qatarMid = market === 'qatar'
+        ? localMid
+        : qatarRates ? deriveMid(qatarRates.sellAvg, qatarRates.buyAvg) : null;
+
+      if (!localMid || localMid <= 0 || !qatarMid || qatarMid <= 0 || !sellAvg || sellAvg <= 0) {
+        console.log(`[P2P Profit] Missing FX data: localMid=${localMid}, qatarMid=${qatarMid}, sellAvg=${sellAvg}`);
+        return null;
+      }
+
+      // Explicit FX conversion path:
+      // local->USD = 1 / localMid
+      // QAR->USD = 1 / qatarMid
+      // QAR->local = localMid / qatarMid
+      const localToUsd = 1 / localMid;
+      const qarToUsd = 1 / qatarMid;
+      const qarToLocal = localMid / qatarMid;
+
+      // Profit if sold now:
+      // 1) costQAR (from FIFO cost basis)
+      const costQAR = costBasis;
+      // 2) costLocal = costQAR × FX(QAR->local)
+      const costLocal = costQAR * qarToLocal;
+      // 3) sellValueLocal = stockUSDT × sellAvgLocal
+      const sellValueLocal = stock * sellAvg;
+      // 4) profitLocal = sellValueLocal - costLocal
+      const profitLocal = sellValueLocal - costLocal;
+      // 5) profitUSD = profitLocal × FX(local->USD)
+      const profitUSD = profitLocal * localToUsd;
+
+      // Equivalent normalized values in USD for diagnostics/consistency
+      const costBasisUSD = costQAR * qarToUsd;
+      const sellValueUSD = sellValueLocal * localToUsd;
+
+      return {
+        stock,
+        wacop,
+        costQAR,
+        costLocal,
+        costBasisUSD,
+        sellValueLocal,
+        sellValueUSD,
+        profitLocal,
+        profit: profitUSD,
+        fx: { localToUsd, qarToUsd, qarToLocal },
+        currency: 'USD' as string,
+      };
     } catch {
       return null;
     }
-  }, [sellAvg]);
+  }, [sellAvg, buyAvg, market, qatarRates]);
 
+  // ── Round-trip market spread simulation (USD) ──
+  const roundTripSim = useMemo(() => {
+    if (!profitIfSold) return null;
+    if (!sellAvg || !buyAvg || sellAvg <= 0 || buyAvg <= 0) return null;
+    const { qarToLocal, localToUsd } = profitIfSold.fx;
+    if (!qarToLocal || !localToUsd || qarToLocal <= 0 || localToUsd <= 0) return null;
 
+    // Round-trip simulation:
+    // 1) startingCostQAR = inventory cost basis in QAR
+    const startingCostQAR = profitIfSold.costQAR;
+    // 2) startingCapitalLocal = startingCostQAR × FX(QAR->local)
+    const startingCapitalLocal = startingCostQAR * qarToLocal;
+    if (startingCapitalLocal <= 0) return null;
+    // 3) boughtUSDT = startingCapitalLocal / buyAvgLocal
+    const boughtUSDT = startingCapitalLocal / buyAvg;
+    // 4) finalLocal = boughtUSDT × sellAvgLocal
+    const finalLocal = boughtUSDT * sellAvg;
+    // 5) roundTripProfitLocal = finalLocal - startingCapitalLocal
+    const roundTripProfitLocal = finalLocal - startingCapitalLocal;
+    // 6) roundTripProfitUSD = roundTripProfitLocal × FX(local->USD)
+    const profit = roundTripProfitLocal * localToUsd;
+    // 7) percent on local starting capital
+    const pct = (roundTripProfitLocal / startingCapitalLocal) * 100;
 
+    return {
+      startingCapitalLocal,
+      startingCapitalUSD: startingCapitalLocal * localToUsd,
+      finalLocal,
+      finalUSD: finalLocal * localToUsd,
+      boughtUSDT,
+      profit,
+      spreadRatio: sellAvg / buyAvg,
+      pct,
+    };
+  }, [profitIfSold, sellAvg, buyAvg]);
 
   const priceBarData = useMemo(() => {
     if (!last24hHistory.length) return { sellBars: [], buyBars: [], sellValues: [], buyValues: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0 };
@@ -479,14 +769,14 @@ export default function P2PTrackerPage() {
       </div>
 
       <div className="tracker-root" style={{ background: 'transparent' }}>
-        <div className="kpis" style={{ gridTemplateColumns: profitIfSold ? 'repeat(7, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
+        <div className="kpis" style={{ gridTemplateColumns: `repeat(${6 + (profitIfSold ? 1 : 0) + (roundTripSim ? 1 : 0)}, minmax(0, 1fr))` }}>
           <div className="kpi-card">
             <div className="kpi-lbl">{t('p2pBestSell')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell ? fmtPrice(snapshot.bestSell) : '—'}</div>
             <div className="kpi-sub">{t('p2pTopSell')} {ccy}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-lbl">{t('p2pSellAvgTop5')}</div>
+            <div className="kpi-lbl">{t(market === 'qatar' ? 'p2pSellAvgTop5' : 'p2pSellAvgTop10')}</div>
             <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}</div>
             <div className="kpi-sub" style={{ color: 'var(--good)' }}>
               {snapshot.spreadPct ? `+${fmtPrice(snapshot.spreadPct)}% ${t('p2pSpreadLabel').toLowerCase()}` : t('p2pLiveWeightedAvg')}
@@ -518,9 +808,18 @@ export default function P2PTrackerPage() {
             <div className="kpi-card">
               <div className="kpi-lbl">{t('p2pProfitIfSoldNow')}</div>
               <div className="kpi-val" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {ccy}
+                {profitIfSold.profit >= 0 ? '+' : ''}${fmtTotal(profitIfSold.profit)}
               </div>
               <div className="kpi-sub">{fmtPrice(profitIfSold.stock)} USDT · {t('p2pCostBasis')}</div>
+            </div>
+          )}
+          {roundTripSim && (
+            <div className="kpi-card">
+              <div className="kpi-lbl">Round-Trip Spread</div>
+              <div className="kpi-val" style={{ color: roundTripSim.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)}
+              </div>
+              <div className="kpi-sub">{fmtPrice(roundTripSim.pct)}% · sim</div>
             </div>
           )}
         </div>
@@ -603,38 +902,55 @@ export default function P2PTrackerPage() {
 
         <div className="tracker-root panel">
           <div className="panel-head" style={{ padding: '8px 12px' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>{t('p2pMarketInfo')}</h2>
-            <span className="pill" style={{ fontSize: 9 }}>{currentMarket.pair}</span>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+              Merchant Depth Stats (24h)
+            </h2>
+            <span className="pill" style={{ fontSize: 9 }}>
+              {merchantStats.length} tracked
+            </span>
           </div>
-          <div className="panel-body" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pSellAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'} {ccy}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pBuyAvgTop5Label')}</span>
-              <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--bad)' }}>{snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'} {ccy}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pSellDepth')}</span>
-              <span className="font-mono text-[12px] font-extrabold text-muted-foreground">{snapshot.sellDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="text-[10px] text-muted-foreground">{t('p2pBuyDepth')}</span>
-              <span className="font-mono text-[12px] font-extrabold text-muted-foreground">{snapshot.buyDepth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT</span>
-            </div>
-            {profitIfSold && (
-              <div className="border-t border-[var(--line)] px-3 py-1.5">
-                <div className="text-[10px] font-extrabold" style={{ color: profitIfSold.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {profitIfSold.profit >= 0 ? '✓' : '✗'} {t('p2pProfitIfSoldLabel')}: {profitIfSold.profit >= 0 ? '+' : ''}{fmtTotal(profitIfSold.profit)} {ccy}
+          <div className="panel-body" style={{ padding: '8px 12px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <div className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted mb-2">Top 5 Always Available</div>
+              {topAlwaysAvailableMerchants.length === 0 ? (
+                <div className="text-[10px] text-muted-foreground">No merchant data in last 24h.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {topAlwaysAvailableMerchants.map((stat, idx) => (
+                    <div key={`always-${stat.nick}`} className="flex items-center justify-between gap-2 text-[10px]">
+                      <span className="truncate">
+                        <span className="font-extrabold mr-1">{idx + 1}.</span>{stat.nick}
+                      </span>
+                      <span className="font-mono text-muted-foreground">
+                        {Math.round(stat.availabilityRatio * 100)}% · {stat.appearances} polls
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  {fmtPrice(profitIfSold.stock)} USDT · WACOP {fmtPrice(profitIfSold.wacop)} {ccy}
+              )}
+            </div>
+            <div>
+              <div className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted mb-2">Top 5 Biggest USDT Qty</div>
+              {topQuantityMerchants.length === 0 ? (
+                <div className="text-[10px] text-muted-foreground">No merchant data in last 24h.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {topQuantityMerchants.map((stat, idx) => (
+                    <div key={`qty-${stat.nick}`} className="flex items-center justify-between gap-2 text-[10px]">
+                      <span className="truncate">
+                        <span className="font-extrabold mr-1">{idx + 1}.</span>{stat.nick}
+                      </span>
+                      <span className="font-mono text-muted-foreground">
+                        max {fmtTotal(stat.maxAvailable)} · avg {fmtTotal(stat.avgAvailable)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
+
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">

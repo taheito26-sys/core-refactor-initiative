@@ -6,7 +6,7 @@ import {
   fmtTotal, fmtPrice,
   kpiFor, totalStock, stockCostQAR, getWACOP,
   rangeLabel, num, startOfDay,
-  getAllAccountBalances, deriveCashQAR,
+  deriveCashQAR,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -42,6 +42,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const d1 = kpiFor(state, derived, 'today');
   const d7 = kpiFor(state, derived, '7d');
+  const d30 = kpiFor(state, derived, '30d');
   const dR = kpiFor(state, derived, settings.range);
   const stk = totalStock(derived);
   const stCost = stockCostQAR(derived);
@@ -63,11 +64,30 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   }).filter((x): x is number => x !== null);
   const avgM = allMargins.length ? allMargins.reduce((s, v) => s + v, 0) / allMargins.length : 0;
 
+  // Avg cycle time: hours from batch purchase to FIFO sell
+  const cycleHours = useMemo(() => {
+    const tradesSorted = [...allTrades].sort((a, b) => a.ts - b.ts);
+    const deltas: number[] = [];
+    for (const tr of tradesSorted) {
+      const c = derived.tradeCalc.get(tr.id);
+      if (!c?.ok || !c.slices?.length) continue;
+      for (const sl of c.slices) {
+        const batch = state.batches.find(b => b.id === sl.batchId);
+        if (batch) {
+          const delta = (tr.ts - batch.ts) / (1000 * 60 * 60);
+          if (delta > 0 && delta < 10000) deltas.push(delta);
+        }
+      }
+    }
+    return deltas.length ? deltas.reduce((s, v) => s + v, 0) / deltas.length : null;
+  }, [allTrades, derived, state.batches]);
+
   const LOW = num(state.settings?.lowStockThreshold, 5000);
   const isLow = stk <= 0 || (LOW > 0 && stk < LOW);
 
   const [showCashBox, setShowCashBox] = useState(false);
-  const [showDealsDrilldown, setShowDealsDrilldown] = useState(false);
+  const [expandedNewKpi, setExpandedNewKpi] = useState<string | null>(null);
+  const [roiPeriod, setRoiPeriod] = useState<'7d' | '30d'>('7d');
   const { user, merchantProfile } = useAuth();
   const userId = adminUserId || user?.id;
   const workspaceMerchantId = adminMerchantId || merchantProfile?.merchant_id;
@@ -329,13 +349,38 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{t('oneDay')}</div>
               <div className={`kpi-cell-val ${d1.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d1.net)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d1.fee)}</div>
+              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
             <div>
               <div className="kpi-period">{t('sevenDays')}</div>
               <div className={`kpi-cell-val ${d7.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d7.net)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d7.fee)}</div>
+              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
           </div>
+          {/* Incoming deals net profit */}
+          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+            <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount})</span>
+                <span className={`mono ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
+                  {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
+                </span>
+              </div>
+              <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                {t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}
+              </div>
+            </div>
+          )}
+          {/* Combined total */}
+          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+            <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
+              <span className={`mono ${(dR.net + merchantDealKpis.inNet) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                {(dR.net + merchantDealKpis.inNet) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inNet)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -389,62 +434,20 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           const cashAccounts = state.cashAccounts || [];
           const cashLedger = state.cashLedger || [];
           const hasAccounts = cashAccounts.length > 0;
-          const balances = hasAccounts ? getAllAccountBalances(cashAccounts, cashLedger) : null;
           const totalCash = hasAccounts ? deriveCashQAR(cashAccounts, cashLedger) : num(state.cashQAR, 0);
-          const inHandQAR = hasAccounts
-            ? cashAccounts.filter(a => a.type === 'hand' && a.status === 'active' && a.currency === 'QAR').reduce((s, a) => s + (balances!.get(a.id) || 0), 0)
-            : totalCash;
-          const bankQAR = hasAccounts
-            ? cashAccounts.filter(a => a.type === 'bank' && a.status === 'active' && a.currency === 'QAR').reduce((s, a) => s + (balances!.get(a.id) || 0), 0)
-            : 0;
-          const activeAccounts = cashAccounts.filter(a => a.status === 'active');
-          const lowBal = hasAccounts ? activeAccounts.filter(a => (balances!.get(a.id) || 0) < 1000 && a.currency === 'QAR') : [];
-          const overdueRecon = hasAccounts ? activeAccounts.filter(a => !a.lastReconciled || Date.now() - a.lastReconciled > 7 * 86400000) : [];
-          const topAccounts = hasAccounts
-            ? [...activeAccounts].filter(a => a.currency === 'QAR').sort((a, b) => (balances!.get(b.id) || 0) - (balances!.get(a.id) || 0)).slice(0, 2)
-            : [];
 
           return (
-            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/stock?tab=cash') : undefined}>
-              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/stock?tab=cash') : undefined}>
+              <div className="kpi-head">
                 <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>
-                  💰 {hasAccounts ? `${activeAccounts.length} ACCOUNTS` : t('cash')}
+                  💰 {t('cash')}
                 </span>
-                {(lowBal.length > 0 || overdueRecon.length > 0) && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--warn)', background: 'color-mix(in srgb,var(--warn) 12%, transparent)', border: '1px solid color-mix(in srgb,var(--warn) 30%,transparent)', borderRadius: 4, padding: '2px 6px' }}>
-                    ⚠ {lowBal.length + overdueRecon.length} {t('cashAlerts')}
-                  </span>
-                )}
               </div>
               <div className="kpi-lbl">{t('cashAvailable')}</div>
               <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(totalCash)}</div>
-
-              {hasAccounts ? (
-                <div style={{ marginTop: 4 }}>
-                  {/* Hand vs Bank split */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 5 }}>
-                    {inHandQAR > 0 && <span style={{ fontSize: 10, color: 'var(--muted)' }}>✋ {fmtTotal(inHandQAR)}</span>}
-                    {bankQAR > 0 && <span style={{ fontSize: 10, color: 'var(--muted)' }}>🏦 {fmtTotal(bankQAR)}</span>}
-                  </div>
-                  {/* Top accounts */}
-                  {topAccounts.map(a => (
-                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>{a.name}</span>
-                      <span className="mono" style={{ color: 'var(--text)', fontWeight: 600 }}>{fmtTotal(balances!.get(a.id) || 0)}</span>
-                    </div>
-                  ))}
-                  {!isAdminView && (
-                    <div style={{ marginTop: 4 }}>
-                      <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="kpi-sub" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {!isAdminView && <button className="rowBtn" style={{ fontSize: 9, padding: '3px 8px' }} onClick={e => { e.stopPropagation(); setShowCashBox(true); }}>{t('manageCash')}</button>}
-                  <span className="muted" style={{ fontSize: 10 }}>{state.cashOwner ? `${t('owner')}: ${state.cashOwner}` : `${t('owner')}: —`}</span>
-                </div>
-              )}
+              <div className="kpi-sub">
+                {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>}
+              </div>
             </div>
           );
         })()}
@@ -495,200 +498,157 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         </div>
       </div>
 
-      {/* Merchant Deals KPIs */}
-      {merchantDealKpis && merchantDealKpis.totalDeals > 0 && (
-        <>
-        <div className="kpi-band-grid" style={{ marginTop: 0, cursor: 'pointer' }} onClick={() => setShowDealsDrilldown(v => !v)}>
-          <div className="kpi-band" style={{ borderLeft: '3px solid var(--brand)' }}>
-            <div className="kpi-band-title">🤝 {t('merchantDealsOverview')} <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>{showDealsDrilldown ? '▲ collapse' : '▼ details'}</span></div>
-            <div className="kpi-band-cols">
-              <div>
-                <div className="kpi-period">{t('outgoingDeals')}</div>
-                <div className="kpi-cell-val t1v">{merchantDealKpis.outCount}</div>
-                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.outVol)} {t('volume')}</div>
+      {/* New KPIs: ROI · Cycle Time · Velocity · Outgoing Net · Incoming Net */}
+      <div className="kpis" style={{ marginTop: 0 }}>
+        {/* Daily ROI (7D / 30D toggle) */}
+        {(() => {
+          const roiData = roiPeriod === '7d' ? d7 : d30;
+          const roiVal = stCost > 0 ? (roiData.net / stCost) * 100 : 0;
+          const isExpanded = expandedNewKpi === 'roi';
+          return (
+            <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'roi')}>
+              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
+                  💹
+                </span>
               </div>
-              <div>
-                <div className="kpi-period">{t('incomingDeals')}</div>
-                <div className="kpi-cell-val t1v">{merchantDealKpis.inCount}</div>
-                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.inVol)} {t('volume')}</div>
+              <div className="kpi-lbl">{t('roiLabel')}</div>
+              <div className={`kpi-val ${roiVal >= 0 ? 'good' : 'bad'}`}>{fmtPrice(roiVal)}%</div>
+              <div className="kpi-sub">{t('roiSub')}</div>
+              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span
+                  className="kpi-badge"
+                  style={{
+                    fontSize: 9, padding: '1px 6px', cursor: 'pointer',
+                    color: roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)',
+                    borderColor: `color-mix(in srgb,${roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)'} 30%,transparent)`,
+                    background: `color-mix(in srgb,${roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)'} 10%,transparent)`,
+                    fontWeight: roiPeriod === '7d' ? 700 : 400,
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setRoiPeriod('7d'); }}
+                >7D</span>
+                <span
+                  className="kpi-badge"
+                  style={{
+                    fontSize: 9, padding: '1px 6px', cursor: 'pointer',
+                    color: roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)',
+                    borderColor: `color-mix(in srgb,${roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)'} 30%,transparent)`,
+                    background: `color-mix(in srgb,${roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)'} 10%,transparent)`,
+                    fontWeight: roiPeriod === '30d' ? 700 : 400,
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setRoiPeriod('30d'); }}
+                >30D</span>
+                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{t('orders')}</span>
+                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
               </div>
-            </div>
-          </div>
-          <div className="kpi-band" style={{ borderLeft: '3px solid var(--good)' }}>
-            <div className="kpi-band-title">💰 Deal Profit Split</div>
-            <div className="kpi-band-cols">
-              <div>
-                <div className="kpi-period">📊 My Earnings</div>
-                <div className={`kpi-cell-val ${merchantDealKpis.totalMyShare >= 0 ? 'good' : 'bad'}`}>{merchantDealKpis.totalMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalMyShare)}</div>
-                <div className="kpi-cell-sub">
-                  {merchantDealKpis.pendingCount > 0 && <span style={{ color: 'var(--warn)' }}>{merchantDealKpis.pendingCount} {t('pendingDeals')}</span>}
-                  {merchantDealKpis.pendingCount > 0 && merchantDealKpis.approvedCount > 0 && ' · '}
-                  {merchantDealKpis.approvedCount > 0 && <span style={{ color: 'var(--good)' }}>{merchantDealKpis.approvedCount} {t('approvedStatus')}</span>}
+              {isExpanded && (
+                <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
+                  <p>Return on invested capital for {roiPeriod === '7d' ? '7 days' : '30 days'} — normalizes profit vs full book.</p>
+                  <p style={{ marginTop: 4 }}><strong style={{ color: 'var(--warn)' }}>Why:</strong> Raw QAR profit is misleading without context of how much capital is deployed.</p>
+                  <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--panel2)', fontFamily: 'monospace', fontSize: 10, color: 'var(--good)' }}>
+                    = {roiPeriod}.netQAR ÷ stockCostQAR × 100
+                  </div>
                 </div>
-              </div>
-              <div>
-                <div className="kpi-period">🛡️ Partner Earnings</div>
-                <div className={`kpi-cell-val ${merchantDealKpis.totalPartnerShare >= 0 ? 'good' : 'bad'}`} style={{ color: 'var(--warn)' }}>{merchantDealKpis.totalPartnerShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.totalPartnerShare)}</div>
-                <div className="kpi-cell-sub">{fmtQWithUnit(merchantDealKpis.totalVol)} {t('volume')} · {merchantDealKpis.totalDeals} {t('totalDealsLabel')}</div>
-              </div>
+              )}
             </div>
-          </div>
-        </div>
+          );
+        })()}
 
-        {/* Drill-down panel */}
-        {showDealsDrilldown && merchantDealKpis.dealDetails && (
-          <div className="panel" style={{ marginTop: 0 }}>
-            <div className="panel-body" style={{ padding: 0 }}>
-              {/* Outgoing Deals */}
-              {(() => {
-                const outDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing');
-                const outTotal = outDeals.reduce((s, d) => s + d.net, 0);
-                const outMyCutTotal = outDeals.reduce((s, d) => s + d.myShare, 0);
-                return outDeals.length > 0 ? (
-                  <div style={{ borderBottom: '1px solid var(--line)' }}>
-                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'color-mix(in srgb, var(--brand) 6%, transparent)' }}>
-                      <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📤 {t('outgoingDeals')} ({outDeals.length})</span>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
-                          Gross: {outTotal >= 0 ? '+' : ''}{fmtQWithUnit(outTotal)}
-                        </span>
-                        <span className={`mono ${outMyCutTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
-                          My Cut: {outMyCutTotal >= 0 ? '+' : ''}{fmtQWithUnit(outMyCutTotal)}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ overflow: 'auto' }}>
-                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--panel2)' }}>
-                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Deal</th>
-                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
-                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--good)', fontSize: 10 }}>📊 My Cut</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--warn)', fontSize: 10 }}>🛡️ Partner Cut</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {outDeals.map(d => (
-                            <tr key={d.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                              <td style={{ padding: '6px 10px', fontWeight: 500 }}>{d.title}</td>
-                              <td style={{ padding: '6px 10px', color: 'var(--brand)' }}>{d.merchantName}</td>
-                              <td style={{ padding: '6px 10px' }}>
-                                <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
-                              </td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.myShare >= 0 ? 'good' : 'bad'}`}>
-                                {d.myShare >= 0 ? '+' : ''}{fmtQWithUnit(d.myShare)}
-                              </td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--warn)' }} className="mono">
-                                {fmtQWithUnit(d.partnerShare)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+        {/* Avg Cycle Time */}
+        {(() => {
+          const isExpanded = expandedNewKpi === 'cycle';
+          return (
+            <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'cycle')}>
+              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>
+                  ⏱️
+                </span>
+              </div>
+              <div className="kpi-lbl">{t('avgCycleTime')}</div>
+              <div className="kpi-val" style={{ color: 'var(--warn)' }}>{cycleHours !== null ? `${fmtTotal(cycleHours)}h` : '—'}</div>
+              <div className="kpi-sub">{t('avgCycleTimeSub')}</div>
+              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>FIFO</span>
+                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Stock</span>
+                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
+              </div>
+              {isExpanded && (
+                <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
+                  <p>Average hours from buying a batch to it being consumed in sales.</p>
+                  <p style={{ marginTop: 4 }}><strong style={{ color: 'var(--warn)' }}>Why:</strong> Shorter cycle = faster capital rotation and less exposure to price moves.</p>
+                  <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--panel2)', fontFamily: 'monospace', fontSize: 10, color: 'var(--good)' }}>
+                    = avg(trade.ts – slice.batchTs) per FIFO slice
                   </div>
-                ) : null;
-              })()}
-
-              {/* Incoming Deals */}
-              {(() => {
-                const inDeals = merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming');
-                const inTotal = inDeals.reduce((s, d) => s + d.net, 0);
-                const inMyCutTotal = inDeals.reduce((s, d) => s + d.myShare, 0);
-                return inDeals.length > 0 ? (
-                  <div>
-                    <div style={{ padding: '10px 14px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'color-mix(in srgb, var(--good) 6%, transparent)' }}>
-                      <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--t1)' }}>📥 {t('incomingDeals')} ({inDeals.length})</span>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
-                          Gross: {inTotal >= 0 ? '+' : ''}{fmtQWithUnit(inTotal)}
-                        </span>
-                        <span className={`mono ${inMyCutTotal >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 12 }}>
-                          My Cut: {inMyCutTotal >= 0 ? '+' : ''}{fmtQWithUnit(inMyCutTotal)}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ overflow: 'auto' }}>
-                      <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--line)', background: 'var(--panel2)' }}>
-                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Deal</th>
-                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Merchant</th>
-                            <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Status</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--muted)', fontSize: 10 }}>Volume</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--good)', fontSize: 10 }}>📊 My Cut</th>
-                            <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--warn)', fontSize: 10 }}>🛡️ Partner Cut</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {inDeals.map(d => (
-                            <tr key={d.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                              <td style={{ padding: '6px 10px', fontWeight: 500 }}>{d.title}</td>
-                              <td style={{ padding: '6px 10px', color: 'var(--brand)' }}>{d.merchantName}</td>
-                              <td style={{ padding: '6px 10px' }}>
-                                <span className={`pill ${d.status === 'approved' ? 'good' : d.status === 'pending' ? 'warn' : ''}`} style={{ fontSize: 9, padding: '1px 6px' }}>{d.status}</span>
-                              </td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right' }} className="mono">{fmtQWithUnit(d.vol)}</td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }} className={`mono ${d.myShare >= 0 ? 'good' : 'bad'}`}>
-                                {d.myShare >= 0 ? '+' : ''}{fmtQWithUnit(d.myShare)}
-                              </td>
-                              <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--warn)' }} className="mono">
-                                {fmtQWithUnit(d.partnerShare)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-
-              {/* Per-merchant summary */}
-              {(() => {
-                const byMerchant = new Map<string, { net: number; count: number }>();
-                for (const d of merchantDealKpis.dealDetails) {
-                  const existing = byMerchant.get(d.merchantName) || { net: 0, count: 0 };
-                  existing.net += d.net;
-                  existing.count += 1;
-                  byMerchant.set(d.merchantName, existing);
-                }
-                const sorted = [...byMerchant.entries()].sort((a, b) => b[1].net - a[1].net);
-                return sorted.length > 0 ? (
-                  <div style={{ borderTop: '1px solid var(--line)', padding: '10px 14px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>📊 Per-Merchant Net Summary</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {sorted.map(([name, data]) => (
-                        <div key={name} style={{
-                          padding: '6px 12px',
-                          borderRadius: 8,
-                          background: 'var(--panel2)',
-                          border: '1px solid var(--line)',
-                          fontSize: 11,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          minWidth: 100,
-                        }}>
-                          <span style={{ fontWeight: 600, color: 'var(--brand)', marginBottom: 2 }}>{name}</span>
-                          <span className={`mono ${data.net >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700, fontSize: 13 }}>
-                            {data.net >= 0 ? '+' : ''}{fmtQWithUnit(data.net)}
-                          </span>
-                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>{data.count} deal{data.count !== 1 ? 's' : ''}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null;
-              })()}
+                </div>
+              )}
             </div>
+          );
+        })()}
+
+        {/* Trade Velocity */}
+        {(() => {
+          const velocity = d7.count > 0 ? d7.count / 7 : 0;
+          const isExpanded = expandedNewKpi === 'velocity';
+          return (
+            <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'velocity')}>
+              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>
+                  📅
+                </span>
+              </div>
+              <div className="kpi-lbl">{t('tradeVelocity')}</div>
+              <div className="kpi-val" style={{ color: 'var(--brand)' }}>{fmtPrice(velocity)}</div>
+              <div className="kpi-sub">{t('tradeVelocitySub')}</div>
+              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>7D avg</span>
+                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{t('orders')}</span>
+                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
+              </div>
+              {isExpanded && (
+                <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
+                  <p>Average number of completed trades per day over the last 7 days.</p>
+                  <p style={{ marginTop: 4 }}><strong style={{ color: 'var(--warn)' }}>Why:</strong> Higher velocity means more active trading and faster capital turnover.</p>
+                  <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--panel2)', fontFamily: 'monospace', fontSize: 10, color: 'var(--good)' }}>
+                    = 7d trade count ÷ 7
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Outgoing Deals Net Profit */}
+        {merchantDealKpis && (
+          <div className="kpi-card">
+            <div className="kpi-head">
+              <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>
+                📤 {merchantDealKpis.outCount} deals
+              </span>
+            </div>
+            <div className="kpi-lbl">{t('outgoingNet')}</div>
+            <div className={`kpi-val ${merchantDealKpis.outNet >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.outNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outNet)}
+            </div>
+            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing').reduce((s, d) => s + d.myShare, 0))}</div>
           </div>
         )}
-        </>
-      )}
+
+        {/* Incoming Deals Net Profit */}
+        {merchantDealKpis && (
+          <div className="kpi-card">
+            <div className="kpi-head">
+              <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
+                📥 {merchantDealKpis.inCount} deals
+              </span>
+            </div>
+            <div className="kpi-lbl">{t('incomingNet')}</div>
+            <div className={`kpi-val ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
+            </div>
+            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}</div>
+          </div>
+        )}
+      </div>
 
       {/* Bottom panels */}
       <div className="dash-bottom">

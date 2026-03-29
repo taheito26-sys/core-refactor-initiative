@@ -173,24 +173,6 @@ export default function LoginPage() {
             {t('continueWithGoogle')}
           </Button>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-muted" />
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase">
-              <span className="bg-background px-2 text-muted-foreground/60 font-bold tracking-widest">Dev Mode</span>
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full h-11 text-xs font-bold gap-2 rounded-xl border-dashed border-2 hover:bg-primary/5 hover:border-primary/50 transition-all opacity-60 hover:opacity-100"
-            onClick={devLogin}
-          >
-            Skip Authentication
-          </Button>
-
           <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground/60">
             <Shield className="h-3 w-3" />
             <span>{t.isRTL ? 'محمي بتشفير المؤسسات' : 'Protected by enterprise-grade encryption'}</span>

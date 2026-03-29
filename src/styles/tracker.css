@@ -54,7 +54,7 @@
 .tracker-root .kpi-band-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .tracker-root .kpi-band { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius); padding: 8px; box-shadow: var(--lt-shadow2); transition: all var(--lt-tr); }
 .tracker-root .kpi-band:hover { border-color: color-mix(in srgb, var(--brand) 35%, transparent); box-shadow: var(--lt-shadow); transform: translateY(-2px); }
-.tracker-root .kpi-band-title { font-size: calc(7px * var(--ui-scale,1)); font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.tracker-root .kpi-band-title { font-size: calc(10px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .5px; text-transform: uppercase; color: var(--text); margin-bottom: 6px; }
 .tracker-root .kpi-band-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tracker-root .kpi-period { font-size: calc(7px * var(--ui-scale,1)); font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--muted2); margin-bottom: 2px; }
 .tracker-root .kpi-cell-val { font-size: calc(14px * var(--ui-scale,1)); font-weight: 800; }
@@ -73,9 +73,9 @@
 .tracker-root .kpi-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background: var(--kpi-accent); opacity:0; transition: opacity var(--lt-tr); }
 .tracker-root .kpi-card:hover::after { opacity:1; }
 .tracker-root .kpi-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3px; }
-.tracker-root .kpi-lbl { font-size: calc(6px * var(--ui-scale,1)); font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
-.tracker-root .kpi-val { font-size: calc(13px * var(--ui-scale,1)); font-weight: 800; letter-spacing: -.1px; line-height: 1; font-family: var(--lt-font); }
-.tracker-root .kpi-sub { font-size: calc(8px * var(--ui-scale,1)); color: var(--muted); margin-top: 2px; line-height: 1.1; }
+.tracker-root .kpi-lbl { font-size: calc(11px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .6px; text-transform: uppercase; color: var(--text); margin-bottom: 4px; line-height: 1.15; }
+.tracker-root .kpi-val { font-size: calc(18px * var(--ui-scale,1)); font-weight: 800; letter-spacing: -.3px; line-height: 1; font-family: var(--lt-font); }
+.tracker-root .kpi-sub { font-size: calc(9px * var(--ui-scale,1)); color: var(--muted); margin-top: 4px; line-height: 1.2; }
 .tracker-root .kpi-badge { font-size: calc(9px * var(--ui-scale,1)); font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; transition: all var(--lt-tr); }
 
 /* ── Utility colors ── */
@@ -445,6 +445,33 @@
   .tracker-root .formActions { padding: 0; }
   .tracker-root .formActions .btn { width: 100%; }
 
+  /* ── Mobile entry mode toggles: allow wrapping ── */
+  .tracker-root .modeToggle {
+    flex-wrap: wrap;
+  }
+  .tracker-root .modeToggle button {
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: 9px !important;
+    padding: 6px 4px !important;
+    white-space: nowrap;
+  }
+
+  /* ── Mobile KPI bands: shrink text ── */
+  .tracker-root .kpi-band-title { font-size: 9px; }
+  .tracker-root .kpi-cell-val { font-size: 12px; }
+  .tracker-root .kpi-cell-sub { font-size: 7px; }
+  .tracker-root .kpi-lbl { font-size: 9px; }
+  .tracker-root .kpi-val { font-size: 15px; }
+
+  /* ── Field labels: ensure they don't overflow ── */
+  .tracker-root .lbl {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* ── Prevent any child from exceeding viewport ── */
   .tracker-root,
   .tracker-root > *,
@@ -453,6 +480,40 @@
     max-width: 100%;
     box-sizing: border-box;
   }
+
+  /* ── Mobile select dropdowns ── */
+  .tracker-root select {
+    font-size: 11px;
+    max-width: 100%;
+  }
+
+  /* ── Lookup shell: ensure it doesn't overflow ── */
+  .tracker-root .lookupShell,
+  .tracker-root .lookupBox {
+    max-width: 100%;
+  }
+}
+
+/* ── Orders Tab Bar ── */
+.orders-tab-bar {
+  display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 2px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.orders-tab-bar::-webkit-scrollbar { display: none; }
+.orders-tab-btn {
+  padding: 9px 18px; font-size: 11px; font-weight: 500;
+  color: var(--muted); border: none; border-bottom: 2px solid transparent;
+  background: transparent; cursor: pointer; transition: all 0.15s;
+  letter-spacing: .2px; white-space: nowrap; flex-shrink: 0;
+}
+.orders-tab-btn.active { font-weight: 700; color: var(--brand); border-bottom-color: var(--brand); }
+
+/* ── Orders two-col: on mobile, reverse so form appears first ── */
+@media (max-width: 768px) {
+  .tracker-root .orders-two-col {
+    display: flex; flex-direction: column-reverse; gap: 10px;
+  }
+  .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
 }
 
 /* ── Extra small screens (≤ 400px) ── */
@@ -461,6 +522,7 @@
   .tracker-root tbody td { padding: 4px 3px; font-size: 9px; max-width: 70px; }
   .tracker-root .kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
   .tracker-root .formPanel .inner { padding: 4px; }
+  .orders-tab-btn { padding: 7px 10px; font-size: 9px; }
 }
 
 /* ══════════════════════════════════════════════════════════════

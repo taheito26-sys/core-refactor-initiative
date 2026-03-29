@@ -408,6 +408,101 @@ export type Database = {
           },
         ]
       }
+      merchant_liquidity_profiles: {
+        Row: {
+          auto_sync_enabled: boolean
+          cash_publish_mode: string
+          cash_range_max: number | null
+          cash_range_min: number | null
+          cash_status: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_published_at: string | null
+          merchant_id: string
+          publish_cash_enabled: boolean
+          publish_usdt_enabled: boolean
+          published_cash_amount: number | null
+          published_usdt_amount: number | null
+          reserve_buffer_cash: number
+          reserve_buffer_usdt: number
+          reserved_cash_commitments: number
+          reserved_usdt_commitments: number
+          status: string
+          updated_at: string
+          usdt_publish_mode: string
+          usdt_range_max: number | null
+          usdt_range_min: number | null
+          usdt_status: string
+          user_id: string
+          visibility_scope: string
+        }
+        Insert: {
+          auto_sync_enabled?: boolean
+          cash_publish_mode?: string
+          cash_range_max?: number | null
+          cash_range_min?: number | null
+          cash_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_published_at?: string | null
+          merchant_id: string
+          publish_cash_enabled?: boolean
+          publish_usdt_enabled?: boolean
+          published_cash_amount?: number | null
+          published_usdt_amount?: number | null
+          reserve_buffer_cash?: number
+          reserve_buffer_usdt?: number
+          reserved_cash_commitments?: number
+          reserved_usdt_commitments?: number
+          status?: string
+          updated_at?: string
+          usdt_publish_mode?: string
+          usdt_range_max?: number | null
+          usdt_range_min?: number | null
+          usdt_status?: string
+          user_id: string
+          visibility_scope?: string
+        }
+        Update: {
+          auto_sync_enabled?: boolean
+          cash_publish_mode?: string
+          cash_range_max?: number | null
+          cash_range_min?: number | null
+          cash_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_published_at?: string | null
+          merchant_id?: string
+          publish_cash_enabled?: boolean
+          publish_usdt_enabled?: boolean
+          published_cash_amount?: number | null
+          published_usdt_amount?: number | null
+          reserve_buffer_cash?: number
+          reserve_buffer_usdt?: number
+          reserved_cash_commitments?: number
+          reserved_usdt_commitments?: number
+          status?: string
+          updated_at?: string
+          usdt_publish_mode?: string
+          usdt_range_max?: number | null
+          usdt_range_min?: number | null
+          usdt_status?: string
+          user_id?: string
+          visibility_scope?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_liquidity_profiles_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: true
+            referencedRelation: "merchant_profiles"
+            referencedColumns: ["merchant_id"]
+          },
+        ]
+      }
       merchant_messages: {
         Row: {
           content: string
@@ -1351,51 +1446,75 @@ export type Database = {
       }
       profit_share_agreements: {
         Row: {
+          agreement_type: string
           approved_at: string | null
           approved_by: string | null
+          counterparty_default_profit_handling: string
           created_at: string
           created_by: string
           effective_from: string
           expires_at: string | null
           id: string
+          lender_contribution: number | null
           merchant_ratio: number
           notes: string | null
+          operator_contribution: number | null
+          operator_default_profit_handling: string
+          operator_merchant_id: string | null
+          operator_ratio: number | null
           partner_ratio: number
           relationship_id: string
           settlement_cadence: string
           status: string
+          terms_snapshot: Json | null
           updated_at: string
         }
         Insert: {
+          agreement_type?: string
           approved_at?: string | null
           approved_by?: string | null
+          counterparty_default_profit_handling?: string
           created_at?: string
           created_by: string
           effective_from?: string
           expires_at?: string | null
           id?: string
+          lender_contribution?: number | null
           merchant_ratio: number
           notes?: string | null
+          operator_contribution?: number | null
+          operator_default_profit_handling?: string
+          operator_merchant_id?: string | null
+          operator_ratio?: number | null
           partner_ratio: number
           relationship_id: string
           settlement_cadence?: string
           status?: string
+          terms_snapshot?: Json | null
           updated_at?: string
         }
         Update: {
+          agreement_type?: string
           approved_at?: string | null
           approved_by?: string | null
+          counterparty_default_profit_handling?: string
           created_at?: string
           created_by?: string
           effective_from?: string
           expires_at?: string | null
           id?: string
+          lender_contribution?: number | null
           merchant_ratio?: number
           notes?: string | null
+          operator_contribution?: number | null
+          operator_default_profit_handling?: string
+          operator_merchant_id?: string | null
+          operator_ratio?: number | null
           partner_ratio?: number
           relationship_id?: string
           settlement_cadence?: string
           status?: string
+          terms_snapshot?: Json | null
           updated_at?: string
         }
         Relationships: [
@@ -1404,6 +1523,84 @@ export type Database = {
             columns: ["relationship_id"]
             isOneToOne: false
             referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlement_decisions: {
+        Row: {
+          agreement_id: string
+          created_at: string
+          decision: string
+          decision_confirmed_at: string | null
+          decision_due_at: string | null
+          default_behavior: string
+          effective_capital_after: number
+          effective_capital_before: number
+          finalization_snapshot: Json | null
+          finalized_at: string | null
+          id: string
+          merchant_id: string
+          profit_amount: number
+          reinvested_amount: number
+          role: string
+          settlement_period_id: string
+          updated_at: string
+          withdrawn_amount: number
+        }
+        Insert: {
+          agreement_id: string
+          created_at?: string
+          decision?: string
+          decision_confirmed_at?: string | null
+          decision_due_at?: string | null
+          default_behavior?: string
+          effective_capital_after?: number
+          effective_capital_before?: number
+          finalization_snapshot?: Json | null
+          finalized_at?: string | null
+          id?: string
+          merchant_id: string
+          profit_amount?: number
+          reinvested_amount?: number
+          role?: string
+          settlement_period_id: string
+          updated_at?: string
+          withdrawn_amount?: number
+        }
+        Update: {
+          agreement_id?: string
+          created_at?: string
+          decision?: string
+          decision_confirmed_at?: string | null
+          decision_due_at?: string | null
+          default_behavior?: string
+          effective_capital_after?: number
+          effective_capital_before?: number
+          finalization_snapshot?: Json | null
+          finalized_at?: string | null
+          id?: string
+          merchant_id?: string
+          profit_amount?: number
+          reinvested_amount?: number
+          role?: string
+          settlement_period_id?: string
+          updated_at?: string
+          withdrawn_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_decisions_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "profit_share_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlement_decisions_settlement_period_id_fkey"
+            columns: ["settlement_period_id"]
+            isOneToOne: false
+            referencedRelation: "settlement_periods"
             referencedColumns: ["id"]
           },
         ]

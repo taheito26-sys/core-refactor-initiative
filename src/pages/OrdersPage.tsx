@@ -21,7 +21,9 @@ import { toast } from 'sonner';
 import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
+import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import '@/styles/tracker.css';
 
 // ─── Multi-Merchant Allocation Row Type ──────────────────────────────
@@ -50,6 +52,7 @@ export default function OrdersPage() {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
@@ -73,6 +76,7 @@ export default function OrdersPage() {
   const [saleMessage, setSaleMessage] = useState('');
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
+  const [cashDepositAccountId, setCashDepositAccountId] = useState('');
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,14 +240,38 @@ export default function OrdersPage() {
   const query = (settings.searchQuery || '').trim().toLowerCase();
 
   const cancelledDealIds = useMemo(() => new Set(
-    allMerchantDeals.filter(d => d.status === 'cancelled' || (d.status as string) === 'voided').map(d => d.id)
+    allMerchantDeals.filter(d => d.status === 'cancelled' || d.status === 'rejected' || (d.status as string) === 'voided').map(d => d.id)
   ), [allMerchantDeals]);
   const cancelledLocalTradeIds = useMemo(() => new Set(
     allMerchantDeals
-      .filter(d => d.status === 'cancelled' || (d.status as string) === 'voided')
+      .filter(d => d.status === 'cancelled' || d.status === 'rejected' || (d.status as string) === 'voided')
       .map(d => parseDealMeta(d.notes).local_trade)
       .filter(Boolean)
   ), [allMerchantDeals]);
+
+  // Sync: void local trades whose server-side deals are cancelled/rejected/voided
+  // This ensures computeFIFO never consumes stock for dead deals
+  useEffect(() => {
+    if (cancelledLocalTradeIds.size === 0 && cancelledDealIds.size === 0) return;
+    let changed = false;
+    const nextTrades = state.trades.map(tr => {
+      if (tr.voided) return tr; // already voided
+      // Check by linkedDealId
+      if (tr.linkedDealId && cancelledDealIds.has(tr.linkedDealId) && !tr.voided) {
+        changed = true;
+        return { ...tr, voided: true };
+      }
+      // Check by local_trade reference in cancelled deal notes
+      if (cancelledLocalTradeIds.has(tr.id) && !tr.voided) {
+        changed = true;
+        return { ...tr, voided: true };
+      }
+      return tr;
+    });
+    if (changed) {
+      applyState({ ...state, trades: nextTrades });
+    }
+  }, [cancelledDealIds, cancelledLocalTradeIds]); // intentionally minimal deps to avoid loops
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
   const list = useMemo(() => allTrades.filter(t => {
@@ -376,16 +404,32 @@ export default function OrdersPage() {
 
   const isCapitalTransfer = selectedTemplateId === 'capital_transfer';
   const submitCapitalTransfer = useSubmitCapitalTransfer();
+  const mobileInputStyle = isMobile ? { fontSize: 16, minHeight: 42 } : undefined;
+  const mobileActionStyle = isMobile ? { minHeight: 42, fontSize: 12 } : undefined;
+  const mobileDialogContentStyle = isMobile
+    ? {
+        maxWidth: '96vw',
+        width: '96vw',
+        maxHeight: '92dvh',
+        overflowY: 'auto' as const,
+        borderRadius: 12,
+        padding: 14,
+        paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
+      }
+    : undefined;
+  const mobileDialogFooterStyle = isMobile
+    ? { gap: 8, flexDirection: 'column-reverse' as const, alignItems: 'stretch' as const }
+    : undefined;
 
   const handleCapitalTransfer = async () => {
-    if (!linkedRelId) { toast.error('Select a partner first'); return; }
-    if (!transferAmount || !transferCostBasis) { toast.error('Amount and cost basis are required'); return; }
+    if (!linkedRelId) { toast.error(t('selectPartnerFirst')); return; }
+    if (!transferAmount) { toast.error(t('amountCostRequired')); return; }
     try {
       await submitCapitalTransfer.mutateAsync({
         relationship_id: linkedRelId,
         direction: transferDirection,
         amount: parseFloat(transferAmount),
-        cost_basis: parseFloat(transferCostBasis),
+        cost_basis: 0,
         note: transferNote || undefined,
       });
       toast.success(t('capitalTransferSubmitted') || 'Capital transfer submitted');
@@ -424,29 +468,15 @@ export default function OrdersPage() {
 
   // Helper: apply cash deposit to state if enabled
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
-    if (cashDepositMode === 'none') return nextState;
-    const revenue = amountUSDT * sell;
-    const depositAmt = cashDepositMode === 'full'
-      ? revenue
-      : Math.min(parseFloat(cashDepositAmount) || 0, revenue);
-    if (depositAmt <= 0) return nextState;
-    const currentCash = nextState.cashQAR || 0;
-    const newCash = currentCash + depositAmt;
-    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
-      id: uid(),
-      ts: Date.now(),
-      type: 'sale_deposit' as any,
-      amount: depositAmt,
-      balanceAfter: newCash,
-      owner: nextState.cashOwner || '',
-      bankAccount: '',
-      note: `Sale proceeds: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
-    };
-    return {
-      ...nextState,
-      cashQAR: newCash,
-      cashHistory: [...(nextState.cashHistory || []), cashTx],
-    };
+    return applyOrderCashDeposit({
+      nextState,
+      cashDepositMode,
+      cashDepositAmountRaw: cashDepositAmount,
+      cashDepositAccountId,
+      sell,
+      amountUSDT,
+      note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+    });
   };
 
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
@@ -483,20 +513,20 @@ export default function OrdersPage() {
 
     // Multi-merchant allocation validation
     if (merchantOrderEnabled && isNewAllocFlow) {
-      if (allocations.length === 0) { setSaleMessage('Add at least one merchant allocation'); return; }
+      if (allocations.length === 0) { setSaleMessage(t('addAtLeastOneAlloc')); return; }
       const totalAllocated = allocations.reduce((s, a) => s + (parseFloat(a.allocatedUsdt) || 0), 0);
       if (Math.abs(totalAllocated - amountUSDT) > 0.01) {
-        setSaleMessage(`Allocation mismatch: allocated ${totalAllocated.toFixed(2)} USDT but sale is ${amountUSDT.toFixed(2)} USDT`);
+        setSaleMessage(`${t('allocMismatch')}: ${t('allocMismatchDetail').replace('{0}', totalAllocated.toFixed(2)).replace('{1}', amountUSDT.toFixed(2))}`);
         return;
       }
       for (const alloc of allocations) {
-        if (!alloc.relationshipId) { setSaleMessage('Each allocation must have a merchant selected'); return; }
+        if (!alloc.relationshipId) { setSaleMessage(t('allocNeedsMerchant')); return; }
         if (alloc.family === 'profit_share' && !alloc.agreementId) {
-          setSaleMessage(`Profit Share allocation for ${alloc.merchantName || 'merchant'} requires an approved agreement`);
+          setSaleMessage(`${t('profitShareLabel')} ${alloc.merchantName || t('merchant')} ${t('allocNeedsAgreement')}`);
           return;
         }
-        if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage('Each allocation must have USDT amount > 0'); return; }
-        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage('Each allocation must have a merchant cost > 0'); return; }
+        if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage(t('allocNeedsUsdt')); return; }
+        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
       }
     }
 
@@ -540,7 +570,7 @@ export default function OrdersPage() {
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-          const familyLabel = alloc.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+          const familyLabel = alloc.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
           const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
           const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
 
@@ -649,7 +679,7 @@ export default function OrdersPage() {
         return;
       } catch (err: any) {
         console.error('Failed to create allocations:', err);
-        toast.error(err.message || 'Failed to create merchant allocations');
+        toast.error(err.message || t('failedCreateAllocations'));
         return;
       }
     }
@@ -664,7 +694,7 @@ export default function OrdersPage() {
         const sell = Number(saleSell) || 0;
         const fee = parseFloat(saleFee) || 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
         // Store trade data in notes so partner can see qty/sell/cost
@@ -788,6 +818,7 @@ export default function OrdersPage() {
     setAllocations([]);
     setCashDepositMode('none');
     setCashDepositAmount('');
+    setCashDepositAccountId('');
   };
 
   const exportCsv = () => {
@@ -849,7 +880,7 @@ export default function OrdersPage() {
     // ── Handle linking to partner deal ──
     if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
       const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
-      if (!tmpl) { toast.error('Invalid template'); return; }
+      if (!tmpl) { toast.error(t('invalidTemplate')); return; }
 
       try {
         const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
@@ -860,7 +891,7 @@ export default function OrdersPage() {
         const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? 'Profit Share' : 'Sales Deal';
+        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
           const noteLines = [
@@ -1005,7 +1036,7 @@ export default function OrdersPage() {
         await reloadMerchantData();
         // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
-        toast.success('Deal updated — sent for re-approval');
+        toast.success(t('dealUpdatedReapproval'));
       } catch (err: any) {
         console.error('Failed to update linked deal:', err);
       }
@@ -1021,7 +1052,11 @@ export default function OrdersPage() {
       toast.error(t('cannotDeleteApprovedTrade'));
       return;
     }
-    applyState({ ...state, trades: state.trades.filter(t => t.id !== editingTradeId) });
+    // Mark as voided instead of removing — preserves audit trail and releases FIFO stock
+    const nextTrades = state.trades.map(t =>
+      t.id === editingTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+    );
+    applyState({ ...state, trades: nextTrades });
     setEditingTradeId(null);
   };
 
@@ -1040,9 +1075,9 @@ export default function OrdersPage() {
       } catch (err: any) { toast.error(err.message); return; }
     }
 
-    // Also update local trade state
+    // Also update local trade state — set voided so FIFO releases stock
     const nextTrades = state.trades.map(t =>
-      t.id === tradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+      t.id === tradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
     applyState({ ...state, trades: nextTrades });
     if (!tr.linkedDealId) toast.success(t('tradeCancelled'));
@@ -1058,8 +1093,9 @@ export default function OrdersPage() {
         await reloadMerchantData();
       } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
     }
+    // Set voided so FIFO releases stock
     const nextTrades = state.trades.map(t =>
-      t.id === cancelTradeId ? { ...t, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
+      t.id === cancelTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
     applyState({ ...state, trades: nextTrades });
     setCancelTradeId(null);
@@ -1259,6 +1295,103 @@ export default function OrdersPage() {
     return { count: creatorMerchantDeals.length, vol, net: netVal };
   }, [creatorMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
+  const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
+    const rel = relationships.find(r => r.id === deal.relationship_id);
+    const row = buildDealRowModel({ deal, perspective, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+    const merchantName = rel?.counterparty?.display_name || '—';
+
+    const statusColors: Record<string, { bg: string; color: string }> = {
+      pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
+      approved: { bg: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' },
+      rejected: { bg: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)' },
+      cancelled: { bg: 'color-mix(in srgb, var(--muted) 15%, transparent)', color: 'var(--muted)' },
+    };
+    const sc = statusColors[deal.status] || statusColors.pending;
+    const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—';
+
+    return (
+      <div key={`mobile-${deal.id}`} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+          <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="mono">{row.dateLabel}</span>
+            <span className="pill" style={{ fontSize: 9, background: sc.bg, color: sc.color, fontWeight: 700 }}>{deal.status}</span>
+            <span className="pill" style={{ fontSize: 9, color: 'var(--brand)' }}>{row.familyIcon} {row.familyLabel}</span>
+            {row.splitLabel && <span className="pill" style={{ fontSize: 9, color: 'var(--brand)' }}>{row.splitLabel}</span>}
+          </div>
+          {row.margin != null && <span className="pill" style={{ fontSize: 9 }}>{marginLabel}</span>}
+        </div>
+
+        <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('merchant')}</span>
+            <strong style={{ fontSize: 11, textAlign: 'right' }}>{merchantName}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('buyer')}</span>
+            <strong style={{ fontSize: 11, textAlign: 'right' }}>{row.buyer || '—'}</strong>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(row.quantity)}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(row.volume)}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('net')}</span>
+            {!row.hasAvgBuy ? (
+              <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
+            ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
+              <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
+                {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+              </span>
+            ) : (
+              <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
+                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+          {perspective === 'incoming' && deal.status === 'pending' && (
+            <>
+              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700, minHeight: 40 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
+              <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
+            </>
+          )}
+          {perspective === 'incoming' && deal.status === 'approved' && (
+            <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>✅ {t('approvedStatus')}</span>
+          )}
+          {perspective === 'incoming' && deal.status === 'rejected' && (
+            <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>❌ {t('rejectedStatus')}</span>
+          )}
+
+          {perspective === 'outgoing' && deal.status === 'pending' && (
+            <>
+              <button className="rowBtn" onClick={() => openDealEdit(deal)} style={{ minHeight: 40 }}>{t('edit')}</button>
+              <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+            </>
+          )}
+          {perspective === 'outgoing' && deal.status === 'approved' && (
+            <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+          )}
+        </div>
+      </div>
+    );
+  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit]);
+
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of partnerMerchantDeals) {
@@ -1282,7 +1415,7 @@ export default function OrdersPage() {
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
+      <div className="orders-tab-bar">
         {(['my', 'incoming', 'outgoing', 'transfers'] as const).map(tab => (
           <button
             key={tab}
@@ -1295,13 +1428,7 @@ export default function OrdersPage() {
                 setSaleAmount('');
               }
             }}
-            style={{
-              padding: '9px 18px', fontSize: 11, fontWeight: activeTab === tab ? 700 : 500,
-              color: activeTab === tab ? 'var(--brand)' : 'var(--muted)',
-              borderBottom: activeTab === tab ? '2px solid var(--brand)' : '2px solid transparent',
-              background: 'transparent', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer',
-              transition: 'all 0.15s', letterSpacing: '.2px',
-            }}
+            className={`orders-tab-btn ${activeTab === tab ? 'active' : ''}`}
           >
             {tab === 'my' ? `👤 ${t('myOrders')}`
               : tab === 'incoming' ? `📥 ${t('incomingOrders')}`
@@ -1311,7 +1438,7 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      <div className="twoColPage">
+      <div className="twoColPage orders-two-col">
 
         {/* ═══════════ LEFT PANEL ═══════════ */}
         <div>
@@ -1337,6 +1464,10 @@ export default function OrdersPage() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noTradesYet')}</div>
                   <div className="empty-s">{t('addBatchThenSale')}</div>
+                </div>
+              ) : isMobile ? (
+                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                  {creatorMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1431,13 +1562,17 @@ export default function OrdersPage() {
                   <div className="empty-t">{t('noIncomingTrades')}</div>
                   <div className="empty-s">{t('incomingTradesDesc')}</div>
                 </div>
+              ) : isMobile ? (
+                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                  {partnerMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
+                </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
                   <table>
                     <thead>
                       <tr>
                         {/* Identical header columns as Outgoing tab */}
-                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th className="hide-mobile">{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1470,11 +1605,11 @@ export default function OrdersPage() {
                             {/* MERCHANT — counterparty who created the deal */}
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             {/* BUYER — same customer field stored in deal notes */}
-                            <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
-                            <td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
+                            <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
                             {/* NET — same dual display as Outgoing: crossed-out full net + "my cut" */}
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
@@ -1485,7 +1620,7 @@ export default function OrdersPage() {
                                     {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span>
+                                     {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
@@ -1494,7 +1629,7 @@ export default function OrdersPage() {
                                 </span>
                               )}
                             </td>
-                            <td>
+                            <td className="hide-mobile">
                               <div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>
@@ -1543,12 +1678,16 @@ export default function OrdersPage() {
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
                   <div className="empty-s">{t('outgoingTradesDesc')}</div>
                 </div>
+              ) : isMobile ? (
+                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                  {creatorMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
+                </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('merchant')}</th><th className="hide-mobile">{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1577,11 +1716,11 @@ export default function OrdersPage() {
                               </div>
                             </td>
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                            <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
-                            <td className="mono r">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
+                            <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
                                 <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
@@ -1591,7 +1730,7 @@ export default function OrdersPage() {
                                     {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>my cut</span>
+                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
@@ -1600,7 +1739,7 @@ export default function OrdersPage() {
                                 </span>
                               )}
                             </td>
-                            <td>
+                            <td className="hide-mobile">
                               <div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
                             </td>
@@ -1636,7 +1775,7 @@ export default function OrdersPage() {
           {activeTab === 'my' && (
             <div className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
-              <div className="inner">
+              <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
                 {!isCapitalTransfer && (<>
 
@@ -1647,22 +1786,22 @@ export default function OrdersPage() {
                     <span className="bVal">{priceMode === 'fifo' && wacop ? fmtP(wacop) : '—'}</span>
                   </div>
                   <div className="modeToggle" style={{ fontSize: 9 }}>
-                    <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }}>FIFO</button>
-                    <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }}>Manual</button>
+                     <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
+                     <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }} style={mobileActionStyle}>{t('manualLabel')}</button>
                   </div>
                 </div>
 
                 <div className="field2">
                   <div className="lbl">{t('dateTime')}</div>
-                  <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} /></div>
+                  <div className="inputBox"><input type="datetime-local" value={saleDate} onChange={e => setSaleDate(e.target.value)} style={mobileInputStyle} /></div>
                 </div>
 
                 <div className="field2">
                   <div className="lbl">{t('inputMode')}</div>
                   <div className="modeToggle">
-                    <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')}>{t('entryModePriceVol')}</button>
-                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')}>{t('entryModeUsdtQar')}</button>
-                    <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')}>{t('entryModeUsdtPrice')}</button>
+                    <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')} style={mobileActionStyle}>{t('entryModePriceVol')}</button>
+                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')} style={mobileActionStyle}>{t('entryModeUsdtQar')}</button>
+                    <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')} style={mobileActionStyle}>{t('entryModeUsdtPrice')}</button>
                   </div>
                 </div>
 
@@ -1670,15 +1809,15 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
-                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')}>USDT</button>
-                        <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')}>QAR</button>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>USDT</button>
+                        <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')} style={mobileActionStyle}>QAR</button>
                       </div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
@@ -1687,11 +1826,11 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('totalQarReceived')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleAmount) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
                           {t('autoCalcSellPrice')}: {fmtPrice(Number(saleAmount) / Number(saleUsdtQty))} QAR/USDT
@@ -1705,11 +1844,11 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('totalUsdtSold')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
                           {t('autoCalcTotalQar')}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} QAR
@@ -1722,12 +1861,12 @@ export default function OrdersPage() {
                 {priceMode === 'manual' && (
                   <div className="g2tight">
                     <div className="field2">
-                      <div className="lbl">{t('buyPrice') || 'Buy Price'}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} /></div>
+                      <div className="lbl">{t('buyPrice')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
@@ -1735,7 +1874,7 @@ export default function OrdersPage() {
                 {priceMode === 'fifo' && (
                   <div className="field2">
                     <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
-                    <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} /></div>
+                    <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} style={mobileInputStyle} /></div>
                   </div>
                 )}
 
@@ -1743,17 +1882,19 @@ export default function OrdersPage() {
                   <div className="lbl">{t('buyerName')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                   <div className="lookupShell">
                     <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input placeholder={t('searchOrTypeBuyer')} style={{ flex: 1, paddingRight: 0 }} autoComplete="off" value={buyerName}
+                      <input placeholder={t('searchOrTypeBuyer')} autoComplete="off" value={buyerName}
                         onFocus={() => setBuyerMenuOpen(true)}
                         onChange={e => { setBuyerName(e.target.value); setBuyerId(''); setBuyerMenuOpen(true); }}
+                        onBlur={() => window.setTimeout(() => setBuyerMenuOpen(false), 150)}
+                        style={isMobile ? { flex: 1, paddingRight: 0, fontSize: 16, minHeight: 40 } : { flex: 1, paddingRight: 0 }}
                       />
-                      <button className="sideAction" title={t('buyer')} type="button" onClick={() => setBuyerMenuOpen(v => !v)}>⌄</button>
-                      <button className="sideAction" title={t('addBuyerTitle')} type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }}>+</button>
+                      <button className="sideAction" title={t('buyer')} type="button" onClick={() => setBuyerMenuOpen(v => !v)} style={isMobile ? { minWidth: 40, minHeight: 40 } : undefined}>⌄</button>
+                      <button className="sideAction" title={t('addBuyerTitle')} type="button" onClick={() => { setNewBuyerName(buyerName); setAddBuyerOpen(v => !v); }} style={isMobile ? { minWidth: 40, minHeight: 40 } : undefined}>+</button>
                     </div>
                     {buyerMenuOpen && (
-                      <div className="lookupMenu">
+                      <div className="lookupMenu" style={isMobile ? { maxHeight: 220 } : undefined}>
                         {filteredCustomers.length ? filteredCustomers.map(c => (
-                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }}>
+                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
                             <span>{c.name}</span><span className="lookupMeta">{c.phone || c.tier}</span>
                           </button>
                         )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
@@ -1766,14 +1907,14 @@ export default function OrdersPage() {
                   <div className="previewBox" style={{ marginTop: 2 }}>
                     <div className="pt">{t('addBuyerTitle')}</div>
                     <div className="g2tight" style={{ marginBottom: 6 }}>
-                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} /></div></div>
-                      <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newBuyerName} onChange={e => setNewBuyerName(e.target.value)} placeholder={t('buyerNamePlaceholder')} style={mobileInputStyle} /></div></div>
+                      <div className="field2"><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newBuyerPhone} onChange={e => setNewBuyerPhone(e.target.value)} placeholder="+974 ..." style={mobileInputStyle} /></div></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('tier')}</div>
-                      <div className="modeToggle">{['A', 'B', 'C', 'D'].map(tier => (<button key={tier} type="button" className={newBuyerTier === tier ? 'active' : ''} onClick={() => setNewBuyerTier(tier)}>{tier}</button>))}</div>
+                      <div className="modeToggle">{['A', 'B', 'C', 'D'].map(tier => (<button key={tier} type="button" className={newBuyerTier === tier ? 'active' : ''} onClick={() => setNewBuyerTier(tier)} style={mobileActionStyle}>{tier}</button>))}</div>
                     </div>
-                    <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal}>{t('addBuyerTitle')}</button></div>
+                    <div className="formActions"><button className="btn secondary" onClick={() => setAddBuyerOpen(false)} style={mobileActionStyle}>{t('cancel')}</button><button className="btn" onClick={addBuyerFromModal} style={mobileActionStyle}>{t('addBuyerTitle')}</button></div>
                   </div>
                 )}
 
@@ -1974,11 +2115,10 @@ export default function OrdersPage() {
                                 </div>
 
                                 {/* Template presets */}
-                                <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>Quick Template</div>
+                                <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>{t('quickTemplate')}</div>
                                 <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
                                    <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
-                                    onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>
-                                    🤝 50/50 Equal
+                                     onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>{t('equalSplit')}
                                   </button>
                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations.length > 1 ? '1.5px solid var(--brand)' : undefined }}
                                     onClick={() => {
@@ -1999,8 +2139,8 @@ export default function OrdersPage() {
                                           note: '',
                                         }]);
                                       }
-                                    }}>
-                                    👥 Custom Multi-Merchant
+                                     }}>
+                                     {t('customMultiMerchant')}
                                   </button>
                                 </div>
 
@@ -2013,12 +2153,12 @@ export default function OrdersPage() {
                                   }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                       <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--good)' }}>
-                                        {idx === 0 ? `📊 ${cpName}` : `📊 Merchant ${idx + 1}`}
+                                        {idx === 0 ? `📊 ${cpName}` : `📊 ${t('merchantN')} ${idx + 1}`}
                                       </span>
                                       {idx > 0 && (
                                         <button type="button" style={{ fontSize: 9, color: 'var(--bad)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
                                           onClick={() => setAllocations(prev => prev.filter((_, i) => i !== idx))}>
-                                          ✕ Remove
+                                          {t('removeMerchant')}
                                         </button>
                                       )}
                                     </div>
@@ -2026,7 +2166,7 @@ export default function OrdersPage() {
                                     {/* Merchant selector for additional allocations */}
                                     {idx > 0 && (
                                       <div className="field2" style={{ marginBottom: 4 }}>
-                                        <div className="lbl" style={{ fontSize: 9 }}>Merchant</div>
+                                        <div className="lbl" style={{ fontSize: 9 }}>{t('merchantN')}</div>
                                         <select
                                           value={alloc.relationshipId}
                                           onChange={e => {
@@ -2041,7 +2181,7 @@ export default function OrdersPage() {
                                           }}
                                           style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                                         >
-                                          <option value="">Select merchant…</option>
+                                          <option value="">{t('selectMerchantPlaceholder')}</option>
                                           {relationships.filter(r => r.id !== linkedRelId).map(r => (
                                             <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
                                           ))}
@@ -2134,7 +2274,7 @@ export default function OrdersPage() {
                                       merchantSharePct: 0,
                                       note: '',
                                     }])}>
-                                    + Add Another Merchant
+                                    {t('addAnotherMerchant')}
                                   </button>
                                 )}
                               </div>
@@ -2151,7 +2291,7 @@ export default function OrdersPage() {
                                       <select
                                         value={transferDirection}
                                         onChange={e => setTransferDirection(e.target.value as any)}
-                                        style={{ width: '100%', padding: '4px 6px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                        style={{ width: '100%', padding: isMobile ? '9px 10px' : '4px 6px', fontSize: isMobile ? 13 : 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
                                       >
                                         <option value="lender_to_operator">💸 {cpName} → {myName}</option>
                                         <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
@@ -2159,34 +2299,19 @@ export default function OrdersPage() {
                                     </div>
                                   );
                                 })()}
-                                <div className="g2tight">
-                                  <div className="field2">
-                                    <div className="lbl">USDT {t('amount')}</div>
-                                    <div className="inputBox">
-                                      <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" />
-                                    </div>
-                                  </div>
-                                  <div className="field2">
-                                    <div className="lbl">{t('costBasisQar')}</div>
-                                    <div className="inputBox">
-                                      <input type="number" step="0.01" value={transferCostBasis} onChange={e => setTransferCostBasis(e.target.value)} placeholder="3.65" />
-                                    </div>
+                                <div className="field2">
+                                  <div className="lbl">USDT {t('amount')}</div>
+                                  <div className="inputBox">
+                                    <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0" style={mobileInputStyle} />
                                   </div>
                                 </div>
-                                {transferAmount && transferCostBasis && (
-                                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                                    {t('totalCostQar')}: <span className="mono" style={{ fontWeight: 700 }}>
-                                      {(parseFloat(transferAmount) * parseFloat(transferCostBasis)).toLocaleString()} QAR
-                                    </span>
-                                  </div>
-                                )}
                                 <div className="field2" style={{ marginTop: 6 }}>
                                   <div className="lbl">{t('noteOptional')}</div>
                                   <div className="inputBox">
-                                    <input value={transferNote} onChange={e => setTransferNote(e.target.value)} placeholder={t('noteOptional')} />
+                                    <input value={transferNote} onChange={e => setTransferNote(e.target.value)} placeholder={t('noteOptional')} style={mobileInputStyle} />
                                   </div>
                                 </div>
-                                <button className="btn" style={{ marginTop: 8, width: '100%' }} onClick={handleCapitalTransfer} disabled={submitCapitalTransfer.isPending}>
+                                <button className="btn" style={{ marginTop: 8, width: '100%', minHeight: isMobile ? 44 : undefined, fontSize: isMobile ? 13 : undefined }} onClick={handleCapitalTransfer} disabled={submitCapitalTransfer.isPending}>
                                   💸 {t('submitTransfer')}
                                 </button>
                               </div>
@@ -2196,7 +2321,7 @@ export default function OrdersPage() {
                             {(selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family') && allocations.length > 0 && salePreview && (() => {
                               const alloc = allocations[0];
                               const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-                              const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+                              const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
                               const sellP = Number(saleSell) || 0;
                               const totalFee = parseFloat(saleFee) || 0;
 
@@ -2287,7 +2412,7 @@ export default function OrdersPage() {
 
                 {/* Live Preview */}
                 {(
-                <div className="previewBox">
+                <div className="previewBox" style={isMobile ? { padding: 12 } : undefined}>
                   <div className="pt">{t('livePreview')}</div>
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
                     <>
@@ -2315,7 +2440,7 @@ export default function OrdersPage() {
                     border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
                     marginBottom: 6,
                   }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>💰 Add sale proceeds to cash?</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>{t('addSaleProceedsToCash')}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {(['none', 'full', 'partial'] as const).map(mode => (
                         <button
@@ -2323,14 +2448,19 @@ export default function OrdersPage() {
                           onClick={() => {
                             setCashDepositMode(mode);
                             if (mode === 'full') setCashDepositAmount(String(Math.round(salePreview.revenue * 100) / 100));
-                            if (mode === 'none') setCashDepositAmount('');
+                            if (mode === 'none') { setCashDepositAmount(''); setCashDepositAccountId(''); }
+                            if (mode !== 'none' && !cashDepositAccountId) {
+                              const first = state.cashAccounts?.find(a => a.status === 'active');
+                              if (first) setCashDepositAccountId(first.id);
+                            }
                           }}
                           style={{
-                            padding: '4px 10px',
+                            padding: isMobile ? '8px 10px' : '4px 10px',
                             borderRadius: 6,
-                            fontSize: 10,
+                            fontSize: isMobile ? 11 : 10,
                             fontWeight: 600,
                             cursor: 'pointer',
+                            minHeight: isMobile ? 40 : undefined,
                             border: cashDepositMode === mode
                               ? '1.5px solid var(--good)'
                               : '1px solid var(--line)',
@@ -2340,35 +2470,90 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? "Don't add" : mode === 'full' ? `Full (${fmtQ(salePreview.revenue)} QAR)` : 'Custom amount'}
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)})` : t('customAmount')}
                         </button>
                       ))}
                     </div>
                     {cashDepositMode === 'partial' && (
                       <div style={{ marginTop: 6 }}>
-                        <div className="inputBox" style={{ maxWidth: 180 }}>
+                        <div className="inputBox" style={{ maxWidth: isMobile ? '100%' : 180 }}>
                           <input
                             inputMode="decimal"
-                            placeholder="Amount in QAR"
+                            placeholder={t('amountInQar')}
                             value={cashDepositAmount}
                             onChange={numericOnly(setCashDepositAmount)}
-                            style={{ fontSize: 11 }}
+                            style={mobileInputStyle}
                           />
                         </div>
                         {parseFloat(cashDepositAmount) > salePreview.revenue && (
-                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>Amount exceeds sale revenue</div>
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>{t('amountExceedsSaleRevenue')}</div>
                         )}
+                      </div>
+                    )}
+                    {cashDepositMode !== 'none' && (state.cashAccounts?.filter(a => a.status === 'active').length ?? 0) > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>{t('depositTo')}</div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {state.cashAccounts!.filter(a => a.status === 'active').map(acc => {
+                            const isSelected = cashDepositAccountId === acc.id;
+                            const typeIcon = acc.type === 'hand' ? '💵' : acc.type === 'bank' ? '🏦' : '🔐';
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === acc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            return (
+                              <button
+                                key={acc.id}
+                                onClick={() => setCashDepositAccountId(acc.id)}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: 8,
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  border: isSelected ? '1.5px solid var(--good)' : '1px solid var(--line)',
+                                  background: isSelected ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'var(--panel2)',
+                                  color: isSelected ? 'var(--good)' : 'var(--t2)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'flex-start',
+                                  gap: 2,
+                                  minWidth: 90,
+                                }}
+                              >
+                                <span style={isMobile ? { fontSize: 11 } : undefined}>{typeIcon} {acc.name}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                     {cashDepositMode !== 'none' && (
                       <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
-                        Cash balance: {fmtQ(state.cashQAR || 0)} → {fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR
+                        {(() => {
+                          const selectedAcc = state.cashAccounts?.find(a => a.id === cashDepositAccountId);
+                          if (selectedAcc) {
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === selectedAcc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            const deposit = parseFloat(cashDepositAmount) || 0;
+                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)}`;
+                          }
+                          return `${t('cashBalanceLbl')}: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                        })()}
                       </div>
                     )}
                   </div>
                 )}
 
-                <div className="formActions"><button className="btn" onClick={addTrade}>{merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}</button></div>
+                <div
+                  className="formActions"
+                  style={isMobile ? { position: 'sticky', bottom: 0, background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
+                >
+                  <button className="btn" onClick={addTrade} style={isMobile ? { width: '100%', minHeight: 46, fontSize: 13 } : undefined}>
+                    {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
+                  </button>
+                </div>
                 <div className={`msg ${saleMessage.includes(t('fixFields')) ? 'bad' : ''}`}>{saleMessage}</div>
 
                 </>)}
@@ -2456,6 +2641,48 @@ export default function OrdersPage() {
                     <div style={{ fontWeight: 700, marginBottom: 4 }}>{t('noTransfers')}</div>
                     <div style={{ fontSize: 10 }}>{t('createTransferDesc')}</div>
                   </div>
+                ) : isMobile ? (
+                  <div style={{ display: 'grid', gap: 8, paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                    {allTransfers.map((tx: any) => {
+                      const rel = relationships.find(r => r.id === tx.relationship_id);
+                      const isIn = tx.direction === 'lender_to_operator';
+                      return (
+                        <div key={tx.id} className="previewBox" style={{ padding: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span className="mono" style={{ fontSize: 10 }}>{new Date(tx.created_at).toLocaleDateString()}</span>
+                            <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10 }}>
+                              {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
+                            </span>
+                          </div>
+                          <div style={{ display: 'grid', gap: 4 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                              <span className="muted">{t('merchant')}</span>
+                              <strong style={{ fontSize: 11, textAlign: 'right' }}>{rel?.counterparty?.display_name || '—'}</strong>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+                              <div className="panel" style={{ padding: 6 }}>
+                                <div className="muted" style={{ fontSize: 9 }}>USDT</div>
+                                <div className="mono" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
+                                  {isIn ? '+' : '−'}{fmtU(tx.amount)}
+                                </div>
+                              </div>
+                              <div className="panel" style={{ padding: 6 }}>
+                                <div className="muted" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
+                                <div className="mono" style={{ fontWeight: 700 }}>{fmtP(tx.cost_basis)} QAR</div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                              <span className="muted">{t('totalCostQar')}</span>
+                              <strong className="mono">{fmtQ(tx.total_cost)}</strong>
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', wordBreak: 'break-word' }}>
+                              {tx.note || '—'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="tableWrap">
                     <table>
@@ -2463,7 +2690,7 @@ export default function OrdersPage() {
                         <tr>
                           <th>{t('date')}</th>
                           <th>{t('direction')}</th>
-                          <th>{t('merchant') || 'Partner'}</th>
+                          <th>{t('merchant')}</th>
                           <th className="r">USDT</th>
                           <th className="r">{t('costBasisQar')}</th>
                           <th className="r">{t('totalCostQar')}</th>
@@ -2481,7 +2708,7 @@ export default function OrdersPage() {
                               </td>
                               <td>
                                 <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                  {isIn ? '💸 ' + (t('capitalIn') || 'In') : '↩️ ' + (t('capitalReturn') || 'Out')}
+                                  {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
                                 </span>
                               </td>
                               <td style={{ fontSize: 10 }}>
@@ -2522,7 +2749,7 @@ export default function OrdersPage() {
         const isApproved = editingTrade?.approvalStatus === 'approved';
         return (
           <Dialog open={!!editingTradeId} onOpenChange={open => !open && setEditingTradeId(null)}>
-            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
               <DialogHeader style={{ marginBottom: 14 }}>
                 <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('correctTradeTitle')}</DialogTitle>
               </DialogHeader>
@@ -2543,11 +2770,11 @@ export default function OrdersPage() {
                 <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
                   <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)' }}>Volume</span>
+                     <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
                     <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(currentVolume)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)' }}>Net</span>
+                     <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                     <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: currentNet != null ? (currentNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
                       {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtQ(currentNet)}` : '—'}
                     </strong>
@@ -2557,13 +2784,13 @@ export default function OrdersPage() {
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('dateTime')}</div>
-                <div className="inputBox"><input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} disabled={isApproved} /></div>
+                <div className="inputBox"><input type="datetime-local" value={editDate} onChange={e => setEditDate(e.target.value)} disabled={isApproved} style={mobileInputStyle} /></div>
               </div>
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('buyerLabel')}</div>
                 <select value={editCustomerId} onChange={e => setEditCustomerId(e.target.value)} disabled={isApproved}
-                  style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
+                  style={{ width: '100%', padding: '8px 32px 8px 10px', fontSize: isMobile ? 14 : 12, minHeight: isMobile ? 44 : undefined, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', appearance: 'none', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="">{t('noCustomerSelected')}</option>
                   {state.customers.map(c => (
@@ -2575,18 +2802,18 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t('sellPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={numericOnly(setEditSell)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={numericOnly(setEditSell)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
               </div>
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('feeQarLabel')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={numericOnly(setEditFee)} disabled={isApproved} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={numericOnly(setEditFee)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6, gap: 10 }}>
                   <input type="checkbox" id="editUsesStockChk" checked={editUsesStock} onChange={e => setEditUsesStock(e.target.checked)} disabled={isApproved} style={{ accentColor: 'var(--good)', width: 15, height: 15, cursor: 'pointer', flexShrink: 0, marginBottom: 2 }} />
@@ -2605,7 +2832,7 @@ export default function OrdersPage() {
                     onChange={e => setEditNote(e.target.value)}
                     rows={2}
                     disabled={isApproved}
-                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: isMobile ? 14 : 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
@@ -2621,7 +2848,7 @@ export default function OrdersPage() {
                   🤝 {t('alreadyLinkedToPartner')}
                   {editingTrade.agreementFamily && (
                     <span style={{ marginLeft: 8 }}>
-                      ({editingTrade.agreementFamily === 'profit_share' ? 'Profit Share' : 'Sales Deal'}
+                      ({editingTrade.agreementFamily === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel')}
                       {editingTrade.partnerPct != null ? ` · ${editingTrade.partnerPct}/${editingTrade.merchantPct}` : ''})
                     </span>
                   )}
@@ -2749,21 +2976,21 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...mobileDialogFooterStyle }}>
                 {!isApproved && (
                   <button
                     onClick={deleteTrade}
-                    style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                    style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                   >
                     {t('delete')}
                   </button>
                 )}
-                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                  <button className="btn secondary" style={{ minWidth: 80 }} onClick={() => setEditingTradeId(null)}>{t('cancel')}</button>
+                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', width: isMobile ? '100%' : undefined }}>
+                  <button className="btn secondary" style={{ minWidth: 80, minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }} onClick={() => setEditingTradeId(null)}>{t('cancel')}</button>
                   {!isApproved && (
                     <button
                       onClick={saveTradeEdit}
-                      style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                      style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                     >
                       {t('saveCorrection')}
                     </button>
@@ -2777,18 +3004,18 @@ export default function OrdersPage() {
 
       {/* ─── CANCELLATION REQUEST DIALOG ─── */}
       <Dialog open={!!cancelTradeId} onOpenChange={open => !open && setCancelTradeId(null)}>
-        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--warn) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--warn) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
           <DialogHeader style={{ marginBottom: 14 }}>
             <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('requestCancellationTitle')}</DialogTitle>
           </DialogHeader>
           <div style={{ background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 28%, transparent)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'var(--warn)', marginBottom: 14, lineHeight: 1.5 }}>
             {t('cancellationRequestExplainer')}
           </div>
-          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <button className="btn secondary" onClick={() => setCancelTradeId(null)}>{t('cancel')}</button>
+          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end', ...mobileDialogFooterStyle }}>
+            <button className="btn secondary" onClick={() => setCancelTradeId(null)} style={isMobile ? { minHeight: 42, width: '100%' } : undefined}>{t('cancel')}</button>
             <button
               onClick={submitCancellationRequest}
-              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--warn)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--warn)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
             >
               {t('submitCancellationRequest')}
             </button>
@@ -2805,7 +3032,7 @@ export default function OrdersPage() {
         const dealNet = dealVol - dealCost - Number(editDealFee);
         return (
           <Dialog open={!!editingDealId} onOpenChange={open => !open && setEditingDealId(null)}>
-            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+            <DialogContent className="tracker-root" style={{ maxWidth: 500, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
               <DialogHeader style={{ marginBottom: 14 }}>
                 <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('correctTradeTitle')}</DialogTitle>
               </DialogHeader>
@@ -2817,11 +3044,11 @@ export default function OrdersPage() {
               <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
                 <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text)' }}>Volume</span>
+                  <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
                   <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: 'var(--text)' }}>Net</span>
+                  <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                   <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: Number.isFinite(dealNet) ? (dealNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
                     {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
                   </strong>
@@ -2831,17 +3058,17 @@ export default function OrdersPage() {
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={numericOnly(setEditDealQty)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={numericOnly(setEditDealQty)} style={mobileInputStyle} /></div>
                 </div>
                 <div className="field2">
                   <div className="lbl">{t('sellPriceQar')}</div>
-                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={numericOnly(setEditDealSell)} /></div>
+                  <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={numericOnly(setEditDealSell)} style={mobileInputStyle} /></div>
                 </div>
               </div>
 
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('feeQarLabel')}</div>
-                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={numericOnly(setEditDealFee)} /></div>
+                <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={numericOnly(setEditDealFee)} style={mobileInputStyle} /></div>
               </div>
 
               <div className="field2" style={{ marginBottom: 16 }}>
@@ -2851,23 +3078,23 @@ export default function OrdersPage() {
                     value={editDealNote}
                     onChange={e => setEditDealNote(e.target.value)}
                     rows={2}
-                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '7px 10px', resize: 'none', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: isMobile ? 14 : 12, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
 
-              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...mobileDialogFooterStyle }}>
                 <button
                   onClick={() => setDeleteDealConfirm(editingDealId)}
-                  style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}
+                  style={{ padding: '7px 12px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 30%, transparent)', color: 'var(--bad)', fontWeight: 600, fontSize: 11, cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                 >
                   {t('delete')}
                 </button>
-                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-                  <button className="btn secondary" style={{ minWidth: 80 }} onClick={() => setEditingDealId(null)}>{t('cancel')}</button>
+                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', width: isMobile ? '100%' : undefined }}>
+                  <button className="btn secondary" style={{ minWidth: 80, minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }} onClick={() => setEditingDealId(null)}>{t('cancel')}</button>
                   <button
                     onClick={saveDealEdit}
-                    style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+                    style={{ minWidth: 130, padding: '9px 18px', borderRadius: 6, background: 'var(--good)', color: '#000', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
                   >
                     {t('saveCorrection')}
                   </button>
@@ -2880,18 +3107,18 @@ export default function OrdersPage() {
 
       {/* ─── DELETE DEAL CONFIRMATION DIALOG ─── */}
       <Dialog open={!!deleteDealConfirm} onOpenChange={open => !open && setDeleteDealConfirm(null)}>
-        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--bad) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0 }}>
+        <DialogContent className="tracker-root" style={{ maxWidth: 420, background: 'var(--bg)', border: '1px solid color-mix(in srgb, var(--bad) 25%, var(--line))', borderRadius: 12, padding: 24, gap: 0, ...mobileDialogContentStyle }}>
           <DialogHeader style={{ marginBottom: 14 }}>
             <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('confirmDeleteDeal')}</DialogTitle>
           </DialogHeader>
           <div style={{ background: 'color-mix(in srgb, var(--bad) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 28%, transparent)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'var(--bad)', marginBottom: 14, lineHeight: 1.5 }}>
             {t('deleteDealWarning')}
           </div>
-          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <button className="btn secondary" onClick={() => setDeleteDealConfirm(null)}>{t('cancel')}</button>
+          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end', ...mobileDialogFooterStyle }}>
+            <button className="btn secondary" onClick={() => setDeleteDealConfirm(null)} style={isMobile ? { minHeight: 42, width: '100%' } : undefined}>{t('cancel')}</button>
             <button
               onClick={() => deleteDealConfirm && deleteDeal(deleteDealConfirm)}
-              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--bad)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}
+              style={{ padding: '9px 18px', borderRadius: 6, background: 'var(--bad)', color: '#fff', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer', minHeight: isMobile ? 42 : undefined, width: isMobile ? '100%' : undefined }}
             >
               {t('delete')}
             </button>

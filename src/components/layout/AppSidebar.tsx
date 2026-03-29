@@ -102,7 +102,7 @@ function AdminNavSection({ collapsed, isActive, isMobile, onMobileClose }: { col
   return (
     <div className="mb-2">
       {!collapsed && (
-        <div className="px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
+        <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
           {t('admin') || 'Admin'}
         </div>
       )}
@@ -112,7 +112,7 @@ function AdminNavSection({ collapsed, isActive, isMobile, onMobileClose }: { col
             to="/admin"
             onClick={isMobile ? onMobileClose : undefined}
             className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors',
               'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
               isActive('/admin') && 'bg-sidebar-accent text-sidebar-primary font-medium'
             )}
@@ -138,7 +138,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
   const NavSection = ({ title, items }: { title: string; items: NavItem[] }) => (
     <div className="mb-2">
       {!collapsed && (
-        <div className="px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
+        <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-sidebar-foreground/50">
           {title}
         </div>
       )}
@@ -149,7 +149,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
               to={item.path}
               onClick={isMobile ? onMobileClose : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors',
                 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                 isActive(item.path) && 'bg-sidebar-accent text-sidebar-primary font-medium'
               )}
@@ -168,13 +168,13 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       className={cn(
         'flex flex-col bg-sidebar border-sidebar-border h-full transition-all duration-200',
         'ltr:border-r rtl:border-l',
-        collapsed ? 'w-[60px]' : 'w-[220px]'
+        collapsed ? 'w-[52px]' : 'w-fit min-w-[120px] max-w-[200px]'
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-4 border-b border-sidebar-border">
         {!collapsed && (
-          <span className="font-display text-[11px] font-bold text-sidebar-foreground tracking-tight">
+          <span className="font-display text-[13px] font-bold text-sidebar-foreground tracking-tight">
             P2P Tracker
           </span>
         )}
@@ -196,10 +196,10 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       {/* Merchant info */}
       {!collapsed && merchantProfile && (
         <div className="px-3 py-3 border-b border-sidebar-border">
-          <div className="text-[11px] font-medium text-sidebar-foreground truncate">
+          <div className="text-[13px] font-medium text-sidebar-foreground truncate">
             {merchantProfile.display_name}
           </div>
-          <div className="text-[9px] text-sidebar-foreground/50 truncate">
+          <div className="text-[11px] text-sidebar-foreground/50 truncate">
             @{merchantProfile.nickname}
           </div>
         </div>
@@ -218,7 +218,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
           to="/notifications"
           onClick={isMobile ? onMobileClose : undefined}
           className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-[11px] transition-colors',
+            'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors',
             'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
             isActive('/notifications') && 'bg-sidebar-accent text-sidebar-primary font-medium'
           )}
@@ -228,7 +228,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
         </Link>
         <button
           onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[11px] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-destructive transition-colors"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-destructive transition-colors"
         >
           <LogOut className="h-3.5 w-3.5 shrink-0" />
           {!collapsed && <span>{t('signOut')}</span>}

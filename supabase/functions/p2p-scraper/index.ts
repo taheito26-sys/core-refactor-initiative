@@ -37,7 +37,6 @@ const MARKETS: MarketConfig[] = [
   { id: "oman", fiat: "OMR", asset: "USDT" },
   { id: "georgia", fiat: "GEL", asset: "USDT" },
   { id: "kazakhstan", fiat: "KZT", asset: "USDT" },
-  { id: "kazakhstan", fiat: "KZT", asset: "USDT" },
 ];
 
 async function fetchBinanceP2P(
@@ -93,23 +92,25 @@ function parseOffers(raw: BinanceP2POffer[]) {
 
 function buildSnapshot(
   sellRaw: BinanceP2POffer[],
-  buyRaw: BinanceP2POffer[]
+  buyRaw: BinanceP2POffer[],
+  marketId: string,
 ) {
   // sellRaw = Binance SELL ads = people selling USDT = YOUR restock source
   // buyRaw = Binance BUY ads = people buying USDT = YOUR sell targets
   const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);   // highest first
   const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);   // cheapest first
 
-  const top5Sell = sellOffers.slice(0, 5);
-  const top5Buy = buyOffers.slice(0, 5);
+  const topNForAvg = marketId === "qatar" ? 5 : 10;
+  const topSell = sellOffers.slice(0, topNForAvg);
+  const topBuy = buyOffers.slice(0, topNForAvg);
 
   const sellAvg =
-    top5Sell.length > 0
-      ? top5Sell.reduce((s, o) => s + o.price, 0) / top5Sell.length
+    topSell.length > 0
+      ? topSell.reduce((s, o) => s + o.price, 0) / topSell.length
       : null;
   const buyAvg =
-    top5Buy.length > 0
-      ? top5Buy.reduce((s, o) => s + o.price, 0) / top5Buy.length
+    topBuy.length > 0
+      ? topBuy.reduce((s, o) => s + o.price, 0) / topBuy.length
       : null;
 
   const bestSell = sellOffers.length > 0 ? sellOffers[0].price : null;
@@ -167,12 +168,15 @@ Deno.serve(async (req: Request) => {
 
     for (const market of marketsToScrape) {
       try {
+        const apiRows = market.id === "qatar" ? 10 : 20;
         const [sellRaw, buyRaw] = await Promise.all([
-          fetchBinanceP2P(market.fiat, "SELL", market.asset),
-          fetchBinanceP2P(market.fiat, "BUY", market.asset),
+          fetchBinanceP2P(market.fiat, "SELL", market.asset, apiRows),
+          fetchBinanceP2P(market.fiat, "BUY", market.asset, apiRows),
         ]);
 
-        const snapshot = buildSnapshot(sellRaw, buyRaw);
+        console.log(`[${market.id}] API response: SELL=${sellRaw.length} offers, BUY=${buyRaw.length} offers`);
+
+        const snapshot = buildSnapshot(sellRaw, buyRaw, market.id);
 
         const { error } = await supabase.from("p2p_snapshots").insert({
           market: market.id,
@@ -180,7 +184,9 @@ Deno.serve(async (req: Request) => {
         });
 
         if (error) {
-          console.error(`Failed to insert snapshot for ${market.id}:`, error);
+          console.error(`[${market.id}] DB insert FAILED:`, error.message);
+        } else {
+          console.log(`[${market.id}] Snapshot inserted: sellAvg=${snapshot.sellAvg}, buyAvg=${snapshot.buyAvg}, ts=${new Date().toISOString()}`);
         }
 
         results[market.id] = {
@@ -193,7 +199,7 @@ Deno.serve(async (req: Request) => {
           },
         };
       } catch (err) {
-        console.error(`Error scraping ${market.id}:`, err);
+        console.error(`[${market.id}] Scrape ERROR:`, String(err));
         results[market.id] = { error: String(err) };
       }
     }
