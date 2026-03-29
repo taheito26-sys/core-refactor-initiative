@@ -25,6 +25,10 @@ export default defineConfig(({ mode }) => {
         overlay: false,
       },
     },
+    build: {
+      // Prevent long/blocked gzip-size analysis in constrained CI environments.
+      reportCompressedSize: false,
+    },
     plugins: [
       react(),
       mode === "development" && componentTagger(),
