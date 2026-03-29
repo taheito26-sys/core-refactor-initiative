@@ -33,7 +33,7 @@ export function getCashAccounts(state: TrackerState): CashAccount[] {
     id: name,
     name,
     currency: 'QAR' as const,
-    balance: Math.max(0, Math.round(balance * 100) / 100),
+    balance: Math.round(balance * 100) / 100,
     active: true,
   })).sort((a, b) => b.balance - a.balance);
 }
@@ -41,6 +41,8 @@ export function getCashAccounts(state: TrackerState): CashAccount[] {
 export function allocateFunding(accounts: CashAccount[], amount: number, selectedAccountId: string | 'auto'): FundingAllocation[] {
   const target = Math.max(0, amount);
   if (target <= 0) return [];
+  const netAvailable = Math.round(accounts.reduce((sum, account) => sum + account.balance, 0) * 100) / 100;
+  if (netAvailable + 1e-9 < target) return [];
 
   if (selectedAccountId !== 'auto') {
     const account = accounts.find(a => a.id === selectedAccountId);
