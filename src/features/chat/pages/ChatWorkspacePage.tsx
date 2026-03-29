@@ -184,16 +184,14 @@ export default function ChatWorkspacePage() {
                         sending={isSending}
                         onTyping={() => {}}
                         onSend={(payload) => {
-                          const room_id = activeRoomId;
-                          if (!room_id) return;
+                          if (!activeRoomId) return;
                           setIsSending(true);
-                          supabase.from('merchant_messages').insert({
-                            room_id,
+                          supabase.from('merchant_messages').insert([{
+                            relationship_id: activeRoomId,
                             sender_id: userId,
                             content: payload.content,
-                            type: payload.type,
-                            expires_at: payload.expiresAt,
-                          }).then(() => setIsSending(false));
+                            msg_type: payload.type || 'text',
+                          }]).then(() => setIsSending(false));
                         }}
                         replyTo={replyTo}
                         onCancelReply={() => setReplyTo(null)}
