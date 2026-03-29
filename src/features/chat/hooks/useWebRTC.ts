@@ -174,7 +174,14 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
   }, [roomId, activeSessionId, userId, cleanup]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId) {
+      resetCall();
+      return;
+    }
+
+    // Prevent stale call overlay from previous rooms/sessions when entering chat.
+    resetCall();
+
     const channel = supabase.channel(`room:${roomId}:calls`);
     channel
       .on('broadcast', { event: 'offer' }, (payload) => handleOffer(payload.payload))
