@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Core Refactor Initiative</string>
+    <string name="title_activity_main">Core Refactor Initiative</string>
+    <string name="package_name">com.taheito26sys.corerefactorinitiative</string>
+    <string name="custom_url_scheme">com.taheito26sys.corerefactorinitiative</string>
+</resources>
