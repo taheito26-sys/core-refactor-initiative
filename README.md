@@ -6,7 +6,7 @@ This repository remains a **single Vite + React codebase** for desktop web, mobi
 
 - Capacitor dependency wiring in `package.json`
 - Capacitor config in `capacitor.config.ts` (uses Vite `dist/` output)
-- Scripts to add/sync/open Android and iOS projects (all via `npx cap` so no global `cap` binary is required)
+- Scripts to add/sync/open Android and iOS projects (all via `npx --no-install cap` so no global `cap` binary is required and commands only use the local CLI install)
 - Safe platform detection helpers in `src/platform/runtime.ts`
 
 No desktop layout/navigation/business-logic rewrite is included.
