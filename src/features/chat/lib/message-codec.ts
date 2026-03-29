@@ -258,29 +258,3 @@ export function groupMessagesByDate<T extends { created_at: string }>(
 
   return groups;
 }
-
-
-// Backward-compatible decoder exports for older imports
-export function decodeMessage(raw: string): ParsedMessage {
-  return parseMsg(raw);
-}
-
-export function decodeVoice(raw: string): Pick<ParsedMessage, "isVoice" | "voiceDuration" | "voiceBase64" | "text"> {
-  const parsed = parseMsg(raw);
-  return {
-    isVoice: parsed.isVoice,
-    voiceDuration: parsed.voiceDuration,
-    voiceBase64: parsed.voiceBase64,
-    text: parsed.text,
-  };
-}
-
-export function decodeSystemEvent(raw: string): Pick<ParsedMessage, "isSystemEvent" | "systemEventType" | "systemEventFields" | "text"> {
-  const parsed = parseMsg(raw);
-  return {
-    isSystemEvent: parsed.isSystemEvent,
-    systemEventType: parsed.systemEventType,
-    systemEventFields: parsed.systemEventFields,
-    text: parsed.text,
-  };
-}

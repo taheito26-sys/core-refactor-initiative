@@ -3,7 +3,6 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
 interface Props {
-  roomId?: string | null;
   callState: 'idle' | 'ringing' | 'connecting' | 'connected' | 'ended';
   isIncoming: boolean;
   callerId: string | null;

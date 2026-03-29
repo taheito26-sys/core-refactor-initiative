@@ -56,7 +56,7 @@ export default function ChatWorkspacePage() {
 
   const messages = useRoomMessages(activeRoomId);
   const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
-  const { initiateCall, callState, isIncoming, callerId, remoteStream, acceptCall, rejectCall, toggleMute, endCall } = useWebRTC({ roomId: activeRoomId, userId });
+  const { initiateCall } = useWebRTC({ roomId: activeRoomId, userId });
 
   const handleCall = (is_video: boolean) => initiateCall(is_video);
 
@@ -123,7 +123,7 @@ export default function ChatWorkspacePage() {
         {/* Main Chat Area */}
         {(!isMobile || !showSidebar) && (
           <div className="flex-1 flex flex-col min-w-0 bg-white relative overflow-hidden">
-            <CallOrchestrator roomId={activeRoomId} callState={callState} isIncoming={isIncoming} callerId={callerId} remoteStream={remoteStream} acceptCall={acceptCall} rejectCall={rejectCall} toggleMute={toggleMute} endCall={endCall} />
+            <CallOrchestrator roomId={activeRoomId} />
             
             {activeRoom ? (
               <>
@@ -184,14 +184,16 @@ export default function ChatWorkspacePage() {
                         sending={isSending}
                         onTyping={() => {}}
                         onSend={(payload) => {
-                          if (!activeRoomId) return;
+                          const room_id = activeRoomId;
+                          if (!room_id) return;
                           setIsSending(true);
-                          supabase.from('merchant_messages').insert([{
-                            relationship_id: activeRoomId,
+                          supabase.from('merchant_messages').insert({
+                            room_id,
                             sender_id: userId,
                             content: payload.content,
-                            msg_type: payload.type || 'text',
-                          }]).then(() => setIsSending(false));
+                            type: payload.type,
+                            expires_at: payload.expiresAt,
+                          }).then(() => setIsSending(false));
                         }}
                         replyTo={replyTo}
                         onCancelReply={() => setReplyTo(null)}

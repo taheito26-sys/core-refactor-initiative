@@ -104,12 +104,11 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
 
     clearCallTimeout();
     timeoutRef.current = setTimeout(() => {
-      const { callState: latestCallState, activeSessionId: latestSessionId } = useCallStore.getState();
-      if (latestCallState === 'ringing' && latestSessionId === sessionId) {
+      if (callState === 'ringing') {
         cleanup('missed');
       }
     }, CALL_TIMEOUT_MS);
-  }, [roomId, userId, setupPC, setCall, onTimelineEvent, clearCallTimeout, cleanup]);
+  }, [roomId, userId, setupPC, setCall, onTimelineEvent, clearCallTimeout, callState, cleanup]);
 
   const handleOffer = useCallback(async (payload: any) => {
     if (payload.from === userId) return;
@@ -174,14 +173,7 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
   }, [roomId, activeSessionId, userId, cleanup]);
 
   useEffect(() => {
-    if (!roomId) {
-      resetCall();
-      return;
-    }
-
-    // Prevent stale call overlay from previous rooms/sessions when entering chat.
-    resetCall();
-
+    if (!roomId) return;
     const channel = supabase.channel(`room:${roomId}:calls`);
     channel
       .on('broadcast', { event: 'offer' }, (payload) => handleOffer(payload.payload))
@@ -213,16 +205,8 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
     return () => {
       clearCallTimeout();
       supabase.removeChannel(channel);
-      // Force full cleanup including stopping media tracks and resetting state
-      pcRef.current?.close();
-      pcRef.current = null;
-      pendingOfferRef.current = null;
-      resetCall();
     };
-    // NOTE: activeSessionId intentionally excluded to prevent effect re-runs
-    // that cause stale call state. Session changes are handled via broadcast listeners.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, userId, handleOffer, cleanup, setCall, isVideo, clearCallTimeout, resetCall]);
+  }, [roomId, userId, activeSessionId, handleOffer, cleanup, setCall, isVideo, clearCallTimeout]);
 
   return {
     callState,
