@@ -6,7 +6,7 @@ This repository remains a **single Vite + React codebase** for desktop web, mobi
 
 - Capacitor dependency wiring in `package.json`
 - Capacitor config in `capacitor.config.ts` (uses Vite `dist/` output)
-- Scripts to add/sync/open Android and iOS projects
+- Scripts to add/sync/open Android and iOS projects (all via `npx cap` so no global `cap` binary is required)
 - Safe platform detection helpers in `src/platform/runtime.ts`
 
 No desktop layout/navigation/business-logic rewrite is included.
@@ -46,6 +46,12 @@ Open native IDE projects:
 npm run cap:android
 npm run cap:ios
 ```
+
+## Host prerequisites for native validation
+
+- Node modules must be installable from your configured package registry (must allow `@capacitor/*` packages).
+- Android validation requires Android Studio + Android SDK.
+- iOS validation requires macOS + Xcode (cannot be fully validated on Linux hosts).
 
 ## Platform helper usage
 
