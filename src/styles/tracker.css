@@ -508,10 +508,10 @@
 }
 .orders-tab-btn.active { font-weight: 700; color: var(--brand); border-bottom-color: var(--brand); }
 
-/* ── Orders two-col: on mobile, reverse so form appears first ── */
+/* ── Orders two-col: on mobile, keep list first and form below ── */
 @media (max-width: 768px) {
   .tracker-root .orders-two-col {
-    display: flex; flex-direction: column-reverse; gap: 10px;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
 }

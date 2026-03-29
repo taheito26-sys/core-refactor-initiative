@@ -404,8 +404,8 @@ export default function OrdersPage() {
 
   const isCapitalTransfer = selectedTemplateId === 'capital_transfer';
   const submitCapitalTransfer = useSubmitCapitalTransfer();
-  const mobileInputStyle = isMobile ? { fontSize: 16, minHeight: 42 } : undefined;
-  const mobileActionStyle = isMobile ? { minHeight: 42, fontSize: 12 } : undefined;
+  const mobileInputStyle = isMobile ? { fontSize: 15, minHeight: 38 } : undefined;
+  const mobileActionStyle = isMobile ? { minHeight: 36, fontSize: 11 } : undefined;
   const mobileDialogContentStyle = isMobile
     ? {
         maxWidth: '96vw',
@@ -2550,7 +2550,7 @@ export default function OrdersPage() {
                   className="formActions"
                   style={isMobile ? { position: 'sticky', bottom: 0, background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} style={isMobile ? { width: '100%', minHeight: 46, fontSize: 13 } : undefined}>
+                  <button className="btn" onClick={addTrade} style={isMobile ? { width: '100%', minHeight: 40, fontSize: 12 } : undefined}>
                     {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>
