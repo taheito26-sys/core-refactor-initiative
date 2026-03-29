@@ -4,6 +4,11 @@ import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getNativePlugin, isNativeApp } from '@/platform/runtime';
+
+type BrowserPlugin = {
+  close?: () => Promise<void>;
+};
 
 /**
  * OAuthCallbackPage — rendered at /auth/callback after Google OAuth.
@@ -11,10 +16,6 @@ import { toast } from 'sonner';
  * Supabase routes the user back here with either:
  *   - PKCE flow: ?code=<code>  → must call exchangeCodeForSession()
  *   - Implicit flow: #access_token=... → Supabase JS auto-detects on init
- *
- * Once onAuthStateChange fires with a valid session, isAuthenticated becomes
- * true and we navigate to /dashboard. A 15-second safety timeout falls back
- * to /login if the exchange never resolves.
  */
 export default function OAuthCallbackPage() {
   const navigate = useNavigate();
@@ -29,6 +30,13 @@ export default function OAuthCallbackPage() {
       const code = params.get('code');
       const providerError = params.get('error');
       const providerErrorDescription = params.get('error_description');
+
+      console.info('[OAuthCallback] Callback route opened', {
+        search: window.location.search,
+        hasHash: Boolean(window.location.hash),
+        hasCode: Boolean(code),
+        isNative: isNativeApp(),
+      });
 
       if (providerError || providerErrorDescription) {
         const message = providerErrorDescription || providerError || 'Google sign-in was cancelled or rejected.';
@@ -49,6 +57,7 @@ export default function OAuthCallbackPage() {
 
       try {
         if (code) {
+          console.info('[OAuthCallback] Exchanging authorization code for session');
           const { error } = await supabase.auth.exchangeCodeForSession(code);
 
           if (error) {
@@ -69,13 +78,20 @@ export default function OAuthCallbackPage() {
           throw new Error('No authenticated session was created after Google sign-in.');
         }
 
+        const browserPlugin = getNativePlugin<BrowserPlugin>('Browser');
+        if (isNativeApp() && browserPlugin?.close) {
+          await browserPlugin.close();
+        }
+
         window.history.replaceState({}, document.title, '/auth/callback');
+        const returnPath = sessionStorage.getItem('oauth:return-path') || '/dashboard';
         sessionStorage.removeItem('oauth:return-path');
         sessionStorage.removeItem('oauth:started-at');
 
-        console.info('[OAuthCallback] Supabase session restored', {
+        console.info('[OAuthCallback] Session established', {
           userId: session.user.id,
           email: session.user.email,
+          returnPath,
         });
       } catch (err: unknown) {
         const rawMessage = err instanceof Error ? err.message : 'Unable to complete Google sign-in.';
@@ -110,7 +126,11 @@ export default function OAuthCallbackPage() {
   useEffect(() => {
     if (isAuthenticated && !redirectedRef.current) {
       redirectedRef.current = true;
-      navigate('/dashboard', { replace: true });
+      const finalRoute = sessionStorage.getItem('oauth:return-path') || '/dashboard';
+      sessionStorage.removeItem('oauth:return-path');
+      sessionStorage.removeItem('oauth:started-at');
+      console.info('[OAuthCallback] Navigating to authenticated route', { finalRoute });
+      navigate(finalRoute, { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
