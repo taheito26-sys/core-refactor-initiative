@@ -38,4 +38,24 @@ describe('cash ledger integration', () => {
     const refunded = appendCashLedger(funded, [{ type: 'order_refund', amount: 1000, owner: 'Cash on Hand', bankAccount: 'Cash on Hand', note: 'Refund', orderId: 'o1' }]);
     expect(refunded.cashQAR).toBe(15000);
   });
+
+  it('keeps overdrawn accounts negative to avoid phantom allocations', () => {
+    const overdrawnState: TrackerState = {
+      ...baseState,
+      cashQAR: 1000,
+      cashHistory: [
+        { id: '1', ts: 1, type: 'deposit', amount: 1000, balanceAfter: 1000, owner: 'Cash on Hand', bankAccount: 'Cash on Hand', note: '' },
+        { id: '2', ts: 2, type: 'deposit', amount: 2000, balanceAfter: 3000, owner: 'Cash on Hand', bankAccount: 'QNB Bank', note: '' },
+        { id: '3', ts: 3, type: 'order_funding', amount: 2000, balanceAfter: 1000, owner: 'Cash on Hand', bankAccount: 'Cash on Hand', note: '' },
+      ],
+    };
+
+    const accounts = getCashAccounts(overdrawnState);
+    const cashOnHand = accounts.find(a => a.id === 'Cash on Hand');
+    const qnbBank = accounts.find(a => a.id === 'QNB Bank');
+
+    expect(cashOnHand?.balance).toBe(-1000);
+    expect(qnbBank?.balance).toBe(2000);
+    expect(allocateFunding(accounts, 1500, 'auto')).toEqual([]);
+  });
 });
