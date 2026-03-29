@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&family=Fraunces:wght@300;400;500;600;700;800&family=Instrument+Serif&family=Public+Sans:wght@300;400;500;600;700;800&display=swap');
-@import '../src/styles/view-templates.css';
+﻿@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@300;400;500;600;700;800&family=Fraunces:wght@300;400;500;600;700;800&family=Instrument+Serif&family=Public+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─── TRACKER Platform Design System ─── Terminal Navy ─── */
+/* â”€â”€â”€ TRACKER Platform Design System â”€â”€â”€ Terminal Navy â”€â”€â”€ */
 
 @layer base {
   :root {
@@ -299,3 +298,6 @@
     padding-right: env(safe-area-inset-right, 0px);
   }
 }
+
+
+
