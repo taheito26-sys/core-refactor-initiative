@@ -80,10 +80,6 @@ export default function StockPage() {
   const activeTab = searchParams.get('tab') === 'cash' ? 'cash' : 'stock';
 
   // ── Cash Management tab ──────────────────────────────────────────
-  const [searchParams] = useSearchParams();
-  const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
-    searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
-  );
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
 
   // Derive account balances for funding source selector
@@ -753,7 +749,7 @@ export default function StockPage() {
               )}
               {activeAccounts.length === 0 && (
                 <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
-                  💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => setStockTab('cash')} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
+                  💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => setSearchParams({ tab: 'cash' })} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
                 </div>
               )}
 
