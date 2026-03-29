@@ -63,3 +63,23 @@ Use `src/platform/runtime.ts` utilities for guarded checks:
 - `isWebBrowser()`
 
 Keep native-only behavior behind these checks so browser desktop remains unaffected.
+
+## Native pipeline validation checklist
+
+Run these commands in order to validate native pipeline readiness:
+
+```bash
+npm run build
+test -f dist/index.html
+npx cap sync
+```
+
+If platform folders are missing, generate them once:
+
+> Note: Native `android/` and `ios/` projects are generated locally via Capacitor commands and are not committed to this repository to avoid binary artifacts in PRs.
+
+
+```bash
+npx cap add android
+npx cap add ios
+```
