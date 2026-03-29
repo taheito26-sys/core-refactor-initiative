@@ -1,48 +1,53 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   Send,
   Mic,
   Smile,
   Paperclip,
-  Timer,
   Eye,
   Clock,
   LayoutGrid,
-  StopCircle,
   X,
-  CheckSquare
+  Plus,
+  Trash2,
+  Square
 } from 'lucide-react';
-import { encodeVoice, encodePoll, encodeScheduled } from '../lib/message-codec';
+import { encodeVoice, encodePoll } from '../lib/message-codec';
 
 interface Props {
   onSend: (payload: { content: string; type: string; expiresAt?: string | null }) => void;
-  onTyping: () => void;
+  onTyping: (isTyping: boolean) => void;
   sending: boolean;
   replyTo?: any;
   onCancelReply?: () => void;
   compact?: boolean;
 }
 
-const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '👎', '🔥', '🎉', '😢', '😮', '🙏', '💯', '✅', '❌', '👋', '🤝', '💰'];
-
 export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelReply, compact }: Props) {
   const [content, setContent] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [showEmoji, setShowEmoji] = useState(false);
   const [showPoll, setShowPoll] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOpts, setPollOpts] = useState(['', '']);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [scheduleTime, setScheduleTime] = useState('');
   const [isOneTime, setIsOneTime] = useState(false);
-  const [has24hTimer, setHas24hTimer] = useState(false);
+  const [expirySeconds, setExpirySeconds] = useState<number | null>(null);
+  const [showExpiry, setShowExpiry] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordingTimeRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isRecording) {
+      timerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setRecordingTime(0);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isRecording]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -53,31 +58,28 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
       const d = new Date();
       d.setHours(d.getHours() + 1);
       expiresAt = d.toISOString();
-    } else if (has24hTimer) {
-      const d = new Date();
-      d.setHours(d.getHours() + 24);
-      expiresAt = d.toISOString();
+    } else if (expirySeconds) {
+      expiresAt = new Date(Date.now() + expirySeconds * 1000).toISOString();
     }
 
-    onSend({ content: content.trim(), type: 'text', expiresAt });
+    onSend({ content: content.trim(), type: isOneTime ? 'vanish' : 'text', expiresAt });
     setContent('');
     setIsOneTime(false);
-    setHas24hTimer(false);
+    setExpirySeconds(null);
+    onTyping(false);
   };
 
-  // ── Voice recording ──
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const mr = new MediaRecorder(stream);
       mediaRecorderRef.current = mr;
       const chunks: Blob[] = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-      mr.onstop = async () => {
-        const durationSec = recordingTimeRef.current || 1;
-        const blob = new Blob(chunks, { type: mr.mimeType });
+      mr.ondataavailable = (e) => chunks.push(e.data);
+      mr.onstop = () => {
+        const durationSec = recordingTime || 1;
+        const blob = new Blob(chunks, { type: 'audio/webm' });
         const reader = new FileReader();
         reader.onloadend = () => {
           const b64 = (reader.result as string).split(',')[1] || '';
@@ -85,137 +87,89 @@ export function MessageComposer({ onSend, onTyping, sending, replyTo, onCancelRe
         };
         reader.readAsDataURL(blob);
       };
-      mr.start(100);
+      mr.start();
       setIsRecording(true);
-      recordingTimeRef.current = 0;
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => {
-        recordingTimeRef.current += 1;
-        setRecordingTime((t) => t + 1);
-      }, 1000);
-    } catch { /* mic denied */ }
+    } catch (err) { console.error('Mic error:', err); }
   };
 
   const stopRecording = () => {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setIsRecording(false);
-    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
   };
 
-  const fmtRecTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className={cn("bg-background space-y-2 border-t border-border", compact ? "p-2" : "p-3")}>
-      {/* Poll creator */}
-      {showPoll && (
-        <div className="px-4 py-3 border border-border rounded-2xl bg-muted/50 space-y-2 mb-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">📊 Create Poll</span>
-            <button onClick={() => setShowPoll(false)} className="text-muted-foreground hover:text-foreground bg-transparent border-none cursor-pointer p-0.5">
-              <X size={14} />
-            </button>
+    <div className={cn("border-t border-slate-100 bg-slate-50/60 backdrop-blur-xl transition-all", compact ? "p-2" : "p-4")}>
+      {replyTo && (
+        <div className="mb-3 px-4 py-2 bg-white/60 border-l-4 border-indigo-600 rounded-r-xl flex items-center justify-between animate-in slide-in-from-bottom-2 duration-300">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Reply Context</span>
+            <span className="text-xs text-slate-500 truncate max-w-[300px]">{replyTo.content || replyTo.body}</span>
           </div>
-          <input
-            value={pollQuestion}
-            onChange={(e) => setPollQuestion(e.target.value)}
-            placeholder="Question..."
-            className="w-full bg-background border border-border rounded-xl text-[12px] px-3 py-2 text-foreground outline-none focus:border-primary/40"
-          />
-          {pollOpts.map((opt, i) => (
-            <div key={i} className="flex gap-2">
-              <input
-                value={opt}
-                onChange={(e) => { const n = [...pollOpts]; n[i] = e.target.value; setPollOpts(n); }}
-                placeholder={`Option ${i + 1}`}
-                className="flex-1 bg-background border border-border rounded-xl text-[12px] px-3 py-2 text-foreground outline-none focus:border-primary/40"
-              />
-            </div>
-          ))}
-          <button
-            onClick={() => {
-              const filteredOpts = pollOpts.filter((o) => o.trim());
-              if (!pollQuestion.trim() || filteredOpts.length < 2) return;
-              onSend({ content: encodePoll(pollQuestion.trim(), filteredOpts), type: 'poll' });
-              setShowPoll(false);
-            }}
-            className="w-full bg-primary text-primary-foreground text-[11px] font-black uppercase tracking-[0.2em] rounded-xl py-2.5 border-none cursor-pointer hover:bg-primary/90 transition-all font-bold"
-          >
-            Send Poll
-          </button>
+          <button onClick={onCancelReply} className="text-slate-400 hover:text-slate-600"><X size={14} /></button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex items-center gap-1.5 md:gap-2 group">
-        <button
-          type="button"
-          onClick={isRecording ? stopRecording : startRecording}
-          className={cn(
-            "p-2 rounded-lg transition-all shrink-0",
-            isRecording ? "text-destructive bg-destructive/10 animate-pulse" : "text-muted-foreground hover:text-primary hover:bg-accent"
-          )}
-          title="Audio Message"
-        >
-          {isRecording ? <StopCircle size={18} /> : <Mic size={18} />}
-        </button>
+      {showPoll && (
+        <div className="mb-3 p-3 bg-white border border-slate-200 rounded-2xl shadow-xl space-y-2 animate-in fade-in slide-in-from-bottom-2">
+           <input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Question..." className="w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none" />
+           {pollOpts.map((opt, i) => (
+             <input key={i} value={opt} onChange={e => { const n = [...pollOpts]; n[i] = e.target.value; setPollOpts(n); }} placeholder={`Option ${i+1}`} className="w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none" />
+           ))}
+           <button onClick={() => { if (pollQuestion.trim()) { onSend({ content: encodePoll(pollQuestion, pollOpts.filter(o => o)), type: 'poll' }); setShowPoll(false); } }} className="w-full py-2 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-xl tracking-widest shadow-lg shadow-indigo-200">Broadcast Poll</button>
+        </div>
+      )}
 
-        <div className="flex-1 relative flex items-center bg-muted border border-border rounded-full px-3 md:px-4 min-h-[40px] transition-all focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-sm">
-          <input
-            value={isRecording ? `Recording... ${fmtRecTime(recordingTime)}` : content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              onTyping();
-            }}
-            disabled={isRecording}
-            placeholder={isRecording ? "Listening..." : "Type a message..."}
-            className="flex-1 bg-transparent border-none focus:outline-none text-[13px] py-1.5 text-foreground placeholder:text-muted-foreground placeholder:font-medium min-w-0"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-          />
-          {!compact && (
-            <div className="flex items-center gap-2 pr-1 opacity-60 group-focus-within:opacity-100 transition-opacity">
-              <button
-                type="button"
-                onClick={() => { setIsOneTime(!isOneTime); if (!isOneTime) setHas24hTimer(false); }}
-                className={cn("p-1.5 rounded transition-all", isOneTime ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
-              >
-                <Eye size={16} />
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1">
+            <button onClick={() => setIsOneTime(!isOneTime)} className={cn("p-2 rounded-xl transition-all", isOneTime ? "bg-rose-500 text-white shadow-lg shadow-rose-200" : "text-slate-400 hover:bg-slate-100")}>
+              <Eye size={18} />
+            </button>
+            <div className="relative">
+              <button type="button" onClick={() => setShowExpiry(!showExpiry)} className={cn("p-2 rounded-xl transition-all", expirySeconds ? "bg-amber-500 text-white shadow-lg shadow-amber-200" : "text-slate-400 hover:bg-slate-100")}>
+                <Clock size={18} />
               </button>
-              <button
-                type="button"
-                onClick={() => { setHas24hTimer(!has24hTimer); if (!has24hTimer) setIsOneTime(false); }}
-                className={cn("p-1.5 rounded transition-all", has24hTimer ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary")}
-              >
-                <Clock size={16} />
-              </button>
-              <button type="button" className="text-muted-foreground hover:text-primary"><Smile size={16} /></button>
+              {showExpiry && (
+                <div className="absolute bottom-full left-0 mb-3 bg-white border border-slate-100 rounded-2xl shadow-2xl p-1.5 flex flex-col min-w-[140px] z-50 animate-in fade-in slide-in-from-bottom-2">
+                  {[{l:'Off',v:null}, {l:'10s',v:10}, {l:'1m',v:60}, {l:'1h',v:3600}].map(o => (
+                    <button key={o.l} type="button" onClick={() => {setExpirySeconds(o.v); setShowExpiry(false);}} className="px-4 py-2 text-[12px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl text-left">{o.l}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button type="button" onClick={() => setShowPoll(!showPoll)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-all"><LayoutGrid size={18} /></button>
+          </div>
+
+          {isRecording && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-rose-50 text-rose-600 rounded-full border border-rose-100">
+              <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+              <span className="text-[11px] font-mono font-black">{fmtTime(recordingTime)}</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
-          {!compact && (
-            <button
-              type="button"
-              onClick={() => setShowPoll(!showPoll)}
-              className="p-2 text-muted-foreground hover:text-primary transition-all"
-            >
-              <CheckSquare size={18} />
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={(!content.trim() && !isRecording) || sending}
-            className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50 disabled:shadow-none"
-          >
-            <Send size={16} className={cn(sending && "animate-pulse")} />
-          </button>
+        <div className="flex items-end gap-2 bg-white border border-slate-200 rounded-[32px] p-1.5 focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-500/5 shadow-sm">
+          <button type="button" className="p-2 text-slate-400 hover:bg-slate-50 rounded-full"><Plus size={20} /></button>
+          <textarea
+            className="flex-1 bg-transparent border-none focus:ring-0 text-[14px] font-medium py-2 px-1 max-h-32 min-h-[36px] resize-none placeholder:text-slate-400 font-sans"
+            value={isRecording ? 'Capturing audio link...' : content}
+            onChange={e => { setContent(e.target.value); onTyping(e.target.value.trim().length > 0); }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
+            placeholder="Type your message..."
+          />
+          <div className="flex items-center gap-1.5 pb-0.5 pr-1">
+             <button type="button" onMouseDown={startRecording} onMouseUp={stopRecording} className={cn("p-2.5 rounded-full transition-all", isRecording ? "bg-rose-500 text-white shadow-lg" : "text-slate-400 hover:bg-slate-50")}>
+               {isRecording ? <Square size={18} fill="white" /> : <Mic size={20} />}
+             </button>
+             <button type="submit" disabled={(!content.trim() && !isRecording) || sending} onClick={handleSubmit} className="p-2.5 bg-indigo-600 text-white rounded-[20px] shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 disabled:opacity-20 transition-all active:scale-95">
+               <Send size={18} />
+             </button>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

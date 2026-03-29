@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { ChatRoom } from '@/features/chat/lib/types';
 import { Search, SlidersHorizontal, Mic, BarChart3, Forward, Reply, Clock } from 'lucide-react';
 import { parseMsg, fmtListTime, getPalette } from '../lib/message-codec';
+import { cn } from '@/lib/utils';
 
 interface Props {
   rooms?: ChatRoom[];
@@ -41,33 +42,28 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
   }, [rooms, conversations]);
 
   return (
-    <aside className={`${isMobile ? 'w-full' : 'w-[260px]'} bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0`}>
+    <aside className={cn(
+      isMobile ? 'w-full' : 'w-[280px]',
+      "bg-slate-50/40 backdrop-blur-xl border-r border-slate-200 flex flex-col h-full overflow-hidden shrink-0 animate-in fade-in duration-700"
+    )}>
       {/* Header */}
-      <div className="p-4 pb-2 shrink-0">
-        <h2 className="text-lg font-black text-foreground tracking-tight mb-3 flex items-center justify-between">
-          Inbox
-          <SlidersHorizontal size={16} className="text-muted-foreground/60 cursor-pointer hover:text-primary transition-colors" />
+      <div className="p-5 border-b border-slate-100/50 shrink-0">
+        <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+          Secure Inbox
+          <SlidersHorizontal size={14} className="opacity-40" />
         </h2>
-        <div className="relative mb-3">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+        <div className="relative">
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search..."
-            className="w-full bg-muted/60 border border-border/50 rounded-xl py-2.5 pl-9 pr-3 text-xs font-medium text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-background focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+            placeholder="Search Trade Rooms..."
+            className="w-full bg-white/60 border border-slate-200 rounded-xl py-2.5 pl-10 pr-3 text-[12px] font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all"
           />
-        </div>
-
-        <div className="flex gap-4 px-1 border-b border-border pb-2">
-          <button className="relative text-xs font-bold text-foreground pb-1 group">
-            ALL
-            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full" />
-          </button>
-          <button className="text-xs font-bold text-muted-foreground/60 pb-1 hover:text-foreground transition-colors">VIP</button>
         </div>
       </div>
 
       {/* Room list */}
-      <div className="flex-1 overflow-y-auto px-2 pb-6 pt-2 space-y-1">
+      <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
         {normalizedRooms.map((room) => {
           const isActive = activeRoomId && String(activeRoomId) === String(room.room_id);
           const palette = getPalette(room.title || 'R');
@@ -78,11 +74,12 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
             <button
               key={room.room_id}
               onClick={() => onSelectRoom?.(String(room.room_id))}
-              className={`w-full group flex items-start gap-3 p-3 rounded-2xl transition-all duration-200 text-left relative ${
+              className={cn(
+                "w-full group flex items-start gap-3 p-4 transition-all duration-300 text-left relative border-l-4",
                 isActive
-                  ? 'bg-primary/10 ring-1 ring-primary/20'
-                  : 'hover:bg-muted/60'
-              }`}
+                  ? "bg-white border-indigo-600 shadow-sm"
+                  : "border-transparent hover:bg-white/40 hover:border-slate-100"
+              )}
             >
               {/* Avatar */}
               <div className="relative shrink-0 mt-0.5">
@@ -93,7 +90,7 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
                   {room.title?.charAt(0).toUpperCase()}
                 </div>
                 {room.unread_count > 0 && (
-                  <div className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[9px] font-black min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-background shadow-sm">
+                  <div className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-black min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-white shadow-sm">
                     {room.unread_count > 99 ? '99+' : room.unread_count}
                   </div>
                 )}
@@ -102,24 +99,23 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
-                  <span
-                    className="text-[13px] font-bold truncate"
-                    style={{ color: isActive ? undefined : palette.bg.includes('linear') ? undefined : palette.bg }}
-                  >
-                    <span className={isActive ? 'text-primary' : 'text-foreground'}>{room.title}</span>
+                  <span className={cn(
+                    "text-[14px] font-bold truncate",
+                    isActive ? "text-slate-900" : "text-slate-600"
+                  )}>
+                    {room.title}
                   </span>
                   {timeLabel && (
-                    <span className={`text-[10px] font-medium shrink-0 ml-2 ${room.unread_count > 0 ? 'text-primary font-bold' : 'text-muted-foreground/60'}`}>
+                    <span className={cn(
+                      "text-[10px] font-bold shrink-0 ml-2 tabular-nums",
+                      room.unread_count > 0 ? "text-indigo-600" : "text-slate-400"
+                    )}>
                       {timeLabel}
                     </span>
                   )}
                 </div>
 
-                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider block mb-1">
-                  {room.type === 'deal' ? 'Secure Trade' : room.lane || 'Personal'}
-                </span>
-
-                <div className={`flex items-center gap-1.5 text-[11px] leading-tight ${room.unread_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground/70'}`}>
+                <div className="flex items-center gap-1.5 text-[12px] leading-tight text-slate-400 font-medium truncate">
                   {preview.icon}
                   <span className="truncate">{preview.text}</span>
                 </div>
@@ -129,9 +125,9 @@ export function ConversationSidebar({ rooms, conversations, activeRoomId, onSele
         })}
 
         {normalizedRooms.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/40">
-            <Search size={32} className="mb-3" />
-            <p className="text-xs font-medium">No conversations yet</p>
+          <div className="flex flex-col items-center justify-center py-12 text-slate-300">
+            <Search size={32} className="mb-3 opacity-20" />
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Locked Inbox Empty</p>
           </div>
         )}
       </div>
