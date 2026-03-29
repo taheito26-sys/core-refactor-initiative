@@ -7,6 +7,7 @@ import {
   getRuntimePlatform,
   isNativeApp,
 } from "@/platform/runtime";
+import { isAuthCallbackUrl, mapIncomingAuthCallbackToRoute } from "@/features/auth/auth-redirects";
 
 type ListenerHandle = { remove?: () => Promise<void> | void };
 
@@ -17,6 +18,7 @@ type AppPlugin = {
     eventName: "appUrlOpen",
     listener: (payload: AppUrlOpenPayload) => void
   ) => Promise<ListenerHandle> | ListenerHandle;
+  getLaunchUrl?: () => Promise<AppUrlOpenPayload>;
 };
 
 type PushPermissionResult = { receive?: "granted" | "denied" | "prompt" };
@@ -59,15 +61,38 @@ export function NativePlatformBootstrap() {
 
     let listenerHandle: ListenerHandle | null = null;
 
+    const routeFromIncomingUrl = (url: string): string | null => {
+      if (isAuthCallbackUrl(url)) {
+        return mapIncomingAuthCallbackToRoute(url);
+      }
+
+      return extractRouteFromAppUrl(url);
+    };
+
+    const handleIncomingUrl = (url: string, source: "appUrlOpen" | "launchUrl") => {
+      const targetRoute = routeFromIncomingUrl(url);
+      console.info('[NativeBridge] Incoming app URL', {
+        source,
+        url,
+        targetRoute,
+        isAuthCallback: isAuthCallbackUrl(url),
+      });
+
+      if (targetRoute) {
+        navigate(targetRoute, { replace: true });
+      }
+    };
+
     const setupListener = async () => {
       listenerHandle = await appPlugin.addListener?.("appUrlOpen", ({ url }) => {
         if (!url) return;
-
-        const targetRoute = extractRouteFromAppUrl(url);
-        if (targetRoute) {
-          navigate(targetRoute, { replace: false });
-        }
+        handleIncomingUrl(url, "appUrlOpen");
       });
+
+      const launchUrl = await appPlugin.getLaunchUrl?.();
+      if (launchUrl?.url) {
+        handleIncomingUrl(launchUrl.url, "launchUrl");
+      }
     };
 
     void setupListener();

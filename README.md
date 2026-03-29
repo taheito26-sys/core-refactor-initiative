@@ -83,3 +83,19 @@ If platform folders are missing, generate them once:
 npx cap add android
 npx cap add ios
 ```
+
+## Auth redirect configuration (Supabase / OAuth provider)
+
+For this app's auth to work reliably across web + Capacitor Android, configure **all** of these redirect URLs in your Supabase Auth settings (and any provider allow-list if required):
+
+- Web production callback: `https://<your-production-domain>/auth/callback`
+- Local web callback: `http://localhost:5173/auth/callback`
+- Local web password reset callback: `http://localhost:5173/reset-password`
+- Capacitor Android OAuth callback: `com.taheito26sys.corerefactorinitiative://login-callback`
+- Capacitor Android password reset callback: `com.taheito26sys.corerefactorinitiative://reset-password-callback`
+
+Implementation notes:
+
+- Web runtime uses web URLs (`/auth/callback`, `/reset-password`).
+- Capacitor native runtime uses deep links with the app scheme (`com.taheito26sys.corerefactorinitiative://...`).
+- Android receives those deep links via `AndroidManifest.xml` intent filters and routes back into the SPA callback routes.

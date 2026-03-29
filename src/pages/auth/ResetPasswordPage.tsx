@@ -19,7 +19,12 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // Check if this is a recovery callback (user clicked email link)
     const hash = window.location.hash;
-    if (hash && hash.includes('type=recovery')) {
+    const query = window.location.search;
+    const hasRecoveryInHash = hash && hash.includes('type=recovery');
+    const hasRecoveryInQuery = new URLSearchParams(query).get('type') === 'recovery';
+
+    if (hasRecoveryInHash || hasRecoveryInQuery) {
+      console.info('[Auth] Password reset callback received', { hasRecoveryInHash, hasRecoveryInQuery });
       setIsRecoveryMode(true);
     }
   }, []);
