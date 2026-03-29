@@ -110,9 +110,9 @@ export function MessageItem({
     return (
       <div className="flex justify-center my-2 animate-in fade-in duration-500">
         <div className="bg-slate-100/50 backdrop-blur-sm border border-slate-200 px-3 py-1 rounded-full flex items-center gap-2">
-           {sys.type.includes('CALL') ? <PhoneCall size={12} className="text-violet-500" /> : <Clock size={12} className="text-slate-400" />}
+           {(sys.systemEventType || '').includes('call') ? <PhoneCall size={12} className="text-violet-500" /> : <Clock size={12} className="text-slate-400" />}
            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-             {sys.type.replace(/_/g, ' ')} • {format(new Date(message.created_at), 'HH:mm')}
+             {(sys.systemEventType || '').replace(/_/g, ' ')} • {format(new Date(message.created_at), 'HH:mm')}
            </span>
         </div>
       </div>
@@ -168,7 +168,7 @@ export function MessageItem({
                   </span>
                   <audio 
                     ref={audioRef} 
-                    src={`data:audio/webm;base64,${decodeVoice(body).data}`} 
+                    src={`data:audio/webm;base64,${decodeVoice(body).voiceBase64 || ''}`} 
                     onEnded={() => setIsPlaying(false)}
                     className="hidden"
                   />
