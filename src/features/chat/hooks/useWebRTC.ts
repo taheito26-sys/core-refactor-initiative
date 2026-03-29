@@ -213,9 +213,16 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
     return () => {
       clearCallTimeout();
       supabase.removeChannel(channel);
+      // Force full cleanup including stopping media tracks and resetting state
+      pcRef.current?.close();
+      pcRef.current = null;
+      pendingOfferRef.current = null;
       resetCall();
     };
-  }, [roomId, userId, activeSessionId, handleOffer, cleanup, setCall, isVideo, clearCallTimeout, resetCall]);
+    // NOTE: activeSessionId intentionally excluded to prevent effect re-runs
+    // that cause stale call state. Session changes are handled via broadcast listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, userId, handleOffer, cleanup, setCall, isVideo, clearCallTimeout, resetCall]);
 
   return {
     callState,
