@@ -283,7 +283,16 @@ export function MessageItem({ message, currentUserId, isEphemeral }: MessageProp
 
         <div className="flex items-center gap-2 mb-1.5 px-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-300">
            {!isMe && <span className="text-[10px] font-black text-foreground uppercase tracking-widest">User</span>}
-           <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-tighter">{format(new Date(message.created_at), 'HH:mm')}</span>
+           <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-tighter">
+             {(() => {
+               try {
+                 const d = new Date(message.created_at);
+                 return isNaN(d.getTime()) ? '--:--' : format(d, 'HH:mm');
+               } catch {
+                 return '--:--';
+               }
+             })()}
+           </span>
         </div>
 
         <div className="relative flex items-end gap-2 text-wrap break-all">
