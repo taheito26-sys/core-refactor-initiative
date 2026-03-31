@@ -273,7 +273,54 @@ export default function OrdersPage() {
     if (changed) {
       applyState({ ...state, trades: nextTrades });
     }
-  }, [cancelledDealIds, cancelledLocalTradeIds]); // intentionally minimal deps to avoid loops
+  }, [cancelledDealIds, cancelledLocalTradeIds, state, applyState]);
+
+  // Reconcile local linked trade approval status with server-authoritative merchant deal status
+  useEffect(() => {
+    if (!allMerchantDeals.length || !state.trades.length) return;
+
+    const mapDealStatusToTradeStatus = (status?: string): LinkedTradeStatus | undefined => {
+      switch (status) {
+        case 'pending':
+          return 'pending_approval';
+        case 'approved':
+          return 'approved';
+        case 'rejected':
+          return 'rejected';
+        case 'cancelled':
+        case 'voided':
+          return 'cancelled';
+        default:
+          return undefined;
+      }
+    };
+
+    const dealsById = new Map(allMerchantDeals.map((deal) => [deal.id, deal]));
+    let changed = false;
+
+    const nextTrades = state.trades.map((tr) => {
+      if (!tr.linkedDealId) return tr;
+
+      const linkedDeal = dealsById.get(tr.linkedDealId);
+      if (!linkedDeal) return tr;
+
+      const nextApprovalStatus = mapDealStatusToTradeStatus(linkedDeal.status);
+      if (!nextApprovalStatus || tr.approvalStatus === nextApprovalStatus) return tr;
+
+      changed = true;
+      return {
+        ...tr,
+        approvalStatus: nextApprovalStatus,
+      };
+    });
+
+    if (changed) {
+      applyState({
+        ...state,
+        trades: nextTrades,
+      });
+    }
+  }, [allMerchantDeals, state, applyState]);
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
   const list = useMemo(() => allTrades.filter(t => {
