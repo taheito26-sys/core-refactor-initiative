@@ -92,10 +92,13 @@ class RouteErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error) {
     console.error('[RouteErrorBoundary] route render failed', error);
-    // Auto-clear caches on first error — many mobile crashes are stale SW
-    const alreadyCleared = sessionStorage.getItem('_p2p_auto_cleared');
-    if (!alreadyCleared) {
-      sessionStorage.setItem('_p2p_auto_cleared', '1');
+    // Auto-clear caches at most once per cooldown window (prevents reload loops).
+    const key = '_p2p_auto_clear_attempt_ts';
+    const lastAttempt = Number(sessionStorage.getItem(key) || '0');
+    const now = Date.now();
+    const cooldownMs = 5 * 60 * 1000;
+    if (now - lastAttempt > cooldownMs) {
+      sessionStorage.setItem(key, String(now));
       this.clearAndReload();
     }
   }
@@ -117,8 +120,7 @@ class RouteErrorBoundary extends React.Component<
   };
 
   handleClearAndReload = async () => {
-    // Reset the session flag so the auto-clear can retry next time
-    sessionStorage.removeItem('_p2p_auto_cleared');
+    sessionStorage.removeItem('_p2p_auto_clear_attempt_ts');
     await this.clearAndReload();
   };
 
