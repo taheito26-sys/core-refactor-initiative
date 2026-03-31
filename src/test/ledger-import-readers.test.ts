@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readTextFile, validateTextFile } from '@/services/ledgerImport/fileReaders/textFileReader';
 import { readSpreadsheet } from '@/services/ledgerImport/fileReaders/spreadsheetReader';
+import { assessOcrTextQuality, extractTextFromImage } from '@/services/ledgerImport/fileReaders/imageReader';
 import { canSaveImportedRows } from '@/services/ledgerImport/guards';
 import { parseLedgerText } from '@/services/ledgerImport/parser';
 
@@ -9,6 +10,7 @@ function mockFile(name: string, content: string): File {
   const data = encoder.encode(content);
   return {
     name,
+    type: name.endsWith('.jpg') ? 'image/jpeg' : 'text/plain',
     size: data.byteLength,
     arrayBuffer: async () => data.buffer,
   } as unknown as File;
@@ -34,6 +36,38 @@ describe('ledger import readers and guards', () => {
     const file = mockFile('ledger.csv', 'pair,quantity,rate\nUSDT,125,3.73');
     const result = await readSpreadsheet(file);
     expect(result.lines[0]).toContain('usdt 125');
+  });
+
+  it('image pipeline does not decode raw image bytes as text reader fallback', async () => {
+    const file = {
+      name: 'photo.jpg',
+      type: 'image/jpeg',
+      size: 100,
+      arrayBuffer: async () => { throw new Error('should not read raw bytes'); },
+    } as unknown as File;
+
+    const ocr = await extractTextFromImage(file);
+    expect(ocr.ranOcr).toBe(false);
+    expect(ocr.text).toBe('');
+  });
+
+  it('binary-like OCR text is rejected by heuristics', () => {
+    const quality = assessOcrTextQuality('@@@###$$$%%%%__--==');
+    expect(quality.isValid).toBe(false);
+  });
+
+  it('parser receives OCR extracted text (not image binary) for photo source', () => {
+    const ocrText = 'محمد ارسللي usdt 20 على 3.7';
+    const batch = parseLedgerText(ocrText, {
+      uploaderUserId: 'u1',
+      selectedMerchantId: 'm1',
+      selectedMerchantName: 'M1',
+      sourceType: 'image',
+      sourceFileName: 'photo.jpg',
+      confidencePenalty: 0.3,
+    });
+    expect(batch.rows[0].rawLine).toContain('usdt 20');
+    expect(batch.rows[0].status).toBe('needs_review');
   });
 
   it('save blocked when no network merchant is selected', () => {

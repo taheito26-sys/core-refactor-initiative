@@ -10,7 +10,7 @@ import type { LedgerNetworkMerchant, LedgerParseRow, LedgerSourceType } from '@/
 import { parseLedgerText } from '@/services/ledgerImport/parser';
 import { readTextFile, validateTextFile } from '@/services/ledgerImport/fileReaders/textFileReader';
 import { readSpreadsheet, validateSpreadsheetFile } from '@/services/ledgerImport/fileReaders/spreadsheetReader';
-import { extractTextFromImage, validateImageFile } from '@/services/ledgerImport/fileReaders/imageReader';
+import { assessOcrTextQuality, extractTextFromImage, type OcrExtractionResult, validateImageFile } from '@/services/ledgerImport/fileReaders/imageReader';
 import { buildNetworkMerchants } from '@/services/ledgerImport/network';
 import { canSaveImportedRows } from '@/services/ledgerImport/guards';
 
@@ -23,6 +23,9 @@ export default function OrdersImportLedgerPage() {
   const [file, setFile] = useState<File | null>(null);
   const [sheetName, setSheetName] = useState('');
   const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
+  const [ocrStatus, setOcrStatus] = useState('Idle');
+  const [ocrWarning, setOcrWarning] = useState<string | null>(null);
   const [extractedImageText, setExtractedImageText] = useState('');
   const [merchants, setMerchants] = useState<LedgerNetworkMerchant[]>([]);
   const [selectedRelationshipId, setSelectedRelationshipId] = useState('');
@@ -76,11 +79,20 @@ export default function OrdersImportLedgerPage() {
     })));
   }, [selectedMerchant]);
 
+  useEffect(() => {
+    if (sourceType !== 'image') {
+      setImagePreviewUrl('');
+      setExtractedImageText('');
+      setOcrWarning(null);
+      setOcrStatus('Idle');
+    }
+  }, [sourceType]);
+
   const saveableRows = useMemo(
     () => rows.filter((row) => row.status === 'parsed' && row.parsedType === 'merchant_deal' && row.saveEnabled),
     [rows],
   );
-  const saveAllowed = canSaveImportedRows(userId, selectedRelationshipId, rows);
+  const saveAllowed = canSaveImportedRows(userId, selectedRelationshipId, rows) && !(sourceType === 'image' && !!ocrWarning);
 
   const validateFile = (nextFile: File): string | null => {
     if (sourceType === 'text_file') return validateTextFile(nextFile);
@@ -95,6 +107,10 @@ export default function OrdersImportLedgerPage() {
       return;
     }
 
+    console.debug('[ledger-import:parse] source', type);
+    console.debug('[ledger-import:parse] input-length', text.length);
+    console.debug('[ledger-import:parse] preview', text.slice(0, 220));
+
     const parsed = parseLedgerText(text, {
       uploaderUserId: userId,
       selectedMerchantId: selectedMerchant.merchantId,
@@ -107,6 +123,28 @@ export default function OrdersImportLedgerPage() {
     setBatchId(parsed.batchId);
     setRows(parsed.rows);
     toast.success(`Parsed ${parsed.totals.parsed} supported rows. ${parsed.totals.skipped} skipped.`);
+  };
+
+  const runImageOcr = async () => {
+    if (!file) {
+      toast.error('Please select a photo first.');
+      return;
+    }
+
+    setOcrStatus('Running OCR...');
+    setOcrWarning(null);
+
+    try {
+      const ocr: OcrExtractionResult = await extractTextFromImage(file);
+      setOcrStatus(ocr.ranOcr ? `OCR complete (${ocr.engine})` : 'OCR unavailable');
+      setExtractedImageText(ocr.text);
+      if (ocr.warning) setOcrWarning(ocr.warning);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'OCR failed.';
+      setOcrWarning(message);
+      setOcrStatus('OCR failed');
+      toast.error(message);
+    }
   };
 
   const handleParse = async () => {
@@ -142,21 +180,23 @@ export default function OrdersImportLedgerPage() {
       if (sourceType === 'spreadsheet') {
         const workbook = await readSpreadsheet(file);
         setSheetNames(workbook.sheets);
-        if (!sheetName && workbook.sheets.length > 1) {
-          setSheetName(workbook.selectedSheet);
-        }
+        if (!sheetName && workbook.sheets.length > 1) setSheetName(workbook.selectedSheet);
         parseLines(workbook.lines.join('\n'), 'spreadsheet', file.name);
         return;
       }
 
       if (sourceType === 'image') {
-        const extractedText = await extractTextFromImage(file);
-        setExtractedImageText(extractedText);
-        if (!extractedText.trim()) {
-          toast.error('OCR extraction failed.');
+        const quality = assessOcrTextQuality(extractedImageText);
+        if (!extractedImageText.trim()) {
+          toast.error('No OCR text found. Run OCR first or enter text manually.');
           return;
         }
-        parseLines(extractedText, 'image', file.name, 0.3);
+        if (!quality.isValid) {
+          setOcrWarning(quality.reason || 'Low quality OCR output');
+          toast.error('OCR output quality is low. Please correct extracted text before parsing.');
+          return;
+        }
+        parseLines(extractedImageText, 'image', file.name, 0.3);
       }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Failed to parse import source.');
@@ -177,7 +217,6 @@ export default function OrdersImportLedgerPage() {
 
     setIsSaving(true);
     try {
-      const hashes = saveableRows.map((r) => r.normalizedHash);
       const { data: existingImports } = await supabase
         .from('merchant_deals')
         .select('metadata')
@@ -193,7 +232,7 @@ export default function OrdersImportLedgerPage() {
       );
 
       const payload = saveableRows
-        .filter((row) => !existingHashes.has(row.normalizedHash) && hashes.includes(row.normalizedHash))
+        .filter((row) => !existingHashes.has(row.normalizedHash))
         .map((row) => ({
           relationship_id: selectedMerchant.relationshipId,
           deal_type: 'arbitrage',
@@ -263,19 +302,14 @@ export default function OrdersImportLedgerPage() {
         />
 
         {sourceType === 'pasted_text' && (
-          <textarea
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            rows={8}
-            className="inp"
-            placeholder="الصق النص هنا"
-          />
+          <textarea value={rawText} onChange={(e) => setRawText(e.target.value)} rows={8} className="inp" placeholder="الصق النص هنا" />
         )}
 
         {sourceType !== 'pasted_text' && (
           <input
             className="inp"
             type="file"
+            accept={sourceType === 'image' ? '.png,.jpg,.jpeg,.webp' : sourceType === 'spreadsheet' ? '.xlsx,.xls,.csv' : '.txt,.md,.csv'}
             onChange={(e) => {
               const nextFile = e.target.files?.[0] || null;
               if (!nextFile) return;
@@ -285,6 +319,13 @@ export default function OrdersImportLedgerPage() {
                 return;
               }
               setFile(nextFile);
+              setRows([]);
+              if (sourceType === 'image') {
+                setImagePreviewUrl(URL.createObjectURL(nextFile));
+                setExtractedImageText('');
+                setOcrWarning(null);
+                setOcrStatus('Image selected');
+              }
             }}
           />
         )}
@@ -295,14 +336,31 @@ export default function OrdersImportLedgerPage() {
           </select>
         )}
 
-        {sourceType === 'image' && extractedImageText && (
-          <textarea className="inp" rows={4} value={extractedImageText} readOnly />
+        {sourceType === 'image' && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {imagePreviewUrl && <img src={imagePreviewUrl} alt="Selected upload" style={{ maxWidth: 220, borderRadius: 8, border: '1px solid var(--line)' }} />}
+            <div className="pill">OCR status: {ocrStatus}</div>
+            {ocrWarning && <div className="pill bad">{ocrWarning}</div>}
+            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Extracted text from image</label>
+            <textarea
+              className="inp"
+              rows={6}
+              value={extractedImageText}
+              onChange={(e) => setExtractedImageText(e.target.value)}
+              placeholder="OCR output appears here. You can edit before parse."
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn secondary" onClick={runImageOcr} disabled={!file}>Run OCR</button>
+              <button className="btn" onClick={handleParse} disabled={isParsing || !extractedImageText.trim()}>Parse extracted text</button>
+            </div>
+          </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        {sourceType !== 'image' && (
           <button className="btn" onClick={handleParse} disabled={isParsing || merchants.length === 0}>{isParsing ? 'Parsing...' : 'Parse'}</button>
-          <button className="btn" onClick={handleSave} disabled={isSaving || !saveAllowed || !selectedMerchant}>{isSaving ? 'Saving...' : `Confirm & Save (${saveableRows.length})`}</button>
-        </div>
+        )}
+
+        <button className="btn" onClick={handleSave} disabled={isSaving || !saveAllowed || !selectedMerchant}>{isSaving ? 'Saving...' : `Confirm & Save (${saveableRows.length})`}</button>
       </div>
 
       <ImportPreviewTable rows={rows} />
