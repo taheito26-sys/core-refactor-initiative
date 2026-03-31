@@ -312,7 +312,7 @@ export default function OrdersPage() {
         `[data-settlement-id="${targetId}"]`,
       ]);
     }, 220);
-  }, [searchParams, filtered.length, filteredIncomingMerchantDeals.length, filteredOutgoingMerchantDeals.length]);
+  }, [searchParams, filtered.length, allMerchantDeals.length]);
 
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships

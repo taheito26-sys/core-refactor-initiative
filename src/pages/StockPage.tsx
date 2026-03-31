@@ -102,7 +102,7 @@ export default function StockPage() {
         `[data-stock-id="${focusStockId}"]`,
       ]);
     }, 180);
-  }, [searchParams, perf.length]);
+  }, [searchParams, state.batches.length]);
 
   // Auto-select first account if none selected and accounts exist
   useEffect(() => {
