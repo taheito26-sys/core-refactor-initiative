@@ -1342,7 +1342,7 @@ export default function OrdersPage() {
             <span className="pill" style={{ fontSize: 9, color: isMerchantLinked ? 'var(--brand)' : 'var(--muted)' }}>
               {isMerchantLinked ? '🤝 Linked' : '👤 Trade'}
             </span>
-            {renderLinkedTradeStatus(tr.approvalStatus as LinkedTradeStatus | undefined)}
+            {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
           </div>
         </div>
         <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
