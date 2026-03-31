@@ -86,6 +86,16 @@ class RouteErrorBoundary extends React.Component<
     this.state = { hasError: false, autoCleared: false };
   }
 
+  componentDidMount() {
+    this.clearRecoveryQueryParam();
+  }
+
+  componentDidUpdate() {
+    if (!this.state.hasError) {
+      this.clearRecoveryQueryParam();
+    }
+  }
+
   static getDerivedStateFromError() {
     return { hasError: true };
   }
@@ -103,7 +113,7 @@ class RouteErrorBoundary extends React.Component<
     }
   }
 
-  clearAndReload = async () => {
+  clearAndReload = async (targetHref?: string) => {
     try {
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
@@ -116,12 +126,27 @@ class RouteErrorBoundary extends React.Component<
     } catch {
       // Best effort
     }
+    if (targetHref) {
+      window.location.replace(targetHref);
+      return;
+    }
     window.location.reload();
   };
 
   handleClearAndReload = async () => {
     sessionStorage.removeItem('_p2p_auto_clear_attempt_ts');
     await this.clearAndReload();
+  };
+
+  clearRecoveryQueryParam = () => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('_cache_cleared') !== '1') return;
+      url.searchParams.delete('_cache_cleared');
+      window.history.replaceState({}, '', url.toString());
+    } catch {
+      // Best effort
+    }
   };
 
   render() {

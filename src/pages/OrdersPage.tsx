@@ -325,6 +325,14 @@ export default function OrdersPage() {
     () => allMerchantDeals.filter(d => d.created_by === userId && isDealVisible(d)),
     [allMerchantDeals, userId],
   );
+  const filteredIncomingMerchantDeals = useMemo(
+    () => partnerMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), state.range)),
+    [partnerMerchantDeals, state.range],
+  );
+  const filteredOutgoingMerchantDeals = useMemo(
+    () => creatorMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), state.range)),
+    [creatorMerchantDeals, state.range],
+  );
 
   /** Resolve avg buy for a deal — use metadata first, fallback to local FIFO trade calc */
   const resolveDealAvgBuy = useCallback((deal: any, normalizedMeta?: Record<string, string>): number => {
@@ -1308,13 +1316,74 @@ export default function OrdersPage() {
 
   const outKpi = useMemo(() => {
     let vol = 0, netVal = 0;
-    for (const deal of creatorMerchantDeals) {
+    for (const deal of filteredOutgoingMerchantDeals) {
       const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
       vol += row.volume;
       netVal += row.myNet ?? 0;
     }
-    return { count: creatorMerchantDeals.length, vol, net: netVal };
-  }, [creatorMerchantDeals, resolveDealAvgBuy, t.isRTL]);
+    return { count: filteredOutgoingMerchantDeals.length, vol, net: netVal };
+  }, [filteredOutgoingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
+
+  const renderMyOrderMobileCard = useCallback((tr: Trade) => {
+    const c = derived.tradeCalc.get(tr.id);
+    const ok = !!c?.ok;
+    const rev = tr.amountUSDT * tr.sellPriceQAR;
+    const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
+    const rawNet = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
+    const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
+    const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
+    const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
+
+    return (
+      <div key={`mobile-trade-${tr.id}`} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+          <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="mono">{fmtDate(tr.ts)}</span>
+            <span className="pill" style={{ fontSize: 9, color: isMerchantLinked ? 'var(--brand)' : 'var(--muted)' }}>
+              {isMerchantLinked ? '🤝 Linked' : '👤 Trade'}
+            </span>
+            {renderLinkedTradeStatus(tr.approvalStatus as LinkedTradeStatus | undefined)}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('buyer')}</span>
+            <strong style={{ fontSize: 11, textAlign: 'right' }}>{cn}</strong>
+          </div>
+          {isMerchantLinked && linkedRel && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span className="muted">{t('merchant')}</span>
+              <strong style={{ fontSize: 11, textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(tr.amountUSDT)}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(tr.sellPriceQAR)}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(rev)}</div>
+            </div>
+            <div className="panel" style={{ padding: 6 }}>
+              <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(c!.avgBuyQAR) : '—'}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="muted">{t('net')}</span>
+            <span style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700, fontSize: 11 }}>
+              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }, [derived.tradeCalc, relationships, state.customers, t]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
@@ -1415,13 +1484,13 @@ export default function OrdersPage() {
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
-    for (const deal of partnerMerchantDeals) {
+    for (const deal of filteredIncomingMerchantDeals) {
       const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
       vol += row.volume;
       netVal += row.myNet ?? 0;
     }
-    return { count: partnerMerchantDeals.length, vol, net: netVal };
-  }, [partnerMerchantDeals, resolveDealAvgBuy, t.isRTL]);
+    return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
+  }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => (
     <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -1488,7 +1557,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {creatorMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
+                  {filtered.map((tr) => renderMyOrderMobileCard(tr))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1574,10 +1643,10 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📥 {t('incomingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('partnerTradesAwaitingApproval')}</div>
                 </div>
-                <span className="pill">{partnerMerchantDeals.length} {t('trades')}</span>
+                <span className="pill">{filteredIncomingMerchantDeals.length} {t('trades')}</span>
               </div>
 
-              {partnerMerchantDeals.length === 0 ? (
+              {filteredIncomingMerchantDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noIncomingTrades')}</div>
@@ -1585,7 +1654,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {partnerMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
+                  {filteredIncomingMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1597,7 +1666,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {partnerMerchantDeals.map(deal => {
+                      {filteredIncomingMerchantDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -1690,10 +1759,10 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div>
                 </div>
-                <span className="pill">{creatorMerchantDeals.length} {t('trades')}</span>
+                <span className="pill">{filteredOutgoingMerchantDeals.length} {t('trades')}</span>
               </div>
 
-              {creatorMerchantDeals.length === 0 ? (
+              {filteredOutgoingMerchantDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
@@ -1701,7 +1770,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {creatorMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
+                  {filteredOutgoingMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1712,7 +1781,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {creatorMerchantDeals.map(deal => {
+                      {filteredOutgoingMerchantDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -2587,13 +2656,13 @@ export default function OrdersPage() {
             <div className="formPanel salePanel">
               <div className="hdr">📥 {t('approvalInbox')}</div>
               <div className="inner">
-                {partnerMerchantDeals.length === 0 ? (
+                {filteredIncomingMerchantDeals.length === 0 ? (
                   <div className="muted" style={{ fontSize: 11, textAlign: 'center', padding: 20 }}>{t('noIncomingTrades')}</div>
                 ) : (
                   <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>
                     <p>{t('incomingTradesHelp')}</p>
                     <div style={{ marginTop: 12 }}>
-                      {partnerMerchantDeals.filter(d => d.status === 'pending').map(deal => {
+                      {filteredIncomingMerchantDeals.filter(d => d.status === 'pending').map(deal => {
                         const cfg = DEAL_TYPE_CONFIGS[deal.deal_type];
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const { partnerPct } = getDealShares(deal);
@@ -2615,7 +2684,7 @@ export default function OrdersPage() {
                           </div>
                         );
                       })}
-                      {partnerMerchantDeals.filter(d => d.status === 'pending').length === 0 && (
+                      {filteredIncomingMerchantDeals.filter(d => d.status === 'pending').length === 0 && (
                         <div style={{ textAlign: 'center', padding: 12, color: 'var(--muted)' }}>{t('noPendingApprovals')}</div>
                       )}
                     </div>
@@ -2633,15 +2702,15 @@ export default function OrdersPage() {
                 <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>
                   <p>{t('outgoingTradesHelp')}</p>
                 </div>
-                {creatorMerchantDeals.filter(d => d.status === 'pending').length > 0 && (
+                {filteredOutgoingMerchantDeals.filter(d => d.status === 'pending').length > 0 && (
                   <div className="previewBox" style={{ borderColor: 'var(--warn)' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 4 }}>⏳ {t('pendingApprovalCount').replace('{n}', String(creatorMerchantDeals.filter(d => d.status === 'pending').length))}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 4 }}>⏳ {t('pendingApprovalCount').replace('{n}', String(filteredOutgoingMerchantDeals.filter(d => d.status === 'pending').length))}</div>
                     <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('awaitingPartnerApproval')}</div>
                   </div>
                 )}
-                {creatorMerchantDeals.filter(d => d.status === 'approved').length > 0 && (
+                {filteredOutgoingMerchantDeals.filter(d => d.status === 'approved').length > 0 && (
                   <div className="previewBox" style={{ borderColor: 'var(--good)', marginTop: 6 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 4 }}>✅ {creatorMerchantDeals.filter(d => d.status === 'approved').length} {t('approvedTrades')}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 4 }}>✅ {filteredOutgoingMerchantDeals.filter(d => d.status === 'approved').length} {t('approvedTrades')}</div>
                     <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('permanentSharedRecords')}</div>
                   </div>
                 )}
