@@ -63,3 +63,8 @@ export async function markRead(roomId: string, messageId: string): Promise<Deter
     return fail(false, error);
   }
 }
+
+
+export async function markMessagesReadUpTo(roomId: string, messageId: string): Promise<DeterministicResult<boolean>> {
+  return markRead(roomId, messageId);
+}

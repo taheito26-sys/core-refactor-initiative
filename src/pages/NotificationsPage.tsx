@@ -5,16 +5,18 @@ import {
   Zap, Clock, ArrowRight, Sparkles, Search, Trash2, Filter,
   ChevronDown, X,
 } from 'lucide-react';
-import { formatDistanceToNow, isToday, isYesterday, format, differenceInMinutes } from 'date-fns';
+import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   useNotifications,
   useMarkNotificationRead,
   useMarkAllRead,
-  notificationRoute,
   type Notification,
 } from '@/hooks/useNotifications';
+import { handleNotificationClick } from '@/lib/notification-router';
+import { normalizeNotificationCategory } from '@/types/notifications';
+import { smartGroupNotifications, type SmartNotification } from '@/lib/notification-grouping';
 import { useT } from '@/lib/i18n';
 
 // ─── Category Config ────────────────────────────────────────────────
@@ -55,46 +57,6 @@ function groupByDay(items: Notification[], t: any): { label: string; items: Noti
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
-// ─── Smart grouping: collapse repeated sender+category ──────────────
-interface SmartNotification extends Notification {
-  groupCount?: number;
-}
-
-function smartGroupNotifications(items: Notification[]): SmartNotification[] {
-  if (!items.length) return [];
-  const result: SmartNotification[] = [];
-  let i = 0;
-  while (i < items.length) {
-    const current = items[i];
-    let count = 1;
-    let j = i + 1;
-    while (j < items.length) {
-      const next = items[j];
-      const sameCategory = next.category === current.category;
-      const sameSender = sameCategory && extractSender(next.title) === extractSender(current.title);
-      const withinWindow = differenceInMinutes(new Date(current.created_at), new Date(next.created_at)) <= 30;
-      if (sameSender && withinWindow) { count++; j++; } else break;
-    }
-    result.push(count > 1 ? { ...current, groupCount: count } : { ...current });
-    i = j;
-  }
-  return result;
-}
-
-function extractSender(title: string): string {
-  const fromMatch = title.match(/from\s+(.+)$/i);
-  if (fromMatch) return fromMatch[1].trim().toLowerCase();
-  const sentMatch = title.match(/^(.+?)\s+sent\s+you/i);
-  if (sentMatch) return sentMatch[1].trim().toLowerCase();
-  return title.toLowerCase();
-}
-
-function normalizeCategory(cat: string): CategoryKey {
-  if (cat === 'network' || cat === 'invite') return 'invite';
-  if (cat === 'merchant' || cat === 'deal') return 'deal';
-  if (CATEGORY_KEYS.some(c => c.key === cat)) return cat as CategoryKey;
-  return 'system';
-}
 
 // ─── Notification Card ──────────────────────────────────────────────
 function NotificationCard({
@@ -221,7 +183,7 @@ export default function NotificationsPage() {
     let items = notifications ?? [];
 
     if (activeCategory !== 'all') {
-      items = items.filter(n => normalizeCategory(n.category) === activeCategory);
+      items = items.filter(n => normalizeNotificationCategory(n.category) === activeCategory);
     }
 
     if (showUnreadOnly) {
@@ -246,7 +208,7 @@ export default function NotificationsPage() {
     const counts: Record<string, number> = {};
     for (const n of (notifications ?? [])) {
       if (!n.read_at) {
-        const cat = normalizeCategory(n.category);
+        const cat = normalizeNotificationCategory(n.category);
         counts[cat] = (counts[cat] || 0) + 1;
       }
     }
@@ -255,7 +217,7 @@ export default function NotificationsPage() {
 
   const handleNavigate = (n: Notification) => {
     if (!n.read_at) markRead.mutate(n.id);
-    navigate(notificationRoute(n));
+    handleNotificationClick(n, navigate);
   };
 
   return (
@@ -299,7 +261,7 @@ export default function NotificationsPage() {
             {[
               { label: t('notifTotal'), value: (notifications ?? []).length, icon: Bell, color: 'text-foreground' },
               { label: t('notifUnread'), value: unreadCount, icon: Sparkles, color: unreadCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
-              { label: t('notifDeals'), value: (notifications ?? []).filter(n => normalizeCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
+              { label: t('notifDeals'), value: (notifications ?? []).filter(n => normalizeNotificationCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
               { label: t('notifThisWeek'), value: (notifications ?? []).filter(n => Date.now() - new Date(n.created_at).getTime() < 7 * 86400000).length, icon: Clock, color: 'text-primary' },
             ].map(stat => (
               <div key={stat.label} className="flex items-center gap-2.5 p-3 rounded-xl bg-card/80 border border-border/50">

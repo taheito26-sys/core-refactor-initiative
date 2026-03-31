@@ -1,222 +1,26 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Bell, CheckCheck, Handshake, Mail, ShieldCheck, Package,
-  Zap, Filter, Clock, ArrowRight, Sparkles, Circle, MessageCircle,
-} from 'lucide-react';
-import { formatDistanceToNow, isToday, isYesterday, format, differenceInMinutes } from 'date-fns';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Bell, CheckCheck } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import {
-  useNotifications,
-  useMarkNotificationRead,
-  useMarkNotificationsRead,
-  useMarkAllRead,
-  useMarkCategoryRead,
-  type Notification,
-} from '@/hooks/useNotifications';
-import { handleNotificationClick } from '@/lib/notification-router';
 import { useT } from '@/lib/i18n';
+import { useMarkAllRead, useMarkCategoryRead, useMarkNotificationRead, useMarkNotificationsRead, useNotifications } from '@/hooks/useNotifications';
+import { smartGroupNotifications, type SmartNotification } from '@/lib/notification-grouping';
+import { handleNotificationClick } from '@/lib/notification-router';
+import { normalizeNotificationCategory, type NotificationCategoryGroup } from '@/types/notifications';
 
-// ─── Category Config ────────────────────────────────────────────────
-type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'message' | 'system';
+const categories: NotificationCategoryGroup[] = ['all', 'deal', 'order', 'invite', 'approval', 'message', 'system'];
 
-const CATEGORIES: { key: CategoryKey; labelKey: string; icon: React.ComponentType<{ className?: string }>; activeBg: string; activeText: string }[] = [
-  { key: 'all', labelKey: 'notifAllActivity', icon: Sparkles, activeBg: 'bg-primary', activeText: 'text-primary-foreground' },
-  { key: 'deal', labelKey: 'notifDeals', icon: Handshake, activeBg: 'bg-accent', activeText: 'text-accent-foreground' },
-  { key: 'order', labelKey: 'orders', icon: Package, activeBg: 'bg-warning', activeText: 'text-warning-foreground' },
-  { key: 'invite', labelKey: 'notifInvites', icon: Mail, activeBg: 'bg-[hsl(260,60%,50%)]', activeText: 'text-white' },
-  { key: 'approval', labelKey: 'notifApprovals', icon: ShieldCheck, activeBg: 'bg-success', activeText: 'text-success-foreground' },
-  { key: 'message', labelKey: 'notifMessages', icon: MessageCircle, activeBg: 'bg-[hsl(200,70%,50%)]', activeText: 'text-white' },
-  { key: 'system', labelKey: 'notifSystem', icon: Zap, activeBg: 'bg-muted-foreground', activeText: 'text-background' },
-];
-
-const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
-  deal: { icon: Handshake, color: 'text-accent', bg: 'bg-accent/10' },
-  order: { icon: Package, color: 'text-warning', bg: 'bg-warning/10' },
-  invite: { icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
-  network: { icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
-  approval: { icon: ShieldCheck, color: 'text-success', bg: 'bg-success/10' },
-  merchant: { icon: Handshake, color: 'text-accent', bg: 'bg-accent/10' },
-  message: { icon: MessageCircle, color: 'text-[hsl(200,70%,50%)]', bg: 'bg-[hsl(200,70%,50%)]/10' },
-  system: { icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
-};
-
-// ─── Smart grouping: collapse repeated sender+category notifications ──
-interface SmartNotification extends Notification {
-  groupCount?: number;
-  groupLatest?: string;
-  /** All IDs in this group — needed so every notification gets marked read */
-  groupIds?: string[];
-}
-
-function smartGroupNotifications(items: Notification[]): SmartNotification[] {
-  if (!items.length) return [];
-
-  const result: SmartNotification[] = [];
-  let i = 0;
-
-  while (i < items.length) {
-    const current = items[i];
-    let count = 1;
-    let j = i + 1;
-
-    // Group consecutive notifications with same category + similar title (same sender)
-    while (j < items.length) {
-      const next = items[j];
-      const sameCategory = next.category === current.category;
-      // Extract sender name from title patterns like "New message from X" or "X sent you a message"
-      const sameSender = sameCategory && extractSender(next.title) === extractSender(current.title);
-      const withinWindow = differenceInMinutes(new Date(current.created_at), new Date(next.created_at)) <= 30;
-
-      if (sameSender && withinWindow) {
-        count++;
-        j++;
-      } else {
-        break;
-      }
-    }
-
-    if (count > 1) {
-      result.push({
-        ...current,
-        groupCount: count,
-        groupLatest: current.created_at,
-        body: current.body,
-        groupIds: items.slice(i, j).map(n => n.id),
-      });
-    } else {
-      result.push({ ...current });
-    }
-
-    i = j;
-  }
-
-  return result;
-}
-
-function extractSender(title: string): string {
-  // "New message from X" → "X"
-  const fromMatch = title.match(/from\s+(.+)$/i);
-  if (fromMatch) return fromMatch[1].trim().toLowerCase();
-  // "X sent you a message" → "X"
-  const sentMatch = title.match(/^(.+?)\s+sent\s+you/i);
-  if (sentMatch) return sentMatch[1].trim().toLowerCase();
-  return title.toLowerCase();
-}
-
-function groupByDay(items: SmartNotification[], t: ReturnType<typeof useT>): { label: string; items: SmartNotification[] }[] {
-  const groups = new Map<string, Notification[]>();
-  for (const n of items) {
-    const d = new Date(n.created_at);
-    let label: string;
-    if (isToday(d)) label = t('notifToday');
-    else if (isYesterday(d)) label = t('notifYesterday');
-    else label = format(d, 'MMM d, yyyy');
-    const existing = groups.get(label) || [];
-    existing.push(n);
-    groups.set(label, existing);
-  }
-  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
-}
-
-// ─── Single Notification Row ────────────────────────────────────────
-function NotificationRow({
-  n,
-  onNavigate,
-}: {
-  n: SmartNotification;
-  onNavigate: (n: SmartNotification) => void;
-}) {
-  const meta = categoryMeta[n.category] ?? categoryMeta.system;
-  const Icon = meta.icon;
-  const isUnread = !n.read_at;
-  const isAdminPriority = n.category === 'system' || n.category === 'approval' || n.category === 'invite';
-
-  const t = useT();
-  return (
-    <button
-      onClick={() => onNavigate(n)}
-      className={cn(
-        'group w-full flex items-start gap-3 px-3 py-2.5 text-left transition-all rounded-lg relative',
-        isAdminPriority && isUnread
-          ? 'bg-destructive/[0.06] hover:bg-destructive/[0.10] border border-destructive/20'
-          : isUnread
-          ? 'bg-primary/[0.04] hover:bg-primary/[0.08]'
-          : 'hover:bg-muted/50'
-      )}
-    >
-      {isUnread && (
-        <span className="absolute top-3 left-1 flex h-2 w-2">
-          <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-50', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
-          <span className={cn('relative inline-flex rounded-full h-2 w-2', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
-        </span>
-      )}
-
-      <div className={cn(
-        'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105',
-        isAdminPriority ? 'bg-destructive/10' : meta.bg
-      )}>
-        <Icon className={cn('h-4 w-4', isAdminPriority ? 'text-destructive' : meta.color)} />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {isAdminPriority && isUnread && (
-              <span className="shrink-0 text-[7px] font-black uppercase tracking-wider bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
-                ⚡
-              </span>
-            )}
-            {n.groupCount && n.groupCount > 1 && (
-              <span className="text-[8px] font-black bg-primary/15 text-primary px-1.5 py-0.5 rounded">
-                ×{n.groupCount}
-              </span>
-            )}
-            <span className={cn(
-              'text-[12px] leading-tight truncate',
-              isUnread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground'
-            )}>
-              {n.title}
-            </span>
-          </div>
-          <ArrowRight className="h-3 w-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-        </div>
-        {n.body && (
-          <p className="text-[11px] text-muted-foreground/80 leading-snug mt-0.5 line-clamp-2">
-            {n.body}
-          </p>
-        )}
-        <div className="flex items-center gap-2 mt-1">
-          <Clock className="h-2.5 w-2.5 text-muted-foreground/50" />
-          <span className="text-[9px] text-muted-foreground/60 font-medium">
-            {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-          </span>
-          <span className={cn(
-            'text-[8px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded',
-            isAdminPriority ? 'bg-destructive/10 text-destructive' : cn(meta.bg, meta.color)
-          )}>
-            {n.category}
-          </span>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-// ─── Main Component ─────────────────────────────────────────────────
 export default function ActivityCenter() {
   const [open, setOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
+  const [activeCategory, setActiveCategory] = useState<NotificationCategoryGroup>('all');
   const navigate = useNavigate();
   const t = useT();
-  const { data: notifications, isLoading, unreadCount } = useNotifications();
+
+  const { data: notifications, unreadCount, unreadByCategory, isLoading, hasLiveNotificationChannel } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markManyRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllRead();
@@ -225,229 +29,56 @@ export default function ActivityCenter() {
   const filtered = useMemo(() => {
     if (!notifications) return [];
     if (activeCategory === 'all') return notifications;
-    return notifications.filter(n => {
-      if (activeCategory === 'invite') return n.category === 'invite' || n.category === 'network';
-      if (activeCategory === 'deal') return n.category === 'deal' || n.category === 'merchant';
-      if (activeCategory === 'message') return n.category === 'message';
-      return n.category === activeCategory;
-    });
+    return notifications.filter((n) => normalizeNotificationCategory(n.category) === activeCategory);
   }, [notifications, activeCategory]);
 
-  const smartFiltered = useMemo(() => smartGroupNotifications(filtered), [filtered]);
-  const grouped = useMemo(() => groupByDay(smartFiltered, t), [smartFiltered, t]);
+  const grouped = useMemo(() => smartGroupNotifications(filtered), [filtered]);
 
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const n of (notifications ?? [])) {
-      if (!n.read_at) {
-        const cat = (n.category === 'network' || n.category === 'invite') ? 'invite'
-          : (n.category === 'merchant' || n.category === 'deal') ? 'deal'
-          : n.category === 'message' ? 'message'
-          : n.category;
-        counts[cat] = (counts[cat] || 0) + 1;
-      }
-    }
-    return counts;
-  }, [notifications]);
-
-  const handleNavigate = async (n: SmartNotification) => {
-    // Mark every notification in the group as read in one mutation so the cache
-    // and unread badge stay consistent for grouped entries.
-    const idsToMark = n.groupIds?.length ? n.groupIds : (n.read_at ? [] : [n.id]);
-
-    if (idsToMark.length > 1) {
-      await markManyRead.mutateAsync(idsToMark);
-    } else if (idsToMark.length === 1) {
-      await markRead.mutateAsync(idsToMark[0]);
-    }
-
+  const onNavigate = async (n: SmartNotification) => {
+    const ids = n.groupIds?.length ? n.groupIds : (!n.read_at ? [n.id] : []);
+    if (ids.length > 1) await markManyRead.mutateAsync(ids);
+    else if (ids.length === 1) await markRead.mutateAsync(ids[0]);
     setOpen(false);
     handleNotificationClick(n, navigate);
   };
 
-  // Reset to "all" every time the panel opens — prevents phantom count where
-  // the user left on a filtered category (e.g. "Deals"), closed the panel, and
-  // on re-open the filtered view shows 0 items while the badge shows ≥1 from
-  // a different category (e.g. "System").
-  const handleOpenChange = (next: boolean) => {
-    if (next) setActiveCategory('all');
-    setOpen(next);
-  };
-
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={(v) => { if (v) setActiveCategory('all'); setOpen(v); }}>
       <PopoverTrigger asChild>
-        <button className="relative p-2 rounded-lg hover:bg-muted text-muted-foreground transition-all hover:text-foreground group">
-          <Bell className={cn(
-            'h-5 w-5 transition-transform',
-            unreadCount > 0 && 'group-hover:animate-[wiggle_0.3s_ease-in-out]'
-          )} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-black text-destructive-foreground shadow-lg shadow-destructive/30 animate-in zoom-in-50">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
+        <button className="relative p-2 rounded-lg hover:bg-muted text-muted-foreground">
+          <Bell className="h-5 w-5" />
+          {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 rounded-full bg-destructive px-1 text-[9px] font-bold text-white">{unreadCount}</span>}
         </button>
       </PopoverTrigger>
-
-      <PopoverContent
-        align="end"
-        sideOffset={8}
-        className="w-[380px] p-0 shadow-2xl border-border/50 rounded-xl overflow-hidden"
-      >
-        {/* ── Header ── */}
-        <div className="relative bg-gradient-to-r from-primary/5 via-transparent to-accent/5 px-4 py-3 border-b border-border/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-[13px] font-bold text-foreground leading-tight">{t('activityCenter')}</h3>
-                <p className="text-[10px] text-muted-foreground leading-tight">
-                  {unreadCount > 0
-                    ? `${unreadCount} ${unreadCount > 1 ? t('unreadAlertsPlural') : t('unreadAlerts')}`
-                    : t('allCaughtUpShort')}
-                </p>
-              </div>
-            </div>
-            {unreadCount > 0 && (
-              <div className="flex items-center gap-1">
-                {activeCategory !== 'all' && (categoryCounts[activeCategory] || 0) > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-[10px] text-muted-foreground hover:text-foreground gap-1 rounded-lg"
-                    onClick={() => {
-                      // Mark all notifications in the mapped categories as read
-                      const cats = activeCategory === 'invite' ? ['invite', 'network']
-                        : activeCategory === 'deal' ? ['deal', 'merchant']
-                        : [activeCategory];
-                      cats.forEach(c => markCategoryRead.mutate(c));
-                    }}
-                    disabled={markCategoryRead.isPending}
-                  >
-                    <CheckCheck className="h-3 w-3" />
-                    Clear
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-[10px] text-muted-foreground hover:text-foreground gap-1 rounded-lg"
-                  onClick={() => markAllRead.mutate()}
-                  disabled={markAllRead.isPending}
-                >
-                  <CheckCheck className="h-3 w-3" />
-                  {t('clearAll')}
-                </Button>
-              </div>
+      <PopoverContent align="end" className="w-[360px] p-0">
+        <div className="p-3 border-b flex items-center justify-between">
+          <strong>{t('activityCenter')}</strong>
+          <div className="flex gap-1">
+            {activeCategory !== 'all' && (
+              <Button size="sm" variant="ghost" onClick={() => markCategoryRead.mutate(activeCategory)} disabled={markCategoryRead.isPending}>Clear</Button>
             )}
-          </div>
-
-          {/* ── Category pills ── */}
-          <div className="flex flex-wrap gap-1 mt-2.5">
-            {CATEGORIES.map(cat => {
-              const count = cat.key === 'all' ? unreadCount : (categoryCounts[cat.key] || 0);
-              const isActive = activeCategory === cat.key;
-              const CatIcon = cat.icon;
-              return (
-                <button
-                  key={cat.key}
-                  onClick={() => setActiveCategory(cat.key)}
-                  className={cn(
-                    'flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all whitespace-nowrap',
-                    isActive
-                      ? cn(cat.activeBg, cat.activeText, 'shadow-sm')
-                      : 'bg-background/80 text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  <CatIcon className="h-3 w-3" />
-                  {t(cat.labelKey as any)}
-                  {count > 0 && (
-                    <span className={cn(
-                      'ml-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[8px] font-black',
-                      isActive
-                        ? 'bg-white/20'
-                        : 'bg-destructive/15 text-destructive'
-                    )}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            <Button size="sm" variant="ghost" onClick={() => markAllRead.mutate()} disabled={markAllRead.isPending}><CheckCheck className="h-3 w-3" /></Button>
           </div>
         </div>
-
-        {/* ── Timeline ── */}
+        <div className="p-2 flex flex-wrap gap-1 border-b">
+          {categories.map((cat) => (
+            <button key={cat} className={cn('text-xs px-2 py-1 rounded', activeCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-muted')} onClick={() => setActiveCategory(cat)}>
+              {cat} {cat === 'all' ? unreadCount : unreadByCategory[cat] || 0}
+            </button>
+          ))}
+        </div>
         <ScrollArea className="max-h-[420px]">
-          {isLoading ? (
-            <div className="flex flex-col items-center py-14 gap-3">
-              <div className="relative">
-                <div className="h-10 w-10 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-              </div>
-              <p className="text-[11px] text-muted-foreground font-medium">{t('loadingActivity')}</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center py-14 gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
-                {activeCategory === 'all' ? (
-                  <Bell className="h-6 w-6 text-muted-foreground/50" />
-                ) : (
-                  (() => {
-                    const CatIcon = CATEGORIES.find(c => c.key === activeCategory)?.icon ?? Bell;
-                    return <CatIcon className="h-6 w-6 text-muted-foreground/50" />;
-                  })()
-                )}
-              </div>
-              <div className="text-center">
-                <p className="text-[12px] font-semibold text-muted-foreground">
-                  {activeCategory === 'all' ? t('noActivityShort') : t('noCategoryNotif')}
-                </p>
-                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                  {activeCategory === 'all'
-                    ? t('startDealOrInvite')
-                    : t('checkBackLater')}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="py-1.5">
-              {grouped.map(group => (
-                <div key={group.label}>
-                  <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-1.5 bg-background/95 backdrop-blur-sm">
-                    <div className="h-px flex-1 bg-border/50" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                      {group.label}
-                    </span>
-                    <div className="h-px flex-1 bg-border/50" />
-                  </div>
-                  <div className="px-1.5 space-y-0.5">
-                    {group.items.map(n => (
-                      <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {isLoading ? <div className="p-4 text-sm">Loading...</div> : grouped.map((n) => (
+            <button key={n.id} onClick={() => onNavigate(n)} className={cn('w-full text-left p-3 border-b hover:bg-muted/40', !n.read_at && 'bg-primary/5')}>
+              <div className="text-xs font-semibold">{n.title} {n.groupCount && n.groupCount > 1 ? `×${n.groupCount}` : ''}</div>
+              {n.body && <div className="text-xs text-muted-foreground">{n.body}</div>}
+              <div className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}</div>
+            </button>
+          ))}
         </ScrollArea>
-
-        {/* ── Footer with live indicator ── */}
-        <div className="border-t border-border/50 px-4 py-2 bg-gradient-to-r from-transparent via-muted/30 to-transparent">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
-              </span>
-              <span className="text-[9px] font-semibold text-success uppercase tracking-wider">{t('liveLabel')}</span>
-            </div>
-            <span className="text-[9px] text-muted-foreground/50">
-              {(notifications ?? []).length} {t('totalDot')} · {t('realTimeEnabled')}
-            </span>
-          </div>
+        <div className="p-2 border-t text-[10px] text-muted-foreground flex justify-between">
+          <span>{hasLiveNotificationChannel ? t('liveLabel') : 'Degraded'}</span>
+          <span>{(notifications ?? []).length} total</span>
         </div>
       </PopoverContent>
     </Popover>
