@@ -1551,6 +1551,10 @@ export default function OrdersPage() {
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
 
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn secondary" onClick={() => navigate('/trading/orders/import-ledger')}>Import Ledger</button>
+      </div>
+
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
         {(['my', 'incoming', 'outgoing', 'transfers'] as const).map(tab => (
