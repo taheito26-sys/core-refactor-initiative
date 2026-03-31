@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { BusinessObjectCard } from '@/features/chat/components/BusinessObjectCard';
 import { MessageItem } from '@/features/chat/components/MessageItem';
 import { UnreadDivider } from '@/features/chat/components/UnreadDivider';
@@ -24,6 +24,7 @@ interface Props {
 }
 
 export function MessageList(props: Props) {
+  const lastReadMutationRef = useRef<string | null>(null);
   const unreadCount = useMemo(() => {
     if (!props.unreadMessageId) return 0;
     const idx = props.messages.findIndex((m) => m.id === props.unreadMessageId);
@@ -31,14 +32,38 @@ export function MessageList(props: Props) {
     return props.messages.length - idx;
   }, [props.messages, props.unreadMessageId]);
 
+  useEffect(() => {
+    const candidate = [...props.messages]
+      .reverse()
+      .find((m: any) => {
+        const senderId = m.sender_id || m.sender_merchant_id;
+        return senderId !== props.currentUserId && !m.read_at;
+      }) as any;
+    if (!candidate) return;
+    if (lastReadMutationRef.current === candidate.id) return;
+
+    const element = document.getElementById(`msg-${candidate.id}`);
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    const visible = rect.top < window.innerHeight && rect.bottom > 0;
+    if (!visible) return;
+
+    const timer = window.setTimeout(() => {
+      lastReadMutationRef.current = candidate.id;
+      props.onMarkRead(candidate.id);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [props.messages, props.currentUserId, props.onMarkRead]);
+
   return (
     <div className="flex-1 overflow-auto py-2">
       {props.messages.map((m) => {
         if (m.type === 'business_object') {
           return (
-            <BusinessObjectCard 
-              key={m.id} 
-              obj={m as ChatBusinessObject} 
+            <BusinessObjectCard
+              key={m.id}
+              obj={m as ChatBusinessObject}
               onAccept={() => props.onAcceptDeal?.(m.id)}
             />
           );

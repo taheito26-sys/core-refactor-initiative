@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
@@ -25,6 +25,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import '@/styles/tracker.css';
+import { focusElementBySelectors } from '@/lib/focus-target';
 
 // ─── Multi-Merchant Allocation Row Type ──────────────────────────────
 interface AllocationRow {
@@ -51,6 +52,7 @@ export default function OrdersPage() {
   const { userId, merchantProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
@@ -292,6 +294,25 @@ export default function OrdersPage() {
       return [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase().includes(query);
     });
   }, [list, query, state.customers]);
+
+
+  useEffect(() => {
+    const focusOrderId = searchParams.get('focusOrderId');
+    const focusDealId = searchParams.get('focusDealId');
+    const focusSettlementId = searchParams.get('focusSettlementId');
+    const targetId = focusOrderId || focusDealId || focusSettlementId;
+    if (!targetId) return;
+    window.setTimeout(() => {
+      focusElementBySelectors([
+        `#order-${targetId}`,
+        `[data-order-id="${targetId}"]`,
+        `#deal-${targetId}`,
+        `[data-deal-id="${targetId}"]`,
+        `#settlement-${targetId}`,
+        `[data-settlement-id="${targetId}"]`,
+      ]);
+    }, 220);
+  }, [searchParams, filtered.length, allMerchantDeals.length]);
 
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships
