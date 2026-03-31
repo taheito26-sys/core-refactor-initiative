@@ -37,7 +37,11 @@ export default function ChatWorkspacePage() {
   const [showDashboard, setShowDashboard] = useState(!isMobile);
   // On mobile: true = show sidebar, false = show chat
   const [showSidebar, setShowSidebar] = useState(true);
-  const consumePendingNav = useChatStore((s) => s.consumePendingNav);
+  const pendingNotificationNav = useChatStore((s) => s.pendingNotificationNav);
+  const pendingNotificationNavVersion = useChatStore((s) => s.pendingNotificationNavVersion);
+  const setPendingNav = useChatStore((s) => s.setPendingNav);
+  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const setAttention = useChatStore((s) => s.setAttention);
   const [pendingNotificationMessageId, setPendingNotificationMessageId] = useState<string | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const [mobileBottomInset, setMobileBottomInset] = useState(0);
@@ -59,6 +63,27 @@ export default function ChatWorkspacePage() {
     }
   }, [searchParams, activeRoomId, isMobile]);
 
+
+
+  useEffect(() => {
+    setActiveConversation(activeRoomId ? String(activeRoomId) : null);
+  }, [activeRoomId, setActiveConversation]);
+
+  useEffect(() => {
+    setAttention({ inChatModule: true, activeConversationVisible: !isMobile || !showSidebar });
+    const onVisibility = () => setAttention({ appFocused: !document.hidden });
+    const onFocus = () => setAttention({ appFocused: true });
+    const onBlur = () => setAttention({ appFocused: false });
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      setAttention({ inChatModule: false, activeConversationVisible: false });
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [setAttention, isMobile, showSidebar]);
 
   useEffect(() => {
     const roomIdParam = searchParams.get('roomId');
@@ -86,13 +111,13 @@ export default function ChatWorkspacePage() {
 
 
   useEffect(() => {
-    const pending = consumePendingNav();
+    const pending = pendingNotificationNav;
     if (!pending) return;
 
     setActiveRoomId(String(pending.conversationId));
     if (pending.messageId) setPendingNotificationMessageId(String(pending.messageId));
     if (isMobile) setShowSidebar(false);
-  }, [consumePendingNav, isMobile]);
+  }, [pendingNotificationNavVersion, pendingNotificationNav, isMobile]);
 
   const messages = useRoomMessages(activeRoomId);
   const { roomUnreadCount, firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
@@ -198,8 +223,9 @@ export default function ChatWorkspacePage() {
     window.setTimeout(() => {
       scrollToMessage(pendingNotificationMessageId, true);
       setPendingNotificationMessageId(null);
+      setPendingNav(null);
     }, 220);
-  }, [pendingNotificationMessageId, activeRoomId, messages.data, scrollToMessage]);
+  }, [pendingNotificationMessageId, activeRoomId, messages.data, scrollToMessage, setPendingNav]);
 
 
   useEffect(() => {

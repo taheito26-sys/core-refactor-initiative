@@ -15,6 +15,7 @@ import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
+import { focusElementBySelectors } from '@/lib/focus-target';
 
 type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat' | 'liquidity';
 
@@ -75,6 +76,19 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
+
+  useEffect(() => {
+    const focusInviteId = searchParams.get('focusInviteId');
+    if (!focusInviteId) return;
+    setTab('relationships');
+    window.setTimeout(() => {
+      focusElementBySelectors([
+        `#invite-${focusInviteId}`,
+        `[data-invite-id="${focusInviteId}"]`,
+      ]);
+    }, 200);
+  }, [searchParams, invites.length]);
+
 
   // Fetch unread message count (scoped to this merchant's relationships only)
   useEffect(() => {
