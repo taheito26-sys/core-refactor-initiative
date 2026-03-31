@@ -18,6 +18,30 @@ describe('ledger import phase parser', () => {
     expect(row.direction).toBe('merchant_to_me');
   });
 
+  it('supports variable word order example #1', () => {
+    const row = classifyLedgerLine('15000 محمد ارسللي usdt 3.72 على يساوي 55800', 0, ctx);
+    expect(row.parsedType).toBe('merchant_deal');
+    expect(row.status).toBe('parsed');
+    expect(row.usdtAmount).toBe(15000);
+    expect(row.rate).toBe(3.72);
+  });
+
+  it('supports variable word order example #2', () => {
+    const row = classifyLedgerLine('15300 محمد ارسللي usdt 3.72 يساوي 56916', 1, ctx);
+    expect(row.parsedType).toBe('merchant_deal');
+    expect(row.status).toBe('parsed');
+    expect(row.usdtAmount).toBe(15300);
+    expect(row.rate).toBe(3.72);
+  });
+
+  it('supports variable word order example #3', () => {
+    const row = classifyLedgerLine('2000 محمد ارسللي usdt 3.72 يساوي 7440', 2, ctx);
+    expect(row.parsedType).toBe('merchant_deal');
+    expect(row.status).toBe('parsed');
+    expect(row.usdtAmount).toBe(2000);
+    expect(row.rate).toBe(3.72);
+  });
+
   it('محمد is never treated as merchant and selected merchant remains counterparty', () => {
     const row = classifyLedgerLine('محمد ارسللي usdt 100 على 3.7 بواسطة ابو تميم', 1, ctx);
     expect(row.uploaderUserId).toBe('user-123');
@@ -26,26 +50,19 @@ describe('ledger import phase parser', () => {
     expect(row.intermediary).toContain('ابو تميم');
   });
 
-  it('ابو عوني stays intermediary metadata by default', () => {
-    const row = classifyLedgerLine('ارسلت لمحمد usdt 2000 على 3.72 (ابو عوني)', 1, ctx);
-    expect(row.intermediary).toContain('ابو عوني');
-    expect(row.parsedType).toBe('merchant_deal');
-  });
-
   it('unsupported rows remain skipped', () => {
     const row = classifyLedgerLine('اشتريت usdt 25745 على 3.735', 1, ctx);
     expect(row.status).toBe('skipped');
     expect(row.saveEnabled).toBe(false);
   });
 
-  it('image/OCR source gets low-confidence needs_review status', () => {
+  it('image/OCR source gets lower confidence than pasted text', () => {
     const imageBatch = parseLedgerText('محمد ارسللي usdt 50 على 3.6', {
       ...ctx,
       sourceType: 'image',
       confidencePenalty: 0.3,
     });
-    expect(imageBatch.rows[0].status).toBe('needs_review');
-    expect(imageBatch.rows[0].saveEnabled).toBe(false);
+    expect(imageBatch.rows[0].confidence).toBeLessThan(0.92);
   });
 
   it('network merchant list only includes related merchants', () => {

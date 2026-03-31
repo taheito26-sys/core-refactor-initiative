@@ -14,19 +14,26 @@ import { assessOcrTextQuality, extractTextFromImage, type OcrExtractionResult, v
 import { buildNetworkMerchants } from '@/services/ledgerImport/network';
 import { canSaveImportedRows } from '@/services/ledgerImport/guards';
 
+interface ParseInput {
+  text: string;
+  sourceType: LedgerSourceType;
+  sourceFileName?: string | null;
+  confidencePenalty?: number;
+}
+
 export default function OrdersImportLedgerPage() {
   const navigate = useNavigate();
   const { userId, merchantProfile } = useAuth();
 
   const [sourceType, setSourceType] = useState<LedgerSourceType>('pasted_text');
   const [rawText, setRawText] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [sheetName, setSheetName] = useState('');
   const [sheetNames, setSheetNames] = useState<string[]>([]);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [ocrStatus, setOcrStatus] = useState('Idle');
   const [ocrWarning, setOcrWarning] = useState<string | null>(null);
-  const [ocrMetadata, setOcrMetadata] = useState<Record<string, unknown> | null>(null);
+  const [ocrMetadata, setOcrMetadata] = useState<Record<string, unknown>[]>([]);
   const [extractedImageText, setExtractedImageText] = useState('');
   const [merchants, setMerchants] = useState<LedgerNetworkMerchant[]>([]);
   const [selectedRelationshipId, setSelectedRelationshipId] = useState('');
@@ -41,7 +48,6 @@ export default function OrdersImportLedgerPage() {
     const loadNetworkMerchants = async () => {
       if (!merchantProfile?.merchant_id) return;
       const myMerchantId = merchantProfile.merchant_id;
-
       const [relRes, profileRes] = await Promise.all([
         supabase
           .from('merchant_relationships')
@@ -58,10 +64,7 @@ export default function OrdersImportLedgerPage() {
 
       const networkMerchants = buildNetworkMerchants(myMerchantId, relRes.data || [], profileRes.data || []);
       setMerchants(networkMerchants);
-
-      if (networkMerchants.length === 1) {
-        setSelectedRelationshipId(networkMerchants[0].relationshipId);
-      }
+      if (networkMerchants.length === 1) setSelectedRelationshipId(networkMerchants[0].relationshipId);
     };
 
     loadNetworkMerchants();
@@ -82,18 +85,15 @@ export default function OrdersImportLedgerPage() {
 
   useEffect(() => {
     if (sourceType !== 'image') {
-      setImagePreviewUrl('');
+      setImagePreviewUrls([]);
       setExtractedImageText('');
       setOcrWarning(null);
-      setOcrMetadata(null);
+      setOcrMetadata([]);
       setOcrStatus('Idle');
     }
   }, [sourceType]);
 
-  const saveableRows = useMemo(
-    () => rows.filter((row) => row.status === 'parsed' && row.parsedType === 'merchant_deal' && row.saveEnabled),
-    [rows],
-  );
+  const saveableRows = useMemo(() => rows.filter((row) => row.status === 'parsed' && row.parsedType === 'merchant_deal' && row.saveEnabled), [rows]);
   const saveAllowed = canSaveImportedRows(userId, selectedRelationshipId, rows) && !(sourceType === 'image' && !!ocrWarning);
 
   const validateFile = (nextFile: File): string | null => {
@@ -103,45 +103,63 @@ export default function OrdersImportLedgerPage() {
     return null;
   };
 
-  const parseLines = (text: string, type: LedgerSourceType, sourceFileName?: string | null, confidencePenalty = 0) => {
+  const parseInputs = (inputs: ParseInput[]) => {
     if (!userId || !selectedMerchant) {
       toast.error('Select a network merchant before parsing.');
       return;
     }
 
-    console.debug('[ledger-import:parse] source', type);
-    console.debug('[ledger-import:parse] input-length', text.length);
-    console.debug('[ledger-import:parse] preview', text.slice(0, 220));
+    const seen = new Set<string>();
+    const merged: LedgerParseRow[] = [];
 
-    const parsed = parseLedgerText(text, {
-      uploaderUserId: userId,
-      selectedMerchantId: selectedMerchant.merchantId,
-      selectedMerchantName: selectedMerchant.merchantName,
-      sourceType: type,
-      sourceFileName,
-      confidencePenalty,
+    inputs.forEach((input, idx) => {
+      console.debug('[ledger-import:parse] source', input.sourceType, input.sourceFileName || 'manual');
+      const parsed = parseLedgerText(input.text, {
+        uploaderUserId: userId,
+        selectedMerchantId: selectedMerchant.merchantId,
+        selectedMerchantName: selectedMerchant.merchantName,
+        sourceType: input.sourceType,
+        sourceFileName: input.sourceFileName,
+        lineOffset: idx * 100000,
+        confidencePenalty: input.confidencePenalty ?? 0,
+      });
+
+      parsed.rows.forEach((row) => {
+        if (seen.has(row.normalizedHash)) {
+          merged.push({ ...row, status: 'skipped', parseResult: 'Skipped', skipReason: 'Duplicate line in batch', saveEnabled: false });
+          return;
+        }
+        seen.add(row.normalizedHash);
+        merged.push(row);
+      });
     });
 
-    setBatchId(parsed.batchId);
-    setRows(parsed.rows);
-    toast.success(`Parsed ${parsed.totals.parsed} supported rows. ${parsed.totals.skipped} skipped.`);
+    setBatchId(crypto.randomUUID());
+    setRows(merged);
+    toast.success(`Parsed ${merged.filter((r) => r.status === 'parsed').length} supported rows. ${merged.filter((r) => r.status === 'skipped').length} skipped.`);
   };
 
   const runImageOcr = async () => {
-    if (!file) {
-      toast.error('Please select a photo first.');
+    if (files.length === 0) {
+      toast.error('Please select photos first.');
       return;
     }
 
     setOcrStatus('Running OCR...');
     setOcrWarning(null);
+    const ocrLines: string[] = [];
+    const meta: Record<string, unknown>[] = [];
 
     try {
-      const ocr: OcrExtractionResult = await extractTextFromImage(file);
-      setOcrStatus(ocr.ranOcr ? `OCR complete (${ocr.engine})` : 'OCR unavailable');
-      setExtractedImageText(ocr.text);
-      if (ocr.warning) setOcrWarning(ocr.warning);
-      setOcrMetadata(ocr.metadata || null);
+      for (const file of files) {
+        const ocr: OcrExtractionResult = await extractTextFromImage(file);
+        if (ocr.text.trim()) ocrLines.push(ocr.text.trim());
+        if (ocr.warning) setOcrWarning(ocr.warning);
+        meta.push({ file: file.name, ...(ocr.metadata || {}), engine: ocr.engine });
+      }
+      setExtractedImageText(ocrLines.join('\n'));
+      setOcrMetadata(meta);
+      setOcrStatus(`OCR complete for ${files.length} image(s)`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'OCR failed.';
       setOcrWarning(message);
@@ -159,32 +177,44 @@ export default function OrdersImportLedgerPage() {
     setIsParsing(true);
     try {
       if (sourceType === 'pasted_text') {
-        parseLines(rawText, 'pasted_text');
+        parseInputs([{ text: rawText, sourceType: 'pasted_text' }]);
         return;
       }
 
-      if (!file) {
-        toast.error('Please select a file first.');
+      if (files.length === 0) {
+        toast.error('Please select file(s) first.');
         return;
       }
 
-      const fileValidation = validateFile(file);
-      if (fileValidation) {
-        toast.error(fileValidation);
-        return;
+      for (const file of files) {
+        const fileValidation = validateFile(file);
+        if (fileValidation) {
+          toast.error(`${file.name}: ${fileValidation}`);
+          return;
+        }
       }
 
       if (sourceType === 'text_file') {
-        const text = await readTextFile(file);
-        parseLines(text, 'text_file', file.name);
+        const inputs: ParseInput[] = [];
+        for (const file of files) {
+          const text = await readTextFile(file);
+          inputs.push({ text, sourceType: 'text_file', sourceFileName: file.name });
+        }
+        parseInputs(inputs);
         return;
       }
 
       if (sourceType === 'spreadsheet') {
-        const workbook = await readSpreadsheet(file);
-        setSheetNames(workbook.sheets);
-        if (!sheetName && workbook.sheets.length > 1) setSheetName(workbook.selectedSheet);
-        parseLines(workbook.lines.join('\n'), 'spreadsheet', file.name);
+        const inputs: ParseInput[] = [];
+        const sheetSet = new Set<string>();
+        for (const file of files) {
+          const workbook = await readSpreadsheet(file);
+          workbook.sheets.forEach((s) => sheetSet.add(s));
+          inputs.push({ text: workbook.lines.join('\n'), sourceType: 'spreadsheet', sourceFileName: file.name });
+        }
+        setSheetNames(Array.from(sheetSet));
+        if (!sheetName && sheetSet.size > 0) setSheetName(Array.from(sheetSet)[0]);
+        parseInputs(inputs);
         return;
       }
 
@@ -199,7 +229,7 @@ export default function OrdersImportLedgerPage() {
           toast.error('OCR output quality is low. Please correct extracted text before parsing.');
           return;
         }
-        parseLines(extractedImageText, 'image', file.name, 0.15);
+        parseInputs([{ text: extractedImageText, sourceType: 'image', sourceFileName: files.map((f) => f.name).join(','), confidencePenalty: 0.15 }]);
       }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Failed to parse import source.');
@@ -228,11 +258,7 @@ export default function OrdersImportLedgerPage() {
         .eq('metadata->>import_source', 'manual_ledger_import')
         .limit(1000);
 
-      const existingHashes = new Set(
-        (existingImports || [])
-          .map((deal: { metadata: { normalized_hash?: string } | null }) => deal.metadata?.normalized_hash)
-          .filter(Boolean),
-      );
+      const existingHashes = new Set((existingImports || []).map((deal: { metadata: { normalized_hash?: string } | null }) => deal.metadata?.normalized_hash).filter(Boolean));
 
       const payload = saveableRows
         .filter((row) => !existingHashes.has(row.normalizedHash))
@@ -298,40 +324,42 @@ export default function OrdersImportLedgerPage() {
       <ImportSourceTabs value={sourceType} onChange={setSourceType} />
 
       <div className="card" style={{ padding: 10, display: 'grid', gap: 8 }}>
-        <MerchantNetworkSelector
-          merchants={merchants}
-          selectedRelationshipId={selectedRelationshipId}
-          onSelect={setSelectedRelationshipId}
-        />
+        <MerchantNetworkSelector merchants={merchants} selectedRelationshipId={selectedRelationshipId} onSelect={setSelectedRelationshipId} />
 
         {sourceType === 'pasted_text' && (
           <textarea value={rawText} onChange={(e) => setRawText(e.target.value)} rows={8} className="inp" placeholder="الصق النص هنا" />
         )}
 
         {sourceType !== 'pasted_text' && (
-          <input
-            className="inp"
-            type="file"
-            accept={sourceType === 'image' ? '.png,.jpg,.jpeg,.webp' : sourceType === 'spreadsheet' ? '.xlsx,.xls,.csv' : '.txt,.md,.csv'}
-            onChange={(e) => {
-              const nextFile = e.target.files?.[0] || null;
-              if (!nextFile) return;
-              const validation = validateFile(nextFile);
-              if (validation) {
-                toast.error(validation);
-                return;
-              }
-              setFile(nextFile);
-              setRows([]);
-              if (sourceType === 'image') {
-                setImagePreviewUrl(URL.createObjectURL(nextFile));
-                setExtractedImageText('');
-                setOcrWarning(null);
-                setOcrStatus('Image selected');
-                setOcrMetadata(null);
-              }
-            }}
-          />
+          <>
+            <input
+              className="inp"
+              type="file"
+              multiple
+              accept={sourceType === 'image' ? '.png,.jpg,.jpeg,.webp' : sourceType === 'spreadsheet' ? '.xlsx,.xls,.csv' : '.txt,.md,.csv'}
+              onChange={(e) => {
+                const selected = Array.from(e.target.files || []);
+                if (selected.length === 0) return;
+                for (const file of selected) {
+                  const validation = validateFile(file);
+                  if (validation) {
+                    toast.error(`${file.name}: ${validation}`);
+                    return;
+                  }
+                }
+                setFiles(selected);
+                setRows([]);
+                if (sourceType === 'image') {
+                  setImagePreviewUrls(selected.map((file) => URL.createObjectURL(file)));
+                  setExtractedImageText('');
+                  setOcrWarning(null);
+                  setOcrMetadata([]);
+                  setOcrStatus(`${selected.length} image(s) selected`);
+                }
+              }}
+            />
+            {files.length > 0 && <div className="pill">Selected: {files.length} file(s)</div>}
+          </>
         )}
 
         {sourceType === 'spreadsheet' && sheetNames.length > 1 && (
@@ -342,28 +370,22 @@ export default function OrdersImportLedgerPage() {
 
         {sourceType === 'image' && (
           <div style={{ display: 'grid', gap: 8 }}>
-            {imagePreviewUrl && <img src={imagePreviewUrl} alt="Selected upload" style={{ maxWidth: 220, borderRadius: 8, border: '1px solid var(--line)' }} />}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {imagePreviewUrls.map((url) => <img key={url} src={url} alt="Selected upload" style={{ maxWidth: 140, borderRadius: 8, border: '1px solid var(--line)' }} />)}
+            </div>
             <div className="pill">OCR status: {ocrStatus}</div>
             {ocrWarning && <div className="pill bad">{ocrWarning}</div>}
-            {ocrMetadata && <div className="pill">OCR meta: {JSON.stringify(ocrMetadata)}</div>}
-            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Extracted text from image</label>
-            <textarea
-              className="inp"
-              rows={6}
-              value={extractedImageText}
-              onChange={(e) => setExtractedImageText(e.target.value)}
-              placeholder="OCR output appears here. You can edit before parse."
-            />
+            {ocrMetadata.length > 0 && <div className="pill">OCR meta: {JSON.stringify(ocrMetadata)}</div>}
+            <label style={{ fontSize: 11, color: 'var(--muted)' }}>Extracted text from image(s)</label>
+            <textarea className="inp" rows={8} value={extractedImageText} onChange={(e) => setExtractedImageText(e.target.value)} placeholder="OCR output appears here. You can edit before parse." />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn secondary" onClick={runImageOcr} disabled={!file}>Run OCR</button>
+              <button className="btn secondary" onClick={runImageOcr} disabled={files.length === 0}>Run OCR</button>
               <button className="btn" onClick={handleParse} disabled={isParsing || !extractedImageText.trim()}>Parse extracted text</button>
             </div>
           </div>
         )}
 
-        {sourceType !== 'image' && (
-          <button className="btn" onClick={handleParse} disabled={isParsing || merchants.length === 0}>{isParsing ? 'Parsing...' : 'Parse'}</button>
-        )}
+        {sourceType !== 'image' && <button className="btn" onClick={handleParse} disabled={isParsing || merchants.length === 0}>{isParsing ? 'Parsing...' : 'Parse'}</button>}
 
         <button className="btn" onClick={handleSave} disabled={isSaving || !saveAllowed || !selectedMerchant}>{isSaving ? 'Saving...' : `Confirm & Save (${saveableRows.length})`}</button>
       </div>

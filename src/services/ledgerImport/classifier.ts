@@ -1,11 +1,12 @@
 import type { LedgerDirection, LedgerParseContext, LedgerParseRow } from '@/types/ledgerImport';
 import { hashNormalizedLine, normalizeLedgerLine } from './normalizer';
 
-const UNSUPPORTED_KEYWORDS = ['اشتريت', 'شراء', 'ريال', 'اموال', 'رصيد', 'الفوائد', 'فوائد', 'تسوية', 'ملخص', 'interest', 'profit'];
+const MERCHANT_TO_ME = ['ارسللي', 'حوللي', 'اعطاني', 'سلملي'];
+const ME_TO_MERCHANT = ['ارسلت', 'حولت', 'اعطيت'];
 
 function detectDirection(normalized: string): LedgerDirection | null {
-  if (normalized.includes('محمد ارسللي')) return 'merchant_to_me';
-  if (normalized.includes('ارسلت لمحمد')) return 'me_to_merchant';
+  if (MERCHANT_TO_ME.some((keyword) => normalized.includes(keyword))) return 'merchant_to_me';
+  if (ME_TO_MERCHANT.some((keyword) => normalized.includes(keyword))) return 'me_to_merchant';
   return null;
 }
 
@@ -19,11 +20,42 @@ function extractIntermediary(rawLine: string, normalized: string): string | null
   return rawParen?.[1]?.trim() || null;
 }
 
-function extractNumber(input: string, regex: RegExp): number | null {
-  const value = input.match(regex)?.[1];
-  if (!value) return null;
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : null;
+function findRate(normalized: string): number | null {
+  const matches = normalized.match(/\d+(?:\.\d+)?/g) || [];
+  for (const part of matches) {
+    const num = Number.parseFloat(part);
+    if (num >= 3.5 && num <= 4.0 && part.includes('.')) return num;
+  }
+  return null;
+}
+
+function findQarAmount(normalized: string): number | null {
+  const qarMatch = normalized.match(/(?:يساوي|=|او|ريال)\s*(\d{1,9})/);
+  if (!qarMatch?.[1]) return null;
+  const n = Number.parseInt(qarMatch[1], 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function findUsdtAmount(normalized: string, qarAmount: number | null): number | null {
+  const tokens = normalized.split(/\s+/);
+  const usdtIndex = tokens.findIndex((token) => token.includes('usdt'));
+  const candidates: Array<{ value: number; distance: number }> = [];
+
+  tokens.forEach((token, idx) => {
+    if (!/^\d+$/.test(token)) return;
+    const value = Number.parseInt(token, 10);
+    if (value < 1 || value > 1_000_000) return;
+    if (qarAmount != null && value === qarAmount) return;
+
+    const distance = usdtIndex >= 0 ? Math.abs(usdtIndex - idx) : 100;
+    candidates.push({ value, distance });
+  });
+
+  if (candidates.length === 0) return null;
+
+  const nearUsdt = candidates.filter((c) => c.distance <= 3);
+  const pool = nearUsdt.length > 0 ? nearUsdt : candidates;
+  return pool.sort((a, b) => b.value - a.value)[0].value;
 }
 
 function baseRow(rawLine: string, lineIndex: number, ctx: LedgerParseContext): Omit<LedgerParseRow, 'parsedType' | 'direction' | 'usdtAmount' | 'rate' | 'computedQarAmount' | 'confidence' | 'status' | 'parseResult' | 'skipReason' | 'saveEnabled' | 'intermediary'> & { normalizedHash: string; normalizedText: string } {
@@ -45,54 +77,40 @@ function baseRow(rawLine: string, lineIndex: number, ctx: LedgerParseContext): O
 export function classifyLedgerLine(rawLine: string, lineIndex: number, ctx: LedgerParseContext): LedgerParseRow {
   const base = baseRow(rawLine, lineIndex, ctx);
   const { normalizedText } = base;
-  const usdtAmount = extractNumber(normalizedText, /usdt\s*([\d.]+)/i);
-  const rate = extractNumber(normalizedText, /على\s*([\d.]+)/i);
+
   const direction = detectDirection(normalizedText);
+  const rate = findRate(normalizedText);
+  const qarAmount = findQarAmount(normalizedText);
+  const usdtAmount = findUsdtAmount(normalizedText, qarAmount);
   const intermediary = extractIntermediary(rawLine, normalizedText);
 
-  if (UNSUPPORTED_KEYWORDS.some((k) => normalizedText.includes(k))) {
-    return {
-      ...base,
-      parsedType: 'unsupported',
-      direction: null,
-      usdtAmount,
-      rate,
-      computedQarAmount: null,
-      intermediary,
-      confidence: 0,
-      status: 'skipped',
-      parseResult: 'Unsupported in Phase 1',
-      skipReason: 'Unsupported transaction class',
-      saveEnabled: false,
-    };
-  }
+  console.debug('[ledger-import:classify]', {
+    lineIndex,
+    usdtAmount,
+    rate,
+    direction,
+  });
 
-  const missing = [
-    !normalizedText.includes('usdt') ? 'USDT' : null,
-    usdtAmount == null ? 'amount' : null,
-    rate == null ? 'rate' : null,
-    direction == null ? 'direction' : null,
-  ].filter(Boolean);
-
-  if (missing.length > 0) {
+  const hasSignals = usdtAmount != null && rate != null && direction != null;
+  if (!hasSignals) {
     return {
       ...base,
       parsedType: 'unsupported',
       direction,
       usdtAmount,
       rate,
-      computedQarAmount: null,
+      computedQarAmount: qarAmount,
       intermediary,
-      confidence: 0.25,
+      confidence: 0.2,
       status: 'skipped',
       parseResult: 'Skipped',
-      skipReason: `Missing ${missing.join(', ')}`,
+      skipReason: 'Missing required merchant_deal signals',
       saveEnabled: false,
     };
   }
 
   const confidence = Math.max(0.3, 0.92 - (ctx.confidencePenalty ?? 0));
-  const computedQarAmount = Number.parseFloat(((usdtAmount || 0) * (rate || 0)).toFixed(2));
+  const computedQarAmount = qarAmount ?? Number.parseFloat((usdtAmount * rate).toFixed(2));
   const needsReview = confidence < 0.7;
 
   return {
