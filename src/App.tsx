@@ -102,12 +102,14 @@ class RouteErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error) {
     console.error('[RouteErrorBoundary] route render failed', error);
-    // Auto-clear caches one time per URL load cycle.
-    const url = new URL(window.location.href);
-    const alreadyCleared = url.searchParams.get('_cache_cleared') === '1';
-    if (!alreadyCleared) {
-      url.searchParams.set('_cache_cleared', '1');
-      this.clearAndReload(url.toString());
+    // Auto-clear caches at most once per cooldown window (prevents reload loops).
+    const key = '_p2p_auto_clear_attempt_ts';
+    const lastAttempt = Number(sessionStorage.getItem(key) || '0');
+    const now = Date.now();
+    const cooldownMs = 5 * 60 * 1000;
+    if (now - lastAttempt > cooldownMs) {
+      sessionStorage.setItem(key, String(now));
+      this.clearAndReload();
     }
   }
 
@@ -132,6 +134,7 @@ class RouteErrorBoundary extends React.Component<
   };
 
   handleClearAndReload = async () => {
+    sessionStorage.removeItem('_p2p_auto_clear_attempt_ts');
     await this.clearAndReload();
   };
 
