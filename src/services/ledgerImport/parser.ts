@@ -5,34 +5,25 @@ import { splitLedgerLines } from './normalizer';
 export function parseLedgerText(rawText: string, context: LedgerParseContext): ParsedLedgerBatch {
   const batchId = crypto.randomUUID();
   const lines = splitLedgerLines(rawText);
-  const seenHashes = new Set<string>();
+  const seen = new Set<string>();
 
-  const rows: LedgerParseRow[] = lines.map((line) => {
-    const parsed = classifyLedgerLine(line, context);
+  const rows: LedgerParseRow[] = lines.map((line, index) => {
+    const lineIndex = (context.lineOffset ?? 0) + index;
+    const parsed = classifyLedgerLine(line, lineIndex, context);
 
-    if (seenHashes.has(parsed.normalizedHash)) {
+    if (seen.has(parsed.normalizedHash)) {
       return {
         ...parsed,
+        parsedType: 'unsupported',
         status: 'skipped',
-        type: 'unsupported',
-        parseResult: 'Duplicate line in batch',
+        parseResult: 'Skipped',
+        skipReason: 'Duplicate line in batch',
         confidence: 0,
         saveEnabled: false,
       };
     }
 
-    seenHashes.add(parsed.normalizedHash);
-
-    const lowConfidence = parsed.confidence < 0.7;
-    if (lowConfidence && parsed.status === 'parsed') {
-      return {
-        ...parsed,
-        status: 'needs_review',
-        parseResult: 'Low confidence, review required',
-        saveEnabled: false,
-      };
-    }
-
+    seen.add(parsed.normalizedHash);
     return parsed;
   });
 
