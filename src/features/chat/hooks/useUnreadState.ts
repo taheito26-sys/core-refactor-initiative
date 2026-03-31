@@ -7,7 +7,9 @@ import { useChatStore, isViewingConversationMessage } from '@/lib/chat-store';
 export function useUnreadState(roomId: string | null) {
   const { userId, merchantProfile } = useAuth();
   const actorId = merchantProfile?.merchant_id || userId;
-  const chatState = useChatStore((s) => ({ activeConversationId: s.activeConversationId, attention: s.attention }));
+  const activeConversationId = useChatStore((s) => s.activeConversationId);
+  const attention = useChatStore((s) => s.attention);
+  const chatState = useMemo(() => ({ activeConversationId, attention }), [activeConversationId, attention]);
 
   const { data: roomMessages } = useQuery({
     queryKey: ['os-unread-first-message', roomId],
