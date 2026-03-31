@@ -1,0 +1,13 @@
+{
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/android_backup_20260329_164414/**"
+  ],
+  "files.watcherExclude": {
+    "**/android_backup_20260329_164414/**": true
+  },
+  "search.exclude": {
+    "**/android_backup_20260329_164414/**": true
+  }
+}
