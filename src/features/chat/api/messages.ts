@@ -11,10 +11,10 @@ export async function getRoomMessages(roomId: string, limit = 100): Promise<Dete
       .limit(limit);
     if (error) throw error;
     
-    return ok((data ?? []).map(m => ({
+    return ok((data ?? []).map((m: any) => ({
        ...m,
-       body: m.content,
-       sender_id: m.sender_merchant_id,
+       body: m.content || m.body || '',
+       sender_id: m.sender_merchant_id || m.sender_id || 'unknown',
     })));
   } catch (error) {
     return fail([], error);
