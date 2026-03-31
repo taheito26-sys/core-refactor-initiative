@@ -1,18 +1,13 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/features/auth/auth-context';
+import { useChatStore, isViewingConversationMessage } from '@/lib/chat-store';
 
 export function useUnreadState(roomId: string | null) {
-  const { data: unreadRows } = useQuery({
-    queryKey: ['os-unread', roomId],
-    enabled: !!roomId,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('os_get_unread_counts' as any);
-      if (error) return [];
-      return (data ?? []) as Array<{ room_id: string; unread_count: number }>;
-    },
-    staleTime: 10_000,
-  });
+  const { userId, merchantProfile } = useAuth();
+  const actorId = merchantProfile?.merchant_id || userId;
+  const chatState = useChatStore((s) => ({ activeConversationId: s.activeConversationId, attention: s.attention }));
 
   const { data: roomMessages } = useQuery({
     queryKey: ['os-unread-first-message', roomId],
@@ -20,7 +15,7 @@ export function useUnreadState(roomId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('os_messages')
-        .select('id,created_at')
+        .select('id,created_at,read_at,sender_merchant_id')
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(2000);
@@ -30,17 +25,18 @@ export function useUnreadState(roomId: string | null) {
     staleTime: 10_000,
   });
 
-  const roomUnreadCount = useMemo(() => {
-    if (!unreadRows || !roomId) return 0;
-    const entry = unreadRows.find((d: any) => d.room_id === roomId);
-    return entry?.unread_count ?? 0;
-  }, [unreadRows, roomId]);
+  const unreadIncoming = useMemo(() => {
+    return (roomMessages ?? []).filter((m: any) => !m.read_at && m.sender_merchant_id !== actorId);
+  }, [roomMessages, actorId]);
 
-  const firstUnreadMessageId = useMemo(() => {
-    if (!roomMessages?.length || roomUnreadCount <= 0) return null;
-    const firstUnreadIndex = Math.max(0, roomMessages.length - roomUnreadCount);
-    return roomMessages[firstUnreadIndex]?.id ?? null;
-  }, [roomMessages, roomUnreadCount]);
+  const shouldSuppressUnreadIncrement = useMemo(
+    () => Boolean(roomId) && isViewingConversationMessage(chatState, roomId!),
+    [chatState, roomId],
+  );
 
-  return { roomUnreadCount, firstUnreadMessageId };
+  const roomUnreadCount = shouldSuppressUnreadIncrement ? 0 : unreadIncoming.length;
+  const firstUnreadMessageId = unreadIncoming[0]?.id ?? null;
+  const lastUnreadMessageId = unreadIncoming[unreadIncoming.length - 1]?.id ?? null;
+
+  return { roomUnreadCount, firstUnreadMessageId, lastUnreadMessageId, shouldSuppressUnreadIncrement };
 }

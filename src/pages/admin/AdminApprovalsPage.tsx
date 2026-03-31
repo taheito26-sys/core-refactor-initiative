@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { focusElementBySelectors } from '@/lib/focus-target';
 import { format } from 'date-fns';
 import { Check, X, Shield, Loader2, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -82,6 +84,7 @@ function RejectDialog({ profile, onReject }: { profile: PendingProfile; onReject
 
 export default function AdminApprovalsPage() {
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
   const { data: profiles, isLoading } = useAdminProfiles();
   const approve = useApproveProfile();
@@ -111,6 +114,18 @@ export default function AdminApprovalsPage() {
 
   const pending = profiles?.filter((p) => p.status === 'pending') ?? [];
   const others = profiles?.filter((p) => p.status !== 'pending') ?? [];
+
+
+  useEffect(() => {
+    const focusApprovalId = searchParams.get('focusApprovalId');
+    if (!focusApprovalId) return;
+    window.setTimeout(() => {
+      focusElementBySelectors([
+        `#approval-${focusApprovalId}`,
+        `[data-approval-id="${focusApprovalId}"]`,
+      ]);
+    }, 150);
+  }, [searchParams, profiles]);
 
   const handleApprove = async (p: PendingProfile) => {
     try {
@@ -165,7 +180,7 @@ export default function AdminApprovalsPage() {
               </TableHeader>
               <TableBody>
                 {pending.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} id={`approval-${p.id}`} data-approval-id={p.id}>
                     <TableCell className="font-medium">{p.email}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {format(new Date(p.created_at), 'MMM d, yyyy HH:mm')}
@@ -206,7 +221,7 @@ export default function AdminApprovalsPage() {
               </TableHeader>
               <TableBody>
                 {others.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} id={`approval-${p.id}`} data-approval-id={p.id}>
                     <TableCell className="font-medium">{p.email}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {format(new Date(p.created_at), 'MMM d, yyyy HH:mm')}

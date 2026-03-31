@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getRoomMessages, markRead, sendMessage } from '@/features/chat/api/messages';
+import { getRoomMessages, markMessagesReadUpTo, sendMessage } from '@/features/chat/api/messages';
 import { randomUUID } from '@/features/chat/utils/uuid';
 import { useAuth } from '@/features/auth/auth-context';
+import { setRoomUnreadCountInCache } from '@/features/chat/api/rooms';
 
 export function useRoomMessages(roomId: string | null) {
   const qc = useQueryClient();
@@ -21,13 +22,13 @@ export function useRoomMessages(roomId: string | null) {
     mutationFn: async (payload: { content: string; type?: string; bodyJson?: Record<string, unknown>; expiresAt?: string | null }) => {
       if (!roomId) throw new Error('No active room');
       const clientNonce = randomUUID();
-      const res = await sendMessage({ 
-        roomId, 
-        clientNonce, 
+      const res = await sendMessage({
+        roomId,
+        clientNonce,
         body: payload.content,
         messageType: payload.type || 'text',
         bodyJson: payload.bodyJson,
-        expiresAt: payload.expiresAt
+        expiresAt: payload.expiresAt,
       });
       if (!res.ok) throw new Error(res.error ?? 'Send failed');
       return res.data;
@@ -62,8 +63,23 @@ export function useRoomMessages(roomId: string | null) {
   const read = useMutation({
     mutationFn: async (messageId: string) => {
       if (!roomId) return false;
-      const res = await markRead(roomId, messageId);
+      const res = await markMessagesReadUpTo(roomId, messageId);
       return res.ok;
+    },
+    onMutate: async (messageId: string) => {
+      if (!roomId) return;
+      qc.setQueryData(['chat', 'messages', roomId], (old: any[] | undefined) => {
+        if (!old) return old;
+        const target = old.find((m: any) => m.id === messageId);
+        if (!target) return old;
+        const targetTs = new Date(target.created_at).getTime();
+        return old.map((m: any) => (new Date(m.created_at).getTime() <= targetTs && !m.read_at ? { ...m, read_at: new Date().toISOString() } : m));
+      });
+      setRoomUnreadCountInCache(qc, roomId, 0);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', roomId] });
+      qc.invalidateQueries({ queryKey: ['chat', 'rooms'] });
     },
   });
 

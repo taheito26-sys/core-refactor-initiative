@@ -86,21 +86,32 @@ class RouteErrorBoundary extends React.Component<
     this.state = { hasError: false, autoCleared: false };
   }
 
+  componentDidMount() {
+    this.clearRecoveryQueryParam();
+  }
+
+  componentDidUpdate() {
+    if (!this.state.hasError) {
+      this.clearRecoveryQueryParam();
+    }
+  }
+
   static getDerivedStateFromError() {
     return { hasError: true };
   }
 
   componentDidCatch(error: Error) {
     console.error('[RouteErrorBoundary] route render failed', error);
-    // Auto-clear caches on first error — many mobile crashes are stale SW
-    const alreadyCleared = sessionStorage.getItem('_p2p_auto_cleared');
+    // Auto-clear caches one time per URL load cycle.
+    const url = new URL(window.location.href);
+    const alreadyCleared = url.searchParams.get('_cache_cleared') === '1';
     if (!alreadyCleared) {
-      sessionStorage.setItem('_p2p_auto_cleared', '1');
-      this.clearAndReload();
+      url.searchParams.set('_cache_cleared', '1');
+      this.clearAndReload(url.toString());
     }
   }
 
-  clearAndReload = async () => {
+  clearAndReload = async (targetHref?: string) => {
     try {
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
@@ -113,13 +124,26 @@ class RouteErrorBoundary extends React.Component<
     } catch {
       // Best effort
     }
+    if (targetHref) {
+      window.location.replace(targetHref);
+      return;
+    }
     window.location.reload();
   };
 
   handleClearAndReload = async () => {
-    // Reset the session flag so the auto-clear can retry next time
-    sessionStorage.removeItem('_p2p_auto_cleared');
     await this.clearAndReload();
+  };
+
+  clearRecoveryQueryParam = () => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('_cache_cleared') !== '1') return;
+      url.searchParams.delete('_cache_cleared');
+      window.history.replaceState({}, '', url.toString());
+    } catch {
+      // Best effort
+    }
   };
 
   render() {
