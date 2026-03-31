@@ -197,8 +197,10 @@ export function splitLinks(text: string): Array<{ type: 'text' | 'link'; value: 
 
 // ── Time formatters ──────────────────────────────────────────────
 
-export function fmtListTime(s: string): string {
+export function fmtListTime(s: string | null | undefined): string {
+  if (!s) return '—';
   const d = new Date(s);
+  if (isNaN(d.getTime())) return '—';
   const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
   if (diff === 0) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (diff === 1) return 'Yesterday';
@@ -206,12 +208,17 @@ export function fmtListTime(s: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export function fmtMsgTime(s: string): string {
-  return new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+export function fmtMsgTime(s: string | null | undefined): string {
+  if (!s) return '--:--';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '--:--';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function fmtDateSeparator(s: string): string {
+export function fmtDateSeparator(s: string | null | undefined): string {
+  if (!s) return 'Unknown Date';
   const d = new Date(s);
+  if (isNaN(d.getTime())) return 'Unknown Date';
   const now = new Date();
   const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
   if (diff === 0) return 'Today';
@@ -230,8 +237,9 @@ const PALETTES = [
   { bg: 'linear-gradient(135deg,#2563eb,#1d4ed8)', text: '#fff' },
 ];
 
-export function getPalette(name: string) {
-  return PALETTES[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTES.length];
+export function getPalette(name: string | null | undefined) {
+  const safeName = name || 'Anonymous';
+  return PALETTES[safeName.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTES.length];
 }
 
 // ── Message grouping by date ─────────────────────────────────────

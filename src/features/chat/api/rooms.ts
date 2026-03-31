@@ -26,6 +26,7 @@ export async function getRooms(): Promise<DeterministicResult<any[]>> {
 }
 
 function normalizeRoom(r: any) {
+  if (!r) return { room_id: 'err', title: 'Unknown', name: 'Unknown', unread_count: 0, kind: 'direct', lane: 'Personal', updated_at: new Date().toISOString() };
   return {
     ...r,
     room_id: r.id ?? r.room_id,
