@@ -19,6 +19,17 @@
     "cap:ios": "npm run cap:sync && npx --no-install cap open ios"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/browser": "^7.0.5",
+    "@capacitor/clipboard": "^7.0.4",
+    "@capacitor/core": "^7.4.2",
+    "@capacitor/device": "^7.0.5",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/network": "^7.0.4",
+    "@capacitor/push-notifications": "^7.0.6",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -71,10 +82,12 @@
     "vite-plugin-pwa": "^1.2.0",
     "workbox-window": "^7.4.0",
     "zod": "^3.25.76",
-    "zustand": "^5.0.12",
-    "@capacitor/core": "^7.4.2"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.2",
+    "@capacitor/cli": "^7.4.2",
+    "@capacitor/ios": "^7.4.2",
     "@eslint/js": "^9.32.0",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/typography": "^0.5.16",
@@ -96,9 +109,6 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^5.4.19",
-    "vitest": "^3.2.4",
-    "@capacitor/cli": "^7.4.2",
-    "@capacitor/android": "^7.4.2",
-    "@capacitor/ios": "^7.4.2"
+    "vitest": "^3.2.4"
   }
 }
