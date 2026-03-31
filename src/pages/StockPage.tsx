@@ -32,6 +32,7 @@ import {
 import { CashManagement } from '@/features/stock/components/CashManagement';
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
+import { focusElementBySelectors } from '@/lib/focus-target';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -90,6 +91,18 @@ export default function StockPage() {
   const cashLedger = state.cashLedger || [];
   const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);
   const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
+
+
+  useEffect(() => {
+    const focusStockId = searchParams.get('focusStockId');
+    if (!focusStockId) return;
+    window.setTimeout(() => {
+      focusElementBySelectors([
+        `#stock-${focusStockId}`,
+        `[data-stock-id="${focusStockId}"]`,
+      ]);
+    }, 180);
+  }, [searchParams, state.batches.length]);
 
   // Auto-select first account if none selected and accounts exist
   useEffect(() => {

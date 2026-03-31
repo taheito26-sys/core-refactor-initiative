@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
 
@@ -73,4 +74,14 @@ export async function getOrCreateDirectRoom(counterpartyMerchantId: string, room
   } catch (error) {
     return fail(null, error);
   }
+}
+
+
+export function setRoomUnreadCountInCache(queryClient: QueryClient, roomId: string, nextCount: number) {
+  queryClient.setQueryData(['chat', 'rooms'], (prev: any[] | undefined) => {
+    if (!prev) return prev;
+    return prev.map((room) => (String(room.room_id || room.id) === String(roomId)
+      ? { ...room, unread_count: Math.max(0, nextCount) }
+      : room));
+  });
 }
