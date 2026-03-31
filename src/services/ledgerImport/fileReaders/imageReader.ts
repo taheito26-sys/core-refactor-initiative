@@ -1,19 +1,13 @@
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-
-declare global {
-  interface Window {
-    Tesseract?: {
-      recognize: (file: File, lang: string) => Promise<{ data?: { text?: string } }>;
-    };
-  }
-}
+const DEFAULT_OCR_ENDPOINT = '/api/ocr/extract';
 
 export interface OcrExtractionResult {
   text: string;
   ranOcr: boolean;
   engine: string;
   warning: string | null;
+  metadata?: Record<string, unknown>;
 }
 
 export function validateImageFile(file: File): string | null {
@@ -37,28 +31,42 @@ export function assessOcrTextQuality(text: string): { isValid: boolean; reason: 
   return { isValid: true, reason: null };
 }
 
+function getOcrEndpoint(): string {
+  return import.meta.env.VITE_OCR_SERVICE_URL || DEFAULT_OCR_ENDPOINT;
+}
+
 export async function extractTextFromImage(file: File): Promise<OcrExtractionResult> {
   const validation = validateImageFile(file);
   if (validation) throw new Error(validation);
 
-  console.debug('[ledger-import:image] selected file', { name: file.name, type: file.type, size: file.size });
+  const endpoint = getOcrEndpoint();
+  const formData = new FormData();
+  formData.append('image', file);
 
-  if (!window.Tesseract?.recognize) {
-    return {
-      text: '',
-      ranOcr: false,
-      engine: 'none',
-      warning: 'Arabic OCR engine unavailable in this build. Please paste/correct extracted text manually.',
-    };
+  console.debug('[ledger-import:image] selected file', { name: file.name, type: file.type, size: file.size });
+  console.debug('[ledger-import:image] OCR endpoint', endpoint);
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`OCR backend request failed (${response.status})`);
   }
 
-  const result = await window.Tesseract.recognize(file, 'ara+eng');
-  const text = (result.data?.text || '').trim();
+  const payload = await response.json() as {
+    text?: string;
+    engine?: string;
+    metadata?: Record<string, unknown>;
+  };
+
+  const text = (payload.text || '').trim();
   const quality = assessOcrTextQuality(text);
 
   console.debug('[ledger-import:image] OCR ran', {
     ranOcr: true,
-    engine: 'window.Tesseract',
+    engine: payload.engine || 'easyocr',
     textLength: text.length,
     quality: quality.reason || 'ok',
   });
@@ -66,7 +74,8 @@ export async function extractTextFromImage(file: File): Promise<OcrExtractionRes
   return {
     text,
     ranOcr: true,
-    engine: 'window.Tesseract',
+    engine: payload.engine || 'easyocr',
     warning: quality.isValid ? null : (quality.reason || 'OCR output quality is low'),
+    metadata: payload.metadata,
   };
 }

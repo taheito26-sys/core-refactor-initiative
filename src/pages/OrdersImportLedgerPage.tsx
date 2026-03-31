@@ -26,6 +26,7 @@ export default function OrdersImportLedgerPage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
   const [ocrStatus, setOcrStatus] = useState('Idle');
   const [ocrWarning, setOcrWarning] = useState<string | null>(null);
+  const [ocrMetadata, setOcrMetadata] = useState<Record<string, unknown> | null>(null);
   const [extractedImageText, setExtractedImageText] = useState('');
   const [merchants, setMerchants] = useState<LedgerNetworkMerchant[]>([]);
   const [selectedRelationshipId, setSelectedRelationshipId] = useState('');
@@ -84,6 +85,7 @@ export default function OrdersImportLedgerPage() {
       setImagePreviewUrl('');
       setExtractedImageText('');
       setOcrWarning(null);
+      setOcrMetadata(null);
       setOcrStatus('Idle');
     }
   }, [sourceType]);
@@ -139,6 +141,7 @@ export default function OrdersImportLedgerPage() {
       setOcrStatus(ocr.ranOcr ? `OCR complete (${ocr.engine})` : 'OCR unavailable');
       setExtractedImageText(ocr.text);
       if (ocr.warning) setOcrWarning(ocr.warning);
+      setOcrMetadata(ocr.metadata || null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'OCR failed.';
       setOcrWarning(message);
@@ -196,7 +199,7 @@ export default function OrdersImportLedgerPage() {
           toast.error('OCR output quality is low. Please correct extracted text before parsing.');
           return;
         }
-        parseLines(extractedImageText, 'image', file.name, 0.3);
+        parseLines(extractedImageText, 'image', file.name, 0.15);
       }
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Failed to parse import source.');
@@ -325,6 +328,7 @@ export default function OrdersImportLedgerPage() {
                 setExtractedImageText('');
                 setOcrWarning(null);
                 setOcrStatus('Image selected');
+                setOcrMetadata(null);
               }
             }}
           />
@@ -341,6 +345,7 @@ export default function OrdersImportLedgerPage() {
             {imagePreviewUrl && <img src={imagePreviewUrl} alt="Selected upload" style={{ maxWidth: 220, borderRadius: 8, border: '1px solid var(--line)' }} />}
             <div className="pill">OCR status: {ocrStatus}</div>
             {ocrWarning && <div className="pill bad">{ocrWarning}</div>}
+            {ocrMetadata && <div className="pill">OCR meta: {JSON.stringify(ocrMetadata)}</div>}
             <label style={{ fontSize: 11, color: 'var(--muted)' }}>Extracted text from image</label>
             <textarea
               className="inp"

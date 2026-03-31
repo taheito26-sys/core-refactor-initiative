@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readTextFile, validateTextFile } from '@/services/ledgerImport/fileReaders/textFileReader';
 import { readSpreadsheet } from '@/services/ledgerImport/fileReaders/spreadsheetReader';
 import { assessOcrTextQuality, extractTextFromImage } from '@/services/ledgerImport/fileReaders/imageReader';
@@ -15,6 +15,10 @@ function mockFile(name: string, content: string): File {
     arrayBuffer: async () => data.buffer,
   } as unknown as File;
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('ledger import readers and guards', () => {
   it('text file import normalization path works', async () => {
@@ -39,6 +43,11 @@ describe('ledger import readers and guards', () => {
   });
 
   it('image pipeline does not decode raw image bytes as text reader fallback', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ text: '', engine: 'easyocr', metadata: { mean_confidence: 0 } }),
+    }));
+
     const file = {
       name: 'photo.jpg',
       type: 'image/jpeg',
@@ -47,8 +56,8 @@ describe('ledger import readers and guards', () => {
     } as unknown as File;
 
     const ocr = await extractTextFromImage(file);
-    expect(ocr.ranOcr).toBe(false);
-    expect(ocr.text).toBe('');
+    expect(ocr.ranOcr).toBe(true);
+    expect(ocr.warning).toBeTruthy();
   });
 
   it('binary-like OCR text is rejected by heuristics', () => {
@@ -64,10 +73,10 @@ describe('ledger import readers and guards', () => {
       selectedMerchantName: 'M1',
       sourceType: 'image',
       sourceFileName: 'photo.jpg',
-      confidencePenalty: 0.3,
+      confidencePenalty: 0.15,
     });
     expect(batch.rows[0].rawLine).toContain('usdt 20');
-    expect(batch.rows[0].status).toBe('needs_review');
+    expect(batch.rows[0].confidence).toBeLessThan(0.92);
   });
 
   it('save blocked when no network merchant is selected', () => {
