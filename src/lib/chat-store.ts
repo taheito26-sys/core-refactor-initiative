@@ -60,10 +60,18 @@ const initialState: ChatState = {
 
 export const useChatStore = create<ChatState & ChatActions>()((set) => ({
   ...initialState,
-  setActiveConversation: (id) => set({ activeConversationId: id, activeMessageAnchor: null, highlightMessageId: null }),
+  setActiveConversation: (id) => set((s) => {
+    if (s.activeConversationId === id) return s;
+    return { activeConversationId: id, activeMessageAnchor: null, highlightMessageId: null };
+  }),
   setAnchor: (messageId) => set({ activeMessageAnchor: messageId, highlightMessageId: messageId }),
   clearHighlight: () => set({ highlightMessageId: null }),
-  setAttention: (partial) => set((s) => ({ attention: { ...s.attention, ...partial } })),
+  setAttention: (partial) => set((s) => {
+    // Basic avoid-redundant-render check
+    const hasChange = Object.entries(partial).some(([k, v]) => (s.attention as any)[k] !== v);
+    if (!hasChange) return s;
+    return { attention: { ...s.attention, ...partial } };
+  }),
   setUnreadCount: (relationshipId, count) => set((s) => ({ unreadCounts: { ...s.unreadCounts, [relationshipId]: count } })),
   incrementUnread: (relationshipId) => set((s) => ({ unreadCounts: { ...s.unreadCounts, [relationshipId]: (s.unreadCounts[relationshipId] || 0) + 1 } })),
   markConversationRead: (relationshipId, lastMsgId) => set((s) => ({
