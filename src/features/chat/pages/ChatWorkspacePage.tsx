@@ -51,9 +51,17 @@ export default function ChatWorkspacePage() {
     [rooms, activeRoomId]
   );
 
+  // Only auto-select first room when there is NO notification-driven navigation intent
   useEffect(() => {
-    if (!activeRoomId && rooms.length > 0) setActiveRoomId(String(rooms[0].room_id || rooms[0].id));
-  }, [rooms, activeRoomId]);
+    if (activeRoomId) return;
+    if (rooms.length === 0) return;
+    // Guard: don't auto-select if a notification deep-link is pending
+    const hasRoomIdParam = !!searchParams.get('roomId');
+    const hasMerchantIdParam = !!searchParams.get('merchantId');
+    const hasPendingNav = !!pendingNotificationNav;
+    if (hasRoomIdParam || hasMerchantIdParam || hasPendingNav) return;
+    setActiveRoomId(String(rooms[0].room_id || rooms[0].id));
+  }, [rooms, activeRoomId, searchParams, pendingNotificationNav]);
 
   useEffect(() => {
     const roomId = searchParams.get('roomId');

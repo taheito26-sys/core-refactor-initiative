@@ -437,7 +437,7 @@ export default function OrdersPage() {
       }
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [searchParams, activeTab, filtered.length, allMerchantDeals.length]);
+  }, [searchParams, activeTab, filtered.length, allMerchantDeals.length, allTransfers.length]);
 
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships
