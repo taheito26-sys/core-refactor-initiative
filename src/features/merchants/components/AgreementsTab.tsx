@@ -16,6 +16,7 @@ import {
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
 import { buildOperatorPrioritySnapshot } from '@/lib/trading/operator-priority';
 import type { ProfitShareAgreementType } from '@/types/domain';
+import { buildSharedProfitShareFields } from '@/lib/profit-share-fields';
 import { toast } from 'sonner';
 import '@/styles/tracker.css';
 
@@ -39,6 +40,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [effectiveFrom, setEffectiveFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [expiresAt, setExpiresAt] = useState('');
   const [notes, setNotes] = useState('');
+  const [investedCapital, setInvestedCapital] = useState('');
+  const [settlementWay, setSettlementWay] = useState<'reinvest' | 'withdraw'>('reinvest');
 
   // ── Operator Priority fields ──
   const [operatorRatio, setOperatorRatio] = useState('20');
@@ -84,6 +87,11 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
       : counterpartyMerchantId;
 
     try {
+      const sharedFields = buildSharedProfitShareFields({
+        agreementType,
+        investedCapitalRaw: investedCapital,
+        settlementWay,
+      });
       const opRatioNum = parseFloat(operatorRatio) || 0;
       const opContribNum = parseFloat(operatorContribution) || 0;
       const lnContribNum = parseFloat(lenderContribution) || 0;
@@ -109,6 +117,10 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         partner_ratio: payloadRatio,
         merchant_ratio: agreementType === 'standard' ? 100 - ratio : 0,
         settlement_cadence: cadence,
+        invested_capital: agreementType === 'operator_priority'
+          ? (opContribNum + lnContribNum)
+          : sharedFields.investedCapital,
+        settlement_way: sharedFields.settlementWay,
         effective_from: new Date(effectiveFrom).toISOString(),
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
         notes: notes.trim() || null,
@@ -157,6 +169,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     setEffectiveFrom(new Date().toISOString().slice(0, 10));
     setExpiresAt('');
     setNotes('');
+    setInvestedCapital('');
+    setSettlementWay('reinvest');
     setOperatorRatio('20');
     setOperatorIsMe(true);
     setOperatorContribution('');
@@ -488,6 +502,41 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             </div>
           </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Invested Capital</div>
+              <div className="inputBox" style={{ padding: '6px 10px' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={investedCapital}
+                  onChange={e => setInvestedCapital(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Settlement Way</div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  className={`pill ${settlementWay === 'reinvest' ? 'good' : ''}`}
+                  style={{ cursor: 'pointer', padding: '3px 8px', fontSize: 9 }}
+                  onClick={() => setSettlementWay('reinvest')}
+                >
+                  🔄 {t('reinvestOption')}
+                </button>
+                <button
+                  className={`pill ${settlementWay === 'withdraw' ? 'good' : ''}`}
+                  style={{ cursor: 'pointer', padding: '3px 8px', fontSize: 9 }}
+                  onClick={() => setSettlementWay('withdraw')}
+                >
+                  💰 {t('withdrawOption')}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Preview */}
           {agreementType === 'standard' ? (
             <div style={{
@@ -499,6 +548,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               <strong>{t('previewAgreement')}</strong> {t('profitShareLabel')} {partnerRatio}/{100 - (parseFloat(partnerRatio) || 0)} —
               {counterpartyName || t('partner')} {t('gets')} {partnerRatio}% {t('ofNetProfit')}, {t('you')} {t('keeps')} {100 - (parseFloat(partnerRatio) || 0)}%.
               {t('settlement')}: {cadenceLabel(cadence)}.
+              {' '}Invested: {fmtU(parseFloat(investedCapital) || 0)} · Way: {settlementWay}.
             </div>
           ) : (
             (() => {
@@ -524,6 +574,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   ③ {t('defaultProfitHandling')}:<br />
                   &nbsp;&nbsp;{operatorName}: {operatorDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
                   &nbsp;&nbsp;{lenderName}: {counterpartyDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
+                  ④ Settlement way: {settlementWay}<br />
                   {t('settlement')}: {cadenceLabel(cadence)}.
                 </div>
               );
@@ -571,7 +622,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                           </>
                         ) : (
                           <>
-                            {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}%
+                            {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · Capital {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ?? '—'}
                           </>
                         )}
                       </div>
