@@ -399,23 +399,53 @@ export default function OrdersPage() {
   }, [subFilteredMy, derived]);
 
 
+  // URL-driven tab sync: read ?tab= and switch activeTab before focus
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['my', 'incoming', 'outgoing', 'transfers'].includes(tabParam)) {
+      setActiveTab(tabParam as 'my' | 'incoming' | 'outgoing' | 'transfers');
+      if (tabParam !== 'my') {
+        setMerchantOrderEnabled(true);
+        if (tabParam === 'transfers') {
+          setSelectedTemplateId('capital_transfer');
+        }
+      }
+    }
+  }, [searchParams]);
+
+  // Focus and highlight targeted row after tab switch + data load
   useEffect(() => {
     const focusOrderId = searchParams.get('focusOrderId');
     const focusDealId = searchParams.get('focusDealId');
     const focusSettlementId = searchParams.get('focusSettlementId');
     const targetId = focusOrderId || focusDealId || focusSettlementId;
     if (!targetId) return;
-    window.setTimeout(() => {
-      focusElementBySelectors([
+    // Delay to let tab content render
+    const timer = window.setTimeout(() => {
+      const found = focusElementBySelectors([
         `#order-${targetId}`,
         `[data-order-id="${targetId}"]`,
         `#deal-${targetId}`,
         `[data-deal-id="${targetId}"]`,
         `#settlement-${targetId}`,
         `[data-settlement-id="${targetId}"]`,
-      ]);
-    }, 220);
-  }, [searchParams, filtered.length, allMerchantDeals.length]);
+      ], 'ring-2 ring-primary/60 transition-shadow');
+      // If not found on first try, retry once after more data loads
+      if (!found) {
+        window.setTimeout(() => {
+          focusElementBySelectors([
+            `#order-${targetId}`,
+            `[data-order-id="${targetId}"]`,
+            `#deal-${targetId}`,
+            `[data-deal-id="${targetId}"]`,
+            `#settlement-${targetId}`,
+            `[data-settlement-id="${targetId}"]`,
+          ], 'ring-2 ring-primary/60 transition-shadow');
+        }, 800);
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, activeTab, filtered.length, allMerchantDeals.length]);
 
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships
