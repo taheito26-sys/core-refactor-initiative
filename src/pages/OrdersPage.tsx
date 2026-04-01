@@ -2207,7 +2207,7 @@ export default function OrdersPage() {
                         const rel = relationships.find(r => r.id === tx.relationship_id);
                         const isIn = tx.direction === 'lender_to_operator';
                         return (
-                          <tr key={tx.id}>
+                          <tr key={tx.id} id={`transfer-${tx.id}`} data-transfer-id={tx.id}>
                             <td className="mono" style={{ fontSize: 10 }}>
                               {new Date(tx.created_at).toLocaleDateString()}
                             </td>
