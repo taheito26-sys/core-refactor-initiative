@@ -303,7 +303,9 @@ export function getAgreementLabel(agreement: ProfitShareAgreement): string {
   if (agreement.agreement_type === 'operator_priority') {
     return `Operator Priority ${agreement.operator_ratio ?? 0}% fee`;
   }
-  return `Profit Share ${agreement.partner_ratio}/${agreement.merchant_ratio}`;
+  const settlementWay = agreement.settlement_way ? ` · ${agreement.settlement_way}` : '';
+  const investedCapital = agreement.invested_capital != null ? ` · cap ${agreement.invested_capital}` : '';
+  return `Profit Share ${agreement.partner_ratio}/${agreement.merchant_ratio}${investedCapital}${settlementWay}`;
 }
 
 // ─── Deal Status Transitions ────────────────────────────────────────

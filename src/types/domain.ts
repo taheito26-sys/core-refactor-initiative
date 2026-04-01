@@ -346,6 +346,7 @@ export interface JournalEntry {
 // ─── Profit Share Agreements (Standing Agreements) ──────────────────
 export type AgreementStatus = 'approved' | 'rejected' | 'expired';
 export type ProfitShareAgreementType = 'standard' | 'operator_priority';
+export type ProfitShareSettlementWay = 'reinvest' | 'withdraw';
 
 export type DefaultProfitHandling = 'reinvest' | 'withdraw';
 
@@ -357,6 +358,8 @@ export interface ProfitShareAgreement {
   /** merchant_ratio: the trader's share percentage (e.g. 60 means you keep 60%) */
   merchant_ratio: number;
   settlement_cadence: 'monthly' | 'weekly' | 'per_order';
+  invested_capital: number | null;
+  settlement_way: ProfitShareSettlementWay | null;
   status: AgreementStatus;
   effective_from: string;
   expires_at: string | null;
