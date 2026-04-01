@@ -8,6 +8,7 @@ import {
 } from '@/lib/tracker-helpers';
 import { useT } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { supabase } from '@/integrations/supabase/client';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
 const IconHand = () => (
@@ -32,6 +33,12 @@ const IconVault = () => (
     <path d="M12 8v4M12 16h.01"/>
   </svg>
 );
+const IconMerchant = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+    <polyline points="9 22 9 12 15 12 15 22"/>
+  </svg>
+);
 const IconTransfer = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
@@ -50,7 +57,10 @@ const IconMinus = () => (
 );
 
 const ACCOUNT_TYPE_ICON: Record<CashAccountType, React.FC> = {
-  hand: IconHand, bank: IconBank, vault: IconVault,
+  hand: IconHand, 
+  bank: IconBank, 
+  vault: IconVault,
+  merchant_custody: IconMerchant,
 };
 const CURRENCY_SYMBOLS: Record<CashCurrency, string> = { QAR: 'QAR', USDT: 'USDT', USD: 'USD' };
 
@@ -86,6 +96,8 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
   const [currency, setCurrency] = useState<CashCurrency>(existingAccount?.currency || 'QAR');
   const [bankName, setBankName] = useState(existingAccount?.bankName || '');
   const [branch, setBranch] = useState(existingAccount?.branch || '');
+  const [merchantId, setMerchantId] = useState(existingAccount?.merchantId || '');
+  const [relationshipId, setRelationshipId] = useState(existingAccount?.relationshipId || '');
   const [notes, setNotes] = useState(existingAccount?.notes || '');
   const [err, setErr] = useState('');
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
@@ -115,6 +127,10 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
       status: existingAccount?.status || 'active',
       bankName: bankName.trim() || undefined,
       branch: branch.trim() || undefined,
+      merchantId: type === 'merchant_custody' ? merchantId : undefined,
+      relationshipId: type === 'merchant_custody' ? relationshipId : undefined,
+      isMerchantAccount: type === 'merchant_custody',
+      purpose: type === 'merchant_custody' ? 'custody' : undefined,
       notes: notes.trim() || undefined,
       lastReconciled: existingAccount?.lastReconciled,
       createdAt: existingAccount?.createdAt || Date.now(),
@@ -160,6 +176,7 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
               <option value="hand">💵 {t('accTypeHand')}</option>
               <option value="bank">🏦 {t('accTypeBank')}</option>
               <option value="vault">🔒 {t('accTypeVault')}</option>
+              <option value="merchant_custody">🤝 {t('accTypeMerchant') || 'Merchant Custody'}</option>
             </select>
           </div>
           <div className="field2">
@@ -186,6 +203,25 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
           </div>
         )}
 
+        {type === 'merchant_custody' && (
+          <div className="field2" style={{ marginBottom: 10 }}>
+            <div className="lbl">{t('linkToMerchant' as any) || 'Link to Merchant'}</div>
+            <select value={relationshipId} onChange={e => {
+              const relId = e.target.value;
+              setRelationshipId(relId);
+              // Automagically set merchantId based on relationship
+              // (Note: this assumes relationships are available via props or global state)
+            }}
+              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+              <option value="">{t('selectRelationship' as any) || 'Select Relationship...'}</option>
+              {/* Opions will be passed via state/props in main component */}
+              {(window as any)._allRels?.map((r: any) => (
+                <option key={r.id} value={r.id}>{r.counterparty_name || r.id}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="field2" style={{ marginBottom: 16 }}>
           <div className="lbl">{t('notesOptionalAcc')}</div>
           <div className="inputBox"><input value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('notesAccPh')} /></div>
@@ -206,7 +242,7 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
 interface DepositWithdrawModalProps {
   account: CashAccount;
   currentBalance: number;
-  mode: 'deposit' | 'withdrawal';
+  mode: 'deposit' | 'withdrawal' | 'funding' | 'proceeds' | 'settlement';
   onSave: (entry: CashLedgerEntry) => void;
   onClose: () => void;
   isMobile?: boolean;
@@ -219,6 +255,26 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const amtNum = num(amount, 0);
+
+  const MODE_LABELS: Record<string, string> = {
+    deposit: t('depositTitle'),
+    withdrawal: t('withdrawTitle'),
+    funding: t('fundMerchant' as any) || 'Fund Merchant',
+    proceeds: t('recordProceeds' as any) || 'Record Proceeds',
+    settlement: t('settleBack' as any) || 'Settle Back'
+  };
+
+  const LEDGER_TYPES: Record<string, LedgerEntryType> = {
+    deposit: 'deposit',
+    withdrawal: 'withdrawal',
+    funding: 'merchant_funding_out',
+    proceeds: 'merchant_sale_proceeds',
+    settlement: 'merchant_settlement_out'
+  };
+
+  const DIRECTIONS: Record<string, 'in' | 'out'> = {
+    deposit: 'in', withdrawal: 'out', funding: 'in', proceeds: 'in', settlement: 'out'
+  };
 
   useEffect(() => {
     if (!isMobile || typeof window === 'undefined') return;
@@ -236,20 +292,22 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
   }, [isMobile]);
 
   const handle = () => {
-    if (isMobile && !confirmChecked) { setErr(t('confirmBeforeSubmit')); return; }
+    if (isMobile && !confirmChecked) { setErr(t('confirmBeforeSubmit' as any)); return; }
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
-    if (mode === 'withdrawal' && amtNum > currentBalance) {
-      setErr(`${t('insufficientBalMsg')} ${fmtTotal(currentBalance)} ${account.currency}`);
+    if (amtNum > currentBalance && (mode === 'withdrawal' || mode === 'settlement')) {
+      setErr(`${t('insufficientBalMsg' as any)} ${fmtTotal(currentBalance)} ${account.currency}`);
       return;
     }
     const entry: CashLedgerEntry = {
       id: uid(), ts: Date.now(),
-      type: mode === 'deposit' ? 'deposit' : 'withdrawal',
+      type: LEDGER_TYPES[mode],
       accountId: account.id,
-      direction: mode === 'deposit' ? 'in' : 'out',
+      direction: DIRECTIONS[mode],
       amount: amtNum,
       currency: account.currency,
       note: note.trim() || undefined,
+      merchantId: account.merchantId,
+      relationshipId: account.relationshipId,
     };
     onSave(entry);
   };
@@ -260,7 +318,7 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? Math.max(320, (viewportHeight || window.innerHeight) - 16) : '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
-            {mode === 'deposit' ? '➕' : '➖'} {mode === 'deposit' ? t('depositTitle') : t('withdrawTitle')} — {account.name}
+            {DIRECTIONS[mode] === 'in' ? '➕' : '➖'} {MODE_LABELS[mode]} — {account.name}
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
@@ -274,8 +332,8 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
         </div>
         {amtNum > 0 && (
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-            {t('balanceAfterLbl')}: <strong style={{ color: mode === 'deposit' ? 'var(--good)' : 'var(--warn)' }}>
-              {fmtTotal(currentBalance + (mode === 'deposit' ? amtNum : -amtNum))} {account.currency}
+            {t('balanceAfterLbl')}: <strong style={{ color: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)' }}>
+              {fmtTotal(currentBalance + (DIRECTIONS[mode] === 'in' ? amtNum : -amtNum))} {account.currency}
             </strong>
           </div>
         )}
@@ -286,14 +344,14 @@ function DepositWithdrawModal({ account, currentBalance, mode, onSave, onClose, 
         {isMobile && (
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, color: 'var(--muted)' }}>
             <input type="checkbox" checked={confirmChecked} onChange={e => setConfirmChecked(e.target.checked)} />
-            {mode === 'deposit' ? t('confirmDeposit') : t('confirmWithdrawal')}
+            {mode === 'deposit' ? t('confirmDeposit' as any) : t('confirmWithdrawal' as any)}
           </label>
         )}
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: mode === 'deposit' ? 'var(--good)' : 'var(--warn)', color: '#000' }} onClick={handle}>
-            {mode === 'deposit' ? t('addDepositBtn') : t('recordWithdrawalBtn')}
+          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: DIRECTIONS[mode] === 'in' ? 'var(--good)' : 'var(--warn)', color: '#000' }} onClick={handle}>
+            {MODE_LABELS[mode]}
           </button>
         </div>
       </div>
@@ -341,12 +399,12 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
   }, [isMobile]);
 
   const handle = () => {
-    if (isMobile && !confirmChecked) { setErr(t('confirmBeforeTransfer')); return; }
-    if (!fromId || !toId) { setErr(t('selectBothAccounts')); return; }
-    if (fromId === toId) { setErr(t('cannotSameAccount')); return; }
-    if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
+    if (isMobile && !confirmChecked) { setErr(t('confirmBeforeTransfer') as any); return; }
+    if (!fromId || !toId) { setErr(t('selectBothAccounts') as any); return; }
+    if (fromId === toId) { setErr(t('cannotSameAccount') as any); return; }
+    if (!(amtNum > 0)) { setErr(t('enterValidAmount') as any); return; }
     if (amtNum > fromBal) {
-      setErr(`${t('insufficientFundsMsg')} ${fmtTotal(fromBal)} ${fromAcc?.currency}`);
+      setErr((t('insufficientFundsMsg') as any) + ` ${fmtTotal(fromBal)} ${fromAcc?.currency}`);
       return;
     }
     const ts = Date.now();
@@ -360,7 +418,7 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
       direction: 'in', amount: amtNum, currency: toAcc!.currency,
       note: note.trim() || `Transfer from ${fromAcc?.name}`,
     };
-    onSave([outEntry, inEntry]);
+  onSave([outEntry, inEntry]);
   };
 
   return (
@@ -368,19 +426,19 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? Math.max(320, (viewportHeight || window.innerHeight) - 16) : '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{t('quickTransfer')}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{t('quickTransfer' as any)}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div className="g2tight" style={{ marginBottom: 10, alignItems: 'end', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           <div className="field2">
-            <div className="lbl">{t('transferFromLbl')}</div>
+            <div className="lbl">{t('transferFromLbl' as any)}</div>
             <select value={fromId} onChange={e => setFromId(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
               {active.map(a => <option key={a.id} value={a.id}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
             </select>
           </div>
           <div className="field2">
-            <div className="lbl">{t('transferToLbl')}</div>
+            <div className="lbl">{t('transferToLbl' as any)}</div>
             <select value={toId} onChange={e => setToId(e.target.value)}
               style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
               {active.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -393,23 +451,90 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
         </div>
         {amtNum > 0 && fromAcc && (
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-            {fromAcc.name} {t('balanceAfterLbl').toLowerCase()}: <strong style={{ color: 'var(--warn)' }}>{fmtTotal(fromBal - amtNum)} {fromAcc.currency}</strong>
+            {fromAcc.name} {(t('balanceAfterLbl' as any)).toLowerCase()}: <strong style={{ color: 'var(--warn)' }}>{fmtTotal(fromBal - amtNum)} {fromAcc.currency}</strong>
           </div>
         )}
         <div className="field2" style={{ marginBottom: 14 }}>
           <div className="lbl">{t('noteOptional')}</div>
-          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('reasonTransferPh')} /></div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={t('reasonTransferPh' as any)} /></div>
         </div>
         {isMobile && (
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 11, color: 'var(--muted)' }}>
             <input type="checkbox" checked={confirmChecked} onChange={e => setConfirmChecked(e.target.checked)} />
-            {t('confirmTransferReview')}
+            {t('confirmTransferReview' as any)}
           </label>
         )}
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions" style={{ position: isMobile ? 'sticky' : 'static', bottom: isMobile ? 0 : undefined, background: isMobile ? 'linear-gradient(to top, var(--panel2) 70%, transparent)' : undefined, paddingTop: isMobile ? 8 : 0 }}>
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={handle}>{t('transferFundsBtn')}</button>
+          <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={handle}>{t('transferFundsBtn' as any)}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ReconcileEntryModalProps {
+  account: CashAccount;
+  currentBalance: number;
+  onSave: (entry: CashLedgerEntry) => void;
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function ReconcileEntryModal({ account, currentBalance, onSave, onClose, isMobile = false }: ReconcileEntryModalProps) {
+  const t = useT();
+  const [actualBal, setActualBal] = useState('');
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState('');
+  
+  const handle = () => {
+    const val = num(actualBal, -1);
+    if (val < 0) { setErr(t('enterValidAmount')); return; }
+    
+    const diff = val - currentBalance;
+    if (Math.abs(diff) < 0.0001) {
+      // Just mark as reconciled
+      onSave({
+        id: uid(), ts: Date.now(), type: 'reconcile', accountId: account.id,
+        direction: 'in', amount: 0, currency: account.currency,
+        note: `Reconciled. Balance: ${fmtTotal(val)}`,
+      });
+      return;
+    }
+
+    const type: LedgerEntryType = account.type === 'merchant_custody' ? 'merchant_adjustment' : 'reconcile';
+    onSave({
+      id: uid(), ts: Date.now(), type, accountId: account.id,
+      direction: diff > 0 ? 'in' : 'out',
+      amount: Math.abs(diff),
+      currency: account.currency,
+      note: reason.trim() || `Market adjustment / Reconciliation. Diff: ${fmtTotal(diff)}`,
+    });
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(3px)' }} />
+      <div style={{ position: 'relative', background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 24, width: '100%', maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 12 }}>🔄 {t('reconcileBtn')} — {account.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16 }}>{t('reconcileDesc' as any) || 'Enter the actual physical balance to create an adjustment entry.'}</div>
+        
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('physicalBalanceLbl' as any) || 'Physical Balance'}</div>
+          <div className="inputBox"><input inputMode="decimal" value={actualBal} onChange={e => setActualBal(e.target.value)} placeholder="0.00" autoFocus /></div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('systemBalance' as any) || 'System'}: {fmtTotal(currentBalance)} {account.currency}</div>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 16 }}>
+          <div className="lbl">{t('adjustmentReason' as any) || 'Reason'}</div>
+          <div className="inputBox"><input value={reason} onChange={e => setReason(e.target.value)} placeholder={t('adjustmentReasonPh' as any) || 'e.g. Rounding, unknown loss...'} /></div>
+        </div>
+
+        {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+        
+        <div className="formActions">
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handle}>{t('confirmReconcile') || 'Confirm Reconciliation'}</button>
         </div>
       </div>
     </div>
@@ -430,7 +555,10 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
   // ── Localized label maps (recomputed when language changes) ────
   const ACCOUNT_TYPE_LABELS: Record<CashAccountType, string> = useMemo(() => ({
-    hand: t('accTypeHand'), bank: t('accTypeBank'), vault: t('accTypeVault'),
+    hand: t('accTypeHand'), 
+    bank: t('accTypeBank'), 
+    vault: t('accTypeVault'),
+    merchant_custody: t('accTypeMerchant') || 'Merchant Custody',
   }), [t]);
 
   const LEDGER_TYPE_LABELS: Record<LedgerEntryType, string> = useMemo(() => ({
@@ -444,6 +572,13 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
     stock_refund: t('ledgerStockRefund'),
     stock_edit_adjust: t('ledgerEditAdjust'),
     reconcile: t('ledgerReconcile'),
+    merchant_funding_out: t('ledgerMerchantFundingOut') || 'Funding Merchant',
+    merchant_funding_return: t('ledgerMerchantFundingReturn') || 'Funding Return',
+    merchant_sale_proceeds: t('ledgerMerchantSaleProceeds') || 'Sale Proceeds',
+    merchant_settlement_in: t('ledgerMerchantSettlementIn') || 'Settlement In',
+    merchant_settlement_out: t('ledgerMerchantSettlementOut') || 'Settlement Out',
+    merchant_fee: t('ledgerMerchantFee') || 'Merchant Fee',
+    merchant_adjustment: t('ledgerMerchantAdjustment') || 'Merchant Adjustment',
   }), [t]);
 
   const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights'>('accounts');
@@ -451,10 +586,27 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   const [editingAccount, setEditingAccount] = useState<CashAccount | undefined>();
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferFromId, setTransferFromId] = useState<string | undefined>();
-  const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' } | null>(null);
+  const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' | 'funding' | 'proceeds' | 'settlement' } | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: '', type: '' });
-  const [reconcilePromptId, setReconcilePromptId] = useState<string | null>(null);
+  const [reconcileAccountData, setReconcileAccountData] = useState<CashAccount | null>(null);
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
+
+  const [relationships, setRelationships] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabase.from('merchant_relationships').select('*').then(({ data }) => {
+      if (data) {
+        // Enriched list for select box
+        const myMerchantId = (state as any).merchantId; // fallback
+        const enriched = data.map((r: any) => ({
+          ...r,
+          counterparty_name: r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id, // simplified
+        }));
+        setRelationships(enriched);
+        (window as any)._allRels = enriched;
+      }
+    });
+  }, [state]);
 
   const balances = useMemo(() => getAllAccountBalances(accounts, ledger), [accounts, ledger]);
 
@@ -519,15 +671,10 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
     setShowTransfer(false);
   };
 
-  const reconcileAccount = (id: string) => {
-    const bal = balances.get(id) || 0;
-    const newAccounts = accounts.map(a => a.id === id ? { ...a, lastReconciled: Date.now() } : a);
-    const reconcileEntry: CashLedgerEntry = {
-      id: uid(), ts: Date.now(), type: 'reconcile', accountId: id,
-      direction: 'in', amount: 0, currency: accounts.find(a => a.id === id)?.currency || 'QAR',
-      note: `Reconciled at ${fmtTotal(bal)} ${accounts.find(a => a.id === id)?.currency}`,
-    };
-    applyState({ ...state, cashAccounts: newAccounts, cashLedger: [...ledger, reconcileEntry] });
+  const reconcileAccount = (account: CashAccount, entry: CashLedgerEntry) => {
+    const newAccounts = accounts.map(a => a.id === account.id ? { ...a, lastReconciled: Date.now() } : a);
+    applyState({ ...state, cashAccounts: newAccounts, cashLedger: [...ledger, entry] });
+    setReconcileAccountData(null);
   };
 
   const clearLedgerEntries = (id: string) => {
@@ -757,20 +904,39 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                     {/* Actions */}
                     {!isInactive && (
                       <div style={{ display: 'grid', gap: 6, flexWrap: 'wrap', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, auto)' }}>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
-                          onClick={() => setShowDeposit({ account: acc, mode: 'deposit' })}>
-                          <IconPlus /> {t('depositTitle')}
-                        </button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
-                          onClick={() => setShowDeposit({ account: acc, mode: 'withdrawal' })}>
-                          <IconMinus /> {t('withdrawTitle')}
-                        </button>
+                        {acc.type === 'merchant_custody' ? (
+                          <>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => setShowDeposit({ account: acc, mode: 'funding' })}>
+                              <IconPlus /> {t('fundMerchant') || 'Fund'}
+                            </button>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => setShowDeposit({ account: acc, mode: 'proceeds' })}>
+                              📥 {t('recordProceeds' as any) || 'Proceeds'}
+                            </button>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => setShowDeposit({ account: acc, mode: 'settlement' })}>
+                              📤 {t('settleBack') || 'Settle'}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => setShowDeposit({ account: acc, mode: 'deposit' })}>
+                              <IconPlus /> {t('depositTitle')}
+                            </button>
+                            <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => setShowDeposit({ account: acc, mode: 'withdrawal' })}>
+                              <IconMinus /> {t('withdrawTitle')}
+                            </button>
+                          </>
+                        )}
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                           onClick={() => { setTransferFromId(acc.id); setShowTransfer(true); }}>
                           <IconTransfer /> {t('transferLbl')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => isMobile ? setReconcilePromptId(acc.id) : reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setReconcileAccountData(acc)}>{t('reconcileBtn')}</button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)' }} onClick={() => setClearLedgerPromptId(acc.id)}>🗑️ {t('clearLedger')}</button>
                       </div>
                     )}
@@ -1050,18 +1216,14 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           onClose={() => setShowDeposit(null)}
         />
       )}
-      {reconcilePromptId && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setReconcilePromptId(null)}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
-          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 420 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>{t('reconcileBtn')}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('confirmReconcilePrompt')}</div>
-            <div className="formActions">
-              <button className="btn secondary" onClick={() => setReconcilePromptId(null)}>{t('cancel')}</button>
-              <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={() => { reconcileAccount(reconcilePromptId); setReconcilePromptId(null); }}>{t('confirmReconcile')}</button>
-            </div>
-          </div>
-        </div>
+      {reconcileAccountData && (
+        <ReconcileEntryModal
+          account={reconcileAccountData}
+          currentBalance={balances.get(reconcileAccountData.id) || 0}
+          isMobile={isMobile}
+          onSave={(entry) => reconcileAccount(reconcileAccountData, entry)}
+          onClose={() => setReconcileAccountData(null)}
+        />
       )}
 
       {clearLedgerPromptId && (
@@ -1072,7 +1234,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
             <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('confirmClearLedger')}</div>
             <div className="formActions">
               <button className="btn secondary" onClick={() => setClearLedgerPromptId(null)}>{t('cancel')}</button>
-              <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }} onClick={() => { clearLedgerEntries(clearLedgerPromptId); setClearLedgerPromptId(null); }}>{t('clearBtn')}</button>
+              <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }} onClick={() => { clearLedgerEntries(clearLedgerPromptId); setClearLedgerPromptId(null); }}>{t('clearBtn' as any)}</button>
             </div>
           </div>
         </div>

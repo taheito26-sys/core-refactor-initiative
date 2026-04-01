@@ -113,7 +113,7 @@ export function uid(): string {
 // ── Types matching the repo state model ──
 
 // ── Cash Management System Types ──────────────────────────────
-export type CashAccountType = 'hand' | 'bank' | 'vault';
+export type CashAccountType = 'hand' | 'bank' | 'vault' | 'merchant_custody';
 export type CashCurrency = 'QAR' | 'USDT' | 'USD';
 export type LedgerEntryType =
   | 'opening'
@@ -125,7 +125,14 @@ export type LedgerEntryType =
   | 'stock_purchase'
   | 'stock_refund'
   | 'stock_edit_adjust'
-  | 'reconcile';
+  | 'reconcile'
+  | 'merchant_funding_out'
+  | 'merchant_funding_return'
+  | 'merchant_sale_proceeds'
+  | 'merchant_settlement_in'
+  | 'merchant_settlement_out'
+  | 'merchant_fee'
+  | 'merchant_adjustment';
 
 export interface CashAccount {
   id: string;
@@ -139,6 +146,14 @@ export interface CashAccount {
   lastReconciled?: number;
   notes?: string;
   createdAt: number;
+  /** Linked merchant ID if this is a custody account */
+  merchantId?: string;
+  /** Linked relationship ID */
+  relationshipId?: string;
+  /** Purpose of the account (default: custody) */
+  purpose?: 'custody' | 'clearing' | 'settlement';
+  /** Flag to explicitly mark as merchant account */
+  isMerchantAccount?: boolean;
 }
 
 export interface CashLedgerEntry {
@@ -151,9 +166,16 @@ export interface CashLedgerEntry {
   amount: number;
   currency: CashCurrency;
   fxRate?: number;
-  linkedEntityType?: 'batch';
+  linkedEntityType?: 'batch' | 'trade' | 'relationship' | 'settlement';
   linkedEntityId?: string;
   note?: string;
+  /** Metadata for merchant/linked tracking */
+  merchantId?: string;
+  relationshipId?: string;
+  tradeId?: string;
+  orderId?: string;
+  batchId?: string;
+  settlementId?: string;
 }
 
 export function getAccountBalance(accountId: string, ledger: CashLedgerEntry[]): number {
@@ -170,12 +192,14 @@ export function getAllAccountBalances(accounts: CashAccount[], ledger: CashLedge
   return map;
 }
 
-/** Derive the legacy cashQAR total from the new multi-account ledger */
+/** Derive the legacy cashQAR total from the new multi-account ledger (User cash only) */
 export function deriveCashQAR(cashAccounts: CashAccount[], cashLedger: CashLedgerEntry[]): number {
   if (!cashAccounts || cashAccounts.length === 0) return 0;
   let total = 0;
   for (const acc of cashAccounts) {
     if (acc.status !== 'active' || acc.currency !== 'QAR') continue;
+    // Rule: Merchant accounts are EXCLUDED from the main dashboard cash totals
+    if (acc.type === 'merchant_custody') continue;
     total += getAccountBalance(acc.id, cashLedger);
   }
   return total;
@@ -193,9 +217,19 @@ export interface Batch {
   fundingAccountId?: string;
   /** ID of the CashLedgerEntry for this batch's purchase */
   fundingLedgerEntryId?: string;
+  /** Custody location tracking */
+  custodyType?: 'self' | 'merchant';
+  custodyMerchantId?: string;
+  custodyRelationshipId?: string;
 }
 
 export type LinkedTradeStatus = 'pending_approval' | 'approved' | 'rejected' | 'cancellation_pending' | 'cancelled';
+
+export type SettlementMode =
+  | 'instant_to_self_cash'
+  | 'merchant_holds_proceeds'
+  | 'merchant_buys_for_me'
+  | 'merchant_holds_inventory';
 
 export interface Trade {
   id: string;
@@ -230,6 +264,14 @@ export interface Trade {
   approvalStatus?: LinkedTradeStatus;
   /** Who requested cancellation (user_id), if cancellation_pending */
   cancellationRequestedBy?: string;
+  /** New Merchant-Linked Settlement Fields */
+  settlementMode?: SettlementMode;
+  /** Account where proceeds were/will be deposited (could be merchant custody account) */
+  proceedsAccountId?: string;
+  /** Dedicated merchant settlement account ID */
+  merchantSettlementAccountId?: string;
+  /** Where inventory is held after execution */
+  inventoryCustodyMerchantId?: string;
 }
 
 export interface Customer {
