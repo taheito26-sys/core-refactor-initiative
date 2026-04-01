@@ -418,7 +418,8 @@ export default function OrdersPage() {
     const focusOrderId = searchParams.get('focusOrderId');
     const focusDealId = searchParams.get('focusDealId');
     const focusSettlementId = searchParams.get('focusSettlementId');
-    const targetId = focusOrderId || focusDealId || focusSettlementId;
+    const focusTransferId = searchParams.get('focusTransferId');
+    const targetId = focusOrderId || focusDealId || focusSettlementId || focusTransferId;
     if (!targetId) return;
     // Delay to let tab content render
     const timer = window.setTimeout(() => {
