@@ -1455,6 +1455,7 @@ export type Database = {
           effective_from: string
           expires_at: string | null
           id: string
+          invested_capital: number | null
           lender_contribution: number | null
           merchant_ratio: number
           notes: string | null
@@ -1465,6 +1466,7 @@ export type Database = {
           partner_ratio: number
           relationship_id: string
           settlement_cadence: string
+          settlement_way: string | null
           status: string
           terms_snapshot: Json | null
           updated_at: string
@@ -1479,6 +1481,7 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          invested_capital?: number | null
           lender_contribution?: number | null
           merchant_ratio: number
           notes?: string | null
@@ -1489,6 +1492,7 @@ export type Database = {
           partner_ratio: number
           relationship_id: string
           settlement_cadence?: string
+          settlement_way?: string | null
           status?: string
           terms_snapshot?: Json | null
           updated_at?: string
@@ -1503,6 +1507,7 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          invested_capital?: number | null
           lender_contribution?: number | null
           merchant_ratio?: number
           notes?: string | null
@@ -1513,6 +1518,7 @@ export type Database = {
           partner_ratio?: number
           relationship_id?: string
           settlement_cadence?: string
+          settlement_way?: string | null
           status?: string
           terms_snapshot?: Json | null
           updated_at?: string
