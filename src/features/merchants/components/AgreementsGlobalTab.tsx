@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { isAgreementActive } from '@/lib/deal-engine';
+import { fmtU } from '@/lib/tracker-helpers';
 import { AgreementsTab } from './AgreementsTab';
 import type { ProfitShareAgreement } from '@/types/domain';
 
@@ -140,7 +141,7 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
                         {(a as any).agreement_type === 'operator_priority' ? (
                           <>{t('operatorFeeFirst')} {(a as any).operator_ratio}% · {t('thenCapitalSplit')}</>
                         ) : (
-                          <>{t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}%</>
+                          <>{t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · Capital {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ?? '—'}</>
                         )}
                       </div>
                     </td>

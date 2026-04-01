@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS public.profit_share_agreements (
   merchant_ratio      NUMERIC(5,2) NOT NULL CHECK (merchant_ratio > 0 AND merchant_ratio < 100),
   settlement_cadence  TEXT NOT NULL DEFAULT 'monthly'
                         CHECK (settlement_cadence IN ('monthly', 'weekly', 'per_order')),
+  invested_capital    NUMERIC(18,6),
+  settlement_way      TEXT CHECK (settlement_way IN ('reinvest', 'withdraw')),
   status              TEXT NOT NULL DEFAULT 'approved'
                         CHECK (status IN ('approved', 'rejected', 'expired')),
   effective_from      TIMESTAMPTZ NOT NULL DEFAULT now(),

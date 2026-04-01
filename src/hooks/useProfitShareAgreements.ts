@@ -123,6 +123,8 @@ interface CreateAgreementInput {
   partner_ratio: number;
   merchant_ratio: number;
   settlement_cadence: 'monthly' | 'weekly' | 'per_order';
+  invested_capital?: number | null;
+  settlement_way?: 'reinvest' | 'withdraw' | null;
   effective_from: string;
   expires_at?: string | null;
   notes?: string | null;
@@ -138,23 +140,85 @@ interface CreateAgreementInput {
   counterparty_default_profit_handling?: string;
 }
 
+const isSchemaCacheColumnError = (error: unknown): boolean => {
+  const message = (error as { message?: string } | null)?.message?.toLowerCase() ?? '';
+  return message.includes('schema cache') && message.includes('profit_share_agreements');
+};
+
+const stripSharedAgreementFields = <T extends Record<string, unknown>>(input: T): T => {
+  const sanitized = { ...input };
+  delete sanitized.invested_capital;
+  delete sanitized.settlement_way;
+  return sanitized;
+};
+
 export function useCreateAgreement() {
   const { userId } = useAuth();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: CreateAgreementInput) => {
+      const fullPayload = {
+        ...input,
+        status: 'approved', // Default to approved (bilateral acceptance)
+        created_by: userId!,
+        approved_by: userId!,
+        approved_at: new Date().toISOString(),
+      };
+
       const { data, error } = await supabase
         .from('profit_share_agreements' as any)
-        .insert({
-          ...input,
-          status: 'approved', // Default to approved (bilateral acceptance)
-          created_by: userId!,
-          approved_by: userId!,
-          approved_at: new Date().toISOString(),
-        })
+        .insert(fullPayload)
         .select('*')
         .single();
+
+      if (error && isSchemaCacheColumnError(error)) {
+        const { data: legacyData, error: legacyError } = await supabase
+          .from('profit_share_agreements' as any)
+          .insert(stripSharedAgreementFields(fullPayload))
+          .select('*')
+          .single();
+        if (legacyError) throw legacyError;
+        return legacyData as unknown as ProfitShareAgreement;
+      }
+
+      if (error) throw error;
+      return data as unknown as ProfitShareAgreement;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [AGREEMENTS_KEY] });
+    },
+  });
+}
+
+// ─── Mutation: Edit agreement terms ───────────────────────────────────
+
+interface UpdateAgreementInput extends Partial<CreateAgreementInput> {
+  agreementId: string;
+}
+
+export function useUpdateAgreement() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ agreementId, ...updates }: UpdateAgreementInput) => {
+      const { data, error } = await supabase
+        .from('profit_share_agreements' as any)
+        .update(updates)
+        .eq('id', agreementId)
+        .select('*')
+        .single();
+
+      if (error && isSchemaCacheColumnError(error)) {
+        const { data: legacyData, error: legacyError } = await supabase
+          .from('profit_share_agreements' as any)
+          .update(stripSharedAgreementFields(updates as Record<string, unknown>))
+          .eq('id', agreementId)
+          .select('*')
+          .single();
+        if (legacyError) throw legacyError;
+        return legacyData as unknown as ProfitShareAgreement;
+      }
 
       if (error) throw error;
       return data as unknown as ProfitShareAgreement;
