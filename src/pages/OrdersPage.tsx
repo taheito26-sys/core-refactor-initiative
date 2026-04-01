@@ -398,26 +398,6 @@ export default function OrdersPage() {
     });
   }, [filteredOutgoingMerchantDeals, selectedMonth]);
 
-  const inKpi = useMemo(() => {
-    let vol = 0, netVal = 0;
-    for (const deal of subFilteredInDeals) {
-      const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.lang === 'ar' ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
-      vol += row.volume;
-      netVal += row.myNet ?? 0;
-    }
-    return { count: subFilteredInDeals.length, vol, net: netVal };
-  }, [subFilteredInDeals, resolveDealAvgBuy, t.lang]);
-
-  const outKpi = useMemo(() => {
-    let vol = 0, netVal = 0;
-    for (const deal of subFilteredOutDeals) {
-      const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.lang === 'ar' ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
-      vol += row.volume;
-      netVal += row.myNet ?? 0;
-    }
-    return { count: subFilteredOutDeals.length, vol, net: netVal };
-  }, [subFilteredOutDeals, resolveDealAvgBuy, t.lang]);
-
   const myKpi = useMemo(() => {
     // Only trades in the selected month (or all)
     const activeList = subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
