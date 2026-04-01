@@ -101,7 +101,7 @@ describe('order cash deposit integration', () => {
     expect(next.cashQAR).toBe(50);
   });
 
-  it('uses legacy fallback path when no active QAR account exists', () => {
+  it('auto-creates a QAR cash account when no active QAR account exists', () => {
     const state = makeState({
       cashQAR: 10,
       cashAccounts: [
@@ -119,7 +119,9 @@ describe('order cash deposit integration', () => {
       now: 1000,
     });
 
-    expect(next.cashLedger).toHaveLength(0);
+    expect(next.cashAccounts.some(a => a.currency === 'QAR' && a.status === 'active')).toBe(true);
+    expect(next.cashLedger).toHaveLength(1);
+    expect(next.cashLedger[0].type).toBe('sale_deposit');
     expect(next.cashHistory).toHaveLength(1);
     expect(next.cashHistory[0].type).toBe('sale_deposit');
     expect(next.cashQAR).toBe(35);
