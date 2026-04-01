@@ -56,6 +56,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [counterpartyDefaultHandling, setCounterpartyDefaultHandling] = useState<'reinvest' | 'withdraw'>('withdraw');
 
   // Group agreements by status
+  const pending = agreements.filter(a => a.status === 'pending');
   const approved = agreements.filter(a => a.status === 'approved' && isAgreementActive(a));
   const expired = agreements.filter(a => a.status === 'expired' || (a.status === 'approved' && !isAgreementActive(a)));
   const rejected = agreements.filter(a => a.status === 'rejected');
@@ -148,7 +149,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         toast.success('Agreement updated successfully');
       } else {
         await createAgreement.mutateAsync(payload);
-        toast.success(t('agreementCreatedSuccess'));
+        toast.success(t('agreementCreatedSuccess' as any) || 'Agreement created');
       }
 
       setShowForm(false);
@@ -162,6 +163,15 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'rejected' });
       toast.success(t('agreementRejectedSuccess'));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      await updateStatus.mutateAsync({ agreementId: id, status: 'approved' });
+      toast.success(t('agreementApprovedSuccess' as any) || 'Agreement approved');
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -214,6 +224,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   };
 
   const statusPill = (status: string, isActive: boolean) => {
+    if (status === 'pending') return <span className="pill info">{t('pendingStatus') || 'Pending'}</span>;
     if (status === 'approved' && isActive) return <span className="pill good">{t('activeStatus')}</span>;
     if (status === 'approved' && !isActive) return <span className="pill warn">{t('inactiveStatus')}</span>;
     if (status === 'expired') return <span className="pill warn">{t('expiredStatus')}</span>;
@@ -624,6 +635,71 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 : (editingAgreementId ? 'Save Changes' : t('createAgreement'))}
             </button>
             <button className="btn secondary" onClick={() => { setShowForm(false); resetForm(); }}>{t('cancel')}</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Pending Approval ─── */}
+      {pending.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+            ⏳ {t('pendingApprovalLabel' as any) || 'Pending Approval'} ({pending.length})
+          </div>
+          <div className="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t('agreement')}</th>
+                  <th>{t('cadence')}</th>
+                  <th>{t('effective')}</th>
+                  <th>{t('proposed_by' as any) || 'Proposed By'}</th>
+                  <th>{t('actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map(a => {
+                  const isCreator = a.created_by === userId;
+                  return (
+                    <tr key={a.id}>
+                      <td>
+                        <div style={{ fontWeight: 700, fontSize: 11 }}>
+                          {agreementDisplayLabel(a)}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>
+                          {a.agreement_type === 'operator_priority' ? (
+                            <>
+                              {t('operatorFeeFirst')} {a.operator_ratio}% · {t('thenCapitalSplit')}
+                            </>
+                          ) : (
+                            <>
+                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · Capital {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ?? '—'}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
+                      <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
+                      <td style={{ fontSize: 10 }}>{isCreator ? t('you') : (counterpartyName || t('partner'))}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {!isCreator ? (
+                            <>
+                              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction' as any) || 'Approve'}</button>
+                              <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
+                            </>
+                          ) : (
+                            <>
+                              <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction' as any) || 'Edit'}</button>
+                              <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('cancel')}</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

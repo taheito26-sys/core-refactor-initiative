@@ -138,6 +138,7 @@ interface CreateAgreementInput {
   // Monthly profit handling defaults
   operator_default_profit_handling?: string;
   counterparty_default_profit_handling?: string;
+  status?: AgreementStatus;
 }
 
 const isSchemaCacheColumnError = (error: unknown): boolean => {
@@ -160,10 +161,11 @@ export function useCreateAgreement() {
     mutationFn: async (input: CreateAgreementInput) => {
       const fullPayload = {
         ...input,
-        status: 'approved', // Default to approved (bilateral acceptance)
+        status: input.status || 'pending',
         created_by: userId!,
-        approved_by: userId!,
-        approved_at: new Date().toISOString(),
+        // Approved fields should ONLY be set if the status is transition to 'approved'
+        approved_by: input.status === 'approved' ? userId! : null,
+        approved_at: input.status === 'approved' ? new Date().toISOString() : null,
       };
 
       const { data, error } = await supabase
@@ -173,6 +175,7 @@ export function useCreateAgreement() {
         .single();
 
       if (error && isSchemaCacheColumnError(error)) {
+        console.warn('[useCreateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
         const { data: legacyData, error: legacyError } = await supabase
           .from('profit_share_agreements' as any)
           .insert(stripSharedAgreementFields(fullPayload))
@@ -210,6 +213,7 @@ export function useUpdateAgreement() {
         .single();
 
       if (error && isSchemaCacheColumnError(error)) {
+        console.warn('[useUpdateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
         const { data: legacyData, error: legacyError } = await supabase
           .from('profit_share_agreements' as any)
           .update(stripSharedAgreementFields(updates as Record<string, unknown>))

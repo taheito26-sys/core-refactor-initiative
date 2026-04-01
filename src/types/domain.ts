@@ -344,7 +344,7 @@ export interface JournalEntry {
 }
 
 // ─── Profit Share Agreements (Standing Agreements) ──────────────────
-export type AgreementStatus = 'approved' | 'rejected' | 'expired';
+export type AgreementStatus = 'pending' | 'approved' | 'rejected' | 'expired';
 export type ProfitShareAgreementType = 'standard' | 'operator_priority';
 export type ProfitShareSettlementWay = 'reinvest' | 'withdraw';
 

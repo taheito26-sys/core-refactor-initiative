@@ -126,8 +126,9 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
                 const rel = relationships.find((r: any) => r.id === a.relationship_id);
                 const cpName = rel?.counterparty_name || '—';
                 const active = a.status === 'approved' && isAgreementActive(a);
-                const statusCls = active ? 'good' : a.status === 'rejected' ? 'bad' : 'warn';
-                const statusLabel = active ? t('activeStatus') : a.status === 'rejected' ? t('rejectedStatus') : a.status === 'expired' ? t('expiredStatus') : t('inactiveStatus');
+                const isPending = a.status === 'pending';
+                const statusCls = active ? 'good' : isPending ? 'info' : a.status === 'rejected' ? 'bad' : 'warn';
+                const statusLabel = active ? t('activeStatus') : isPending ? (t('pendingStatus' as any) || 'Pending') : a.status === 'rejected' ? t('rejectedStatus') : a.status === 'expired' ? t('expiredStatus') : t('inactiveStatus');
                 return (
                   <tr key={a.id} style={{ opacity: active ? 1 : 0.6 }}>
                     <td>
