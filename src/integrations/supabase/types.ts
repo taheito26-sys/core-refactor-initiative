@@ -44,6 +44,63 @@ export type Database = {
         }
         Relationships: []
       }
+      capital_transfers: {
+        Row: {
+          amount: number
+          cost_basis: number
+          created_at: string
+          currency: string
+          deal_id: string | null
+          direction: string
+          id: string
+          note: string | null
+          relationship_id: string
+          total_cost: number
+          transferred_by: string
+        }
+        Insert: {
+          amount: number
+          cost_basis?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          direction: string
+          id?: string
+          note?: string | null
+          relationship_id: string
+          total_cost?: number
+          transferred_by: string
+        }
+        Update: {
+          amount?: number
+          cost_basis?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          direction?: string
+          id?: string
+          note?: string | null
+          relationship_id?: string
+          total_cost?: number
+          transferred_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capital_transfers_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capital_transfers_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_accounts: {
         Row: {
           bank_name: string | null
@@ -148,63 +205,6 @@ export type Database = {
             columns: ["contra_account_id"]
             isOneToOne: false
             referencedRelation: "cash_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      capital_transfers: {
-        Row: {
-          amount: number
-          cost_basis: number
-          created_at: string
-          currency: string
-          deal_id: string
-          direction: string
-          id: string
-          note: string | null
-          relationship_id: string
-          total_cost: number
-          transferred_by: string
-        }
-        Insert: {
-          amount: number
-          cost_basis: number
-          created_at?: string
-          currency?: string
-          deal_id: string
-          direction: string
-          id?: string
-          note?: string | null
-          relationship_id: string
-          total_cost: number
-          transferred_by: string
-        }
-        Update: {
-          amount?: number
-          cost_basis?: number
-          created_at?: string
-          currency?: string
-          deal_id?: string
-          direction?: string
-          id?: string
-          note?: string | null
-          relationship_id?: string
-          total_cost?: number
-          transferred_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "capital_transfers_deal_id_fkey"
-            columns: ["deal_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_deals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "capital_transfers_relationship_id_fkey"
-            columns: ["relationship_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_relationships"
             referencedColumns: ["id"]
           },
         ]
