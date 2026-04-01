@@ -423,25 +423,16 @@ export default function OrdersPage() {
     if (!targetId) return;
     // Delay to let tab content render
     const timer = window.setTimeout(() => {
-      const found = focusElementBySelectors([
-        `#order-${targetId}`,
-        `[data-order-id="${targetId}"]`,
-        `#deal-${targetId}`,
-        `[data-deal-id="${targetId}"]`,
-        `#settlement-${targetId}`,
-        `[data-settlement-id="${targetId}"]`,
-      ], 'ring-2 ring-primary/60 transition-shadow');
-      // If not found on first try, retry once after more data loads
+      const selectors = [
+        `#order-${targetId}`, `[data-order-id="${targetId}"]`,
+        `#deal-${targetId}`, `[data-deal-id="${targetId}"]`,
+        `#settlement-${targetId}`, `[data-settlement-id="${targetId}"]`,
+        `#transfer-${targetId}`, `[data-transfer-id="${targetId}"]`,
+      ];
+      const found = focusElementBySelectors(selectors, 'ring-2 ring-primary/60 transition-shadow');
       if (!found) {
         window.setTimeout(() => {
-          focusElementBySelectors([
-            `#order-${targetId}`,
-            `[data-order-id="${targetId}"]`,
-            `#deal-${targetId}`,
-            `[data-deal-id="${targetId}"]`,
-            `#settlement-${targetId}`,
-            `[data-settlement-id="${targetId}"]`,
-          ], 'ring-2 ring-primary/60 transition-shadow');
+          focusElementBySelectors(selectors, 'ring-2 ring-primary/60 transition-shadow');
         }, 800);
       }
     }, 350);
