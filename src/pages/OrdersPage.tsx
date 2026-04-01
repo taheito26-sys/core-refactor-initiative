@@ -2042,7 +2042,7 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={`deal-${deal.id}`}>
+                          <tr key={`deal-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{row.dateLabel}</span>
