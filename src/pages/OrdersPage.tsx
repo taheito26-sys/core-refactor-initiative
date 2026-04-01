@@ -346,6 +346,9 @@ export default function OrdersPage() {
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
+    const curMonthKey = new Date().toISOString().slice(0, 7);
+    months.add(curMonthKey); // Always include current month
+
     filtered.forEach(t => {
       const d = new Date(t.ts);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -376,6 +379,44 @@ export default function OrdersPage() {
       return key === selectedMonth;
     });
   }, [allTransfers, selectedMonth]);
+
+  const subFilteredInDeals = useMemo(() => {
+    if (selectedMonth === 'all') return filteredIncomingMerchantDeals;
+    return filteredIncomingMerchantDeals.filter(d => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filteredIncomingMerchantDeals, selectedMonth]);
+
+  const subFilteredOutDeals = useMemo(() => {
+    if (selectedMonth === 'all') return filteredOutgoingMerchantDeals;
+    return filteredOutgoingMerchantDeals.filter(d => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filteredOutgoingMerchantDeals, selectedMonth]);
+
+  const inKpi = useMemo(() => {
+    let vol = 0, netVal = 0;
+    for (const deal of subFilteredInDeals) {
+      const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.lang === 'ar' ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+      vol += row.volume;
+      netVal += row.myNet ?? 0;
+    }
+    return { count: subFilteredInDeals.length, vol, net: netVal };
+  }, [subFilteredInDeals, resolveDealAvgBuy, t.lang]);
+
+  const outKpi = useMemo(() => {
+    let vol = 0, netVal = 0;
+    for (const deal of subFilteredOutDeals) {
+      const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.lang === 'ar' ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+      vol += row.volume;
+      netVal += row.myNet ?? 0;
+    }
+    return { count: subFilteredOutDeals.length, vol, net: netVal };
+  }, [subFilteredOutDeals, resolveDealAvgBuy, t.lang]);
 
   const myKpi = useMemo(() => {
     // Only trades in the selected month (or all)
@@ -1761,6 +1802,40 @@ export default function OrdersPage() {
           {/* ── INCOMING ORDERS TAB ── */}
           {activeTab === 'incoming' && (
             <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 8, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={() => setSelectedMonth('all')}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -1768,10 +1843,10 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📥 {t('incomingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('partnerTradesAwaitingApproval')}</div>
                 </div>
-                <span className="pill">{filteredIncomingMerchantDeals.length} {t('trades')}</span>
+                <span className="pill">{subFilteredInDeals.length} {t('trades')}</span>
               </div>
 
-              {filteredIncomingMerchantDeals.length === 0 ? (
+              {subFilteredInDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noIncomingTrades')}</div>
@@ -1779,7 +1854,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {filteredIncomingMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
+                  {subFilteredInDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1791,7 +1866,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredIncomingMerchantDeals.map(deal => {
+                      {subFilteredInDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -1877,6 +1952,40 @@ export default function OrdersPage() {
           {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
           {activeTab === 'outgoing' && (
             <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 8, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={() => setSelectedMonth('all')}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -1884,10 +1993,10 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div>
                 </div>
-                <span className="pill">{filteredOutgoingMerchantDeals.length} {t('trades')}</span>
+                <span className="pill">{subFilteredOutDeals.length} {t('trades')}</span>
               </div>
 
-              {filteredOutgoingMerchantDeals.length === 0 ? (
+              {subFilteredOutDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
@@ -1895,7 +2004,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {filteredOutgoingMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
+                  {subFilteredOutDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1906,7 +2015,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredOutgoingMerchantDeals.map(deal => {
+                      {subFilteredOutDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -2928,7 +3037,7 @@ export default function OrdersPage() {
             <div className="formPanel salePanel">
               <div className="hdr">📥 {t('approvalInbox')}</div>
               <div className="inner">
-                {filteredIncomingMerchantDeals.length === 0 ? (
+                {subFilteredInDeals.length === 0 ? (
                   <div className="muted" style={{ fontSize: 11, textAlign: 'center', padding: 20 }}>{t('noIncomingTrades')}</div>
                 ) : (
                   <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>

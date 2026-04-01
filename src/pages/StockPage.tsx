@@ -63,6 +63,7 @@ export default function StockPage() {
   const [batchSupplier, setBatchSupplier] = useState('');
   const [batchNote, setBatchNote] = useState('');
   const [batchMsg, setBatchMsg] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
   const [supplierAddOpen, setSupplierAddOpen] = useState(false);
@@ -142,6 +143,18 @@ export default function StockPage() {
     return unique.filter((n) => n.toLowerCase().includes(query));
   }, [manualSuppliers, query, state.batches]);
 
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    const curMonthKey = new Date().toISOString().slice(0, 7);
+    months.add(curMonthKey);
+    state.batches.forEach(b => {
+      const d = new Date(b.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    return Array.from(months).sort().reverse();
+  }, [state.batches]);
+
   const perf = useMemo(() => state.batches
     .map((b) => {
       const db = derived.batches.find((x) => x.id === b.id);
@@ -156,10 +169,15 @@ export default function StockPage() {
       return { ...b, remaining: rem, used, profit };
     })
     .filter((b) => {
+      if (selectedMonth !== 'all') {
+        const d = new Date(b.ts);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (key !== selectedMonth) return false;
+      }
       if (!query) return true;
       return [fmtDate(b.ts), b.source, b.note].join(' ').toLowerCase().includes(query);
     })
-    .sort((a, b) => b.ts - a.ts), [derived, query, state.batches]);
+    .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
 
   const suppliersForPanel = useMemo(() => [
     ...new Set(state.batches.map((b) => b.source.trim()).filter(Boolean)),
@@ -461,6 +479,39 @@ export default function StockPage() {
       {stockTab === 'batches' && (
       <div className="twoColPage" style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined}>
         <div>
+          <div 
+            className="orders-tab-bar" 
+            style={{ 
+              marginBottom: 8, 
+              background: 'transparent', 
+              border: 'none', 
+              padding: 0, 
+              gap: 8,
+              boxShadow: 'none'
+            }}
+          >
+            <button
+              onClick={() => setSelectedMonth('all')}
+              className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+              style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+            >
+              {t('allMonths')}
+            </button>
+            {availableMonths.map(m => {
+              const [y, mm] = m.split('-');
+              const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+              return (
+                <button
+                  key={m}
+                  onClick={() => setSelectedMonth(m)}
+                  className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 800 }}>{t('batches')}</div>
