@@ -1536,7 +1536,7 @@ export default function OrdersPage() {
     const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—';
 
     return (
-      <div key={`mobile-${deal.id}`} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
+      <div key={`mobile-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
           <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className="mono">{row.dateLabel}</span>
