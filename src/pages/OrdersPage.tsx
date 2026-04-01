@@ -2150,7 +2150,7 @@ export default function OrdersPage() {
                     const rel = relationships.find(r => r.id === tx.relationship_id);
                     const isIn = tx.direction === 'lender_to_operator';
                     return (
-                      <div key={tx.id} className="previewBox" style={{ padding: 12, background: 'var(--panel)' }}>
+                      <div key={tx.id} id={`transfer-${tx.id}`} data-transfer-id={tx.id} className="previewBox" style={{ padding: 12, background: 'var(--panel)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                           <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(tx.created_at).toLocaleDateString()}</span>
                           <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
