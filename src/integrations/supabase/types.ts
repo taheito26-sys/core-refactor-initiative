@@ -1455,10 +1455,10 @@ export type Database = {
           effective_from: string
           expires_at: string | null
           id: string
+          invested_capital: number | null
           lender_contribution: number | null
           merchant_ratio: number
           notes: string | null
-          invested_capital: number | null
           operator_contribution: number | null
           operator_default_profit_handling: string
           operator_merchant_id: string | null
@@ -1481,10 +1481,10 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          invested_capital?: number | null
           lender_contribution?: number | null
           merchant_ratio: number
           notes?: string | null
-          invested_capital?: number | null
           operator_contribution?: number | null
           operator_default_profit_handling?: string
           operator_merchant_id?: string | null
@@ -1507,10 +1507,10 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          invested_capital?: number | null
           lender_contribution?: number | null
           merchant_ratio?: number
           notes?: string | null
-          invested_capital?: number | null
           operator_contribution?: number | null
           operator_default_profit_handling?: string
           operator_merchant_id?: string | null
