@@ -11,6 +11,7 @@ import { fmtU } from '@/lib/tracker-helpers';
 import {
   useProfitShareAgreements,
   useCreateAgreement,
+  useUpdateAgreement,
   useUpdateAgreementStatus,
 } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
@@ -31,6 +32,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const { userId, merchantProfile } = useAuth();
   const { data: agreements = [], isLoading } = useProfitShareAgreements(relationshipId);
   const createAgreement = useCreateAgreement();
+  const updateAgreement = useUpdateAgreement();
   const updateStatus = useUpdateAgreementStatus();
 
   const [showForm, setShowForm] = useState(false);
@@ -42,6 +44,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [notes, setNotes] = useState('');
   const [investedCapital, setInvestedCapital] = useState('');
   const [settlementWay, setSettlementWay] = useState<'reinvest' | 'withdraw'>('reinvest');
+  const [editingAgreementId, setEditingAgreementId] = useState<string | null>(null);
 
   // ── Operator Priority fields ──
   const [operatorRatio, setOperatorRatio] = useState('20');
@@ -112,7 +115,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
       // For operator_priority, partner_ratio/merchant_ratio are irrelevant — use 0 placeholders
       const payloadRatio = agreementType === 'standard' ? ratio : 0;
 
-      await createAgreement.mutateAsync({
+      const payload = {
         relationship_id: relationshipId,
         partner_ratio: payloadRatio,
         merchant_ratio: agreementType === 'standard' ? 100 - ratio : 0,
@@ -135,8 +138,19 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           operator_default_profit_handling: operatorDefaultHandling,
           counterparty_default_profit_handling: counterpartyDefaultHandling,
         } : {}),
-      });
-      toast.success(t('agreementCreatedSuccess'));
+      };
+
+      if (editingAgreementId) {
+        await updateAgreement.mutateAsync({
+          agreementId: editingAgreementId,
+          ...payload,
+        });
+        toast.success('Agreement updated successfully');
+      } else {
+        await createAgreement.mutateAsync(payload);
+        toast.success(t('agreementCreatedSuccess'));
+      }
+
       setShowForm(false);
       resetForm();
     } catch (err: any) {
@@ -177,6 +191,26 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     setLenderContribution('');
     setOperatorDefaultHandling('reinvest');
     setCounterpartyDefaultHandling('withdraw');
+    setEditingAgreementId(null);
+  };
+
+  const handleEditAgreement = (agreement: any) => {
+    setEditingAgreementId(agreement.id);
+    setAgreementType(agreement.agreement_type ?? 'standard');
+    setPartnerRatio(String(agreement.partner_ratio ?? 50));
+    setCadence(agreement.settlement_cadence ?? 'monthly');
+    setEffectiveFrom(new Date(agreement.effective_from).toISOString().slice(0, 10));
+    setExpiresAt(agreement.expires_at ? new Date(agreement.expires_at).toISOString().slice(0, 10) : '');
+    setNotes(agreement.notes ?? '');
+    setInvestedCapital(agreement.invested_capital != null ? String(agreement.invested_capital) : '');
+    setSettlementWay((agreement.settlement_way === 'withdraw' ? 'withdraw' : 'reinvest'));
+    setOperatorRatio(String(agreement.operator_ratio ?? 20));
+    setOperatorIsMe((agreement.operator_merchant_id ?? merchantProfile?.merchant_id) === merchantProfile?.merchant_id);
+    setOperatorContribution(String(agreement.operator_contribution ?? ''));
+    setLenderContribution(String(agreement.lender_contribution ?? ''));
+    setOperatorDefaultHandling(agreement.operator_default_profit_handling === 'withdraw' ? 'withdraw' : 'reinvest');
+    setCounterpartyDefaultHandling(agreement.counterparty_default_profit_handling === 'reinvest' ? 'reinvest' : 'withdraw');
+    setShowForm(true);
   };
 
   const statusPill = (status: string, isActive: boolean) => {
@@ -241,7 +275,9 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           border: '1px solid var(--brand)',
           background: 'color-mix(in srgb, var(--brand) 3%, var(--cardBg))',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>{t('newProfitShareAgreement')}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>
+            {editingAgreementId ? 'Edit Profit Share Agreement' : t('newProfitShareAgreement')}
+          </div>
 
           {/* ── Agreement Type Selector ── */}
           <div style={{ marginBottom: 10 }}>
@@ -582,8 +618,10 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           )}
 
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" onClick={handleCreate} disabled={createAgreement.isPending}>
-              {createAgreement.isPending ? t('creatingAgreement') : t('createAgreement')}
+            <button className="btn" onClick={handleCreate} disabled={createAgreement.isPending || updateAgreement.isPending}>
+              {createAgreement.isPending || updateAgreement.isPending
+                ? (editingAgreementId ? 'Saving...' : t('creatingAgreement'))
+                : (editingAgreementId ? 'Save Changes' : t('createAgreement'))}
             </button>
             <button className="btn secondary" onClick={() => { setShowForm(false); resetForm(); }}>{t('cancel')}</button>
           </div>
@@ -633,6 +671,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                     <td>{statusPill(a.status, isAgreementActive(a))}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="rowBtn" onClick={() => handleEditAgreement(a)}>Edit</button>
                         <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
                         <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                       </div>
