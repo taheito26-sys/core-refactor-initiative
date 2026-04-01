@@ -1562,11 +1562,18 @@ export default function OrdersPage() {
             key={tab}
             onClick={() => {
               setActiveTab(tab);
-              if (tab !== 'my' && tab !== 'transfers') {
+              if (tab !== 'my') {
                 setMerchantOrderEnabled(true);
-                setLinkedRelId('');
-                setSelectedTemplateId(null);
-                setSaleAmount('');
+                if (tab !== 'transfers') {
+                  setLinkedRelId('');
+                  setSelectedTemplateId(null);
+                  setSaleAmount('');
+                } else {
+                  // For transfers, specifically set the family to capital_transfer
+                  setSelectedTemplateId('capital_transfer');
+                }
+              } else {
+                setMerchantOrderEnabled(false);
               }
             }}
             className={`orders-tab-btn ${activeTab === tab ? 'active' : ''}`}
@@ -1896,6 +1903,119 @@ export default function OrdersPage() {
                                   <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
                                 )}
                               </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── USDT TRANSFERS TAB ── */}
+          {activeTab === 'transfers' && (
+            <>
+              <div className="tableHeader" style={{ marginBottom: 12 }}>
+                <div>
+                  <div className="title">💸 {t('usdtTransfers')}</div>
+                  <div className="subtitle">{t('capitalTransfersDesc')}</div>
+                </div>
+              </div>
+
+              {allTransfers.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)', background: 'var(--panel)', borderRadius: 12 }}>
+                  <div style={{ fontSize: 24, marginBottom: 12 }}>💸</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--t1)', marginBottom: 4 }}>{t('noTransfers')}</div>
+                  <div style={{ fontSize: 11 }}>{t('createTransferDesc')}</div>
+                </div>
+              ) : isMobile ? (
+                <div style={{ display: 'grid', gap: 8, paddingBottom: 80 }}>
+                  {allTransfers.map((tx: any) => {
+                    const rel = relationships.find(r => r.id === tx.relationship_id);
+                    const isIn = tx.direction === 'lender_to_operator';
+                    return (
+                      <div key={tx.id} className="previewBox" style={{ padding: 12, background: 'var(--panel)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(tx.created_at).toLocaleDateString()}</span>
+                          <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
+                            {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gap: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <span className="muted" style={{ fontSize: 10 }}>{t('merchant')}</span>
+                            <strong style={{ fontSize: 11, textAlign: 'right' }}>{rel?.counterparty?.display_name || '—'}</strong>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                            <div className="panel" style={{ padding: 8, background: 'var(--bg)', borderRadius: 6 }}>
+                              <div className="muted" style={{ fontSize: 9, marginBottom: 2 }}>USDT</div>
+                              <div className="mono" style={{ fontWeight: 700, fontSize: 13, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
+                                {isIn ? '+' : '−'}{fmtU(tx.amount)}
+                              </div>
+                            </div>
+                            <div className="panel" style={{ padding: 8, background: 'var(--bg)', borderRadius: 6 }}>
+                              <div className="muted" style={{ fontSize: 9, marginBottom: 2 }}>{t('costBasisQar')}</div>
+                              <div className="mono" style={{ fontWeight: 700, fontSize: 13 }}>{fmtP(tx.cost_basis)}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4, borderTop: '1px solid var(--line)' }}>
+                            <span className="muted" style={{ fontSize: 10 }}>{t('totalCostQar')}</span>
+                            <strong className="mono" style={{ fontSize: 11 }}>{fmtQ(tx.total_cost)}</strong>
+                          </div>
+                          {tx.note && (
+                            <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic', background: 'var(--panel2)', padding: '4px 8px', borderRadius: 4 }}>
+                              {tx.note}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{t('date')}</th>
+                        <th>{t('direction')}</th>
+                        <th>{t('merchant')}</th>
+                        <th className="r">USDT {t('amount')}</th>
+                        <th className="r">{t('costBasisQar')}</th>
+                        <th className="r">{t('totalCostQar')}</th>
+                        <th>{t('notes')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allTransfers.map((tx: any) => {
+                        const rel = relationships.find(r => r.id === tx.relationship_id);
+                        const isIn = tx.direction === 'lender_to_operator';
+                        return (
+                          <tr key={tx.id}>
+                            <td className="mono" style={{ fontSize: 10 }}>
+                              {new Date(tx.created_at).toLocaleDateString()}
+                            </td>
+                            <td>
+                              <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                                {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: 11, fontWeight: 600 }}>
+                              {rel?.counterparty?.display_name || '—'}
+                            </td>
+                            <td className="mono r" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)', fontSize: 12 }}>
+                              {isIn ? '+' : '−'}{fmtU(tx.amount)}
+                            </td>
+                            <td className="mono r" style={{ fontSize: 10, color: 'var(--muted)' }}>
+                              {fmtP(tx.cost_basis)}
+                            </td>
+                            <td className="mono r" style={{ fontSize: 11, fontWeight: 600 }}>
+                              {fmtQ(tx.total_cost)}
+                            </td>
+                            <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {tx.note || '—'}
                             </td>
                           </tr>
                         );
@@ -2769,111 +2889,115 @@ export default function OrdersPage() {
             </div>
           )}
 
-          {/* ── USDT TRANSFERS PANEL ── */}
+          {/* ── USDT TRANSFERS PANEL: New Transfer Form ── */}
           {activeTab === 'transfers' && (
             <div className="formPanel salePanel">
-              <div className="hdr">💸 {t('usdtTransfers')}</div>
-              <div className="inner">
-                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>
-                  {t('capitalTransfersDesc')}
-                </div>
-                {allTransfers.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 20, color: 'var(--muted)', fontSize: 11 }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{t('noTransfers')}</div>
-                    <div style={{ fontSize: 10 }}>{t('createTransferDesc')}</div>
+              <div className="hdr">{t('newSale')}</div>
+              <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
+                
+                <div className="previewBox" style={{ marginTop: 6, borderColor: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 4%, transparent)' }}>
+                  <div className="pt" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🧡 {t('linkToPartner')}
+                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('optional')}</span>
                   </div>
-                ) : isMobile ? (
-                  <div style={{ display: 'grid', gap: 8, paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                    {allTransfers.map((tx: any) => {
-                      const rel = relationships.find(r => r.id === tx.relationship_id);
-                      const isIn = tx.direction === 'lender_to_operator';
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0', fontSize: 11, fontWeight: 600, color: 'var(--brand)', cursor: 'default' }}>
+                    <input
+                      type="checkbox"
+                      checked={true}
+                      readOnly
+                      style={{ accentColor: 'var(--brand)', width: 14, height: 14 }}
+                    />
+                    {t('isThisSaleLinked')}
+                  </label>
+
+                  <div className="field2" style={{ marginBottom: 10 }}>
+                    <div className="lbl" style={{ color: 'var(--brand)', fontWeight: 700 }}>{t('selectPartner')} <span style={{ color: 'var(--bad)' }}>*</span></div>
+                    <select
+                      value={linkedRelId}
+                      onChange={e => setLinkedRelId(e.target.value)}
+                      style={{ width: '100%', padding: isMobile ? '10px 12px' : '6px 10px', fontSize: isMobile ? 14 : 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
+                    >
+                      <option value="">{t('noneSelected')}</option>
+                      {relationships.map(r => (
+                        <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field2" style={{ marginBottom: 12 }}>
+                    <div className="lbl" style={{ color: 'var(--brand)', fontWeight: 700 }}>{t('agreementType')} <span style={{ color: 'var(--bad)' }}>*</span></div>
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value="capital_transfer"
+                        disabled
+                        style={{ width: '100%', padding: isMobile ? '10px 12px' : '6px 10px', fontSize: isMobile ? 14 : 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined, appearance: 'none' }}
+                      >
+                        <option value="capital_transfer">💸 {t('capitalTransfer')} (0/0)</option>
+                      </select>
+                      <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--muted)' }}>🔒</div>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', paddingTop: 12, marginTop: 4 }}>
+                    {(() => {
+                      const rel = relationships.find(r => r.id === linkedRelId);
+                      const cpName = rel?.counterparty?.display_name || t('partner');
+                      const myName = merchantProfile?.display_name || t('you') || 'You';
                       return (
-                        <div key={tx.id} className="previewBox" style={{ padding: 10 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            <span className="mono" style={{ fontSize: 10 }}>{new Date(tx.created_at).toLocaleDateString()}</span>
-                            <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10 }}>
-                              {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
-                            </span>
-                          </div>
-                          <div style={{ display: 'grid', gap: 4 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                              <span className="muted">{t('merchant')}</span>
-                              <strong style={{ fontSize: 11, textAlign: 'right' }}>{rel?.counterparty?.display_name || '—'}</strong>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                              <div className="panel" style={{ padding: 6 }}>
-                                <div className="muted" style={{ fontSize: 9 }}>USDT</div>
-                                <div className="mono" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
-                                  {isIn ? '+' : '−'}{fmtU(tx.amount)}
-                                </div>
-                              </div>
-                              <div className="panel" style={{ padding: 6 }}>
-                                <div className="muted" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
-                                <div className="mono" style={{ fontWeight: 700 }}>{fmtP(tx.cost_basis)} QAR</div>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                              <span className="muted">{t('totalCostQar')}</span>
-                              <strong className="mono">{fmtQ(tx.total_cost)}</strong>
-                            </div>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', wordBreak: 'break-word' }}>
-                              {tx.note || '—'}
-                            </div>
-                          </div>
+                        <div className="field2" style={{ marginBottom: 8 }}>
+                          <div className="lbl" style={{ fontWeight: 700, color: 'var(--brand)' }}>{t('direction')}</div>
+                          <select
+                            value={transferDirection}
+                            onChange={e => setTransferDirection(e.target.value as any)}
+                            style={{ width: '100%', padding: isMobile ? '9px 10px' : '6px 10px', fontSize: isMobile ? 13 : 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
+                          >
+                            <option value="lender_to_operator">💸 {cpName} → {myName}</option>
+                            <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
+                          </select>
                         </div>
                       );
-                    })}
+                    })()}
+                    
+                    <div className="field2" style={{ marginBottom: 8 }}>
+                      <div className="lbl" style={{ fontWeight: 700, color: 'var(--brand)' }}>USDT {t('amount')}</div>
+                      <div className="inputBox">
+                        <input
+                          type="number"
+                          value={transferAmount}
+                          onChange={e => setTransferAmount(e.target.value)}
+                          placeholder="0"
+                          style={mobileInputStyle}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="field2" style={{ marginBottom: 12 }}>
+                      <div className="lbl" style={{ fontWeight: 700, color: 'var(--brand)' }}>{t('noteOptional')}</div>
+                      <div className="inputBox">
+                        <input
+                          value={transferNote}
+                          onChange={e => setTransferNote(e.target.value)}
+                          placeholder={t('noteOptional')}
+                          style={mobileInputStyle}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="formActions" style={{ marginTop: 16 }}>
+                      <button
+                        className="btn"
+                        style={{ width: '100%', background: 'var(--brand)', color: '#000', fontWeight: 800, minHeight: isMobile ? 48 : 40, fontSize: isMobile ? 14 : 12 }}
+                        onClick={handleCapitalTransfer}
+                        disabled={submitCapitalTransfer.isPending}
+                      >
+                        💸 {t('submitTransfer')}
+                      </button>
+                    </div>
+                    {submitCapitalTransfer.isPending && <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>{t('saving')}</div>}
                   </div>
-                ) : (
-                  <div className="tableWrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>{t('date')}</th>
-                          <th>{t('direction')}</th>
-                          <th>{t('merchant')}</th>
-                          <th className="r">USDT</th>
-                          <th className="r">{t('costBasisQar')}</th>
-                          <th className="r">{t('totalCostQar')}</th>
-                          <th>{t('notes')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allTransfers.map((tx: any) => {
-                          const rel = relationships.find(r => r.id === tx.relationship_id);
-                          const isIn = tx.direction === 'lender_to_operator';
-                          return (
-                            <tr key={tx.id}>
-                              <td className="mono" style={{ fontSize: 10 }}>
-                                {new Date(tx.created_at).toLocaleDateString()}
-                              </td>
-                              <td>
-                                <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                  {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
-                                </span>
-                              </td>
-                              <td style={{ fontSize: 10 }}>
-                                {rel?.counterparty?.display_name || '—'}
-                              </td>
-                              <td className="mono r" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
-                                {isIn ? '+' : '−'}{fmtU(tx.amount)}
-                              </td>
-                              <td className="mono r" style={{ fontSize: 10 }}>
-                                {fmtP(tx.cost_basis)} QAR
-                              </td>
-                              <td className="mono r" style={{ fontSize: 10 }}>
-                                {fmtQ(tx.total_cost)}
-                              </td>
-                              <td style={{ fontSize: 9, color: 'var(--muted)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {tx.note || '—'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                </div>
+                
               </div>
             </div>
           )}
