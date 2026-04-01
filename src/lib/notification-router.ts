@@ -80,6 +80,8 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
       stock: 'focusStockId',
       approval: 'focusApprovalId',
       invite: 'focusInviteId',
+      transfer: 'focusTransferId',
+      capital_transfer: 'focusTransferId',
     };
     const focusKey = focusKeyMap[target.targetEntityType];
     if (focusKey) {
