@@ -80,6 +80,8 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
       stock: 'focusStockId',
       approval: 'focusApprovalId',
       invite: 'focusInviteId',
+      transfer: 'focusTransferId',
+      capital_transfer: 'focusTransferId',
     };
     const focusKey = focusKeyMap[target.targetEntityType];
     if (focusKey) {
@@ -115,6 +117,8 @@ export function isNotificationDeepLinkable(notification: AppNotification): boole
   if (target.actionUrl && isInternalActionUrl(target.actionUrl)) return true;
   if (target.targetPath && (target.targetEntityId || target.targetTab)) return true;
   if (target.kind === 'chat_message') return Boolean(target.conversationId);
+  // Transfer notifications
+  if (target.targetEntityType === 'transfer' || target.targetEntityType === 'capital_transfer') return Boolean(target.targetEntityId);
   return Boolean(target.entityId);
 }
 
@@ -133,7 +137,10 @@ export function buildNotificationNavigationTarget(notification: AppNotification)
   // Priority 3: legacy kind-based routing (backward compat for old notifications)
   switch (target.kind) {
     case 'chat_message':
-      if (!target.conversationId) return { pathname: '/chat' };
+      if (!target.conversationId) {
+        console.warn('[notification-router] Chat notification missing conversationId, cannot deep-link:', notification.id);
+        return { pathname: '/chat' };
+      }
       return {
         pathname: '/chat',
         search: `?roomId=${encodeURIComponent(target.conversationId)}${target.messageId ? `&messageId=${encodeURIComponent(target.messageId)}` : ''}`,

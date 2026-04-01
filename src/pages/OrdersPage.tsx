@@ -418,34 +418,26 @@ export default function OrdersPage() {
     const focusOrderId = searchParams.get('focusOrderId');
     const focusDealId = searchParams.get('focusDealId');
     const focusSettlementId = searchParams.get('focusSettlementId');
-    const targetId = focusOrderId || focusDealId || focusSettlementId;
+    const focusTransferId = searchParams.get('focusTransferId');
+    const targetId = focusOrderId || focusDealId || focusSettlementId || focusTransferId;
     if (!targetId) return;
     // Delay to let tab content render
     const timer = window.setTimeout(() => {
-      const found = focusElementBySelectors([
-        `#order-${targetId}`,
-        `[data-order-id="${targetId}"]`,
-        `#deal-${targetId}`,
-        `[data-deal-id="${targetId}"]`,
-        `#settlement-${targetId}`,
-        `[data-settlement-id="${targetId}"]`,
-      ], 'ring-2 ring-primary/60 transition-shadow');
-      // If not found on first try, retry once after more data loads
+      const selectors = [
+        `#order-${targetId}`, `[data-order-id="${targetId}"]`,
+        `#deal-${targetId}`, `[data-deal-id="${targetId}"]`,
+        `#settlement-${targetId}`, `[data-settlement-id="${targetId}"]`,
+        `#transfer-${targetId}`, `[data-transfer-id="${targetId}"]`,
+      ];
+      const found = focusElementBySelectors(selectors, 'ring-2 ring-primary/60 transition-shadow');
       if (!found) {
         window.setTimeout(() => {
-          focusElementBySelectors([
-            `#order-${targetId}`,
-            `[data-order-id="${targetId}"]`,
-            `#deal-${targetId}`,
-            `[data-deal-id="${targetId}"]`,
-            `#settlement-${targetId}`,
-            `[data-settlement-id="${targetId}"]`,
-          ], 'ring-2 ring-primary/60 transition-shadow');
+          focusElementBySelectors(selectors, 'ring-2 ring-primary/60 transition-shadow');
         }, 800);
       }
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [searchParams, activeTab, filtered.length, allMerchantDeals.length]);
+  }, [searchParams, activeTab, filtered.length, allMerchantDeals.length, allTransfers.length]);
 
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships
@@ -2158,7 +2150,7 @@ export default function OrdersPage() {
                     const rel = relationships.find(r => r.id === tx.relationship_id);
                     const isIn = tx.direction === 'lender_to_operator';
                     return (
-                      <div key={tx.id} className="previewBox" style={{ padding: 12, background: 'var(--panel)' }}>
+                      <div key={tx.id} id={`transfer-${tx.id}`} data-transfer-id={tx.id} className="previewBox" style={{ padding: 12, background: 'var(--panel)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                           <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(tx.created_at).toLocaleDateString()}</span>
                           <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
@@ -2215,7 +2207,7 @@ export default function OrdersPage() {
                         const rel = relationships.find(r => r.id === tx.relationship_id);
                         const isIn = tx.direction === 'lender_to_operator';
                         return (
-                          <tr key={tx.id}>
+                          <tr key={tx.id} id={`transfer-${tx.id}`} data-transfer-id={tx.id}>
                             <td className="mono" style={{ fontSize: 10 }}>
                               {new Date(tx.created_at).toLocaleDateString()}
                             </td>
