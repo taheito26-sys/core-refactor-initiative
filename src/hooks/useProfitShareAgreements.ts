@@ -161,18 +161,11 @@ export function useCreateAgreement() {
     mutationFn: async (input: CreateAgreementInput) => {
       const fullPayload = {
         ...input,
-<<<<<<< ours
         status: input.status || 'pending',
         created_by: userId!,
         // Approved fields should ONLY be set if the status is transition to 'approved'
         approved_by: input.status === 'approved' ? userId! : null,
         approved_at: input.status === 'approved' ? new Date().toISOString() : null,
-=======
-        status: 'approved', // Default to approved (bilateral acceptance)
-        created_by: userId!,
-        approved_by: userId!,
-        approved_at: new Date().toISOString(),
->>>>>>> theirs
       };
 
       const { data, error } = await supabase
@@ -182,10 +175,7 @@ export function useCreateAgreement() {
         .single();
 
       if (error && isSchemaCacheColumnError(error)) {
-<<<<<<< ours
         console.warn('[useCreateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
-=======
->>>>>>> theirs
         const { data: legacyData, error: legacyError } = await supabase
           .from('profit_share_agreements' as any)
           .insert(stripSharedAgreementFields(fullPayload))
@@ -223,10 +213,7 @@ export function useUpdateAgreement() {
         .single();
 
       if (error && isSchemaCacheColumnError(error)) {
-<<<<<<< ours
         console.warn('[useUpdateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
-=======
->>>>>>> theirs
         const { data: legacyData, error: legacyError } = await supabase
           .from('profit_share_agreements' as any)
           .update(stripSharedAgreementFields(updates as Record<string, unknown>))
