@@ -1536,7 +1536,7 @@ export default function OrdersPage() {
     const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—';
 
     return (
-      <div key={`mobile-${deal.id}`} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
+      <div key={`mobile-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
           <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className="mono">{row.dateLabel}</span>
@@ -1759,7 +1759,7 @@ export default function OrdersPage() {
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
                         return (
                           <React.Fragment key={tr.id}>
-                            <tr style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
+                            <tr id={`order-${tr.id}`} data-order-id={tr.id} style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                             <td>
                               <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
                               {!ok && <span className="pill bad" style={{ fontSize: 9, marginLeft: 4 }}>!</span>}
@@ -1894,7 +1894,7 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={deal.id}>
+                          <tr key={deal.id} id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             {/* DATE cell — identical layout to Outgoing: date + status pill + deal-type pill + split pill */}
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -2042,7 +2042,7 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={`deal-${deal.id}`}>
+                          <tr key={`deal-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{row.dateLabel}</span>
