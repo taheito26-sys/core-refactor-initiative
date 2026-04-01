@@ -8,11 +8,12 @@ export interface NotificationNavTarget {
 
 export interface ConversationSummary {
   id: string;
-  counterpartyName: string;
-  lastMessage: string | null;
-  lastMessageAt: string | null;
-  lastMessageSenderId: string | null;
-  unreadCount: number;
+  counterparty_name: string;
+  counterparty_nickname?: string;
+  last_message: string | null;
+  last_message_at: string | null;
+  last_sender_id: string | null;
+  unread_count: number;
 }
 
 export interface ChatMessage {

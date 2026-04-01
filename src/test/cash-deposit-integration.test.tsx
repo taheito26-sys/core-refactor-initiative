@@ -1,7 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
-import { fireEvent, screen } from '@testing-library/dom';
+import { render, fireEvent, screen } from '@testing-library/react';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { CashManagement } from '@/features/stock/components/CashManagement';
 import type { TrackerState } from '@/lib/tracker-helpers';
