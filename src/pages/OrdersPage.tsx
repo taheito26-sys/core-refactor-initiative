@@ -437,6 +437,24 @@ export default function OrdersPage() {
     [creatorMerchantDeals, state.range],
   );
 
+  const subFilteredInDeals = useMemo(() => {
+    if (selectedMonth === 'all') return filteredIncomingMerchantDeals;
+    return filteredIncomingMerchantDeals.filter(d => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filteredIncomingMerchantDeals, selectedMonth]);
+
+  const subFilteredOutDeals = useMemo(() => {
+    if (selectedMonth === 'all') return filteredOutgoingMerchantDeals;
+    return filteredOutgoingMerchantDeals.filter(d => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filteredOutgoingMerchantDeals, selectedMonth]);
+
   /** Resolve avg buy for a deal — use metadata first, fallback to local FIFO trade calc */
   const resolveDealAvgBuy = useCallback((deal: any, normalizedMeta?: Record<string, string>): number => {
     const meta = normalizedMeta ?? parseDealMeta(deal.notes);
