@@ -1759,7 +1759,7 @@ export default function OrdersPage() {
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
                         return (
                           <React.Fragment key={tr.id}>
-                            <tr style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
+                            <tr id={`order-${tr.id}`} data-order-id={tr.id} style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                             <td>
                               <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
                               {!ok && <span className="pill bad" style={{ fontSize: 9, marginLeft: 4 }}>!</span>}
