@@ -454,6 +454,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' } | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: '', type: '' });
   const [reconcilePromptId, setReconcilePromptId] = useState<string | null>(null);
+  const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
 
   const balances = useMemo(() => getAllAccountBalances(accounts, ledger), [accounts, ledger]);
 
@@ -527,6 +528,12 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
       note: `Reconciled at ${fmtTotal(bal)} ${accounts.find(a => a.id === id)?.currency}`,
     };
     applyState({ ...state, cashAccounts: newAccounts, cashLedger: [...ledger, reconcileEntry] });
+  };
+
+  const clearLedgerEntries = (id: string) => {
+    const newLedger = ledger.filter(e => e.accountId !== id && e.contraAccountId !== id);
+    const newCashQAR = deriveCashQAR(accounts, newLedger);
+    applyState({ ...state, cashLedger: newLedger, cashQAR: newCashQAR });
   };
 
   // ── Ledger filtered rows with running balance ─────────────────
@@ -763,7 +770,8 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                           <IconTransfer /> {t('transferLbl')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, gridColumn: isMobile ? 'span 2' : undefined }} onClick={() => isMobile ? setReconcilePromptId(acc.id) : reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => isMobile ? setReconcilePromptId(acc.id) : reconcileAccount(acc.id)}>{t('reconcileBtn')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)' }} onClick={() => setClearLedgerPromptId(acc.id)}>🗑️ {t('clearLedger')}</button>
                       </div>
                     )}
                     {isInactive && (
@@ -1051,6 +1059,20 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
             <div className="formActions">
               <button className="btn secondary" onClick={() => setReconcilePromptId(null)}>{t('cancel')}</button>
               <button className="btn" style={{ minHeight: isMobile ? 42 : undefined }} onClick={() => { reconcileAccount(reconcilePromptId); setReconcilePromptId(null); }}>{t('confirmReconcile')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clearLedgerPromptId && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setClearLedgerPromptId(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, color: 'var(--bad)' }}>⚠️ {t('clearLedger')}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('confirmClearLedger')}</div>
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setClearLedgerPromptId(null)}>{t('cancel')}</button>
+              <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }} onClick={() => { clearLedgerEntries(clearLedgerPromptId); setClearLedgerPromptId(null); }}>{t('clearBtn')}</button>
             </div>
           </div>
         </div>

@@ -1374,6 +1374,9 @@ const translations = {
   confirmReconcile:      { en: 'Confirm Reconcile',            ar: 'تأكيد التسوية' },
   in24h:                 { en: 'in 24h',                       ar: 'خلال 24س' },
   lastActivity:          { en: 'Last',                         ar: 'آخر' },
+  clearLedger:           { en: 'Clear Ledger',                 ar: 'حذف السجل' },
+  confirmClearLedger:    { en: 'Are you sure you want to clear the ledger for this account? This will remove ALL entries and reset the balance to zero. This action cannot be undone.', ar: 'هل أنت متأكد من حذف سجل العمليات لهذا الحساب؟ سيتم حذف جميع الحركات المالية وتصفير الرصيد. لا يمكن التراجع عن هذا الإجراء.' },
+  clearBtn:              { en: 'Clear',                        ar: 'تصفير' },
 
   // Ledger tab
   allAccountsOpt:        { en: 'All Accounts',                 ar: 'جميع الحسابات' },

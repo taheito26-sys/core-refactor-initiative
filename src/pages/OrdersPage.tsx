@@ -1631,33 +1631,34 @@ export default function OrdersPage() {
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
-        {(['my', 'incoming', 'outgoing', 'transfers'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => {
-              setActiveTab(tab);
-              if (tab !== 'my') {
-                setMerchantOrderEnabled(true);
-                if (tab !== 'transfers') {
-                  setLinkedRelId('');
-                  setSelectedTemplateId(null);
-                  setSaleAmount('');
-                } else {
-                  // For transfers, specifically set the family to capital_transfer
-                  setSelectedTemplateId('capital_transfer');
-                }
-              } else {
-                setMerchantOrderEnabled(false);
-              }
-            }}
-            className={`orders-tab-btn ${activeTab === tab ? 'active' : ''}`}
-          >
-            {tab === 'my' ? `👤 ${t('myOrders')}`
-              : tab === 'incoming' ? `📥 ${t('incomingOrders')}`
-              : tab === 'outgoing' ? `📤 ${t('outgoingOrders')}`
-              : `💸 ${t('usdtTransfers')}`}
-          </button>
-        ))}
+        <button
+          onClick={() => { setActiveTab('my'); setMerchantOrderEnabled(false); }}
+          className={`orders-tab-btn ${activeTab === 'my' ? 'active' : ''}`}
+        >
+          👤 {t('myOrders')}
+        </button>
+        <button
+          onClick={() => { setActiveTab('incoming'); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }}
+          className={`orders-tab-btn ${activeTab === 'incoming' ? 'active' : ''}`}
+        >
+          📥 {t('incomingOrders')}
+        </button>
+        <button
+          onClick={() => { setActiveTab('outgoing'); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }}
+          className={`orders-tab-btn ${activeTab === 'outgoing' ? 'active' : ''}`}
+        >
+          📤 {t('outgoingOrders')}
+        </button>
+        <button
+          onClick={() => { 
+            setActiveTab('transfers'); 
+            setMerchantOrderEnabled(true); 
+            setSelectedTemplateId('capital_transfer'); 
+          }}
+          className={`orders-tab-btn ${activeTab === 'transfers' ? 'active' : ''}`}
+        >
+          💸 {t('usdtTransfers')}
+        </button>
       </div>
 
       <div className="twoColPage orders-two-col">
@@ -3102,7 +3103,7 @@ export default function OrdersPage() {
           {/* ── USDT TRANSFERS PANEL: New Transfer Form ── */}
           {activeTab === 'transfers' && (
             <div className="formPanel salePanel">
-              <div className="hdr">{t('newSale')}</div>
+              <div className="hdr">💸 {t('submitTransfer')}</div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
                 
                 <div className="previewBox" style={{ marginTop: 6, borderColor: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 4%, transparent)' }}>
