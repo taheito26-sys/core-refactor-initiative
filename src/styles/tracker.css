@@ -497,12 +497,13 @@
 /* ── Orders Tab Bar (Redesigned) ── */
 .orders-tab-bar {
   display: inline-flex;
-  padding: 5px;
-  gap: 5px;
-  background: color-mix(in srgb, var(--panel2) 80%, black);
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  margin-bottom: 24px;
+  padding: 4px;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 12px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -511,16 +512,16 @@
 .orders-tab-bar::-webkit-scrollbar { display: none; }
 
 .orders-tab-btn {
-  padding: 10px 20px;
+  padding: 8px 18px;
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
   border: none;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  letter-spacing: 0.02em;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.01em;
   white-space: nowrap;
   flex-shrink: 0;
   display: flex;
@@ -537,24 +538,24 @@
 
 .orders-tab-btn.active {
   color: #fff;
-  background: var(--brand);
-  background: linear-gradient(135deg, var(--brand), var(--brand2));
-  box-shadow: 0 4px 15px color-mix(in srgb, var(--brand) 40%, transparent);
-  font-weight: 800;
-  transform: translateY(-1px);
-  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.1);
+  font-weight: 700;
+  transform: none;
 }
 
 .orders-tab-btn.active::after {
   content: '';
   position: absolute;
   bottom: 0px;
-  left: 20%;
-  right: 20%;
-  height: 2px;
-  background: rgba(255,255,255,0.4);
-  border-radius: 999px;
-  opacity: 0.5;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: var(--brand);
+  background: linear-gradient(135deg, var(--brand), var(--brand2));
+  border-radius: inherit;
+  z-index: -1;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 40%, transparent);
 }
 
 /* On mobile, make it a full-width rail */

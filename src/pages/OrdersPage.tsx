@@ -1572,11 +1572,7 @@ export default function OrdersPage() {
   );
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn secondary" onClick={() => navigate('/trading/orders/import-ledger')}>Import Ledger</button>
-      </div>
+    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
@@ -1620,7 +1616,7 @@ export default function OrdersPage() {
               <div 
                 className="orders-tab-bar" 
                 style={{ 
-                  marginBottom: 16, 
+                  marginBottom: 8, 
                   background: 'transparent', 
                   border: 'none', 
                   padding: 0, 

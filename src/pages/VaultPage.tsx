@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -134,6 +136,8 @@ async function clearTrackerVaultDb(): Promise<void> {
 
 export default function VaultPage() {
   const t = useT();
+  const navigate = useNavigate();
+
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [snapDesc, setSnapDesc] = useState('');
   const [loading, setLoading] = useState(false);
@@ -475,7 +479,24 @@ export default function VaultPage() {
                 )}
               </div>
 
+              <div className="border-t pt-3 space-y-2">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground opacity-70">
+                  {t.lang === 'ar' ? 'أدوات متقدمة' : 'Advanced Tools'}
+                </Label>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => navigate('/trading/orders/import-ledger')}>
+                     <RefreshCw className="w-3 h-3 mr-1" /> {t('importLedger')}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {t.lang === 'ar' 
+                    ? 'استيراد سجلات PDF أو نصية من الوسطاء تلقائياً.' 
+                    : 'Bulk-import merchant ledgers from pasted text or screenshots.'}
+                </p>
+              </div>
+
               <div className="border-t pt-3">
+
                 <Button variant="destructive" size="sm" onClick={clearAll}>
                   <AlertTriangle className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'مسح جميع البيانات' : 'Clear All Data'}
                 </Button>

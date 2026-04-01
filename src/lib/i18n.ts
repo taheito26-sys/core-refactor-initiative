@@ -134,6 +134,8 @@ const translations = {
   editTrade: { en: 'Edit Trade', ar: 'تعديل الصفقة' },
   void: { en: 'VOID', ar: 'ملغاة' },
   allMonths: { en: 'All Months', ar: 'جميع الشهور' },
+  importLedger: { en: 'Import Ledger', ar: 'استيراد السجل' },
+
 
 
   // ── Orders extended ──
