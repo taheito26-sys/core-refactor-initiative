@@ -117,7 +117,7 @@ export default function OrdersPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
 
   // Capital Transfer state
@@ -351,8 +351,13 @@ export default function OrdersPage() {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       months.add(key);
     });
+    allTransfers.forEach(tx => {
+      const d = new Date(tx.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
     return Array.from(months).sort().reverse();
-  }, [filtered]);
+  }, [filtered, allTransfers]);
 
   const subFilteredMy = useMemo(() => {
     if (selectedMonth === 'all') return filtered;
@@ -362,6 +367,15 @@ export default function OrdersPage() {
       return key === selectedMonth;
     });
   }, [filtered, selectedMonth]);
+
+  const subFilteredTransfers = useMemo(() => {
+    if (selectedMonth === 'all') return allTransfers;
+    return allTransfers.filter(tx => {
+      const d = new Date(tx.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [allTransfers, selectedMonth]);
 
   const myKpi = useMemo(() => {
     // Only trades in the selected month (or all)
@@ -1970,6 +1984,40 @@ export default function OrdersPage() {
           {/* ── USDT TRANSFERS TAB ── */}
           {activeTab === 'transfers' && (
             <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 8, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={() => setSelectedMonth('all')}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="tableHeader" style={{ marginBottom: 12 }}>
                 <div>
                   <div className="title">💸 {t('usdtTransfers')}</div>
@@ -1977,7 +2025,7 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {allTransfers.length === 0 ? (
+              {subFilteredTransfers.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)', background: 'var(--panel)', borderRadius: 12 }}>
                   <div style={{ fontSize: 24, marginBottom: 12 }}>💸</div>
                   <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--t1)', marginBottom: 4 }}>{t('noTransfers')}</div>
@@ -1985,7 +2033,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ display: 'grid', gap: 8, paddingBottom: 80 }}>
-                  {allTransfers.map((tx: any) => {
+                  {subFilteredTransfers.map((tx: any) => {
                     const rel = relationships.find(r => r.id === tx.relationship_id);
                     const isIn = tx.direction === 'lender_to_operator';
                     return (
@@ -2042,7 +2090,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {allTransfers.map((tx: any) => {
+                      {subFilteredTransfers.map((tx: any) => {
                         const rel = relationships.find(r => r.id === tx.relationship_id);
                         const isIn = tx.direction === 'lender_to_operator';
                         return (

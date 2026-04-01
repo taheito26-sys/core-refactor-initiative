@@ -423,11 +423,17 @@ export function getWACOP(derived: DerivedState): number | null {
 }
 
 export function inRange(ts: number, range: string): boolean {
-  const now = Date.now();
+  const now = new Date();
+  const nowTs = now.getTime();
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+
   if (range === 'all') return true;
-  if (range === 'today') return ts >= startOfDay(now);
-  if (range === '7d') return ts >= now - 7 * 864e5;
-  if (range === '30d') return ts >= now - 30 * 864e5;
+  if (range === 'today') return ts >= startOfDay(nowTs);
+  if (range === '7d') return ts >= nowTs - 7 * 864e5;
+  if (range === '30d') return ts >= nowTs - 30 * 864e5;
+  if (range === 'this_month') return ts >= startOfThisMonth;
+  if (range === 'last_month') return ts >= startOfLastMonth && ts < startOfThisMonth;
   return true;
 }
 

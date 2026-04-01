@@ -40,6 +40,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     preloadedState: adminTrackerState || undefined,
   });
 
+  const dM = kpiFor(state, derived, 'this_month');
+  const dL = kpiFor(state, derived, 'last_month');
   const d1 = kpiFor(state, derived, 'today');
   const d7 = kpiFor(state, derived, '7d');
   const d30 = kpiFor(state, derived, '30d');
@@ -331,14 +333,14 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-band-title">{t('tradingVolume')}</div>
           <div className="kpi-band-cols">
             <div>
-              <div className="kpi-period">{t('oneDay')}</div>
-              <div className="kpi-cell-val t1v">{fmtQWithUnit(d1.rev)}</div>
-              <div className="kpi-cell-sub">{d1.count} {t('trades')} · {fmtU(d1.qty, 0)} USDT</div>
+              <div className="kpi-period">{t('thisMonth')}</div>
+              <div className="kpi-cell-val t1v">{fmtQWithUnit(dM.rev)}</div>
+              <div className="kpi-cell-sub">{dM.count} {t('trades')} · {fmtU(dM.qty, 0)} USDT</div>
             </div>
             <div>
-              <div className="kpi-period">{t('sevenDays')}</div>
-              <div className="kpi-cell-val t1v">{fmtQWithUnit(d7.rev)}</div>
-              <div className="kpi-cell-sub">{d7.count} {t('trades')} · {fmtU(d7.qty, 0)} USDT</div>
+              <div className="kpi-period">{t('lastMonth')}</div>
+              <div className="kpi-cell-val t1v">{fmtQWithUnit(dL.rev)}</div>
+              <div className="kpi-cell-sub">{dL.count} {t('trades')} · {fmtU(dL.qty, 0)} USDT</div>
             </div>
           </div>
         </div>
@@ -346,15 +348,15 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-band-title">{t('netProfit')}</div>
           <div className="kpi-band-cols">
             <div>
-              <div className="kpi-period">{t('oneDay')}</div>
-              <div className={`kpi-cell-val ${d1.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d1.net)}</div>
-              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d1.fee)}</div>
+              <div className="kpi-period">{t('thisMonth')}</div>
+              <div className={`kpi-cell-val ${dM.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dM.net)}</div>
+              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dM.fee)}</div>
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
             <div>
-              <div className="kpi-period">{t('sevenDays')}</div>
-              <div className={`kpi-cell-val ${d7.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(d7.net)}</div>
-              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(d7.fee)}</div>
+              <div className="kpi-period">{t('lastMonth')}</div>
+              <div className={`kpi-cell-val ${dL.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dL.net)}</div>
+              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dL.fee)}</div>
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
           </div>
@@ -585,37 +587,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           );
         })()}
 
-        {/* Trade Velocity */}
-        {(() => {
-          const velocity = d7.count > 0 ? d7.count / 7 : 0;
-          const isExpanded = expandedNewKpi === 'velocity';
-          return (
-            <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'velocity')}>
-              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>
-                  📅
-                </span>
-              </div>
-              <div className="kpi-lbl">{t('tradeVelocity')}</div>
-              <div className="kpi-val" style={{ color: 'var(--brand)' }}>{fmtPrice(velocity)}</div>
-              <div className="kpi-sub">{t('tradeVelocitySub')}</div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>7D avg</span>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{t('orders')}</span>
-                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
-              </div>
-              {isExpanded && (
-                <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
-                  <p>Average number of completed trades per day over the last 7 days.</p>
-                  <p style={{ marginTop: 4 }}><strong style={{ color: 'var(--warn)' }}>Why:</strong> Higher velocity means more active trading and faster capital turnover.</p>
-                  <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--panel2)', fontFamily: 'monospace', fontSize: 10, color: 'var(--good)' }}>
-                    = 7d trade count ÷ 7
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
 
         {/* Outgoing Deals Net Profit */}
         {merchantDealKpis && (

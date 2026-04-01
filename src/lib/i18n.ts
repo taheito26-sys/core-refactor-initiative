@@ -135,6 +135,8 @@ const translations = {
   void: { en: 'VOID', ar: 'ملغاة' },
   allMonths: { en: 'All Months', ar: 'جميع الشهور' },
   importLedger: { en: 'Import Ledger', ar: 'استيراد السجل' },
+  thisMonth: { en: 'This Month', ar: 'هذا الشهر' },
+  lastMonth: { en: 'Last Month', ar: 'الشهر الماضي' },
 
 
 
