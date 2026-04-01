@@ -706,49 +706,70 @@
 
 /* ══════════════════════════════════════════════════════
    SIGNAL DECK — Navy command dashboard, color-coded KPIs
+   Matches reference: deep navy bg, subtle card borders,
+   rounded 10-12px cards, 6-col KPI grid, consistent spacing
    ══════════════════════════════════════════════════════ */
 
 .layout-signal_deck .app-page-shell {
-  padding: 16px 20px;
+  padding: 20px 24px;
 }
 
 .layout-signal_deck .app-page-content {
-  max-width: 1500px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
-/* Cards: rounded, subtle border glow */
+/* Cards: rounded with subtle navy border */
 .layout-signal_deck .glass,
 .layout-signal_deck [data-slot="card"],
 .layout-signal_deck .border {
-  border-radius: 8px;
-  border: 1px solid hsl(var(--border) / 0.5);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.06);
 }
 
 .layout-signal_deck [data-slot="card"] {
-  box-shadow: 0 2px 12px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.03);
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  background: var(--tracker-card-bg);
 }
 
-/* KPI band: responsive grid, generous gaps */
+/* KPI band: 6-column grid matching reference */
 .layout-signal_deck .tracker-kpi-band {
-  gap: 10px;
+  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .layout-signal_deck .tracker-kpi-card {
-  padding: 14px 16px;
-  border-radius: 8px;
-  border: 1px solid hsl(var(--border) / 0.4);
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
 
+/* KPI values: bold mono with color-coding */
 .layout-signal_deck .tracker-kpi-card .text-2xl,
 .layout-signal_deck .tracker-kpi-card .text-xl {
-  font-size: 1.6rem;
+  font-size: 1.65rem;
   line-height: 2rem;
   font-weight: 800;
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Tables: clean dark rows */
+/* KPI labels: small uppercase muted */
+.layout-signal_deck .tracker-kpi-card .text-xs,
+.layout-signal_deck .tracker-kpi-card .text-\[10px\] {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+/* KPI sub-labels */
+.layout-signal_deck .tracker-kpi-card .text-muted-foreground {
+  font-size: 11px;
+}
+
+/* Tables: clean rows */
 .layout-signal_deck table tbody tr td {
   padding-top: 8px;
   padding-bottom: 8px;
@@ -763,11 +784,18 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
-  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  border-bottom: 1px solid rgba(255,255,255,.06);
 }
 
 .layout-signal_deck table tbody tr:hover {
-  background: hsl(var(--primary) / 0.04);
+  background: rgba(255,255,255,.02);
+}
+
+/* Summary section: matching reference checkmark style */
+.layout-signal_deck .text-success,
+.layout-signal_deck .text-green-500,
+.layout-signal_deck .text-emerald-500 {
+  color: #10b981 !important;
 }
 
 /* Buttons: rounded */
@@ -775,20 +803,21 @@
   border-radius: 8px;
 }
 
-/* Grids */
+/* Grids: consistent 12px gaps like reference */
 .layout-signal_deck .grid {
-  gap: 10px;
+  gap: 12px;
 }
 
-/* Inputs: rounded with subtle border */
+/* Inputs */
 .layout-signal_deck input,
 .layout-signal_deck select,
 .layout-signal_deck textarea {
-  border-radius: 6px;
-  border: 1px solid hsl(var(--border) / 0.4);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.04);
 }
 
-/* Badges: rounded, compact */
+/* Badges */
 .layout-signal_deck [class*="Badge"] {
   border-radius: 6px;
   font-size: 10px;
@@ -796,19 +825,31 @@
   font-weight: 600;
 }
 
-/* Page header */
+/* Page header spacing */
 .layout-signal_deck .tracker-page > div:first-child {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-/* Topbar: subtle glow border */
+/* Topbar */
 .layout-signal_deck .tracker-topbar {
-  border-bottom: 1px solid hsl(var(--primary) / 0.12);
+  border-bottom: 1px solid rgba(255,255,255,.06);
 }
 
 /* Sidebar */
 .layout-signal_deck .app-sidebar-desktop {
   width: 210px;
+}
+
+/* Smooth transitions */
+.layout-signal_deck [data-slot="card"],
+.layout-signal_deck .tracker-kpi-card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.layout-signal_deck [data-slot="card"]:hover,
+.layout-signal_deck .tracker-kpi-card:hover {
+  border-color: rgba(255,255,255,.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
 
 /* Scrollbar */
@@ -818,7 +859,7 @@
 }
 
 .layout-signal_deck ::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.25);
+  background: rgba(255,255,255,.12);
   border-radius: 6px;
 }
 
@@ -828,9 +869,13 @@
 
 @media (max-width: 768px) {
   .layout-signal_deck .app-page-shell {
-    padding: 10px 12px;
+    padding: 12px 14px;
   }
   .layout-signal_deck .grid {
+    gap: 8px;
+  }
+  .layout-signal_deck .tracker-kpi-band {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 8px;
   }
 }
