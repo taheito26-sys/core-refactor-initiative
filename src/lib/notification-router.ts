@@ -137,7 +137,10 @@ export function buildNotificationNavigationTarget(notification: AppNotification)
   // Priority 3: legacy kind-based routing (backward compat for old notifications)
   switch (target.kind) {
     case 'chat_message':
-      if (!target.conversationId) return { pathname: '/chat' };
+      if (!target.conversationId) {
+        console.warn('[notification-router] Chat notification missing conversationId, cannot deep-link:', notification.id);
+        return { pathname: '/chat' };
+      }
       return {
         pathname: '/chat',
         search: `?roomId=${encodeURIComponent(target.conversationId)}${target.messageId ? `&messageId=${encodeURIComponent(target.messageId)}` : ''}`,
