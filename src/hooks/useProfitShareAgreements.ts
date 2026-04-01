@@ -123,6 +123,8 @@ interface CreateAgreementInput {
   partner_ratio: number;
   merchant_ratio: number;
   settlement_cadence: 'monthly' | 'weekly' | 'per_order';
+  invested_capital?: number | null;
+  settlement_way?: 'reinvest' | 'withdraw' | null;
   effective_from: string;
   expires_at?: string | null;
   notes?: string | null;
