@@ -18,6 +18,13 @@ export interface NotificationTargetPayload {
   anchorId?: string | null;
   actionUrl?: string | null;
   dedupeKey?: string | null;
+  /** New precise routing fields */
+  actorId?: string | null;
+  targetPath?: string | null;
+  targetTab?: string | null;
+  targetFocus?: string | null;
+  targetEntityType?: string | null;
+  targetEntityId?: string | null;
 }
 
 export interface NotificationRow {
@@ -35,6 +42,13 @@ export interface NotificationRow {
   action_url?: string | null;
   dedupe_key?: string | null;
   sender_id?: string | null;
+  /** New precise routing fields from DB */
+  actor_id?: string | null;
+  target_path?: string | null;
+  target_tab?: string | null;
+  target_focus?: string | null;
+  target_entity_type?: string | null;
+  target_entity_id?: string | null;
 }
 
 export interface AppNotification extends NotificationRow {
@@ -83,6 +97,12 @@ export function mapNotificationRowToModel(row: NotificationRow): AppNotification
       anchorId: row.anchor_id ?? null,
       actionUrl: row.action_url ?? null,
       dedupeKey: row.dedupe_key ?? null,
+      actorId: row.actor_id ?? null,
+      targetPath: row.target_path ?? null,
+      targetTab: row.target_tab ?? null,
+      targetFocus: row.target_focus ?? null,
+      targetEntityType: row.target_entity_type ?? null,
+      targetEntityId: row.target_entity_id ?? null,
     },
   };
 }

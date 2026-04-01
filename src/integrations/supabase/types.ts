@@ -811,6 +811,7 @@ export type Database = {
       }
       notifications: {
         Row: {
+          actor_id: string | null
           anchor_id: string | null
           body: string | null
           category: string
@@ -821,10 +822,16 @@ export type Database = {
           id: string
           message_id: string | null
           read_at: string | null
+          target_entity_id: string | null
+          target_entity_type: string | null
+          target_focus: string | null
+          target_path: string | null
+          target_tab: string | null
           title: string
           user_id: string
         }
         Insert: {
+          actor_id?: string | null
           anchor_id?: string | null
           body?: string | null
           category?: string
@@ -835,10 +842,16 @@ export type Database = {
           id?: string
           message_id?: string | null
           read_at?: string | null
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          target_focus?: string | null
+          target_path?: string | null
+          target_tab?: string | null
           title: string
           user_id: string
         }
         Update: {
+          actor_id?: string | null
           anchor_id?: string | null
           body?: string | null
           category?: string
@@ -849,6 +862,11 @@ export type Database = {
           id?: string
           message_id?: string | null
           read_at?: string | null
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          target_focus?: string | null
+          target_path?: string | null
+          target_tab?: string | null
           title?: string
           user_id?: string
         }
