@@ -1509,9 +1509,34 @@ export default function OrdersPage() {
             </span>
           </div>
         </div>
+
+        <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+          <button
+            className="rowBtn"
+            style={{ minHeight: 40 }}
+            onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
+          >
+            {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
+          </button>
+          {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
+            <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => openEdit(tr.id)}>{t('edit')}</button>
+          )}
+          {tr.approvalStatus === 'pending_approval' && (
+            <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
+          )}
+          {tr.approvalStatus === 'approved' && (
+            <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
+          )}
+        </div>
+
+        {detailsOpen[tr.id] && (
+          <div style={{ marginTop: 8 }}>
+            {renderDetail(tr, c)}
+          </div>
+        )}
       </div>
     );
-  }, [derived.tradeCalc, relationships, state.customers, t]);
+  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
