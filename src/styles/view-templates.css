@@ -702,3 +702,135 @@
     padding: 6px 8px;
   }
 }
+
+
+/* ══════════════════════════════════════════════════════
+   SIGNAL DECK — Navy command dashboard, color-coded KPIs
+   ══════════════════════════════════════════════════════ */
+
+.layout-signal_deck .app-page-shell {
+  padding: 16px 20px;
+}
+
+.layout-signal_deck .app-page-content {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+/* Cards: rounded, subtle border glow */
+.layout-signal_deck .glass,
+.layout-signal_deck [data-slot="card"],
+.layout-signal_deck .border {
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+
+.layout-signal_deck [data-slot="card"] {
+  box-shadow: 0 2px 12px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.03);
+}
+
+/* KPI band: responsive grid, generous gaps */
+.layout-signal_deck .tracker-kpi-band {
+  gap: 10px;
+}
+
+.layout-signal_deck .tracker-kpi-card {
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid hsl(var(--border) / 0.4);
+}
+
+.layout-signal_deck .tracker-kpi-card .text-2xl,
+.layout-signal_deck .tracker-kpi-card .text-xl {
+  font-size: 1.6rem;
+  line-height: 2rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Tables: clean dark rows */
+.layout-signal_deck table tbody tr td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.layout-signal_deck table thead tr th {
+  font-size: 10px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+.layout-signal_deck table tbody tr:hover {
+  background: hsl(var(--primary) / 0.04);
+}
+
+/* Buttons: rounded */
+.layout-signal_deck button {
+  border-radius: 8px;
+}
+
+/* Grids */
+.layout-signal_deck .grid {
+  gap: 10px;
+}
+
+/* Inputs: rounded with subtle border */
+.layout-signal_deck input,
+.layout-signal_deck select,
+.layout-signal_deck textarea {
+  border-radius: 6px;
+  border: 1px solid hsl(var(--border) / 0.4);
+}
+
+/* Badges: rounded, compact */
+.layout-signal_deck [class*="Badge"] {
+  border-radius: 6px;
+  font-size: 10px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+
+/* Page header */
+.layout-signal_deck .tracker-page > div:first-child {
+  margin-bottom: 16px;
+}
+
+/* Topbar: subtle glow border */
+.layout-signal_deck .tracker-topbar {
+  border-bottom: 1px solid hsl(var(--primary) / 0.12);
+}
+
+/* Sidebar */
+.layout-signal_deck .app-sidebar-desktop {
+  width: 210px;
+}
+
+/* Scrollbar */
+.layout-signal_deck ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.layout-signal_deck ::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.25);
+  border-radius: 6px;
+}
+
+.layout-signal_deck ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .layout-signal_deck .app-page-shell {
+    padding: 10px 12px;
+  }
+  .layout-signal_deck .grid {
+    gap: 8px;
+  }
+}
