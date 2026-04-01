@@ -95,7 +95,19 @@
 .tracker-root .panel-body { padding: 12px; }
 
 /* ── PILLS ── */
-.tracker-root .pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted); font-size: calc(10px * var(--ui-scale,1)); white-space: nowrap; transition: all var(--lt-tr); }
+.tracker-root .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: calc(10px * var(--ui-scale, 1));
+  white-space: nowrap;
+  transition: all var(--lt-tr);
+}
 .tracker-root .pill:hover { border-color: var(--brand); color: var(--brand); background: var(--brand3); }
 .tracker-root .pill.good { color: var(--good); border-color: color-mix(in srgb,var(--good) 35%,transparent); background: color-mix(in srgb,var(--good) 10%,transparent); }
 .tracker-root .pill.bad { color: var(--bad); border-color: color-mix(in srgb,var(--bad) 35%,transparent); background: color-mix(in srgb,var(--bad) 10%,transparent); }
@@ -114,7 +126,21 @@
 .tracker-root .prog > span { position: absolute; top: 0; left: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
 
 /* ── ROW BUTTONS ── */
-.tracker-root .rowBtn { border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted); padding: 4px 8px; border-radius: var(--lt-radius-sm); cursor: pointer; font-size: calc(10px * var(--ui-scale,1)); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; transition: all var(--lt-tr); font-weight: 600; }
+.tracker-root .rowBtn {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: rgba(255, 255, 255, 0.55);
+  padding: 4px 8px;
+  border-radius: var(--lt-radius-sm);
+  cursor: pointer;
+  font-size: calc(10px * var(--ui-scale, 1));
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  transition: all var(--lt-tr);
+  font-weight: 600;
+}
 .tracker-root .rowBtn:hover { background: var(--hover-card); border-color: var(--brand); color: var(--brand); }
 
 /* ── BUTTONS ── */
@@ -292,7 +318,7 @@
 .tracker-seg button {
   border: 1px solid transparent;
   background: transparent;
-  color: var(--tracker-muted);
+  color: rgba(255, 255, 255, 0.5);
   border-radius: 6px;
   padding: 6px 9px;
   font-size: 11px;
@@ -515,10 +541,10 @@
   padding: 8px 18px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.5);
   border: none;
   border-radius: 9px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   letter-spacing: 0.01em;
