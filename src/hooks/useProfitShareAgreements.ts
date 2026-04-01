@@ -229,32 +229,7 @@ export function useUpdateAgreement() {
   });
 }
 
-// ─── Mutation: Edit agreement terms ───────────────────────────────────
 
-interface UpdateAgreementInput extends Partial<CreateAgreementInput> {
-  agreementId: string;
-}
-
-export function useUpdateAgreement() {
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ agreementId, ...updates }: UpdateAgreementInput) => {
-      const { data, error } = await supabase
-        .from('profit_share_agreements' as any)
-        .update(updates)
-        .eq('id', agreementId)
-        .select('*')
-        .single();
-
-      if (error) throw error;
-      return data as unknown as ProfitShareAgreement;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [AGREEMENTS_KEY] });
-    },
-  });
-}
 
 // ─── Mutation: Update agreement status ───────────────────────────────
 
