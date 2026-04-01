@@ -144,7 +144,7 @@
 .tracker-root .previewBox { border-radius: var(--lt-radius-sm); border: 1px solid color-mix(in srgb,var(--brand) 20%,transparent); background: var(--brand3); padding: 10px; }
 .tracker-root .previewBox .pt { font-size: calc(9px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .8px; text-transform: uppercase; color: var(--brand); margin-bottom: 6px; }
 .tracker-root .modeToggle { display: flex; gap: 2px; padding: 3px; border-radius: var(--lt-radius-sm); border: 1px solid var(--line); background: rgba(255,255,255,.02); }
-.tracker-root .modeToggle button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: calc(var(--lt-radius-sm) - 2px); padding: 5px; font-weight: 900; font-size: calc(10px * var(--ui-scale,1)); cursor: pointer; transition: all var(--lt-tr); }
+.tracker-root .modeToggle button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: calc(var(--lt-radius-sm) - 2px); padding: 4px 6px; font-weight: 900; font-size: calc(9px * var(--ui-scale,1)); cursor: pointer; transition: all var(--lt-tr); white-space: nowrap; }
 .tracker-root .modeToggle button.active { background: var(--brand3); color: var(--brand); border-color: color-mix(in srgb,var(--brand) 30%,transparent); }
 .tracker-root .g2tight { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tracker-root .formActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

@@ -533,7 +533,7 @@ export default function OrdersPage() {
   const isCapitalTransfer = selectedTemplateId === 'capital_transfer';
   const submitCapitalTransfer = useSubmitCapitalTransfer();
   const mobileInputStyle = isMobile ? { fontSize: 15, minHeight: 38 } : undefined;
-  const mobileActionStyle = isMobile ? { minHeight: 36, fontSize: 11 } : undefined;
+  const mobileActionStyle = isMobile ? { minHeight: 34, fontSize: 10, padding: '4px 6px' } : undefined;
   const mobileDialogContentStyle = isMobile
     ? {
         maxWidth: '96vw',
