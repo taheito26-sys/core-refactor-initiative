@@ -133,6 +133,8 @@ const translations = {
   totalNet: { en: 'Total Net', ar: 'صافي الإجمالي' },
   editTrade: { en: 'Edit Trade', ar: 'تعديل الصفقة' },
   void: { en: 'VOID', ar: 'ملغاة' },
+  allMonths: { en: 'All Months', ar: 'جميع الشهور' },
+
 
   // ── Orders extended ──
   fifoCostBasisMargin: { en: 'FIFO cost basis · margin bar', ar: 'أساس تكلفة FIFO · شريط الهامش' },

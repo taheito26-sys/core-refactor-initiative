@@ -117,6 +117,8 @@ export default function OrdersPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+
 
   // Capital Transfer state
   const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
@@ -341,6 +343,42 @@ export default function OrdersPage() {
       return [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase().includes(query);
     });
   }, [list, query, state.customers]);
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    filtered.forEach(t => {
+      const d = new Date(t.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    return Array.from(months).sort().reverse();
+  }, [filtered]);
+
+  const subFilteredMy = useMemo(() => {
+    if (selectedMonth === 'all') return filtered;
+    return filtered.filter(tr => {
+      const d = new Date(tr.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filtered, selectedMonth]);
+
+  const myKpi = useMemo(() => {
+    // Only trades in the selected month (or all)
+    const activeList = subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
+    let qty = 0, vol = 0, netVal = 0;
+    for (const tr of activeList) {
+      const c = derived.tradeCalc.get(tr.id);
+      qty += tr.amountUSDT;
+      vol += tr.amountUSDT * tr.sellPriceQAR;
+      if (c?.ok) {
+        netVal += c.netQAR;
+      } else if (tr.manualBuyPrice) {
+        netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
+      }
+    }
+    return { count: activeList.length, qty, vol, net: netVal };
+  }, [subFilteredMy, derived]);
 
 
   useEffect(() => {
@@ -1345,21 +1383,6 @@ export default function OrdersPage() {
   };
 
   // ─── KPI computations ───
-  const myKpi = useMemo(() => {
-    const selfTrades = filtered.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
-    let qty = 0, vol = 0, netVal = 0;
-    for (const tr of selfTrades) {
-      const c = derived.tradeCalc.get(tr.id);
-      qty += tr.amountUSDT;
-      vol += tr.amountUSDT * tr.sellPriceQAR;
-      if (c?.ok) {
-        netVal += c.netQAR;
-      } else if (tr.manualBuyPrice) {
-        netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
-      }
-    }
-    return { count: selfTrades.length, qty, vol, net: netVal };
-  }, [filtered, derived]);
 
   const outKpi = useMemo(() => {
     let vol = 0, netVal = 0;
@@ -1594,6 +1617,40 @@ export default function OrdersPage() {
           {/* ── MY ORDERS TAB ── */}
           {activeTab === 'my' && (
             <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 16, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={() => setSelectedMonth('all')}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -1615,7 +1672,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {filtered.map((tr) => renderMyOrderMobileCard(tr))}
+                  {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1626,7 +1683,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(tr => {
+                      {subFilteredMy.map(tr => {
                         const c = derived.tradeCalc.get(tr.id);
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
