@@ -149,7 +149,11 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         toast.success('Agreement updated successfully');
       } else {
         await createAgreement.mutateAsync(payload);
+<<<<<<< ours
         toast.success(t('agreementCreatedSuccess' as any) || 'Agreement created');
+=======
+        toast.success(t('agreementCreatedSuccess'));
+>>>>>>> theirs
       }
 
       setShowForm(false);
