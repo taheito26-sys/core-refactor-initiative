@@ -1458,7 +1458,6 @@ export type Database = {
           lender_contribution: number | null
           merchant_ratio: number
           notes: string | null
-          invested_capital: number | null
           operator_contribution: number | null
           operator_default_profit_handling: string
           operator_merchant_id: string | null
@@ -1466,7 +1465,6 @@ export type Database = {
           partner_ratio: number
           relationship_id: string
           settlement_cadence: string
-          settlement_way: string | null
           status: string
           terms_snapshot: Json | null
           updated_at: string
@@ -1484,7 +1482,6 @@ export type Database = {
           lender_contribution?: number | null
           merchant_ratio: number
           notes?: string | null
-          invested_capital?: number | null
           operator_contribution?: number | null
           operator_default_profit_handling?: string
           operator_merchant_id?: string | null
@@ -1492,7 +1489,6 @@ export type Database = {
           partner_ratio: number
           relationship_id: string
           settlement_cadence?: string
-          settlement_way?: string | null
           status?: string
           terms_snapshot?: Json | null
           updated_at?: string
@@ -1510,7 +1506,6 @@ export type Database = {
           lender_contribution?: number | null
           merchant_ratio?: number
           notes?: string | null
-          invested_capital?: number | null
           operator_contribution?: number | null
           operator_default_profit_handling?: string
           operator_merchant_id?: string | null
@@ -1518,7 +1513,6 @@ export type Database = {
           partner_ratio?: number
           relationship_id?: string
           settlement_cadence?: string
-          settlement_way?: string | null
           status?: string
           terms_snapshot?: Json | null
           updated_at?: string
