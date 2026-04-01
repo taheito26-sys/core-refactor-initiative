@@ -6,6 +6,28 @@ export interface NotificationNavTarget {
   notificationId: string;
 }
 
+export interface ConversationSummary {
+  id: string;
+  counterpartyName: string;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
+  lastMessageSenderId: string | null;
+  unreadCount: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  relationship_id: string;
+  sender_id: string;
+  content: string;
+  msg_type: string;
+  created_at: string;
+  read_at: string | null;
+  metadata?: Record<string, unknown>;
+  reply_to?: string | null;
+  sender_name?: string;
+}
+
 export interface AttentionState {
   appFocused: boolean;
   inChatModule: boolean;

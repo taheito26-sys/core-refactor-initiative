@@ -258,7 +258,7 @@ export default function OrdersImportLedgerPage() {
         .eq('metadata->>import_source', 'manual_ledger_import')
         .limit(1000);
 
-      const existingHashes = new Set((existingImports || []).map((deal: { metadata: { normalized_hash?: string } | null }) => deal.metadata?.normalized_hash).filter(Boolean));
+      const existingHashes = new Set((existingImports || []).map((deal: any) => deal.metadata?.normalized_hash).filter(Boolean));
 
       const payload = saveableRows
         .filter((row) => !existingHashes.has(row.normalizedHash))
