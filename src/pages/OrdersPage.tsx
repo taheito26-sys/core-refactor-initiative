@@ -380,23 +380,6 @@ export default function OrdersPage() {
     });
   }, [allTransfers, selectedMonth]);
 
-  const subFilteredInDeals = useMemo(() => {
-    if (selectedMonth === 'all') return filteredIncomingMerchantDeals;
-    return filteredIncomingMerchantDeals.filter(d => {
-      const date = new Date(d.created_at);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      return key === selectedMonth;
-    });
-  }, [filteredIncomingMerchantDeals, selectedMonth]);
-
-  const subFilteredOutDeals = useMemo(() => {
-    if (selectedMonth === 'all') return filteredOutgoingMerchantDeals;
-    return filteredOutgoingMerchantDeals.filter(d => {
-      const date = new Date(d.created_at);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      return key === selectedMonth;
-    });
-  }, [filteredOutgoingMerchantDeals, selectedMonth]);
 
   const myKpi = useMemo(() => {
     // Only trades in the selected month (or all)
