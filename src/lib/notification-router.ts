@@ -117,6 +117,8 @@ export function isNotificationDeepLinkable(notification: AppNotification): boole
   if (target.actionUrl && isInternalActionUrl(target.actionUrl)) return true;
   if (target.targetPath && (target.targetEntityId || target.targetTab)) return true;
   if (target.kind === 'chat_message') return Boolean(target.conversationId);
+  // Transfer notifications
+  if (target.targetEntityType === 'transfer' || target.targetEntityType === 'capital_transfer') return Boolean(target.targetEntityId);
   return Boolean(target.entityId);
 }
 
