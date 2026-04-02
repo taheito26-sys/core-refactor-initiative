@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { useSettlementPeriods, useSyncSettlementPeriods, type SettlementPeriod } from '@/hooks/useSettlementPeriods';
 import { useDealCapital, useReinvestProfit, usePayoutProfit } from '@/hooks/useDealCapital';

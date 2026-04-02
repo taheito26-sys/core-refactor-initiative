@@ -4,6 +4,7 @@ import { useProfitDistribution } from '@/hooks/useProfitDistribution';
 import { getAgreementFamilyLabel } from '@/lib/deal-templates';
 import { useTheme } from '@/lib/theme-context';
 import { useTrackerState } from '@/lib/useTrackerState';
+import { useMemo } from 'react';
 import '@/styles/tracker.css';
 
 interface Props {
@@ -106,7 +107,7 @@ export function ProfitDistributionPanel({ relationshipId }: Props) {
           </tbody>
           <tfoot>
             <tr style={{ fontWeight: 800 }}>
-              <td colSpan={5} style={{ textAlign: 'right' }}>{t('total || 'Total'}</td>
+              <td colSpan={5} style={{ textAlign: 'right' }}>{t('total') || 'Total'}</td>
               <td className="mono r">{fmtQWithUnit(summary.totalPartnerOwed, settings.currency, wacop)}</td>
               <td className="mono r" style={{ color: 'var(--good)' }}>{fmtQWithUnit(summary.totalSettled, settings.currency, wacop)}</td>
               <td className="mono r" style={{ color: netColor }}>
