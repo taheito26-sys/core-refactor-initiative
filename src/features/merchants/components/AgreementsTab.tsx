@@ -720,7 +720,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                             </>
                           ) : (
                             <>
-                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · Capital {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ?? '—'}
+                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
                             </>
                           )}
                         </div>
