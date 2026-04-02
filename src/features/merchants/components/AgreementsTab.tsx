@@ -236,16 +236,57 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               </div>
             </div>
 
-            {/* Capital projection */}
-            {(myReinvested > 0 || partnerReinvested > 0) && (
-              <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 15%, transparent)' }}>
-                <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('simNewCapitalBase')}</div>
-                <div style={{ fontSize: 12, fontWeight: 700 }}>
-                  {fmtU(investedCap)} + {fmtU(myReinvested + partnerReinvested)} = <span style={{ color: 'var(--good)' }}>{fmtU(newCapitalBase)} USDT</span>
-                </div>
-                {qarRate > 0 && <div style={{ fontSize: 9, color: 'var(--muted)' }}>≈ {Math.round(newCapitalBase * qarRate).toLocaleString()} QAR</div>}
+            {/* Capital projection per party */}
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground)', marginBottom: 6 }}>📊 {t('simCapitalProjection')}</div>
+
+              {/* Total invested capital */}
+              <div style={{ padding: '6px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--muted) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--muted) 12%, transparent)', marginBottom: 6 }}>
+                <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('simTotalInvestedCapital')}</div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{fmtU(isOpPriority ? opContrib + lnContrib : investedCap)} USDT</div>
+                {qarRate > 0 && <div style={{ fontSize: 9, color: 'var(--muted)' }}>≈ {Math.round((isOpPriority ? opContrib + lnContrib : investedCap) * qarRate).toLocaleString()} QAR</div>}
               </div>
-            )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {/* My capital */}
+                <div style={{ padding: '6px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 12%, transparent)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('you')} — {t('simReinvestedCapital')}</div>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+                    {t('simCurrentCapital')}: <strong>{fmtU(isOpPriority ? (isOperator ? opContrib : lnContrib) : investedCap)}</strong>
+                  </div>
+                  <div style={{ fontSize: 9, color: myReinvested > 0 ? 'var(--good)' : 'var(--muted)', marginTop: 1 }}>
+                    {myHandling === 'reinvest' ? `🔄 +${fmtU(myReinvested)}` : `💰 ${t('simWithdrawn')}: ${fmtU(myWithdrawn)}`}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: 'var(--good)' }}>
+                    → {fmtU((isOpPriority ? (isOperator ? opContrib : lnContrib) : investedCap) + myReinvested)} USDT
+                  </div>
+                </div>
+                {/* Partner capital */}
+                <div style={{ padding: '6px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 12%, transparent)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--muted)' }}>{counterpartyName || t('partner')} — {t('simReinvestedCapital')}</div>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+                    {t('simCurrentCapital')}: <strong>{fmtU(isOpPriority ? (isOperator ? lnContrib : opContrib) : investedCap)}</strong>
+                  </div>
+                  <div style={{ fontSize: 9, color: partnerReinvested > 0 ? 'var(--brand)' : 'var(--muted)', marginTop: 1 }}>
+                    {partnerHandling === 'reinvest' ? `🔄 +${fmtU(partnerReinvested)}` : `💰 ${t('simWithdrawn')}: ${fmtU(partnerWithdrawn)}`}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 2, color: 'var(--brand)' }}>
+                    → {fmtU((isOpPriority ? (isOperator ? lnContrib : opContrib) : investedCap) + partnerReinvested)} USDT
+                  </div>
+                </div>
+              </div>
+
+              {/* New total after reinvestment */}
+              {(myReinvested > 0 || partnerReinvested > 0) && (
+                <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 15%, transparent)' }}>
+                  <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('simNewCapitalBase')}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>
+                    {fmtU(isOpPriority ? opContrib + lnContrib : investedCap)} + {fmtU(myReinvested + partnerReinvested)} = <span style={{ color: 'var(--good)' }}>{fmtU((isOpPriority ? opContrib + lnContrib : investedCap) + myReinvested + partnerReinvested)} USDT</span>
+                  </div>
+                  {qarRate > 0 && <div style={{ fontSize: 9, color: 'var(--muted)' }}>≈ {Math.round(((isOpPriority ? opContrib + lnContrib : investedCap) + myReinvested + partnerReinvested) * qarRate).toLocaleString()} QAR</div>}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
