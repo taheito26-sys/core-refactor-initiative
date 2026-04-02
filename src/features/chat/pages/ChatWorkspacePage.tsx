@@ -81,7 +81,7 @@ export default function ChatWorkspacePage() {
         <ConversationSidebar
           rooms={rooms} activeRoomId={activeRoomId}
           onSelectRoom={(id) => { setActiveRoomId(id); if (isMobile) setShowSidebar(false); }}
-          currentUserId={userId} currentMerchantId={merchantProfile?.merchant_id} isMobile={isMobile}
+          currentUserId={userId} isMobile={isMobile}
         />
       )}
 

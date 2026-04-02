@@ -896,7 +896,7 @@ export default function StockPage() {
         for (const [, c] of derived.tradeCalc) {
           if (!c.ok) continue;
           const s = c.slices.find(s => s.batchId === editingBatchId);
-          if (sl) editProfit += sl.qty * c.ppu;
+          if (s) editProfit += s.qty * c.ppu;
         }
         const knownSuppliers = [...new Set(state.batches.map(b => b.source.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 

@@ -1,4 +1,4 @@
-import { AppSettings, LayoutDef, ThemeDef, FONT_CONFIG } from './types';
+import { AppSettings, LayoutDef, ThemeDef } from './types';
 import { LAYOUTS } from './layouts';
 
 export const FONT_CONFIG = {

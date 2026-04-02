@@ -44,7 +44,7 @@ export async function createRoom(input: {
   members: string[];
 }): Promise<DeterministicResult<string | null>> {
   try {
-    const { data, error } = await supabase.rpc('fn_chat_create_room', {
+    const { data, error } = await (supabase.rpc as any)('fn_chat_create_room', {
       _name: input.name,
       _type: input.type,
       _lane: input.lane,
