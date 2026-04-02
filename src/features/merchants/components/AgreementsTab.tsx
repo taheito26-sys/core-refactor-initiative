@@ -4,10 +4,11 @@
 // Agreements have 3 statuses: approved, rejected, expired.
 // Supports two agreement types: standard and operator_priority.
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { fmtU } from '@/lib/tracker-helpers';
+import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import {
   useProfitShareAgreements,
   useCreateAgreement,
@@ -43,7 +44,23 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [expiresAt, setExpiresAt] = useState('');
   const [notes, setNotes] = useState('');
   const [investedCapital, setInvestedCapital] = useState('');
+  const [capitalCurrency, setCapitalCurrency] = useState<'USDT' | 'QAR'>('USDT');
   const [settlementWay, setSettlementWay] = useState<'reinvest' | 'withdraw'>('reinvest');
+
+  // P2P rate for QAR↔USDT conversion
+  const { data: p2pRates } = useP2PRates('qatar');
+  const avgRate = useMemo(() => {
+    if (!p2pRates?.buyRate || !p2pRates?.sellRate) return null;
+    return (p2pRates.buyRate + p2pRates.sellRate) / 2;
+  }, [p2pRates]);
+
+  // Convert invested capital to USDT for storage
+  const investedCapitalUsdt = useMemo(() => {
+    const raw = parseFloat(investedCapital) || 0;
+    if (capitalCurrency === 'USDT') return raw;
+    if (!avgRate || avgRate <= 0) return 0;
+    return Math.round((raw / avgRate) * 100) / 100;
+  }, [investedCapital, capitalCurrency, avgRate]);
   const [editingAgreementId, setEditingAgreementId] = useState<string | null>(null);
 
   // ── Operator Priority fields ──
@@ -123,7 +140,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         settlement_cadence: cadence,
         invested_capital: agreementType === 'operator_priority'
           ? (opContribNum + lnContribNum)
-          : sharedFields.investedCapital,
+          : investedCapitalUsdt,
         settlement_way: sharedFields.settlementWay,
         effective_from: new Date(effectiveFrom).toISOString(),
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
@@ -146,10 +163,10 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           agreementId: editingAgreementId,
           ...payload,
         });
-        toast.success('Agreement updated successfully');
+        toast.success(t('agreementUpdatedSuccess'));
       } else {
         await createAgreement.mutateAsync(payload);
-        toast.success(t('agreementCreatedSuccess' as any) || 'Agreement created');
+        toast.success(t('agreementCreatedSuccess'));
       }
 
       setShowForm(false);
@@ -171,8 +188,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const handleApprove = async (id: string) => {
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'approved' });
-      toast.success(t('agreementApprovedSuccess' as any) || 'Agreement approved');
-    } catch (err: any) {
+        toast.success(t('agreementApprovedSuccess'));
+      } catch (err: any) {
       toast.error(err.message);
     }
   };
@@ -194,6 +211,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     setExpiresAt('');
     setNotes('');
     setInvestedCapital('');
+    setCapitalCurrency('USDT');
     setSettlementWay('reinvest');
     setOperatorRatio('20');
     setOperatorIsMe(true);
@@ -287,7 +305,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           background: 'color-mix(in srgb, var(--brand) 3%, var(--cardBg))',
         }}>
           <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>
-            {editingAgreementId ? 'Edit Profit Share Agreement' : t('newProfitShareAgreement')}
+            {editingAgreementId ? t('editAgreementTitle') : t('newProfitShareAgreement')}
           </div>
 
           {/* ── Agreement Type Selector ── */}
@@ -551,7 +569,25 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Invested Capital</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>{t('investedCapitalLabel')}</div>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <button
+                    className={`pill ${capitalCurrency === 'USDT' ? 'good' : ''}`}
+                    style={{ cursor: 'pointer', padding: '2px 6px', fontSize: 8, fontWeight: 700 }}
+                    onClick={() => setCapitalCurrency('USDT')}
+                  >
+                    {t('capitalInUsdt')}
+                  </button>
+                  <button
+                    className={`pill ${capitalCurrency === 'QAR' ? 'good' : ''}`}
+                    style={{ cursor: 'pointer', padding: '2px 6px', fontSize: 8, fontWeight: 700 }}
+                    onClick={() => setCapitalCurrency('QAR')}
+                  >
+                    {t('capitalInQar')}
+                  </button>
+                </div>
+              </div>
               <div className="inputBox" style={{ padding: '6px 10px' }}>
                 <input
                   type="number"
@@ -562,9 +598,21 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   placeholder="0"
                 />
               </div>
+              {capitalCurrency === 'QAR' && investedCapital && (
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                  {avgRate
+                    ? `≈ ${fmtU(investedCapitalUsdt)} USDT (${t('convertedFromQar')} ${avgRate.toFixed(2)})`
+                    : t('noRateAvailable')}
+                </div>
+              )}
+              {capitalCurrency === 'USDT' && investedCapital && avgRate && (
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                  {t('convertedFromUsdt')}: {((parseFloat(investedCapital) || 0) * avgRate).toFixed(0)} QAR
+                </div>
+              )}
             </div>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Settlement Way</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('settlementWayLabel')}</div>
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
                   className={`pill ${settlementWay === 'reinvest' ? 'good' : ''}`}
@@ -595,7 +643,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               <strong>{t('previewAgreement')}</strong> {t('profitShareLabel')} {partnerRatio}/{100 - (parseFloat(partnerRatio) || 0)} —
               {counterpartyName || t('partner')} {t('gets')} {partnerRatio}% {t('ofNetProfit')}, {t('you')} {t('keeps')} {100 - (parseFloat(partnerRatio) || 0)}%.
               {t('settlement')}: {cadenceLabel(cadence)}.
-              {' '}Invested: {fmtU(parseFloat(investedCapital) || 0)} · Way: {settlementWay}.
+              {' '}{t('investedLabel')}: {fmtU(investedCapitalUsdt)} · {t('settlementWayLabel')}: {settlementWay === 'reinvest' ? t('reinvestOption') : t('withdrawOption')}.
             </div>
           ) : (
             (() => {
@@ -621,7 +669,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   ③ {t('defaultProfitHandling')}:<br />
                   &nbsp;&nbsp;{operatorName}: {operatorDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
                   &nbsp;&nbsp;{lenderName}: {counterpartyDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
-                  ④ Settlement way: {settlementWay}<br />
+                  ④ {t('settlementWayLabel')}: {settlementWay === 'reinvest' ? t('reinvestOption') : t('withdrawOption')}<br />
                   {t('settlement')}: {cadenceLabel(cadence)}.
                 </div>
               );
@@ -631,8 +679,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={handleCreate} disabled={createAgreement.isPending || updateAgreement.isPending}>
               {createAgreement.isPending || updateAgreement.isPending
-                ? (editingAgreementId ? 'Saving...' : t('creatingAgreement'))
-                : (editingAgreementId ? 'Save Changes' : t('createAgreement'))}
+                ? (editingAgreementId ? t('savingLabel') : t('creatingAgreement'))
+                : (editingAgreementId ? t('saveChangesLabel') : t('createAgreement'))}
             </button>
             <button className="btn secondary" onClick={() => { setShowForm(false); resetForm(); }}>{t('cancel')}</button>
           </div>
@@ -643,7 +691,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
       {pending.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-            ⏳ {t('pendingApprovalLabel' as any) || 'Pending Approval'} ({pending.length})
+            ⏳ {t('pendingApprovalLabel')} ({pending.length})
           </div>
           <div className="tableWrap">
             <table>
@@ -652,7 +700,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   <th>{t('agreement')}</th>
                   <th>{t('cadence')}</th>
                   <th>{t('effective')}</th>
-                  <th>{t('proposed_by' as any) || 'Proposed By'}</th>
+                  <th>{t('proposedByLabel')}</th>
                   <th>{t('actions')}</th>
                 </tr>
               </thead>
@@ -672,7 +720,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                             </>
                           ) : (
                             <>
-                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · Capital {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ?? '—'}
+                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
                             </>
                           )}
                         </div>
@@ -684,12 +732,12 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                         <div style={{ display: 'flex', gap: 4 }}>
                           {!isCreator ? (
                             <>
-                              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction' as any) || 'Approve'}</button>
+                              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction')}</button>
                               <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                             </>
                           ) : (
                             <>
-                              <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction' as any) || 'Edit'}</button>
+                              <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
                               <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('cancel')}</button>
                             </>
                           )}
@@ -736,7 +784,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                           </>
                         ) : (
                           <>
-                            {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · Capital {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ?? '—'}
+                            {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
                           </>
                         )}
                       </div>
@@ -747,7 +795,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                     <td>{statusPill(a.status, isAgreementActive(a))}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="rowBtn" onClick={() => handleEditAgreement(a)}>Edit</button>
+                        <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
                         <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
                         <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                       </div>
