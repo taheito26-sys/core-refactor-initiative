@@ -3402,44 +3402,107 @@ export default function OrdersPage() {
                         </select>
                       </div>
 
-                      {/* Step 2: Select order type */}
-                      {editLinkedRelId && (
+                      {/* Step 2: Select deal family */}
+                      {editLinkedRelId && (() => {
+                        const editRel = relationships.find(r => r.id === editLinkedRelId);
+                        const editCpName = editRel?.counterparty?.display_name || (editRel as any)?.counterparty_name || t('partner');
+                        const editRelApprovedAgreements = allAgreements.filter(a =>
+                          a.relationship_id === editLinkedRelId && a.status === 'approved' && isAgreementActive(a)
+                        );
+
+                        return (
                         <div style={{ marginTop: 4 }}>
-                          <div className="lbl" style={{ marginBottom: 4 }}>{t('agreementType')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                          <div className="lbl" style={{ marginBottom: 4 }}>{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                           <select
                             value={editSelectedTemplateId || ''}
-                            onChange={e => setEditSelectedTemplateId(e.target.value || null)}
+                            onChange={e => { setEditSelectedTemplateId(e.target.value || null); setEditSelectedAgreementId(null); }}
                             style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                           >
-                            <option value="">{t('selectAgreementType')}</option>
-                            {AGREEMENT_TEMPLATES.filter(tmpl => tmpl.family !== 'capital_transfer').map(tmpl => (
-                              <option key={tmpl.id} value={tmpl.id}>
-                                {tmpl.icon} {tmpl.label[t.lang as 'en' | 'ar']} ({tmpl.ratioDisplay})
-                              </option>
-                            ))}
+                            <option value="">{t('selectDealFamily')}</option>
+                            <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')} {editRelApprovedAgreements.length > 0 ? `(${editRelApprovedAgreements.length})` : ''}</option>
+                            <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
                           </select>
 
-                          {/* Template details + allocation preview */}
-                          {editSelectedTemplateId && (() => {
-                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
-                            if (!tmpl) return null;
-                            const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
+                          {/* ─── Profit Share: approved agreement picker ─── */}
+                          {editSelectedTemplateId === 'profit_share_family' && (
+                            <div style={{ marginTop: 6 }}>
+                              {editRelApprovedAgreements.length === 0 ? (
+                                <div style={{ fontSize: 10, color: 'var(--bad)', padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 15%, transparent)' }}>
+                                  ⚠️ {t('noApprovedAgreement')} <strong>{editCpName}</strong>. {t('createInWorkspaceFirst')}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="field2" style={{ marginBottom: 4 }}>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
+                                    <select
+                                      value={editSelectedAgreementId || ''}
+                                      onChange={e => setEditSelectedAgreementId(e.target.value || null)}
+                                      style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                    >
+                                      <option value="">{t('selectAgreement')}</option>
+                                      {editRelApprovedAgreements.map(agr => (
+                                        <option key={agr.id} value={agr.id}>
+                                          🤝 {agr.partner_ratio}/{agr.merchant_ratio} — {agr.settlement_cadence}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  {editSelectedAgreementId && (() => {
+                                    const agr = editRelApprovedAgreements.find(a => a.id === editSelectedAgreementId);
+                                    if (!agr) return null;
+                                    const qty = Number(editQty) || 0;
+                                    const sell = Number(editSell) || 0;
+                                    const rev = qty * sell;
+                                    const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
+                                    const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
+                                    const netProfit = rev - fifoCost - (Number(editFee) || 0);
+                                    const partnerAmt = netProfit * (agr.partner_ratio / 100);
+                                    const merchantAmt = netProfit - partnerAmt;
+                                    return (
+                                      <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, marginBottom: 3 }}>
+                                          {t('lockedRatio')} {agr.partner_ratio}% / {t('youShare')} {agr.merchant_ratio}%
+                                        </div>
+                                        {rev > 0 && (
+                                          <div style={{ marginTop: 6, fontSize: 10 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                              <span className="muted">{t('partnerShare')}:</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(partnerAmt)}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                              <span className="muted">{t('merchantShareDist')}:</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(merchantAmt)}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>
+                                          {t('tradeWillBeSentForApproval')}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ─── Sales Deal: template details + preview ─── */}
+                          {editSelectedTemplateId === 'sales_deal_family' && (() => {
                             const qty = Number(editQty) || 0;
                             const sell = Number(editSell) || 0;
                             const rev = qty * sell;
                             const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
                             const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
                             const netProfit = rev - fifoCost - (Number(editFee) || 0);
-                            const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
-                            const base = tmpl.family === 'profit_share' ? netProfit : rev;
-                            const partnerAmt = base * (partnerPct / 100);
-                            const merchantAmt = base - partnerAmt;
+                            // Sales deal defaults to 50/50 unless user changes
+                            const partnerPct = 50;
+                            const partnerAmt = netProfit * (partnerPct / 100);
+                            const merchantAmt = netProfit - partnerAmt;
                             return (
-                              <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: `color-mix(in srgb, ${accentVar} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${accentVar} 30%, transparent)` }}>
-                                <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 3 }}>
-                                  {getTemplateRatioLabel(tmpl, t.lang as 'en' | 'ar')}
+                              <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 30%, transparent)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--good)', fontWeight: 600, marginBottom: 3 }}>
+                                  📊 {t('salesDealNoApproval')} — 50/50
                                 </div>
-                                <div style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.4 }}>{tmpl.helperText[t.lang as 'en' | 'ar']}</div>
                                 {rev > 0 && (
                                   <div style={{ marginTop: 6, fontSize: 10 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -3460,23 +3523,20 @@ export default function OrdersPage() {
                           })()}
 
                           {/* Settle immediately (Sales Deal only) */}
-                          {editSelectedTemplateId && (() => {
-                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
-                            if (!tmpl || tmpl.family !== 'sales_deal') return null;
-                            return (
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={editSettleImmediately}
-                                  onChange={e => setEditSettleImmediately(e.target.checked)}
-                                  style={{ accentColor: 'var(--brand)' }}
-                                />
-                                {t('settleThisTradeNow')}
-                              </label>
-                            );
-                          })()}
+                          {editSelectedTemplateId === 'sales_deal_family' && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={editSettleImmediately}
+                                onChange={e => setEditSettleImmediately(e.target.checked)}
+                                style={{ accentColor: 'var(--brand)' }}
+                              />
+                              {t('settleThisTradeNow')}
+                            </label>
+                          )}
                         </div>
-                      )}
+                        );
+                      })()}
                     </>
                   )}
                 </div>
