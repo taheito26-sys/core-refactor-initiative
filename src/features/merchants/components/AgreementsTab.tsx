@@ -569,7 +569,25 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Invested Capital</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>{t('investedCapitalLabel')}</div>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <button
+                    className={`pill ${capitalCurrency === 'USDT' ? 'good' : ''}`}
+                    style={{ cursor: 'pointer', padding: '2px 6px', fontSize: 8, fontWeight: 700 }}
+                    onClick={() => setCapitalCurrency('USDT')}
+                  >
+                    {t('capitalInUsdt')}
+                  </button>
+                  <button
+                    className={`pill ${capitalCurrency === 'QAR' ? 'good' : ''}`}
+                    style={{ cursor: 'pointer', padding: '2px 6px', fontSize: 8, fontWeight: 700 }}
+                    onClick={() => setCapitalCurrency('QAR')}
+                  >
+                    {t('capitalInQar')}
+                  </button>
+                </div>
+              </div>
               <div className="inputBox" style={{ padding: '6px 10px' }}>
                 <input
                   type="number"
@@ -580,9 +598,21 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   placeholder="0"
                 />
               </div>
+              {capitalCurrency === 'QAR' && investedCapital && (
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                  {avgRate
+                    ? `≈ ${fmtU(investedCapitalUsdt)} USDT (${t('convertedFromQar')} ${avgRate.toFixed(2)})`
+                    : t('noRateAvailable')}
+                </div>
+              )}
+              {capitalCurrency === 'USDT' && investedCapital && avgRate && (
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
+                  {t('convertedFromUsdt')}: {((parseFloat(investedCapital) || 0) * avgRate).toFixed(0)} QAR
+                </div>
+              )}
             </div>
             <div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>Settlement Way</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('settlementWayLabel')}</div>
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
                   className={`pill ${settlementWay === 'reinvest' ? 'good' : ''}`}
