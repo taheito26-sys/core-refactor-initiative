@@ -669,7 +669,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   ③ {t('defaultProfitHandling')}:<br />
                   &nbsp;&nbsp;{operatorName}: {operatorDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
                   &nbsp;&nbsp;{lenderName}: {counterpartyDefaultHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}<br />
-                  ④ Settlement way: {settlementWay}<br />
+                  ④ {t('settlementWayLabel')}: {settlementWay === 'reinvest' ? t('reinvestOption') : t('withdrawOption')}<br />
                   {t('settlement')}: {cadenceLabel(cadence)}.
                 </div>
               );
