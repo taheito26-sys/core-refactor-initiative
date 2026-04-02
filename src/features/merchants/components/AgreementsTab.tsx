@@ -305,7 +305,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           background: 'color-mix(in srgb, var(--brand) 3%, var(--cardBg))',
         }}>
           <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>
-            {editingAgreementId ? 'Edit Profit Share Agreement' : t('newProfitShareAgreement')}
+            {editingAgreementId ? t('editAgreementTitle') : t('newProfitShareAgreement')}
           </div>
 
           {/* ── Agreement Type Selector ── */}
