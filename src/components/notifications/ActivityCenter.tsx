@@ -56,7 +56,7 @@ export default function ActivityCenter() {
       await updateStatus.mutateAsync({ agreementId, status });
       // Mark notification as read
       if (!n.read_at) await markRead.mutateAsync(n.id);
-      toast.success(status === 'approved' ? t('agreementApproved') : t('agreementRejected'));
+      toast.success(status === 'approved' ? t('agreementApprovedSuccess') : t('agreementRejectedSuccess'));
     } catch (err: any) {
       toast.error(err?.message || 'Failed');
     } finally {
