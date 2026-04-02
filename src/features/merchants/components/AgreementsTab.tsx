@@ -732,7 +732,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                         <div style={{ display: 'flex', gap: 4 }}>
                           {!isCreator ? (
                             <>
-                              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction' as any) || 'Approve'}</button>
+                              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction')}</button>
                               <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                             </>
                           ) : (
