@@ -61,6 +61,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     return Math.round((raw / avgRate) * 100) / 100;
   }, [investedCapital, capitalCurrency, avgRate]);
   const [editingAgreementId, setEditingAgreementId] = useState<string | null>(null);
+  const [expandedAgreementId, setExpandedAgreementId] = useState<string | null>(null);
+  const [simProfit, setSimProfit] = useState<string>('1000');
 
   // ── Operator Priority fields ──
   const [operatorRatio, setOperatorRatio] = useState('20');
