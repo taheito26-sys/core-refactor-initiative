@@ -38,12 +38,12 @@ function validateFile(filePath) {
     const syntaxErrors = sourceFile.parseDiagnostics || [];
     const realErrors = syntaxErrors.filter(d => d.category === ts.DiagnosticCategory.Error);
 
-    if (syntaxErrors.length > 0) {
+    if (realErrors.length > 0) {
       console.error(`Validation Error: Syntax errors found in ${filePath}`);
-      syntaxErrors.forEach(diagnostic => {
+      realErrors.forEach(diagnostic => {
         const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
-        if (diagnostic.file && diagnostic.start !== undefined) {
-          const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+        if (diagnostic.start !== undefined) {
+          const { line, character } = sourceFile.getLineAndCharacterOfPosition(diagnostic.start);
           console.error(`${filePath} (${line + 1},${character + 1}): ${message}`);
         } else {
           console.error(`${filePath}: ${message}`);
