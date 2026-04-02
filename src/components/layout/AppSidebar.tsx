@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Store,
   ShieldCheck,
+  Globe,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

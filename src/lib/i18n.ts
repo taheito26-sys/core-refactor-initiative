@@ -1291,6 +1291,7 @@ const translations = {
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },
   accTypeBank:           { en: 'Bank Account',                 ar: 'حساب بنكي' },
   accTypeVault:          { en: 'Vault / Safe',                 ar: 'خزنة / صندوق' },
+  accTypeMerchant:       { en: 'Merchant Custody',              ar: 'حفظ التاجر' },
 
   // Ledger entry types
   ledgerOpening:         { en: 'Opening Balance',              ar: 'الرصيد الافتتاحي' },
@@ -1302,6 +1303,15 @@ const translations = {
   ledgerStockRefund:     { en: 'Stock Refund',                 ar: 'استرداد مخزون' },
   ledgerEditAdjust:      { en: 'Batch Edit Adjust',            ar: 'تعديل دفعة' },
   ledgerReconcile:       { en: 'Reconciliation',               ar: 'تسوية حساب' },
+  ledgerMerchantFundingOut:     { en: 'Funding Merchant',      ar: 'تمويل التاجر' },
+  ledgerMerchantFundingReturn:  { en: 'Funding Return',        ar: 'إرجاع التمويل' },
+  ledgerMerchantSaleProceeds:   { en: 'Sale Proceeds',         ar: 'عائدات البيع' },
+  ledgerMerchantSettlementIn:   { en: 'Settlement In',         ar: 'تسوية واردة' },
+  ledgerMerchantSettlementOut:  { en: 'Settlement Out',        ar: 'تسوية صادرة' },
+  ledgerMerchantFee:            { en: 'Merchant Fee',          ar: 'رسوم التاجر' },
+  ledgerMerchantAdjustment:     { en: 'Merchant Adjustment',   ar: 'تعديل التاجر' },
+  fundMerchant:          { en: 'Fund',                         ar: 'تمويل' },
+  settleBack:            { en: 'Settle',                       ar: 'تسوية' },
 
   // Add / Edit account modal
   addCashAccount:        { en: '➕ Add Cash Account',          ar: '➕ إضافة حساب نقدي' },
