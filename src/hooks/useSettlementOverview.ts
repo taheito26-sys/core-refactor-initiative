@@ -121,7 +121,7 @@ export function useSettlementOverview(overrideMerchantId?: string) {
         byRelationship,
       };
     },
-    enabled: !!merchantProfile,
+    enabled: !!effectiveMerchantId,
     staleTime: 60_000,
   });
 }
