@@ -130,6 +130,8 @@ export default function StockPage() {
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
   const wacop = getWACOP(derived);
+  /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
   const rLabel = rangeLabel(state.range);
 
   const query = (settings.searchQuery || '').trim().toLowerCase();

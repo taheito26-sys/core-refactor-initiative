@@ -239,6 +239,8 @@ export default function OrdersPage() {
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
   const wacop = getWACOP(derived);
+  /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
   useEffect(() => { if (!saleSell && wacop) setSaleSell(fmtP(wacop)); }, [wacop, saleSell]);
 
   const rLabel = rangeLabel(state.range);
