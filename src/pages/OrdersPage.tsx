@@ -107,6 +107,7 @@ export default function OrdersPage() {
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
   const [editLinkedRelId, setEditLinkedRelId] = useState('');
   const [editSelectedTemplateId, setEditSelectedTemplateId] = useState<string | null>(null);
+  const [editSelectedAgreementId, setEditSelectedAgreementId] = useState<string | null>(null);
   const [editSettleImmediately, setEditSettleImmediately] = useState(false);
 
   // ─── Merchant-Linked Trade (Trade-Centric) ────────────────────────
