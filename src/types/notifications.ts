@@ -62,6 +62,7 @@ export type NotificationCategoryGroup =
   | 'order'
   | 'invite'
   | 'approval'
+  | 'agreement'
   | 'message'
   | 'system';
 
