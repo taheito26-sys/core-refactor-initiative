@@ -44,7 +44,23 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [expiresAt, setExpiresAt] = useState('');
   const [notes, setNotes] = useState('');
   const [investedCapital, setInvestedCapital] = useState('');
+  const [capitalCurrency, setCapitalCurrency] = useState<'USDT' | 'QAR'>('USDT');
   const [settlementWay, setSettlementWay] = useState<'reinvest' | 'withdraw'>('reinvest');
+
+  // P2P rate for QAR↔USDT conversion
+  const { data: p2pRates } = useP2PRates('qatar');
+  const avgRate = useMemo(() => {
+    if (!p2pRates?.buyRate || !p2pRates?.sellRate) return null;
+    return (p2pRates.buyRate + p2pRates.sellRate) / 2;
+  }, [p2pRates]);
+
+  // Convert invested capital to USDT for storage
+  const investedCapitalUsdt = useMemo(() => {
+    const raw = parseFloat(investedCapital) || 0;
+    if (capitalCurrency === 'USDT') return raw;
+    if (!avgRate || avgRate <= 0) return 0;
+    return Math.round((raw / avgRate) * 100) / 100;
+  }, [investedCapital, capitalCurrency, avgRate]);
   const [editingAgreementId, setEditingAgreementId] = useState<string | null>(null);
 
   // ── Operator Priority fields ──
