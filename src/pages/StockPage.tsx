@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU,
   fmtP,
-  fmtQ,
+  fmtQ, fmtQWithUnit,
   fmtDate,
   fmtDur,
   fmtTotal,
@@ -130,6 +130,8 @@ export default function StockPage() {
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
   const wacop = getWACOP(derived);
+  /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
   const rLabel = rangeLabel(state.range);
 
   const query = (settings.searchQuery || '').trim().toLowerCase();
@@ -552,7 +554,7 @@ export default function StockPage() {
                       <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
                       <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
                       <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
-                      <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtQ(b.profit || 0)}</strong></div>
+                      <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
                     </div>
                     <div style={{ marginBottom: 6 }}>
                       <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
@@ -569,7 +571,7 @@ export default function StockPage() {
                         <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
                         <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
                         <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
-                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtQ(b.initialUSDT * b.buyPriceQAR)} QAR</strong></div>
+                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
                         {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
                         {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
                       </div>
@@ -615,7 +617,7 @@ export default function StockPage() {
                           <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
                         </td>
                         <td className="mono r hide-mobile" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                          {(b.profit || 0) >= 0 ? '+' : ''}{fmtQ(b.profit || 0)}
+                          {(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}
                         </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -636,7 +638,7 @@ export default function StockPage() {
                               <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
                               <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
                               <div><span className="muted">{t('batchUtilization')}:</span> <strong>{(100 - prog).toFixed(0)}% {t('usage')}</strong></div>
-                              <div><span className="muted">{t('cost')}:</span> <strong>{fmtQ(b.initialUSDT * b.buyPriceQAR)} QAR</strong></div>
+                              <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
                               {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
                               {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
                             </div>
@@ -987,10 +989,10 @@ export default function StockPage() {
                     {t('usedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtU(editUsed)}</strong>
                   </span>
                   <span style={{ padding: '4px 10px', borderRadius: 999, border: `1px solid color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 30%, transparent)`, background: `color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 10%, transparent)`, fontSize: 11, color: editProfit >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                    {t('profitLabel')} {editProfit >= 0 ? '+' : ''}{fmtQ(editProfit)}
+                    {t('profitLabel')} {editProfit >= 0 ? '+' : ''}{fmtC(editProfit)}
                   </span>
                   <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
-                    {t('investedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtQ(editInvested)}</strong>
+                    {t('investedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtC(editInvested)}</strong>
                   </span>
                 </div>
               )}
