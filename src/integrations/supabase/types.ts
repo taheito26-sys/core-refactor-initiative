@@ -253,6 +253,39 @@ export type Database = {
           },
         ]
       }
+      daily_reference_rates: {
+        Row: {
+          created_at: string
+          id: string
+          rate_date: string
+          recorded_by: string
+          source: string
+          total_cost_basis_qar: number
+          total_usdt_stock: number
+          wacop_rate: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rate_date: string
+          recorded_by: string
+          source?: string
+          total_cost_basis_qar?: number
+          total_usdt_stock?: number
+          wacop_rate: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rate_date?: string
+          recorded_by?: string
+          source?: string
+          total_cost_basis_qar?: number
+          total_usdt_stock?: number
+          wacop_rate?: number
+        }
+        Relationships: []
+      }
       deal_capital_ledger: {
         Row: {
           amount: number
