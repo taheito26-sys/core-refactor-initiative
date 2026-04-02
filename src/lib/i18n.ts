@@ -1105,6 +1105,7 @@ const translations = {
   agreementCreatedSuccess: { en: 'Profit Share agreement created', ar: 'تم إنشاء اتفاقية تقاسم الأرباح' },
   ratioValidation: { en: 'Partner ratio must be between 1 and 99', ar: 'يجب أن تكون حصة الشريك بين 1 و99' },
   agreementRejectedSuccess: { en: 'Agreement rejected', ar: 'تم رفض الاتفاقية' },
+  agreementApprovedSuccess: { en: 'Agreement approved', ar: 'تم الموافقة على الاتفاقية' },
   agreementExpiredSuccess: { en: 'Agreement expired', ar: 'تم إنهاء الاتفاقية' },
   activeAgreementsLabel: { en: 'Active Agreements', ar: 'الاتفاقيات النشطة' },
   expiredAgreementsLabel: { en: 'Expired', ar: 'المنتهية' },
