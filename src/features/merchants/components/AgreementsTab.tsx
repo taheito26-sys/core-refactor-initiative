@@ -140,7 +140,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         settlement_cadence: cadence,
         invested_capital: agreementType === 'operator_priority'
           ? (opContribNum + lnContribNum)
-          : sharedFields.investedCapital,
+          : investedCapitalUsdt,
         settlement_way: sharedFields.settlementWay,
         effective_from: new Date(effectiveFrom).toISOString(),
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
