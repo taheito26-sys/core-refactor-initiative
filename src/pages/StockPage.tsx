@@ -147,7 +147,34 @@ export default function StockPage() {
       months.add(key);
     });
     return Array.from(months).sort().reverse();
-  }, [state.batches]);
+  }, [state
+think
+The previous response was cut off in `src/pages/StockPage.tsx`. I need to continue from:
+```tsx
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    const curMonthKey = new Date().toISOString().slice(0, 7);
+    months.add(curMonthKey);
+    state.batches.forEach(b => {
+      const d = new Date(b.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    return Array.from(months).sort().reverse();
+  }, [state
+```
+
+I will complete `src/pages/StockPage.tsx` and then proceed to update the other files mentioned in the previous thought process for global currency conversion consistency:
+1. `src/features/merchants/components/AgreementsGlobalTab.tsx`
+2. `src/features/merchants/components/AgreementsTab.tsx`
+3. `src/features/merchants/components/SettlementTab.tsx`
+4. `src/features/merchants/components/ProfitDistributionPanel.tsx`
+5. `src/features/merchants/components/BalanceLedger.tsx`
+
+Let's finish `src/pages/StockPage.tsx` first.
+
+```tsx
+.batches]);
 
   const perf = useMemo(() => state.batches
     .map((b) => {
@@ -645,7 +672,7 @@ export default function StockPage() {
                 <div className="bannerRow">
                   <span className="bLbl">{t('currentAvPrice')}</span>
                   <span className="bVal">{fmtP(wacop)}</span>
-                  <span className="bSpacer"</span>
+                  <span className="bSpacer"></span>
                   <span className="bPill">{t('avg')}</span>
                 </div>
               )}
@@ -718,23 +745,7 @@ export default function StockPage() {
                   <div className="g2tight" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : undefined}>
                     <div className="field2">
                       <div className="lbl">{t('usdtBought')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(ethink
-The previous response was cut off in `src/pages/StockPage.tsx`. I need to continue from:
-```tsx
-                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e
-```
-
-I will complete `src/pages/StockPage.tsx` and then proceed to update the other files mentioned in the previous thought process for global currency conversion consistency:
-1. `src/features/merchants/components/AgreementsGlobalTab.tsx`
-2. `src/features/merchants/components/AgreementsTab.tsx`
-3. `src/features/merchants/components/SettlementTab.tsx`
-4. `src/features/merchants/components/ProfitDistributionPanel.tsx`
-5. `src/features/merchants/components/BalanceLedger.tsx`
-
-Let's finish `src/pages/StockPage.tsx` first.
-
-```tsx
-) => setBatchUsdtQty(e.target.value)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('buyPriceQar')}</div>
