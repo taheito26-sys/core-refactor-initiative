@@ -5,6 +5,7 @@ import {
   fmtU,
   fmtP,
   fmtQ,
+  fmtDate,
   fmtDur,
   fmtTotal,
   num,
@@ -16,7 +17,6 @@ import {
   getAccountBalance,
   getAllAccountBalances,
   deriveCashQAR,
-  fmtQWithUnit,
   type TrackerState,
   type CashLedgerEntry,
 } from '@/lib/tracker-helpers';
@@ -80,16 +80,19 @@ export default function StockPage() {
 
   const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
 
+  // ── Cash Management tab ──────────────────────────────────────────
   const [searchParams] = useSearchParams();
   const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
     searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
   );
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
 
+  // Derive account balances for funding source selector
   const cashAccounts = state.cashAccounts || [];
   const cashLedger = state.cashLedger || [];
   const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);
   const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
+
 
   useEffect(() => {
     const focusStockId = searchParams.get('focusStockId');
@@ -102,8 +105,10 @@ export default function StockPage() {
     }, 180);
   }, [searchParams, state.batches.length]);
 
+  // Auto-select first account if none selected and accounts exist
   useEffect(() => {
     if (!fundingAccountId && activeAccounts.length > 0) {
+      // Prefer the account with highest balance
       const best = [...activeAccounts].sort((a, b) => (accountBalances.get(b.id) || 0) - (accountBalances.get(a.id) || 0));
       setFundingAccountId(best[0]?.id || 'none');
     }
@@ -121,6 +126,7 @@ export default function StockPage() {
       },
     };
     applyState(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
   const wacop = getWACOP(derived);
@@ -169,7 +175,7 @@ export default function StockPage() {
         if (key !== selectedMonth) return false;
       }
       if (!query) return true;
-      return [new Date(b.ts).toLocaleDateString(), b.source, b.note].join(' ').toLowerCase().includes(query);
+      return [fmtDate(b.ts), b.source, b.note].join(' ').toLowerCase().includes(query);
     })
     .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
 
@@ -234,6 +240,7 @@ export default function StockPage() {
     const batchCostQAR = volumeQAR;
     const batchId = uid();
 
+    // ── Multi-account cash deduction (new system) ──────────────────
     let nextCashLedger = [...(state.cashLedger || [])];
     let fundingLedgerEntryId: string | undefined;
     let selectedFundingAccountId: string | undefined;
@@ -264,6 +271,7 @@ export default function StockPage() {
       selectedFundingAccountId = fundingAccountId;
     }
 
+    // ── Legacy cashQAR backward-compat deduction ────────────────────
     const currentCash = num(state.cashQAR, 0);
     const newCashFromLedger = activeAccounts.length > 0
       ? deriveCashQAR(cashAccounts, nextCashLedger)
@@ -331,13 +339,16 @@ export default function StockPage() {
     const qty = Number(editQty);
     const px = Number(editPrice);
     const src = editSource.trim();
-    if (!Number.isFinite(ts) || !(qty > 0) || !(px > 0) || !src) return;
+    if (!Number.isFinite(ts) || !(qty > 0) || !(px > 0) || !src) {
+      return;
+    }
 
     const existingBatch = state.batches.find(b => b.id === editingBatchId);
     const oldCost = existingBatch ? existingBatch.initialUSDT * existingBatch.buyPriceQAR : 0;
     const newCost = qty * px;
-    const delta = newCost - oldCost;
+    const delta = newCost - oldCost; // positive = extra spend, negative = refund
 
+    // ── Ledger adjustment if multi-account is active ─────────────
     let nextCashLedger = [...(state.cashLedger || [])];
     if (Math.abs(delta) > 0.01 && existingBatch?.fundingAccountId) {
       const adjustEntry: CashLedgerEntry = {
@@ -385,15 +396,19 @@ export default function StockPage() {
     if (!batch) return;
 
     const batchCostQAR = batch.initialUSDT * batch.buyPriceQAR;
+
+    // ── Double-refund guard ───────────────────────────────────────
     const alreadyRefunded = (state.cashLedger || []).some(
       e => e.type === 'stock_refund' && e.linkedEntityId === editingBatchId
     );
     if (alreadyRefunded) {
+      // Batch already refunded — just remove from list
       applyState({ ...state, batches: state.batches.filter(b => b.id !== editingBatchId) });
       setEditingBatchId(null);
       return;
     }
 
+    // ── Multi-account refund (new system) ─────────────────────────
     let nextCashLedger = [...(state.cashLedger || [])];
     if (batch.fundingAccountId && (state.cashAccounts || []).length > 0) {
       const refundEntry: CashLedgerEntry = {
@@ -411,6 +426,7 @@ export default function StockPage() {
       nextCashLedger = [...nextCashLedger, refundEntry];
     }
 
+    // ── Legacy cashQAR refund ─────────────────────────────────────
     const currentCash = num(state.cashQAR, 0);
     const newCashQAR = (state.cashAccounts || []).length > 0
       ? deriveCashQAR(state.cashAccounts, nextCashLedger)
@@ -439,6 +455,7 @@ export default function StockPage() {
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
+      {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
       <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
         <button
           onClick={() => setStockTab('batches')}
@@ -453,14 +470,26 @@ export default function StockPage() {
         </button>
       </div>
 
+      {/* ── CASH MANAGEMENT TAB ────────────────────────────────── */}
       {stockTab === 'cash' && (
         <CashManagement state={state} applyState={applyState} />
       )}
 
+      {/* ── BATCHES TAB ────────────────────────────────────────── */}
       {stockTab === 'batches' && (
-      <div className="twoColPage orders-two-col">
+      <div className="twoColPage" style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined}>
         <div>
-          <div className="orders-tab-bar" style={{ marginBottom: 8, background: 'transparent', border: 'none', padding: 0, gap: 8, boxShadow: 'none' }}>
+          <div 
+            className="orders-tab-bar" 
+            style={{ 
+              marginBottom: 8, 
+              background: 'transparent', 
+              border: 'none', 
+              padding: 0, 
+              gap: 8,
+              boxShadow: 'none'
+            }}
+          >
             <button
               onClick={() => setSelectedMonth('all')}
               className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
@@ -502,7 +531,7 @@ export default function StockPage() {
               <div className="empty-s">{t('addFirstPurchase')}</div>
             </div>
           ) : isMobile ? (
-            <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+            <div style={{ display: 'grid', gap: 6 }}>
               {perf.map((b) => {
                 const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
                 const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
@@ -511,7 +540,7 @@ export default function StockPage() {
                 const st = rem <= 1e-9 ? t('depleted') : rem < b.initialUSDT ? t('partial') : t('fresh');
                 const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
                 return (
-                  <div key={b.id} className="panel" style={{ padding: 8, marginBottom: 8 }}>
+                  <div key={b.id} className="panel" style={{ padding: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
                       <div>
                         <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(b.ts)}</div>
@@ -523,7 +552,7 @@ export default function StockPage() {
                       <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
                       <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
                       <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
-                      <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtQWithUnit(b.profit || 0, settings.currency, wacop)}</strong></div>
+                      <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtQ(b.profit || 0)}</strong></div>
                     </div>
                     <div style={{ marginBottom: 6 }}>
                       <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
@@ -540,7 +569,7 @@ export default function StockPage() {
                         <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
                         <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
                         <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
-                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtQWithUnit(b.initialUSDT * b.buyPriceQAR, settings.currency, wacop)}</strong></div>
+                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtQ(b.initialUSDT * b.buyPriceQAR)} QAR</strong></div>
                         {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
                         {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
                       </div>
@@ -586,7 +615,7 @@ export default function StockPage() {
                           <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
                         </td>
                         <td className="mono r hide-mobile" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                          {(b.profit || 0) >= 0 ? '+' : ''}{fmtQWithUnit(b.profit || 0, settings.currency, wacop)}
+                          {(b.profit || 0) >= 0 ? '+' : ''}{fmtQ(b.profit || 0)}
                         </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
@@ -607,7 +636,7 @@ export default function StockPage() {
                               <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
                               <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
                               <div><span className="muted">{t('batchUtilization')}:</span> <strong>{(100 - prog).toFixed(0)}% {t('usage')}</strong></div>
-                              <div><span className="muted">{t('cost')}:</span> <strong>{fmtQWithUnit(b.initialUSDT * b.buyPriceQAR, settings.currency, wacop)}</strong></div>
+                              <div><span className="muted">{t('cost')}:</span> <strong>{fmtQ(b.initialUSDT * b.buyPriceQAR)} QAR</strong></div>
                               {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
                               {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
                             </div>
@@ -645,7 +674,7 @@ export default function StockPage() {
                 <div className="bannerRow">
                   <span className="bLbl">{t('currentAvPrice')}</span>
                   <span className="bVal">{fmtP(wacop)}</span>
-                  <span className="bSpacer"</span>
+                  <span className="bSpacer" />
                   <span className="bPill">{t('avg')}</span>
                 </div>
               )}
@@ -718,23 +747,7 @@ export default function StockPage() {
                   <div className="g2tight" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : undefined}>
                     <div className="field2">
                       <div className="lbl">{t('usdtBought')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(ethink
-The previous response was cut off in `src/pages/StockPage.tsx`. I need to continue from:
-```tsx
-                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e
-```
-
-I will complete `src/pages/StockPage.tsx` and then proceed to update the other files mentioned in the previous thought process for global currency conversion consistency:
-1. `src/features/merchants/components/AgreementsGlobalTab.tsx`
-2. `src/features/merchants/components/AgreementsTab.tsx`
-3. `src/features/merchants/components/SettlementTab.tsx`
-4. `src/features/merchants/components/ProfitDistributionPanel.tsx`
-5. `src/features/merchants/components/BalanceLedger.tsx`
-
-Let's finish `src/pages/StockPage.tsx` first.
-
-```tsx
-) => setBatchUsdtQty(e.target.value)} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('buyPriceQar')}</div>
@@ -830,6 +843,7 @@ Let's finish `src/pages/StockPage.tsx` first.
                 <div className="inputBox"><input placeholder={t('optionalNote')} value={batchNote} onChange={(e) => setBatchNote(e.target.value)} /></div>
               </div>
 
+              {/* ── Funding Source (multi-account) ── */}
               {activeAccounts.length > 0 && (
                 <div className="field2">
                   <div className="lbl">{t('fundingSourceLbl')}</div>
@@ -867,8 +881,9 @@ Let's finish `src/pages/StockPage.tsx` first.
           </div>
         </div>
       </div>
-      )}
+      )} {/* end batches tab */}
 
+      {/* ─── EDIT BATCH DIALOG ─── */}
       {(() => {
         const editBatch = editingBatchId ? state.batches.find(b => b.id === editingBatchId) : null;
         const editDerived = editingBatchId ? derived.batches.find(b => b.id === editingBatchId) : null;
@@ -892,6 +907,7 @@ Let's finish `src/pages/StockPage.tsx` first.
                 <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{t('editBatchInPlace')}</DialogTitle>
               </DialogHeader>
 
+              {/* Depletion warning */}
               {(editFullyDepleted || editPartial) && (
                 <div style={{ background: `color-mix(in srgb, ${editFullyDepleted ? 'var(--bad)' : 'var(--warn)'} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${editFullyDepleted ? 'var(--bad)' : 'var(--warn)'} 28%, transparent)`, borderRadius: 6, padding: '8px 12px', fontSize: 11, color: editFullyDepleted ? 'var(--bad)' : 'var(--warn)', marginBottom: 14, lineHeight: 1.5, display: 'flex', gap: 7, alignItems: 'flex-start' }}>
                   <span style={{ flexShrink: 0 }}>⚠</span>
@@ -899,11 +915,13 @@ Let's finish `src/pages/StockPage.tsx` first.
                 </div>
               )}
 
+              {/* Date & time */}
               <div className="field2" style={{ marginBottom: 10 }}>
                 <div className="lbl">{t('dateTime')}</div>
                 <div className="inputBox"><input type="datetime-local" value={editDate} onChange={(e) => setEditDate(e.target.value)} /></div>
               </div>
 
+              {/* Supplier — dropdown + custom input */}
               <div className="field2" style={{ marginBottom: 4 }}>
                 <div className="lbl">{t('supplier')}</div>
                 <div style={{ position: 'relative' }}>
@@ -929,6 +947,7 @@ Let's finish `src/pages/StockPage.tsx` first.
                 />
               </div>
 
+              {/* Qty USDT | Buy price QAR */}
               <div className="g2tight" style={{ marginBottom: 4, ...(isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : {}) }}>
                 <div className="field2">
                   <div className="lbl">{t('qtyUsdt')}</div>
@@ -945,6 +964,7 @@ Let's finish `src/pages/StockPage.tsx` first.
                 </div>
               )}
 
+              {/* Note */}
               <div className="field2" style={{ marginBottom: 14 }}>
                 <div className="lbl">{t('note')}</div>
                 <div className="inputBox" style={{ padding: 0 }}>
@@ -957,6 +977,7 @@ Let's finish `src/pages/StockPage.tsx` first.
                 </div>
               </div>
 
+              {/* Batch stats pills */}
               {editBatch && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
                   <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
@@ -966,10 +987,10 @@ Let's finish `src/pages/StockPage.tsx` first.
                     {t('usedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtU(editUsed)}</strong>
                   </span>
                   <span style={{ padding: '4px 10px', borderRadius: 999, border: `1px solid color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 30%, transparent)`, background: `color-mix(in srgb, ${editProfit >= 0 ? 'var(--good)' : 'var(--bad)'} 10%, transparent)`, fontSize: 11, color: editProfit >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                    {t('profitLabel')} {editProfit >= 0 ? '+' : ''}{fmtQWithUnit(editProfit, settings.currency, wacop)}
+                    {t('profitLabel')} {editProfit >= 0 ? '+' : ''}{fmtQ(editProfit)}
                   </span>
                   <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid var(--line)', background: 'rgba(255,255,255,.03)', fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>
-                    {t('investedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtQWithUnit(editInvested, settings.currency, wacop)}</strong>
+                    {t('investedLabel')} <strong style={{ color: 'var(--text)' }}>{fmtQ(editInvested)}</strong>
                   </span>
                 </div>
               )}
