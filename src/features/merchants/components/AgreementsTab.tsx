@@ -643,7 +643,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               <strong>{t('previewAgreement')}</strong> {t('profitShareLabel')} {partnerRatio}/{100 - (parseFloat(partnerRatio) || 0)} —
               {counterpartyName || t('partner')} {t('gets')} {partnerRatio}% {t('ofNetProfit')}, {t('you')} {t('keeps')} {100 - (parseFloat(partnerRatio) || 0)}%.
               {t('settlement')}: {cadenceLabel(cadence)}.
-              {' '}Invested: {fmtU(parseFloat(investedCapital) || 0)} · Way: {settlementWay}.
+              {' '}{t('investedLabel')}: {fmtU(investedCapitalUsdt)} · {t('settlementWayLabel')}: {settlementWay === 'reinvest' ? t('reinvestOption') : t('withdrawOption')}.
             </div>
           ) : (
             (() => {
