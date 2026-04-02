@@ -152,18 +152,6 @@ const CIPHER: LayoutDef = {
   },
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
 // ═══ DARK LEDGER — Premium dark finance dashboard ═══
 const DARK_LEDGER: LayoutDef = {
   id: 'dark_ledger', name: 'Dark Ledger', desc: 'Premium dark · high-contrast data',
@@ -225,9 +213,6 @@ const DARK_LEDGER: LayoutDef = {
   },
 };
 
-
-
-
 // ═══ OPERATIONS DESK — Table-focused, medium-high density, ops workflow ═══
 const OPERATIONS_DESK: LayoutDef = {
   id: 'operations_desk', name: 'Operations Desk', desc: 'Table-focused · ops workflow',
@@ -268,12 +253,6 @@ const OPERATIONS_DESK: LayoutDef = {
     },
   },
 };
-
-
-
-
-
-
 
 // ═══ ATLAS GRID — Command-center, spatial ops board ═══
 const ATLAS_GRID: LayoutDef = {
@@ -454,12 +433,53 @@ const SIGNAL_DECK: LayoutDef = {
       good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
       sidebarBg:'#090f1a', topbarBg:'rgba(13,19,33,.98)',
       cardBg:'#131c2e', inputBg:'rgba(255,255,255,.04)',
-      hoverCard:'rgba(6,182,212,.04)', glow:'rgba(34,211,238,.15)',
+      hoverCard:'rgba(34,211,238,.15)', glow:'rgba(34,211,238,.15)',
     },
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK];
+// ═══ CHEERFUL PULSE — Vibrant, playful, high-energy ═══
+const CHEERFUL_PULSE: LayoutDef = {
+  id: 'cheerful_pulse', name: 'Cheerful Pulse', desc: 'Vibrant · playful · high-energy',
+  font: 'Plus Jakarta Sans', fontMono: 'JetBrains Mono',
+  radius: '20px', radiusSm: '12px', radiusLg: '28px',
+  shadow: '0 10px 30px rgba(0,0,0,.08)',
+  swatches: ['#ffffff','#ff0080','#7928ca','#00dfd8','#ff4d4d','#f9cb28','#0070f3','#50e3c2'],
+  themes: {
+    t1: { // Candy Pop
+      bg:'#fff5f8', panel:'#ffffff', panel2:'#fff0f5', panel3:'#ffe4ee',
+      text:'#300015', muted:'#a04070', muted2:'#d080a0',
+      line:'rgba(255,0,128,.1)', line2:'rgba(255,0,128,.05)',
+      brand:'#ff0080', brand2:'#7928ca', brand3:'rgba(255,0,128,.1)',
+      good:'#00dfd8', bad:'#ff4d4d', warn:'#f9cb28',
+      sidebarBg:'#ffffff', topbarBg:'rgba(255,245,248,.96)',
+      cardBg:'#ffffff', inputBg:'rgba(255,0,128,.05)',
+      hoverCard:'rgba(255,0,128,.04)', glow:'rgba(255,0,128,.2)',
+    },
+    t2: { // Electric Mint
+      bg:'#f0fff4', panel:'#ffffff', panel2:'#e6fffa', panel3:'#b2f5ea',
+      text:'#004433', muted:'#2c7a7b', muted2:'#4fd1c5',
+      line:'rgba(0,223,216,.12)', line2:'rgba(0,223,216,.06)',
+      brand:'#00dfd8', brand2:'#0070f3', brand3:'rgba(0,223,216,.1)',
+      good:'#50e3c2', bad:'#ff4d4d', warn:'#f9cb28',
+      sidebarBg:'#ffffff', topbarBg:'rgba(240,255,244,.96)',
+      cardBg:'#ffffff', inputBg:'rgba(0,223,216,.05)',
+      hoverCard:'rgba(0,223,216,.04)', glow:'rgba(0,223,216,.2)',
+    },
+    t3: { // Sunny Day
+      bg:'#fffaf0', panel:'#ffffff', panel2:'#fff5e6', panel3:'#feebc8',
+      text:'#4a3728', muted:'#9c4221', muted2:'#dd6b20',
+      line:'rgba(249,203,40,.15)', line2:'rgba(249,203,40,.08)',
+      brand:'#f9cb28', brand2:'#ff4d4d', brand3:'rgba(249,203,40,.1)',
+      good:'#50e3c2', bad:'#ff4d4d', warn:'#dd6b20',
+      sidebarBg:'#ffffff', topbarBg:'rgba(255,250,240,.96)',
+      cardBg:'#ffffff', inputBg:'rgba(249,203,40,.06)',
+      hoverCard:'rgba(249,203,40,.05)', glow:'rgba(249,203,40,.2)',
+    },
+  },
+};
+
+export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, CHEERFUL_PULSE];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
 export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto','Manrope','Fraunces','Instrument Serif','Public Sans'];
 export const FONT_SIZES = [9,10,11,12,13,14];
