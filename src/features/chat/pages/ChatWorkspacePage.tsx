@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRooms } from '@/features/chat/hooks/useRooms';
-import { getOrCreateDirectRoom } from '@/features/chat/api/rooms';
 import { useRoomMessages } from '@/features/chat/hooks/useRoomMessages';
 import { useUnreadState } from '@/features/chat/hooks/useUnreadState';
 import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar';
@@ -17,21 +16,19 @@ import { CallOrchestrator } from '@/features/chat/components/CallOrchestrator';
 import { ContextPanel } from '@/features/chat/components/ContextPanel';
 import { SecureWatermark } from '@/features/chat/components/SecureWatermark';
 import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
-import { Shield, Lock, Zap } from 'lucide-react';
+import { Shield, Zap } from 'lucide-react';
 import { SecureTradePanel } from '@/features/chat/components/SecureTradePanel';
 import { TradingActionBar } from '@/features/chat/components/TradingActionBar';
 import { useChatStore } from '@/lib/chat-store';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { userId: authUserId, merchantProfile } = useAuth();
   const userId = merchantProfile?.merchant_id || authUserId || '';
   const isMobile = useIsMobile();
   const roomsQuery = useRooms();
   const rooms = roomsQuery.data ?? [];
-  const refetchRooms = roomsQuery.refetch;
   
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<any | null>(null);
@@ -40,12 +37,10 @@ export default function ChatWorkspacePage() {
   const [showSidebar, setShowSidebar] = useState(true);
   
   const pendingNotificationNav = useChatStore((s) => s.pendingNotificationNav);
-  const setPendingNav = useChatStore((s) => s.setPendingNav);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const setAttention = useChatStore((s) => s.setAttention);
   
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
-  const [mobileBottomInset, setMobileBottomInset] = useState(0);
 
   const activeRoom = useMemo(
     () => rooms.find((r) => String(r.id) === String(activeRoomId) || String(r.room_id) === String(activeRoomId)) ?? null,
@@ -55,8 +50,7 @@ export default function ChatWorkspacePage() {
   useEffect(() => {
     if (activeRoomId || rooms.length === 0) return;
     const hasRoomIdParam = !!searchParams.get('roomId');
-    const hasMerchantIdParam = !!searchParams.get('merchantId');
-    if (hasRoomIdParam || hasMerchantIdParam || pendingNotificationNav) return;
+    if (hasRoomIdParam || pendingNotificationNav) return;
     setActiveRoomId(String(rooms[0].room_id || rooms[0].id));
   }, [rooms, activeRoomId, searchParams, pendingNotificationNav]);
 

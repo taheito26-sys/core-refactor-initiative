@@ -1,9 +1,8 @@
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Check, CheckCheck, Shield, Eye, Clock, Phone, Video, Mic, BarChart3, Forward, Reply, Play, Pause, MapPin, Lock } from 'lucide-react';
-import { BusinessObjectCard } from './BusinessObjectCard';
-import { parseMsg, splitLinks } from '../lib/message-codec';
-import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import { Check, CheckCheck, Shield, Eye, Lock, Zap, LayoutGrid } from 'lucide-react';
+import { parseMsg } from '../lib/message-codec';
+import { useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface MessageProps {
@@ -46,6 +45,34 @@ export function MessageItem({ message, currentUserId }: MessageProps) {
         <span className="bg-muted/50 text-muted-foreground text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em] border border-border/50">
           {parsed.text || message.content}
         </span>
+      </div>
+    );
+  }
+
+  if (parsed.isAiSummary) {
+    return (
+      <div className="mx-6 my-4 p-4 rounded-2xl bg-violet-50/50 border border-violet-100 shadow-sm">
+        <div className="flex items-center gap-2 mb-2 text-violet-600">
+          <Zap size={14} className="fill-current" />
+          <span className="text-[10px] font-black uppercase tracking-widest">AI Protocol Summary</span>
+        </div>
+        <p className="text-[13px] text-slate-700 leading-relaxed italic">
+          {parsed.text}
+        </p>
+      </div>
+    );
+  }
+
+  if (parsed.isAppOutput) {
+    return (
+      <div className="mx-6 my-4 p-4 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-xl">
+        <div className="flex items-center gap-2 mb-3 text-slate-400">
+          <LayoutGrid size={14} />
+          <span className="text-[10px] font-black uppercase tracking-widest">{parsed.appName || 'MiniApp'} Output</span>
+        </div>
+        <div className="font-mono text-[12px] bg-black/40 p-3 rounded-lg border border-white/5">
+          {parsed.text}
+        </div>
       </div>
     );
   }

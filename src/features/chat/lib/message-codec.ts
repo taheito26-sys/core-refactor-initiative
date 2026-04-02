@@ -1,6 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
    Message Codec — encoding & parsing for rich message metadata
-   Extracted from UnifiedChatInbox.tsx for reuse across components
    ═══════════════════════════════════════════════════════════════ */
 
 const SEP = '||~||';
@@ -62,6 +61,11 @@ export interface ParsedMessage {
   isSystemEvent: boolean;
   systemEventType?: string;
   systemEventFields?: string[];
+  // AI Summary
+  isAiSummary: boolean;
+  // App Output
+  isAppOutput: boolean;
+  appName?: string;
   // Text
   text: string;
   isEdited: boolean;
@@ -83,9 +87,25 @@ export function parseMsg(raw: string): ParsedMessage {
   let isVoice = false, voiceDuration: number | undefined, voiceBase64: string | undefined;
   let isSystemEvent = false, systemEventType: string | undefined, systemEventFields: string[] | undefined;
   let isEdited = false, editedAt: string | undefined;
+  let isAiSummary = false;
+  let isAppOutput = false, appName: string | undefined;
 
+  // AI Summary
+  if (text.startsWith('||AI_SUMMARY||')) {
+    isAiSummary = true;
+    text = text.replace('||AI_SUMMARY||', '').trim();
+  }
+  // App Output
+  else if (text.startsWith('[[MiniApp:')) {
+    isAppOutput = true;
+    const match = text.match(/\[\[MiniApp:\s*([^\]]+)\]\]/);
+    if (match) {
+      appName = match[1];
+      text = text.replace(match[0], '').trim();
+    }
+  }
   // Voice
-  if (text.startsWith('||VOICE||')) {
+  else if (text.startsWith('||VOICE||')) {
     const end = text.indexOf('||/VOICE||');
     const payload = end !== -1 ? text.slice(9, end) : text.slice(9);
     const meta = payload.split(SEP);
@@ -127,7 +147,7 @@ export function parseMsg(raw: string): ParsedMessage {
     const meta = payload.split(SEP);
     schedAt = meta[0]; text = meta[1] || ''; isScheduled = true;
   }
-  // System event (generic: ||SYS_ORDER||...||/SYS_ORDER||)
+  // System event
   else if (text.startsWith('||SYS_')) {
     const typeEnd = text.indexOf('||', 6);
     if (typeEnd !== -1) {
@@ -143,20 +163,17 @@ export function parseMsg(raw: string): ParsedMessage {
     }
   }
 
-  // Edited marker (can appear on any text message)
   const editIdx = text.lastIndexOf('||EDITED||');
   if (editIdx !== -1) {
     editedAt = text.slice(editIdx + 10); text = text.slice(0, editIdx); isEdited = true;
   }
 
-  // Viewed marker (generic: ||VIEWED||ts||/VIEWED||)
   let isViewed = false;
   const viewedIdx = raw.indexOf('||VIEWED||');
   if (viewedIdx !== -1) {
     isViewed = true;
     const viewedEndIdx = raw.indexOf('||/VIEWED||');
     if (viewedEndIdx !== -1) {
-      // Strip it from text if it's at the end or integrated
       text = text.replace(/\|\|VIEWED\|\|.*?\|\|\/VIEWED\|\|/, '').trim();
     }
   }
@@ -168,14 +185,13 @@ export function parseMsg(raw: string): ParsedMessage {
     isScheduled, schedAt,
     isVoice, voiceDuration, voiceBase64,
     isSystemEvent, systemEventType, systemEventFields,
+    isAiSummary, isAppOutput, appName,
     text, isEdited, editedAt,
     isViewed
   };
 }
 
-// ── Link rendering helper ────────────────────────────────────────
-
-const URL_RE = /(https?:\/\/[^\s]+)/g;
+export const URL_RE = /(https?:\/\/[^\s]+)/g;
 
 export function splitLinks(text: string): Array<{ type: 'text' | 'link'; value: string }> {
   const parts: Array<{ type: 'text' | 'link'; value: string }> = [];
@@ -194,8 +210,6 @@ export function splitLinks(text: string): Array<{ type: 'text' | 'link'; value: 
   }
   return parts;
 }
-
-// ── Time formatters ──────────────────────────────────────────────
 
 export function fmtListTime(s: string | null | undefined): string {
   if (!s) return '—';
@@ -226,8 +240,6 @@ export function fmtDateSeparator(s: string | null | undefined): string {
   return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
-// ── Color palette for conversation avatars ───────────────────────
-
 const PALETTES = [
   { bg: 'linear-gradient(135deg,#7c3aed,#6d28d9)', text: '#fff' },
   { bg: 'linear-gradient(135deg,#0891b2,#0e7490)', text: '#fff' },
@@ -241,8 +253,6 @@ export function getPalette(name: string | null | undefined) {
   const safeName = name || 'Anonymous';
   return PALETTES[safeName.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTES.length];
 }
-
-// ── Message grouping by date ─────────────────────────────────────
 
 export function groupMessagesByDate<T extends { created_at: string }>(
   messages: T[]
