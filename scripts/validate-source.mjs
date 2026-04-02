@@ -25,19 +25,18 @@ function validateFile(filePath) {
     }
   }
 
-  // 2. Check for syntax errors using TS compiler
+  // 2. Check for syntax errors using TS compiler (syntax-only, no type checking)
   if (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) {
-    const program = ts.createProgram([filePath], {
-      noEmit: true,
-      jsx: ts.JsxEmit.ReactJSX,
-      target: ts.ScriptTarget.Latest,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.NodeNext,
-      skipLibCheck: true,
-    });
+    const sourceFile = ts.createSourceFile(
+      filePath,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+    );
 
-    const diagnostics = ts.getPreEmitDiagnostics(program);
-    const syntaxErrors = diagnostics.filter(d => d.category === ts.DiagnosticCategory.Error);
+    const syntaxErrors = sourceFile.parseDiagnostics || [];
+    const realErrors = syntaxErrors.filter(d => d.category === ts.DiagnosticCategory.Error);
 
     if (syntaxErrors.length > 0) {
       console.error(`Validation Error: Syntax errors found in ${filePath}`);
