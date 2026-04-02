@@ -102,6 +102,32 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     return true;
   }), [allTrades, state?.range, settings.range, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, userId]);
 
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    const curMonthKey = new Date().toISOString().slice(0, 7);
+    months.add(curMonthKey);
+    visibleTrades.forEach(tr => {
+      const d = new Date(tr.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    allMerchantDeals.forEach((d: any) => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    return Array.from(months).sort().reverse();
+  }, [visibleTrades, allMerchantDeals]);
+
+  const subFilteredTrades = useMemo(() => {
+    if (selectedMonth === 'all') return visibleTrades;
+    return visibleTrades.filter(tr => {
+      const d = new Date(tr.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [visibleTrades, selectedMonth]);
+
   const relationshipById = useMemo(() => new Map(
     relationships.map((r: any) => [r.id, { merchant_a_id: r.merchant_a_id, merchant_b_id: r.merchant_b_id }]),
   ), [relationships]);
@@ -133,6 +159,25 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     }) === 'outgoing'),
     [workspaceScopedDeals, merchantId, relationshipById, merchantUserByMerchantId],
   );
+
+  const subFilteredInDeals = useMemo(() => {
+    if (selectedMonth === 'all') return partnerMerchantDeals;
+    return partnerMerchantDeals.filter((d: any) => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [partnerMerchantDeals, selectedMonth]);
+
+  const subFilteredOutDeals = useMemo(() => {
+    if (selectedMonth === 'all') return creatorMerchantDeals;
+    return creatorMerchantDeals.filter((d: any) => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [creatorMerchantDeals, selectedMonth]);
+
   const resolveDealAvgBuy = (deal: any, normalizedMeta?: Record<string, string>): number => {
     const meta = normalizedMeta ?? parseDealMeta(deal.notes);
     const metaAvg = Number(meta.avg_buy) || 0;
@@ -149,33 +194,33 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
 
   const myKpi = useMemo(() => {
     let qty = 0, vol = 0, net = 0;
-    for (const tr of visibleTrades.filter(tr => !tr.voided)) {
+    for (const tr of subFilteredTrades.filter(tr => !tr.voided)) {
       const c = derived?.tradeCalc.get(tr.id);
       qty += tr.amountUSDT;
       vol += tr.amountUSDT * tr.sellPriceQAR;
       if (c?.ok) net += c.netQAR;
     }
-    return { count: visibleTrades.length, qty, vol, net };
-  }, [visibleTrades, derived]);
+    return { count: subFilteredTrades.length, qty, vol, net };
+  }, [subFilteredTrades, derived]);
 
   const outKpi = useMemo(() => {
     let vol = 0, net = 0;
-    for (const deal of creatorMerchantDeals) {
+    for (const deal of subFilteredOutDeals) {
       const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
       vol += row.volume;
       net += row.myNet ?? 0;
     }
-    return { count: creatorMerchantDeals.length, vol, net };
-  }, [creatorMerchantDeals, t.isRTL]);
+    return { count: subFilteredOutDeals.length, vol, net };
+  }, [subFilteredOutDeals, t.isRTL]);
   const inKpi = useMemo(() => {
     let vol = 0, net = 0;
-    for (const deal of partnerMerchantDeals) {
+    for (const deal of subFilteredInDeals) {
       const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
       vol += row.volume;
       net += row.myNet ?? 0;
     }
-    return { count: partnerMerchantDeals.length, vol, net };
-  }, [partnerMerchantDeals, t.isRTL]);
+    return { count: subFilteredInDeals.length, vol, net };
+  }, [subFilteredInDeals, t.isRTL]);
 
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => (
     <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
