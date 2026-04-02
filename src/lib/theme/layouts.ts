@@ -1,5 +1,26 @@
 import { LayoutDef } from './types';
 
+// ═══ TERMINAL HIGH-CONTRAST — Maximum Visibility ═══
+const TERMINAL_HC: LayoutDef = {
+  id: 'terminal_hc', name: 'Terminal HC', desc: 'Maximum contrast · neon numbers',
+  font: 'JetBrains Mono', fontMono: 'JetBrains Mono',
+  radius: '4px', radiusSm: '2px', radiusLg: '8px',
+  shadow: '0 0 0 2px #ffffff, 0 10px 40px rgba(0,0,0,0.8)',
+  swatches: ['#000000','#00ffff','#00ff00','#ff0000','#ffff00','#ffffff','#1a1a1a','#333333'],
+  themes: {
+    t1: { // Neon Matrix
+      bg:'#000000', panel:'#0a0a0a', panel2:'#141414', panel3:'#222222',
+      text:'#ffffff', muted:'#a0a0a0', muted2:'#666666',
+      line:'#333333', line2:'#1a1a1a',
+      brand:'#00ffff', brand2:'#00cccc', brand3:'rgba(0,255,255,0.15)',
+      good:'#00ff00', bad:'#ff0000', warn:'#ffff00',
+      sidebarBg:'#000000', topbarBg:'#000000',
+      cardBg:'#050505', inputBg:'#111111',
+      hoverCard:'rgba(255,255,255,0.05)', glow:'rgba(0,255,255,0.4)',
+    }
+  }
+};
+
 // ═══ QUANTUM LEDGER — High Visibility Terminal ═══
 const QUANTUM_LEDGER: LayoutDef = {
   id: 'quantum_ledger', name: 'Quantum Ledger', desc: 'High-visibility · terminal numbers',
@@ -480,4 +501,4 @@ const GLASS_MOBILE: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [QUANTUM_LEDGER, FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, GLASS_MOBILE];
+export const LAYOUTS: LayoutDef[] = [TERMINAL_HC, QUANTUM_LEDGER, FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, GLASS_MOBILE];

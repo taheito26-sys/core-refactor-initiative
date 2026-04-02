@@ -4,7 +4,77 @@
    Applied via .layout-{id} class on the .app-shell.
    ═══════════════════════════════════════════════════════ */
 
-/* ─── 0. QUANTUM LEDGER (High Visibility Terminal) ─── */
+/* ─── 0. TERMINAL HIGH-CONTRAST (Maximum Visibility) ─── */
+.layout-terminal_hc {
+  --layout-padding: 16px;
+  --layout-gap: 16px;
+  --layout-radius: 4px;
+}
+.layout-terminal_hc .app-page-shell { padding: var(--layout-padding); }
+.layout-terminal_hc .grid { gap: var(--layout-gap); }
+.layout-terminal_hc .glass, 
+.layout-terminal_hc [data-slot="card"], 
+.layout-terminal_hc .border { 
+  border-radius: var(--layout-radius); 
+  border: 2px solid hsl(var(--border)) !important;
+  box-shadow: 0 10px 50px rgba(0,0,0,0.9);
+  background: #000000 !important;
+}
+
+/* Force massive neon numbers */
+.layout-terminal_hc .kpi-val {
+  font-size: 3rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.05em !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  text-shadow: 0 0 15px currentColor;
+  line-height: 1;
+}
+
+.layout-terminal_hc .kpi-card {
+  padding: 20px !important;
+  border: 2px solid #333 !important;
+}
+
+.layout-terminal_hc .kpi-lbl {
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.2em !important;
+  color: #00ffff !important;
+  text-transform: uppercase;
+  margin-bottom: 12px !important;
+}
+
+.layout-terminal_hc table thead th {
+  background: #111 !important;
+  font-weight: 900;
+  color: #00ffff !important;
+  border-bottom: 3px solid #00ffff !important;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.layout-terminal_hc .mono {
+  font-weight: 800;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.layout-terminal_hc .rowBtn, 
+.layout-terminal_hc .btn {
+  border: 2px solid currentColor !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: transparent !important;
+}
+
+.layout-terminal_hc .btn:hover {
+  background: currentColor !important;
+  color: #000 !important;
+}
+
+/* ─── 1. QUANTUM LEDGER (High Visibility Terminal) ─── */
 .layout-quantum_ledger {
   --layout-padding: 14px;
   --layout-gap: 14px;
@@ -20,7 +90,6 @@
   box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
 }
 
-/* Force oversized numbers in Quantum Ledger */
 .layout-quantum_ledger .kpi-val {
   font-size: 2.2rem !important;
   font-weight: 900 !important;
@@ -51,7 +120,7 @@
   font-size: 13px;
 }
 
-/* ─── 1. FLUX (Clean SaaS) ─── */
+/* ─── 2. FLUX (Clean SaaS) ─── */
 .layout-flux {
   --layout-padding: 12px;
   --layout-gap: 12px;
@@ -63,7 +132,7 @@
 .layout-flux [data-slot="card"], 
 .layout-flux .border { border-radius: var(--layout-radius); }
 
-/* ─── 2. CIPHER (Dark Terminal) ─── */
+/* ─── 3. CIPHER (Dark Terminal) ─── */
 .layout-cipher {
   --layout-padding: 8px;
   --layout-gap: 8px;
@@ -78,7 +147,7 @@
 .layout-cipher table { font-family: inherit; font-size: 11px; }
 .layout-cipher button { border-radius: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 
-/* ─── 3. DARK LEDGER (Premium Finance) ─── */
+/* ─── 4. DARK LEDGER (Premium Finance) ─── */
 .layout-dark_ledger {
   --layout-padding: 16px 20px;
   --layout-gap: 12px;
@@ -92,7 +161,7 @@
 .layout-dark_ledger table thead tr th { font-size: 10px; font-weight: 700; border-bottom: 2px solid hsl(var(--primary) / 0.2); }
 .layout-dark_ledger .tracker-kpi-card { border-left: 3px solid hsl(var(--primary)); }
 
-/* ─── 4. OPERATIONS DESK (High Density) ─── */
+/* ─── 5. OPERATIONS DESK (High Density) ─── */
 .layout-operations_desk {
   --layout-padding: 6px 10px;
   --layout-gap: 6px;
@@ -107,7 +176,7 @@
 .layout-operations_desk .tracker-kpi-card { padding: 8px 10px; border-left: 3px solid hsl(var(--primary)); }
 .layout-operations_desk button { border-radius: 4px; font-size: 11px; }
 
-/* ─── 5. ATLAS GRID (Spatial Ops) ─── */
+/* ─── 6. ATLAS GRID (Spatial Ops) ─── */
 .layout-atlas_grid {
   --layout-padding: 8px 12px;
   --layout-gap: 6px;
@@ -121,7 +190,7 @@
 .layout-atlas_grid table thead tr th { font-size: 9px; border-bottom: 2px solid hsl(var(--border)); }
 .layout-atlas_grid .tracker-kpi-card { border-left: 3px solid hsl(var(--primary)); }
 
-/* ─── 6. VELVET MONO (Luxury Dark) ─── */
+/* ─── 7. VELVET MONO (Luxury Dark) ─── */
 .layout-velvet_mono {
   --layout-padding: 20px 24px;
   --layout-gap: 12px;
@@ -136,7 +205,7 @@
 .layout-velvet_mono table thead tr th { font-size: 10px; letter-spacing: 0.06em; }
 .layout-velvet_mono button { border-radius: 8px; font-weight: 500; }
 
-/* ─── 7. PAPERWIRE (Analytical Newsroom) ─── */
+/* ─── 8. PAPERWIRE (Analytical Newsroom) ─── */
 .layout-paperwire {
   --layout-padding: 10px 14px;
   --layout-gap: 6px;
@@ -150,7 +219,7 @@
 .layout-paperwire table { font-family: 'Public Sans', sans-serif; }
 .layout-paperwire table thead tr th { font-size: 9px; letter-spacing: 0.1em; border-bottom: 2px solid hsl(var(--foreground) / 0.2); }
 
-/* ─── 8. SIGNAL DECK (Navy Command) ─── */
+/* ─── 9. SIGNAL DECK (Navy Command) ─── */
 .layout-signal_deck {
   --layout-padding: 20px 24px;
   --layout-gap: 12px;
@@ -164,7 +233,7 @@
 .layout-signal_deck .tracker-kpi-band { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .layout-signal_deck .tracker-kpi-card .text-2xl { font-family: 'JetBrains Mono', monospace; font-weight: 800; }
 
-/* ─── 9. GLASS MOBILE (Frosted Glass) ─── */
+/* ─── 10. GLASS MOBILE (Frosted Glass) ─── */
 .layout-glass_mobile {
   --layout-padding: 12px;
   --layout-gap: 10px;
@@ -200,7 +269,8 @@
   .layout-velvet_mono .app-page-shell,
   .layout-paperwire .app-page-shell,
   .layout-signal_deck .app-page-shell,
-  .layout-glass_mobile .app-page-shell { padding: 12px 14px; }
+  .layout-glass_mobile .app-page-shell,
+  .layout-terminal_hc .app-page-shell { padding: 12px 14px; }
 
   .layout-flux .grid,
   .layout-cipher .grid,
@@ -210,5 +280,6 @@
   .layout-velvet_mono .grid,
   .layout-paperwire .grid,
   .layout-signal_deck .grid,
-  .layout-glass_mobile .grid { gap: 8px; }
+  .layout-glass_mobile .grid,
+  .layout-terminal_hc .grid { gap: 8px; }
 }
