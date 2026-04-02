@@ -954,37 +954,48 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 </tr>
               </thead>
               <tbody>
-                {approved.map(a => (
-                  <tr key={a.id}>
-                    <td>
-                      <div style={{ fontWeight: 700, fontSize: 11 }}>
-                        {agreementDisplayLabel(a)}
-                      </div>
-                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>
-                        {a.agreement_type === 'operator_priority' ? (
-                          <>
-                            {t('operatorFeeFirst')} {a.operator_ratio}% · {t('thenCapitalSplit')}
-                          </>
-                        ) : (
-                          <>
-                            {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
-                    <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
-                    <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
-                    <td>{statusPill(a.status, isAgreementActive(a))}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
-                        <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
-                        <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {approved.map(a => {
+                  const isExpanded = expandedAgreementId === a.id;
+                  return (
+                    <React.Fragment key={a.id}>
+                    <tr>
+                      <td>
+                        <div style={{ fontWeight: 700, fontSize: 11 }}>
+                          {agreementDisplayLabel(a)}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>
+                          {a.agreement_type === 'operator_priority' ? (
+                            <>
+                              {t('operatorFeeFirst')} {a.operator_ratio}% · {t('thenCapitalSplit')}
+                            </>
+                          ) : (
+                            <>
+                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
+                      <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
+                      <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
+                      <td>{statusPill(a.status, isAgreementActive(a))}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="rowBtn" onClick={() => setExpandedAgreementId(isExpanded ? null : a.id)}>{t('viewDetailsAction')}</button>
+                          <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
+                          <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
+                          <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr><td colSpan={6} style={{ padding: 0 }}>
+                        {renderSimulatorPanel(a)}
+                      </td></tr>
+                    )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
