@@ -47,27 +47,31 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
   const cadenceLabel = (c: string) =>
     c === 'per_order' ? t('perOrderCadence') : c === 'weekly' ? t('weeklyCadence') : t('monthlyCadence');
 
-  const handleExpire = (id: string) => {
-    if (!confirm(t('confirmExpire'))) return;
-    updateStatus.mutate({ id, status: 'expired' }, {
-      onSuccess: () => toast.success(t('agreementExpired')),
-      onError: () => toast.error(t('errorGeneric')),
-    });
+  const handleExpire = async (id: string) => {
+    try {
+      await updateStatus.mutateAsync({ agreementId: id, status: 'expired' });
+      toast.success(t('agreementExpiredSuccess'));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
-  const handleReject = (id: string) => {
-    if (!confirm(t('confirmReject'))) return;
-    updateStatus.mutate({ id, status: 'rejected' }, {
-      onSuccess: () => toast.success(t('agreementRejected')),
-      onError: () => toast.error(t('errorGeneric')),
-    });
+  const handleReject = async (id: string) => {
+    try {
+      await updateStatus.mutateAsync({ agreementId: id, status: 'rejected' });
+      toast.success(t('agreementRejectedSuccess'));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
-  const handleApprove = (id: string) => {
-    updateStatus.mutate({ id, status: 'approved' }, {
-      onSuccess: () => toast.success(t('agreementApproved')),
-      onError: () => toast.error(t('errorGeneric')),
-    });
+  const handleApprove = async (id: string) => {
+    try {
+      await updateStatus.mutateAsync({ agreementId: id, status: 'approved' });
+      toast.success(t('agreementApprovedSuccess'));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   // ─── Simulator Panel (mirrors workspace) ──
