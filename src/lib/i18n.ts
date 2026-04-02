@@ -1521,8 +1521,6 @@ const translations = {
   savingLabel:                  { en: 'Saving...',                          ar: 'جاري الحفظ...' },
   saveChangesLabel:             { en: 'Save Changes',                       ar: 'حفظ التغييرات' },
   agreementUpdatedSuccess:      { en: 'Agreement updated successfully',     ar: 'تم تحديث الاتفاقية بنجاح' },
-  investedLabel:                { en: 'Invested',                           ar: 'المستثمر' },
-  wayLabel:                     { en: 'Way',                                ar: 'الطريقة' },
   settlementWayPreview:         { en: 'Settlement way',                     ar: 'طريقة التسوية' },
   capitalLabel:                 { en: 'Capital',                            ar: 'رأس المال' },
   editAgreementTitle:           { en: 'Edit Profit Share Agreement',        ar: 'تعديل اتفاقية مشاركة الأرباح' },
