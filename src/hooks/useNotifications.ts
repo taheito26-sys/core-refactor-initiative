@@ -98,6 +98,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   const unreadByCategory = useMemo(() => {
     const counts: Record<NotificationCategoryGroup, number> = {
       all: unreadNotificationCount,
+      agreement: 0,
       approval: 0,
       deal: 0,
       invite: 0,

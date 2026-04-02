@@ -6,6 +6,7 @@ export type NotificationTargetKind =
   | 'settlement'
   | 'approval'
   | 'invite'
+  | 'agreement'
   | 'system';
 
 export interface NotificationTargetPayload {
@@ -61,6 +62,7 @@ export type NotificationCategoryGroup =
   | 'order'
   | 'invite'
   | 'approval'
+  | 'agreement'
   | 'message'
   | 'system';
 
@@ -70,6 +72,7 @@ export function normalizeNotificationCategory(category: string): NotificationCat
   if (category === 'message') return 'message';
   if (category === 'order') return 'order';
   if (category === 'approval') return 'approval';
+  if (category === 'agreement') return 'agreement';
   return 'system';
 }
 
@@ -81,6 +84,7 @@ export function inferTargetKind(row: NotificationRow): NotificationTargetKind {
   if (row.entity_type === 'settlement' || row.category === 'settlement') return 'settlement';
   if (row.entity_type === 'approval' || row.category === 'approval') return 'approval';
   if (row.entity_type === 'invite' || row.category === 'invite' || row.category === 'network') return 'invite';
+  if (row.entity_type === 'agreement' || row.category === 'agreement') return 'agreement';
   return 'system';
 }
 

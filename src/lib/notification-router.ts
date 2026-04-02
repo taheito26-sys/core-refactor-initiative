@@ -162,6 +162,8 @@ export function buildNotificationNavigationTarget(notification: AppNotification)
       return { pathname: '/admin/approvals', search: target.entityId ? `?focusApprovalId=${encodeURIComponent(target.entityId)}` : undefined };
     case 'invite':
       return { pathname: '/merchants', search: target.entityId ? `?focusInviteId=${encodeURIComponent(target.entityId)}` : undefined };
+    case 'agreement':
+      return { pathname: '/merchants', search: target.entityId ? `?tab=agreements&focusAgreementId=${encodeURIComponent(target.entityId)}` : undefined };
     default:
       return legacyRoute(notification);
   }
