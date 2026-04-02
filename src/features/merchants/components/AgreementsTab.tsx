@@ -47,12 +47,11 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [capitalCurrency, setCapitalCurrency] = useState<'USDT' | 'QAR'>('USDT');
   const [settlementWay, setSettlementWay] = useState<'reinvest' | 'withdraw'>('reinvest');
 
-  // P2P rate for QAR↔USDT conversion
-  const { data: p2pRates } = useP2PRates('qatar');
+  // FIFO avg buy price for QAR↔USDT conversion
+  const { derived } = useTrackerState({});
   const avgRate = useMemo(() => {
-    if (!p2pRates?.buyRate || !p2pRates?.sellRate) return null;
-    return (p2pRates.buyRate + p2pRates.sellRate) / 2;
-  }, [p2pRates]);
+    return getWACOP(derived);
+  }, [derived]);
 
   // Convert invested capital to USDT for storage
   const investedCapitalUsdt = useMemo(() => {
