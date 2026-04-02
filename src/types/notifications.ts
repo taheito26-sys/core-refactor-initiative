@@ -84,6 +84,7 @@ export function inferTargetKind(row: NotificationRow): NotificationTargetKind {
   if (row.entity_type === 'settlement' || row.category === 'settlement') return 'settlement';
   if (row.entity_type === 'approval' || row.category === 'approval') return 'approval';
   if (row.entity_type === 'invite' || row.category === 'invite' || row.category === 'network') return 'invite';
+  if (row.entity_type === 'agreement' || row.category === 'agreement') return 'agreement';
   return 'system';
 }
 
