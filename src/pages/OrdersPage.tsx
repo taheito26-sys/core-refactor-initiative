@@ -1030,6 +1030,7 @@ export default function OrdersPage() {
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
     setEditSelectedTemplateId(null);
+    setEditSelectedAgreementId(null);
     setEditSettleImmediately(false);
   };
 
