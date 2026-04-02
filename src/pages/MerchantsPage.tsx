@@ -72,7 +72,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
   const { data: settlementOverview } = useSettlementOverview(adminMerchantId);
-  const { data: allAgreements = [] } = useProfitShareAgreements();
+  const { data: allAgreements = [] } = useProfitShareAgreements(undefined, adminMerchantId);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);

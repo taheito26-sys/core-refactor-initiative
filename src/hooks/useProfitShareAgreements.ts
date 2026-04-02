@@ -11,14 +11,26 @@ const AGREEMENTS_KEY = 'profit-share-agreements';
 
 // ─── Query: Fetch agreements ─────────────────────────────────────────
 
-export function useProfitShareAgreements(relationshipId?: string) {
+export function useProfitShareAgreements(relationshipId?: string, overrideMerchantId?: string) {
   const { merchantProfile } = useAuth();
   const qc = useQueryClient();
 
   const query = useQuery({
-    queryKey: [AGREEMENTS_KEY, relationshipId],
+    queryKey: [AGREEMENTS_KEY, relationshipId, overrideMerchantId],
     queryFn: async (): Promise<ProfitShareAgreement[]> => {
       try {
+        // If scoping to a specific merchant (admin inspection), first get their relationship IDs
+        let scopedRelIds: string[] | null = null;
+        if (overrideMerchantId && !relationshipId) {
+          const { data: rels } = await supabase
+            .from('merchant_relationships')
+            .select('id')
+            .or(`merchant_a_id.eq.${overrideMerchantId},merchant_b_id.eq.${overrideMerchantId}`)
+            .eq('status', 'active');
+          scopedRelIds = (rels || []).map((r: any) => r.id);
+          if (scopedRelIds.length === 0) return [];
+        }
+
         let q = supabase
           .from('profit_share_agreements' as any)
           .select('*')
@@ -26,11 +38,12 @@ export function useProfitShareAgreements(relationshipId?: string) {
 
         if (relationshipId) {
           q = q.eq('relationship_id', relationshipId);
+        } else if (scopedRelIds) {
+          q = q.in('relationship_id', scopedRelIds);
         }
 
         const { data, error } = await q;
         if (error) {
-          // Table may not exist yet — return empty gracefully
           console.warn('[useProfitShareAgreements] Query error (table may not exist):', error.message);
           return [];
         }
@@ -40,7 +53,7 @@ export function useProfitShareAgreements(relationshipId?: string) {
         return [];
       }
     },
-    enabled: !!merchantProfile?.merchant_id,
+    enabled: !!merchantProfile?.merchant_id || !!overrideMerchantId,
   });
 
   // Real-time subscription
