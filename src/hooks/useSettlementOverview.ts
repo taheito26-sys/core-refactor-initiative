@@ -106,11 +106,15 @@ export function useSettlementOverview(overrideMerchantId?: string) {
 
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const { data: settledThisMonthData } = await supabase
+      let settledQuery = supabase
         .from('settlement_periods')
         .select('id')
         .eq('status', 'settled')
         .gte('settled_at', monthStart.toISOString());
+      if (scopedRelIds !== null && scopedRelIds.length > 0) {
+        settledQuery = settledQuery.in('relationship_id', scopedRelIds);
+      }
+      const { data: settledThisMonthData } = await settledQuery;
 
       return {
         dueCount: items.filter(i => i.status === 'due').length,
