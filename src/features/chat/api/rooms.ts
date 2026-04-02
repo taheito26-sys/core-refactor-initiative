@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DeterministicResult, fail, ok, ChatRoom } from '@/features/chat/lib/types';
+import { QueryClient } from '@tanstack/react-query';
 
 export async function getRooms(): Promise<DeterministicResult<ChatRoom[]>> {
   try {
@@ -54,4 +55,14 @@ export async function createRoom(input: {
   } catch (error) {
     return fail(null, error);
   }
+}
+
+/**
+ * Manually updates the unread count for a room in the React Query cache.
+ */
+export function setRoomUnreadCountInCache(qc: QueryClient, roomId: string, count: number) {
+  qc.setQueryData(['chat', 'rooms'], (old: ChatRoom[] | undefined) => {
+    if (!old) return old;
+    return old.map(r => r.room_id === roomId ? { ...r, unread_count: count } : r);
+  });
 }

@@ -59,9 +59,9 @@ export async function sendMessage(input: {
 }
 
 /**
- * Marks a specific message as read.
+ * Marks messages as read up to a specific message ID.
  */
-export async function markRead(roomId: string, messageId: string): Promise<DeterministicResult<boolean>> {
+export async function markMessagesReadUpTo(roomId: string, messageId: string): Promise<DeterministicResult<boolean>> {
   try {
     const { data, error } = await supabase.rpc('fn_chat_mark_read', { 
       _room_id: roomId, 
