@@ -44,7 +44,7 @@ export async function sendMessage(input: {
     const { data, error } = await supabase.rpc('fn_chat_send_message', {
       _room_id: input.roomId,
       _body: input.body,
-      _body_json: input.bodyJson ?? {},
+      _body_json: (input.bodyJson ?? {}) as any,
       _message_type: input.messageType ?? 'text',
       _client_nonce: input.clientNonce ?? null,
       _reply_to_message_id: input.replyToMessageId ?? null,

@@ -35,7 +35,7 @@ export default function ChatWorkspacePage() {
 
   useEffect(() => {
     if (!activeRoomId && rooms.length > 0) {
-      setActiveRoomId(String(rooms[0].room_id || rooms[0].id));
+      setActiveRoomId(String(rooms[0].room_id));
     }
   }, [rooms, activeRoomId]);
 
@@ -81,7 +81,7 @@ export default function ChatWorkspacePage() {
         <ConversationSidebar
           rooms={rooms} activeRoomId={activeRoomId}
           onSelectRoom={(id) => { setActiveRoomId(id); if (isMobile) setShowSidebar(false); }}
-          currentUserId={userId} currentMerchantId={merchantProfile?.merchant_id} isMobile={isMobile}
+          currentUserId={userId} isMobile={isMobile}
         />
       )}
 

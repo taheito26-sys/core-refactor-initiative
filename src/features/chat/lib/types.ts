@@ -2,6 +2,15 @@ export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
 export type RoomKind = 'direct' | 'group' | 'system';
 export type CallStatus = 'ringing' | 'active' | 'ended' | 'missed' | 'cancelled';
 
+export interface ChatCallSession {
+  id: string;
+  room_id: string;
+  initiated_by: string;
+  status: CallStatus;
+  started_at: string;
+  ended_at?: string;
+}
+
 export type InboxLane = 'Personal' | 'Team' | 'Customers' | 'Deals' | 'Alerts' | 'Archived';
 
 export interface SecurityPolicies {
