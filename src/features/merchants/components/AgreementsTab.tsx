@@ -708,8 +708,10 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               <tbody>
                 {pending.map(a => {
                   const isCreator = a.created_by === userId;
+                  const isExpanded = expandedAgreementId === a.id;
                   return (
-                    <tr key={a.id}>
+                    <React.Fragment key={a.id}>
+                    <tr>
                       <td>
                         <div style={{ fontWeight: 700, fontSize: 11 }}>
                           {agreementDisplayLabel(a)}
@@ -731,6 +733,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                       <td style={{ fontSize: 10 }}>{isCreator ? t('you') : (counterpartyName || t('partner'))}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="rowBtn" onClick={() => setExpandedAgreementId(isExpanded ? null : a.id)}>{t('viewDetailsAction')}</button>
                           {!isCreator ? (
                             <>
                               <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction')}</button>
@@ -745,6 +748,12 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                         </div>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr><td colSpan={5} style={{ padding: 0 }}>
+                        {renderSimulatorPanel(a)}
+                      </td></tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
