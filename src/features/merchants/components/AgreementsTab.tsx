@@ -7,8 +7,8 @@
 import { useState, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
-import { fmtU } from '@/lib/tracker-helpers';
-import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
+import { fmtU, getWACOP } from '@/lib/tracker-helpers';
+import { useTrackerState } from '@/lib/useTrackerState';
 import {
   useProfitShareAgreements,
   useCreateAgreement,
