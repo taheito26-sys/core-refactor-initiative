@@ -700,7 +700,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                   <th>{t('agreement')}</th>
                   <th>{t('cadence')}</th>
                   <th>{t('effective')}</th>
-                  <th>{t('proposed_by' as any) || 'Proposed By'}</th>
+                  <th>{t('proposedByLabel')}</th>
                   <th>{t('actions')}</th>
                 </tr>
               </thead>
