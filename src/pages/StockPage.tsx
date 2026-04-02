@@ -571,7 +571,7 @@ export default function StockPage() {
                         <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
                         <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
                         <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
-                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)} QAR</strong></div>
+                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
                         {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
                         {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
                       </div>
@@ -638,7 +638,7 @@ export default function StockPage() {
                               <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
                               <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
                               <div><span className="muted">{t('batchUtilization')}:</span> <strong>{(100 - prog).toFixed(0)}% {t('usage')}</strong></div>
-                              <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)} QAR</strong></div>
+                              <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
                               {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
                               {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
                             </div>
