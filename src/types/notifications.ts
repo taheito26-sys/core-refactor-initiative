@@ -6,6 +6,7 @@ export type NotificationTargetKind =
   | 'settlement'
   | 'approval'
   | 'invite'
+  | 'agreement'
   | 'system';
 
 export interface NotificationTargetPayload {
