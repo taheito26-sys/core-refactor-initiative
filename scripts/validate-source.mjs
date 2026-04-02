@@ -43,8 +43,12 @@ function validateFile(filePath) {
       console.error(`Validation Error: Syntax errors found in ${filePath}`);
       syntaxErrors.forEach(diagnostic => {
         const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
-        const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-        console.error(`${filePath} (${line + 1},${character + 1}): ${message}`);
+        if (diagnostic.file && diagnostic.start !== undefined) {
+          const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+          console.error(`${filePath} (${line + 1},${character + 1}): ${message}`);
+        } else {
+          console.error(`${filePath}: ${message}`);
+        }
       });
       return false;
     }
