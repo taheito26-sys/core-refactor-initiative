@@ -105,6 +105,10 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
     }
   }, [activeSessionId, isVideo, userId, cleanup]);
 
+  const toggleMute = useCallback((muted: boolean) => {
+    localStream?.getAudioTracks().forEach(t => t.enabled = !muted);
+  }, [localStream]);
+
   useEffect(() => {
     if (!roomId) return;
     const channel = supabase.channel(`room:${roomId}:calls`);
