@@ -737,7 +737,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                             </>
                           ) : (
                             <>
-                              <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction' as any) || 'Edit'}</button>
+                              <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
                               <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('cancel')}</button>
                             </>
                           )}
