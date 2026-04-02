@@ -1053,8 +1053,30 @@ export default function OrdersPage() {
 
     // ── Handle linking to partner deal ──
     if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
-      const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
-      if (!tmpl) { toast.error(t('invalidTemplate')); return; }
+      const isEditProfitShare = editSelectedTemplateId === 'profit_share_family';
+      const isEditSalesDeal = editSelectedTemplateId === 'sales_deal_family';
+
+      // Profit share requires an approved agreement
+      if (isEditProfitShare && !editSelectedAgreementId) {
+        toast.error(t('noApprovedAgreement'));
+        return;
+      }
+
+      // Resolve ratios from approved agreement (profit_share) or default 50/50 (sales_deal)
+      const editAgreement = isEditProfitShare
+        ? allAgreements.find(a => a.id === editSelectedAgreementId)
+        : null;
+      const partnerPct = isEditProfitShare
+        ? (editAgreement?.partner_ratio ?? 0)
+        : 50;
+      const merchantPct = isEditProfitShare
+        ? (editAgreement?.merchant_ratio ?? 0)
+        : 50;
+      const dealType = isEditProfitShare ? 'partnership' : 'arbitrage';
+      const familyLabel = isEditProfitShare ? t('profitShareLabel') : t('salesDealLabel');
+      const cadence = isEditProfitShare
+        ? (editAgreement?.settlement_cadence || 'monthly')
+        : 'per_order';
 
       try {
         const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
@@ -1065,27 +1087,27 @@ export default function OrdersPage() {
         const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
-        const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
+        const ratioDisplay = `${partnerPct}/${merchantPct}`;
+        const title = `${familyLabel} · ${customerName} · ${ratioDisplay}`;
 
-          const noteLines = [
-            `template: ${tmpl.id}`,
-            `customer: ${customerName}`,
-            `local_trade: ${editingTradeId}`,
-            `trade_date: ${new Date(ts).toISOString()}`,
-            `quantity: ${qty}`,
+        const noteLines = [
+          `template: ${isEditProfitShare ? 'profit_share_family' : 'sales_deal_family'}`,
+          `customer: ${customerName}`,
+          `local_trade: ${editingTradeId}`,
+          `trade_date: ${new Date(ts).toISOString()}`,
+          `quantity: ${qty}`,
           `sell_price: ${sell}`,
           `fifo_cost: ${fifoCost}`,
           `avg_buy: ${avgBuy}`,
           `fee: ${fee}`,
-          tmpl.dealType === 'partnership'
-            ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
-            : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
+          isEditProfitShare
+            ? `partner_ratio: ${partnerPct}, merchant_ratio: ${merchantPct}`
+            : `counterparty_share: ${partnerPct}%, merchant_share: ${merchantPct}%`,
         ].join(' | ');
 
         const { data: dealData, error: dealError } = await supabase.from('merchant_deals').insert({
           relationship_id: editLinkedRelId,
-          deal_type: tmpl.dealType as string,
+          deal_type: dealType,
           title,
           amount: rev,
           currency: 'QAR',
@@ -1097,30 +1119,29 @@ export default function OrdersPage() {
             sell_price: sell,
             avg_buy: avgBuy,
             fee,
-            partner_ratio: tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? null,
-            merchant_ratio: tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio ?? null,
+            partner_ratio: partnerPct,
+            merchant_ratio: merchantPct,
+            ...(editAgreement ? { profit_share_agreement_id: editAgreement.id, settlement_cadence: editAgreement.settlement_cadence } : {}),
           },
         }).select('id').single();
 
         if (dealError) throw dealError;
 
-        const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
         updatedFields = {
           ...updatedFields,
           linkedRelId: editLinkedRelId,
           linkedDealId: dealData?.id,
-          agreementFamily: tmpl.family as 'profit_share' | 'sales_deal',
-          agreementTemplateId: tmpl.id,
+          agreementFamily: (isEditProfitShare ? 'profit_share' : 'sales_deal') as 'profit_share' | 'sales_deal',
+          agreementTemplateId: undefined,
           partnerPct,
-          merchantPct: 100 - partnerPct,
+          merchantPct,
           approvalStatus: 'pending_approval' as LinkedTradeStatus,
         };
 
         // Create settlement period for per_order deals
-        const dealCadence = tmpl.defaults.settlement_period || 'monthly';
-        if (dealCadence === 'per_order' && dealData?.id) {
+        if (cadence === 'per_order' && dealData?.id) {
           const netProfit = rev - fifoCost - fee;
-          const partnerAmt = tmpl.family === 'profit_share'
+          const partnerAmt = isEditProfitShare
             ? netProfit * (partnerPct / 100)
             : rev * (partnerPct / 100);
 
