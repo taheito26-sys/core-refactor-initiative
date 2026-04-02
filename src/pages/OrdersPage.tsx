@@ -1400,10 +1400,10 @@ export default function OrdersPage() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
-          <span className="pill">{t('revenue')} {fmtQ(revenue)}</span>
-          <span className="pill">{t('fee')} {fmtQ(tr.feeQAR)}</span>
-          {ok && <span className="pill">{t('cost')} {fmtQ(cost)}</span>}
-          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}</span>
+          <span className="pill">{t('revenue')} {fmtC(revenue)}</span>
+          <span className="pill">{t('fee')} {fmtC(tr.feeQAR)}</span>
+          {ok && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
+          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
         {/* Show partner allocation for merchant-linked trades */}
@@ -1411,12 +1411,12 @@ export default function OrdersPage() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
               📊 {t('merchantNetProfit')}: <strong style={{ color: 'var(--good)' }}>
-                {fmtQ(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
+                {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
               </strong>
             </div>
             <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--bad) 10%, transparent)', fontSize: 10 }}>
               🤝 {t('partnerNetProfit')}: <strong style={{ color: 'var(--bad)' }}>
-                {fmtQ(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
+                {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
               </strong>
             </div>
           </div>
@@ -1520,7 +1520,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(rev)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(rev)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
@@ -1530,7 +1530,7 @@ export default function OrdersPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span className="muted">{t('net')}</span>
             <span style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700, fontSize: 11 }}>
-              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
             </span>
           </div>
         </div>
@@ -1613,7 +1613,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(row.volume)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(row.volume)}</div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1622,11 +1622,11 @@ export default function OrdersPage() {
               <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
             ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
               <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+                {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
               </span>
             ) : (
               <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
               </span>
             )}
           </div>
@@ -1674,8 +1674,8 @@ export default function OrdersPage() {
     <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
       <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('count').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{kpi.count}</div></div>
       {kpi.qty != null && <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>USDT {t('qty').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtU(kpi.qty)}</div></div>}
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtQ(kpi.vol)}</div></div>
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtQ(kpi.net)}</div></div>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtC(kpi.vol)}</div></div>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtC(kpi.net)}</div></div>
     </div>
   );
 
@@ -1813,8 +1813,8 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                             <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
-                            <td className="mono r hide-mobile">{fmtQ(rev)}</td>
-                            <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
+                            <td className="mono r hide-mobile">{fmtC(rev)}</td>
+                            <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtC(net) : '—'}</td>
                             <td className="hide-mobile">
                               <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
@@ -1953,7 +1953,7 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtC(row.volume)}</td>
                             {/* NET — same dual display as Outgoing: crossed-out full net + "my cut" */}
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
@@ -1961,15 +1961,15 @@ export default function OrdersPage() {
                               ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                                   <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
-                                    {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
+                                    {row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                     {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
+                                     {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
                                 <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
                                 </span>
                               )}
                             </td>
@@ -2098,22 +2098,22 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtC(row.volume)}</td>
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
                                 <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
                               ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                                   <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
-                                    {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
+                                    {row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
+                                    {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
                                 <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
                                 </span>
                               )}
                             </td>
@@ -2226,7 +2226,7 @@ export default function OrdersPage() {
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4, borderTop: '1px solid var(--line)' }}>
                             <span className="muted" style={{ fontSize: 10 }}>{t('totalCostQar')}</span>
-                            <strong className="mono" style={{ fontSize: 11 }}>{fmtQ(tx.total_cost)}</strong>
+                            <strong className="mono" style={{ fontSize: 11 }}>{fmtC(tx.total_cost)}</strong>
                           </div>
                           {tx.note && (
                             <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic', background: 'var(--panel2)', padding: '4px 8px', borderRadius: 4 }}>
@@ -2276,7 +2276,7 @@ export default function OrdersPage() {
                               {fmtP(tx.cost_basis)}
                             </td>
                             <td className="mono r" style={{ fontSize: 11, fontWeight: 600 }}>
-                              {fmtQ(tx.total_cost)}
+                              {fmtC(tx.total_cost)}
                             </td>
                             <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {tx.note || '—'}
@@ -2873,19 +2873,19 @@ export default function OrdersPage() {
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted">{t('allocRev')}:</span>
-                                    <strong className="mono">{fmtQ(calc.revenue)}</strong>
+                                    <strong className="mono">{fmtC(calc.revenue)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted">{t('allocNet')}:</span>
-                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtQ(calc.net)}</strong>
+                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtC(calc.net)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({alloc.merchantSharePct}%):</span>
-                                    <strong className="mono" style={{ color: 'var(--good)' }}>{fmtQ(calc.merchantAmount)}</strong>
+                                    <strong className="mono" style={{ color: 'var(--good)' }}>{fmtC(calc.merchantAmount)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                                     <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({alloc.partnerSharePct}%):</span>
-                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtQ(calc.partnerAmount)}</strong>
+                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtC(calc.partnerAmount)}</strong>
                                   </div>
                                 </div>
                               );
@@ -2921,15 +2921,15 @@ export default function OrdersPage() {
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
                     <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
-                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationPreview.revenue)}</strong></div>
-                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationPreview.fifoCost)}</strong></div>}
+                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.revenue)}</strong></div>
+                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.fifoCost)}</strong></div>}
                     {allocationPreview.baseLabel === 'net_profit' && (
-                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtQ(allocationPreview.base)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtC(allocationPreview.base)}</strong></div>
                     )}
                     {/* Iconic profit split summary */}
                     <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtQ(allocationPreview.partnerAmount)}</strong></div>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtC(allocationPreview.merchantAmount)}</strong></div>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtC(allocationPreview.partnerAmount)}</strong></div>
                     </div>
                     <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
                   </div>
@@ -2943,12 +2943,12 @@ export default function OrdersPage() {
                     <>
                       {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
                       <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
-                      <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtQ(salePreview.revenue)}</strong></div>
-                      <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtQ(salePreview.cost) : '—'}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(salePreview.revenue)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtC(salePreview.cost) : '—'}</strong></div>
                       <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
                         <span className="muted">{t('net')}</span>
                         <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                          {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
+                          {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtC(salePreview.net)}` : '—'}
                         </strong>
                       </div>
                     </>
@@ -2995,7 +2995,7 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)})` : t('customAmount')}
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtC(salePreview.revenue)})` : t('customAmount')}
                         </button>
                       ))}
                     </div>
@@ -3046,7 +3046,7 @@ export default function OrdersPage() {
                                 }}
                               >
                                 <span style={isMobile ? { fontSize: 11 } : undefined}>{typeIcon} {acc.name}</span>
-                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtC(bal)}</span>
                               </button>
                             );
                           })}
@@ -3062,9 +3062,9 @@ export default function OrdersPage() {
                               .filter(e => e.accountId === selectedAcc.id)
                               .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
                             const deposit = parseFloat(cashDepositAmount) || 0;
-                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)}`;
+                            return `${selectedAcc.name}: ${fmtC(bal)} → ${fmtC(bal + deposit)}`;
                           }
-                          return `${t('cashBalanceLbl')}: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                          return `${t('cashBalanceLbl')}: ${fmtC(state.cashQAR || 0)} → ${fmtC((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
                         })()}
                       </div>
                     )}
@@ -3300,12 +3300,12 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
-                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(currentVolume)}</strong>
+                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtC(currentVolume)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                     <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: currentNet != null ? (currentNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                      {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtQ(currentNet)}` : '—'}
+                      {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtC(currentNet)}` : '—'}
                     </strong>
                   </div>
                 </div>
@@ -3490,11 +3490,11 @@ export default function OrdersPage() {
                                           <div style={{ marginTop: 6, fontSize: 10 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                               <span className="muted">{t('partnerShare')}:</span>
-                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(partnerAmt)}</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtC(partnerAmt)}</span>
                                             </div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                               <span className="muted">{t('merchantShareDist')}:</span>
-                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(merchantAmt)}</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtC(merchantAmt)}</span>
                                             </div>
                                           </div>
                                         )}
@@ -3530,11 +3530,11 @@ export default function OrdersPage() {
                                   <div style={{ marginTop: 6, fontSize: 10 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                       <span className="muted">{t('partnerShare')}:</span>
-                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(partnerAmt)}</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtC(partnerAmt)}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                       <span className="muted">{t('merchantShareDist')}:</span>
-                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(merchantAmt)}</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtC(merchantAmt)}</span>
                                     </div>
                                   </div>
                                 )}
@@ -3634,12 +3634,12 @@ export default function OrdersPage() {
                 <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                   <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
-                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
+                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtC(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                   <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: Number.isFinite(dealNet) ? (dealNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                    {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                    {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtC(dealNet)}` : '—'}
                   </strong>
                 </div>
               </div>
