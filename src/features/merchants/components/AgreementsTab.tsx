@@ -4,7 +4,7 @@
 // Agreements have 3 statuses: approved, rejected, expired.
 // Supports two agreement types: standard and operator_priority.
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { fmtU, getWACOP } from '@/lib/tracker-helpers';
