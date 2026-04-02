@@ -679,8 +679,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={handleCreate} disabled={createAgreement.isPending || updateAgreement.isPending}>
               {createAgreement.isPending || updateAgreement.isPending
-                ? (editingAgreementId ? 'Saving...' : t('creatingAgreement'))
-                : (editingAgreementId ? 'Save Changes' : t('createAgreement'))}
+                ? (editingAgreementId ? t('savingLabel') : t('creatingAgreement'))
+                : (editingAgreementId ? t('saveChangesLabel') : t('createAgreement'))}
             </button>
             <button className="btn secondary" onClick={() => { setShowForm(false); resetForm(); }}>{t('cancel')}</button>
           </div>
