@@ -4,7 +4,7 @@ import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU,
   fmtP,
-  fmtQ,
+  fmtQ, fmtQWithUnit,
   fmtDate,
   fmtDur,
   fmtTotal,

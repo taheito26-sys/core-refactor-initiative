@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
-  fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
+  fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
   fmtPrice, fmtTotal,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
 } from '@/lib/tracker-helpers';
