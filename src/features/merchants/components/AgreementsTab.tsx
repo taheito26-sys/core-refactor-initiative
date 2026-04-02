@@ -211,6 +211,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     setExpiresAt('');
     setNotes('');
     setInvestedCapital('');
+    setCapitalCurrency('USDT');
     setSettlementWay('reinvest');
     setOperatorRatio('20');
     setOperatorIsMe(true);
