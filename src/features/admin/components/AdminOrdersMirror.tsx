@@ -18,6 +18,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
   const { settings } = useTheme();
   const t = useT();
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing'>('my');
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
   const state = trackerState;
   const derived = useMemo(() => state ? computeFIFO(state.batches, state.trades) : null, [state]);
