@@ -72,6 +72,7 @@ export function normalizeNotificationCategory(category: string): NotificationCat
   if (category === 'message') return 'message';
   if (category === 'order') return 'order';
   if (category === 'approval') return 'approval';
+  if (category === 'agreement') return 'agreement';
   return 'system';
 }
 
