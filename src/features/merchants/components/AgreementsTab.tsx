@@ -691,7 +691,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
       {pending.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-            ⏳ {t('pendingApprovalLabel' as any) || 'Pending Approval'} ({pending.length})
+            ⏳ {t('pendingApprovalLabel')} ({pending.length})
           </div>
           <div className="tableWrap">
             <table>
