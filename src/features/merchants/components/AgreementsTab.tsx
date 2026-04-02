@@ -4,7 +4,7 @@
 // Agreements have 3 statuses: approved, rejected, expired.
 // Supports two agreement types: standard and operator_priority.
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { fmtU, getWACOP } from '@/lib/tracker-helpers';
@@ -16,7 +16,7 @@ import {
   useUpdateAgreementStatus,
 } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
-import { buildOperatorPrioritySnapshot } from '@/lib/trading/operator-priority';
+import { buildOperatorPrioritySnapshot, calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import type { ProfitShareAgreementType } from '@/types/domain';
 import { buildSharedProfitShareFields } from '@/lib/profit-share-fields';
 import { toast } from 'sonner';
@@ -61,6 +61,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     return Math.round((raw / avgRate) * 100) / 100;
   }, [investedCapital, capitalCurrency, avgRate]);
   const [editingAgreementId, setEditingAgreementId] = useState<string | null>(null);
+  const [expandedAgreementId, setExpandedAgreementId] = useState<string | null>(null);
+  const [simProfit, setSimProfit] = useState<string>('1000');
 
   // ── Operator Priority fields ──
   const [operatorRatio, setOperatorRatio] = useState('20');
@@ -76,6 +78,179 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const approved = agreements.filter(a => a.status === 'approved' && isAgreementActive(a));
   const expired = agreements.filter(a => a.status === 'expired' || (a.status === 'approved' && !isAgreementActive(a)));
   const rejected = agreements.filter(a => a.status === 'rejected');
+
+  // ─── Simulator Panel ──
+  const renderSimulatorPanel = (a: any) => {
+    const gross = parseFloat(simProfit) || 0;
+    const fifoRate = avgRate;
+    const isOpPriority = a.agreement_type === 'operator_priority';
+    const opRatio = a.operator_ratio ?? 0;
+    const opContrib = a.operator_contribution ?? 0;
+    const lnContrib = a.lender_contribution ?? 0;
+    const investedCap = (a as any).invested_capital ?? 0;
+    const settWay = (a as any).settlement_way;
+    const opDefault = a.operator_default_profit_handling ?? 'reinvest';
+    const cpDefault = a.counterparty_default_profit_handling ?? 'withdraw';
+    const isOperator = a.operator_merchant_id === merchantProfile?.merchant_id;
+
+    let myShare = 0, partnerShare = 0, opFee = 0, remaining = 0;
+    let myLabel = t('you'), partnerLabel = counterpartyName || t('partner');
+    let myPct = 0, partnerPct = 0;
+    let myHandling = '', partnerHandling = '';
+
+    if (isOpPriority) {
+      const result = calculateOperatorPriorityProfit({
+        grossProfit: gross,
+        operatorRatio: opRatio,
+        operatorContribution: opContrib,
+        lenderContribution: lnContrib,
+      });
+      opFee = result.operatorFee;
+      remaining = result.remainingProfit;
+      if (isOperator) {
+        myShare = result.operatorTotal;
+        partnerShare = result.lenderTotal;
+        myPct = result.operatorWeightPct;
+        partnerPct = result.lenderWeightPct;
+        myHandling = opDefault;
+        partnerHandling = cpDefault;
+      } else {
+        myShare = result.lenderTotal;
+        partnerShare = result.operatorTotal;
+        myPct = result.lenderWeightPct;
+        partnerPct = result.operatorWeightPct;
+        myHandling = cpDefault;
+        partnerHandling = opDefault;
+      }
+    } else {
+      // Standard split
+      const mRatio = a.merchant_ratio ?? 50;
+      const pRatio = a.partner_ratio ?? 50;
+      const isCreator = a.created_by === userId;
+      myShare = gross * (isCreator ? mRatio : pRatio) / 100;
+      partnerShare = gross * (isCreator ? pRatio : mRatio) / 100;
+      myPct = isCreator ? mRatio : pRatio;
+      partnerPct = isCreator ? pRatio : mRatio;
+      remaining = gross;
+      myHandling = settWay || 'withdraw';
+      partnerHandling = settWay || 'withdraw';
+    }
+
+    const myReinvested = myHandling === 'reinvest' ? myShare : 0;
+    const myWithdrawn = myHandling === 'withdraw' ? myShare : 0;
+    const partnerReinvested = partnerHandling === 'reinvest' ? partnerShare : 0;
+    const partnerWithdrawn = partnerHandling === 'withdraw' ? partnerShare : 0;
+    const newCapitalBase = investedCap + myReinvested + partnerReinvested;
+
+    const qarRate = fifoRate ?? 0;
+    const myShareQar = myShare * qarRate;
+    const partnerShareQar = partnerShare * qarRate;
+
+    const panelStyle: React.CSSProperties = {
+      padding: '12px 16px', background: 'color-mix(in srgb, var(--brand) 4%, var(--surface))',
+      border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)',
+      borderRadius: 6, margin: '4px 0 8px',
+    };
+    const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px', fontSize: 10 };
+    const lblStyle: React.CSSProperties = { color: 'var(--muted)', fontSize: 9 };
+    const valStyle: React.CSSProperties = { fontWeight: 700, fontSize: 11 };
+    const sectionTitle: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: 'var(--brand)', marginTop: 10, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' };
+
+    return (
+      <div style={panelStyle}>
+        {/* ── Agreement Details ── */}
+        <div style={{ ...sectionTitle, marginTop: 0 }}>📋 {t('agreementDetails')}</div>
+        <div style={gridStyle}>
+          <div><span style={lblStyle}>{t('simType')}</span><br /><span style={valStyle}>{isOpPriority ? 'Operator Priority' : 'Standard'}</span></div>
+          <div><span style={lblStyle}>{t('simSettlementCadence')}</span><br /><span style={valStyle}>{cadenceLabel(a.settlement_cadence)}</span></div>
+          <div><span style={lblStyle}>{t('simEffectiveFrom')}</span><br /><span style={valStyle}>{new Date(a.effective_from).toLocaleDateString()}</span></div>
+          <div><span style={lblStyle}>{t('simInvestedCapital')}</span><br /><span style={valStyle}>{fmtU(investedCap)} USDT</span></div>
+          {isOpPriority && (
+            <>
+              <div><span style={lblStyle}>{t('simOperator')} ({a.operator_merchant_id === merchantProfile?.merchant_id ? t('you') : (counterpartyName || t('partner'))})</span><br /><span style={valStyle}>{fmtU(opContrib)} USDT · {opRatio}% {t('fee')}</span></div>
+              <div><span style={lblStyle}>{t('simLender')} ({a.operator_merchant_id !== merchantProfile?.merchant_id ? t('you') : (counterpartyName || t('partner'))})</span><br /><span style={valStyle}>{fmtU(lnContrib)} USDT</span></div>
+            </>
+          )}
+          {!isOpPriority && (
+            <>
+              <div><span style={lblStyle}>{t('simMyShare')}</span><br /><span style={valStyle}>{myPct}%</span></div>
+              <div><span style={lblStyle}>{t('simPartnerShare')}</span><br /><span style={valStyle}>{partnerPct}%</span></div>
+            </>
+          )}
+          <div><span style={lblStyle}>{t('simDefaultHandling')} ({t('you')})</span><br /><span style={valStyle}>{myHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}</span></div>
+          <div><span style={lblStyle}>{t('simDefaultHandling')} ({counterpartyName || t('partner')})</span><br /><span style={valStyle}>{partnerHandling === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}</span></div>
+        </div>
+
+        {/* ── Conversion Info ── */}
+        <div style={sectionTitle}>💱 {t('simConversionRate')}</div>
+        <div style={gridStyle}>
+          <div><span style={lblStyle}>{t('simFifoRate')}</span><br /><span style={valStyle}>{qarRate > 0 ? `1 USDT = ${qarRate.toFixed(4)} QAR` : '—'}</span></div>
+          <div><span style={lblStyle}>{t('source')}</span><br /><span style={{ ...valStyle, color: qarRate > 0 ? 'var(--good)' : 'var(--muted)' }}>{qarRate > 0 ? 'FIFO Stock Avg Buy' : t('noRateAvailable')}</span></div>
+        </div>
+
+        {/* ── What-If Simulator ── */}
+        <div style={sectionTitle}>🧮 {t('simulatorTitle')}</div>
+        <div style={{ marginBottom: 8, fontSize: 9, color: 'var(--muted)' }}>{t('simEnterProfit')}</div>
+        <input
+          type="number"
+          value={simProfit}
+          onChange={e => setSimProfit(e.target.value)}
+          placeholder="e.g. 9000"
+          style={{ width: 160, marginBottom: 8, padding: '4px 8px', borderRadius: 4, border: '1px solid color-mix(in srgb, var(--muted) 30%, transparent)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 12, fontWeight: 700 }}
+        />
+
+        {gross > 0 && (
+          <div style={{ background: 'color-mix(in srgb, var(--surface) 80%, transparent)', borderRadius: 6, padding: 10, border: '1px solid color-mix(in srgb, var(--muted) 10%, transparent)' }}>
+            {isOpPriority && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                  <span style={lblStyle}>{t('simOperatorFee')} ({opRatio}%)</span>
+                  <span style={{ color: 'var(--warn)', fontWeight: 700 }}>{fmtU(opFee)} USDT</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                  <span style={lblStyle}>{t('simRemainingProfit')}</span>
+                  <span style={{ fontWeight: 700 }}>{fmtU(remaining)} USDT</span>
+                </div>
+                <div style={{ height: 1, background: 'color-mix(in srgb, var(--muted) 15%, transparent)', margin: '6px 0' }} />
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {/* My share */}
+              <div style={{ padding: 8, borderRadius: 4, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
+                <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 2 }}>{t('simMyShare')} ({myPct}%{isOpPriority ? ` ${t('simWeight')}` : ''})</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--good)' }}>{fmtU(myShare)} USDT</div>
+                {qarRate > 0 && <div style={{ fontSize: 9, color: 'var(--muted)' }}>≈ {Math.round(myShareQar).toLocaleString()} QAR</div>}
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4 }}>
+                  {myHandling === 'reinvest' ? `🔄 ${t('simReinvestedCapital')}: ${fmtU(myReinvested)}` : `💰 ${t('simWithdrawn')}: ${fmtU(myWithdrawn)}`}
+                </div>
+              </div>
+              {/* Partner share */}
+              <div style={{ padding: 8, borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)' }}>
+                <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 2 }}>{counterpartyName || t('partner')} ({partnerPct}%{isOpPriority ? ` ${t('simWeight')}` : ''})</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--brand)' }}>{fmtU(partnerShare)} USDT</div>
+                {qarRate > 0 && <div style={{ fontSize: 9, color: 'var(--muted)' }}>≈ {Math.round(partnerShareQar).toLocaleString()} QAR</div>}
+                <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4 }}>
+                  {partnerHandling === 'reinvest' ? `🔄 ${t('simReinvestedCapital')}: ${fmtU(partnerReinvested)}` : `💰 ${t('simWithdrawn')}: ${fmtU(partnerWithdrawn)}`}
+                </div>
+              </div>
+            </div>
+
+            {/* Capital projection */}
+            {(myReinvested > 0 || partnerReinvested > 0) && (
+              <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 15%, transparent)' }}>
+                <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('simNewCapitalBase')}</div>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>
+                  {fmtU(investedCap)} + {fmtU(myReinvested + partnerReinvested)} = <span style={{ color: 'var(--good)' }}>{fmtU(newCapitalBase)} USDT</span>
+                </div>
+                {qarRate > 0 && <div style={{ fontSize: 9, color: 'var(--muted)' }}>≈ {Math.round(newCapitalBase * qarRate).toLocaleString()} QAR</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const handleCreate = async () => {
     // Standard type needs valid ratio; operator_priority skips it
@@ -706,8 +881,10 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               <tbody>
                 {pending.map(a => {
                   const isCreator = a.created_by === userId;
+                  const isExpanded = expandedAgreementId === a.id;
                   return (
-                    <tr key={a.id}>
+                    <React.Fragment key={a.id}>
+                    <tr>
                       <td>
                         <div style={{ fontWeight: 700, fontSize: 11 }}>
                           {agreementDisplayLabel(a)}
@@ -729,6 +906,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                       <td style={{ fontSize: 10 }}>{isCreator ? t('you') : (counterpartyName || t('partner'))}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="rowBtn" onClick={() => setExpandedAgreementId(isExpanded ? null : a.id)}>{t('viewDetailsAction')}</button>
                           {!isCreator ? (
                             <>
                               <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction')}</button>
@@ -743,6 +921,12 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                         </div>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr><td colSpan={5} style={{ padding: 0 }}>
+                        {renderSimulatorPanel(a)}
+                      </td></tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -770,37 +954,48 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 </tr>
               </thead>
               <tbody>
-                {approved.map(a => (
-                  <tr key={a.id}>
-                    <td>
-                      <div style={{ fontWeight: 700, fontSize: 11 }}>
-                        {agreementDisplayLabel(a)}
-                      </div>
-                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>
-                        {a.agreement_type === 'operator_priority' ? (
-                          <>
-                            {t('operatorFeeFirst')} {a.operator_ratio}% · {t('thenCapitalSplit')}
-                          </>
-                        ) : (
-                          <>
-                            {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
-                    <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
-                    <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
-                    <td>{statusPill(a.status, isAgreementActive(a))}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
-                        <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
-                        <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {approved.map(a => {
+                  const isExpanded = expandedAgreementId === a.id;
+                  return (
+                    <React.Fragment key={a.id}>
+                    <tr>
+                      <td>
+                        <div style={{ fontWeight: 700, fontSize: 11 }}>
+                          {agreementDisplayLabel(a)}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>
+                          {a.agreement_type === 'operator_priority' ? (
+                            <>
+                              {t('operatorFeeFirst')} {a.operator_ratio}% · {t('thenCapitalSplit')}
+                            </>
+                          ) : (
+                            <>
+                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: 10 }}>{cadenceLabel(a.settlement_cadence)}</td>
+                      <td className="mono" style={{ fontSize: 10 }}>{new Date(a.effective_from).toLocaleDateString()}</td>
+                      <td className="mono" style={{ fontSize: 10 }}>{a.expires_at ? new Date(a.expires_at).toLocaleDateString() : '—'}</td>
+                      <td>{statusPill(a.status, isAgreementActive(a))}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="rowBtn" onClick={() => setExpandedAgreementId(isExpanded ? null : a.id)}>{t('viewDetailsAction')}</button>
+                          <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
+                          <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
+                          <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr><td colSpan={6} style={{ padding: 0 }}>
+                        {renderSimulatorPanel(a)}
+                      </td></tr>
+                    )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
