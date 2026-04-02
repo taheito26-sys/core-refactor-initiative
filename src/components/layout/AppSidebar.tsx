@@ -64,7 +64,7 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     tradingNav[1], // Orders
     tradingNav[2], // Stock
     networkNav[0], // Merchants
-    { labelKey: 'chat', fallback: 'Chat', icon: MessageCircle, path: '/chat' } as NavItem,
+    tradingNav[4], // Chat
   ].filter(Boolean) as NavItem[];
 
   return (
