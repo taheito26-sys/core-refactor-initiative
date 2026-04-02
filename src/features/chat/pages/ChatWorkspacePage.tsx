@@ -17,6 +17,7 @@ import { SecureWatermark } from '@/features/chat/components/SecureWatermark';
 import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
 import { TradingActionBar } from '@/features/chat/components/TradingActionBar';
 import { useChatStore } from '@/lib/chat-store';
+import { Shield, Zap } from 'lucide-react';
 
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
@@ -124,8 +125,9 @@ export default function ChatWorkspacePage() {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs uppercase tracking-[0.3em]">
-              Select a secure channel
+            <div className="flex-1 flex flex-col items-center justify-center space-y-4 opacity-40">
+              <Shield size={48} className="text-muted-foreground" />
+              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Secure Environment Ready</p>
             </div>
           )}
         </main>
