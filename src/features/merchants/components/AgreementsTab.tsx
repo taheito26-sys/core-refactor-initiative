@@ -188,8 +188,8 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const handleApprove = async (id: string) => {
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'approved' });
-      toast.success(t('agreementApprovedSuccess' as any) || 'Agreement approved');
-    } catch (err: any) {
+        toast.success(t('agreementApprovedSuccess'));
+      } catch (err: any) {
       toast.error(err.message);
     }
   };
