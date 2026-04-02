@@ -7,7 +7,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
-import { fmtU, getWACOP } from '@/lib/tracker-helpers';
+import { fmtU, getWACOP, fmtQWithUnit } from '@/lib/tracker-helpers';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   useProfitShareAgreements,
@@ -20,6 +20,7 @@ import { buildOperatorPrioritySnapshot, calculateOperatorPriorityProfit } from '
 import type { ProfitShareAgreementType } from '@/types/domain';
 import { buildSharedProfitShareFields } from '@/lib/profit-share-fields';
 import { toast } from 'sonner';
+import { useTheme } from '@/lib/theme-context';
 import '@/styles/tracker.css';
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
 
 export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMerchantId }: Props) {
   const t = useT();
+  const { settings } = useTheme();
   const { userId, merchantProfile } = useAuth();
   const { data: agreements = [], isLoading } = useProfitShareAgreements(relationshipId);
   const createAgreement = useCreateAgreement();
@@ -294,7 +296,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   };
 
   const handleCreate = async () => {
-    // Standard type needs valid ratio; operator_priority skips it
     const ratio = parseFloat(partnerRatio);
     if (agreementType === 'standard') {
       if (isNaN(ratio) || ratio <= 0 || ratio >= 100) {
@@ -303,7 +304,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
       }
     }
 
-    // ── Operator Priority validation ──
     if (agreementType === 'operator_priority') {
       const opRatio = parseFloat(operatorRatio);
       if (isNaN(opRatio) || opRatio < 0 || opRatio > 100) {
@@ -332,7 +332,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
       const opContribNum = parseFloat(operatorContribution) || 0;
       const lnContribNum = parseFloat(lenderContribution) || 0;
 
-      // Build terms snapshot for operator priority
       const termsSnapshot = agreementType === 'operator_priority'
         ? buildOperatorPrioritySnapshot({
             operator_merchant_id: operatorMerchantId || '',
@@ -345,7 +344,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           }) as unknown as Record<string, unknown>
         : null;
 
-      // For operator_priority, partner_ratio/merchant_ratio are irrelevant — use 0 placeholders
       const payloadRatio = agreementType === 'standard' ? ratio : 0;
 
       const payload = {
@@ -360,7 +358,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         effective_from: new Date(effectiveFrom).toISOString(),
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
         notes: notes.trim() || null,
-        // Operator priority fields
         agreement_type: agreementType,
         ...(agreementType === 'operator_priority' ? {
           operator_ratio: opRatioNum,
@@ -489,7 +486,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-      {/* ─── Header ─── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700 }}>{t('profitShareAgreements')}</div>
@@ -502,7 +498,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         </button>
       </div>
 
-      {/* ─── Info Banner ─── */}
       <div style={{
         padding: '8px 12px', borderRadius: 6, fontSize: 10, lineHeight: 1.5,
         background: 'color-mix(in srgb, var(--brand) 6%, transparent)',
@@ -512,7 +507,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         <strong style={{ color: 'var(--brand)' }}>{t('howItWorksAgreement')}</strong> {t('howItWorksDesc')}
       </div>
 
-      {/* ─── Create Form ─── */}
       {showForm && (
         <div style={{
           padding: 14, borderRadius: 8,
@@ -523,7 +517,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             {editingAgreementId ? t('editAgreementTitle') : t('newProfitShareAgreement')}
           </div>
 
-          {/* ── Agreement Type Selector ── */}
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>
               {t('agreementTypeLabel')}
@@ -551,7 +544,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             )}
           </div>
 
-          {/* Quick presets (standard only) */}
           {agreementType === 'standard' && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t('quickPresets')}</div>
@@ -570,7 +562,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             </div>
           )}
 
-          {/* Standard ratio fields — hidden for operator_priority */}
           {agreementType === 'standard' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
@@ -604,7 +595,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
           </div>
           )}
 
-          {/* ── Operator Priority Conditional Fields ── */}
           {agreementType === 'operator_priority' && (
             <div style={{
               padding: 12, borderRadius: 6, marginBottom: 10,
@@ -615,7 +605,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 ⚙️ {t('operatorPriorityLabel')}
               </div>
 
-              {/* Operator merchant selector */}
               <div style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
                   {t('operatorMerchantLabel')}
@@ -638,7 +627,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 </div>
               </div>
 
-              {/* Operator fee ratio */}
               <div style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
                   {t('operatorRatioLabel')}
@@ -658,7 +646,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 </div>
               </div>
 
-              {/* Capital contributions */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>
@@ -692,7 +679,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                 </div>
               </div>
 
-              {/* Default Monthly Profit Handling */}
               <div style={{ marginTop: 10, padding: 10, borderRadius: 6, border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', background: 'color-mix(in srgb, var(--brand) 3%, transparent)' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, marginBottom: 6 }}>
                   📅 {t('defaultProfitHandling')}
@@ -847,7 +833,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             </div>
           </div>
 
-          {/* Preview */}
           {agreementType === 'standard' ? (
             <div style={{
               padding: '8px 12px', borderRadius: 6, marginBottom: 10,
@@ -902,7 +887,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         </div>
       )}
 
-      {/* ─── Pending Approval ─── */}
       {pending.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--brand)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
@@ -937,7 +921,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                             </>
                           ) : (
                             <>
-                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
+                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtQWithUnit((a as any).invested_capital ?? 0, settings.currency, avgRate)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
                             </>
                           )}
                         </div>
@@ -976,7 +960,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         </div>
       )}
 
-      {/* ─── Active Agreements ─── */}
       {approved.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
@@ -1011,7 +994,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                             </>
                           ) : (
                             <>
-                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
+                              {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtQWithUnit((a as any).invested_capital ?? 0, settings.currency, avgRate)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
                             </>
                           )}
                         </div>
@@ -1043,7 +1026,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         </div>
       )}
 
-      {/* ─── Expired Agreements ─── */}
       {expired.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--warn)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
@@ -1076,7 +1058,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         </div>
       )}
 
-      {/* ─── Rejected Agreements ─── */}
       {rejected.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--bad)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.5px' }}>
@@ -1107,7 +1088,6 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         </div>
       )}
 
-      {/* ─── Empty State ─── */}
       {agreements.length === 0 && !showForm && (
         <div className="empty">
           <div className="empty-t">{t('noAgreementsYet')}</div>

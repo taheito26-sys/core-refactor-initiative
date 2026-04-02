@@ -7,13 +7,14 @@ import React, { useState, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { isAgreementActive } from '@/lib/deal-engine';
-import { fmtU, getWACOP } from '@/lib/tracker-helpers';
+import { fmtU, getWACOP, fmtQWithUnit } from '@/lib/tracker-helpers';
 import { useTrackerState } from '@/lib/useTrackerState';
 import { AgreementsTab } from './AgreementsTab';
 import { useUpdateAgreementStatus } from '@/hooks/useProfitShareAgreements';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { toast } from 'sonner';
 import type { ProfitShareAgreement } from '@/types/domain';
+import { useTheme } from '@/lib/theme-context';
 
 interface Props {
   relationships: any[];
@@ -24,6 +25,7 @@ interface Props {
 
 export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreementCount, onOpenRelationship }: Props) {
   const t = useT();
+  const { settings } = useTheme();
   const { userId, merchantProfile } = useAuth();
   const myMerchantId = merchantProfile?.merchant_id;
   const [createForRelId, setCreateForRelId] = useState<string | null>(null);
@@ -268,7 +270,6 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
           </div>
         </div>
 
-        {/* ── New Agreement: relationship picker ── */}
         {!createForRelId ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <select
@@ -295,7 +296,6 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
         )}
       </div>
 
-      {/* ── Inline creation form for selected relationship ── */}
       {createForRelId && selectedRel && (
         <div style={{
           marginBottom: 12, padding: 12, borderRadius: 8,
@@ -317,7 +317,6 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
         </div>
       )}
 
-      {/* Info Banner */}
       <div style={{
         padding: '8px 12px', borderRadius: 6, fontSize: 10, lineHeight: 1.5, marginBottom: 10,
         background: 'color-mix(in srgb, var(--brand) 6%, transparent)',
@@ -327,7 +326,6 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
         <strong style={{ color: 'var(--brand)' }}>{t('profitShareAgreementsGlobal')}</strong> {t('agreementsCreatedInWorkspace')}
       </div>
 
-      {/* ── Agreements Table ── */}
       {allAgreements.length === 0 && !createForRelId ? (
         <div className="empty">
           <div className="empty-t">{t('noAgreementsGlobal')}</div>
@@ -372,7 +370,7 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
                           {(a as any).agreement_type === 'operator_priority' ? (
                             <>{t('operatorFeeFirst')} {(a as any).operator_ratio}% · {t('thenCapitalSplit')}</>
                           ) : (
-                            <>{t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtU((a as any).invested_capital ?? 0)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}</>
+                            <>{t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtQWithUnit((a as any).invested_capital ?? 0, settings.currency, avgRate)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}</>
                           )}
                         </div>
                       </td>

@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal,
+  fmtPrice, fmtTotal, fmtQWithUnit,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
@@ -254,18 +254,15 @@ export default function OrdersPage() {
   ), [allMerchantDeals]);
 
   // Sync: void local trades whose server-side deals are cancelled/rejected/voided
-  // This ensures computeFIFO never consumes stock for dead deals
   useEffect(() => {
     if (cancelledLocalTradeIds.size === 0 && cancelledDealIds.size === 0) return;
     let changed = false;
     const nextTrades = state.trades.map(tr => {
-      if (tr.voided) return tr; // already voided
-      // Check by linkedDealId
+      if (tr.voided) return tr;
       if (tr.linkedDealId && cancelledDealIds.has(tr.linkedDealId) && !tr.voided) {
         changed = true;
         return { ...tr, voided: true };
       }
-      // Check by local_trade reference in cancelled deal notes
       if (cancelledLocalTradeIds.has(tr.id) && !tr.voided) {
         changed = true;
         return { ...tr, voided: true };
@@ -283,17 +280,12 @@ export default function OrdersPage() {
 
     const mapDealStatusToTradeStatus = (status?: string): LinkedTradeStatus | undefined => {
       switch (status) {
-        case 'pending':
-          return 'pending_approval';
-        case 'approved':
-          return 'approved';
-        case 'rejected':
-          return 'rejected';
+        case 'pending': return 'pending_approval';
+        case 'approved': return 'approved';
+        case 'rejected': return 'rejected';
         case 'cancelled':
-        case 'voided':
-          return 'cancelled';
-        default:
-          return undefined;
+        case 'voided': return 'cancelled';
+        default: return undefined;
       }
     };
 
@@ -302,25 +294,16 @@ export default function OrdersPage() {
 
     const nextTrades = state.trades.map((tr) => {
       if (!tr.linkedDealId) return tr;
-
       const linkedDeal = dealsById.get(tr.linkedDealId);
       if (!linkedDeal) return tr;
-
       const nextApprovalStatus = mapDealStatusToTradeStatus(linkedDeal.status);
       if (!nextApprovalStatus || tr.approvalStatus === nextApprovalStatus) return tr;
-
       changed = true;
-      return {
-        ...tr,
-        approvalStatus: nextApprovalStatus,
-      };
+      return { ...tr, approvalStatus: nextApprovalStatus };
     });
 
     if (changed) {
-      applyState({
-        ...state,
-        trades: nextTrades,
-      });
+      applyState({ ...state, trades: nextTrades });
     }
   }, [allMerchantDeals, state, applyState]);
 
@@ -347,8 +330,7 @@ export default function OrdersPage() {
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
     const curMonthKey = new Date().toISOString().slice(0, 7);
-    months.add(curMonthKey); // Always include current month
-
+    months.add(curMonthKey);
     filtered.forEach(t => {
       const d = new Date(t.ts);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -382,7 +364,6 @@ export default function OrdersPage() {
 
 
   const myKpi = useMemo(() => {
-    // Only trades in the selected month (or all)
     const activeList = subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
     let qty = 0, vol = 0, netVal = 0;
     for (const tr of activeList) {
@@ -399,7 +380,7 @@ export default function OrdersPage() {
   }, [subFilteredMy, derived]);
 
 
-  // URL-driven tab sync: read ?tab= and switch activeTab before focus
+  // URL-driven tab sync
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam && ['my', 'incoming', 'outgoing', 'transfers'].includes(tabParam)) {
@@ -413,7 +394,7 @@ export default function OrdersPage() {
     }
   }, [searchParams]);
 
-  // Focus and highlight targeted row after tab switch + data load
+  // Focus and highlight targeted row
   useEffect(() => {
     const focusOrderId = searchParams.get('focusOrderId');
     const focusDealId = searchParams.get('focusDealId');
@@ -421,7 +402,6 @@ export default function OrdersPage() {
     const focusTransferId = searchParams.get('focusTransferId');
     const targetId = focusOrderId || focusDealId || focusSettlementId || focusTransferId;
     if (!targetId) return;
-    // Delay to let tab content render
     const timer = window.setTimeout(() => {
       const selectors = [
         `#order-${targetId}`, `[data-order-id="${targetId}"]`,
@@ -440,12 +420,10 @@ export default function OrdersPage() {
   }, [searchParams, activeTab, filtered.length, allMerchantDeals.length, allTransfers.length]);
 
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
-  // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
     () => allMerchantDeals.filter(d => d.created_by !== userId && isDealVisible(d)),
     [allMerchantDeals, userId],
   );
-  // Outgoing: deals I created (server-authoritative)
   const creatorMerchantDeals = useMemo(
     () => allMerchantDeals.filter(d => d.created_by === userId && isDealVisible(d)),
     [allMerchantDeals, userId],
@@ -477,17 +455,14 @@ export default function OrdersPage() {
     });
   }, [filteredOutgoingMerchantDeals, selectedMonth]);
 
-  /** Resolve avg buy for a deal — use metadata first, fallback to local FIFO trade calc */
   const resolveDealAvgBuy = useCallback((deal: any, normalizedMeta?: Record<string, string>): number => {
     const meta = normalizedMeta ?? parseDealMeta(deal.notes);
     const metaAvg = Number(meta.avg_buy) || 0;
     if (metaAvg > 0) return metaAvg;
-    // Fallback: find local trade linked to this deal and use FIFO calc
     const localTradeId = meta.local_trade;
     if (localTradeId && derived) {
       const c = derived.tradeCalc.get(localTradeId);
       if (c?.ok) return c.avgBuyQAR;
-      // Check manual buy price on local trade
       const localTrade = state.trades.find(t => t.id === localTradeId);
       if (localTrade?.manualBuyPrice && localTrade.manualBuyPrice > 0) return localTrade.manualBuyPrice;
     }
@@ -507,16 +482,13 @@ export default function OrdersPage() {
     const fee = parseFloat(saleFee) || 0;
 
     if (saleEntryMode === 'qty_total') {
-      // USDT + QAR → auto-calc sell price
       amountUSDT = Number(saleUsdtQty);
       const totalQar = Number(saleAmount);
       sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
     } else if (saleEntryMode === 'qty_price') {
-      // USDT + Price → auto-calc total QAR
       amountUSDT = Number(saleUsdtQty);
       sell = Number(saleSell);
     } else {
-      // price_vol: original mode
       sell = Number(saleSell);
       const raw = Number(saleAmount);
       amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
@@ -547,31 +519,16 @@ export default function OrdersPage() {
     const merchantPct = 100 - partnerPct;
     const rel = relationships.find(r => r.id === linkedRelId);
 
-    if (tmpl.family === 'profit_share') {
-      // Profit Share: based on net profit
-      const base = Number.isFinite(salePreview.net) ? salePreview.net : 0;
-      const partnerAmount = (base * partnerPct) / 100;
-      const merchantAmount = base - partnerAmount;
-      return {
-        partnerPct, merchantPct, partnerAmount, merchantAmount,
-        base, baseLabel: 'net_profit' as const,
-        revenue: salePreview.revenue,
-        fifoCost: Number.isFinite(salePreview.cost) ? salePreview.cost : null,
-        counterpartyName: rel?.counterparty?.display_name || t('partner'),
-      };
-    } else {
-      // Sales Deal: based on net profit (same as profit share)
-      const base = Number.isFinite(salePreview.net) ? salePreview.net : 0;
-      const partnerAmount = (base * partnerPct) / 100;
-      const merchantAmount = base - partnerAmount;
-      return {
-        partnerPct, merchantPct, partnerAmount, merchantAmount,
-        base, baseLabel: 'net_profit' as const,
-        revenue: salePreview.revenue,
-        fifoCost: Number.isFinite(salePreview.cost) ? salePreview.cost : null,
-        counterpartyName: rel?.counterparty?.display_name || t('partner'),
-      };
-    }
+    const base = Number.isFinite(salePreview.net) ? salePreview.net : 0;
+    const partnerAmount = (base * partnerPct) / 100;
+    const merchantAmount = base - partnerAmount;
+    return {
+      partnerPct, merchantPct, partnerAmount, merchantAmount,
+      base, baseLabel: 'net_profit' as const,
+      revenue: salePreview.revenue,
+      fifoCost: Number.isFinite(salePreview.cost) ? salePreview.cost : null,
+      counterpartyName: rel?.counterparty?.display_name || t('partner'),
+    };
   }, [selectedTemplateId, salePreview, linkedRelId, relationships, t]);
 
   const isCapitalTransfer = selectedTemplateId === 'capital_transfer';
@@ -638,7 +595,6 @@ export default function OrdersPage() {
     setNewBuyerName(''); setNewBuyerPhone(''); setNewBuyerTier('C');
   };
 
-  // Helper: apply cash deposit to state if enabled
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
     return applyOrderCashDeposit({
       nextState,
@@ -651,9 +607,7 @@ export default function OrdersPage() {
     });
   };
 
-  // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
   const addTrade = async () => {
-    // Capital transfers are handled separately via handleCapitalTransfer
     if (isCapitalTransfer) return;
 
     const ts = new Date(saleDate).getTime();
@@ -678,12 +632,10 @@ export default function OrdersPage() {
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
-    // Merchant-linked validation
     const isNewAllocFlow = selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family';
     if (merchantOrderEnabled && !isNewAllocFlow && !linkedRelId) { setSaleMessage(`${t('fixFields')} ${t('relationship')}`); return; }
     if (merchantOrderEnabled && !selectedTemplateId) { setSaleMessage(`${t('fixFields')} ${t('agreementTypeRequired')}`); return; }
 
-    // Multi-merchant allocation validation
     if (merchantOrderEnabled && isNewAllocFlow) {
       if (allocations.length === 0) { setSaleMessage(t('addAtLeastOneAlloc')); return; }
       const totalAllocated = allocations.reduce((s, a) => s + (parseFloat(a.allocatedUsdt) || 0), 0);
@@ -710,7 +662,6 @@ export default function OrdersPage() {
       nextCustomers = ensured.customers;
     } else { customerId = ''; }
 
-    // Build trade with agreement fields if merchant-linked
     const tmpl = selectedTemplateId ? AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId) : null;
     const isNewAllocFlowActive = isNewAllocFlow && allocations.length > 0;
 
@@ -727,7 +678,6 @@ export default function OrdersPage() {
       approvalStatus: merchantOrderEnabled ? 'pending_approval' : undefined,
     };
 
-    // ─── NEW: Multi-Merchant Allocation Flow ─────────────────────────
     if (merchantOrderEnabled && isNewAllocFlowActive) {
       try {
         const saleGroupId = crypto.randomUUID();
@@ -737,7 +687,6 @@ export default function OrdersPage() {
         const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
 
-        // Create a merchant_deals record for EACH allocation so it shows in partner's inbox
         const createdDealIds: string[] = [];
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
@@ -786,7 +735,6 @@ export default function OrdersPage() {
           if (dealData) createdDealIds.push(dealData.id);
         }
 
-        // Now create allocation records linked to the deals
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
@@ -827,7 +775,6 @@ export default function OrdersPage() {
 
         await createAllocations.mutateAsync(allocationInputs);
 
-        // Save local trade with linked deal ID
         const persistedTrade: Trade = {
           ...baseTrade,
           linkedDealId: createdDealIds[0] || undefined,
@@ -842,7 +789,6 @@ export default function OrdersPage() {
         await reloadMerchantData();
         toast.success(t('tradeSentForApproval'));
 
-        // Reset
         setSaleAmount('');
         setMerchantOrderEnabled(false);
         setLinkedRelId('');
@@ -856,9 +802,7 @@ export default function OrdersPage() {
       }
     }
 
-    // ─── Legacy: Single-merchant template flow ───────────────────────
     if (merchantOrderEnabled && tmpl) {
-      // Create backend deal first so local outgoing state only exists when partner can actually receive it.
       try {
         const customerName = buyerName.trim() || t('buyer');
         const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
@@ -869,7 +813,6 @@ export default function OrdersPage() {
         const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
-        // Store trade data in notes so partner can see qty/sell/cost
         const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
         const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
@@ -910,7 +853,6 @@ export default function OrdersPage() {
 
         if (error) throw error;
 
-        // Per-order settlement period creation
         const dealCadence = (tmpl as any)?.defaults?.settlement_period || 'monthly';
         if (dealCadence === 'per_order' && data?.id) {
           const partnerPct = (tmpl as any).defaults?.counterparty_share_pct ?? (tmpl as any).defaults?.partner_ratio ?? 0;
@@ -982,7 +924,6 @@ export default function OrdersPage() {
       setSaleMessage(t('tradeLogged'));
     }
 
-    // Reset form
     setSaleAmount('');
     setMerchantOrderEnabled(false);
     setLinkedRelId('');
@@ -1014,7 +955,6 @@ export default function OrdersPage() {
   const openEdit = (id: string) => {
     const tr = state.trades.find(x => x.id === id);
     if (!tr) return;
-    // Allow editing approved trades — will trigger re-approval
     const cn = state.customers.find(c => c.id === tr.customerId)?.name || '';
     setEditingTradeId(id);
     setEditDate(toInputFromTs(tr.ts));
@@ -1025,7 +965,6 @@ export default function OrdersPage() {
     setEditFee(String(tr.feeQAR ?? 0));
     setEditNote(tr.note ?? '');
     setEditCustomerId(tr.customerId ?? '');
-    // Reset link-to-partner state
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
     setEditSelectedTemplateId(null);
@@ -1043,13 +982,11 @@ export default function OrdersPage() {
     const existingTrade = state.trades.find(t => t.id === editingTradeId);
     if (!existingTrade) return;
 
-    // Build base updated fields
     let updatedFields: Partial<Trade> = {
       ts, amountUSDT: qty, sellPriceQAR: sell, feeQAR: fee, note: editNote,
       customerId: editCustomerId, usesStock: editUsesStock,
     };
 
-    // ── Handle linking to partner deal ──
     if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
       const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
       if (!tmpl) { toast.error(t('invalidTemplate')); return; }
@@ -1114,7 +1051,6 @@ export default function OrdersPage() {
           approvalStatus: 'pending_approval' as LinkedTradeStatus,
         };
 
-        // Create settlement period for per_order deals
         const dealCadence = tmpl.defaults.settlement_period || 'monthly';
         if (dealCadence === 'per_order' && dealData?.id) {
           const netProfit = rev - fifoCost - fee;
@@ -1161,7 +1097,7 @@ export default function OrdersPage() {
         reloadMerchantData();
       } catch (err: any) {
         toast.error(err.message);
-        return; // Don't save local trade if deal creation failed
+        return;
       }
     }
 
@@ -1175,7 +1111,6 @@ export default function OrdersPage() {
     });
     applyState({ ...state, trades: nextTrades });
 
-    // Propagate edits to linked server deal and trigger re-approval
     if (existingTrade.linkedDealId && !editLinkEnabled) {
       try {
         const existingDeal = allMerchantDeals.find(d => d.id === existingTrade.linkedDealId);
@@ -1206,7 +1141,6 @@ export default function OrdersPage() {
         );
         applyState({ ...state, trades: resetTrades });
         await reloadMerchantData();
-        // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
         toast.success(t('dealUpdatedReapproval'));
       } catch (err: any) {
@@ -1224,7 +1158,6 @@ export default function OrdersPage() {
       toast.error(t('cannotDeleteApprovedTrade'));
       return;
     }
-    // Mark as voided instead of removing — preserves audit trail and releases FIFO stock
     const nextTrades = state.trades.map(t =>
       t.id === editingTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
@@ -1232,12 +1165,10 @@ export default function OrdersPage() {
     setEditingTradeId(null);
   };
 
-  // ─── Cancel / Cancellation Request ────────────────────────────────
   const handleCancelTrade = async (tradeId: string) => {
     const tr = state.trades.find(x => x.id === tradeId);
     if (!tr) return;
 
-    // If trade has a linked deal, cancel on server
     if (tr.linkedDealId) {
       try {
         const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
@@ -1247,7 +1178,6 @@ export default function OrdersPage() {
       } catch (err: any) { toast.error(err.message); return; }
     }
 
-    // Also update local trade state — set voided so FIFO releases stock
     const nextTrades = state.trades.map(t =>
       t.id === tradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
@@ -1265,7 +1195,6 @@ export default function OrdersPage() {
         await reloadMerchantData();
       } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
     }
-    // Set voided so FIFO releases stock
     const nextTrades = state.trades.map(t =>
       t.id === cancelTradeId ? { ...t, voided: true, approvalStatus: 'cancelled' as LinkedTradeStatus } : t
     );
@@ -1274,7 +1203,6 @@ export default function OrdersPage() {
     toast.success(t('tradeCancelled'));
   };
 
-  // Server-side approve/reject for incoming merchant deals
   const approveIncomingDeal = async (dealId: string) => {
     try {
       const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', dealId);
@@ -1293,7 +1221,6 @@ export default function OrdersPage() {
     } catch (err: any) { toast.error(err.message); }
   };
 
-  // ─── Merchant Deal Edit/Delete Handlers ───────────────────────────
   const openDealEdit = (deal: MerchantDeal) => {
     setEditingDealId(deal.id);
     setEditDealTitle(deal.title || '');
@@ -1312,8 +1239,6 @@ export default function OrdersPage() {
     const fee = Number(editDealFee) || 0;
     if (!(qty > 0) || !(sell > 0)) { toast.error(t('fixFields') + ' ' + t('qty') + ', ' + t('sell')); return; }
     try {
-      // Preserve immutable fields from existing notes (avg_buy, customer, local_trade, trade_date, etc.)
-      // Only overwrite the editable numeric fields.
       const deal = allMerchantDeals.find(d => d.id === editingDealId);
       const existing = parseDealMeta(deal?.notes);
       const preserved = [
@@ -1329,7 +1254,6 @@ export default function OrdersPage() {
         existing.counterparty_share_pct ? `counterparty_share_pct: ${existing.counterparty_share_pct}` : null,
         existing.merchant_share_pct ? `merchant_share_pct: ${existing.merchant_share_pct}` : null,
       ].filter(Boolean).join(' | ');
-      // Use canonical key names (quantity/sell_price) so all readers work correctly
       const editedFields = `quantity: ${qty} | sell_price: ${sell} | fee: ${fee} | note: ${editDealNote}`;
       const metaNote = [preserved, editedFields].filter(Boolean).join(' | ');
       const { error } = await supabase.from('merchant_deals').update({
@@ -1339,8 +1263,6 @@ export default function OrdersPage() {
         status: 'pending',
       }).eq('id', editingDealId);
       if (error) throw error;
-      // Purge stale order_allocations so the dashboard recalculates from updated notes.
-      // Allocation records store the OLD qty/sell values and won't auto-update otherwise.
       await supabase.from('order_allocations').delete().eq('order_id', editingDealId);
       await reloadMerchantData();
       void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
@@ -1375,23 +1297,22 @@ export default function OrdersPage() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
-          <span className="pill">{t('revenue')} {fmtQ(revenue)}</span>
-          <span className="pill">{t('fee')} {fmtQ(tr.feeQAR)}</span>
-          {ok && <span className="pill">{t('cost')} {fmtQ(cost)}</span>}
-          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}</span>
+          <span className="pill">{t('revenue')} {fmtQWithUnit(revenue, settings.currency, wacop)}</span>
+          <span className="pill">{t('fee')} {fmtQWithUnit(tr.feeQAR, settings.currency, wacop)}</span>
+          {ok && <span className="pill">{t('cost')} {fmtQWithUnit(cost, settings.currency, wacop)}</span>}
+          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQWithUnit(net, settings.currency, wacop)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
-        {/* Show partner allocation for merchant-linked trades */}
         {tr.agreementFamily && tr.partnerPct != null && ok && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
               📊 {t('merchantNetProfit')}: <strong style={{ color: 'var(--good)' }}>
-                {fmtQ(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
+                {fmtQWithUnit(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0, settings.currency, wacop)}
               </strong>
             </div>
             <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--bad) 10%, transparent)', fontSize: 10 }}>
               🤝 {t('partnerNetProfit')}: <strong style={{ color: 'var(--bad)' }}>
-                {fmtQ(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
+                {fmtQWithUnit(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0, settings.currency, wacop)}
               </strong>
             </div>
           </div>
@@ -1406,7 +1327,6 @@ export default function OrdersPage() {
     );
   };
 
-  // ─── Helper styles for tables ───
   const thStyle = (right?: boolean): React.CSSProperties => ({
     padding: '7px 10px', fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase',
     fontWeight: 800, letterSpacing: '.3px', whiteSpace: 'nowrap',
@@ -1417,15 +1337,6 @@ export default function OrdersPage() {
     textAlign: right ? 'right' : 'left',
     borderTop: '1px solid color-mix(in srgb, var(--line) 55%, transparent)',
   });
-  const renderMargin = (margin: number) => {
-    const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
-    return Number.isFinite(margin) ? (
-      <td style={tdStyle()}>
-        <div className={`prog ${margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 70 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
-        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{(margin * 100).toFixed(2)}%</div>
-      </td>
-    ) : <td style={tdStyle()}><span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span></td>;
-  };
 
   const getApprovalStatusBadge = (status?: LinkedTradeStatus) => {
     if (!status) return null;
@@ -1439,8 +1350,6 @@ export default function OrdersPage() {
     const s = colors[status];
     return <span className="pill" style={{ fontSize: 8, background: s.bg, color: s.color, fontWeight: 700 }}>{s.label}</span>;
   };
-
-  // ─── KPI computations ───
 
   const outKpi = useMemo(() => {
     let vol = 0, netVal = 0;
@@ -1495,7 +1404,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(rev)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQWithUnit(rev, settings.currency, wacop)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
@@ -1505,7 +1414,7 @@ export default function OrdersPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span className="muted">{t('net')}</span>
             <span style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700, fontSize: 11 }}>
-              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQWithUnit(net, settings.currency, wacop)}` : '—'}
             </span>
           </div>
         </div>
@@ -1536,7 +1445,7 @@ export default function OrdersPage() {
         )}
       </div>
     );
-  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
+  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade, settings.currency, wacop]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
@@ -1588,7 +1497,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(row.volume)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQWithUnit(row.volume, settings.currency, wacop)}</div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1597,11 +1506,11 @@ export default function OrdersPage() {
               <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
             ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
               <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+                {row.myNet >= 0 ? '+' : ''}{fmtQWithUnit(row.myNet, settings.currency, wacop)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
               </span>
             ) : (
               <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQWithUnit(row.myNet, settings.currency, wacop)}` : '—'}
               </span>
             )}
           </div>
@@ -1633,7 +1542,7 @@ export default function OrdersPage() {
         </div>
       </div>
     );
-  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit]);
+  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, settings.currency, wacop]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
@@ -1649,8 +1558,8 @@ export default function OrdersPage() {
     <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
       <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('count').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{kpi.count}</div></div>
       {kpi.qty != null && <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>USDT {t('qty').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtU(kpi.qty)}</div></div>}
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtQ(kpi.vol)}</div></div>
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtQ(kpi.net)}</div></div>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtQWithUnit(kpi.vol, settings.currency, wacop)}</div></div>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtQWithUnit(kpi.net, settings.currency, wacop)}</div></div>
     </div>
   );
 
@@ -1788,8 +1697,8 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                             <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
-                            <td className="mono r hide-mobile">{fmtQ(rev)}</td>
-                            <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
+                            <td className="mono r hide-mobile">{fmtQWithUnit(rev, settings.currency, wacop)}</td>
+                            <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQWithUnit(net, settings.currency, wacop) : '—'}</td>
                             <td className="hide-mobile">
                               <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
@@ -1890,7 +1799,6 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        {/* Identical header columns as Outgoing tab */}
                         <th>{t('date')}</th><th>{t('merchant')}</th><th className="hide-mobile">{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
@@ -1901,7 +1809,6 @@ export default function OrdersPage() {
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
 
-                        // Same status colour map as Outgoing
                         const statusColors: Record<string, { bg: string; color: string }> = {
                           pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
                           approved: { bg: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' },
@@ -1912,7 +1819,6 @@ export default function OrdersPage() {
 
                         return (
                           <tr key={deal.id} id={`deal-${deal.id}`} data-deal-id={deal.id}>
-                            {/* DATE cell — identical layout to Outgoing: date + status pill + deal-type pill + split pill */}
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{row.dateLabel}</span>
@@ -1921,30 +1827,27 @@ export default function OrdersPage() {
                                 {row.splitLabel && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{row.splitLabel}</span>}
                               </div>
                             </td>
-                            {/* MERCHANT — counterparty who created the deal */}
                             <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                            {/* BUYER — same customer field stored in deal notes */}
                             <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
-                            {/* NET — same dual display as Outgoing: crossed-out full net + "my cut" */}
+                            <td className="mono r hide-mobile">{fmtQWithUnit(row.volume, settings.currency, wacop)}</td>
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
                                 <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
                               ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                                   <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
-                                    {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
+                                    {fmtQWithUnit(row.fullNet, settings.currency, wacop)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                     {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
+                                     {fmtQWithUnit(row.myNet, settings.currency, wacop)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
                                 <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQWithUnit(row.myNet, settings.currency, wacop)}` : '—'}
                                 </span>
                               )}
                             </td>
@@ -1978,7 +1881,7 @@ export default function OrdersPage() {
             </>
           )}
 
-          {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
+          {/* ── OUTGOING ORDERS TAB ── */}
           {activeTab === 'outgoing' && (
             <>
               <div 
@@ -2073,22 +1976,22 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtQWithUnit(row.volume, settings.currency, wacop)}</td>
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
                                 <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
                               ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                                   <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
-                                    {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
+                                    {fmtQWithUnit(row.fullNet, settings.currency, wacop)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
+                                    {fmtQWithUnit(row.myNet, settings.currency, wacop)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
                                 <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQWithUnit(row.myNet, settings.currency, wacop)}` : '—'}
                                 </span>
                               )}
                             </td>
@@ -2201,7 +2104,7 @@ export default function OrdersPage() {
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4, borderTop: '1px solid var(--line)' }}>
                             <span className="muted" style={{ fontSize: 10 }}>{t('totalCostQar')}</span>
-                            <strong className="mono" style={{ fontSize: 11 }}>{fmtQ(tx.total_cost)}</strong>
+                            <strong className="mono" style={{ fontSize: 11 }}>{fmtQWithUnit(tx.total_cost, settings.currency, wacop)}</strong>
                           </div>
                           {tx.note && (
                             <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic', background: 'var(--panel2)', padding: '4px 8px', borderRadius: 4 }}>
@@ -2251,7 +2154,7 @@ export default function OrdersPage() {
                               {fmtP(tx.cost_basis)}
                             </td>
                             <td className="mono r" style={{ fontSize: 11, fontWeight: 600 }}>
-                              {fmtQ(tx.total_cost)}
+                              {fmtQWithUnit(tx.total_cost, settings.currency, wacop)}
                             </td>
                             <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {tx.note || '—'}
@@ -2272,6 +2175,38 @@ export default function OrdersPage() {
         <div>
 
           {/* ── MY ORDERS: New Sale Form ── */}
+          {activeTab === 'my' &&think
+The user is pointing out that my previous response was cut off. I need to continue exactly where I left off in `src/pages/OrdersPage.tsx`.
+
+Looking at the end of the previous response:
+```tsx
+        {/* ═══════════ RIGHT PANEL ═══════════ */}
+        <div>
+
+          {/* ── MY ORDERS: New Sale Form ── */}
+          {activeTab === 'my' &&
+```
+
+I need to complete the `OrdersPage.tsx` file from that point.
+
+Wait, I should also check if other files need currency conversion updates as requested in the previous prompt ("currency conversion isnt working on stock and orders pages, make sure its applied globlaly").
+
+Files to check/update:
+1. `src/pages/OrdersPage.tsx` (Finish the file)
+2. `src/pages/StockPage.tsx` (Apply `fmtQWithUnit`)
+3. `src/features/merchants/components/AgreementsGlobalTab.tsx` (Apply `fmtQWithUnit`)
+4. `src/features/merchants/components/AgreementsTab.tsx` (Apply `fmtQWithUnit`)
+5. `src/features/merchants/components/SettlementTab.tsx` (Apply `fmtQWithUnit`)
+6. `src/features/merchants/components/ProfitDistributionPanel.tsx` (Apply `fmtQWithUnit`)
+7. `src/features/merchants/components/BalanceLedger.tsx` (Apply `fmtQWithUnit`)
+
+I will start by finishing `src/pages/OrdersPage.tsx`.
+
+Then I will update the other files.
+
+Let's continue `src/pages/OrdersPage.tsx`.
+
+```tsx
           {activeTab === 'my' && (
             <div className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
@@ -2848,19 +2783,19 @@ export default function OrdersPage() {
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted">{t('allocRev')}:</span>
-                                    <strong className="mono">{fmtQ(calc.revenue)}</strong>
+                                    <strong className="mono">{fmtQWithUnit(calc.revenue, settings.currency, wacop)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted">{t('allocNet')}:</span>
-                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtQ(calc.net)}</strong>
+                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtQWithUnit(calc.net, settings.currency, wacop)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({alloc.merchantSharePct}%):</span>
-                                    <strong className="mono" style={{ color: 'var(--good)' }}>{fmtQ(calc.merchantAmount)}</strong>
+                                    <strong className="mono" style={{ color: 'var(--good)' }}>{fmtQWithUnit(calc.merchantAmount, settings.currency, wacop)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
                                     <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({alloc.partnerSharePct}%):</span>
-                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtQ(calc.partnerAmount)}</strong>
+                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtQWithUnit(calc.partnerAmount, settings.currency, wacop)}</strong>
                                   </div>
                                 </div>
                               );
@@ -2872,10 +2807,9 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* The sections below are hidden when Capital Transfer is selected */}
                 {!isCapitalTransfer && (<>
 
-                {/* Settle immediately option (Sales Deal + per_order cadence only) */}
+                {/* Settle immediately option */}
                 {merchantOrderEnabled && (() => {
                   const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId);
                   if (!tmpl || tmpl.family !== 'sales_deal') return null;
@@ -2892,19 +2826,18 @@ export default function OrdersPage() {
                   );
                 })()}
 
-                {/* Allocation Preview - enhanced with icons when partner linked */}
+                {/* Allocation Preview */}
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
                     <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
-                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationPreview.revenue)}</strong></div>
-                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationPreview.fifoCost)}</strong></div>}
+                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtQWithUnit(allocationPreview.revenue, settings.currency, wacop)}</strong></div>
+                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtQWithUnit(allocationPreview.fifoCost, settings.currency, wacop)}</strong></div>}
                     {allocationPreview.baseLabel === 'net_profit' && (
-                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtQ(allocationPreview.base)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtQWithUnit(allocationPreview.base, settings.currency, wacop)}</strong></div>
                     )}
-                    {/* Iconic profit split summary */}
                     <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtQ(allocationPreview.partnerAmount)}</strong></div>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtQWithUnit(allocationPreview.merchantAmount, settings.currency, wacop)}</strong></div>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtQWithUnit(allocationPreview.partnerAmount, settings.currency, wacop)}</strong></div>
                     </div>
                     <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
                   </div>
@@ -2918,12 +2851,12 @@ export default function OrdersPage() {
                     <>
                       {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
                       <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
-                      <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtQ(salePreview.revenue)}</strong></div>
-                      <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtQ(salePreview.cost) : '—'}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtQWithUnit(salePreview.revenue, settings.currency, wacop)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtQWithUnit(salePreview.cost, settings.currency, wacop) : '—'}</strong></div>
                       <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
                         <span className="muted">{t('net')}</span>
                         <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                          {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
+                          {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQWithUnit(salePreview.net, settings.currency, wacop)}` : '—'}
                         </strong>
                       </div>
                     </>
@@ -2970,7 +2903,7 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)})` : t('customAmount')}
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQWithUnit(salePreview.revenue, settings.currency, wacop)})` : t('customAmount')}
                         </button>
                       ))}
                     </div>
@@ -3021,7 +2954,7 @@ export default function OrdersPage() {
                                 }}
                               >
                                 <span style={isMobile ? { fontSize: 11 } : undefined}>{typeIcon} {acc.name}</span>
-                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQWithUnit(bal, settings.currency, wacop)}</span>
                               </button>
                             );
                           })}
@@ -3037,9 +2970,9 @@ export default function OrdersPage() {
                               .filter(e => e.accountId === selectedAcc.id)
                               .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
                             const deposit = parseFloat(cashDepositAmount) || 0;
-                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)}`;
+                            return `${selectedAcc.name}: ${fmtQWithUnit(bal, settings.currency, wacop)} → ${fmtQWithUnit(bal + deposit, settings.currency, wacop)}`;
                           }
-                          return `${t('cashBalanceLbl')}: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                          return `${t('cashBalanceLbl')}: ${fmtQWithUnit(state.cashQAR || 0, settings.currency, wacop)} → ${fmtQWithUnit((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0), settings.currency, wacop)}`;
                         })()}
                       </div>
                     )}
@@ -3085,7 +3018,7 @@ export default function OrdersPage() {
                                   {rel?.counterparty?.display_name || '—'} · {partnerPct != null ? `${partnerPct}%/${100 - partnerPct}%` : '—'}
                                 </div>
                               </div>
-                              <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{fmtTotal(deal.amount)} {deal.currency}</div>
+                              <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{fmtQWithUnit(deal.amount, settings.currency, wacop)}</div>
                             </div>
                             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                               <button className="btn" style={{ fontSize: 10, padding: '4px 12px' }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
@@ -3275,12 +3208,12 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
-                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(currentVolume)}</strong>
+                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQWithUnit(currentVolume, settings.currency, wacop)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                     <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: currentNet != null ? (currentNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                      {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtQ(currentNet)}` : '—'}
+                      {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtQWithUnit(currentNet, settings.currency, wacop)}` : '—'}
                     </strong>
                   </div>
                 </div>
@@ -3341,7 +3274,6 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {/* Already linked indicator */}
               {editingTrade && (editingTrade.agreementFamily || editingTrade.linkedDealId) && (
                 <div style={{
                   marginBottom: 16, padding: '8px 12px', borderRadius: 8,
@@ -3359,7 +3291,6 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Link to Partner — only for self orders, not approved */}
               {editingTrade && !editingTrade.agreementFamily && !editingTrade.linkedDealId && !editingTrade.linkedRelId && !isApproved && (
                 <div style={{
                   marginBottom: 16, padding: 10, borderRadius: 8,
@@ -3385,7 +3316,6 @@ export default function OrdersPage() {
 
                   {editLinkEnabled && (
                     <>
-                      {/* Step 1: Select partner */}
                       <div className="field2" style={{ marginBottom: 6 }}>
                         <div className="lbl">{t('selectPartner')}</div>
                         <select
@@ -3400,7 +3330,6 @@ export default function OrdersPage() {
                         </select>
                       </div>
 
-                      {/* Step 2: Select order type */}
                       {editLinkedRelId && (
                         <div style={{ marginTop: 4 }}>
                           <div className="lbl" style={{ marginBottom: 4 }}>{t('agreementType')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
@@ -3417,7 +3346,6 @@ export default function OrdersPage() {
                             ))}
                           </select>
 
-                          {/* Template details + allocation preview */}
                           {editSelectedTemplateId && (() => {
                             const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
                             if (!tmpl) return null;
@@ -3442,11 +3370,11 @@ export default function OrdersPage() {
                                   <div style={{ marginTop: 6, fontSize: 10 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                       <span className="muted">{t('partnerShare')}:</span>
-                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(partnerAmt)}</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQWithUnit(partnerAmt, settings.currency, wacop)}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                       <span className="muted">{t('merchantShareDist')}:</span>
-                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(merchantAmt)}</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQWithUnit(merchantAmt, settings.currency, wacop)}</span>
                                     </div>
                                   </div>
                                 )}
@@ -3457,7 +3385,6 @@ export default function OrdersPage() {
                             );
                           })()}
 
-                          {/* Settle immediately (Sales Deal only) */}
                           {editSelectedTemplateId && (() => {
                             const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
                             if (!tmpl || tmpl.family !== 'sales_deal') return null;
@@ -3549,12 +3476,12 @@ export default function OrdersPage() {
                 <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                   <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
-                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
+                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQWithUnit(Number.isFinite(dealVol) ? dealVol : 0, settings.currency, wacop)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                   <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: Number.isFinite(dealNet) ? (dealNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                    {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                    {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtQWithUnit(dealNet, settings.currency, wacop)}` : '—'}
                   </strong>
                 </div>
               </div>
