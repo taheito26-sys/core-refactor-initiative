@@ -16,7 +16,7 @@ import {
   useUpdateAgreementStatus,
 } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
-import { buildOperatorPrioritySnapshot } from '@/lib/trading/operator-priority';
+import { buildOperatorPrioritySnapshot, calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import type { ProfitShareAgreementType } from '@/types/domain';
 import { buildSharedProfitShareFields } from '@/lib/profit-share-fields';
 import { toast } from 'sonner';
