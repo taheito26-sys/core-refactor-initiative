@@ -1502,6 +1502,32 @@ const translations = {
   confirmDecisionBtn:           { en: 'Confirm Decision',                  ar: 'تأكيد القرار' },
   decisionSaved:                { en: 'Decision saved',                    ar: 'تم حفظ القرار' },
   finalizedLabel:               { en: 'Finalized',                         ar: 'مُنجز' },
+
+  // ── Invested Capital Currency Toggle ──
+  investedCapitalLabel:         { en: 'Invested Capital',                   ar: 'رأس المال المستثمر' },
+  settlementWayLabel:           { en: 'Settlement Way',                     ar: 'طريقة التسوية' },
+  capitalCurrencyLabel:         { en: 'Capital Currency',                   ar: 'عملة رأس المال' },
+  convertedFromQar:             { en: 'Converted from QAR using avg rate',  ar: 'محوّل من ر.ق باستخدام متوسط السعر' },
+  convertedFromUsdt:            { en: 'Equivalent in QAR',                  ar: 'المعادل بالريال القطري' },
+  noRateAvailable:              { en: 'No rate available for conversion',   ar: 'لا يوجد سعر متاح للتحويل' },
+  capitalInUsdt:                { en: 'USDT',                               ar: 'USDT' },
+  capitalInQar:                 { en: 'QAR',                                ar: 'ر.ق' },
+
+  // ── Additional Localization ──
+  pendingApprovalLabel:         { en: 'Pending Approval',                   ar: 'بانتظار الموافقة' },
+  proposedByLabel:              { en: 'Proposed By',                        ar: 'مقترح من' },
+  approveAction:                { en: 'Approve',                            ar: 'موافقة' },
+  editAction:                   { en: 'Edit',                               ar: 'تعديل' },
+  savingLabel:                  { en: 'Saving...',                          ar: 'جاري الحفظ...' },
+  saveChangesLabel:             { en: 'Save Changes',                       ar: 'حفظ التغييرات' },
+  agreementCreatedSuccess:      { en: 'Agreement created',                  ar: 'تم إنشاء الاتفاقية' },
+  agreementUpdatedSuccess:      { en: 'Agreement updated successfully',     ar: 'تم تحديث الاتفاقية بنجاح' },
+  agreementApprovedSuccess:     { en: 'Agreement approved',                 ar: 'تم الموافقة على الاتفاقية' },
+  investedLabel:                { en: 'Invested',                           ar: 'المستثمر' },
+  wayLabel:                     { en: 'Way',                                ar: 'الطريقة' },
+  settlementWayPreview:         { en: 'Settlement way',                     ar: 'طريقة التسوية' },
+  capitalLabel:                 { en: 'Capital',                            ar: 'رأس المال' },
+  editAgreementTitle:           { en: 'Edit Profit Share Agreement',        ar: 'تعديل اتفاقية مشاركة الأرباح' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
