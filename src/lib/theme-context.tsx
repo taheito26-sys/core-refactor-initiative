@@ -438,48 +438,48 @@ const SIGNAL_DECK: LayoutDef = {
   },
 };
 
-// ═══ CHEERFUL PULSE — Vibrant, playful, high-energy ═══
-const CHEERFUL_PULSE: LayoutDef = {
-  id: 'cheerful_pulse', name: 'Cheerful Pulse', desc: 'Vibrant · playful · high-energy',
-  font: 'Plus Jakarta Sans', fontMono: 'JetBrains Mono',
-  radius: '20px', radiusSm: '12px', radiusLg: '28px',
-  shadow: '0 10px 30px rgba(0,0,0,.08)',
-  swatches: ['#ffffff','#ff0080','#7928ca','#00dfd8','#ff4d4d','#f9cb28','#0070f3','#50e3c2'],
+// ═══ GLASS MOBILE — Frosted glass, mobile-first, elegant blurs ═══
+const GLASS_MOBILE: LayoutDef = {
+  id: 'glass_mobile', name: 'Glass Mobile', desc: 'Frosted glass · mobile-first',
+  font: 'Public Sans', fontMono: 'JetBrains Mono',
+  radius: '16px', radiusSm: '8px', radiusLg: '24px',
+  shadow: '0 8px 32px rgba(0,0,0,.08)',
+  swatches: ['#ffffff','#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#64748b'],
   themes: {
-    t1: { // Candy Pop
-      bg:'#fff5f8', panel:'#ffffff', panel2:'#fff0f5', panel3:'#ffe4ee',
-      text:'#300015', muted:'#a04070', muted2:'#d080a0',
-      line:'rgba(255,0,128,.1)', line2:'rgba(255,0,128,.05)',
-      brand:'#ff0080', brand2:'#7928ca', brand3:'rgba(255,0,128,.1)',
-      good:'#00dfd8', bad:'#ff4d4d', warn:'#f9cb28',
-      sidebarBg:'#ffffff', topbarBg:'rgba(255,245,248,.96)',
-      cardBg:'#ffffff', inputBg:'rgba(255,0,128,.05)',
-      hoverCard:'rgba(255,0,128,.04)', glow:'rgba(255,0,128,.2)',
+    t1: { // Frost White
+      bg:'#f8fafc', panel:'rgba(255,255,255,.7)', panel2:'rgba(241,245,249,.6)', panel3:'rgba(226,232,240,.5)',
+      text:'#0f172a', muted:'#64748b', muted2:'#94a3b8',
+      line:'rgba(15,23,42,.06)', line2:'rgba(15,23,42,.03)',
+      brand:'#3b82f6', brand2:'#2563eb', brand3:'rgba(59,130,246,.1)',
+      good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
+      sidebarBg:'#ffffff', topbarBg:'rgba(255,255,255,.8)',
+      cardBg:'rgba(255,255,255,.7)', inputBg:'rgba(59,130,246,.05)',
+      hoverCard:'rgba(59,130,246,.04)', glow:'rgba(59,130,246,.15)',
     },
-    t2: { // Electric Mint
-      bg:'#f0fff4', panel:'#ffffff', panel2:'#e6fffa', panel3:'#b2f5ea',
-      text:'#004433', muted:'#2c7a7b', muted2:'#4fd1c5',
-      line:'rgba(0,223,216,.12)', line2:'rgba(0,223,216,.06)',
-      brand:'#00dfd8', brand2:'#0070f3', brand3:'rgba(0,223,216,.1)',
-      good:'#50e3c2', bad:'#ff4d4d', warn:'#f9cb28',
-      sidebarBg:'#ffffff', topbarBg:'rgba(240,255,244,.96)',
-      cardBg:'#ffffff', inputBg:'rgba(0,223,216,.05)',
-      hoverCard:'rgba(0,223,216,.04)', glow:'rgba(0,223,216,.2)',
+    t2: { // Obsidian Glass
+      bg:'#020617', panel:'rgba(15,23,42,.7)', panel2:'rgba(30,41,59,.6)', panel3:'rgba(51,65,85,.5)',
+      text:'#f8fafc', muted:'#94a3b8', muted2:'#64748b',
+      line:'rgba(255,255,255,.06)', line2:'rgba(255,255,255,.03)',
+      brand:'#3b82f6', brand2:'#60a5fa', brand3:'rgba(59,130,246,.15)',
+      good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
+      sidebarBg:'#020617', topbarBg:'rgba(2,6,23,.8)',
+      cardBg:'rgba(15,23,42,.7)', inputBg:'rgba(255,255,255,.04)',
+      hoverCard:'rgba(59,130,246,.06)', glow:'rgba(59,130,246,.2)',
     },
-    t3: { // Sunny Day
-      bg:'#fffaf0', panel:'#ffffff', panel2:'#fff5e6', panel3:'#feebc8',
-      text:'#4a3728', muted:'#9c4221', muted2:'#dd6b20',
-      line:'rgba(249,203,40,.15)', line2:'rgba(249,203,40,.08)',
-      brand:'#f9cb28', brand2:'#ff4d4d', brand3:'rgba(249,203,40,.1)',
-      good:'#50e3c2', bad:'#ff4d4d', warn:'#dd6b20',
-      sidebarBg:'#ffffff', topbarBg:'rgba(255,250,240,.96)',
-      cardBg:'#ffffff', inputBg:'rgba(249,203,40,.06)',
-      hoverCard:'rgba(249,203,40,.05)', glow:'rgba(249,203,40,.2)',
+    t3: { // Sapphire Blur
+      bg:'#eff6ff', panel:'rgba(255,255,255,.7)', panel2:'rgba(219,234,254,.6)', panel3:'rgba(191,219,254,.5)',
+      text:'#1e3a8a', muted:'#3b82f6', muted2:'#60a5fa',
+      line:'rgba(30,58,138,.08)', line2:'rgba(30,58,138,.04)',
+      brand:'#2563eb', brand2:'#1d4ed8', brand3:'rgba(37,99,235,.1)',
+      good:'#059669', bad:'#dc2626', warn:'#d97706',
+      sidebarBg:'#ffffff', topbarBg:'rgba(239,246,255,.8)',
+      cardBg:'rgba(255,255,255,.7)', inputBg:'rgba(37,99,235,.05)',
+      hoverCard:'rgba(37,99,235,.04)', glow:'rgba(37,99,235,.15)',
     },
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, CHEERFUL_PULSE];
+export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, GLASS_MOBILE];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
 export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto','Manrope','Fraunces','Instrument Serif','Public Sans'];
 export const FONT_SIZES = [9,10,11,12,13,14];
