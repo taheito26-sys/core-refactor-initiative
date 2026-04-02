@@ -795,7 +795,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                     <td>{statusPill(a.status, isAgreementActive(a))}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="rowBtn" onClick={() => handleEditAgreement(a)}>Edit</button>
+                        <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
                         <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
                         <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                       </div>
