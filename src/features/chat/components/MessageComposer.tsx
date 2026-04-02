@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Send, Mic, Smile, Zap, Command, X, StopCircle } from 'lucide-react';
+import { Send, Mic, Smile, Zap, Command, X, StopCircle, Package } from 'lucide-react';
 
 interface Props {
   onSend: (payload: { content: string; type: string; bodyJson?: any }) => void;
@@ -11,8 +11,8 @@ interface Props {
 
 const COMMANDS = [
   { key: '/order', label: 'Create Order', icon: Zap, desc: 'Quickly draft a new trade' },
+  { key: '/stock', label: 'Check Stock', icon: Package, desc: 'View current inventory levels' },
   { key: '/pnl', label: 'Share P&L', icon: Command, desc: 'Post current session performance' },
-  { key: '/lock', label: 'Lock Agreement', icon: Command, desc: 'Create an immutable snapshot' },
 ];
 
 export function MessageComposer({ onSend, onTyping, sending, compact }: Props) {
@@ -21,7 +21,9 @@ export function MessageComposer({ onSend, onTyping, sending, compact }: Props) {
 
   const handleCommand = (cmd: string) => {
     if (cmd === '/order') {
-      onSend({ content: '||SYS_ACTION||create_order||/SYS_ACTION||', type: 'system' });
+      onSend({ content: '||SYS_ACTION||create_order||/SYS_ACTION||', type: 'text' });
+    } else if (cmd === '/stock') {
+      onSend({ content: '||SYS_ACTION||check_stock||/SYS_ACTION||', type: 'text' });
     } else if (cmd === '/pnl') {
       onSend({ content: '||AI_SUMMARY|| Current Session ROI: +2.4% | Volume: 45k USDT', type: 'text' });
     }

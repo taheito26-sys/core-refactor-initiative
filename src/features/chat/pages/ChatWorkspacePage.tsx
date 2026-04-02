@@ -15,7 +15,6 @@ import { CallOrchestrator } from '@/features/chat/components/CallOrchestrator';
 import { ContextPanel } from '@/features/chat/components/ContextPanel';
 import { SecureWatermark } from '@/features/chat/components/SecureWatermark';
 import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
-import { TradingActionBar } from '@/features/chat/components/TradingActionBar';
 import { useChatStore } from '@/lib/chat-store';
 import { Shield, Zap } from 'lucide-react';
 
@@ -82,7 +81,7 @@ export default function ChatWorkspacePage() {
         <ConversationSidebar
           rooms={rooms} activeRoomId={activeRoomId}
           onSelectRoom={(id) => { setActiveRoomId(id); if (isMobile) setShowSidebar(false); }}
-          currentUserId={userId} isMobile={isMobile}
+          currentUserId={userId} currentMerchantId={merchantProfile?.merchant_id} isMobile={isMobile}
         />
       )}
 
@@ -133,20 +132,9 @@ export default function ChatWorkspacePage() {
         </main>
       )}
 
-      {/* Col 3 & 4: Context & Actions */}
+      {/* Col 3: Context */}
       {!isMobile && showContext && activeRoomId && (
-        <>
-          <ContextPanel relationship={relationship ?? null} />
-          <aside className="w-[240px] border-l border-border bg-muted/20 flex flex-col">
-            <div className="p-4 border-b border-border font-black text-[10px] uppercase tracking-widest text-muted-foreground">
-              Trading Protocols
-            </div>
-            <TradingActionBar 
-              onCreateOrder={() => navigate('/trading/orders?new=true')}
-              onCheckStock={() => navigate('/trading/stock')}
-            />
-          </aside>
-        </>
+        <ContextPanel relationship={relationship ?? null} />
       )}
     </div>
   );

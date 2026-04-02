@@ -34,6 +34,10 @@ export function encodeSystemEvent(type: string, ...fields: string[]): string {
   return `||SYS_${type.toUpperCase()}||${fields.join(SEP)}||/SYS_${type.toUpperCase()}||`;
 }
 
+export function encodeAction(action: string, ...fields: string[]): string {
+  return `||SYS_ACTION||${action}${SEP}${fields.join(SEP)}||/SYS_ACTION||`;
+}
+
 // ── Parsed result ────────────────────────────────────────────────
 
 export interface ParsedMessage {
@@ -61,6 +65,10 @@ export interface ParsedMessage {
   isSystemEvent: boolean;
   systemEventType?: string;
   systemEventFields?: string[];
+  // Action
+  isAction: boolean;
+  actionType?: string;
+  actionFields?: string[];
   // AI Summary
   isAiSummary: boolean;
   // App Output
@@ -86,6 +94,7 @@ export function parseMsg(raw: string): ParsedMessage {
   let isScheduled = false, schedAt: string | undefined;
   let isVoice = false, voiceDuration: number | undefined, voiceBase64: string | undefined;
   let isSystemEvent = false, systemEventType: string | undefined, systemEventFields: string[] | undefined;
+  let isAction = false, actionType: string | undefined, actionFields: string[] | undefined;
   let isEdited = false, editedAt: string | undefined;
   let isAiSummary = false;
   let isAppOutput = false, appName: string | undefined;
@@ -107,7 +116,7 @@ export function parseMsg(raw: string): ParsedMessage {
   // Voice
   else if (text.startsWith('||VOICE||')) {
     const end = text.indexOf('||/VOICE||');
-    const payload = end !== -1 ? text.slice(9, end) : text.slice(9);
+    const payload= end !== -1 ? text.slice(9, end) : text.slice(9);
     const meta = payload.split(SEP);
     voiceDuration = Number(meta[0]) || 0;
     voiceBase64 = meta.slice(1).join(SEP) || '';
@@ -147,6 +156,15 @@ export function parseMsg(raw: string): ParsedMessage {
     const meta = payload.split(SEP);
     schedAt = meta[0]; text = meta[1] || ''; isScheduled = true;
   }
+  // Action
+  else if (text.startsWith('||SYS_ACTION||')) {
+    const end = text.indexOf('||/SYS_ACTION||');
+    const payload = end !== -1 ? text.slice(14, end) : text.slice(14);
+    const meta = payload.split(SEP);
+    actionType = meta[0];
+    actionFields = meta.slice(1);
+    text = ''; isAction = true;
+  }
   // System event
   else if (text.startsWith('||SYS_')) {
     const typeEnd = text.indexOf('||', 6);
@@ -185,6 +203,7 @@ export function parseMsg(raw: string): ParsedMessage {
     isScheduled, schedAt,
     isVoice, voiceDuration, voiceBase64,
     isSystemEvent, systemEventType, systemEventFields,
+    isAction, actionType, actionFields,
     isAiSummary, isAppOutput, appName,
     text, isEdited, editedAt,
     isViewed

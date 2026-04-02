@@ -1,9 +1,10 @@
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Check, CheckCheck, Shield, Eye, Lock, Zap, LayoutGrid } from 'lucide-react';
+import { Check, CheckCheck, Shield, Eye, Lock, Zap, LayoutGrid, PlusCircle, Search, ArrowUpRight, RefreshCcw } from 'lucide-react';
 import { parseMsg } from '../lib/message-codec';
 import { useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 interface MessageProps {
   message: {
@@ -23,6 +24,7 @@ export function MessageItem({ message, currentUserId }: MessageProps) {
   const isMe = message.sender_id === currentUserId;
   const isSystem = message.type === 'system';
   const parsed = useMemo(() => parseMsg(message.content), [message.content]);
+  const navigate = useNavigate();
   
   const [showOneTime, setShowOneTime] = useState(false);
   const isOneTime = !!message.expires_at && !message.metadata?.timer;
@@ -72,6 +74,40 @@ export function MessageItem({ message, currentUserId }: MessageProps) {
         </div>
         <div className="font-mono text-[12px] bg-black/40 p-3 rounded-lg border border-white/5">
           {parsed.text}
+        </div>
+      </div>
+    );
+  }
+
+  if (parsed.isAction) {
+    const action = parsed.actionType;
+    return (
+      <div className={cn("flex w-full mb-4 px-4", isMe ? "justify-end" : "justify-start")}>
+        <div className={cn("flex flex-col max-w-[85%] md:max-w-[70%]", isMe ? "items-end" : "items-start")}>
+          <div className="bg-card border border-border rounded-[22px] p-4 shadow-sm flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              <Zap size={12} className="text-primary" />
+              Protocol Action Required
+            </div>
+            {action === 'create_order' && (
+              <button 
+                onClick={() => navigate('/trading/orders?new=true')}
+                className="flex items-center gap-3 w-full px-4 py-3 bg-primary text-primary-foreground rounded-xl shadow-lg shadow-primary/10 hover:scale-[1.02] transition-all active:scale-95"
+              >
+                <PlusCircle size={16} />
+                <span className="text-[11px] font-black uppercase tracking-widest">Create New Order</span>
+              </button>
+            )}
+            {action === 'check_stock' && (
+              <button 
+                onClick={() => navigate('/trading/stock')}
+                className="flex items-center gap-3 w-full px-4 py-3 bg-accent text-accent-foreground rounded-xl shadow-sm hover:scale-[1.02] transition-all active:scale-95"
+              >
+                <Search size={16} />
+                <span className="text-[11px] font-black uppercase tracking-widest">Check Inventory</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
