@@ -6,8 +6,8 @@
 
 /* ─── 0. TERMINAL HIGH-CONTRAST (Maximum Visibility) ─── */
 .layout-terminal_hc {
-  --layout-padding: 16px;
-  --layout-gap: 16px;
+  --layout-padding: 12px;
+  --layout-gap: 8px;
   --layout-radius: 4px;
 }
 .layout-terminal_hc .app-page-shell { padding: var(--layout-padding); }
@@ -16,33 +16,33 @@
 .layout-terminal_hc [data-slot="card"], 
 .layout-terminal_hc .border { 
   border-radius: var(--layout-radius); 
-  border: 2px solid hsl(var(--border)) !important;
-  box-shadow: 0 10px 50px rgba(0,0,0,0.9);
+  border: 1.5px solid hsl(var(--border)) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.8);
   background: #000000 !important;
 }
 
-/* Adjusted neon numbers to normal size */
+/* Normal sized neon numbers to fit one window */
 .layout-terminal_hc .kpi-val {
-  font-size: 1.5rem !important;
+  font-size: 1.25rem !important;
   font-weight: 800 !important;
   letter-spacing: -0.02em !important;
   font-family: 'JetBrains Mono', monospace !important;
-  text-shadow: 0 0 10px currentColor;
+  text-shadow: 0 0 8px currentColor;
   line-height: 1.2;
 }
 
 .layout-terminal_hc .kpi-card {
-  padding: 16px !important;
-  border: 2px solid #333 !important;
+  padding: 10px !important;
+  border: 1.5px solid #222 !important;
 }
 
 .layout-terminal_hc .kpi-lbl {
-  font-size: 11px !important;
+  font-size: 10px !important;
   font-weight: 800 !important;
-  letter-spacing: 0.15em !important;
+  letter-spacing: 0.1em !important;
   color: #00ffff !important;
   text-transform: uppercase;
-  margin-bottom: 8px !important;
+  margin-bottom: 4px !important;
 }
 
 .layout-terminal_hc table thead th {
@@ -56,7 +56,7 @@
 
 .layout-terminal_hc .mono {
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   color: #ffffff;
 }
 
@@ -76,8 +76,8 @@
 
 /* ─── 1. QUANTUM LEDGER (High Visibility Terminal) ─── */
 .layout-quantum_ledger {
-  --layout-padding: 14px;
-  --layout-gap: 14px;
+  --layout-padding: 12px;
+  --layout-gap: 8px;
   --layout-radius: 8px;
 }
 .layout-quantum_ledger .app-page-shell { padding: var(--layout-padding); }
@@ -86,25 +86,23 @@
 .layout-quantum_ledger [data-slot="card"], 
 .layout-quantum_ledger .border { 
   border-radius: var(--layout-radius); 
-  border-width: 1.5px;
-  box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+  border-width: 1px;
+  box-shadow: 0 4px 20px -5px rgba(0,0,0,0.5);
 }
 
-/* Adjusted numbers to normal size */
 .layout-quantum_ledger .kpi-val {
-  font-size: 1.5rem !important;
+  font-size: 1.25rem !important;
   font-weight: 800 !important;
   letter-spacing: -0.02em !important;
   font-family: 'JetBrains Mono', monospace !important;
-  text-shadow: 0 0 15px hsl(var(--primary) / 0.2);
 }
 
 .layout-quantum_ledger .kpi-card {
-  padding: 14px !important;
+  padding: 10px !important;
 }
 
 .layout-quantum_ledger .kpi-lbl {
-  font-size: 10px !important;
+  font-size: 9px !important;
   letter-spacing: 0.1em !important;
   opacity: 0.7;
 }
