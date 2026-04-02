@@ -237,6 +237,23 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
 
   const rLabel = rangeLabel(state.range || settings.range);
 
+  const renderMonthSelector = () => (
+    <div className="orders-tab-bar" style={{ marginBottom: 8, background: 'transparent', border: 'none', padding: 0, gap: 8, boxShadow: 'none' }}>
+      <button onClick={() => setSelectedMonth('all')} className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`} style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}>
+        {t('allMonths')}
+      </button>
+      {availableMonths.map(m => {
+        const [y, mm] = m.split('-');
+        const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+        return (
+          <button key={m} onClick={() => setSelectedMonth(m)} className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`} style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 2 }}>
@@ -256,6 +273,8 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
         ))}
       </div>
 
+      {renderMonthSelector()}
+
       {activeTab === 'my' && (
         <>
           {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
@@ -266,11 +285,11 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
             </div>
             <span className="pill">{rLabel}</span>
           </div>
-          {visibleTrades.length === 0 ? <div className="empty"><div className="empty-t">{t('noTradesYet')}</div></div> : (
+          {subFilteredTrades.length === 0 ? <div className="empty"><div className="empty-t">{t('noTradesYet')}</div></div> : (
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th>
             </tr></thead><tbody>
-              {visibleTrades.map((tr) => {
+              {subFilteredTrades.map((tr) => {
                 const c = derived.tradeCalc.get(tr.id);
                 const ok = !!c?.ok;
                 const rev = tr.amountUSDT * tr.sellPriceQAR;
@@ -303,13 +322,13 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
           {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
             <div><div style={{ fontSize: 13, fontWeight: 800 }}>📥 {t('incomingOrders')}</div><div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('partnerTradesAwaitingApproval')}</div></div>
-            <span className="pill">{partnerMerchantDeals.length} {t('trades')}</span>
+            <span className="pill">{subFilteredInDeals.length} {t('trades')}</span>
           </div>
-          {partnerMerchantDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noIncomingTrades')}</div></div> : (
+          {subFilteredInDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noIncomingTrades')}</div></div> : (
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
             </tr></thead><tbody>
-              {partnerMerchantDeals.map((deal: any) => {
+              {subFilteredInDeals.map((deal: any) => {
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                 const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -354,13 +373,13 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
           {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
             <div><div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div><div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div></div>
-            <span className="pill">{creatorMerchantDeals.length} {t('trades')}</span>
+            <span className="pill">{subFilteredOutDeals.length} {t('trades')}</span>
           </div>
-          {creatorMerchantDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noOutgoingTrades')}</div></div> : (
+          {subFilteredOutDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noOutgoingTrades')}</div></div> : (
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
             </tr></thead><tbody>
-              {creatorMerchantDeals.map((deal: any) => {
+              {subFilteredOutDeals.map((deal: any) => {
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                 const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
