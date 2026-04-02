@@ -35,7 +35,7 @@ export default function ChatWorkspacePage() {
 
   useEffect(() => {
     if (!activeRoomId && rooms.length > 0) {
-      setActiveRoomId(String(rooms[0].room_id || rooms[0].id));
+      setActiveRoomId(String(rooms[0].room_id));
     }
   }, [rooms, activeRoomId]);
 
