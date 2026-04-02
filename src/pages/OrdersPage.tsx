@@ -107,6 +107,7 @@ export default function OrdersPage() {
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
   const [editLinkedRelId, setEditLinkedRelId] = useState('');
   const [editSelectedTemplateId, setEditSelectedTemplateId] = useState<string | null>(null);
+  const [editSelectedAgreementId, setEditSelectedAgreementId] = useState<string | null>(null);
   const [editSettleImmediately, setEditSettleImmediately] = useState(false);
 
   // ─── Merchant-Linked Trade (Trade-Centric) ────────────────────────
@@ -1029,6 +1030,7 @@ export default function OrdersPage() {
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
     setEditSelectedTemplateId(null);
+    setEditSelectedAgreementId(null);
     setEditSettleImmediately(false);
   };
 
@@ -1051,8 +1053,30 @@ export default function OrdersPage() {
 
     // ── Handle linking to partner deal ──
     if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
-      const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
-      if (!tmpl) { toast.error(t('invalidTemplate')); return; }
+      const isEditProfitShare = editSelectedTemplateId === 'profit_share_family';
+      const isEditSalesDeal = editSelectedTemplateId === 'sales_deal_family';
+
+      // Profit share requires an approved agreement
+      if (isEditProfitShare && !editSelectedAgreementId) {
+        toast.error(t('noApprovedAgreement'));
+        return;
+      }
+
+      // Resolve ratios from approved agreement (profit_share) or default 50/50 (sales_deal)
+      const editAgreement = isEditProfitShare
+        ? allAgreements.find(a => a.id === editSelectedAgreementId)
+        : null;
+      const partnerPct = isEditProfitShare
+        ? (editAgreement?.partner_ratio ?? 0)
+        : 50;
+      const merchantPct = isEditProfitShare
+        ? (editAgreement?.merchant_ratio ?? 0)
+        : 50;
+      const dealType = isEditProfitShare ? 'partnership' : 'arbitrage';
+      const familyLabel = isEditProfitShare ? t('profitShareLabel') : t('salesDealLabel');
+      const cadence = isEditProfitShare
+        ? (editAgreement?.settlement_cadence || 'monthly')
+        : 'per_order';
 
       try {
         const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
@@ -1063,27 +1087,27 @@ export default function OrdersPage() {
         const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
-        const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
+        const ratioDisplay = `${partnerPct}/${merchantPct}`;
+        const title = `${familyLabel} · ${customerName} · ${ratioDisplay}`;
 
-          const noteLines = [
-            `template: ${tmpl.id}`,
-            `customer: ${customerName}`,
-            `local_trade: ${editingTradeId}`,
-            `trade_date: ${new Date(ts).toISOString()}`,
-            `quantity: ${qty}`,
+        const noteLines = [
+          `template: ${isEditProfitShare ? 'profit_share_family' : 'sales_deal_family'}`,
+          `customer: ${customerName}`,
+          `local_trade: ${editingTradeId}`,
+          `trade_date: ${new Date(ts).toISOString()}`,
+          `quantity: ${qty}`,
           `sell_price: ${sell}`,
           `fifo_cost: ${fifoCost}`,
           `avg_buy: ${avgBuy}`,
           `fee: ${fee}`,
-          tmpl.dealType === 'partnership'
-            ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
-            : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
+          isEditProfitShare
+            ? `partner_ratio: ${partnerPct}, merchant_ratio: ${merchantPct}`
+            : `counterparty_share: ${partnerPct}%, merchant_share: ${merchantPct}%`,
         ].join(' | ');
 
         const { data: dealData, error: dealError } = await supabase.from('merchant_deals').insert({
           relationship_id: editLinkedRelId,
-          deal_type: tmpl.dealType as string,
+          deal_type: dealType,
           title,
           amount: rev,
           currency: 'QAR',
@@ -1095,30 +1119,29 @@ export default function OrdersPage() {
             sell_price: sell,
             avg_buy: avgBuy,
             fee,
-            partner_ratio: tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? null,
-            merchant_ratio: tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio ?? null,
+            partner_ratio: partnerPct,
+            merchant_ratio: merchantPct,
+            ...(editAgreement ? { profit_share_agreement_id: editAgreement.id, settlement_cadence: editAgreement.settlement_cadence } : {}),
           },
         }).select('id').single();
 
         if (dealError) throw dealError;
 
-        const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
         updatedFields = {
           ...updatedFields,
           linkedRelId: editLinkedRelId,
           linkedDealId: dealData?.id,
-          agreementFamily: tmpl.family as 'profit_share' | 'sales_deal',
-          agreementTemplateId: tmpl.id,
+          agreementFamily: (isEditProfitShare ? 'profit_share' : 'sales_deal') as 'profit_share' | 'sales_deal',
+          agreementTemplateId: undefined,
           partnerPct,
-          merchantPct: 100 - partnerPct,
+          merchantPct,
           approvalStatus: 'pending_approval' as LinkedTradeStatus,
         };
 
         // Create settlement period for per_order deals
-        const dealCadence = tmpl.defaults.settlement_period || 'monthly';
-        if (dealCadence === 'per_order' && dealData?.id) {
+        if (cadence === 'per_order' && dealData?.id) {
           const netProfit = rev - fifoCost - fee;
-          const partnerAmt = tmpl.family === 'profit_share'
+          const partnerAmt = isEditProfitShare
             ? netProfit * (partnerPct / 100)
             : rev * (partnerPct / 100);
 
@@ -3400,44 +3423,107 @@ export default function OrdersPage() {
                         </select>
                       </div>
 
-                      {/* Step 2: Select order type */}
-                      {editLinkedRelId && (
+                      {/* Step 2: Select deal family */}
+                      {editLinkedRelId && (() => {
+                        const editRel = relationships.find(r => r.id === editLinkedRelId);
+                        const editCpName = editRel?.counterparty?.display_name || (editRel as any)?.counterparty_name || t('partner');
+                        const editRelApprovedAgreements = allAgreements.filter(a =>
+                          a.relationship_id === editLinkedRelId && a.status === 'approved' && isAgreementActive(a)
+                        );
+
+                        return (
                         <div style={{ marginTop: 4 }}>
-                          <div className="lbl" style={{ marginBottom: 4 }}>{t('agreementType')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                          <div className="lbl" style={{ marginBottom: 4 }}>{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                           <select
                             value={editSelectedTemplateId || ''}
-                            onChange={e => setEditSelectedTemplateId(e.target.value || null)}
+                            onChange={e => { setEditSelectedTemplateId(e.target.value || null); setEditSelectedAgreementId(null); }}
                             style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                           >
-                            <option value="">{t('selectAgreementType')}</option>
-                            {AGREEMENT_TEMPLATES.filter(tmpl => tmpl.family !== 'capital_transfer').map(tmpl => (
-                              <option key={tmpl.id} value={tmpl.id}>
-                                {tmpl.icon} {tmpl.label[t.lang as 'en' | 'ar']} ({tmpl.ratioDisplay})
-                              </option>
-                            ))}
+                            <option value="">{t('selectDealFamily')}</option>
+                            <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')} {editRelApprovedAgreements.length > 0 ? `(${editRelApprovedAgreements.length})` : ''}</option>
+                            <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
                           </select>
 
-                          {/* Template details + allocation preview */}
-                          {editSelectedTemplateId && (() => {
-                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
-                            if (!tmpl) return null;
-                            const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
+                          {/* ─── Profit Share: approved agreement picker ─── */}
+                          {editSelectedTemplateId === 'profit_share_family' && (
+                            <div style={{ marginTop: 6 }}>
+                              {editRelApprovedAgreements.length === 0 ? (
+                                <div style={{ fontSize: 10, color: 'var(--bad)', padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 15%, transparent)' }}>
+                                  ⚠️ {t('noApprovedAgreement')} <strong>{editCpName}</strong>. {t('createInWorkspaceFirst')}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="field2" style={{ marginBottom: 4 }}>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
+                                    <select
+                                      value={editSelectedAgreementId || ''}
+                                      onChange={e => setEditSelectedAgreementId(e.target.value || null)}
+                                      style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                    >
+                                      <option value="">{t('selectAgreement')}</option>
+                                      {editRelApprovedAgreements.map(agr => (
+                                        <option key={agr.id} value={agr.id}>
+                                          🤝 {agr.partner_ratio}/{agr.merchant_ratio} — {agr.settlement_cadence}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  {editSelectedAgreementId && (() => {
+                                    const agr = editRelApprovedAgreements.find(a => a.id === editSelectedAgreementId);
+                                    if (!agr) return null;
+                                    const qty = Number(editQty) || 0;
+                                    const sell = Number(editSell) || 0;
+                                    const rev = qty * sell;
+                                    const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
+                                    const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
+                                    const netProfit = rev - fifoCost - (Number(editFee) || 0);
+                                    const partnerAmt = netProfit * (agr.partner_ratio / 100);
+                                    const merchantAmt = netProfit - partnerAmt;
+                                    return (
+                                      <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, marginBottom: 3 }}>
+                                          {t('lockedRatio')} {agr.partner_ratio}% / {t('youShare')} {agr.merchant_ratio}%
+                                        </div>
+                                        {rev > 0 && (
+                                          <div style={{ marginTop: 6, fontSize: 10 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                              <span className="muted">{t('partnerShare')}:</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(partnerAmt)}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                              <span className="muted">{t('merchantShareDist')}:</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(merchantAmt)}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>
+                                          {t('tradeWillBeSentForApproval')}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ─── Sales Deal: template details + preview ─── */}
+                          {editSelectedTemplateId === 'sales_deal_family' && (() => {
                             const qty = Number(editQty) || 0;
                             const sell = Number(editSell) || 0;
                             const rev = qty * sell;
                             const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
                             const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
                             const netProfit = rev - fifoCost - (Number(editFee) || 0);
-                            const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
-                            const base = tmpl.family === 'profit_share' ? netProfit : rev;
-                            const partnerAmt = base * (partnerPct / 100);
-                            const merchantAmt = base - partnerAmt;
+                            // Sales deal defaults to 50/50 unless user changes
+                            const partnerPct = 50;
+                            const partnerAmt = netProfit * (partnerPct / 100);
+                            const merchantAmt = netProfit - partnerAmt;
                             return (
-                              <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: `color-mix(in srgb, ${accentVar} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${accentVar} 30%, transparent)` }}>
-                                <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 3 }}>
-                                  {getTemplateRatioLabel(tmpl, t.lang as 'en' | 'ar')}
+                              <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 30%, transparent)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--good)', fontWeight: 600, marginBottom: 3 }}>
+                                  📊 {t('salesDealNoApproval')} — 50/50
                                 </div>
-                                <div style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.4 }}>{tmpl.helperText[t.lang as 'en' | 'ar']}</div>
                                 {rev > 0 && (
                                   <div style={{ marginTop: 6, fontSize: 10 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -3458,23 +3544,20 @@ export default function OrdersPage() {
                           })()}
 
                           {/* Settle immediately (Sales Deal only) */}
-                          {editSelectedTemplateId && (() => {
-                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
-                            if (!tmpl || tmpl.family !== 'sales_deal') return null;
-                            return (
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={editSettleImmediately}
-                                  onChange={e => setEditSettleImmediately(e.target.checked)}
-                                  style={{ accentColor: 'var(--brand)' }}
-                                />
-                                {t('settleThisTradeNow')}
-                              </label>
-                            );
-                          })()}
+                          {editSelectedTemplateId === 'sales_deal_family' && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={editSettleImmediately}
+                                onChange={e => setEditSettleImmediately(e.target.checked)}
+                                style={{ accentColor: 'var(--brand)' }}
+                              />
+                              {t('settleThisTradeNow')}
+                            </label>
+                          )}
                         </div>
-                      )}
+                        );
+                      })()}
                     </>
                   )}
                 </div>
