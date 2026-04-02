@@ -37,12 +37,11 @@ interface NavItem {
 export const tradingNav: NavItem[] = [
   { labelKey: 'dashboard', fallback: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { labelKey: 'orders', fallback: 'Orders', icon: TrendingUp, path: '/trading/orders' },
-  { labelKey: 'usdtTransfers', fallback: 'USDT Transfers', icon: ArrowLeftRight, path: '/trading/orders?tab=transfers' },
   { labelKey: 'stock', fallback: 'Stock', icon: Wallet, path: '/trading/stock' },
-  { labelKey: 'calendar', fallback: 'Calendar', icon: Calendar, path: '/trading/calendar' },
-  { labelKey: 'p2pTracker', fallback: 'P2P Market', icon: Globe, path: '/trading/p2p' },
   { labelKey: 'crm', fallback: 'CRM', icon: UserCircle, path: '/crm' },
   { labelKey: 'chat', fallback: 'Chat', icon: MessageCircle, path: '/chat' },
+  { labelKey: 'calendar', fallback: 'Calendar', icon: Calendar, path: '/trading/calendar' },
+  { labelKey: 'p2pTracker', fallback: 'P2P Market', icon: Globe, path: '/trading/p2p' },
 ];
 
 export const networkNav: NavItem[] = [
@@ -65,7 +64,7 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     tradingNav[1], // Orders
     tradingNav[2], // Stock
     networkNav[0], // Merchants
-    { labelKey: 'chat', fallback: 'Chat', icon: MessageCircle, path: '/chat' } as NavItem,
+    tradingNav[4], // Chat
   ].filter(Boolean) as NavItem[];
 
   return (
