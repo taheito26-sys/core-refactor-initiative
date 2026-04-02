@@ -25,6 +25,18 @@ npm run build
 npm run preview
 ```
 
+## Source integrity safeguards (code generation / patch pipeline)
+
+- `npm run guard:generated -- <file...>` validates `.ts/.tsx/.js/.jsx` files for:
+  - banned narrative phrases (`"The user is"`, `"I need to"`, `"continue where"`, `"previous response"`)
+  - markdown-like contamination
+  - TypeScript/JSX parse errors (AST-level syntax diagnostics)
+- `scripts/safe-source-write.mjs` performs the same validation before writing content to a source file; if parsing/sanitization fails it aborts the write.
+- `npm run build` now enforces TypeScript preflight (`tsc --noEmit`) before `vite build`.
+- `npm run guard:precommit` validates staged source files, and when critical UI files are staged (`src/pages/OrdersPage.tsx`, `src/pages/MerchantsPage.tsx`, `src/components/*`) it also runs:
+  - `npm run typecheck`
+  - `npm run build:dry-run`
+
 ## Capacitor setup (Android + iOS)
 
 Create native projects once:

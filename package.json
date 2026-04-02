@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "build": "npm run build:preflight && vite build",
+    "build:dev": "npm run build:preflight && vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -16,7 +16,12 @@
     "cap:copy": "npm run build && npx --no-install cap copy",
     "cap:sync": "npm run build && npx --no-install cap sync",
     "cap:android": "npm run cap:sync && npx --no-install cap open android",
-    "cap:ios": "npm run cap:sync && npx --no-install cap open ios"
+    "cap:ios": "npm run cap:sync && npx --no-install cap open ios",
+    "typecheck": "tsc --noEmit",
+    "build:preflight": "npm run typecheck",
+    "build:dry-run": "vite build",
+    "guard:generated": "node scripts/validate-generated-patch.mjs",
+    "guard:precommit": "node scripts/precommit-source-guard.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^7.1.2",
