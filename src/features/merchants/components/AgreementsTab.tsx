@@ -7,8 +7,8 @@
 import { useState, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
-import { fmtU } from '@/lib/tracker-helpers';
-import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
+import { fmtU, getWACOP } from '@/lib/tracker-helpers';
+import { useTrackerState } from '@/lib/useTrackerState';
 import {
   useProfitShareAgreements,
   useCreateAgreement,
@@ -47,12 +47,11 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [capitalCurrency, setCapitalCurrency] = useState<'USDT' | 'QAR'>('USDT');
   const [settlementWay, setSettlementWay] = useState<'reinvest' | 'withdraw'>('reinvest');
 
-  // P2P rate for QAR↔USDT conversion
-  const { data: p2pRates } = useP2PRates('qatar');
+  // FIFO avg buy price for QAR↔USDT conversion
+  const { derived } = useTrackerState({});
   const avgRate = useMemo(() => {
-    if (!p2pRates?.buyRate || !p2pRates?.sellRate) return null;
-    return (p2pRates.buyRate + p2pRates.sellRate) / 2;
-  }, [p2pRates]);
+    return getWACOP(derived);
+  }, [derived]);
 
   // Convert invested capital to USDT for storage
   const investedCapitalUsdt = useMemo(() => {
