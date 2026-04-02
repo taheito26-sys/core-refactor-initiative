@@ -30,6 +30,37 @@ export interface LayoutDef {
   themes: Record<string, ThemeDef>;
 }
 
+// ═══ QUANTUM LEDGER — High Visibility Terminal (NEW) ═══
+const QUANTUM_LEDGER: LayoutDef = {
+  id: 'quantum_ledger', name: 'Quantum Ledger', desc: 'High-visibility · terminal numbers',
+  font: 'Public Sans', fontMono: 'JetBrains Mono',
+  radius: '8px', radiusSm: '4px', radiusLg: '12px',
+  shadow: '0 8px 32px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.05)',
+  swatches: ['#020617','#3b82f6','#10b981','#ef4444','#f59e0b','#8b5cf6','#06b6d4','#f8fafc'],
+  themes: {
+    t1: { // Neon Cobalt
+      bg:'#020617', panel:'#0f172a', panel2:'#1e293b', panel3:'#334155',
+      text:'#f8fafc', muted:'#94a3b8', muted2:'#64748b',
+      line:'rgba(59,130,246,.2)', line2:'rgba(59,130,246,.1)',
+      brand:'#3b82f6', brand2:'#60a5fa', brand3:'rgba(59,130,246,.15)',
+      good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
+      sidebarBg:'#020617', topbarBg:'rgba(2,6,23,.98)',
+      cardBg:'#0f172a', inputBg:'rgba(59,130,246,.08)',
+      hoverCard:'rgba(59,130,246,.06)', glow:'rgba(59,130,246,.3)',
+    },
+    t2: { // Cyber Lime
+      bg:'#050505', panel:'#121212', panel2:'#1a1a1a', panel3:'#262626',
+      text:'#ffffff', muted:'#a3a3a3', muted2:'#737373',
+      line:'rgba(132,204,22,.2)', line2:'rgba(132,204,22,.1)',
+      brand:'#84cc16', brand2:'#a3e635', brand3:'rgba(132,204,22,.15)',
+      good:'#22c55e', bad:'#ef4444', warn:'#eab308',
+      sidebarBg:'#000000', topbarBg:'rgba(5,5,5,.98)',
+      cardBg:'#121212', inputBg:'rgba(132,204,22,.08)',
+      hoverCard:'rgba(132,204,22,.06)', glow:'rgba(132,204,22,.3)',
+    }
+  }
+};
+
 // ═══ FLUX — Clean SaaS (LIGHT layout) ═══
 const FLUX: LayoutDef = {
   id: 'flux', name: 'Flux', desc: 'Clean SaaS · rounded',
@@ -356,7 +387,7 @@ const PAPERWIRE: LayoutDef = {
     },
     t2: { // Redline Review
       bg:'#F5F0E8', panel:'#FFFCF6', panel2:'#EBDDD0', panel3:'#D4C0A8',
-      text:'#1A1210', muted:'#6E4A3A', muted2:'#9A7466',
+      text:'#1A1210', muted:'#6E4A3A', muted2:'#947466',
       line:'rgba(26,18,16,.10)', line2:'rgba(26,18,16,.05)',
       brand:'#9B2226', brand2:'#005F73', brand3:'rgba(155,34,38,.08)',
       good:'#2D6A4F', bad:'#7A1510', warn:'#C47A00',
@@ -423,7 +454,7 @@ const SIGNAL_DECK: LayoutDef = {
       good:'#10b981', bad:'#ef4444', warn:'#f59e0b',
       sidebarBg:'#090f1a', topbarBg:'rgba(13,19,33,.98)',
       cardBg:'#131c2e', inputBg:'rgba(255,255,255,.04)',
-      hoverCard:'rgba(168,85,247,.04)', glow:'rgba(192,132,252,.15)',
+      hoverCard:'rgba(16,185,129,.04)', glow:'rgba(192,132,252,.15)',
     },
     t5: { // Cyan Signal
       bg:'#0d1321', panel:'#131c2e', panel2:'#192438', panel3:'#1f2c42',
@@ -479,7 +510,7 @@ const GLASS_MOBILE: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, GLASS_MOBILE];
+export const LAYOUTS: LayoutDef[] = [QUANTUM_LEDGER, FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, GLASS_MOBILE];
 export const THEME_NAMES: Record<string, string> = { t1: 'Theme 1', t2: 'Theme 2', t3: 'Theme 3', t4: 'Theme 4', t5: 'Theme 5' };
 export const FONTS = ['Inter','JetBrains Mono','Space Grotesk','Sora','Plus Jakarta Sans','DM Sans','Outfit','Fira Code','IBM Plex Mono','Roboto','Manrope','Fraunces','Instrument Serif','Public Sans'];
 export const FONT_SIZES = [9,10,11,12,13,14];
@@ -530,7 +561,7 @@ export interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  layout: 'flux', theme: 't1',
+  layout: 'quantum_ledger', theme: 't1',
   range: '7d', currency: 'QAR', language: 'en', searchQuery: '',
   lowStockThreshold: 5000, priceAlertThreshold: 2,
   allowInvalidTrades: true,

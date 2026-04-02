@@ -4,6 +4,53 @@
    Applied via .layout-{id} class on the .app-shell.
    ═══════════════════════════════════════════════════════ */
 
+/* ─── 0. QUANTUM LEDGER (High Visibility Terminal) ─── */
+.layout-quantum_ledger {
+  --layout-padding: 14px;
+  --layout-gap: 14px;
+  --layout-radius: 8px;
+}
+.layout-quantum_ledger .app-page-shell { padding: var(--layout-padding); }
+.layout-quantum_ledger .grid { gap: var(--layout-gap); }
+.layout-quantum_ledger .glass, 
+.layout-quantum_ledger [data-slot="card"], 
+.layout-quantum_ledger .border { 
+  border-radius: var(--layout-radius); 
+  border-width: 1.5px;
+  box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+}
+
+/* Force oversized numbers in Quantum Ledger */
+.layout-quantum_ledger .kpi-val {
+  font-size: 2.2rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.04em !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  text-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+}
+
+.layout-quantum_ledger .kpi-card {
+  padding: 16px !important;
+}
+
+.layout-quantum_ledger .kpi-lbl {
+  font-size: 10px !important;
+  letter-spacing: 0.15em !important;
+  opacity: 0.6;
+}
+
+.layout-quantum_ledger table thead th {
+  background: hsl(var(--muted) / 0.1);
+  font-weight: 900;
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--primary));
+}
+
+.layout-quantum_ledger .mono {
+  font-weight: 700;
+  font-size: 13px;
+}
+
 /* ─── 1. FLUX (Clean SaaS) ─── */
 .layout-flux {
   --layout-padding: 12px;
