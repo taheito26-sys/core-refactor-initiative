@@ -24,6 +24,23 @@ function accountToRow(a: CashAccount, userId: string) {
   };
 }
 
+function accountToRowLegacy(a: CashAccount, userId: string) {
+  return {
+    id:              a.id,
+    user_id:         userId,
+    name:            a.name,
+    type:            a.type,
+    currency:        a.currency,
+    status:          a.status,
+    bank_name:       a.bankName  ?? null,
+    branch:          a.branch    ?? null,
+    notes:           a.notes     ?? null,
+    last_reconciled: a.lastReconciled ?? null,
+    created_at:      a.createdAt,
+    updated_at:      new Date().toISOString(),
+  };
+}
+
 function rowToAccount(row: Record<string, unknown>): CashAccount {
   return {
     id:             row.id as string,
@@ -59,6 +76,27 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
     linked_entity_type: e.linkedEntityType  ?? null,
     merchant_id:        e.merchantId        ?? null,
     relationship_id:    e.relationshipId    ?? null,
+    trade_id:           e.tradeId           ?? null,
+    order_id:           e.orderId           ?? null,
+    batch_id:           e.batchId           ?? null,
+    settlement_id:      e.settlementId      ?? null,
+  };
+}
+
+function entryToRowLegacy(e: CashLedgerEntry, userId: string) {
+  return {
+    id:                 e.id,
+    user_id:            userId,
+    account_id:         e.accountId,
+    contra_account_id:  e.contraAccountId  ?? null,
+    ts:                 e.ts,
+    type:               e.type,
+    direction:          e.direction,
+    amount:             e.amount,
+    currency:           e.currency,
+    note:               e.note              ?? null,
+    linked_entity_id:   e.linkedEntityId    ?? null,
+    linked_entity_type: e.linkedEntityType  ?? null,
     trade_id:           e.tradeId           ?? null,
     order_id:           e.orderId           ?? null,
     batch_id:           e.batchId           ?? null,
@@ -104,7 +142,16 @@ export async function saveCashToCloud(
     const { error: accErr } = await (supabase
       .from('cash_accounts') as any)
       .upsert(accounts.map(a => accountToRow(a, uid)), { onConflict: 'id' });
-    if (accErr) console.warn('[cash-sync] accounts upsert failed:', accErr.message);
+    if (accErr) {
+      if (accErr.message?.includes("Could not find the 'merchant_id' column")) {
+        const { error: legacyAccErr } = await (supabase
+          .from('cash_accounts') as any)
+          .upsert(accounts.map(a => accountToRowLegacy(a, uid)), { onConflict: 'id' });
+        if (legacyAccErr) console.warn('[cash-sync] accounts upsert failed (legacy retry):', legacyAccErr.message);
+      } else {
+        console.warn('[cash-sync] accounts upsert failed:', accErr.message);
+      }
+    }
   }
 
   // Upsert ledger entries
@@ -112,7 +159,16 @@ export async function saveCashToCloud(
     const { error: ledErr } = await (supabase
       .from('cash_ledger') as any)
       .upsert(ledger.map(e => entryToRow(e, uid)), { onConflict: 'id' });
-    if (ledErr) console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
+    if (ledErr) {
+      if (ledErr.message?.includes("Could not find the 'merchant_id' column")) {
+        const { error: legacyLedErr } = await (supabase
+          .from('cash_ledger') as any)
+          .upsert(ledger.map(e => entryToRowLegacy(e, uid)), { onConflict: 'id' });
+        if (legacyLedErr) console.warn('[cash-sync] ledger upsert failed (legacy retry):', legacyLedErr.message);
+      } else {
+        console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
+      }
+    }
   }
 }
 

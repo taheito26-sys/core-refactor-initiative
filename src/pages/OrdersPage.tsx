@@ -604,6 +604,18 @@ export default function OrdersPage() {
     return 0;
   }, [derived, state.trades]);
 
+  const resolveLinkedOutgoingDeal = useCallback((tr: Trade): MerchantDeal | null => {
+    if (tr.linkedDealId) {
+      const byId = allMerchantDeals.find(d => d.id === tr.linkedDealId);
+      if (byId) return byId as MerchantDeal;
+    }
+    const byLocalTrade = allMerchantDeals.find(d => (
+      isCreatorInMyMerchant(d.created_by) &&
+      parseDealMeta(d.notes).local_trade === tr.id
+    ));
+    return (byLocalTrade as MerchantDeal) || null;
+  }, [allMerchantDeals, isCreatorInMyMerchant]);
+
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
     if (!q) return state.customers;
@@ -788,6 +800,39 @@ export default function OrdersPage() {
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
+    const resolveDefaultCostPerUsdt = () => {
+      if (priceMode === 'manual') {
+        const manual = parseFloat(manualBuyPrice);
+        return Number.isFinite(manual) && manual > 0 ? manual : 0;
+      }
+
+      const previewAvg = salePreview?.avgBuy;
+      if (Number.isFinite(previewAvg) && previewAvg > 0) return previewAvg;
+
+      const previewTrade: Trade = {
+        id: '__alloc_cost_preview__',
+        ts,
+        inputMode: 'USDT',
+        amountUSDT,
+        sellPriceQAR: sell,
+        feeQAR: parseFloat(saleFee) || 0,
+        note: '',
+        voided: false,
+        usesStock: true,
+        revisions: [],
+        customerId: '',
+      };
+      const calc = computeFIFO(state.batches, [...state.trades, previewTrade]).tradeCalc.get(previewTrade.id);
+      const fifoAvg = calc?.ok ? calc.avgBuyQAR : NaN;
+      return Number.isFinite(fifoAvg) && fifoAvg > 0 ? fifoAvg : 0;
+    };
+    const defaultCostPerUsdt = resolveDefaultCostPerUsdt();
+    const resolveAllocationCostPerUsdt = (rawCost: string) => {
+      const manualCost = parseFloat(rawCost);
+      if (Number.isFinite(manualCost) && manualCost > 0) return manualCost;
+      return defaultCostPerUsdt;
+    };
+
     // Merchant-linked validation
     const isNewAllocFlow = selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family';
     if (merchantOrderEnabled && !isNewAllocFlow && !linkedRelId) { setSaleMessage(`${t('fixFields')} ${t('relationship')}`); return; }
@@ -802,13 +847,16 @@ export default function OrdersPage() {
         return;
       }
       for (const alloc of allocations) {
+        const resolvedCostPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
         if (!alloc.relationshipId) { setSaleMessage(t('allocNeedsMerchant')); return; }
         if (alloc.family === 'profit_share' && !alloc.agreementId) {
           setSaleMessage(`${t('profitShareLabel')} ${alloc.merchantName || t('merchant')} ${t('allocNeedsAgreement')}`);
           return;
         }
         if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage(t('allocNeedsUsdt')); return; }
-        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
+        // Profit Share flow does not expose manual merchant cost entry in the UI.
+        // In that case, use FIFO average buy as fallback so validation matches preview behavior.
+        if (!(resolvedCostPerUsdt > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
       }
     }
 
@@ -851,7 +899,7 @@ export default function OrdersPage() {
         const createdDealIds: string[] = [];
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+          const costPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
           const familyLabel = alloc.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
           const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
           const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
@@ -899,7 +947,7 @@ export default function OrdersPage() {
         // Now create allocation records linked to the deals
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+          const costPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
           const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
           const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
           const calc = isOpPriority
@@ -1401,11 +1449,17 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === tradeId);
     if (!tr) return;
 
+    // Approved trades should go through the cancellation-request confirmation flow,
+    // not immediate server-side cancellation.
+    if (tr.approvalStatus === 'approved') {
+      setCancelTradeId(tradeId);
+      return;
+    }
+
     // If trade has a linked deal, cancel on server
     if (tr.linkedDealId) {
       try {
-        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
-        if (error) throw error;
+        await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
         toast.success(t('tradeCancelled'));
       } catch (err: any) { toast.error(err.message); return; }
@@ -1424,8 +1478,7 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === cancelTradeId);
     if (tr?.linkedDealId) {
       try {
-        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
-        if (error) throw error;
+        await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
       } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
     }
@@ -1438,11 +1491,18 @@ export default function OrdersPage() {
     toast.success(t('tradeCancelled'));
   };
 
+  const setDealStatus = async (dealId: string, status: string) => {
+    const { error } = await supabase.rpc('set_merchant_deal_status', {
+      _deal_id: dealId,
+      _status: status,
+    } as any);
+    if (error) throw error;
+  };
+
   // Server-side approve/reject for incoming merchant deals
   const approveIncomingDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'approved');
       await reloadMerchantData();
       toast.success(t('tradeApproved'));
     } catch (err: any) { toast.error(err.message); }
@@ -1450,8 +1510,7 @@ export default function OrdersPage() {
 
   const rejectIncomingDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'rejected' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'rejected');
       await reloadMerchantData();
       toast.success(t('tradeRejected'));
     } catch (err: any) { toast.error(err.message); }
@@ -1515,8 +1574,7 @@ export default function OrdersPage() {
 
   const deleteDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'cancelled');
       await reloadMerchantData();
       setDeleteDealConfirm(null);
       setEditingDealId(null);
@@ -1525,10 +1583,16 @@ export default function OrdersPage() {
   };
 
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
-    const ok = !!c?.ok;
-    const revenue = tr.amountUSDT * tr.sellPriceQAR;
-    const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
-    const net = ok ? revenue - cost - tr.feeQAR : NaN;
+    const linkedDeal = resolveLinkedOutgoingDeal(tr);
+    const linkedRow = linkedDeal
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      : null;
+    const fifoOk = !!c?.ok;
+    const ok = fifoOk || !!linkedRow?.hasAvgBuy;
+    const revenue = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
+    const cost = linkedRow?.cost ?? (c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0);
+    const fee = linkedRow?.fee ?? tr.feeQAR;
+    const net = ok ? revenue - cost - fee : NaN;
     const slicesWithBatch = (c?.slices || []).map(sl => {
       const b = state.batches.find(x => x.id === sl.batchId);
       return { ...sl, source: b?.source || '—', price: b?.buyPriceQAR || 0, ts: b?.ts || tr.ts, pct: b && b.initialUSDT > 0 ? (sl.qty / b.initialUSDT) * 100 : 0 };
@@ -1540,7 +1604,7 @@ export default function OrdersPage() {
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
           <span className="pill">{t('revenue')} {fmtC(revenue)}</span>
-          <span className="pill">{t('fee')} {fmtC(tr.feeQAR)}</span>
+          <span className="pill">{t('fee')} {fmtC(fee)}</span>
           {ok && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
@@ -1561,11 +1625,15 @@ export default function OrdersPage() {
           </div>
         )}
         <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 5 }}>{t('fifoSlices')}</div>
-        {ok && slicesWithBatch.length ? slicesWithBatch.map(sl => (
+        {fifoOk && slicesWithBatch.length ? slicesWithBatch.map(sl => (
           <div key={`${tr.id}-${sl.batchId}-${sl.qty}`} className="muted" style={{ fontSize: 10, margin: '2px 0' }}>
             {sl.source} · <span className="mono">{fmtU(sl.qty)}</span> @ <span className="mono">{fmtP(sl.price)}</span> <span className="cycle-badge">{sl.pct.toFixed(1)}{t('ofBatch')}</span>
           </div>
-        )) : <div className="msg">{t('noSlices')}</div>}
+        )) : (
+          <div className="msg">
+            {linkedRow?.hasAvgBuy ? 'Cost derived from linked order details' : t('noSlices')}
+          </div>
+        )}
       </div>
     );
   };
@@ -1618,10 +1686,14 @@ export default function OrdersPage() {
 
   const renderMyOrderMobileCard = useCallback((tr: Trade) => {
     const c = derived.tradeCalc.get(tr.id);
-    const ok = !!c?.ok;
-    const rev = tr.amountUSDT * tr.sellPriceQAR;
+    const linkedDeal = resolveLinkedOutgoingDeal(tr);
+    const linkedRow = linkedDeal
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      : null;
+    const ok = !!c?.ok || !!linkedRow?.hasAvgBuy;
+    const rev = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
-    const rawNet = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
+    const rawNet = linkedRow?.fullNet ?? (c?.ok ? c.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN));
     const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
@@ -1651,11 +1723,11 @@ export default function OrdersPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(tr.amountUSDT)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(tr.sellPriceQAR)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
@@ -1663,7 +1735,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(c!.avgBuyQAR) : '—'}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(linkedRow?.avgBuy ?? c?.avgBuyQAR ?? 0) : '—'}</div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1700,7 +1772,7 @@ export default function OrdersPage() {
         )}
       </div>
     );
-  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
