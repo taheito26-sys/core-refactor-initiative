@@ -917,15 +917,26 @@ export default function OrdersPage() {
             status: 'pending',
             created_by: userId!,
             notes: noteLines,
-            metadata: {
-              quantity: usdt,
-              sell_price: sell,
-              avg_buy: avgBuy,
-              fee,
-              merchant_cost: costPerUsdt,
-              partner_ratio: alloc.partnerSharePct,
-              merchant_ratio: alloc.merchantSharePct,
-            },
+            metadata: (() => {
+              const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
+              const base: Record<string, any> = {
+                quantity: usdt,
+                sell_price: sell,
+                avg_buy: avgBuy,
+                fee,
+                merchant_cost: costPerUsdt,
+                partner_ratio: alloc.partnerSharePct,
+                merchant_ratio: alloc.merchantSharePct,
+              };
+              if (selAgreement?.agreement_type === 'operator_priority') {
+                base.agreement_type = 'operator_priority';
+                base.operator_ratio = (selAgreement as any).operator_ratio ?? 0;
+                base.operator_contribution = (selAgreement as any).operator_contribution ?? 0;
+                base.lender_contribution = (selAgreement as any).lender_contribution ?? 0;
+                base.operator_merchant_id = (selAgreement as any).operator_merchant_id ?? '';
+              }
+              return base;
+            })(),
           }).select('id').single();
 
           if (dealError) throw dealError;
@@ -1655,7 +1666,7 @@ export default function OrdersPage() {
   const outKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of filteredOutgoingMerchantDeals) {
-      const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+      const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
       vol += row.volume;
       netVal += row.myNet ?? 0;
     }
@@ -1750,7 +1761,7 @@ export default function OrdersPage() {
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
-    const row = buildDealRowModel({ deal, perspective, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+    const row = buildDealRowModel({ deal, perspective, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
     const merchantName = rel?.counterparty?.display_name || '—';
 
     const statusColors: Record<string, { bg: string; color: string }> = {
@@ -1911,7 +1922,7 @@ export default function OrdersPage() {
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of filteredIncomingMerchantDeals) {
-      const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+      const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
       vol += row.volume;
       netVal += row.myNet ?? 0;
     }
@@ -2094,6 +2105,99 @@ export default function OrdersPage() {
                           </React.Fragment>
                         );
                       })}
+                      {/* ── Incoming & Outgoing merchant deals (no local trade) ── */}
+                      {(() => {
+                        const localTradeIds = new Set(subFilteredMy.map(tr => tr.id));
+                        const dealsAlreadyLinked = new Set<string>();
+                        allMerchantDeals.forEach(d => {
+                          const lt = parseDealMeta(d.notes).local_trade;
+                          if (lt && localTradeIds.has(lt)) dealsAlreadyLinked.add(d.id);
+                        });
+                        const unlinkedDeals = allMerchantDeals.filter(d => {
+                          if (!isDealVisible(d)) return false;
+                          if (dealsAlreadyLinked.has(d.id)) return false;
+                          if (d.status !== 'approved') return false;
+                          if (selectedMonth !== 'all') {
+                            const dd = new Date(d.created_at);
+                            const key = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}`;
+                            if (key !== selectedMonth) return false;
+                          }
+                          return true;
+                        });
+                        return unlinkedDeals.map(deal => {
+                          const perspective = isCreatorInMyMerchant(deal.created_by) ? 'outgoing' as const : 'incoming' as const;
+                          const row = buildDealRowModel({ deal, perspective, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+                          const rel = relationships.find(r => r.id === deal.relationship_id);
+                          const merchantName = rel?.counterparty?.display_name || '';
+                          const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
+                          return (
+                            <React.Fragment key={`md-${deal.id}`}>
+                              <tr id={`deal-${deal.id}`} data-deal-id={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 4%, transparent)' }}>
+                                <td><span className="mono" style={{ whiteSpace: 'nowrap' }}>{row.dateLabel}</span></td>
+                                <td style={{ textAlign: 'center', fontSize: 16 }}>🤝</td>
+                                <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : merchantName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                                <td className="mono r">{fmtU(row.quantity)}</td>
+                                <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
+                                <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
+                                <td className="mono r hide-mobile">{fmtC(row.volume)}</td>
+                                <td className="mono r">
+                                  {!row.hasAvgBuy ? (
+                                    <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
+                                  ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                                      <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>{row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}</span>
+                                      <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>{row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span></span>
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>{row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}</span>
+                                  )}
+                                </td>
+                                <td className="hide-mobile">
+                                  <div className={`prog ${row.margin != null && row.margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(marginPct * 100).toFixed(0)}%` }} /></div>
+                                  <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
+                                </td>
+                                <td>
+                                  <div className="actionsRow">
+                                    <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [`deal-${deal.id}`]: !prev[`deal-${deal.id}`] }))}>
+                                      {detailsOpen[`deal-${deal.id}`] ? t('hideDetails') : t('details')}
+                                    </button>
+                                    <span className="pill" style={{ fontSize: 8, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700 }}>✅ {perspective === 'incoming' ? '📥' : '📤'}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                              {detailsOpen[`deal-${deal.id}`] && (
+                                <tr><td colSpan={10} style={{ padding: 8 }}>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
+                                    <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>
+                                    {row.fee > 0 && <span className="pill">{t('fee')} {fmtC(row.fee)}</span>}
+                                    {row.hasAvgBuy && row.cost > 0 && <span className="pill">{t('cost')} {fmtC(row.cost)}</span>}
+                                    <span className={`pill ${row.fullNet != null ? (row.fullNet >= 0 ? 'good' : 'bad') : ''}`}>
+                                      {t('net')} {row.fullNet != null ? `${row.fullNet >= 0 ? '+' : ''}${fmtC(row.fullNet)}` : '—'}
+                                    </span>
+                                  </div>
+                                  {row.hasAvgBuy && row.fullNet != null && (
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                                      {row.isOperatorPriority && row.operatorFee != null ? (
+                                        <>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)' }}>{fmtC(row.operatorFee)}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('operatorGets')}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('lenderGets')}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                </td></tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -2170,7 +2274,7 @@ export default function OrdersPage() {
                     <tbody>
                       {subFilteredInDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
-                        const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+                        const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
 
@@ -2353,7 +2457,7 @@ export default function OrdersPage() {
                     <tbody>
                       {subFilteredOutDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
-                        const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
+                        const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
 
