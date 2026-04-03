@@ -71,7 +71,7 @@ function safeJsonParse(txt: string): any {
   try { return JSON.parse(txt); } catch { return null; }
 }
 
-async function rawGasPost(payloadObj: Record<string, unknown>): Promise<any> {
+export async function rawGasPost(payloadObj: Record<string, unknown>): Promise<any> {
   if (!_gasUrl) throw new Error('Cloud URL missing.');
   const resp = await fetch(_gasUrl, {
     method: 'POST',

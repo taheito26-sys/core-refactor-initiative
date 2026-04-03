@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Cloud, Download, Loader2, RefreshCw, Users, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { gasLoadConfig, rawGasPostInternal, fmtBytes } from '@/lib/gas-cloud';
+import { rawGasPost } from '@/lib/gas-cloud';
 
 interface UserRow {
   user_id: string;
