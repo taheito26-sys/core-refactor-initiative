@@ -114,6 +114,7 @@ export default function OrdersPage() {
   // ─── Merchant-Linked Trade (Trade-Centric) ────────────────────────
   const [relationships, setRelationships] = useState<MerchantRelationship[]>([]);
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
+  const [merchantUserIds, setMerchantUserIds] = useState<string[]>([]);
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -235,12 +236,17 @@ export default function OrdersPage() {
           .eq('status', 'active')
           .or(`merchant_a_id.eq.${myMerchantId},merchant_b_id.eq.${myMerchantId}`),
         supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
-        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
+        supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname, merchant_code'),
       ]);
 
       const profileMap = new Map(
         (profilesRes.data || []).map(p => [p.merchant_id, p])
       );
+      const myMerchantUsers = (profilesRes.data || [])
+        .filter(p => p.merchant_id === myMerchantId)
+        .map(p => p.user_id)
+        .filter(Boolean);
+      setMerchantUserIds(Array.from(new Set(myMerchantUsers)));
 
       const enrichedRels = (relsRes.data || []).map(r => {
         const cpId = r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id;
@@ -342,6 +348,10 @@ export default function OrdersPage() {
       .filter(Boolean)
   ), [allMerchantDeals]);
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
+  const isCreatorInMyMerchant = useCallback((creatorUserId: string) => {
+    if (merchantUserIds.length === 0) return creatorUserId === userId;
+    return merchantUserIds.includes(creatorUserId);
+  }, [merchantUserIds, userId]);
 
   // Sync: void local trades whose server-side deals are cancelled/rejected/voided
   // This ensures computeFIFO never consumes stock for dead deals
@@ -423,11 +433,11 @@ export default function OrdersPage() {
     if (t.linkedDealId && cancelledDealIds.has(t.linkedDealId)) return false;
     if (cancelledLocalTradeIds.has(t.id)) return false;
     if ((t.approvalStatus === 'pending_approval' || t.approvalStatus === 'approved' || t.approvalStatus === 'rejected') && !t.linkedDealId) {
-      const matchedServerDeal = allMerchantDeals.some(d => parseDealMeta(d.notes).local_trade === t.id && d.created_by === userId && d.status !== 'cancelled' && (d.status as string) !== 'voided');
+      const matchedServerDeal = allMerchantDeals.some(d => parseDealMeta(d.notes).local_trade === t.id && isCreatorInMyMerchant(d.created_by) && d.status !== 'cancelled' && (d.status as string) !== 'voided');
       if (!matchedServerDeal) return false;
     }
     return true;
-  }), [allTrades, effectiveRange, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, userId]);
+  }), [allTrades, effectiveRange, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, isCreatorInMyMerchant]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
@@ -542,13 +552,13 @@ export default function OrdersPage() {
 
   // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId && isDealVisible(d)),
-    [allMerchantDeals, userId],
+    () => allMerchantDeals.filter(d => !isCreatorInMyMerchant(d.created_by) && isDealVisible(d)),
+    [allMerchantDeals, isCreatorInMyMerchant],
   );
   // Outgoing: deals I created (server-authoritative)
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId && isDealVisible(d)),
-    [allMerchantDeals, userId],
+    () => allMerchantDeals.filter(d => isCreatorInMyMerchant(d.created_by) && isDealVisible(d)),
+    [allMerchantDeals, isCreatorInMyMerchant],
   );
   const filteredIncomingMerchantDeals = useMemo(
     () => partnerMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), effectiveRange)),
