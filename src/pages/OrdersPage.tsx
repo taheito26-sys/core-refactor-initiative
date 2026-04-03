@@ -48,6 +48,29 @@ const nowInput = () => new Date().toISOString().slice(0, 16);
 const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
+/** Resolve operator & lender display names for an operator priority deal row */
+function resolveOpNames(
+  row: { operatorMerchantId: string; iAmOperator: boolean },
+  rel: any,
+  myMerchantId: string | undefined,
+  profileMap: Map<string, { display_name: string; nickname: string | null }>,
+  myDisplayName: string,
+): { operatorName: string; lenderName: string } {
+  const opMid = row.operatorMerchantId;
+  const opProfile = profileMap.get(opMid);
+  const operatorName = opProfile?.display_name || opProfile?.nickname || opMid || 'Operator';
+
+  // Lender is the other party in the relationship
+  let lenderMid = '';
+  if (rel) {
+    lenderMid = rel.merchant_a_id === opMid ? rel.merchant_b_id : rel.merchant_a_id;
+  }
+  const lenderProfile = profileMap.get(lenderMid);
+  const lenderName = lenderProfile?.display_name || lenderProfile?.nickname || lenderMid || 'Lender';
+
+  return { operatorName, lenderName };
+}
+
 export default function OrdersPage() {
   const { settings, update } = useTheme();
   const { userId, merchantProfile } = useAuth();
@@ -115,6 +138,7 @@ export default function OrdersPage() {
   const [relationships, setRelationships] = useState<MerchantRelationship[]>([]);
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
   const [merchantUserIds, setMerchantUserIds] = useState<string[]>([]);
+  const [merchantProfileMap, setMerchantProfileMap] = useState<Map<string, { merchant_id: string; display_name: string; nickname: string | null }>>(new Map());
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -247,6 +271,7 @@ export default function OrdersPage() {
         .map(p => p.user_id)
         .filter(Boolean);
       setMerchantUserIds(Array.from(new Set(myMerchantUsers)));
+      setMerchantProfileMap(profileMap as any);
 
       const enrichedRels = (relsRes.data || []).map(r => {
         const cpId = r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id;
@@ -603,6 +628,18 @@ export default function OrdersPage() {
     }
     return 0;
   }, [derived, state.trades]);
+
+  const resolveLinkedOutgoingDeal = useCallback((tr: Trade): MerchantDeal | null => {
+    if (tr.linkedDealId) {
+      const byId = allMerchantDeals.find(d => d.id === tr.linkedDealId);
+      if (byId) return byId as MerchantDeal;
+    }
+    const byLocalTrade = allMerchantDeals.find(d => (
+      isCreatorInMyMerchant(d.created_by) &&
+      parseDealMeta(d.notes).local_trade === tr.id
+    ));
+    return (byLocalTrade as MerchantDeal) || null;
+  }, [allMerchantDeals, isCreatorInMyMerchant]);
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
@@ -1582,10 +1619,16 @@ export default function OrdersPage() {
   };
 
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
-    const ok = !!c?.ok;
-    const revenue = tr.amountUSDT * tr.sellPriceQAR;
-    const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
-    const net = ok ? revenue - cost - tr.feeQAR : NaN;
+    const linkedDeal = resolveLinkedOutgoingDeal(tr);
+    const linkedRow = linkedDeal
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      : null;
+    const fifoOk = !!c?.ok;
+    const ok = fifoOk || !!linkedRow?.hasAvgBuy;
+    const revenue = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
+    const cost = linkedRow?.cost ?? (c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0);
+    const fee = linkedRow?.fee ?? tr.feeQAR;
+    const net = ok ? revenue - cost - fee : NaN;
     const slicesWithBatch = (c?.slices || []).map(sl => {
       const b = state.batches.find(x => x.id === sl.batchId);
       return { ...sl, source: b?.source || '—', price: b?.buyPriceQAR || 0, ts: b?.ts || tr.ts, pct: b && b.initialUSDT > 0 ? (sl.qty / b.initialUSDT) * 100 : 0 };
@@ -1597,32 +1640,82 @@ export default function OrdersPage() {
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
           <span className="pill">{t('revenue')} {fmtC(revenue)}</span>
-          {tr.feeQAR > 0 && <span className="pill">{t('fee')} {fmtC(tr.feeQAR)}</span>}
-          {ok && cost > 0 && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
+          <span className="pill">{t('fee')} {fmtC(fee)}</span>
+          {ok && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
         {/* Show partner allocation for merchant-linked trades */}
-        {tr.agreementFamily && tr.partnerPct != null && ok && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
-              📊 {t('merchantNetProfit')}: <strong style={{ color: 'var(--good)' }}>
-                {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
-              </strong>
+        {tr.agreementFamily && tr.partnerPct != null && ok && (() => {
+          const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
+          // Check if this is an operator priority deal via agreements
+          const matchedAgr = allAgreements?.find(a =>
+            a.relationship_id === tr.linkedRelId && a.agreement_type === 'operator_priority'
+          );
+          const isOpPriority = !!matchedAgr;
+
+          if (isOpPriority && Number.isFinite(net) && net > 0) {
+            const opResult = calculateOperatorPriorityProfit({
+              grossProfit: net,
+              operatorRatio: Number(matchedAgr!.operator_ratio) || 0,
+              operatorContribution: Number(matchedAgr!.operator_contribution) || 0,
+              lenderContribution: Number(matchedAgr!.lender_contribution) || 0,
+            });
+            const opMid = matchedAgr!.operator_merchant_id || '';
+            const opProfile = merchantProfileMap.get(opMid);
+            const operatorName = opProfile?.display_name || opProfile?.nickname || opMid || 'Operator';
+            let lenderMid = '';
+            if (linkedRel) {
+              lenderMid = (linkedRel as any).merchant_a_id === opMid ? (linkedRel as any).merchant_b_id : (linkedRel as any).merchant_a_id;
+            }
+            const lenderProfile = merchantProfileMap.get(lenderMid);
+            const lenderName = lenderProfile?.display_name || lenderProfile?.nickname || lenderMid || 'Lender';
+
+            return (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
+                  ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(opResult.operatorFee)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                  📊 {operatorName}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(opResult.operatorTotal)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                  🤝 {lenderName}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(opResult.lenderTotal)}</strong>
+                </div>
+              </div>
+            );
+          }
+
+          // Standard split — resolve merchant names
+          const myMid = merchantProfile?.merchant_id || '';
+          let counterpartyName = linkedRel?.counterparty?.display_name || '—';
+          const myName = merchantProfile?.display_name || 'Me';
+
+          return (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                📊 {myName} ({tr.merchantPct}%): <strong style={{ color: 'var(--good)' }}>
+                  {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
+                </strong>
+              </div>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                🤝 {counterpartyName} ({tr.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>
+                  {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
+                </strong>
+              </div>
             </div>
-            <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--bad) 10%, transparent)', fontSize: 10 }}>
-              🤝 {t('partnerNetProfit')}: <strong style={{ color: 'var(--bad)' }}>
-                {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
-              </strong>
-            </div>
-          </div>
-        )}
+          );
+        })()}
         <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 5 }}>{t('fifoSlices')}</div>
-        {ok && slicesWithBatch.length ? slicesWithBatch.map(sl => (
+        {fifoOk && slicesWithBatch.length ? slicesWithBatch.map(sl => (
           <div key={`${tr.id}-${sl.batchId}-${sl.qty}`} className="muted" style={{ fontSize: 10, margin: '2px 0' }}>
             {sl.source} · <span className="mono">{fmtU(sl.qty)}</span> @ <span className="mono">{fmtP(sl.price)}</span> <span className="cycle-badge">{sl.pct.toFixed(1)}{t('ofBatch')}</span>
           </div>
-        )) : <div className="msg">{t('noSlices')}</div>}
+        )) : (
+          <div className="msg">
+            {linkedRow?.hasAvgBuy ? 'Cost derived from linked order details' : t('noSlices')}
+          </div>
+        )}
       </div>
     );
   };
@@ -1666,7 +1759,7 @@ export default function OrdersPage() {
   const outKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of filteredOutgoingMerchantDeals) {
-      const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+      const row = buildDealRowModel({ deal, perspective: 'outgoing', myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
       vol += row.volume;
       netVal += row.myNet ?? 0;
     }
@@ -1675,10 +1768,14 @@ export default function OrdersPage() {
 
   const renderMyOrderMobileCard = useCallback((tr: Trade) => {
     const c = derived.tradeCalc.get(tr.id);
-    const ok = !!c?.ok;
-    const rev = tr.amountUSDT * tr.sellPriceQAR;
+    const linkedDeal = resolveLinkedOutgoingDeal(tr);
+    const linkedRow = linkedDeal
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      : null;
+    const ok = !!c?.ok || !!linkedRow?.hasAvgBuy;
+    const rev = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
-    const rawNet = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
+    const rawNet = linkedRow?.fullNet ?? (c?.ok ? c.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN));
     const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
@@ -1708,11 +1805,11 @@ export default function OrdersPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(tr.amountUSDT)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(tr.sellPriceQAR)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
@@ -1720,7 +1817,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(c!.avgBuyQAR) : '—'}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(linkedRow?.avgBuy ?? c?.avgBuyQAR ?? 0) : '—'}</div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1757,11 +1854,11 @@ export default function OrdersPage() {
         )}
       </div>
     );
-  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
-    const row = buildDealRowModel({ deal, perspective, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+    const row = buildDealRowModel({ deal, perspective, myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
     const merchantName = rel?.counterparty?.display_name || '—';
 
     const statusColors: Record<string, { bg: string; color: string }> = {
@@ -1847,19 +1944,21 @@ export default function OrdersPage() {
             {/* Each party's cut */}
             {row.hasAvgBuy && row.fullNet != null && (
               <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
-            {row.isOperatorPriority && row.operatorFee != null ? (
+            {(() => {
+              const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me');
+              return row.isOperatorPriority && row.operatorFee != null ? (
               <>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 11 }}>
                   ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(row.operatorFee)}</strong>
                 </div>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
-                  📊 {t('operatorGets')}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(row.operatorTotal ?? 0)}</strong>
+                  📊 {names.operatorName} ({t('operatorGets')}): <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(row.operatorTotal ?? 0)}</strong>
                 </div>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
-                  🤝 {t('lenderGets')}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(row.lenderTotal ?? 0)}</strong>
+                  🤝 {names.lenderName} ({t('lenderGets')}): <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(row.lenderTotal ?? 0)}</strong>
                 </div>
               </>
-            ) : (
+              ) : (
               <>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
                   📊 {perspective === 'outgoing' ? t('merchantNetProfit') : t('partnerNetProfit')} ({row.merchantPct}%):
@@ -1874,7 +1973,8 @@ export default function OrdersPage() {
                   </strong>
                 </div>
               </>
-            )}
+            );
+            })()}
               </div>
             )}
             {/* Chips row */}
@@ -1917,12 +2017,12 @@ export default function OrdersPage() {
         </div>
       </div>
     );
-  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, detailsOpen, fmtC]);
+  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, detailsOpen, fmtC, merchantProfile, merchantProfileMap, allAgreements]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
     for (const deal of filteredIncomingMerchantDeals) {
-      const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+      const row = buildDealRowModel({ deal, perspective: 'incoming', myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
       vol += row.volume;
       netVal += row.myNet ?? 0;
     }
@@ -2037,6 +2137,30 @@ export default function OrdersPage() {
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
+                  {/* Unlinked merchant deals (same logic as desktop) */}
+                  {(() => {
+                    const localTradeIds = new Set(subFilteredMy.map(tr => tr.id));
+                    const dealsAlreadyLinked = new Set<string>();
+                    allMerchantDeals.forEach(d => {
+                      const lt = parseDealMeta(d.notes).local_trade;
+                      if (lt && localTradeIds.has(lt)) dealsAlreadyLinked.add(d.id);
+                    });
+                    const unlinkedDeals = allMerchantDeals.filter(d => {
+                      if (!isDealVisible(d)) return false;
+                      if (dealsAlreadyLinked.has(d.id)) return false;
+                      if (d.status !== 'approved') return false;
+                      if (selectedMonth !== 'all') {
+                        const dd = new Date(d.created_at);
+                        const key = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}`;
+                        if (key !== selectedMonth) return false;
+                      }
+                      return true;
+                    });
+                    return unlinkedDeals.map(deal => {
+                      const perspective = isCreatorInMyMerchant(deal.created_by) ? 'outgoing' as const : 'incoming' as const;
+                      return renderOrdersMobileCard(deal, perspective);
+                    });
+                  })()}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -2126,7 +2250,7 @@ export default function OrdersPage() {
                         });
                         return unlinkedDeals.map(deal => {
                           const perspective = isCreatorInMyMerchant(deal.created_by) ? 'outgoing' as const : 'incoming' as const;
-                          const row = buildDealRowModel({ deal, perspective, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+                          const row = buildDealRowModel({ deal, perspective, myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
                           const rel = relationships.find(r => r.id === deal.relationship_id);
                           const merchantName = rel?.counterparty?.display_name || '';
                           const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -2178,18 +2302,18 @@ export default function OrdersPage() {
                                   </div>
                                   {row.hasAvgBuy && row.fullNet != null && (
                                     <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                                      {row.isOperatorPriority && row.operatorFee != null ? (
+                                      {(() => { const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me'); return row.isOperatorPriority && row.operatorFee != null ? (
                                         <>
                                           <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)' }}>{fmtC(row.operatorFee)}</strong></div>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('operatorGets')}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('lenderGets')}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {names.operatorName}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
                                         </>
                                       ) : (
                                         <>
                                           <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
                                           <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
                                         </>
-                                      )}
+                                      ); })()}
                                     </div>
                                   )}
                                 </td></tr>
@@ -2274,7 +2398,7 @@ export default function OrdersPage() {
                     <tbody>
                       {subFilteredInDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
-                        const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+                        const row = buildDealRowModel({ deal, perspective: 'incoming', myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
 
@@ -2363,18 +2487,18 @@ export default function OrdersPage() {
                               </div>
                               {row.hasAvgBuy && row.fullNet != null && (
                                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                  {row.isOperatorPriority && row.operatorFee != null ? (
+                                  {(() => { const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me'); return row.isOperatorPriority && row.operatorFee != null ? (
                                     <>
                                       <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)' }}>{fmtC(row.operatorFee)}</strong></div>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('operatorGets')}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('lenderGets')}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {names.operatorName}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
                                     </>
                                   ) : (
                                     <>
                                       <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
                                       <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
                                     </>
-                                  )}
+                                  ); })()}
                                 </div>
                               )}
                             </td></tr>
@@ -2457,7 +2581,7 @@ export default function OrdersPage() {
                     <tbody>
                       {subFilteredOutDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
-                        const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
+                        const row = buildDealRowModel({ deal, perspective: 'outgoing', myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
                         const merchantName = rel?.counterparty?.display_name || '—';
 
