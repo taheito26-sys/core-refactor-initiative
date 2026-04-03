@@ -95,6 +95,10 @@ export default function AdminPage() {
         <TabsContent value="audit" className="mt-4">
           <AdminAuditCenter />
         </TabsContent>
+
+        <TabsContent value="backups" className="mt-4">
+          <AdminBackupManager />
+        </TabsContent>
       </Tabs>
     </div>
   );
