@@ -247,27 +247,7 @@ export default function VaultPage() {
     toast(v ? (t.lang === 'ar' ? 'النسخ التلقائي مفعّل' : 'Auto-backup ON') : (t.lang === 'ar' ? 'النسخ التلقائي معطّل' : 'Auto-backup OFF'));
   };
 
-  // ── Cloud Auth actions ──
-  const handleCloudAuth = async () => {
-    if (!cloudEmail.trim() || !cloudPassword.trim()) {
-      toast.error('Enter email and password');
-      return;
-    }
-    setCloudLoading(true);
-    try {
-      const res = cloudAuthMode === 'register'
-        ? await cloudRegister(cloudEmail.trim(), cloudPassword)
-        : await cloudLogin(cloudEmail.trim(), cloudPassword);
-      if (!res || res.ok === false) throw new Error(res?.error || 'Auth failed');
-      setCloudLoggedIn(true);
-      setCloudPassword('');
-      toast.success(cloudAuthMode === 'register' ? '✓ Account created & logged in' : '✓ Logged in to Cloud');
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setCloudLoading(false);
-    }
-  };
+  // Cloud auth is automatic — no manual login needed
 
   const handleCloudLogout = () => {
     clearCloudSession();
