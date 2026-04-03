@@ -364,7 +364,9 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           {merchantDealKpis && merchantDealKpis.inCount > 0 && (
             <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount})</span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>
+                  📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount}){isAdminView ? ` · ${t('myCutLabel')}` : ''}
+                </span>
                 <span className={`mono ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
                   {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
                 </span>
@@ -596,7 +598,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 📤 {merchantDealKpis.outCount} deals
               </span>
             </div>
-            <div className="kpi-lbl">{t('outgoingNet')}</div>
+            <div className="kpi-lbl">{isAdminView ? `${t('outgoingNet')} · ${t('myCutLabel')}` : t('outgoingNet')}</div>
             <div className={`kpi-val ${merchantDealKpis.outMyShare >= 0 ? 'good' : 'bad'}`}>
               {merchantDealKpis.outMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outMyShare)}
             </div>
@@ -612,7 +614,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 📥 {merchantDealKpis.inCount} deals
               </span>
             </div>
-            <div className="kpi-lbl">{t('incomingNet')}</div>
+            <div className="kpi-lbl">{isAdminView ? `${t('incomingNet')} · ${t('myCutLabel')}` : t('incomingNet')}</div>
             <div className={`kpi-val ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`}>
               {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
             </div>
