@@ -87,6 +87,11 @@ export default function StockPage() {
   );
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
 
+  // Clear shared search query on mount to prevent cross-page filter leak
+  useEffect(() => {
+    if (settings.searchQuery) update({ searchQuery: '' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Derive account balances for funding source selector
   const cashAccounts = state.cashAccounts || [];
   const cashLedger = state.cashLedger || [];
