@@ -275,6 +275,11 @@ export default function OrdersPage() {
 
   useEffect(() => { reloadMerchantData(); }, [reloadMerchantData]);
 
+  // Clear shared search query on mount to prevent cross-page filter leak
+  useEffect(() => {
+    if (settings.searchQuery) update({ searchQuery: '' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Real-time listeners for merchant_deals and merchant_approvals changes
   useEffect(() => {
     const dealsChannel = supabase

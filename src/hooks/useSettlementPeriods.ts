@@ -106,21 +106,20 @@ export function useSyncSettlementPeriods(relationshipId: string) {
         // Fetch deal metadata once per deal for share computation
         const { data: dealMeta } = await supabase
           .from('merchant_deals')
-          .select('deal_type, notes, metadata')
+          .select('deal_type, notes')
           .eq('id', deal.id)
           .single();
 
         let partnerPct = 0;
-        if (dealMeta?.metadata?.partner_ratio != null) {
-          partnerPct = Number(dealMeta.metadata.partner_ratio) || 0;
-        } else if (dealMeta?.notes) {
-          // Parse partner ratio from notes field (e.g. "partner_ratio: 50")
-          const ratioMatch = dealMeta.notes.match(/(?:partner_ratio|counterparty_share_pct):\s*(\d+)/);
+        if (dealMeta?.notes) {
+          const ratioMatch = (dealMeta.notes as string).match(/(?:partner_ratio|counterparty_share_pct):\s*(\d+)/);
           if (ratioMatch) partnerPct = Number(ratioMatch[1]);
         }
 
         let agreement: any = null;
-        const agreementId = dealMeta?.metadata?.profit_share_agreement_id;
+        // Parse agreement ID from pipe-separated notes metadata
+        const agreementIdMatch = dealMeta?.notes ? (dealMeta.notes as string).match(/profit_share_agreement_id:\s*([a-f0-9-]+)/) : null;
+        const agreementId = agreementIdMatch ? agreementIdMatch[1] : null;
         if (agreementId) {
           const { data: agr } = await supabase
             .from('profit_share_agreements' as any)
@@ -151,7 +150,7 @@ export function useSyncSettlementPeriods(relationshipId: string) {
             netProfit += calc?.ok ? calc.netQAR : (rev - cost - t.feeQAR);
           }
 
-          const allocationBase = dealMeta?.deal_type === 'partnership' ? netProfit : grossVolume;
+          const allocationBase = (dealMeta as any)?.deal_type === 'partnership' ? netProfit : grossVolume;
           let partnerAmount = allocationBase * (partnerPct / 100);
           let merchantAmount = allocationBase - partnerAmount;
 
