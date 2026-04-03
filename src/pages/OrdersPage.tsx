@@ -136,8 +136,11 @@ export default function OrdersPage() {
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
 
-  // Sync saleAmount into first allocation's allocatedUsdt for sales_deal 50/50
+  // Sync saleAmount into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
+    if (selectedTemplateId === 'profit_share_family' && allocations.length > 0 && allocations[0].agreementId) {
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+    }
     if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
       setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
     }
@@ -2599,25 +2602,6 @@ export default function OrdersPage() {
                                   </>
                                 )}
 
-                                {/* USDT Quantity field for the allocation */}
-                                {allocations[0]?.agreementId && (
-                                  <div style={{ marginTop: 6 }}>
-                                    <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>USDT {t('quantity')}</div>
-                                      <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                        <input
-                                          type="text" placeholder="0"
-                                          value={allocations[0]?.allocatedUsdt || ''}
-                                          onChange={e => {
-                                            if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
-                                              setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: e.target.value } : a));
-                                          }}
-                                          style={{ fontSize: 10 }}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             )}
 
