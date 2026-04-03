@@ -1447,8 +1447,7 @@ export default function OrdersPage() {
     // If trade has a linked deal, cancel on server
     if (tr.linkedDealId) {
       try {
-        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
-        if (error) throw error;
+        await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
         toast.success(t('tradeCancelled'));
       } catch (err: any) { toast.error(err.message); return; }
@@ -1467,8 +1466,7 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === cancelTradeId);
     if (tr?.linkedDealId) {
       try {
-        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
-        if (error) throw error;
+        await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
       } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
     }
@@ -1481,11 +1479,18 @@ export default function OrdersPage() {
     toast.success(t('tradeCancelled'));
   };
 
+  const setDealStatus = async (dealId: string, status: string) => {
+    const { error } = await supabase.rpc('set_merchant_deal_status', {
+      _deal_id: dealId,
+      _status: status,
+    } as any);
+    if (error) throw error;
+  };
+
   // Server-side approve/reject for incoming merchant deals
   const approveIncomingDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'approved');
       await reloadMerchantData();
       toast.success(t('tradeApproved'));
     } catch (err: any) { toast.error(err.message); }
@@ -1493,8 +1498,7 @@ export default function OrdersPage() {
 
   const rejectIncomingDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'rejected' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'rejected');
       await reloadMerchantData();
       toast.success(t('tradeRejected'));
     } catch (err: any) { toast.error(err.message); }
@@ -1558,8 +1562,7 @@ export default function OrdersPage() {
 
   const deleteDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'cancelled');
       await reloadMerchantData();
       setDeleteDealConfirm(null);
       setEditingDealId(null);
