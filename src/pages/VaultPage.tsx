@@ -22,7 +22,7 @@ import {
 import { saveTrackerStateNow } from '@/lib/tracker-sync';
 import type { TrackerState } from '@/lib/tracker-helpers';
 import {
-  gasLoadConfig, gasSaveConfig, gasPost,
+  gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
   getGasLastSync, setGasLastSync, fmtBytes,
   type CloudVersion,
 } from '@/lib/gas-cloud';
