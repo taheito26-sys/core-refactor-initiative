@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Camera, Download, Upload, Trash2, RefreshCw, Eye, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Camera, Download, Upload, Trash2, RefreshCw, Eye, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud, CloudOff, Copy, ExternalLink, Search } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
   clearTrackerStorage,
@@ -21,6 +21,11 @@ import {
 } from '@/lib/tracker-backup';
 import { saveTrackerStateNow } from '@/lib/tracker-sync';
 import type { TrackerState } from '@/lib/tracker-helpers';
+import {
+  gasLoadConfig, gasSaveConfig, gasPost, getGasUrl, setGasUrl,
+  getGasLastSync, setGasLastSync, fmtBytes, GAS_SCRIPT_CODE,
+  type CloudVersion,
+} from '@/lib/gas-cloud';
 
 /* ── IDB Vault (Ring 1) ── */
 interface Snapshot {
@@ -147,6 +152,33 @@ export default function VaultPage() {
   const [importMsg, setImportMsg] = useState('');
   const [exportStatus, setExportStatus] = useState<'idle' | 'success'>('idle');
 
+  // ── Ring 2 Cloud Vault State ──
+  const [cloudUrl, setCloudUrl] = useState('');
+  const [cloudStatus, setCloudStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudLabel, setCloudLabel] = useState('');
+  const [selectedVersion, setSelectedVersion] = useState('');
+
+  // ── Cloud Backup Setup State ──
+  const [setupUrl, setSetupUrl] = useState('');
+  const [setupStatus, setSetupStatus] = useState<'none' | 'connected'>('none');
+
+  // Init cloud config
+  useEffect(() => {
+    gasLoadConfig();
+    const url = getGasUrl();
+    setCloudUrl(url);
+    setSetupUrl(url);
+    if (url && url.startsWith('https')) {
+      setCloudStatus('connected');
+      setSetupStatus('connected');
+    } else {
+      setCloudStatus('disconnected');
+      setSetupStatus('none');
+    }
+  }, []);
+
   const loadSnaps = useCallback(async () => {
     try {
       const list = await idbList();
@@ -214,6 +246,164 @@ export default function VaultPage() {
     setAutoBackup(v);
     saveAutoBackupToStorage(localStorage, v);
     toast(v ? (t.lang === 'ar' ? 'النسخ التلقائي مفعّل' : 'Auto-backup ON') : (t.lang === 'ar' ? 'النسخ التلقائي معطّل' : 'Auto-backup OFF'));
+  };
+
+  // ── Ring 2: Cloud Vault actions ──
+  const saveCloudUrl = () => {
+    const url = cloudUrl.trim();
+    if (!url) { toast.error('Paste your Web App URL first'); return; }
+    setGasUrl(url);
+    gasSaveConfig();
+    setCloudStatus('connected');
+    setSetupUrl(url);
+    setSetupStatus('connected');
+    toast.success('✓ URL saved');
+  };
+
+  const cloudBackupNow = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const state = getCurrentState();
+      const res = await gasPost({
+        action: 'backup',
+        exportedAt: new Date().toISOString(),
+        state,
+        label: cloudLabel || 'Manual backup',
+      });
+      if (res && res.ok === false) throw new Error(res.error || 'Backup rejected');
+      setGasLastSync(Date.now());
+      gasSaveConfig();
+      setCloudLabel('');
+      toast.success('☁ Backed up · ' + new Date().toLocaleTimeString());
+    } catch (e: any) {
+      toast.error('Backup failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const loadCloudVersions = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'meta' });
+      if (!res || res.ok === false) throw new Error(res?.error || 'Meta rejected');
+      setCloudVersions(Array.isArray(res.versions) ? res.versions : []);
+    } catch (e: any) {
+      toast.error('Failed to load versions: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const restoreCloudVersion = async (versionId: string) => {
+    if (!confirm('Restore this cloud backup? This will overwrite ALL local data.')) return;
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'restoreVersion', versionId });
+      if (!res || res.ok === false) throw new Error(res?.error || 'Restore rejected');
+      if (!res.state) { toast.error('No backup content'); return; }
+      const sk = findTrackerStorageKey(localStorage);
+      localStorage.removeItem('tracker_data_cleared');
+      localStorage.setItem(sk, JSON.stringify(res.state));
+      await saveTrackerStateNow(res.state as unknown as TrackerState);
+      toast.success('✓ Restored version ' + String(versionId).slice(0, 8));
+      window.location.reload();
+    } catch (e: any) {
+      toast.error('Restore failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const scanCloudFiles = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'scanFiles' });
+      if (res && res.files) {
+        toast.success(`Found ${res.files.length} backup files`);
+      } else {
+        toast.info('Scan complete');
+      }
+    } catch (e: any) {
+      toast.error('Scan failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const handleCloudImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result as string);
+        const normalized = normalizeImportedTrackerState(data);
+        const tradeCount = Array.isArray(normalized.trades) ? (normalized.trades as any[]).length : 0;
+        const batchCount = Array.isArray(normalized.batches) ? (normalized.batches as any[]).length : 0;
+        if (!confirm(`Import this file? (${tradeCount} trades, ${batchCount} batches)\nThis will replace your current state.`)) return;
+        const sk = findTrackerStorageKey(localStorage);
+        localStorage.removeItem('tracker_data_cleared');
+        localStorage.setItem(sk, JSON.stringify(normalized));
+        void saveTrackerStateNow(normalized as unknown as TrackerState);
+        toast.success('Data imported — reloading…');
+        setTimeout(() => window.location.reload(), 1000);
+      } catch {
+        toast.error('Invalid JSON file');
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  };
+
+  // ── Cloud Backup Setup actions ──
+  const saveSetupUrl = () => {
+    const url = setupUrl.trim();
+    if (!url) { toast.error('Paste your Web App URL first'); return; }
+    setGasUrl(url);
+    gasSaveConfig();
+    setSetupStatus('connected');
+    setCloudUrl(url);
+    setCloudStatus('connected');
+    toast.success('✓ URL saved');
+  };
+
+  const setupBackupNow = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    await cloudBackupNow();
+  };
+
+  const setupRestore = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'restore' });
+      if (!res || res.ok === false) throw new Error(res?.error || 'Restore rejected');
+      if (!res.state) { toast.info('No backup found'); return; }
+      const dt = res.exportedAt ? new Date(res.exportedAt).toLocaleString() : 'unknown date';
+      if (!confirm(`Restore from cloud backup?\nBackup saved: ${dt}\n\nThis will overwrite ALL local data.`)) return;
+      const sk = findTrackerStorageKey(localStorage);
+      localStorage.removeItem('tracker_data_cleared');
+      localStorage.setItem(sk, JSON.stringify(res.state));
+      await saveTrackerStateNow(res.state as unknown as TrackerState);
+      setGasLastSync(Date.now());
+      gasSaveConfig();
+      toast.success('✓ Restored from Cloud');
+      window.location.reload();
+    } catch (e: any) {
+      toast.error('Restore failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const copyGasCode = () => {
+    navigator.clipboard.writeText(GAS_SCRIPT_CODE)
+      .then(() => toast.success('Code copied!'))
+      .catch(() => toast.error('Copy failed — select and copy manually'));
   };
 
   // Data export helpers
@@ -326,6 +516,8 @@ export default function VaultPage() {
     return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
   };
 
+  const lastSyncTime = getGasLastSync();
+
   return (
     <div className="tracker-page" dir={t.isRTL ? 'rtl' : 'ltr'}>
       <PageHeader 
@@ -334,8 +526,10 @@ export default function VaultPage() {
       />
 
       <div className="p-6 space-y-4">
+        {/* ── Row 1: Ring 1 + Ring 2 ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* ── Ring 1: Local IndexedDB ── */}
+
+          {/* ── 💾 Ring 1 — Local Snapshots ── */}
           <Card className="glass">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -421,7 +615,204 @@ export default function VaultPage() {
             </CardContent>
           </Card>
 
-          {/* ── Data Export & Import ── */}
+          {/* ── ☁ Ring 2 — Cloud Vault ── */}
+          <Card className="glass">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-display">
+                  {t.lang === 'ar' ? '☁ الحلقة 2 — الخزنة السحابية' : '☁ Ring 2 — Cloud Vault'}
+                </CardTitle>
+                {cloudStatus === 'connected' ? (
+                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ Connected</Badge>
+                ) : cloudStatus === 'checking' ? (
+                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Checking…</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Not configured</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {t.lang === 'ar'
+                  ? 'نسخ سحابية عبر Google Drive. حتى 30 نسخة + نسخ دائمة مثبتة.'
+                  : 'Versioned cloud backups via Google Drive. Up to 30 versions + pinned permanent backups.'}
+              </p>
+
+              {/* URL input */}
+              <div className="flex gap-2">
+                <Input
+                  value={cloudUrl}
+                  onChange={e => setCloudUrl(e.target.value)}
+                  placeholder="Apps Script Web App URL"
+                  className="flex-1 text-[11px]"
+                />
+                <Button variant="secondary" size="sm" onClick={saveCloudUrl} className="min-w-[100px]">
+                  Save URL
+                </Button>
+              </div>
+
+              {/* Manual backup with label */}
+              <div className="flex gap-2">
+                <Input
+                  value={cloudLabel}
+                  onChange={e => setCloudLabel(e.target.value)}
+                  placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
+                  className="flex-1 text-[11px]"
+                />
+                <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading}>
+                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                  {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
+                </Button>
+              </div>
+
+              {/* Version browser */}
+              <div className="max-h-[240px] overflow-y-auto text-[11px] border rounded-md p-2 bg-muted/20">
+                {cloudVersions.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground p-2">
+                    {cloudStatus === 'connected'
+                      ? (t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد. انقر "نسخ الآن" أولاً.' : 'No cloud backups yet. Click Backup Now first.')
+                      : (t.lang === 'ar' ? 'السحابة غير مكوّنة. أعد URL في إعدادات النسخ السحابي.' : 'Cloud not configured. Set up the Apps Script URL in Cloud Backup Setup.')}
+                  </p>
+                ) : (
+                  cloudVersions.map((v, idx) => {
+                    const dt = v.exportedAt ? new Date(v.exportedAt).toLocaleString() : 'unknown';
+                    const bytes = v.bytes != null ? ` · ${fmtBytes(v.bytes)}` : '';
+                    const vidShort = String(v.versionId || '').slice(0, 8);
+                    const isSel = selectedVersion === v.versionId;
+                    return (
+                      <div
+                        key={v.versionId}
+                        className={`flex justify-between items-center gap-2 p-2 rounded-md cursor-pointer border mb-1 ${isSel ? 'border-primary bg-primary/5' : 'border-border/50'}`}
+                        onClick={() => setSelectedVersion(v.versionId)}
+                      >
+                        <div className="min-w-0">
+                          <div className="font-bold text-[11px] whitespace-nowrap">
+                            {dt} <Badge variant="outline" className="text-[9px] ml-1">{vidShort}</Badge>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {idx === 0 ? 'LATEST' : ''}{bytes}{v.fileId ? ` · file ${String(v.fileId).slice(0, 8)}…` : ''}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={(e) => { e.stopPropagation(); /* preview could go here */ }}>
+                            Preview
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-destructive" onClick={(e) => { e.stopPropagation(); restoreCloudVersion(v.versionId); }}>
+                            Restore
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="secondary" size="sm" onClick={loadCloudVersions} disabled={cloudLoading}>
+                  <RefreshCw className={`w-3 h-3 mr-1 ${cloudLoading ? 'animate-spin' : ''}`} /> Refresh
+                </Button>
+                <Button variant="secondary" size="sm" onClick={scanCloudFiles} disabled={cloudLoading}>
+                  <Search className="w-3 h-3 mr-1" /> Scan Files
+                </Button>
+                <label className="cursor-pointer">
+                  <Button variant="secondary" size="sm" asChild>
+                    <span><Upload className="w-3 h-3 mr-1" /> Import File</span>
+                  </Button>
+                  <input type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} />
+                </label>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Row 2: Cloud Backup Setup + Data Export/Import ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          {/* ── ☁ Cloud Backup Setup ── */}
+          <Card className="glass">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-display">
+                  {t.lang === 'ar' ? '☁ إعداد النسخ السحابي' : '☁ Cloud Backup Setup'}
+                </CardTitle>
+                {setupStatus === 'connected' ? (
+                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ Connected</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ No URL set</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {t.lang === 'ar'
+                  ? 'انسخ بياناتك إلى Google Drive. الإعداد مرة واحدة فقط، ثم تُدار النسخ من هذه الخزنة.'
+                  : 'Backup to your Google Drive. Setup is one-time, then versions are managed from this Vault.'}
+              </p>
+
+              {/* Setup instructions */}
+              <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
+                <div className="text-[10px] font-extrabold mb-2 text-primary">🚀 Setup (once only)</div>
+                <div className="text-[10px] text-muted-foreground leading-relaxed space-y-1">
+                  <p><b>1.</b> Open <a href="https://script.google.com/home/start" target="_blank" rel="noopener noreferrer" className="text-primary underline">script.google.com</a> → <b>New Project</b></p>
+                  <p><b>2.</b> Delete everything, paste this code, click Save (💾):</p>
+                  <textarea
+                    readOnly
+                    value={GAS_SCRIPT_CODE}
+                    className="w-full h-20 text-[9px] font-mono bg-background border border-border rounded p-1 mt-1 resize-none text-foreground"
+                  />
+                  <Button variant="secondary" size="sm" className="w-full mt-1 text-[9px]" onClick={copyGasCode}>
+                    <Copy className="w-3 h-3 mr-1" /> Copy Code
+                  </Button>
+                  <p><b>3.</b> Click <b>Deploy → New Deployment → Web App</b></p>
+                  <p><b>4.</b> Set <b>"Who has access" = Anyone</b> → Deploy</p>
+                  <p><b>5.</b> Authorize → Copy the Web App URL → Paste below</p>
+                </div>
+              </div>
+
+              {/* URL input */}
+              <div className="space-y-2">
+                <Label className="text-xs">Apps Script Web App URL</Label>
+                <Input
+                  value={setupUrl}
+                  onChange={e => setSetupUrl(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="text-[11px]"
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" onClick={saveSetupUrl} className="flex-1 min-w-[140px]">
+                  Save URL
+                </Button>
+                <Button variant="secondary" size="sm" onClick={setupBackupNow} disabled={cloudLoading} className="flex-1 min-w-[140px]">
+                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                  Backup Now
+                </Button>
+                <Button variant="secondary" size="sm" onClick={loadCloudVersions} disabled={cloudLoading} className="flex-1 min-w-[140px]">
+                  🧾 Backups
+                </Button>
+                <Button variant="secondary" size="sm" onClick={setupRestore} disabled={cloudLoading} className="flex-1 min-w-[140px]">
+                  <Download className="w-3 h-3 mr-1" /> Restore
+                </Button>
+              </div>
+
+              {/* Auto-backup toggle */}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <Label className="text-xs">{t.lang === 'ar' ? 'نسخ تلقائي بعد كل تغيير' : 'Auto-backup after every change'}</Label>
+                <Switch checked={autoBackup} onCheckedChange={handleAutoBackupToggle} />
+              </div>
+
+              {lastSyncTime > 0 && (
+                <p className="text-[9px] text-muted-foreground">
+                  Last sync: {new Date(lastSyncTime).toLocaleString()}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── 📦 Data Export & Import ── */}
           <Card className="glass">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -496,7 +887,6 @@ export default function VaultPage() {
               </div>
 
               <div className="border-t pt-3">
-
                 <Button variant="destructive" size="sm" onClick={clearAll}>
                   <AlertTriangle className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'مسح جميع البيانات' : 'Clear All Data'}
                 </Button>
