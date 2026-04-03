@@ -1750,7 +1750,24 @@ export default function OrdersPage() {
     const rev = tr.amountUSDT * tr.sellPriceQAR;
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
     const rawNet = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
-    const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
+
+    // For operator priority linked trades, compute "my net" using operator priority logic
+    let net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
+    const matchedOPAgr = isMerchantLinked ? allAgreements?.find(a =>
+      a.relationship_id === tr.linkedRelId && a.agreement_type === 'operator_priority'
+    ) : undefined;
+    if (matchedOPAgr && Number.isFinite(rawNet) && rawNet > 0) {
+      const opResult = calculateOperatorPriorityProfit({
+        grossProfit: rawNet,
+        operatorRatio: Number(matchedOPAgr.operator_ratio) || 0,
+        operatorContribution: Number(matchedOPAgr.operator_contribution) || 0,
+        lenderContribution: Number(matchedOPAgr.lender_contribution) || 0,
+      });
+      const opMid = matchedOPAgr.operator_merchant_id || '';
+      const myMid = merchantProfile?.merchant_id || '';
+      net = myMid === opMid ? opResult.operatorTotal : opResult.lenderTotal;
+    }
+
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
 
