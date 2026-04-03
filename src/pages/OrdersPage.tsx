@@ -1822,6 +1822,48 @@ export default function OrdersPage() {
           </div>
         </div>
 
+        {/* Toggle details */}
+        <button
+          className="rowBtn"
+          style={{ width: '100%', minHeight: 36, marginBottom: 6, fontSize: 11 }}
+          onClick={() => setDetailsOpen(prev => ({ ...prev, [`deal-${deal.id}`]: !prev[`deal-${deal.id}`] }))}
+        >
+          {detailsOpen[`deal-${deal.id}`] ? `▼ ${t('hideDetails')}` : `▶ ${t('details')}`}
+        </button>
+
+        {detailsOpen[`deal-${deal.id}`] && (
+          <div style={{ marginBottom: 8, padding: 8, background: 'color-mix(in srgb, var(--panel2) 60%, transparent)', borderRadius: 6 }}>
+            {/* Each party's cut */}
+            {row.hasAvgBuy && row.fullNet != null && (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
+                <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
+                  📊 {perspective === 'outgoing' ? t('myShare') || 'My Share' : t('partnerShare') || 'Partner Share'} ({row.merchantPct}%):
+                  <strong style={{ color: 'var(--good)', marginLeft: 4 }}>
+                    {fmtC(row.fullNet * (row.merchantPct! / 100))}
+                  </strong>
+                </div>
+                <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
+                  🤝 {perspective === 'outgoing' ? t('partnerShare') || 'Partner Share' : t('myShare') || 'My Share'} ({row.partnerPct}%):
+                  <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>
+                    {fmtC(row.fullNet * (row.partnerPct! / 100))}
+                  </strong>
+                </div>
+              </div>
+            )}
+            {/* Chips row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              <span className="pill">{row.dateLabel}</span>
+              {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
+              <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>
+              {row.fee > 0 && <span className="pill">{t('fee')} {fmtC(row.fee)}</span>}
+              {row.hasAvgBuy && row.cost > 0 && <span className="pill">{t('cost')} {fmtC(row.cost)}</span>}
+              <span className={`pill ${row.fullNet != null ? (row.fullNet >= 0 ? 'good' : 'bad') : ''}`}>
+                {t('net')} {row.fullNet != null ? `${row.fullNet >= 0 ? '+' : ''}${fmtC(row.fullNet)}` : '—'}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
           {perspective === 'incoming' && deal.status === 'pending' && (
             <>
@@ -1848,7 +1890,7 @@ export default function OrdersPage() {
         </div>
       </div>
     );
-  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit]);
+  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, detailsOpen, fmtC]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
