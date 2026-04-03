@@ -29,4 +29,45 @@ describe('notification router', () => {
     expect(target.pathname).toBe('/trading/orders');
     expect(target.search).toBe('?focusOrderId=ord-44');
   });
+
+  it('uses precise target fields with tab context for deal notification', () => {
+    const notification = mapNotificationRowToModel({
+      id: 'n3', title: 'Deal cancelled', body: null, category: 'deal',
+      read_at: null, created_at: new Date().toISOString(),
+      entity_type: 'deal', entity_id: 'deal-55',
+      target_path: '/trading/orders', target_tab: 'incoming',
+      target_focus: 'focusDealId', target_entity_type: 'deal', target_entity_id: 'deal-55',
+      actor_id: 'some-actor-uuid',
+    });
+    const target = buildNotificationNavigationTarget(notification);
+    expect(target.pathname).toBe('/trading/orders');
+    expect(target.search).toContain('tab=incoming');
+    expect(target.search).toContain('focusDealId=deal-55');
+    expect(isNotificationDeepLinkable(notification)).toBe(true);
+  });
+
+  it('uses precise target fields with outgoing tab', () => {
+    const notification = mapNotificationRowToModel({
+      id: 'n4', title: 'Deal updated', body: null, category: 'deal',
+      read_at: null, created_at: new Date().toISOString(),
+      target_path: '/trading/orders', target_tab: 'outgoing',
+      target_focus: 'focusDealId', target_entity_type: 'deal', target_entity_id: 'deal-77',
+    });
+    const target = buildNotificationNavigationTarget(notification);
+    expect(target.pathname).toBe('/trading/orders');
+    expect(target.search).toBe('?tab=outgoing&focusDealId=deal-77');
+  });
+
+  it('falls back to legacy routing for old notifications without target fields', () => {
+    const notification = mapNotificationRowToModel({
+      id: 'n5', title: 'Old deal', body: null, category: 'deal',
+      read_at: null, created_at: new Date().toISOString(),
+      entity_type: 'deal', entity_id: 'deal-old',
+    });
+    const target = buildNotificationNavigationTarget(notification);
+    expect(target.pathname).toBe('/trading/orders');
+    expect(target.search).toBe('?focusDealId=deal-old');
+    // No tab param since old notification lacks target_tab
+    expect(target.search).not.toContain('tab=');
+  });
 });

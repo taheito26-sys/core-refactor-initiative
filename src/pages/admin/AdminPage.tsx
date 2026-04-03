@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
-import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell } from 'lucide-react';
+import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell, Cloud } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
@@ -8,6 +8,7 @@ import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirecto
 import { AdminUserWorkspace } from '@/features/admin/components/AdminUserWorkspace';
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
 import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
+import { AdminBackupManager } from '@/features/admin/components/AdminBackupManager';
 import AdminApprovalsPage from './AdminApprovalsPage';
 
 export default function AdminPage() {
@@ -70,6 +71,9 @@ export default function AdminPage() {
           <TabsTrigger value="audit" className="text-xs gap-1">
             <FileText className="h-3.5 w-3.5" /> Audit Log
           </TabsTrigger>
+          <TabsTrigger value="backups" className="text-xs gap-1">
+            <Cloud className="h-3.5 w-3.5" /> Backups
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -90,6 +94,10 @@ export default function AdminPage() {
 
         <TabsContent value="audit" className="mt-4">
           <AdminAuditCenter />
+        </TabsContent>
+
+        <TabsContent value="backups" className="mt-4">
+          <AdminBackupManager />
         </TabsContent>
       </Tabs>
     </div>

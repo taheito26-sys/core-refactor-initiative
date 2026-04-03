@@ -212,6 +212,7 @@ export function calculateOperatorPriorityAllocationEconomics(input: AllocationCa
   operatorRatio: number;
   operatorContribution: number;
   lenderContribution: number;
+  isOperator: boolean;
 }) {
   const { allocatedUsdt, merchantCostPerUsdt, sellPrice, totalFee, totalUsdt } = input;
 
@@ -233,10 +234,10 @@ export function calculateOperatorPriorityAllocationEconomics(input: AllocationCa
     cost: Math.round(cost * 100) / 100,
     feeShare: Math.round(feeShare * 100) / 100,
     net: Math.round(net * 100) / 100,
-    partnerAmount: Math.round(result.lenderTotal * 100) / 100,
-    merchantAmount: Math.round(result.operatorTotal * 100) / 100,
-    partnerSharePct: result.lenderWeightPct,
-    merchantSharePct: result.operatorWeightPct,
+    partnerAmount: Math.round((input.isOperator ? result.lenderTotal : result.operatorTotal) * 100) / 100,
+    merchantAmount: Math.round((input.isOperator ? result.operatorTotal : result.lenderTotal) * 100) / 100,
+    partnerSharePct: input.isOperator ? result.lenderWeightPct : result.operatorWeightPct,
+    merchantSharePct: input.isOperator ? result.operatorWeightPct : result.lenderWeightPct,
     operatorFee: result.operatorFee,
     operatorCapitalShare: result.operatorCapitalShare,
     lenderCapitalShare: result.lenderCapitalShare,

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { batchCycleTime, computeFIFO, fmtDate, fmtDur, fmtP, fmtQ, fmtU, type TrackerState } from '@/lib/tracker-helpers';
@@ -13,6 +13,20 @@ export function AdminStockMirror({ trackerState }: Props) {
   const t = useT();
   const state = trackerState;
   const derived = useMemo(() => state ? computeFIFO(state.batches, state.trades) : null, [state]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+
+  const availableMonths = useMemo(() => {
+    if (!state) return [];
+    const months = new Set<string>();
+    const curMonthKey = new Date().toISOString().slice(0, 7);
+    months.add(curMonthKey);
+    state.batches.forEach(b => {
+      const d = new Date(b.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    return Array.from(months).sort().reverse();
+  }, [state]);
 
   const perf = useMemo(() => {
     if (!state || !derived) return [];
@@ -29,8 +43,16 @@ export function AdminStockMirror({ trackerState }: Props) {
         }
         return { ...b, remaining: rem, used, profit };
       })
+      .filter((b) => {
+        if (selectedMonth !== 'all') {
+          const d = new Date(b.ts);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (key !== selectedMonth) return false;
+        }
+        return true;
+      })
       .sort((a, b) => b.ts - a.ts);
-  }, [state, derived]);
+  }, [state, derived, selectedMonth]);
 
   const suppliersForPanel = useMemo(() => state ? [...new Set(state.batches.map((b) => b.source.trim()).filter(Boolean))] : [], [state]);
   const rLabel = state ? (state.range || settings.range) : settings.range;
@@ -42,6 +64,22 @@ export function AdminStockMirror({ trackerState }: Props) {
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       <div>
+        {/* Month Selector */}
+        <div className="orders-tab-bar" style={{ marginBottom: 8, background: 'transparent', border: 'none', padding: 0, gap: 8, boxShadow: 'none' }}>
+          <button onClick={() => setSelectedMonth('all')} className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`} style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}>
+            {t('allMonths')}
+          </button>
+          {availableMonths.map(m => {
+            const [y, mm] = m.split('-');
+            const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+            return (
+              <button key={m} onClick={() => setSelectedMonth(m)} className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`} style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 800 }}>{t('batches')}</div>

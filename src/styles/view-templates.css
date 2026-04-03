@@ -1,704 +1,284 @@
 /* ═══════════════════════════════════════════════════════
-   Structural Layout Overrides — per layout ID
-   Applied via .layout-{id} class on .app-shell
-   These change structure: sidebar width, spacing, card 
-   shapes, grid density, header design.
+   STRUCTURAL LAYOUT MODULES
+   Each layout defines its own spacing, radii, and density.
+   Applied via .layout-{id} class on the .app-shell.
    ═══════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
-
-/* ══════════════════════════════════════════════════════
-   EXECUTIVE HUB — Spacious card-based dashboard
-   ══════════════════════════════════════════════════════ */
-
-/* Generous page padding */
-.layout-executive_hub .app-page-shell {
-  padding: 20px 28px;
+/* ─── 0. TERMINAL HIGH-CONTRAST (Maximum Visibility) ─── */
+.layout-terminal_hc {
+  --layout-padding: 12px;
+  --layout-gap: 8px;
+  --layout-radius: 4px;
+}
+.layout-terminal_hc .app-page-shell { padding: var(--layout-padding); }
+.layout-terminal_hc .grid { gap: var(--layout-gap); }
+.layout-terminal_hc .glass, 
+.layout-terminal_hc [data-slot="card"], 
+.layout-terminal_hc .border { 
+  border-radius: var(--layout-radius); 
+  border: 1.5px solid hsl(var(--border)) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+  background: #000000 !important;
 }
 
-/* Center-constrained content for readability */
-.layout-executive_hub .app-page-content {
-  max-width: 1440px;
-  margin: 0 auto;
-}
-
-/* Cards get large radii, subtle elevation */
-.layout-executive_hub .glass,
-.layout-executive_hub [data-slot="card"],
-.layout-executive_hub .border {
-  border-radius: 14px;
-}
-
-/* KPI cards: larger text, more padding */
-.layout-executive_hub .tracker-kpi-band {
-  gap: 16px;
-}
-
-.layout-executive_hub .tracker-kpi-card {
-  padding: 18px 22px;
-  border-radius: 14px;
-}
-
-.layout-executive_hub .tracker-kpi-card .text-2xl,
-.layout-executive_hub .tracker-kpi-card .text-xl {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
-  font-weight: 700;
-}
-
-/* Tables with relaxed row height */
-.layout-executive_hub table tbody tr td {
-  padding-top: 12px;
-  padding-bottom: 12px;
-}
-
-.layout-executive_hub table thead tr th {
-  padding-top: 10px;
-  padding-bottom: 10px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-}
-
-/* Charts get more breathing room */
-.layout-executive_hub .recharts-wrapper {
-  min-height: 260px;
-}
-
-/* Grids: more gap for card layouts */
-.layout-executive_hub .grid {
-  gap: 16px;
-}
-
-/* Page headers generous */
-.layout-executive_hub .tracker-page > div:first-child {
-  margin-bottom: 24px;
-}
-
-/* Buttons fully rounded */
-.layout-executive_hub button {
-  border-radius: 10px;
-}
-
-/* Sidebar wider for executive feel */
-.layout-executive_hub .app-sidebar-desktop {
-  width: 240px;
-}
-
-@media (max-width: 768px) {
-  .layout-executive_hub .app-page-shell {
-    padding: 14px 16px;
-  }
-  .layout-executive_hub .grid {
-    gap: 10px;
-  }
-}
-
-
-/* ══════════════════════════════════════════════════════
-   OPERATIONS DESK — Dense ops workflow, side panels
-   ══════════════════════════════════════════════════════ */
-
-/* Tight page margins */
-.layout-operations_desk .app-page-shell {
-  padding: 6px 10px;
-}
-
-/* Compact table rows for rapid scanning */
-.layout-operations_desk table tbody tr td {
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 11px;
-  line-height: 1.3;
-}
-
-.layout-operations_desk table thead tr th {
-  font-size: 9px;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-  border-bottom: 2px solid hsl(var(--primary) / 0.2);
-}
-
-/* Ops cards: sharp corners, strong borders */
-.layout-operations_desk .glass,
-.layout-operations_desk [data-slot="card"],
-.layout-operations_desk .border {
-  border-radius: 5px;
-}
-
-/* KPI compact strip */
-.layout-operations_desk .tracker-kpi-band {
-  gap: 6px;
-}
-
-.layout-operations_desk .tracker-kpi-card {
-  padding: 8px 10px;
-  border-radius: 5px;
-  border-left: 3px solid hsl(var(--primary));
-}
-
-/* Buttons: compact ops style */
-.layout-operations_desk button {
-  border-radius: 4px;
-  font-size: 11px;
-}
-
-.layout-operations_desk button.text-xs {
-  font-size: 10px;
-  padding: 3px 8px;
-}
-
-/* Badges: dense */
-.layout-operations_desk [class*="Badge"] {
-  font-size: 9px;
-  padding: 1px 6px;
-  border-radius: 3px;
-}
-
-/* Grids tight */
-.layout-operations_desk .grid {
-  gap: 6px;
-}
-
-/* Status bar feel on topbar */
-.layout-operations_desk .tracker-topbar {
-  border-bottom: 2px solid hsl(var(--primary) / 0.15);
-}
-
-/* Sidebar narrower for more workspace */
-.layout-operations_desk .app-sidebar-desktop {
-  width: 180px;
-}
-
-@media (max-width: 768px) {
-  .layout-operations_desk .app-page-shell {
-    padding: 4px 6px;
-  }
-}
-
-
-/* ══════════════════════════════════════════════════════
-   LEDGER PRO — Maximum density, mono-font, power user
-   ══════════════════════════════════════════════════════ */
-
-/* Minimal page padding */
-.layout-ledger_pro .app-page-shell {
-  padding: 3px 6px;
-}
-
-/* Ultra-compact table rows with mono font */
-.layout-ledger_pro table {
-  font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-}
-
-.layout-ledger_pro table tbody tr td {
-  padding-top: 2px;
-  padding-bottom: 2px;
-  font-size: 11px;
+/* Normal sized neon numbers to fit one window */
+.layout-terminal_hc .kpi-val {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  text-shadow: 0 0 8px currentColor;
   line-height: 1.2;
-  letter-spacing: -0.02em;
 }
 
-.layout-ledger_pro table thead tr th {
-  font-size: 9px;
-  padding-top: 3px;
-  padding-bottom: 3px;
+.layout-terminal_hc .kpi-card {
+  padding: 10px !important;
+  border: 1.5px solid #222 !important;
+}
+
+.layout-terminal_hc .kpi-lbl {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em !important;
+  color: #00ffff !important;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  border-bottom: 1px solid hsl(var(--border));
+  margin-bottom: 4px !important;
 }
 
-/* Zebra striping for ledger readability */
-.layout-ledger_pro table tbody tr:nth-child(even) {
-  background: hsl(var(--muted) / 0.08);
-}
-
-/* Hover highlight for active row */
-.layout-ledger_pro table tbody tr:hover {
-  background: hsl(var(--primary) / 0.06);
-}
-
-/* Cards: flat, ruled lines, no shadow */
-.layout-ledger_pro .glass,
-.layout-ledger_pro [data-slot="card"],
-.layout-ledger_pro .border {
-  border-radius: 3px;
-  box-shadow: none;
-}
-
-/* KPI ultra-compact inline */
-.layout-ledger_pro .tracker-kpi-band {
-  gap: 3px;
-}
-
-.layout-ledger_pro .tracker-kpi-card {
-  padding: 4px 8px;
-  border-radius: 2px;
-}
-
-.layout-ledger_pro .tracker-kpi-card .text-2xl,
-.layout-ledger_pro .tracker-kpi-card .text-xl {
-  font-size: 0.95rem;
-  line-height: 1.15rem;
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-/* All muted text even smaller */
-.layout-ledger_pro .text-muted-foreground {
-  font-size: 9px;
-}
-
-/* Buttons: minimal, square */
-.layout-ledger_pro button {
-  border-radius: 2px;
+.layout-terminal_hc table thead th {
+  background: #111 !important;
+  font-weight: 900;
+  color: #00ffff !important;
+  border-bottom: 2px solid #00ffff !important;
   font-size: 10px;
+  text-transform: uppercase;
 }
 
-/* Grids: zero-waste spacing */
-.layout-ledger_pro .grid {
-  gap: 3px;
-}
-
-/* Page header minimal */
-.layout-ledger_pro .tracker-page > div:first-child {
-  margin-bottom: 4px;
-}
-
-/* Thin scrollbars */
-.layout-ledger_pro ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-.layout-ledger_pro ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.25);
-  border-radius: 1px;
-}
-
-/* Sidebar ultra-narrow for max data surface */
-.layout-ledger_pro .app-sidebar-desktop {
-  width: 160px;
-}
-
-@media (max-width: 768px) {
-  .layout-ledger_pro .app-page-shell {
-    padding: 2px 4px;
-  }
-}
-
-
-/* ══════════════════════════════════════════════════════
-   AURORA — Luminous dark, organic warmth, flowing shapes
-   ══════════════════════════════════════════════════════ */
-
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-
-/* Wide sidebar with soft glow */
-.layout-aurora .app-sidebar-desktop {
-  width: 230px;
-}
-
-/* Generous organic spacing */
-.layout-aurora .app-page-shell {
-  padding: 24px 28px;
-}
-
-/* Center-cap for readability */
-.layout-aurora .app-page-content {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* Cards: large radius, soft glow border */
-.layout-aurora .glass,
-.layout-aurora [data-slot="card"],
-.layout-aurora .border {
-  border-radius: 18px;
-}
-
-/* Subtle inner glow on cards */
-.layout-aurora [data-slot="card"] {
-  box-shadow: 0 0 0 1px rgba(123,92,255,.08), 0 8px 32px rgba(0,0,0,.25);
-}
-
-/* KPI band: spacious with glow accents */
-.layout-aurora .tracker-kpi-band {
-  gap: 14px;
-}
-
-.layout-aurora .tracker-kpi-card {
-  padding: 16px 20px;
-  border-radius: 18px;
-  box-shadow: 0 0 20px rgba(123,92,255,.06);
-}
-
-.layout-aurora .tracker-kpi-card .text-2xl,
-.layout-aurora .tracker-kpi-card .text-xl {
-  font-size: 1.75rem;
-  line-height: 2.1rem;
+.layout-terminal_hc .mono {
   font-weight: 700;
-}
-
-/* Tables: soft rows with hover glow */
-.layout-aurora table tbody tr td {
-  padding-top: 10px;
-  padding-bottom: 10px;
   font-size: 12px;
+  color: #ffffff;
 }
 
-.layout-aurora table thead tr th {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  font-size: 10px;
+.layout-terminal_hc .rowBtn, 
+.layout-terminal_hc .btn {
+  border: 1.5px solid currentColor !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
+  background: transparent !important;
+}
+
+.layout-terminal_hc .btn:hover {
+  background: currentColor !important;
+  color: #000 !important;
+}
+
+/* ─── 1. QUANTUM LEDGER (High Visibility Terminal) ─── */
+.layout-quantum_ledger {
+  --layout-padding: 12px;
+  --layout-gap: 8px;
+  --layout-radius: 8px;
+}
+.layout-quantum_ledger .app-page-shell { padding: var(--layout-padding); }
+.layout-quantum_ledger .grid { gap: var(--layout-gap); }
+.layout-quantum_ledger .glass, 
+.layout-quantum_ledger [data-slot="card"], 
+.layout-quantum_ledger .border { 
+  border-radius: var(--layout-radius); 
+  border-width: 1px;
+  box-shadow: 0 4px 20px -5px rgba(0,0,0,0.5);
+}
+
+.layout-quantum_ledger .kpi-val {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.layout-quantum_ledger .kpi-card {
+  padding: 10px !important;
+}
+
+.layout-quantum_ledger .kpi-lbl {
+  font-size: 9px !important;
+  letter-spacing: 0.1em !important;
+  opacity: 0.7;
+}
+
+.layout-quantum_ledger table thead th {
+  background: hsl(var(--muted) / 0.1);
+  font-weight: 800;
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--primary));
+}
+
+.layout-quantum_ledger .mono {
   font-weight: 600;
-}
-
-.layout-aurora table tbody tr {
-  transition: background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.layout-aurora table tbody tr:hover {
-  box-shadow: inset 0 0 30px rgba(123,92,255,.04);
-}
-
-/* Buttons: pill-shaped */
-.layout-aurora button {
-  border-radius: 99px;
-}
-
-/* Grids: generous gaps */
-.layout-aurora .grid {
-  gap: 14px;
-}
-
-/* Page header breathing room */
-.layout-aurora .tracker-page > div:first-child {
-  margin-bottom: 20px;
-}
-
-/* Topbar: subtle bottom glow */
-.layout-aurora .tracker-topbar {
-  border-bottom: 1px solid rgba(123,92,255,.1);
-  box-shadow: 0 1px 20px rgba(123,92,255,.04);
-}
-
-/* Charts: taller for visual impact */
-.layout-aurora .recharts-wrapper {
-  min-height: 240px;
-}
-
-/* Smooth scrollbar */
-.layout-aurora ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.layout-aurora ::-webkit-scrollbar-thumb {
-  background: rgba(123,92,255,.2);
-  border-radius: 99px;
-}
-
-.layout-aurora ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* Badges: pill-shaped */
-.layout-aurora [class*="Badge"] {
-  border-radius: 99px;
-  font-size: 10px;
-  padding: 2px 10px;
-}
-
-/* Inputs: organic rounded */
-.layout-aurora input,
-.layout-aurora select,
-.layout-aurora textarea {
-  border-radius: 14px;
-}
-
-@media (max-width: 768px) {
-  .layout-aurora .app-page-shell {
-    padding: 14px 16px;
-  }
-  .layout-aurora .grid {
-    gap: 10px;
-  }
-}
-
-
-/* ══════════════════════════════════════════════════════
-   ATLAS GRID — Command-center, spatial ops board
-   ══════════════════════════════════════════════════════ */
-
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap');
-
-.layout-atlas_grid .app-page-shell {
-  padding: 8px 12px;
-}
-
-.layout-atlas_grid .glass,
-.layout-atlas_grid [data-slot="card"],
-.layout-atlas_grid .border {
-  border-radius: 4px;
-  box-shadow: none;
-  border: 1px solid hsl(var(--border));
-}
-
-.layout-atlas_grid table tbody tr td {
-  padding-top: 5px;
-  padding-bottom: 5px;
-  font-size: 11px;
-  line-height: 1.3;
-  border-bottom: 1px solid hsl(var(--border) / 0.5);
-}
-
-.layout-atlas_grid table thead tr th {
-  font-size: 9px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  border-bottom: 2px solid hsl(var(--border));
-}
-
-.layout-atlas_grid .tracker-kpi-band {
-  gap: 4px;
-}
-
-.layout-atlas_grid .tracker-kpi-card {
-  padding: 8px 12px;
-  border-radius: 4px;
-  border-left: 3px solid hsl(var(--primary));
-  box-shadow: none;
-}
-
-.layout-atlas_grid button {
-  border-radius: 3px;
-}
-
-.layout-atlas_grid .grid {
-  gap: 6px;
-}
-
-.layout-atlas_grid input,
-.layout-atlas_grid select,
-.layout-atlas_grid textarea {
-  border-radius: 3px;
-}
-
-.layout-atlas_grid [class*="Badge"] {
-  border-radius: 2px;
-  font-size: 9px;
-  padding: 1px 6px;
-}
-
-@media (max-width: 768px) {
-  .layout-atlas_grid .app-page-shell {
-    padding: 6px 8px;
-  }
-}
-
-
-/* ══════════════════════════════════════════════════════
-   VELVET MONO — Luxury private desk, dark premium
-   ══════════════════════════════════════════════════════ */
-
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400;500;600;700;800&display=swap');
-
-.layout-velvet_mono .app-page-shell {
-  padding: 20px 24px;
-}
-
-.layout-velvet_mono .app-page-content {
-  max-width: 1360px;
-  margin: 0 auto;
-}
-
-.layout-velvet_mono .glass,
-.layout-velvet_mono [data-slot="card"],
-.layout-velvet_mono .border {
-  border-radius: 10px;
-  border: 1px solid hsl(var(--border) / 0.4);
-}
-
-.layout-velvet_mono [data-slot="card"] {
-  box-shadow: 0 4px 16px rgba(0,0,0,.15);
-}
-
-.layout-velvet_mono table tbody tr td {
-  padding-top: 10px;
-  padding-bottom: 10px;
   font-size: 12px;
-  line-height: 1.4;
 }
 
-.layout-velvet_mono table thead tr th {
-  font-size: 10px;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
-  border-bottom: 1px solid hsl(var(--border) / 0.3);
+/* ─── 2. FLUX (Clean SaaS) ─── */
+.layout-flux {
+  --layout-padding: 12px;
+  --layout-gap: 12px;
+  --layout-radius: 12px;
 }
+.layout-flux .app-page-shell { padding: var(--layout-padding); }
+.layout-flux .grid { gap: var(--layout-gap); }
+.layout-flux .glass, 
+.layout-flux [data-slot="card"], 
+.layout-flux .border { border-radius: var(--layout-radius); }
 
-.layout-velvet_mono table tbody tr:hover {
-  background: hsl(var(--primary) / 0.04);
+/* ─── 3. CIPHER (Dark Terminal) ─── */
+.layout-cipher {
+  --layout-padding: 8px;
+  --layout-gap: 8px;
+  --layout-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
 }
+.layout-cipher .app-page-shell { padding: var(--layout-padding); }
+.layout-cipher .grid { gap: var(--layout-gap); }
+.layout-cipher .glass, 
+.layout-cipher [data-slot="card"], 
+.layout-cipher .border { border-radius: var(--layout-radius); border-width: 1px; }
+.layout-cipher table { font-family: inherit; font-size: 11px; }
+.layout-cipher button { border-radius: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 
-.layout-velvet_mono .tracker-kpi-band {
-  gap: 12px;
+/* ─── 4. DARK LEDGER (Premium Finance) ─── */
+.layout-dark_ledger {
+  --layout-padding: 16px 20px;
+  --layout-gap: 12px;
+  --layout-radius: 6px;
 }
+.layout-dark_ledger .app-page-shell { padding: var(--layout-padding); }
+.layout-dark_ledger .grid { gap: var(--layout-gap); }
+.layout-dark_ledger .glass, 
+.layout-dark_ledger [data-slot="card"], 
+.layout-dark_ledger .border { border-radius: var(--layout-radius); }
+.layout-dark_ledger table thead tr th { font-size: 10px; font-weight: 700; border-bottom: 2px solid hsl(var(--primary) / 0.2); }
+.layout-dark_ledger .tracker-kpi-card { border-left: 3px solid hsl(var(--primary)); }
 
-.layout-velvet_mono .tracker-kpi-card {
-  padding: 14px 18px;
-  border-radius: 10px;
+/* ─── 5. OPERATIONS DESK (High Density) ─── */
+.layout-operations_desk {
+  --layout-padding: 6px 10px;
+  --layout-gap: 6px;
+  --layout-radius: 5px;
 }
+.layout-operations_desk .app-page-shell { padding: var(--layout-padding); }
+.layout-operations_desk .grid { gap: var(--layout-gap); }
+.layout-operations_desk .glass, 
+.layout-operations_desk [data-slot="card"], 
+.layout-operations_desk .border { border-radius: var(--layout-radius); }
+.layout-operations_desk table tbody tr td { padding-top: 4px; padding-bottom: 4px; font-size: 11px; }
+.layout-operations_desk .tracker-kpi-card { padding: 8px 10px; border-left: 3px solid hsl(var(--primary)); }
+.layout-operations_desk button { border-radius: 4px; font-size: 11px; }
 
-.layout-velvet_mono button {
-  border-radius: 8px;
-  font-weight: 500;
+/* ─── 6. ATLAS GRID (Spatial Ops) ─── */
+.layout-atlas_grid {
+  --layout-padding: 8px 12px;
+  --layout-gap: 6px;
+  --layout-radius: 4px;
 }
+.layout-atlas_grid .app-page-shell { padding: var(--layout-padding); }
+.layout-atlas_grid .grid { gap: var(--layout-gap); }
+.layout-atlas_grid .glass, 
+.layout-atlas_grid [data-slot="card"], 
+.layout-atlas_grid .border { border-radius: var(--layout-radius); box-shadow: none; }
+.layout-atlas_grid table thead tr th { font-size: 9px; border-bottom: 2px solid hsl(var(--border)); }
+.layout-atlas_grid .tracker-kpi-card { border-left: 3px solid hsl(var(--primary)); }
 
-.layout-velvet_mono .grid {
-  gap: 12px;
+/* ─── 7. VELVET MONO (Luxury Dark) ─── */
+.layout-velvet_mono {
+  --layout-padding: 20px 24px;
+  --layout-gap: 12px;
+  --layout-radius: 10px;
 }
+.layout-velvet_mono .app-page-shell { padding: var(--layout-padding); }
+.layout-velvet_mono .app-page-content { max-width: 1360px; margin: 0 auto; }
+.layout-velvet_mono .grid { gap: var(--layout-gap); }
+.layout-velvet_mono .glass, 
+.layout-velvet_mono [data-slot="card"], 
+.layout-velvet_mono .border { border-radius: var(--layout-radius); border-color: hsl(var(--border) / 0.4); }
+.layout-velvet_mono table thead tr th { font-size: 10px; letter-spacing: 0.06em; }
+.layout-velvet_mono button { border-radius: 8px; font-weight: 500; }
 
-.layout-velvet_mono input,
-.layout-velvet_mono select,
-.layout-velvet_mono textarea {
-  border-radius: 8px;
-  border: 1px solid hsl(var(--border) / 0.3);
+/* ─── 8. PAPERWIRE (Analytical Newsroom) ─── */
+.layout-paperwire {
+  --layout-padding: 10px 14px;
+  --layout-gap: 6px;
+  --layout-radius: 2px;
 }
+.layout-paperwire .app-page-shell { padding: var(--layout-padding); }
+.layout-paperwire .grid { gap: var(--layout-gap); }
+.layout-paperwire .glass, 
+.layout-paperwire [data-slot="card"], 
+.layout-paperwire .border { border-radius: var(--layout-radius); border-top: 3px solid hsl(var(--primary)); }
+.layout-paperwire table { font-family: 'Public Sans', sans-serif; }
+.layout-paperwire table thead tr th { font-size: 9px; letter-spacing: 0.1em; border-bottom: 2px solid hsl(var(--foreground) / 0.2); }
 
-.layout-velvet_mono [class*="Badge"] {
-  border-radius: 6px;
-  font-size: 10px;
-  padding: 2px 8px;
+/* ─── 9. SIGNAL DECK (Navy Command) ─── */
+.layout-signal_deck {
+  --layout-padding: 20px 24px;
+  --layout-gap: 12px;
+  --layout-radius: 10px;
 }
+.layout-signal_deck .app-page-shell { padding: var(--layout-padding); }
+.layout-signal_deck .grid { gap: var(--layout-gap); }
+.layout-signal_deck .glass, 
+.layout-signal_deck [data-slot="card"], 
+.layout-signal_deck .border { border-radius: var(--layout-radius); border-color: rgba(255,255,255,.06); }
+.layout-signal_deck .tracker-kpi-band { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.layout-signal_deck .tracker-kpi-card .text-2xl { font-family: 'JetBrains Mono', monospace; font-weight: 800; }
 
-.layout-velvet_mono .tracker-page > div:first-child {
-  margin-bottom: 18px;
+/* ─── 10. GLASS MOBILE (Frosted Glass) ─── */
+.layout-glass_mobile {
+  --layout-padding: 12px;
+  --layout-gap: 10px;
+  --layout-radius: 16px;
 }
-
-.layout-velvet_mono ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+.layout-glass_mobile .app-page-shell { padding: var(--layout-padding); }
+.layout-glass_mobile .grid { gap: var(--layout-gap); }
+.layout-glass_mobile .glass, 
+.layout-glass_mobile [data-slot="card"], 
+.layout-glass_mobile .border { 
+  border-radius: var(--layout-radius); 
+  backdrop-filter: blur(12px); 
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.4);
+  box-shadow: 0 4px 24px -2px rgba(0,0,0,0.05);
 }
-
-.layout-velvet_mono ::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.2);
-  border-radius: 10px;
+.layout-glass_mobile .tracker-kpi-card { 
+  background: linear-gradient(135deg, hsl(var(--card) / 0.8), hsl(var(--muted) / 0.1));
+  border-radius: 16px;
 }
+.layout-glass_mobile button { border-radius: 12px; font-weight: 600; }
+.layout-glass_mobile input, 
+.layout-glass_mobile select, 
+.layout-glass_mobile textarea { border-radius: 12px; }
 
+/* ─── Mobile Overrides ─── */
 @media (max-width: 768px) {
-  .layout-velvet_mono .app-page-shell {
-    padding: 14px 16px;
-  }
-  .layout-velvet_mono .grid {
-    gap: 8px;
-  }
-}
+  .layout-flux .app-page-shell,
+  .layout-cipher .app-page-shell,
+  .layout-dark_ledger .app-page-shell,
+  .layout-operations_desk .app-page-shell,
+  .layout-atlas_grid .app-page-shell,
+  .layout-velvet_mono .app-page-shell,
+  .layout-paperwire .app-page-shell,
+  .layout-signal_deck .app-page-shell,
+  .layout-glass_mobile .app-page-shell,
+  .layout-terminal_hc .app-page-shell { padding: 12px 14px; }
 
-
-/* ══════════════════════════════════════════════════════
-   PAPERWIRE — Analytical newsroom, audit-desk
-   ══════════════════════════════════════════════════════ */
-
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Public+Sans:wght@300;400;500;600;700;800&display=swap');
-
-.layout-paperwire .app-page-shell {
-  padding: 10px 14px;
-}
-
-.layout-paperwire .glass,
-.layout-paperwire [data-slot="card"],
-.layout-paperwire .border {
-  border-radius: 2px;
-  box-shadow: none;
-  border: 1px solid hsl(var(--border));
-}
-
-.layout-paperwire [data-slot="card"] {
-  border-top: 3px solid hsl(var(--primary));
-}
-
-.layout-paperwire table {
-  font-family: 'Public Sans', sans-serif;
-}
-
-.layout-paperwire table tbody tr td {
-  padding-top: 5px;
-  padding-bottom: 5px;
-  font-size: 11px;
-  line-height: 1.3;
-  border-bottom: 1px solid hsl(var(--border) / 0.6);
-}
-
-.layout-paperwire table thead tr th {
-  font-size: 9px;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
-  border-bottom: 2px solid hsl(var(--foreground) / 0.2);
-}
-
-.layout-paperwire table tbody tr:nth-child(even) {
-  background: hsl(var(--muted) / 0.06);
-}
-
-.layout-paperwire .tracker-kpi-band {
-  gap: 4px;
-}
-
-.layout-paperwire .tracker-kpi-card {
-  padding: 8px 12px;
-  border-radius: 2px;
-  border-top: 2px solid hsl(var(--primary));
-  box-shadow: none;
-}
-
-.layout-paperwire button {
-  border-radius: 2px;
-  font-size: 11px;
-}
-
-.layout-paperwire .grid {
-  gap: 6px;
-}
-
-.layout-paperwire input,
-.layout-paperwire select,
-.layout-paperwire textarea {
-  border-radius: 2px;
-  border: 1px solid hsl(var(--border));
-}
-
-.layout-paperwire [class*="Badge"] {
-  border-radius: 1px;
-  font-size: 9px;
-  padding: 1px 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 700;
-}
-
-.layout-paperwire .tracker-page > div:first-child {
-  margin-bottom: 8px;
-  border-bottom: 1px solid hsl(var(--border));
-  padding-bottom: 8px;
-}
-
-@media (max-width: 768px) {
-  .layout-paperwire .app-page-shell {
-    padding: 6px 8px;
-  }
+  .layout-flux .grid,
+  .layout-cipher .grid,
+  .layout-dark_ledger .grid,
+  .layout-operations_desk .grid,
+  .layout-atlas_grid .grid,
+  .layout-velvet_mono .grid,
+  .layout-paperwire .grid,
+  .layout-signal_deck .grid,
+  .layout-glass_mobile .grid,
+  .layout-terminal_hc .grid { gap: 8px; }
 }
