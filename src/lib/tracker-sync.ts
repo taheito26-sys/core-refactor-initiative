@@ -155,7 +155,7 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
       .select('state, updated_at, user_id')
       .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
     if (!error && data) {
-      cloudState = mergeTrackerStatesForMerchant(data as TrackerSnapshotRow[]);
+      cloudState = mergeTrackerStatesForMerchant(data as unknown as TrackerSnapshotRow[]);
     }
   } else {
     const { data, error } = await supabase
