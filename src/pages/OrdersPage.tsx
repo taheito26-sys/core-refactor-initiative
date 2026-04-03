@@ -796,7 +796,7 @@ export default function OrdersPage() {
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-          const selAgreement = alloc.agreementId ? relApprovedAgreements.find(a => a.id === alloc.agreementId) : null;
+          const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
           const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
           const calc = isOpPriority
             ? calculateOperatorPriorityAllocationEconomics({
