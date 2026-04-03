@@ -685,57 +685,19 @@ export default function VaultPage() {
                 <CardTitle className="text-sm font-display">
                   {t.lang === 'ar' ? '☁ إعداد النسخ السحابي' : '☁ Cloud Backup Setup'}
                 </CardTitle>
-                {setupStatus === 'connected' ? (
-                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ Connected</Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ No URL set</Badge>
-                )}
+                <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ Connected</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {t.lang === 'ar'
-                  ? 'انسخ بياناتك إلى Google Drive. الإعداد مرة واحدة فقط، ثم تُدار النسخ من هذه الخزنة.'
-                  : 'Backup to your Google Drive. Setup is one-time, then versions are managed from this Vault.'}
+                  ? 'النسخ السحابي مُفعّل ومتصل تلقائياً. تُدار النسخ من الخزنة السحابية أعلاه.'
+                  : 'Cloud backup is pre-configured and connected. Manage versions from the Cloud Vault above.'}
               </p>
-
-              {/* Setup instructions */}
-              <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
-                <div className="text-[10px] font-extrabold mb-2 text-primary">🚀 Setup (once only)</div>
-                <div className="text-[10px] text-muted-foreground leading-relaxed space-y-1">
-                  <p><b>1.</b> Open <a href="https://script.google.com/home/start" target="_blank" rel="noopener noreferrer" className="text-primary underline">script.google.com</a> → <b>New Project</b></p>
-                  <p><b>2.</b> Delete everything, paste this code, click Save (💾):</p>
-                  <textarea
-                    readOnly
-                    value={GAS_SCRIPT_CODE}
-                    className="w-full h-20 text-[9px] font-mono bg-background border border-border rounded p-1 mt-1 resize-none text-foreground"
-                  />
-                  <Button variant="secondary" size="sm" className="w-full mt-1 text-[9px]" onClick={copyGasCode}>
-                    <Copy className="w-3 h-3 mr-1" /> Copy Code
-                  </Button>
-                  <p><b>3.</b> Click <b>Deploy → New Deployment → Web App</b></p>
-                  <p><b>4.</b> Set <b>"Who has access" = Anyone</b> → Deploy</p>
-                  <p><b>5.</b> Authorize → Copy the Web App URL → Paste below</p>
-                </div>
-              </div>
-
-              {/* URL input */}
-              <div className="space-y-2">
-                <Label className="text-xs">Apps Script Web App URL</Label>
-                <Input
-                  value={setupUrl}
-                  onChange={e => setSetupUrl(e.target.value)}
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  className="text-[11px]"
-                />
-              </div>
 
               {/* Action buttons */}
               <div className="flex gap-2 flex-wrap">
-                <Button size="sm" onClick={saveSetupUrl} className="flex-1 min-w-[140px]">
-                  Save URL
-                </Button>
-                <Button variant="secondary" size="sm" onClick={setupBackupNow} disabled={cloudLoading} className="flex-1 min-w-[140px]">
+                <Button variant="secondary" size="sm" onClick={cloudBackupNow} disabled={cloudLoading} className="flex-1 min-w-[140px]">
                   {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
                   Backup Now
                 </Button>
