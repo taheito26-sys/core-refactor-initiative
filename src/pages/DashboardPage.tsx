@@ -386,6 +386,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     };
   }, [allTrades, merchantDealKpis, tradeNet]);
 
+  // Date/Month labels
+  const now = new Date();
+  const monthKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const curMo = t(monthKeys[now.getMonth()] as any);
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMo = t(monthKeys[prevDate.getMonth()] as any);
+
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       {/* KPI Bands */}
@@ -394,12 +401,12 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-band-title">{t('tradingVolume')}</div>
           <div className="kpi-band-cols">
             <div>
-              <div className="kpi-period">{t('thisMonth')}</div>
+              <div className="kpi-period">{curMo}</div>
               <div className="kpi-cell-val t1v">{fmtQWithUnit(dM.rev, settings.currency, wacop)}</div>
               <div className="kpi-cell-sub">{dM.count} {t('trades')} · {fmtU(dM.qty, 0)} USDT</div>
             </div>
             <div>
-              <div className="kpi-period">{t('lastMonth')}</div>
+              <div className="kpi-period">{prevMo}</div>
               <div className="kpi-cell-val t1v">{fmtQWithUnit(dL.rev, settings.currency, wacop)}</div>
               <div className="kpi-cell-sub">{dL.count} {t('trades')} · {fmtU(dL.qty, 0)} USDT</div>
             </div>
@@ -409,13 +416,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-band-title">{t('netProfit')}</div>
           <div className="kpi-band-cols">
             <div>
-              <div className="kpi-period">{t('thisMonth')}</div>
+              <div className="kpi-period">{curMo}</div>
               <div className={`kpi-cell-val ${dM.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dM.net, settings.currency, wacop)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dM.fee, settings.currency, wacop)}</div>
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
             <div>
-              <div className="kpi-period">{t('lastMonth')}</div>
+              <div className="kpi-period">{prevMo}</div>
               <div className={`kpi-cell-val ${dL.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dL.net, settings.currency, wacop)}</div>
               <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dL.fee, settings.currency, wacop)}</div>
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>

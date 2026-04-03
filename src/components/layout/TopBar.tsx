@@ -27,7 +27,7 @@ function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: s
 const RANGES = [
   { id: 'today', label: '1D' },
   { id: '7d', label: '7D' },
-  { id: '30d', label: '30D' },
+  { id: 'this_month', label: '30D' },
   { id: 'all', label: 'ALL' },
 ] as const;
 
