@@ -629,6 +629,18 @@ export default function OrdersPage() {
     return 0;
   }, [derived, state.trades]);
 
+  const resolveLinkedOutgoingDeal = useCallback((tr: Trade): MerchantDeal | null => {
+    if (tr.linkedDealId) {
+      const byId = allMerchantDeals.find(d => d.id === tr.linkedDealId);
+      if (byId) return byId as MerchantDeal;
+    }
+    const byLocalTrade = allMerchantDeals.find(d => (
+      isCreatorInMyMerchant(d.created_by) &&
+      parseDealMeta(d.notes).local_trade === tr.id
+    ));
+    return (byLocalTrade as MerchantDeal) || null;
+  }, [allMerchantDeals, isCreatorInMyMerchant]);
+
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
     if (!q) return state.customers;
@@ -1607,10 +1619,16 @@ export default function OrdersPage() {
   };
 
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
-    const ok = !!c?.ok;
-    const revenue = tr.amountUSDT * tr.sellPriceQAR;
-    const cost = c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0;
-    const net = ok ? revenue - cost - tr.feeQAR : NaN;
+    const linkedDeal = resolveLinkedOutgoingDeal(tr);
+    const linkedRow = linkedDeal
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      : null;
+    const fifoOk = !!c?.ok;
+    const ok = fifoOk || !!linkedRow?.hasAvgBuy;
+    const revenue = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
+    const cost = linkedRow?.cost ?? (c?.slices.reduce((s, sl) => s + sl.cost, 0) || 0);
+    const fee = linkedRow?.fee ?? tr.feeQAR;
+    const net = ok ? revenue - cost - fee : NaN;
     const slicesWithBatch = (c?.slices || []).map(sl => {
       const b = state.batches.find(x => x.id === sl.batchId);
       return { ...sl, source: b?.source || '—', price: b?.buyPriceQAR || 0, ts: b?.ts || tr.ts, pct: b && b.initialUSDT > 0 ? (sl.qty / b.initialUSDT) * 100 : 0 };
@@ -1622,8 +1640,8 @@ export default function OrdersPage() {
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
           <span className="pill">{t('revenue')} {fmtC(revenue)}</span>
-          {tr.feeQAR > 0 && <span className="pill">{t('fee')} {fmtC(tr.feeQAR)}</span>}
-          {ok && cost > 0 && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
+          <span className="pill">{t('fee')} {fmtC(fee)}</span>
+          {ok && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
@@ -1689,11 +1707,15 @@ export default function OrdersPage() {
           );
         })()}
         <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 5 }}>{t('fifoSlices')}</div>
-        {ok && slicesWithBatch.length ? slicesWithBatch.map(sl => (
+        {fifoOk && slicesWithBatch.length ? slicesWithBatch.map(sl => (
           <div key={`${tr.id}-${sl.batchId}-${sl.qty}`} className="muted" style={{ fontSize: 10, margin: '2px 0' }}>
             {sl.source} · <span className="mono">{fmtU(sl.qty)}</span> @ <span className="mono">{fmtP(sl.price)}</span> <span className="cycle-badge">{sl.pct.toFixed(1)}{t('ofBatch')}</span>
           </div>
-        )) : <div className="msg">{t('noSlices')}</div>}
+        )) : (
+          <div className="msg">
+            {linkedRow?.hasAvgBuy ? 'Cost derived from linked order details' : t('noSlices')}
+          </div>
+        )}
       </div>
     );
   };
@@ -1746,28 +1768,15 @@ export default function OrdersPage() {
 
   const renderMyOrderMobileCard = useCallback((tr: Trade) => {
     const c = derived.tradeCalc.get(tr.id);
-    const ok = !!c?.ok;
-    const rev = tr.amountUSDT * tr.sellPriceQAR;
+    const linkedDeal = resolveLinkedOutgoingDeal(tr);
+    const linkedRow = linkedDeal
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      : null;
+    const ok = !!c?.ok || !!linkedRow?.hasAvgBuy;
+    const rev = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
-    const rawNet = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
-
-    // For operator priority linked trades, compute "my net" using operator priority logic
-    let net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
-    const matchedOPAgr = isMerchantLinked ? allAgreements?.find(a =>
-      a.relationship_id === tr.linkedRelId && a.agreement_type === 'operator_priority'
-    ) : undefined;
-    if (matchedOPAgr && Number.isFinite(rawNet) && rawNet > 0) {
-      const opResult = calculateOperatorPriorityProfit({
-        grossProfit: rawNet,
-        operatorRatio: Number(matchedOPAgr.operator_ratio) || 0,
-        operatorContribution: Number(matchedOPAgr.operator_contribution) || 0,
-        lenderContribution: Number(matchedOPAgr.lender_contribution) || 0,
-      });
-      const opMid = matchedOPAgr.operator_merchant_id || '';
-      const myMid = merchantProfile?.merchant_id || '';
-      net = myMid === opMid ? opResult.operatorTotal : opResult.lenderTotal;
-    }
-
+    const rawNet = linkedRow?.fullNet ?? (c?.ok ? c.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN));
+    const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
 
@@ -1796,11 +1805,11 @@ export default function OrdersPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(tr.amountUSDT)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(tr.sellPriceQAR)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
@@ -1808,7 +1817,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(c!.avgBuyQAR) : '—'}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(linkedRow?.avgBuy ?? c?.avgBuyQAR ?? 0) : '—'}</div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1845,7 +1854,7 @@ export default function OrdersPage() {
         )}
       </div>
     );
-  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade, allAgreements, merchantProfile, merchantProfileMap]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
