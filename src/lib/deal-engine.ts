@@ -252,8 +252,10 @@ export function calculateAgreementAllocation(
   orderRevenue: number,
   orderCost: number,
   orderFee: number,
+  options?: { isOperator?: boolean },
 ): { partnerAmount: number; merchantAmount: number; netProfit: number } {
   const netProfit = orderRevenue - orderCost - orderFee;
+  const isOperator = options?.isOperator ?? true;
 
   // ── Operator Priority: fee first, then capital-weighted split ──
   if (agreement.agreement_type === 'operator_priority' && agreement.operator_ratio != null) {
@@ -263,10 +265,9 @@ export function calculateAgreementAllocation(
       operatorContribution: agreement.operator_contribution ?? 0,
       lenderContribution: agreement.lender_contribution ?? 0,
     });
-    // Convention: "merchant" = operator, "partner" = lender
     return {
-      partnerAmount: Math.round(result.lenderTotal * 100) / 100,
-      merchantAmount: Math.round(result.operatorTotal * 100) / 100,
+      partnerAmount: Math.round((isOperator ? result.lenderTotal : result.operatorTotal) * 100) / 100,
+      merchantAmount: Math.round((isOperator ? result.operatorTotal : result.lenderTotal) * 100) / 100,
       netProfit: Math.round(netProfit * 100) / 100,
     };
   }
