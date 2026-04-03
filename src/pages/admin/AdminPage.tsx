@@ -71,6 +71,9 @@ export default function AdminPage() {
           <TabsTrigger value="audit" className="text-xs gap-1">
             <FileText className="h-3.5 w-3.5" /> Audit Log
           </TabsTrigger>
+          <TabsTrigger value="backups" className="text-xs gap-1">
+            <Cloud className="h-3.5 w-3.5" /> Backups
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
