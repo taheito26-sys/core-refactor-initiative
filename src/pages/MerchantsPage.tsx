@@ -324,7 +324,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const inboxCount = invites.filter(i => i.status === 'pending' && i.is_incoming).length;
 
   const overdueCount = settlementOverview?.overdueCount || 0;
-  const activeAgreementCount = allAgreements.filter(a => a.status === 'approved' && isAgreementActive(a)).length;
+  const activeAgreementCount = allAgreements.filter(a => isAgreementActive(a)).length;
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'liquidity', label: t('liquidityTab') || 'Liquidity', icon: '💧' },

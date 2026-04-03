@@ -480,7 +480,7 @@ export default function StockPage() {
               <div className="empty-s">{t('addFirstPurchase')}</div>
             </div>
           ) : isMobile ? (
-            <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
               {perf.map((b) => {
                 const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
                 const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
@@ -489,31 +489,31 @@ export default function StockPage() {
                 const st = rem <= 1e-9 ? t('depleted') : rem < b.initialUSDT ? t('partial') : t('fresh');
                 const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
                 return (
-                  <div key={b.id} className="panel" style={{ padding: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                  <div key={b.id} className="panel" style={{ padding: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
                       <div>
-                        <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtDate(b.ts)}</div>
-                        <div style={{ fontSize: 13, fontWeight: 800 }}>{b.source || '—'}</div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(b.ts)}</div>
+                        <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>{b.source || '—'}</div>
                       </div>
                       <span className={`pill ${stCls}`} style={{ alignSelf: 'flex-start' }}>{st}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginBottom: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 10, marginBottom: 6 }}>
                       <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
                       <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
                       <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
                       <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtQ(b.profit || 0)}</strong></div>
                     </div>
-                    <div style={{ marginBottom: 8 }}>
+                    <div style={{ marginBottom: 6 }}>
                       <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
-                      <div className="muted" style={{ fontSize: 10, marginTop: 3 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
+                      <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: detailsOpen[b.id] ? 8 : 0 }}>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: detailsOpen[b.id] ? 6 : 0 }}>
                       {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
-                      <button className="rowBtn" style={{ minHeight: 36, padding: '0 10px' }} onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
-                      <button className="rowBtn" style={{ minHeight: 36, padding: '0 10px' }} onClick={() => openEdit(b.id)}>{t('edit')}</button>
+                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
+                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => openEdit(b.id)}>{t('edit')}</button>
                     </div>
                     {detailsOpen[b.id] && (
-                      <div style={{ background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))', border: '1px solid color-mix(in srgb, var(--line) 80%, transparent)', borderRadius: 8, padding: 8, display: 'grid', gap: 5, fontSize: 11 }}>
+                      <div style={{ background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))', border: '1px solid color-mix(in srgb, var(--line) 80%, transparent)', borderRadius: 8, padding: 7, display: 'grid', gap: 4, fontSize: 10 }}>
                         <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
                         <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
                         <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
