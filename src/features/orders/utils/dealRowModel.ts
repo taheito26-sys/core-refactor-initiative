@@ -1,4 +1,5 @@
 import { getAgreementFamilyLabel } from '@/lib/deal-templates';
+import { calculateOperatorPriorityProfit, resolveOperatorPriorityPerspective } from '@/lib/trading/operator-priority';
 import type { MerchantDeal } from '@/types/domain';
 
 export type DealRowPerspective = 'incoming' | 'outgoing';
