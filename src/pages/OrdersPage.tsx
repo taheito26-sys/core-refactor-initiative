@@ -336,6 +336,7 @@ export default function OrdersPage() {
       .map(d => parseDealMeta(d.notes).local_trade)
       .filter(Boolean)
   ), [allMerchantDeals]);
+  const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
 
   // Sync: void local trades whose server-side deals are cancelled/rejected/voided
   // This ensures computeFIFO never consumes stock for dead deals
@@ -534,7 +535,6 @@ export default function OrdersPage() {
     return () => window.clearTimeout(timer);
   }, [searchParams, activeTab, filtered.length, allMerchantDeals.length, allTransfers.length]);
 
-  const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
     () => allMerchantDeals.filter(d => d.created_by !== userId && isDealVisible(d)),
