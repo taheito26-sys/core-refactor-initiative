@@ -335,22 +335,7 @@ export default function VaultPage() {
     e.target.value = '';
   };
 
-  // ── Cloud Backup Setup actions ──
-  const saveSetupUrl = () => {
-    const url = setupUrl.trim();
-    if (!url) { toast.error('Paste your Web App URL first'); return; }
-    setGasUrl(url);
-    gasSaveConfig();
-    setSetupStatus('connected');
-    setCloudUrl(url);
-    setCloudStatus('connected');
-    toast.success('✓ URL saved');
-  };
-
-  const setupBackupNow = async () => {
-    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
-    await cloudBackupNow();
-  };
+  // Cloud setup actions use built-in URL
 
   const setupRestore = async () => {
     if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
