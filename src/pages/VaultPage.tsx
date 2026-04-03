@@ -599,18 +599,6 @@ export default function VaultPage() {
                   : 'Versioned cloud backups via Google Drive. Up to 30 versions + pinned permanent backups.'}
               </p>
 
-              {/* URL input */}
-              <div className="flex gap-2">
-                <Input
-                  value={cloudUrl}
-                  onChange={e => setCloudUrl(e.target.value)}
-                  placeholder="Apps Script Web App URL"
-                  className="flex-1 text-[11px]"
-                />
-                <Button variant="secondary" size="sm" onClick={saveCloudUrl} className="min-w-[100px]">
-                  Save URL
-                </Button>
-              </div>
 
               {/* Manual backup with label */}
               <div className="flex gap-2">
