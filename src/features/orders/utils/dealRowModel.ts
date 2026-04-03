@@ -143,11 +143,27 @@ export function buildDealRowModel({
   const normalizedPartnerPct = partnerPct ?? 50;
   const merchantPct = 100 - normalizedPartnerPct;
 
-  // Detect operator priority agreement
-  const isOperatorPriority = String(mergedMeta.agreement_type || mergedMeta.template || deal.deal_type || '').includes('operator_priority');
-  const operatorRatio = Number(mergedMeta.operator_ratio) || 0;
-  const operatorContribution = Number(mergedMeta.operator_contribution) || 0;
-  const lenderContribution = Number(mergedMeta.lender_contribution) || 0;
+  // Detect operator priority agreement — check metadata, then fallback to agreements array
+  let isOperatorPriority = String(mergedMeta.agreement_type || mergedMeta.template || deal.deal_type || '').includes('operator_priority');
+  let operatorRatio = Number(mergedMeta.operator_ratio) || 0;
+  let operatorContribution = Number(mergedMeta.operator_contribution) || 0;
+  let lenderContribution = Number(mergedMeta.lender_contribution) || 0;
+
+  // Fallback: look up operator priority from agreements array when metadata doesn't have it
+  if (!isOperatorPriority && agreements?.length) {
+    const matchedAgr = agreements.find(a =>
+      a.relationship_id === deal.relationship_id && a.agreement_type === 'operator_priority'
+    );
+    if (matchedAgr) {
+      isOperatorPriority = true;
+      operatorRatio = Number(matchedAgr.operator_ratio) || operatorRatio;
+      operatorContribution = Number(matchedAgr.operator_contribution) || operatorContribution;
+      lenderContribution = Number(matchedAgr.lender_contribution) || lenderContribution;
+      if (!mergedMeta.operator_merchant_id && matchedAgr.operator_merchant_id) {
+        mergedMeta.operator_merchant_id = matchedAgr.operator_merchant_id;
+      }
+    }
+  }
 
   let creatorNet: number | null;
   let partnerNet: number | null;
