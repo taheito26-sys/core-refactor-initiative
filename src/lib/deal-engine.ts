@@ -285,7 +285,9 @@ export function calculateAgreementAllocation(
  * Check if a profit share agreement is currently active and usable.
  */
 export function isAgreementActive(agreement: ProfitShareAgreement): boolean {
-  if (agreement.status !== 'approved') return false;
+  // Accept both `approved` (current canonical) and legacy `active`.
+  const normalizedStatus = String((agreement as { status?: string }).status || '').toLowerCase();
+  if (normalizedStatus !== 'approved' && normalizedStatus !== 'active') return false;
   const now = new Date();
   const from = new Date(agreement.effective_from);
   if (from > now) return false;
