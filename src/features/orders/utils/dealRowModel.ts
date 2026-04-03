@@ -191,16 +191,16 @@ export function buildDealRowModel({
     operatorTotal = opResult.operatorTotal;
     lenderTotal = opResult.lenderTotal;
 
-    // Determine if the deal creator is the operator
-    const operatorMerchantId = String(mergedMeta.operator_merchant_id || '');
-    // For outgoing deals, the creator is "me". Check if creator is operator.
-    const creatorIsOperator = operatorMerchantId
-      ? String(mergedMeta.my_merchant_id || '') === operatorMerchantId || perspective === 'outgoing'
-      : true; // fallback: assume creator is operator
+    // Determine if the current user is the operator using myMerchantId
+    const resolvedOperatorMerchantId = String(mergedMeta.operator_merchant_id || '');
+    // Use explicit myMerchantId comparison — never assume outgoing = operator
+    const iAmOperator = resolvedOperatorMerchantId && myMerchantId
+      ? myMerchantId === resolvedOperatorMerchantId
+      : false; // if we can't determine, default to lender (safer)
 
-    creatorNet = creatorIsOperator ? opResult.operatorTotal : opResult.lenderTotal;
-    partnerNet = creatorIsOperator ? opResult.lenderTotal : opResult.operatorTotal;
-    myNet = perspective === 'incoming' ? partnerNet : creatorNet;
+    creatorNet = null; // not meaningful for operator priority
+    partnerNet = null;
+    myNet = iAmOperator ? opResult.operatorTotal : opResult.lenderTotal;
     myPct = fullNet > 0 ? ((myNet ?? 0) / fullNet) * 100 : 0;
     splitLabel = `⚙️ ${operatorRatio}% fee · capital weight`;
   } else {
