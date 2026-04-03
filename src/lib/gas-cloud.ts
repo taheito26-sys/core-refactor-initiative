@@ -9,7 +9,8 @@ interface GasCfg {
   ver: string;
 }
 
-let _gasUrl = '';
+const _BUILTIN_GAS_URL = 'https://script.google.com/macros/s/AKfycbyhMi7Eg2ww94tidtIhHEwjaKPsoYK-jsVGHPWIsMu-XUjgZgLuffP5_5Ka90DBrqguOw/exec';
+let _gasUrl = _BUILTIN_GAS_URL;
 let _gasLastSync = 0;
 
 export function gasLoadConfig(): void {
@@ -17,14 +18,10 @@ export function gasLoadConfig(): void {
     const raw = localStorage.getItem(GAS_CFG_KEY) || '';
     let cfg: Partial<GasCfg> = {};
     try { cfg = JSON.parse(raw || '{}'); } catch { cfg = {}; }
-    if (!cfg || cfg.ver !== 'v2026-03-01') {
-      if (cfg && cfg.url) _gasUrl = String(cfg.url || '').trim() || _gasUrl || '';
-      _gasLastSync = (cfg && cfg.lastSync) ? cfg.lastSync : 0;
-      localStorage.setItem(GAS_CFG_KEY, JSON.stringify({ url: _gasUrl, lastSync: _gasLastSync, ver: 'v2026-03-01' }));
-    } else {
-      _gasUrl = (cfg.url ? String(cfg.url).trim() : '') || _gasUrl || '';
-      _gasLastSync = cfg.lastSync || 0;
-    }
+    // Always use the built-in URL; ignore any stored override
+    _gasUrl = _BUILTIN_GAS_URL;
+    _gasLastSync = (cfg && cfg.lastSync) ? cfg.lastSync : 0;
+    localStorage.setItem(GAS_CFG_KEY, JSON.stringify({ url: _gasUrl, lastSync: _gasLastSync, ver: 'v2026-03-01' }));
   } catch {}
 }
 
