@@ -802,13 +802,16 @@ export default function OrdersPage() {
         return;
       }
       for (const alloc of allocations) {
+        const resolvedCostPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
         if (!alloc.relationshipId) { setSaleMessage(t('allocNeedsMerchant')); return; }
         if (alloc.family === 'profit_share' && !alloc.agreementId) {
           setSaleMessage(`${t('profitShareLabel')} ${alloc.merchantName || t('merchant')} ${t('allocNeedsAgreement')}`);
           return;
         }
         if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage(t('allocNeedsUsdt')); return; }
-        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
+        // Profit Share flow does not expose manual merchant cost entry in the UI.
+        // In that case, use FIFO average buy as fallback so validation matches preview behavior.
+        if (!(resolvedCostPerUsdt > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
       }
     }
 
@@ -851,7 +854,7 @@ export default function OrdersPage() {
         const createdDealIds: string[] = [];
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
           const familyLabel = alloc.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
           const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
           const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
@@ -899,7 +902,7 @@ export default function OrdersPage() {
         // Now create allocation records linked to the deals
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
           const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
           const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
           const calc = isOpPriority
