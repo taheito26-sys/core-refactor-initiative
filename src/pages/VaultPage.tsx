@@ -25,9 +25,10 @@ import {
   gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
   getGasLastSync, setGasLastSync, fmtBytes,
   isCloudLoggedIn, getGasSession, clearCloudSession,
-  cloudLogin, cloudRegister,
+  autoAuthenticateCloud,
   type CloudVersion,
 } from '@/lib/gas-cloud';
+import { useAuth } from '@/features/auth/auth-context';
 
 /* ── IDB Vault (Ring 1) ── */
 interface Snapshot {
