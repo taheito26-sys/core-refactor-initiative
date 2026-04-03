@@ -52,12 +52,19 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const rLabel = rangeLabel(settings.range);
 
   const allTrades = state.trades.filter(t => !t.voided);
+  const getTradeMyPct = (tr: typeof allTrades[0]) => {
+    const merchantPct = Number(tr.merchantPct);
+    if (Number.isFinite(merchantPct) && merchantPct > 0 && merchantPct <= 100) return merchantPct;
+    const partnerPct = Number(tr.partnerPct);
+    if (Number.isFinite(partnerPct) && partnerPct >= 0 && partnerPct < 100) return 100 - partnerPct;
+    return 100;
+  };
   const allMargins = allTrades.map(tr => {
     const c = derived.tradeCalc.get(tr.id);
     if (!c?.ok) return null;
     // For linked trades, adjust margin to reflect only my share
     if (tr.linkedDealId || tr.linkedRelId) {
-      const myPct = tr.merchantPct ?? 100;
+      const myPct = getTradeMyPct(tr);
       const myNet = c.netQAR * myPct / 100;
       const rev = tr.amountUSDT * tr.sellPriceQAR;
       return rev > 0 ? (myNet / rev) * 100 : 0;
@@ -240,7 +247,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     else if (tr.manualBuyPrice) fullNet = tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
     // For linked trades, show only my share
     if (tr.linkedDealId || tr.linkedRelId) {
-      const myPct = tr.merchantPct ?? 100;
+      const myPct = getTradeMyPct(tr);
       return fullNet * myPct / 100;
     }
     return fullNet;
