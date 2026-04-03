@@ -811,6 +811,7 @@ export default function OrdersPage() {
                 operatorRatio: (selAgreement as any)?.operator_ratio ?? 0,
                 operatorContribution: (selAgreement as any)?.operator_contribution ?? 0,
                 lenderContribution: (selAgreement as any)?.lender_contribution ?? 0,
+                isOperator: (selAgreement as any)?.operator_merchant_id === merchantProfile?.merchant_id,
               })
             : calculateAllocationEconomics({
                 allocatedUsdt: usdt,
@@ -1164,6 +1165,7 @@ export default function OrdersPage() {
           const netProfit = rev - fifoCost - fee;
           const isEditOpPriority = editAgreement?.agreement_type === 'operator_priority';
           let partnerAmt: number;
+          let merchantAmt: number;
           if (isEditOpPriority) {
             const opResult = calculateOperatorPriorityProfit({
               grossProfit: netProfit,
@@ -1171,11 +1173,14 @@ export default function OrdersPage() {
               operatorContribution: (editAgreement as any).operator_contribution ?? 0,
               lenderContribution: (editAgreement as any).lender_contribution ?? 0,
             });
-            partnerAmt = opResult.lenderTotal;
+            const isOperator = (editAgreement as any).operator_merchant_id === merchantProfile?.merchant_id;
+            partnerAmt = isOperator ? opResult.lenderTotal : opResult.operatorTotal;
+            merchantAmt = isOperator ? opResult.operatorTotal : opResult.lenderTotal;
           } else {
             partnerAmt = isEditProfitShare
               ? netProfit * (partnerPct / 100)
               : rev * (partnerPct / 100);
+            merchantAmt = (isEditProfitShare ? netProfit : rev) - partnerAmt;
           }
 
           const { data: periodData } = await supabase.from('settlement_periods').insert({
@@ -1192,7 +1197,7 @@ export default function OrdersPage() {
             net_profit: netProfit,
             total_fees: fee,
             partner_amount: partnerAmt,
-            merchant_amount: rev - partnerAmt,
+            merchant_amount: merchantAmt,
             status: editSettleImmediately ? 'settled' : 'due',
             resolution: editSettleImmediately ? 'payout' : null,
             resolved_by: editSettleImmediately ? userId : null,
@@ -2873,6 +2878,7 @@ export default function OrdersPage() {
                                     operatorRatio: (selAgr as any)?.operator_ratio ?? 0,
                                     operatorContribution: (selAgr as any)?.operator_contribution ?? 0,
                                     lenderContribution: (selAgr as any)?.lender_contribution ?? 0,
+                                    isOperator: (selAgr as any)?.operator_merchant_id === merchantProfile?.merchant_id,
                                   })
                                 : calculateAllocationEconomics({
                                     allocatedUsdt: usdt,
@@ -2885,6 +2891,7 @@ export default function OrdersPage() {
                                   });
 
                               const opCalc = isOpPriority ? (calc as any) : null;
+                              const isOpViewer = !!selAgr && (selAgr as any).operator_merchant_id === merchantProfile?.merchant_id;
 
                               return (
                                 <div style={{
@@ -2913,7 +2920,7 @@ export default function OrdersPage() {
                                   </div>
                                   {isOpPriority && opCalc && (
                                     <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, borderTop: '1px solid color-mix(in srgb, var(--line) 30%, transparent)', paddingTop: 4 }}>
-                                      ⚙️ Operator Fee: {fmtC(opCalc.operatorFee)} · Capital split: You {fmtC(opCalc.operatorCapitalShare)} / {cpName} {fmtC(opCalc.lenderCapitalShare)}
+                                      ⚙️ Operator Fee: {fmtC(opCalc.operatorFee)} · Capital split: You {fmtC(isOpViewer ? opCalc.operatorCapitalShare : opCalc.lenderCapitalShare)} / {cpName} {fmtC(isOpViewer ? opCalc.lenderCapitalShare : opCalc.operatorCapitalShare)}
                                     </div>
                                   )}
                                 </div>
@@ -3520,8 +3527,9 @@ export default function OrdersPage() {
                                         operatorContribution: (agr as any).operator_contribution ?? 0,
                                         lenderContribution: (agr as any).lender_contribution ?? 0,
                                       });
-                                      partnerAmt = opResult.lenderTotal;
-                                      merchantAmt = opResult.operatorTotal;
+                                      const isOperator = (agr as any).operator_merchant_id === merchantProfile?.merchant_id;
+                                      partnerAmt = isOperator ? opResult.lenderTotal : opResult.operatorTotal;
+                                      merchantAmt = isOperator ? opResult.operatorTotal : opResult.lenderTotal;
                                     } else {
                                       partnerAmt = netProfit * (agr.partner_ratio / 100);
                                       merchantAmt = netProfit - partnerAmt;
