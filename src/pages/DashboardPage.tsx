@@ -113,6 +113,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     status: string;
     direction: 'outgoing' | 'incoming';
     dealType: string;
+    ts: number;
   }
 
   const { data: merchantDealKpis } = useQuery({
@@ -131,7 +132,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       const { data: deals } = relIds.length > 0
         ? await supabase
             .from('merchant_deals')
-            .select('id, amount, status, created_by, notes, deal_type, relationship_id, title')
+            .select('id, amount, status, created_by, notes, deal_type, relationship_id, title, created_at')
             .in('relationship_id', relIds)
             .order('created_at', { ascending: false })
         : { data: [] as any[] };
@@ -207,6 +208,12 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           status: d.status,
           direction,
           dealType: d.deal_type,
+          ts: (() => {
+            const tradeDateRaw = row.meta.trade_date;
+            const fromMeta = tradeDateRaw ? new Date(tradeDateRaw).getTime() : NaN;
+            const fromCreatedAt = d.created_at ? new Date(d.created_at).getTime() : NaN;
+            return Number.isFinite(fromMeta) ? fromMeta : (Number.isFinite(fromCreatedAt) ? fromCreatedAt : Date.now());
+          })(),
         });
       }
 
@@ -332,6 +339,37 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     };
   };
 
+  const monthKpis = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+
+    let myOwnOrdersNet = 0;
+    let myOwnOrdersCount = 0;
+    for (const tr of allTrades) {
+      if (tr.ts < monthStart || tr.ts >= nextMonthStart) continue;
+      if (tr.linkedDealId || tr.linkedRelId) continue;
+      myOwnOrdersNet += tradeNet(tr);
+      myOwnOrdersCount += 1;
+    }
+
+    const inMonthDeals = (merchantDealKpis?.dealDetails || []).filter(d => d.direction === 'incoming' && d.ts >= monthStart && d.ts < nextMonthStart);
+    const outMonthDeals = (merchantDealKpis?.dealDetails || []).filter(d => d.direction === 'outgoing' && d.ts >= monthStart && d.ts < nextMonthStart);
+    const incomingNet = inMonthDeals.reduce((s, d) => s + d.myShare, 0);
+    const outgoingNet = outMonthDeals.reduce((s, d) => s + d.myShare, 0);
+    const totalNet = myOwnOrdersNet + incomingNet + outgoingNet;
+
+    return {
+      myOwnOrdersNet,
+      myOwnOrdersCount,
+      incomingNet,
+      incomingCount: inMonthDeals.length,
+      outgoingNet,
+      outgoingCount: outMonthDeals.length,
+      totalNet,
+    };
+  }, [allTrades, merchantDealKpis, tradeNet]);
+
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       {/* KPI Bands */}
@@ -391,7 +429,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 {(dR.net + merchantDealKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inMyShare)}
               </span>
             </div>
-          )}
+            <div className="kpi-cell-sub" style={{ marginTop: 4 }}>{t('thisMonth')}</div>
+          </div>
         </div>
       </div>
 
