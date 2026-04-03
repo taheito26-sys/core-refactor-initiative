@@ -1837,13 +1837,13 @@ export default function OrdersPage() {
             {row.hasAvgBuy && row.fullNet != null && (
               <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
-                  📊 {perspective === 'outgoing' ? t('myShare') || 'My Share' : t('partnerShare') || 'Partner Share'} ({row.merchantPct}%):
+                  📊 {perspective === 'outgoing' ? t('merchantNetProfit') : t('partnerNetProfit')} ({row.merchantPct}%):
                   <strong style={{ color: 'var(--good)', marginLeft: 4 }}>
                     {fmtC(row.fullNet * (row.merchantPct! / 100))}
                   </strong>
                 </div>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
-                  🤝 {perspective === 'outgoing' ? t('partnerShare') || 'Partner Share' : t('myShare') || 'My Share'} ({row.partnerPct}%):
+                  🤝 {perspective === 'outgoing' ? t('partnerNetProfit') : t('merchantNetProfit')} ({row.partnerPct}%):
                   <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>
                     {fmtC(row.fullNet * (row.partnerPct! / 100))}
                   </strong>
