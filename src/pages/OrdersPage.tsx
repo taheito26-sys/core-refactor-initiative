@@ -48,6 +48,29 @@ const nowInput = () => new Date().toISOString().slice(0, 16);
 const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
+/** Resolve operator & lender display names for an operator priority deal row */
+function resolveOpNames(
+  row: { operatorMerchantId: string; iAmOperator: boolean },
+  rel: any,
+  myMerchantId: string | undefined,
+  profileMap: Map<string, { display_name: string; nickname: string | null }>,
+  myDisplayName: string,
+): { operatorName: string; lenderName: string } {
+  const opMid = row.operatorMerchantId;
+  const opProfile = profileMap.get(opMid);
+  const operatorName = opProfile?.display_name || opProfile?.nickname || opMid || 'Operator';
+
+  // Lender is the other party in the relationship
+  let lenderMid = '';
+  if (rel) {
+    lenderMid = rel.merchant_a_id === opMid ? rel.merchant_b_id : rel.merchant_a_id;
+  }
+  const lenderProfile = profileMap.get(lenderMid);
+  const lenderName = lenderProfile?.display_name || lenderProfile?.nickname || lenderMid || 'Lender';
+
+  return { operatorName, lenderName };
+}
+
 export default function OrdersPage() {
   const { settings, update } = useTheme();
   const { userId, merchantProfile } = useAuth();
