@@ -1,4 +1,5 @@
 import { getAgreementFamilyLabel } from '@/lib/deal-templates';
+import { calculateOperatorPriorityProfit, resolveOperatorPriorityPerspective } from '@/lib/trading/operator-priority';
 import type { MerchantDeal } from '@/types/domain';
 
 export type DealRowPerspective = 'incoming' | 'outgoing';
@@ -27,6 +28,15 @@ export interface DealRowModel {
   fallbackSplitApplied: boolean;
   status: string;
   dateLabel: string;
+  /** true when operator priority agreement — split is by capital weight not fixed pct */
+  isOperatorPriority: boolean;
+  operatorFee: number | null;
+  operatorTotal: number | null;
+  lenderTotal: number | null;
+  /** true when the current user is the operator in an operator_priority deal */
+  iAmOperator: boolean;
+  /** operator_merchant_id from agreement/metadata */
+  operatorMerchantId: string;
 }
 
 /** Parse pipe-separated key:value metadata from deal.notes */
@@ -55,11 +65,15 @@ export function buildDealRowModel({
   perspective,
   locale,
   resolveAvgBuy,
+  agreements,
+  myMerchantId,
 }: {
   deal: MerchantDeal | any;
   perspective: DealRowPerspective;
   locale: 'en' | 'ar';
   resolveAvgBuy?: (deal: MerchantDeal | any, normalizedMeta: Record<string, string>) => number;
+  agreements?: { id: string; relationship_id: string; agreement_type: string; operator_ratio?: number | null; operator_contribution?: number | null; lender_contribution?: number | null; operator_merchant_id?: string | null }[];
+  myMerchantId?: string;
 }): DealRowModel {
   const meta = parseDealMeta(deal.notes);
   const mergedMeta: Record<string, unknown> = {
@@ -134,20 +148,76 @@ export function buildDealRowModel({
   const fallbackSplitApplied = partnerPct == null;
   const normalizedPartnerPct = partnerPct ?? 50;
   const merchantPct = 100 - normalizedPartnerPct;
-  const myPct = perspective === 'incoming' ? normalizedPartnerPct : merchantPct;
-  const creatorPct = merchantPct;
 
-  const creatorNet = fullNet == null ? null : fullNet * (creatorPct / 100);
-  const partnerNet = fullNet == null || creatorNet == null ? null : fullNet - creatorNet;
-  const myNet = fullNet == null ? null : (perspective === 'incoming' ? partnerNet : creatorNet);
+  // Detect operator priority agreement — check metadata, then fallback to agreements array
+  let isOperatorPriority = String(mergedMeta.agreement_type || mergedMeta.template || deal.deal_type || '').includes('operator_priority');
+  let operatorRatio = Number(mergedMeta.operator_ratio) || 0;
+  let operatorContribution = Number(mergedMeta.operator_contribution) || 0;
+  let lenderContribution = Number(mergedMeta.lender_contribution) || 0;
+
+  // Fallback: look up operator priority from agreements array when metadata doesn't have it
+  if (!isOperatorPriority && agreements?.length) {
+    const matchedAgr = agreements.find(a =>
+      a.relationship_id === deal.relationship_id && a.agreement_type === 'operator_priority'
+    );
+    if (matchedAgr) {
+      isOperatorPriority = true;
+      operatorRatio = Number(matchedAgr.operator_ratio) || operatorRatio;
+      operatorContribution = Number(matchedAgr.operator_contribution) || operatorContribution;
+      lenderContribution = Number(matchedAgr.lender_contribution) || lenderContribution;
+      if (!mergedMeta.operator_merchant_id && matchedAgr.operator_merchant_id) {
+        mergedMeta.operator_merchant_id = matchedAgr.operator_merchant_id;
+      }
+    }
+  }
+
+  const resolvedOperatorMerchantId = String(mergedMeta.operator_merchant_id || '');
+  const iAmOperatorResolved = resolvedOperatorMerchantId && myMerchantId
+    ? myMerchantId === resolvedOperatorMerchantId
+    : false;
+
+  let creatorNet: number | null;
+  let partnerNet: number | null;
+  let myNet: number | null;
+  let myPct: number | null;
+  let splitLabel: string | null;
+  let operatorFee: number | null = null;
+  let operatorTotal: number | null = null;
+  let lenderTotal: number | null = null;
+
+  if (isOperatorPriority && fullNet != null && fullNet > 0) {
+    const opResult = calculateOperatorPriorityProfit({
+      grossProfit: fullNet,
+      operatorRatio,
+      operatorContribution,
+      lenderContribution,
+    });
+    operatorFee = opResult.operatorFee;
+    operatorTotal = opResult.operatorTotal;
+    lenderTotal = opResult.lenderTotal;
+
+    creatorNet = null; // not meaningful for operator priority
+    partnerNet = null;
+    myNet = iAmOperatorResolved ? opResult.operatorTotal : opResult.lenderTotal;
+    myPct = fullNet > 0 ? ((myNet ?? 0) / fullNet) * 100 : 0;
+    splitLabel = `⚙️ ${operatorRatio}% fee · capital weight`;
+  } else {
+    myPct = perspective === 'incoming' ? normalizedPartnerPct : merchantPct;
+    const creatorPct = merchantPct;
+    creatorNet = fullNet == null ? null : fullNet * (creatorPct / 100);
+    partnerNet = fullNet == null || creatorNet == null ? null : fullNet - creatorNet;
+    myNet = fullNet == null ? null : (perspective === 'incoming' ? partnerNet : creatorNet);
+    splitLabel = `${normalizedPartnerPct}%/${100 - normalizedPartnerPct}%`;
+  }
+
   const margin = myNet != null && volume > 0 ? myNet / volume : null;
 
   const family = getAgreementFamilyLabel(deal.deal_type, locale);
-  const splitLabel = `${normalizedPartnerPct}%/${100 - normalizedPartnerPct}%`;
 
-  const dateLabel = meta.trade_date
-    ? new Date(meta.trade_date).toLocaleDateString()
-    : (deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—');
+  const rawDate = meta.trade_date ? new Date(meta.trade_date) : (deal.created_at ? new Date(deal.created_at) : null);
+  const dateLabel = rawDate
+    ? `${rawDate.getDate()}/${rawDate.getMonth() + 1}/${rawDate.getFullYear()}`
+    : '—';
 
   return {
     meta,
@@ -173,5 +243,11 @@ export function buildDealRowModel({
     fallbackSplitApplied,
     status: String(deal.status || 'pending'),
     dateLabel,
+    isOperatorPriority,
+    operatorFee,
+    operatorTotal,
+    lenderTotal,
+    iAmOperator: iAmOperatorResolved,
+    operatorMerchantId: resolvedOperatorMerchantId,
   };
 }

@@ -2031,6 +2031,10 @@ export type Database = {
         Args: { _message_id: string; _room_id: string; _urgency?: string }
         Returns: number
       }
+      set_merchant_deal_status: {
+        Args: { _deal_id: string; _status: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

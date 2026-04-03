@@ -524,6 +524,8 @@ export function rangeLabel(range: string): string {
   if (range === 'today') return 'Today';
   if (range === '7d') return '7 Days';
   if (range === '30d') return '30 Days';
+  if (range === 'this_month') return 'This Month';
+  if (range === 'last_month') return 'Last Month';
   if (range === 'all') return 'All Time';
   return range;
 }
