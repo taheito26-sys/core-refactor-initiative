@@ -3498,9 +3498,21 @@ export default function OrdersPage() {
                                     const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
                                     const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
                                     const netProfit = rev - fifoCost - (Number(editFee) || 0);
-                                    const opFee = isOp ? netProfit * ((agr as any).operator_ratio ?? 0) / 100 : 0;
-                                    const partnerAmt = isOp ? 0 : netProfit * (agr.partner_ratio / 100);
-                                    const merchantAmt = isOp ? netProfit - opFee : netProfit - partnerAmt;
+                                    let partnerAmt: number;
+                                    let merchantAmt: number;
+                                    if (isOp) {
+                                      const opResult = calculateOperatorPriorityProfit({
+                                        grossProfit: netProfit,
+                                        operatorRatio: (agr as any).operator_ratio ?? 0,
+                                        operatorContribution: (agr as any).operator_contribution ?? 0,
+                                        lenderContribution: (agr as any).lender_contribution ?? 0,
+                                      });
+                                      partnerAmt = opResult.lenderTotal;
+                                      merchantAmt = opResult.operatorTotal;
+                                    } else {
+                                      partnerAmt = netProfit * (agr.partner_ratio / 100);
+                                      merchantAmt = netProfit - partnerAmt;
+                                    }
                                     return (
                                       <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' }}>
                                         <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, marginBottom: 3 }}>
