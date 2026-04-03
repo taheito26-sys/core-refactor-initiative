@@ -28,6 +28,11 @@ export interface DealRowModel {
   fallbackSplitApplied: boolean;
   status: string;
   dateLabel: string;
+  /** true when operator priority agreement — split is by capital weight not fixed pct */
+  isOperatorPriority: boolean;
+  operatorFee: number | null;
+  operatorTotal: number | null;
+  lenderTotal: number | null;
 }
 
 /** Parse pipe-separated key:value metadata from deal.notes */
