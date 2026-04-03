@@ -1404,6 +1404,13 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === tradeId);
     if (!tr) return;
 
+    // Approved trades should go through the cancellation-request confirmation flow,
+    // not immediate server-side cancellation.
+    if (tr.approvalStatus === 'approved') {
+      setCancelTradeId(tradeId);
+      return;
+    }
+
     // If trade has a linked deal, cancel on server
     if (tr.linkedDealId) {
       try {
