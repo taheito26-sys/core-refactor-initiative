@@ -1872,19 +1872,21 @@ export default function OrdersPage() {
             {/* Each party's cut */}
             {row.hasAvgBuy && row.fullNet != null && (
               <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
-            {row.isOperatorPriority && row.operatorFee != null ? (
+            {(() => {
+              const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me');
+              return row.isOperatorPriority && row.operatorFee != null ? (
               <>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 11 }}>
                   ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(row.operatorFee)}</strong>
                 </div>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
-                  📊 {t('operatorGets')}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(row.operatorTotal ?? 0)}</strong>
+                  📊 {names.operatorName} ({t('operatorGets')}): <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(row.operatorTotal ?? 0)}</strong>
                 </div>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
-                  🤝 {t('lenderGets')}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(row.lenderTotal ?? 0)}</strong>
+                  🤝 {names.lenderName} ({t('lenderGets')}): <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(row.lenderTotal ?? 0)}</strong>
                 </div>
               </>
-            ) : (
+              ) : (
               <>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
                   📊 {perspective === 'outgoing' ? t('merchantNetProfit') : t('partnerNetProfit')} ({row.merchantPct}%):
