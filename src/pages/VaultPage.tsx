@@ -361,11 +361,8 @@ export default function VaultPage() {
     }
   };
 
-  const copyGasCode = () => {
-    navigator.clipboard.writeText(GAS_SCRIPT_CODE)
-      .then(() => toast.success('Code copied!'))
-      .catch(() => toast.error('Copy failed — select and copy manually'));
-  };
+
+
 
   // Data export helpers
   const exportJSON = () => {
