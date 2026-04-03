@@ -24,6 +24,8 @@ import type { TrackerState } from '@/lib/tracker-helpers';
 import {
   gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
   getGasLastSync, setGasLastSync, fmtBytes,
+  isCloudLoggedIn, getGasSession, clearCloudSession,
+  cloudLogin, cloudRegister,
   type CloudVersion,
 } from '@/lib/gas-cloud';
 
