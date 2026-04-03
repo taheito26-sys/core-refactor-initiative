@@ -20,7 +20,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { toast } from 'sonner';
 import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
-import { useCreateAllocations, calculateAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
+import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
+import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
@@ -796,15 +797,30 @@ export default function OrdersPage() {
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-          const calc = calculateAllocationEconomics({
-            allocatedUsdt: usdt,
-            merchantCostPerUsdt: costPerUsdt,
-            sellPrice: sell,
-            totalFee: fee,
-            totalUsdt: amountUSDT,
-            family: alloc.family,
-            partnerSharePct: alloc.partnerSharePct,
-          });
+          const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
+          const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
+          const calc = isOpPriority
+            ? calculateOperatorPriorityAllocationEconomics({
+                allocatedUsdt: usdt,
+                merchantCostPerUsdt: costPerUsdt,
+                sellPrice: sell,
+                totalFee: fee,
+                totalUsdt: amountUSDT,
+                family: alloc.family,
+                partnerSharePct: alloc.partnerSharePct,
+                operatorRatio: (selAgreement as any)?.operator_ratio ?? 0,
+                operatorContribution: (selAgreement as any)?.operator_contribution ?? 0,
+                lenderContribution: (selAgreement as any)?.lender_contribution ?? 0,
+              })
+            : calculateAllocationEconomics({
+                allocatedUsdt: usdt,
+                merchantCostPerUsdt: costPerUsdt,
+                sellPrice: sell,
+                totalFee: fee,
+                totalUsdt: amountUSDT,
+                family: alloc.family,
+                partnerSharePct: alloc.partnerSharePct,
+              });
 
           return {
             sale_group_id: saleGroupId,
@@ -1146,9 +1162,21 @@ export default function OrdersPage() {
         // Create settlement period for per_order deals
         if (cadence === 'per_order' && dealData?.id) {
           const netProfit = rev - fifoCost - fee;
-          const partnerAmt = isEditProfitShare
-            ? netProfit * (partnerPct / 100)
-            : rev * (partnerPct / 100);
+          const isEditOpPriority = editAgreement?.agreement_type === 'operator_priority';
+          let partnerAmt: number;
+          if (isEditOpPriority) {
+            const opResult = calculateOperatorPriorityProfit({
+              grossProfit: netProfit,
+              operatorRatio: (editAgreement as any).operator_ratio ?? 0,
+              operatorContribution: (editAgreement as any).operator_contribution ?? 0,
+              lenderContribution: (editAgreement as any).lender_contribution ?? 0,
+            });
+            partnerAmt = opResult.lenderTotal;
+          } else {
+            partnerAmt = isEditProfitShare
+              ? netProfit * (partnerPct / 100)
+              : rev * (partnerPct / 100);
+          }
 
           const { data: periodData } = await supabase.from('settlement_periods').insert({
             deal_id: dealData.id,
@@ -2830,15 +2858,33 @@ export default function OrdersPage() {
 
                               if (!(usdt > 0) || !(sellP > 0)) return null;
 
-                              const calc = calculateAllocationEconomics({
-                                allocatedUsdt: usdt,
-                                merchantCostPerUsdt: costPerUsdt,
-                                sellPrice: sellP,
-                                totalFee,
-                                totalUsdt: salePreview.qty,
-                                family: alloc.family,
-                                partnerSharePct: alloc.partnerSharePct,
-                              });
+                              const selAgr = alloc.agreementId ? relApprovedAgreements.find(a => a.id === alloc.agreementId) : null;
+                              const isOpPriority = selAgr?.agreement_type === 'operator_priority';
+
+                              const calc = isOpPriority
+                                ? calculateOperatorPriorityAllocationEconomics({
+                                    allocatedUsdt: usdt,
+                                    merchantCostPerUsdt: costPerUsdt,
+                                    sellPrice: sellP,
+                                    totalFee,
+                                    totalUsdt: salePreview.qty,
+                                    family: alloc.family,
+                                    partnerSharePct: alloc.partnerSharePct,
+                                    operatorRatio: (selAgr as any)?.operator_ratio ?? 0,
+                                    operatorContribution: (selAgr as any)?.operator_contribution ?? 0,
+                                    lenderContribution: (selAgr as any)?.lender_contribution ?? 0,
+                                  })
+                                : calculateAllocationEconomics({
+                                    allocatedUsdt: usdt,
+                                    merchantCostPerUsdt: costPerUsdt,
+                                    sellPrice: sellP,
+                                    totalFee,
+                                    totalUsdt: salePreview.qty,
+                                    family: alloc.family,
+                                    partnerSharePct: alloc.partnerSharePct,
+                                  });
+
+                              const opCalc = isOpPriority ? (calc as any) : null;
 
                               return (
                                 <div style={{
@@ -2858,13 +2904,18 @@ export default function OrdersPage() {
                                     <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtC(calc.net)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({alloc.merchantSharePct}%):</span>
+                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({isOpPriority ? `${calc.merchantSharePct.toFixed(1)}%` : `${alloc.merchantSharePct}%`}):</span>
                                     <strong className="mono" style={{ color: 'var(--good)' }}>{fmtC(calc.merchantAmount)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({alloc.partnerSharePct}%):</span>
+                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({isOpPriority ? `${calc.partnerSharePct.toFixed(1)}%` : `${alloc.partnerSharePct}%`}):</span>
                                     <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtC(calc.partnerAmount)}</strong>
                                   </div>
+                                  {isOpPriority && opCalc && (
+                                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, borderTop: '1px solid color-mix(in srgb, var(--line) 30%, transparent)', paddingTop: 4 }}>
+                                      ⚙️ Operator Fee: {fmtC(opCalc.operatorFee)} · Capital split: You {fmtC(opCalc.operatorCapitalShare)} / {cpName} {fmtC(opCalc.lenderCapitalShare)}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -3460,9 +3511,21 @@ export default function OrdersPage() {
                                     const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
                                     const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
                                     const netProfit = rev - fifoCost - (Number(editFee) || 0);
-                                    const opFee = isOp ? netProfit * ((agr as any).operator_ratio ?? 0) / 100 : 0;
-                                    const partnerAmt = isOp ? 0 : netProfit * (agr.partner_ratio / 100);
-                                    const merchantAmt = isOp ? netProfit - opFee : netProfit - partnerAmt;
+                                    let partnerAmt: number;
+                                    let merchantAmt: number;
+                                    if (isOp) {
+                                      const opResult = calculateOperatorPriorityProfit({
+                                        grossProfit: netProfit,
+                                        operatorRatio: (agr as any).operator_ratio ?? 0,
+                                        operatorContribution: (agr as any).operator_contribution ?? 0,
+                                        lenderContribution: (agr as any).lender_contribution ?? 0,
+                                      });
+                                      partnerAmt = opResult.lenderTotal;
+                                      merchantAmt = opResult.operatorTotal;
+                                    } else {
+                                      partnerAmt = netProfit * (agr.partner_ratio / 100);
+                                      merchantAmt = netProfit - partnerAmt;
+                                    }
                                     return (
                                       <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' }}>
                                         <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, marginBottom: 3 }}>
