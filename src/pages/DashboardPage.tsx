@@ -148,8 +148,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       const relMap = new Map<string, { merchant_a_id: string; merchant_b_id: string }>();
       for (const r of (rels || [])) relMap.set(r.id, r);
 
-      let outCount = 0, outVol = 0, outNet = 0;
-      let inCount = 0, inVol = 0, inNet = 0;
+      let outCount = 0, outVol = 0, outNet = 0, outMyShare = 0;
+      let inCount = 0, inVol = 0, inNet = 0, inMyShare = 0;
       let pendingCount = 0, approvedCount = 0;
       let totalMyShare = 0, totalPartnerShare = 0;
       const dealDetails: DealDetail[] = [];
@@ -179,9 +179,9 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         }
 
         if (direction === 'outgoing') {
-          outCount++; outVol += vol; outNet += dealNet;
+          outCount++; outVol += vol; outNet += dealNet; outMyShare += myShare;
         } else {
-          inCount++; inVol += vol; inNet += dealNet;
+          inCount++; inVol += vol; inNet += dealNet; inMyShare += myShare;
         }
 
         totalMyShare += myShare;
@@ -203,11 +203,11 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       return {
         totalDeals: activeDeals.length,
-        outCount, outVol, outNet,
-        inCount, inVol, inNet,
+        outCount, outVol, outNet, outMyShare,
+        inCount, inVol, inNet, inMyShare,
         pendingCount, approvedCount,
         totalVol: outVol + inVol,
-        totalNet: outNet + inNet,
+        totalNet: outMyShare + inMyShare,
         totalMyShare, totalPartnerShare,
         dealDetails,
       };
@@ -363,12 +363,12 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount})</span>
-                <span className={`mono ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
-                  {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
+                <span className={`mono ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
+                  {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
                 </span>
               </div>
               <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
-                {t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}
+                {t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.inNet)}
               </div>
             </div>
           )}
@@ -376,8 +376,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           {merchantDealKpis && merchantDealKpis.inCount > 0 && (
             <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
               <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
-              <span className={`mono ${(dR.net + merchantDealKpis.inNet) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                {(dR.net + merchantDealKpis.inNet) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inNet)}
+              <span className={`mono ${(dR.net + merchantDealKpis.inMyShare) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                {(dR.net + merchantDealKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inMyShare)}
               </span>
             </div>
           )}
@@ -626,10 +626,10 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               </span>
             </div>
             <div className="kpi-lbl">{t('outgoingNet')}</div>
-            <div className={`kpi-val ${merchantDealKpis.outNet >= 0 ? 'good' : 'bad'}`}>
-              {merchantDealKpis.outNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outNet)}
+            <div className={`kpi-val ${merchantDealKpis.outMyShare >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.outMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outMyShare)}
             </div>
-            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing').reduce((s, d) => s + d.myShare, 0))}</div>
+            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.outNet)}</div>
           </div>
         )}
 
@@ -642,10 +642,10 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               </span>
             </div>
             <div className="kpi-lbl">{t('incomingNet')}</div>
-            <div className={`kpi-val ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`}>
-              {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet)}
+            <div className={`kpi-val ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
             </div>
-            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0))}</div>
+            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.inNet)}</div>
           </div>
         )}
       </div>
