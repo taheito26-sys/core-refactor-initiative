@@ -1901,7 +1901,8 @@ export default function OrdersPage() {
                   </strong>
                 </div>
               </>
-            )}
+            );
+            })()}
               </div>
             )}
             {/* Chips row */}
