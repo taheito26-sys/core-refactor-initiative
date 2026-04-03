@@ -33,6 +33,10 @@ export interface DealRowModel {
   operatorFee: number | null;
   operatorTotal: number | null;
   lenderTotal: number | null;
+  /** true when the current user is the operator in an operator_priority deal */
+  iAmOperator: boolean;
+  /** operator_merchant_id from agreement/metadata */
+  operatorMerchantId: string;
 }
 
 /** Parse pipe-separated key:value metadata from deal.notes */
