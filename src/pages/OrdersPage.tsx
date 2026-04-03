@@ -49,7 +49,7 @@ const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
 export default function OrdersPage() {
-  const { settings } = useTheme();
+  const { settings, update } = useTheme();
   const { userId, merchantProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
@@ -114,12 +114,14 @@ export default function OrdersPage() {
   // ─── Merchant-Linked Trade (Trade-Centric) ────────────────────────
   const [relationships, setRelationships] = useState<MerchantRelationship[]>([]);
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
+  const [merchantUserIds, setMerchantUserIds] = useState<string[]>([]);
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
 
 
   // Capital Transfer state
@@ -234,12 +236,17 @@ export default function OrdersPage() {
           .eq('status', 'active')
           .or(`merchant_a_id.eq.${myMerchantId},merchant_b_id.eq.${myMerchantId}`),
         supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
-        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
+        supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname, merchant_code'),
       ]);
 
       const profileMap = new Map(
         (profilesRes.data || []).map(p => [p.merchant_id, p])
       );
+      const myMerchantUsers = (profilesRes.data || [])
+        .filter(p => p.merchant_id === myMerchantId)
+        .map(p => p.user_id)
+        .filter(Boolean);
+      setMerchantUserIds(Array.from(new Set(myMerchantUsers)));
 
       const enrichedRels = (relsRes.data || []).map(r => {
         const cpId = r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id;
@@ -307,6 +314,17 @@ export default function OrdersPage() {
     applyState(next);
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
+  useEffect(() => {
+    if (selectedMonth === 'all' && settings.range !== 'all') {
+      setSelectedMonth(currentMonthKey);
+    }
+  }, [selectedMonth, settings.range, currentMonthKey]);
+
+  const selectAllMonths = useCallback(() => {
+    setSelectedMonth('all');
+    if (settings.range !== 'all') update({ range: 'all' });
+  }, [settings.range, update]);
+
   const wacop = getWACOP(derived);
   /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
   const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
@@ -324,6 +342,11 @@ export default function OrdersPage() {
       .map(d => parseDealMeta(d.notes).local_trade)
       .filter(Boolean)
   ), [allMerchantDeals]);
+  const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
+  const isCreatorInMyMerchant = useCallback((creatorUserId: string) => {
+    if (merchantUserIds.length === 0) return creatorUserId === userId;
+    return merchantUserIds.includes(creatorUserId);
+  }, [merchantUserIds, userId]);
 
   // Sync: void local trades whose server-side deals are cancelled/rejected/voided
   // This ensures computeFIFO never consumes stock for dead deals
@@ -397,17 +420,19 @@ export default function OrdersPage() {
   }, [allMerchantDeals, state, applyState]);
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
+  const effectiveRange = selectedMonth === 'all' ? 'all' : state.range;
+
   const list = useMemo(() => allTrades.filter(t => {
-    if (!inRange(t.ts, state.range)) return false;
+    if (!inRange(t.ts, effectiveRange)) return false;
     if (t.approvalStatus === 'cancelled' || t.voided) return false;
     if (t.linkedDealId && cancelledDealIds.has(t.linkedDealId)) return false;
     if (cancelledLocalTradeIds.has(t.id)) return false;
     if ((t.approvalStatus === 'pending_approval' || t.approvalStatus === 'approved' || t.approvalStatus === 'rejected') && !t.linkedDealId) {
-      const matchedServerDeal = allMerchantDeals.some(d => parseDealMeta(d.notes).local_trade === t.id && d.created_by === userId && d.status !== 'cancelled' && (d.status as string) !== 'voided');
+      const matchedServerDeal = allMerchantDeals.some(d => parseDealMeta(d.notes).local_trade === t.id && isCreatorInMyMerchant(d.created_by) && d.status !== 'cancelled' && (d.status as string) !== 'voided');
       if (!matchedServerDeal) return false;
     }
     return true;
-  }), [allTrades, state.range, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, userId]);
+  }), [allTrades, effectiveRange, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, isCreatorInMyMerchant]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
@@ -418,21 +443,30 @@ export default function OrdersPage() {
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
-    const curMonthKey = new Date().toISOString().slice(0, 7);
-    months.add(curMonthKey); // Always include current month
+    months.add(currentMonthKey); // Always include current month
 
-    filtered.forEach(t => {
+    allTrades.forEach(t => {
+      if (t.approvalStatus === 'cancelled' || t.voided) return;
+      if (t.linkedDealId && cancelledDealIds.has(t.linkedDealId)) return;
+      if (cancelledLocalTradeIds.has(t.id)) return;
       const d = new Date(t.ts);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       months.add(key);
     });
+    allMerchantDeals
+      .filter(isDealVisible)
+      .forEach(d => {
+        const date = new Date(d.created_at);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        months.add(key);
+      });
     allTransfers.forEach(tx => {
       const d = new Date(tx.created_at);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       months.add(key);
     });
     return Array.from(months).sort().reverse();
-  }, [filtered, allTransfers]);
+  }, [allTrades, allMerchantDeals, allTransfers, cancelledDealIds, cancelledLocalTradeIds, currentMonthKey]);
 
   const subFilteredMy = useMemo(() => {
     if (selectedMonth === 'all') return filtered;
@@ -511,24 +545,23 @@ export default function OrdersPage() {
     return () => window.clearTimeout(timer);
   }, [searchParams, activeTab, filtered.length, allMerchantDeals.length, allTransfers.length]);
 
-  const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId && isDealVisible(d)),
-    [allMerchantDeals, userId],
+    () => allMerchantDeals.filter(d => !isCreatorInMyMerchant(d.created_by) && isDealVisible(d)),
+    [allMerchantDeals, isCreatorInMyMerchant],
   );
   // Outgoing: deals I created (server-authoritative)
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId && isDealVisible(d)),
-    [allMerchantDeals, userId],
+    () => allMerchantDeals.filter(d => isCreatorInMyMerchant(d.created_by) && isDealVisible(d)),
+    [allMerchantDeals, isCreatorInMyMerchant],
   );
   const filteredIncomingMerchantDeals = useMemo(
-    () => partnerMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), state.range)),
-    [partnerMerchantDeals, state.range],
+    () => partnerMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), effectiveRange)),
+    [partnerMerchantDeals, effectiveRange],
   );
   const filteredOutgoingMerchantDeals = useMemo(
-    () => creatorMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), state.range)),
-    [creatorMerchantDeals, state.range],
+    () => creatorMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), effectiveRange)),
+    [creatorMerchantDeals, effectiveRange],
   );
 
   const subFilteredInDeals = useMemo(() => {
@@ -1693,11 +1726,11 @@ export default function OrdersPage() {
         <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span className="muted">{t('merchant')}</span>
-            <strong style={{ fontSize: 11, textAlign: 'right' }}>{merchantName}</strong>
+            <strong style={{ fontSize: 11, textAlign: 'right', maxWidth: '62%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{merchantName}</strong>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span className="muted">{t('buyer')}</span>
-            <strong style={{ fontSize: 11, textAlign: 'right' }}>{row.buyer || '—'}</strong>
+            <strong style={{ fontSize: 11, textAlign: 'right', maxWidth: '62%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.buyer || '—'}</strong>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
             <div className="panel" style={{ padding: 6 }}>
@@ -1722,8 +1755,13 @@ export default function OrdersPage() {
             {!row.hasAvgBuy ? (
               <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
             ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
-              <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, maxWidth: '64%' }}>
+                <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
+                  {row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}
+                </span>
+                <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11, textAlign: 'right' }}>
+                  {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+                </span>
               </span>
             ) : (
               <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
@@ -1835,7 +1873,7 @@ export default function OrdersPage() {
                 }}
               >
                 <button
-                  onClick={() => setSelectedMonth('all')}
+                  onClick={selectAllMonths}
                   className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
                   style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
                 >
@@ -1969,7 +2007,7 @@ export default function OrdersPage() {
                 }}
               >
                 <button
-                  onClick={() => setSelectedMonth('all')}
+                  onClick={selectAllMonths}
                   className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
                   style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
                 >
@@ -2119,7 +2157,7 @@ export default function OrdersPage() {
                 }}
               >
                 <button
-                  onClick={() => setSelectedMonth('all')}
+                  onClick={selectAllMonths}
                   className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
                   style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
                 >
@@ -2260,7 +2298,7 @@ export default function OrdersPage() {
                 }}
               >
                 <button
-                  onClick={() => setSelectedMonth('all')}
+                  onClick={selectAllMonths}
                   className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
                   style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
                 >
