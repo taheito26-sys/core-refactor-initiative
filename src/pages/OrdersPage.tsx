@@ -2184,7 +2184,8 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={deal.id} id={`deal-${deal.id}`} data-deal-id={deal.id}>
+                          <React.Fragment key={deal.id}>
+                          <tr id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             {/* DATE cell — identical layout to Outgoing: date + status pill + deal-type pill + split pill */}
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -2227,6 +2228,9 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
+                                <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [`deal-${deal.id}`]: !prev[`deal-${deal.id}`] }))}>
+                                  {detailsOpen[`deal-${deal.id}`] ? t('hideDetails') : t('details')}
+                                </button>
                                 {deal.status === 'pending' && (
                                   <>
                                     <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
@@ -2242,6 +2246,36 @@ export default function OrdersPage() {
                               </div>
                             </td>
                           </tr>
+                          {detailsOpen[`deal-${deal.id}`] && (
+                            <tr><td colSpan={10} style={{ padding: 8 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
+                                <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>
+                                {row.fee > 0 && <span className="pill">{t('fee')} {fmtC(row.fee)}</span>}
+                                {row.hasAvgBuy && row.cost > 0 && <span className="pill">{t('cost')} {fmtC(row.cost)}</span>}
+                                <span className={`pill ${row.fullNet != null ? (row.fullNet >= 0 ? 'good' : 'bad') : ''}`}>
+                                  {t('net')} {row.fullNet != null ? `${row.fullNet >= 0 ? '+' : ''}${fmtC(row.fullNet)}` : '—'}
+                                </span>
+                              </div>
+                              {row.hasAvgBuy && row.fullNet != null && (
+                                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                  {row.isOperatorPriority && row.operatorFee != null ? (
+                                    <>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)' }}>{fmtC(row.operatorFee)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('operatorGets')}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('lenderGets')}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </td></tr>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
