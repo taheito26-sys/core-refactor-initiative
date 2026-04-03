@@ -145,6 +145,7 @@ async function clearTrackerVaultDb(): Promise<void> {
 export default function VaultPage() {
   const t = useT();
   const navigate = useNavigate();
+  const { email, userId, merchantProfile } = useAuth();
 
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [snapDesc, setSnapDesc] = useState('');
@@ -157,19 +158,25 @@ export default function VaultPage() {
 
   // ── Ring 2 Cloud Vault State ──
   const [cloudLoggedIn, setCloudLoggedIn] = useState(false);
-  const [cloudEmail, setCloudEmail] = useState('');
-  const [cloudPassword, setCloudPassword] = useState('');
-  const [cloudAuthMode, setCloudAuthMode] = useState<'login' | 'register'>('login');
   const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudLabel, setCloudLabel] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
 
-  // Init cloud config — URL is built-in, always connected
+  // Auto-authenticate with GAS using Google session
   useEffect(() => {
     gasLoadConfig();
-    setCloudLoggedIn(isCloudLoggedIn());
-  }, []);
+    if (isCloudLoggedIn()) {
+      setCloudLoggedIn(true);
+      return;
+    }
+    // Auto-login using the user's Google credentials
+    if (email && userId) {
+      autoAuthenticateCloud(email, userId, merchantProfile?.display_name || undefined)
+        .then(ok => setCloudLoggedIn(ok))
+        .catch(() => setCloudLoggedIn(false));
+    }
+  }, [email, userId, merchantProfile?.display_name]);
 
   const loadSnaps = useCallback(async () => {
     try {
