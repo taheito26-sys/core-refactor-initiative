@@ -32,6 +32,7 @@ import AdminPage from "./pages/admin/AdminPage";
 // Core pages (exact repo copies)
 import DashboardPage from './pages/DashboardPage';
 import OrdersPage from './pages/OrdersPage';
+import OrdersImportLedgerPage from './pages/OrdersImportLedgerPage';
 import StockPage from './pages/StockPage';
 import P2PTrackerPage from './pages/P2PTrackerPage';
 import VaultPage from './pages/VaultPage';
@@ -221,6 +222,7 @@ const App = () => (
                   {/* Trading */}
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/trading/orders" element={<OrdersPage />} />
+                  <Route path="/trading/orders/import-ledger" element={<OrdersImportLedgerPage />} />
                   <Route path="/trading/stock" element={<StockPage />} />
                   <Route path="/trading/calendar" element={<CalendarPage />} />
                   <Route path="/trading/p2p" element={<P2PTrackerPage />} />

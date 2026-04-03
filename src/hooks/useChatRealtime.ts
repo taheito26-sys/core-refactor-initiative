@@ -81,7 +81,7 @@ export function useChatRealtime({ relationshipIds }: RealtimeOptions) {
             playNotificationSound();
             showBrowserNotification(
               'New message',
-              msg.content.startsWith('||VOICE||') ? '🎤 Voice message' : msg.content.slice(0, 80)
+              { body: msg.content.startsWith('||VOICE||') ? '🎤 Voice message' : msg.content.slice(0, 80) }
             );
           }
         }

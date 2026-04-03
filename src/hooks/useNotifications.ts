@@ -34,7 +34,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     queryFn: async (): Promise<Notification[]> => {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id, title, body, category, read_at, created_at, conversation_id, message_id, entity_type, entity_id, anchor_id, action_url, dedupe_key, sender_id')
+        .select('id, title, body, category, read_at, created_at, conversation_id, message_id, entity_type, entity_id, anchor_id, actor_id, target_path, target_tab, target_focus, target_entity_type, target_entity_id')
         .eq('user_id', userId!)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -98,6 +98,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   const unreadByCategory = useMemo(() => {
     const counts: Record<NotificationCategoryGroup, number> = {
       all: unreadNotificationCount,
+      agreement: 0,
       approval: 0,
       deal: 0,
       invite: 0,

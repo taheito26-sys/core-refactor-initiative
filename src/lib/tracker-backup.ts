@@ -114,7 +114,7 @@ export function loadAutoBackupFromStorage(storage: Storage): boolean {
     if (value === 'true') return true;
     if (value === 'false') return false;
   }
-  return false;
+  return true;
 }
 
 export function saveAutoBackupToStorage(storage: Storage, value: boolean): void {

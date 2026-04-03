@@ -1,23 +1,16 @@
-import type { QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
+import { DeterministicResult, fail, ok, ChatRoom } from '@/features/chat/lib/types';
+import { QueryClient } from '@tanstack/react-query';
 
-export async function getRooms(): Promise<DeterministicResult<any[]>> {
+export async function getRooms(): Promise<DeterministicResult<ChatRoom[]>> {
   try {
-    const { data, error } = await (supabase as any)
-      .from('chat_room_summary_v')
+    // We query the new room summary view which handles unread counts and last messages
+    const { data, error } = await supabase
+      .from('chat_room_summary_v' as any)
       .select('*')
       .order('last_message_at', { ascending: false });
     
-    if (error) {
-      console.warn('chat_room_summary_v missing, falling back to os_rooms');
-      const { data: tableData, error: tableError } = await supabase
-        .from('os_rooms')
-        .select('*')
-        .order('updated_at', { ascending: false });
-      if (tableError) throw tableError;
-      return ok((tableData ?? []).map(normalizeRoom));
-    }
+    if (error) throw error;
     
     return ok((data ?? []).map(normalizeRoom));
   } catch (error) {
@@ -25,63 +18,51 @@ export async function getRooms(): Promise<DeterministicResult<any[]>> {
   }
 }
 
-function normalizeRoom(r: any) {
+function normalizeRoom(r: any): ChatRoom {
   return {
-    ...r,
-    room_id: r.id ?? r.room_id,
-    title: r.name ?? r.title ?? 'Room',
-    name: r.name ?? r.title ?? 'Room',
-    last_message_body: r.last_message_content ?? r.last_message_body ?? '',
-    unread_count: Number(r.unread_count ?? r.unread_messages ?? r.unread_total ?? 0),
+    room_id: r.id,
     kind: r.type === 'standard' ? 'direct' : 'group',
-    lane: r.lane ?? 'Personal',
-    updated_at: r.last_message_at ?? r.updated_at ?? new Date().toISOString(),
+    lane: (r.lane as any) || 'Personal',
+    title: r.name || 'Secure Channel',
+    relationship_id: r.relationship_id || null,
+    member_role: r.member_role || 'member',
+    unread_count: Number(r.unread_count || 0),
+    last_message_id: r.last_message_id || null,
+    last_message_body: r.last_message_content || '',
+    last_message_at: r.last_message_at || null,
+    updated_at: r.updated_at || new Date().toISOString(),
+    security_policies: r.security_policies,
+    retention_policy: r.retention_policy,
+    type: r.type,
   };
 }
 
 export async function createRoom(input: {
-  title: string;
-  type?: string;
-  lane?: string;
-  orderId?: string;
-}): Promise<DeterministicResult<any | null>> {
+  name: string;
+  type: string;
+  lane: string;
+  members: string[];
+}): Promise<DeterministicResult<string | null>> {
   try {
-    const { data, error } = await supabase
-      .from('os_rooms')
-      .insert({
-        name: input.title,
-        type: input.type || 'standard',
-        lane: input.lane || 'Personal',
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    return ok(data);
-  } catch (error) {
-    return fail(null, error);
-  }
-}
-
-
-export async function getOrCreateDirectRoom(counterpartyMerchantId: string, roomTitle?: string | null): Promise<DeterministicResult<string | null>> {
-  try {
-    const { data, error } = await (supabase.rpc as any)('fn_chat_get_or_create_direct_room', {
-      _counterparty_merchant_id: counterpartyMerchantId,
-      _room_title: roomTitle ?? null,
+    const { data, error } = await (supabase.rpc as any)('fn_chat_create_room', {
+      _name: input.name,
+      _type: input.type,
+      _lane: input.lane,
+      _member_merchant_ids: input.members
     });
     if (error) throw error;
-    return ok((data as string) ?? null);
+    return ok(data as string);
   } catch (error) {
     return fail(null, error);
   }
 }
 
-
-export function setRoomUnreadCountInCache(queryClient: QueryClient, roomId: string, nextCount: number) {
-  queryClient.setQueryData(['chat', 'rooms'], (prev: any[] | undefined) => {
-    if (!prev) return prev;
-    return prev.map((room) => (String(room.room_id || room.id) === String(roomId)
-      ? { ...room, unread_count: Math.max(0, nextCount) }
-      : room));
+/**
+ * Manually updates the unread count for a room in the React Query cache.
+ */
+export function setRoomUnreadCountInCache(qc: QueryClient, roomId: string, count: number) {
+  qc.setQueryData(['chat', 'rooms'], (old: ChatRoom[] | undefined) => {
+    if (!old) return old;
+    return old.map(r => r.room_id === roomId ? { ...r, unread_count: count } : r);
   });
 }

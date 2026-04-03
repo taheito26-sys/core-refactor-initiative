@@ -71,8 +71,8 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const [findStatus, setFindStatus] = useState<'idle' | 'searching' | 'found' | 'not_found' | 'already_connected'>('idle');
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
-  const { data: settlementOverview } = useSettlementOverview();
-  const { data: allAgreements = [] } = useProfitShareAgreements();
+  const { data: settlementOverview } = useSettlementOverview(adminMerchantId);
+  const { data: allAgreements = [] } = useProfitShareAgreements(undefined, adminMerchantId);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);

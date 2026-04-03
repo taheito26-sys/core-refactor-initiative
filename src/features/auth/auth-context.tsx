@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isMounted) return;
 
       // Handle Dev Mode Bypass
-      if (localStorage.getItem('p2p_dev_mode') === 'true') {
+      if (localStorage.getItem('p2p_dev_mode') === 'true' || import.meta.env.DEV) {
         const mockUser: User = {
           id: '00000000-0000-0000-0000-000000000000',
           email: 'dev@local.test',

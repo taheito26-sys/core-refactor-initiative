@@ -11,14 +11,26 @@ const AGREEMENTS_KEY = 'profit-share-agreements';
 
 // ─── Query: Fetch agreements ─────────────────────────────────────────
 
-export function useProfitShareAgreements(relationshipId?: string) {
+export function useProfitShareAgreements(relationshipId?: string, overrideMerchantId?: string) {
   const { merchantProfile } = useAuth();
   const qc = useQueryClient();
 
   const query = useQuery({
-    queryKey: [AGREEMENTS_KEY, relationshipId],
+    queryKey: [AGREEMENTS_KEY, relationshipId, overrideMerchantId],
     queryFn: async (): Promise<ProfitShareAgreement[]> => {
       try {
+        // If scoping to a specific merchant (admin inspection), first get their relationship IDs
+        let scopedRelIds: string[] | null = null;
+        if (overrideMerchantId && !relationshipId) {
+          const { data: rels } = await supabase
+            .from('merchant_relationships')
+            .select('id')
+            .or(`merchant_a_id.eq.${overrideMerchantId},merchant_b_id.eq.${overrideMerchantId}`)
+            .eq('status', 'active');
+          scopedRelIds = (rels || []).map((r: any) => r.id);
+          if (scopedRelIds.length === 0) return [];
+        }
+
         let q = supabase
           .from('profit_share_agreements' as any)
           .select('*')
@@ -26,11 +38,12 @@ export function useProfitShareAgreements(relationshipId?: string) {
 
         if (relationshipId) {
           q = q.eq('relationship_id', relationshipId);
+        } else if (scopedRelIds) {
+          q = q.in('relationship_id', scopedRelIds);
         }
 
         const { data, error } = await q;
         if (error) {
-          // Table may not exist yet — return empty gracefully
           console.warn('[useProfitShareAgreements] Query error (table may not exist):', error.message);
           return [];
         }
@@ -40,7 +53,7 @@ export function useProfitShareAgreements(relationshipId?: string) {
         return [];
       }
     },
-    enabled: !!merchantProfile?.merchant_id,
+    enabled: !!merchantProfile?.merchant_id || !!overrideMerchantId,
   });
 
   // Real-time subscription
@@ -123,6 +136,8 @@ interface CreateAgreementInput {
   partner_ratio: number;
   merchant_ratio: number;
   settlement_cadence: 'monthly' | 'weekly' | 'per_order';
+  invested_capital?: number | null;
+  settlement_way?: 'reinvest' | 'withdraw' | null;
   effective_from: string;
   expires_at?: string | null;
   notes?: string | null;
@@ -136,7 +151,20 @@ interface CreateAgreementInput {
   // Monthly profit handling defaults
   operator_default_profit_handling?: string;
   counterparty_default_profit_handling?: string;
+  status?: AgreementStatus;
 }
+
+const isSchemaCacheColumnError = (error: unknown): boolean => {
+  const message = (error as { message?: string } | null)?.message?.toLowerCase() ?? '';
+  return message.includes('schema cache') && message.includes('profit_share_agreements');
+};
+
+const stripSharedAgreementFields = <T extends Record<string, unknown>>(input: T): T => {
+  const sanitized = { ...input };
+  delete sanitized.invested_capital;
+  delete sanitized.settlement_way;
+  return sanitized;
+};
 
 export function useCreateAgreement() {
   const { userId } = useAuth();
@@ -144,17 +172,31 @@ export function useCreateAgreement() {
 
   return useMutation({
     mutationFn: async (input: CreateAgreementInput) => {
+      const fullPayload = {
+        ...input,
+        status: input.status || 'pending',
+        created_by: userId!,
+        // Approved fields should ONLY be set if the status is transition to 'approved'
+        approved_by: input.status === 'approved' ? userId! : null,
+        approved_at: input.status === 'approved' ? new Date().toISOString() : null,
+      };
+
       const { data, error } = await supabase
         .from('profit_share_agreements' as any)
-        .insert({
-          ...input,
-          status: 'approved', // Default to approved (bilateral acceptance)
-          created_by: userId!,
-          approved_by: userId!,
-          approved_at: new Date().toISOString(),
-        })
+        .insert(fullPayload)
         .select('*')
         .single();
+
+      if (error && isSchemaCacheColumnError(error)) {
+        console.warn('[useCreateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
+        const { data: legacyData, error: legacyError } = await supabase
+          .from('profit_share_agreements' as any)
+          .insert(stripSharedAgreementFields(fullPayload))
+          .select('*')
+          .single();
+        if (legacyError) throw legacyError;
+        return legacyData as unknown as ProfitShareAgreement;
+      }
 
       if (error) throw error;
       return data as unknown as ProfitShareAgreement;
@@ -164,6 +206,47 @@ export function useCreateAgreement() {
     },
   });
 }
+
+// ─── Mutation: Edit agreement terms ───────────────────────────────────
+
+interface UpdateAgreementInput extends Partial<CreateAgreementInput> {
+  agreementId: string;
+}
+
+export function useUpdateAgreement() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ agreementId, ...updates }: UpdateAgreementInput) => {
+      const { data, error } = await supabase
+        .from('profit_share_agreements' as any)
+        .update(updates)
+        .eq('id', agreementId)
+        .select('*')
+        .single();
+
+      if (error && isSchemaCacheColumnError(error)) {
+        console.warn('[useUpdateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
+        const { data: legacyData, error: legacyError } = await supabase
+          .from('profit_share_agreements' as any)
+          .update(stripSharedAgreementFields(updates as Record<string, unknown>))
+          .eq('id', agreementId)
+          .select('*')
+          .single();
+        if (legacyError) throw legacyError;
+        return legacyData as unknown as ProfitShareAgreement;
+      }
+
+      if (error) throw error;
+      return data as unknown as ProfitShareAgreement;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [AGREEMENTS_KEY] });
+    },
+  });
+}
+
+
 
 // ─── Mutation: Update agreement status ───────────────────────────────
 
