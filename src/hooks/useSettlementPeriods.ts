@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { generatePeriods, computePeriodStatus, type Cadence, type PeriodStatus } from '@/lib/settlement-periods';
+import { useAuth } from '@/features/auth/auth-context';
+import { calculateAgreementAllocation } from '@/lib/deal-engine';
 
 export interface SettlementPeriod {
   id: string;
@@ -67,6 +69,7 @@ export function useSettlementPeriods(relationshipId: string) {
  */
 export function useSyncSettlementPeriods(relationshipId: string) {
   const qc = useQueryClient();
+  const { merchantProfile } = useAuth();
 
   return useMutation({
     mutationFn: async (input: {
@@ -109,9 +112,21 @@ export function useSyncSettlementPeriods(relationshipId: string) {
 
         let partnerPct = 0;
         if (dealMeta?.notes) {
-          // Parse partner ratio from notes field (e.g. "partner_ratio: 50")
-          const ratioMatch = dealMeta.notes.match(/(?:partner_ratio|counterparty_share_pct):\s*(\d+)/);
+          const ratioMatch = (dealMeta.notes as string).match(/(?:partner_ratio|counterparty_share_pct):\s*(\d+)/);
           if (ratioMatch) partnerPct = Number(ratioMatch[1]);
+        }
+
+        let agreement: any = null;
+        // Parse agreement ID from pipe-separated notes metadata
+        const agreementIdMatch = dealMeta?.notes ? (dealMeta.notes as string).match(/profit_share_agreement_id:\s*([a-f0-9-]+)/) : null;
+        const agreementId = agreementIdMatch ? agreementIdMatch[1] : null;
+        if (agreementId) {
+          const { data: agr } = await supabase
+            .from('profit_share_agreements' as any)
+            .select('*')
+            .eq('id', agreementId)
+            .single();
+          agreement = agr;
         }
 
         for (const period of periods) {
@@ -135,9 +150,22 @@ export function useSyncSettlementPeriods(relationshipId: string) {
             netProfit += calc?.ok ? calc.netQAR : (rev - cost - t.feeQAR);
           }
 
-          const allocationBase = dealMeta?.deal_type === 'partnership' ? netProfit : grossVolume;
-          const partnerAmount = allocationBase * (partnerPct / 100);
-          const merchantAmount = allocationBase - partnerAmount;
+          const allocationBase = (dealMeta as any)?.deal_type === 'partnership' ? netProfit : grossVolume;
+          let partnerAmount = allocationBase * (partnerPct / 100);
+          let merchantAmount = allocationBase - partnerAmount;
+
+          if (agreement) {
+            const isOperator = agreement.operator_merchant_id === merchantProfile?.merchant_id;
+            const alloc = calculateAgreementAllocation(
+              agreement,
+              grossVolume,
+              totalCost,
+              totalFees,
+              { isOperator },
+            );
+            partnerAmount = alloc.partnerAmount;
+            merchantAmount = alloc.merchantAmount;
+          }
 
           const ep = existingMap.get(period.key);
 

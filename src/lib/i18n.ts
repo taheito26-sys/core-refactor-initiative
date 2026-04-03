@@ -133,6 +133,12 @@ const translations = {
   totalNet: { en: 'Total Net', ar: 'صافي الإجمالي' },
   editTrade: { en: 'Edit Trade', ar: 'تعديل الصفقة' },
   void: { en: 'VOID', ar: 'ملغاة' },
+  allMonths: { en: 'All Months', ar: 'جميع الشهور' },
+  importLedger: { en: 'Import Ledger', ar: 'استيراد السجل' },
+  thisMonth: { en: 'This Month', ar: 'هذا الشهر' },
+  lastMonth: { en: 'Last Month', ar: 'الشهر الماضي' },
+
+
 
   // ── Orders extended ──
   fifoCostBasisMargin: { en: 'FIFO cost basis · margin bar', ar: 'أساس تكلفة FIFO · شريط الهامش' },
@@ -1099,6 +1105,7 @@ const translations = {
   agreementCreatedSuccess: { en: 'Profit Share agreement created', ar: 'تم إنشاء اتفاقية تقاسم الأرباح' },
   ratioValidation: { en: 'Partner ratio must be between 1 and 99', ar: 'يجب أن تكون حصة الشريك بين 1 و99' },
   agreementRejectedSuccess: { en: 'Agreement rejected', ar: 'تم رفض الاتفاقية' },
+  agreementApprovedSuccess: { en: 'Agreement approved', ar: 'تم الموافقة على الاتفاقية' },
   agreementExpiredSuccess: { en: 'Agreement expired', ar: 'تم إنهاء الاتفاقية' },
   activeAgreementsLabel: { en: 'Active Agreements', ar: 'الاتفاقيات النشطة' },
   expiredAgreementsLabel: { en: 'Expired', ar: 'المنتهية' },
@@ -1110,6 +1117,34 @@ const translations = {
   expireAction: { en: 'Expire', ar: 'إنهاء' },
   rejectAction: { en: 'Reject', ar: 'رفض' },
   wasEffective: { en: 'Was Effective', ar: 'كان سارياً' },
+  viewDetailsAction: { en: 'View', ar: 'عرض' },
+  simulatorTitle: { en: 'What-If Simulator', ar: 'محاكاة ماذا لو' },
+  simGrossProfit: { en: 'Gross Profit (USDT)', ar: 'الربح الإجمالي (USDT)' },
+  simOperatorFee: { en: 'Operator Fee', ar: 'رسوم المشغّل' },
+  simRemainingProfit: { en: 'Remaining Profit', ar: 'الربح المتبقي' },
+  simCapitalSplit: { en: 'Capital Split', ar: 'تقسيم رأس المال' },
+  simTotalEarnings: { en: 'Total Earnings', ar: 'إجمالي الأرباح' },
+  simReinvestedCapital: { en: 'Reinvested Capital', ar: 'رأس المال المعاد استثماره' },
+  simWithdrawn: { en: 'Withdrawn', ar: 'مسحوب' },
+  simNewCapitalBase: { en: 'New Total Capital Base', ar: 'إجمالي قاعدة رأس المال الجديدة' },
+  simCapitalProjection: { en: 'Capital Projection', ar: 'توقعات رأس المال' },
+  simTotalInvestedCapital: { en: 'Total Invested Capital', ar: 'إجمالي رأس المال المستثمر' },
+  simCurrentCapital: { en: 'Current Capital', ar: 'رأس المال الحالي' },
+  simConversionRate: { en: 'USDT → QAR Rate', ar: 'سعر USDT → QAR' },
+  simFifoRate: { en: 'FIFO Avg Buy', ar: 'متوسط شراء FIFO' },
+  simQarEquivalent: { en: 'QAR Equivalent', ar: 'المعادل بالريال' },
+  simPartnerShare: { en: 'Partner Share', ar: 'حصة الشريك' },
+  simMyShare: { en: 'My Share', ar: 'حصتي' },
+  agreementDetails: { en: 'Agreement Details', ar: 'تفاصيل الاتفاقية' },
+  simEnterProfit: { en: 'Enter a hypothetical profit to simulate distribution', ar: 'أدخل ربحاً افتراضياً لمحاكاة التوزيع' },
+  simType: { en: 'Type', ar: 'النوع' },
+  simSettlementCadence: { en: 'Settlement Cadence', ar: 'دورة التسوية' },
+  simEffectiveFrom: { en: 'Effective From', ar: 'ساري من' },
+  simInvestedCapital: { en: 'Invested Capital', ar: 'رأس المال المستثمر' },
+  simDefaultHandling: { en: 'Default Handling', ar: 'المعالجة الافتراضية' },
+  simOperator: { en: 'Operator', ar: 'المشغّل' },
+  simLender: { en: 'Lender', ar: 'المموّل' },
+  simWeight: { en: 'Weight', ar: 'الوزن' },
 
   // ── Onboarding ──
   onboardTitle: { en: 'Set Up Your Merchant Profile', ar: 'إعداد ملفك التجاري' },
@@ -1285,6 +1320,7 @@ const translations = {
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },
   accTypeBank:           { en: 'Bank Account',                 ar: 'حساب بنكي' },
   accTypeVault:          { en: 'Vault / Safe',                 ar: 'خزنة / صندوق' },
+  accTypeMerchant:       { en: 'Merchant Custody',              ar: 'حفظ التاجر' },
 
   // Ledger entry types
   ledgerOpening:         { en: 'Opening Balance',              ar: 'الرصيد الافتتاحي' },
@@ -1296,6 +1332,15 @@ const translations = {
   ledgerStockRefund:     { en: 'Stock Refund',                 ar: 'استرداد مخزون' },
   ledgerEditAdjust:      { en: 'Batch Edit Adjust',            ar: 'تعديل دفعة' },
   ledgerReconcile:       { en: 'Reconciliation',               ar: 'تسوية حساب' },
+  ledgerMerchantFundingOut:     { en: 'Funding Merchant',      ar: 'تمويل التاجر' },
+  ledgerMerchantFundingReturn:  { en: 'Funding Return',        ar: 'إرجاع التمويل' },
+  ledgerMerchantSaleProceeds:   { en: 'Sale Proceeds',         ar: 'عائدات البيع' },
+  ledgerMerchantSettlementIn:   { en: 'Settlement In',         ar: 'تسوية واردة' },
+  ledgerMerchantSettlementOut:  { en: 'Settlement Out',        ar: 'تسوية صادرة' },
+  ledgerMerchantFee:            { en: 'Merchant Fee',          ar: 'رسوم التاجر' },
+  ledgerMerchantAdjustment:     { en: 'Merchant Adjustment',   ar: 'تعديل التاجر' },
+  fundMerchant:          { en: 'Fund',                         ar: 'تمويل' },
+  settleBack:            { en: 'Settle',                       ar: 'تسوية' },
 
   // Add / Edit account modal
   addCashAccount:        { en: '➕ Add Cash Account',          ar: '➕ إضافة حساب نقدي' },
@@ -1368,6 +1413,9 @@ const translations = {
   confirmReconcile:      { en: 'Confirm Reconcile',            ar: 'تأكيد التسوية' },
   in24h:                 { en: 'in 24h',                       ar: 'خلال 24س' },
   lastActivity:          { en: 'Last',                         ar: 'آخر' },
+  clearLedger:           { en: 'Clear Ledger',                 ar: 'حذف السجل' },
+  confirmClearLedger:    { en: 'Are you sure you want to clear the ledger for this account? This will remove ALL entries and reset the balance to zero. This action cannot be undone.', ar: 'هل أنت متأكد من حذف سجل العمليات لهذا الحساب؟ سيتم حذف جميع الحركات المالية وتصفير الرصيد. لا يمكن التراجع عن هذا الإجراء.' },
+  clearBtn:              { en: 'Clear',                        ar: 'تصفير' },
 
   // Ledger tab
   allAccountsOpt:        { en: 'All Accounts',                 ar: 'جميع الحسابات' },
@@ -1483,6 +1531,28 @@ const translations = {
   confirmDecisionBtn:           { en: 'Confirm Decision',                  ar: 'تأكيد القرار' },
   decisionSaved:                { en: 'Decision saved',                    ar: 'تم حفظ القرار' },
   finalizedLabel:               { en: 'Finalized',                         ar: 'مُنجز' },
+
+  // ── Invested Capital Currency Toggle ──
+  investedCapitalLabel:         { en: 'Invested Capital',                   ar: 'رأس المال المستثمر' },
+  settlementWayLabel:           { en: 'Settlement Way',                     ar: 'طريقة التسوية' },
+  capitalCurrencyLabel:         { en: 'Capital Currency',                   ar: 'عملة رأس المال' },
+  convertedFromQar:             { en: 'Converted from QAR using avg rate',  ar: 'محوّل من ر.ق باستخدام متوسط السعر' },
+  convertedFromUsdt:            { en: 'Equivalent in QAR',                  ar: 'المعادل بالريال القطري' },
+  noRateAvailable:              { en: 'No rate available for conversion',   ar: 'لا يوجد سعر متاح للتحويل' },
+  capitalInUsdt:                { en: 'USDT',                               ar: 'USDT' },
+  capitalInQar:                 { en: 'QAR',                                ar: 'ر.ق' },
+
+  // ── Additional Localization ──
+  pendingApprovalLabel:         { en: 'Pending Approval',                   ar: 'بانتظار الموافقة' },
+  proposedByLabel:              { en: 'Proposed By',                        ar: 'مقترح من' },
+  approveAction:                { en: 'Approve',                            ar: 'موافقة' },
+  editAction:                   { en: 'Edit',                               ar: 'تعديل' },
+  savingLabel:                  { en: 'Saving...',                          ar: 'جاري الحفظ...' },
+  saveChangesLabel:             { en: 'Save Changes',                       ar: 'حفظ التغييرات' },
+  agreementUpdatedSuccess:      { en: 'Agreement updated successfully',     ar: 'تم تحديث الاتفاقية بنجاح' },
+  settlementWayPreview:         { en: 'Settlement way',                     ar: 'طريقة التسوية' },
+  capitalLabel:                 { en: 'Capital',                            ar: 'رأس المال' },
+  editAgreementTitle:           { en: 'Edit Profit Share Agreement',        ar: 'تعديل اتفاقية مشاركة الأرباح' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

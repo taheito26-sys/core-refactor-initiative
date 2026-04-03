@@ -55,23 +55,92 @@ function legacyRoute(n: AppNotification): NotificationNavigationTarget {
   }
 }
 
+/**
+ * Build a precise URL from the new target_* fields stored in the notification.
+ */
+function buildPreciseTarget(target: AppNotification['target']): NotificationNavigationTarget | null {
+  if (!target.targetPath) return null;
+
+  const params = new URLSearchParams();
+
+  // Add tab context
+  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers'].includes(target.targetTab)) {
+    params.set('tab', target.targetTab);
+  }
+
+  // Add focus parameter using the stored focus key
+  if (target.targetFocus && target.targetEntityId) {
+    params.set(target.targetFocus, target.targetEntityId);
+  } else if (target.targetEntityType && target.targetEntityId) {
+    // Fallback: derive focus key from entity type
+    const focusKeyMap: Record<string, string> = {
+      deal: 'focusDealId',
+      order: 'focusOrderId',
+      settlement: 'focusSettlementId',
+      stock: 'focusStockId',
+      approval: 'focusApprovalId',
+      invite: 'focusInviteId',
+      transfer: 'focusTransferId',
+      capital_transfer: 'focusTransferId',
+    };
+    const focusKey = focusKeyMap[target.targetEntityType];
+    if (focusKey) {
+      params.set(focusKey, target.targetEntityId);
+    }
+  }
+
+  const search = params.toString();
+
+  // Handle chat deep links with pendingChatNav
+  if (target.targetPath === '/chat' && target.conversationId) {
+    params.set('roomId', target.conversationId);
+    if (target.messageId) params.set('messageId', target.messageId);
+    return {
+      pathname: '/chat',
+      search: `?${params.toString()}`,
+      pendingChatNav: {
+        conversationId: target.conversationId,
+        messageId: target.messageId ?? null,
+        notificationId: target.notificationId,
+      },
+    };
+  }
+
+  return {
+    pathname: target.targetPath,
+    search: search ? `?${search}` : undefined,
+  };
+}
+
 export function isNotificationDeepLinkable(notification: AppNotification): boolean {
   const { target } = notification;
   if (target.actionUrl && isInternalActionUrl(target.actionUrl)) return true;
+  if (target.targetPath && (target.targetEntityId || target.targetTab)) return true;
   if (target.kind === 'chat_message') return Boolean(target.conversationId);
+  // Transfer notifications
+  if (target.targetEntityType === 'transfer' || target.targetEntityType === 'capital_transfer') return Boolean(target.targetEntityId);
   return Boolean(target.entityId);
 }
 
 export function buildNotificationNavigationTarget(notification: AppNotification): NotificationNavigationTarget {
   const { target } = notification;
 
+  // Priority 1: explicit action URL
   if (target.actionUrl && isInternalActionUrl(target.actionUrl)) {
     return parseInternalActionUrl(target.actionUrl);
   }
 
+  // Priority 2: precise stored target fields
+  const precise = buildPreciseTarget(target);
+  if (precise) return precise;
+
+  // Priority 3: legacy kind-based routing (backward compat for old notifications)
   switch (target.kind) {
     case 'chat_message':
-      if (!target.conversationId) return { pathname: '/chat' };
+      if (!target.conversationId) {
+        console.warn('[notification-router] Chat notification missing conversationId, cannot deep-link:', notification.id);
+        return { pathname: '/chat' };
+      }
       return {
         pathname: '/chat',
         search: `?roomId=${encodeURIComponent(target.conversationId)}${target.messageId ? `&messageId=${encodeURIComponent(target.messageId)}` : ''}`,
@@ -93,6 +162,8 @@ export function buildNotificationNavigationTarget(notification: AppNotification)
       return { pathname: '/admin/approvals', search: target.entityId ? `?focusApprovalId=${encodeURIComponent(target.entityId)}` : undefined };
     case 'invite':
       return { pathname: '/merchants', search: target.entityId ? `?focusInviteId=${encodeURIComponent(target.entityId)}` : undefined };
+    case 'agreement':
+      return { pathname: '/merchants', search: target.entityId ? `?tab=agreements&focusAgreementId=${encodeURIComponent(target.entityId)}` : undefined };
     default:
       return legacyRoute(notification);
   }

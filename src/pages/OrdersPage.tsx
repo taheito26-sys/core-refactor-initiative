@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
-  fmtU, fmtP, fmtQ, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
+  fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
   fmtPrice, fmtTotal,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
 } from '@/lib/tracker-helpers';
@@ -20,7 +20,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { toast } from 'sonner';
 import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
-import { useCreateAllocations, calculateAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
+import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
+import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
@@ -48,7 +49,7 @@ const normalizeName = (v: string) => v.trim().toLowerCase();
 function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 16); }
 
 export default function OrdersPage() {
-  const { settings } = useTheme();
+  const { settings, update } = useTheme();
   const { userId, merchantProfile } = useAuth();
   const t = useT();
   const navigate = useNavigate();
@@ -107,16 +108,21 @@ export default function OrdersPage() {
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
   const [editLinkedRelId, setEditLinkedRelId] = useState('');
   const [editSelectedTemplateId, setEditSelectedTemplateId] = useState<string | null>(null);
+  const [editSelectedAgreementId, setEditSelectedAgreementId] = useState<string | null>(null);
   const [editSettleImmediately, setEditSettleImmediately] = useState(false);
 
   // ─── Merchant-Linked Trade (Trade-Centric) ────────────────────────
   const [relationships, setRelationships] = useState<MerchantRelationship[]>([]);
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
+  const [merchantUserIds, setMerchantUserIds] = useState<string[]>([]);
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+
 
   // Capital Transfer state
   const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
@@ -133,8 +139,11 @@ export default function OrdersPage() {
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
 
-  // Sync saleAmount into first allocation's allocatedUsdt for sales_deal 50/50
+  // Sync saleAmount into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
+    if (selectedTemplateId === 'profit_share_family' && allocations.length > 0 && allocations[0].agreementId) {
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+    }
     if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
       setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
     }
@@ -149,6 +158,71 @@ export default function OrdersPage() {
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
 
+  const linkedRelationship = useMemo(
+    () => relationships.find(r => r.id === linkedRelId),
+    [relationships, linkedRelId],
+  );
+  const linkedCounterpartyName = linkedRelationship?.counterparty?.display_name || (linkedRelationship as any)?.counterparty_name || t('partner');
+  const linkedCounterpartyId = linkedRelationship
+    ? (linkedRelationship.merchant_a_id === merchantProfile?.merchant_id ? linkedRelationship.merchant_b_id : linkedRelationship.merchant_a_id)
+    : '';
+  const linkedApprovedAgreements = useMemo(
+    () => allAgreements.filter(a => a.relationship_id === linkedRelId && a.status === 'approved' && isAgreementActive(a)),
+    [allAgreements, linkedRelId],
+  );
+
+  useEffect(() => {
+    if (!merchantOrderEnabled || selectedTemplateId !== 'profit_share_family' || !linkedRelId) return;
+    if (linkedApprovedAgreements.length !== 1) return;
+    const onlyAgreement = linkedApprovedAgreements[0];
+    if (allocations[0]?.agreementId === onlyAgreement.id) return;
+
+    setAllocations(prev => {
+      const base = prev[0] || {
+        id: `alloc_${Date.now()}`,
+        relationshipId: linkedRelId,
+        merchantName: linkedCounterpartyName,
+        merchantId: linkedCounterpartyId,
+        family: 'profit_share' as const,
+        agreementId: null,
+        agreementLabel: '',
+        allocatedUsdt: saleAmount || '',
+        merchantCostPerUsdt: '',
+        partnerSharePct: 0,
+        merchantSharePct: 0,
+        note: '',
+      };
+      return [{
+        ...base,
+        agreementId: onlyAgreement.id,
+        agreementLabel: getAgreementLabel(onlyAgreement),
+        partnerSharePct: onlyAgreement.partner_ratio || 0,
+        merchantSharePct: onlyAgreement.merchant_ratio || 0,
+      }];
+    });
+  }, [
+    merchantOrderEnabled,
+    selectedTemplateId,
+    linkedRelId,
+    linkedApprovedAgreements,
+    allocations,
+    linkedCounterpartyName,
+    linkedCounterpartyId,
+    saleAmount,
+  ]);
+
+  const editApprovedAgreements = useMemo(
+    () => allAgreements.filter(a => a.relationship_id === editLinkedRelId && a.status === 'approved' && isAgreementActive(a)),
+    [allAgreements, editLinkedRelId],
+  );
+
+  useEffect(() => {
+    if (!editLinkEnabled || editSelectedTemplateId !== 'profit_share_family' || !editLinkedRelId) return;
+    if (editApprovedAgreements.length !== 1) return;
+    if (editSelectedAgreementId === editApprovedAgreements[0].id) return;
+    setEditSelectedAgreementId(editApprovedAgreements[0].id);
+  }, [editLinkEnabled, editSelectedTemplateId, editLinkedRelId, editApprovedAgreements, editSelectedAgreementId]);
+
 
   const reloadMerchantData = useCallback(async () => {
     try {
@@ -162,12 +236,17 @@ export default function OrdersPage() {
           .eq('status', 'active')
           .or(`merchant_a_id.eq.${myMerchantId},merchant_b_id.eq.${myMerchantId}`),
         supabase.from('merchant_deals').select('*').order('created_at', { ascending: false }),
-        supabase.from('merchant_profiles').select('merchant_id, display_name, nickname, merchant_code'),
+        supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname, merchant_code'),
       ]);
 
       const profileMap = new Map(
         (profilesRes.data || []).map(p => [p.merchant_id, p])
       );
+      const myMerchantUsers = (profilesRes.data || [])
+        .filter(p => p.merchant_id === myMerchantId)
+        .map(p => p.user_id)
+        .filter(Boolean);
+      setMerchantUserIds(Array.from(new Set(myMerchantUsers)));
 
       const enrichedRels = (relsRes.data || []).map(r => {
         const cpId = r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id;
@@ -202,6 +281,11 @@ export default function OrdersPage() {
 
   useEffect(() => { reloadMerchantData(); }, [reloadMerchantData]);
 
+  // Clear shared search query on mount to prevent cross-page filter leak
+  useEffect(() => {
+    if (settings.searchQuery) update({ searchQuery: '' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Real-time listeners for merchant_deals and merchant_approvals changes
   useEffect(() => {
     const dealsChannel = supabase
@@ -235,7 +319,20 @@ export default function OrdersPage() {
     applyState(next);
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
+  useEffect(() => {
+    if (selectedMonth === 'all' && settings.range !== 'all') {
+      setSelectedMonth(currentMonthKey);
+    }
+  }, [selectedMonth, settings.range, currentMonthKey]);
+
+  const selectAllMonths = useCallback(() => {
+    setSelectedMonth('all');
+    if (settings.range !== 'all') update({ range: 'all' });
+  }, [settings.range, update]);
+
   const wacop = getWACOP(derived);
+  /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
   useEffect(() => { if (!saleSell && wacop) setSaleSell(fmtP(wacop)); }, [wacop, saleSell]);
 
   const rLabel = rangeLabel(state.range);
@@ -250,6 +347,11 @@ export default function OrdersPage() {
       .map(d => parseDealMeta(d.notes).local_trade)
       .filter(Boolean)
   ), [allMerchantDeals]);
+  const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
+  const isCreatorInMyMerchant = useCallback((creatorUserId: string) => {
+    if (merchantUserIds.length === 0) return creatorUserId === userId;
+    return merchantUserIds.includes(creatorUserId);
+  }, [merchantUserIds, userId]);
 
   // Sync: void local trades whose server-side deals are cancelled/rejected/voided
   // This ensures computeFIFO never consumes stock for dead deals
@@ -323,17 +425,19 @@ export default function OrdersPage() {
   }, [allMerchantDeals, state, applyState]);
 
   const allTrades = useMemo(() => [...state.trades].sort((a, b) => b.ts - a.ts), [state.trades]);
+  const effectiveRange = selectedMonth === 'all' ? 'all' : state.range;
+
   const list = useMemo(() => allTrades.filter(t => {
-    if (!inRange(t.ts, state.range)) return false;
+    if (!inRange(t.ts, effectiveRange)) return false;
     if (t.approvalStatus === 'cancelled' || t.voided) return false;
     if (t.linkedDealId && cancelledDealIds.has(t.linkedDealId)) return false;
     if (cancelledLocalTradeIds.has(t.id)) return false;
     if ((t.approvalStatus === 'pending_approval' || t.approvalStatus === 'approved' || t.approvalStatus === 'rejected') && !t.linkedDealId) {
-      const matchedServerDeal = allMerchantDeals.some(d => parseDealMeta(d.notes).local_trade === t.id && d.created_by === userId && d.status !== 'cancelled' && (d.status as string) !== 'voided');
+      const matchedServerDeal = allMerchantDeals.some(d => parseDealMeta(d.notes).local_trade === t.id && isCreatorInMyMerchant(d.created_by) && d.status !== 'cancelled' && (d.status as string) !== 'voided');
       if (!matchedServerDeal) return false;
     }
     return true;
-  }), [allTrades, state.range, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, userId]);
+  }), [allTrades, effectiveRange, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, isCreatorInMyMerchant]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
@@ -342,44 +446,146 @@ export default function OrdersPage() {
     });
   }, [list, query, state.customers]);
 
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    months.add(currentMonthKey); // Always include current month
 
+    allTrades.forEach(t => {
+      if (t.approvalStatus === 'cancelled' || t.voided) return;
+      if (t.linkedDealId && cancelledDealIds.has(t.linkedDealId)) return;
+      if (cancelledLocalTradeIds.has(t.id)) return;
+      const d = new Date(t.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    allMerchantDeals
+      .filter(isDealVisible)
+      .forEach(d => {
+        const date = new Date(d.created_at);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        months.add(key);
+      });
+    allTransfers.forEach(tx => {
+      const d = new Date(tx.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    return Array.from(months).sort().reverse();
+  }, [allTrades, allMerchantDeals, allTransfers, cancelledDealIds, cancelledLocalTradeIds, currentMonthKey]);
+
+  const subFilteredMy = useMemo(() => {
+    if (selectedMonth === 'all') return filtered;
+    return filtered.filter(tr => {
+      const d = new Date(tr.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filtered, selectedMonth]);
+
+  const subFilteredTransfers = useMemo(() => {
+    if (selectedMonth === 'all') return allTransfers;
+    return allTransfers.filter(tx => {
+      const d = new Date(tx.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [allTransfers, selectedMonth]);
+
+
+  const myKpi = useMemo(() => {
+    // Only trades in the selected month (or all)
+    const activeList = subFilteredMy.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
+    let qty = 0, vol = 0, netVal = 0;
+    for (const tr of activeList) {
+      const c = derived.tradeCalc.get(tr.id);
+      qty += tr.amountUSDT;
+      vol += tr.amountUSDT * tr.sellPriceQAR;
+      if (c?.ok) {
+        netVal += c.netQAR;
+      } else if (tr.manualBuyPrice) {
+        netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
+      }
+    }
+    return { count: activeList.length, qty, vol, net: netVal };
+  }, [subFilteredMy, derived]);
+
+
+  // URL-driven tab sync: read ?tab= and switch activeTab before focus
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['my', 'incoming', 'outgoing', 'transfers'].includes(tabParam)) {
+      setActiveTab(tabParam as 'my' | 'incoming' | 'outgoing' | 'transfers');
+      if (tabParam !== 'my') {
+        setMerchantOrderEnabled(true);
+        if (tabParam === 'transfers') {
+          setSelectedTemplateId('capital_transfer');
+        }
+      }
+    }
+  }, [searchParams]);
+
+  // Focus and highlight targeted row after tab switch + data load
   useEffect(() => {
     const focusOrderId = searchParams.get('focusOrderId');
     const focusDealId = searchParams.get('focusDealId');
     const focusSettlementId = searchParams.get('focusSettlementId');
-    const targetId = focusOrderId || focusDealId || focusSettlementId;
+    const focusTransferId = searchParams.get('focusTransferId');
+    const targetId = focusOrderId || focusDealId || focusSettlementId || focusTransferId;
     if (!targetId) return;
-    window.setTimeout(() => {
-      focusElementBySelectors([
-        `#order-${targetId}`,
-        `[data-order-id="${targetId}"]`,
-        `#deal-${targetId}`,
-        `[data-deal-id="${targetId}"]`,
-        `#settlement-${targetId}`,
-        `[data-settlement-id="${targetId}"]`,
-      ]);
-    }, 220);
-  }, [searchParams, filtered.length, allMerchantDeals.length]);
+    // Delay to let tab content render
+    const timer = window.setTimeout(() => {
+      const selectors = [
+        `#order-${targetId}`, `[data-order-id="${targetId}"]`,
+        `#deal-${targetId}`, `[data-deal-id="${targetId}"]`,
+        `#settlement-${targetId}`, `[data-settlement-id="${targetId}"]`,
+        `#transfer-${targetId}`, `[data-transfer-id="${targetId}"]`,
+      ];
+      const found = focusElementBySelectors(selectors, 'ring-2 ring-primary/60 transition-shadow');
+      if (!found) {
+        window.setTimeout(() => {
+          focusElementBySelectors(selectors, 'ring-2 ring-primary/60 transition-shadow');
+        }, 800);
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, activeTab, filtered.length, allMerchantDeals.length, allTransfers.length]);
 
-  const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   // Incoming: deals created by OTHER merchants in my relationships
   const partnerMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by !== userId && isDealVisible(d)),
-    [allMerchantDeals, userId],
+    () => allMerchantDeals.filter(d => !isCreatorInMyMerchant(d.created_by) && isDealVisible(d)),
+    [allMerchantDeals, isCreatorInMyMerchant],
   );
   // Outgoing: deals I created (server-authoritative)
   const creatorMerchantDeals = useMemo(
-    () => allMerchantDeals.filter(d => d.created_by === userId && isDealVisible(d)),
-    [allMerchantDeals, userId],
+    () => allMerchantDeals.filter(d => isCreatorInMyMerchant(d.created_by) && isDealVisible(d)),
+    [allMerchantDeals, isCreatorInMyMerchant],
   );
   const filteredIncomingMerchantDeals = useMemo(
-    () => partnerMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), state.range)),
-    [partnerMerchantDeals, state.range],
+    () => partnerMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), effectiveRange)),
+    [partnerMerchantDeals, effectiveRange],
   );
   const filteredOutgoingMerchantDeals = useMemo(
-    () => creatorMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), state.range)),
-    [creatorMerchantDeals, state.range],
+    () => creatorMerchantDeals.filter(d => inRange(new Date(d.created_at).getTime(), effectiveRange)),
+    [creatorMerchantDeals, effectiveRange],
   );
+
+  const subFilteredInDeals = useMemo(() => {
+    if (selectedMonth === 'all') return filteredIncomingMerchantDeals;
+    return filteredIncomingMerchantDeals.filter(d => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filteredIncomingMerchantDeals, selectedMonth]);
+
+  const subFilteredOutDeals = useMemo(() => {
+    if (selectedMonth === 'all') return filteredOutgoingMerchantDeals;
+    return filteredOutgoingMerchantDeals.filter(d => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [filteredOutgoingMerchantDeals, selectedMonth]);
 
   /** Resolve avg buy for a deal — use metadata first, fallback to local FIFO trade calc */
   const resolveDealAvgBuy = useCallback((deal: any, normalizedMeta?: Record<string, string>): number => {
@@ -481,7 +687,7 @@ export default function OrdersPage() {
   const isCapitalTransfer = selectedTemplateId === 'capital_transfer';
   const submitCapitalTransfer = useSubmitCapitalTransfer();
   const mobileInputStyle = isMobile ? { fontSize: 15, minHeight: 38 } : undefined;
-  const mobileActionStyle = isMobile ? { minHeight: 36, fontSize: 11 } : undefined;
+  const mobileActionStyle = isMobile ? { minHeight: 34, fontSize: 10, padding: '4px 6px' } : undefined;
   const mobileDialogContentStyle = isMobile
     ? {
         maxWidth: '96vw',
@@ -694,15 +900,31 @@ export default function OrdersPage() {
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-          const calc = calculateAllocationEconomics({
-            allocatedUsdt: usdt,
-            merchantCostPerUsdt: costPerUsdt,
-            sellPrice: sell,
-            totalFee: fee,
-            totalUsdt: amountUSDT,
-            family: alloc.family,
-            partnerSharePct: alloc.partnerSharePct,
-          });
+          const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
+          const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
+          const calc = isOpPriority
+            ? calculateOperatorPriorityAllocationEconomics({
+                allocatedUsdt: usdt,
+                merchantCostPerUsdt: costPerUsdt,
+                sellPrice: sell,
+                totalFee: fee,
+                totalUsdt: amountUSDT,
+                family: alloc.family,
+                partnerSharePct: alloc.partnerSharePct,
+                operatorRatio: (selAgreement as any)?.operator_ratio ?? 0,
+                operatorContribution: (selAgreement as any)?.operator_contribution ?? 0,
+                lenderContribution: (selAgreement as any)?.lender_contribution ?? 0,
+                isOperator: (selAgreement as any)?.operator_merchant_id === merchantProfile?.merchant_id,
+              })
+            : calculateAllocationEconomics({
+                allocatedUsdt: usdt,
+                merchantCostPerUsdt: costPerUsdt,
+                sellPrice: sell,
+                totalFee: fee,
+                totalUsdt: amountUSDT,
+                family: alloc.family,
+                partnerSharePct: alloc.partnerSharePct,
+              });
 
           return {
             sale_group_id: saleGroupId,
@@ -933,6 +1155,7 @@ export default function OrdersPage() {
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
     setEditSelectedTemplateId(null);
+    setEditSelectedAgreementId(null);
     setEditSettleImmediately(false);
   };
 
@@ -955,8 +1178,30 @@ export default function OrdersPage() {
 
     // ── Handle linking to partner deal ──
     if (editLinkEnabled && editLinkedRelId && editSelectedTemplateId) {
-      const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === editSelectedTemplateId);
-      if (!tmpl) { toast.error(t('invalidTemplate')); return; }
+      const isEditProfitShare = editSelectedTemplateId === 'profit_share_family';
+      const isEditSalesDeal = editSelectedTemplateId === 'sales_deal_family';
+
+      // Profit share requires an approved agreement
+      if (isEditProfitShare && !editSelectedAgreementId) {
+        toast.error(t('noApprovedAgreement'));
+        return;
+      }
+
+      // Resolve ratios from approved agreement (profit_share) or default 50/50 (sales_deal)
+      const editAgreement = isEditProfitShare
+        ? allAgreements.find(a => a.id === editSelectedAgreementId)
+        : null;
+      const partnerPct = isEditProfitShare
+        ? (editAgreement?.partner_ratio ?? 0)
+        : 50;
+      const merchantPct = isEditProfitShare
+        ? (editAgreement?.merchant_ratio ?? 0)
+        : 50;
+      const dealType = isEditProfitShare ? 'partnership' : 'arbitrage';
+      const familyLabel = isEditProfitShare ? t('profitShareLabel') : t('salesDealLabel');
+      const cadence = isEditProfitShare
+        ? (editAgreement?.settlement_cadence || 'monthly')
+        : 'per_order';
 
       try {
         const customerName = state.customers.find(c => c.id === editCustomerId)?.name || t('buyer');
@@ -967,27 +1212,27 @@ export default function OrdersPage() {
         const fifoCost = calc?.ok ? calc.slices.reduce((s, x) => s + x.cost, 0) : 0;
         const avgBuy = calc?.ok ? calc.avgBuyQAR : 0;
 
-        const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
-        const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
+        const ratioDisplay = `${partnerPct}/${merchantPct}`;
+        const title = `${familyLabel} · ${customerName} · ${ratioDisplay}`;
 
-          const noteLines = [
-            `template: ${tmpl.id}`,
-            `customer: ${customerName}`,
-            `local_trade: ${editingTradeId}`,
-            `trade_date: ${new Date(ts).toISOString()}`,
-            `quantity: ${qty}`,
+        const noteLines = [
+          `template: ${isEditProfitShare ? 'profit_share_family' : 'sales_deal_family'}`,
+          `customer: ${customerName}`,
+          `local_trade: ${editingTradeId}`,
+          `trade_date: ${new Date(ts).toISOString()}`,
+          `quantity: ${qty}`,
           `sell_price: ${sell}`,
           `fifo_cost: ${fifoCost}`,
           `avg_buy: ${avgBuy}`,
           `fee: ${fee}`,
-          tmpl.dealType === 'partnership'
-            ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
-            : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
+          isEditProfitShare
+            ? `partner_ratio: ${partnerPct}, merchant_ratio: ${merchantPct}`
+            : `counterparty_share: ${partnerPct}%, merchant_share: ${merchantPct}%`,
         ].join(' | ');
 
         const { data: dealData, error: dealError } = await supabase.from('merchant_deals').insert({
           relationship_id: editLinkedRelId,
-          deal_type: tmpl.dealType as string,
+          deal_type: dealType,
           title,
           amount: rev,
           currency: 'QAR',
@@ -999,32 +1244,47 @@ export default function OrdersPage() {
             sell_price: sell,
             avg_buy: avgBuy,
             fee,
-            partner_ratio: tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? null,
-            merchant_ratio: tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio ?? null,
+            partner_ratio: partnerPct,
+            merchant_ratio: merchantPct,
+            ...(editAgreement ? { profit_share_agreement_id: editAgreement.id, settlement_cadence: editAgreement.settlement_cadence } : {}),
           },
         }).select('id').single();
 
         if (dealError) throw dealError;
 
-        const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
         updatedFields = {
           ...updatedFields,
           linkedRelId: editLinkedRelId,
           linkedDealId: dealData?.id,
-          agreementFamily: tmpl.family as 'profit_share' | 'sales_deal',
-          agreementTemplateId: tmpl.id,
+          agreementFamily: (isEditProfitShare ? 'profit_share' : 'sales_deal') as 'profit_share' | 'sales_deal',
+          agreementTemplateId: undefined,
           partnerPct,
-          merchantPct: 100 - partnerPct,
+          merchantPct,
           approvalStatus: 'pending_approval' as LinkedTradeStatus,
         };
 
         // Create settlement period for per_order deals
-        const dealCadence = tmpl.defaults.settlement_period || 'monthly';
-        if (dealCadence === 'per_order' && dealData?.id) {
+        if (cadence === 'per_order' && dealData?.id) {
           const netProfit = rev - fifoCost - fee;
-          const partnerAmt = tmpl.family === 'profit_share'
-            ? netProfit * (partnerPct / 100)
-            : rev * (partnerPct / 100);
+          const isEditOpPriority = editAgreement?.agreement_type === 'operator_priority';
+          let partnerAmt: number;
+          let merchantAmt: number;
+          if (isEditOpPriority) {
+            const opResult = calculateOperatorPriorityProfit({
+              grossProfit: netProfit,
+              operatorRatio: (editAgreement as any).operator_ratio ?? 0,
+              operatorContribution: (editAgreement as any).operator_contribution ?? 0,
+              lenderContribution: (editAgreement as any).lender_contribution ?? 0,
+            });
+            const isOperator = (editAgreement as any).operator_merchant_id === merchantProfile?.merchant_id;
+            partnerAmt = isOperator ? opResult.lenderTotal : opResult.operatorTotal;
+            merchantAmt = isOperator ? opResult.operatorTotal : opResult.lenderTotal;
+          } else {
+            partnerAmt = isEditProfitShare
+              ? netProfit * (partnerPct / 100)
+              : rev * (partnerPct / 100);
+            merchantAmt = (isEditProfitShare ? netProfit : rev) - partnerAmt;
+          }
 
           const { data: periodData } = await supabase.from('settlement_periods').insert({
             deal_id: dealData.id,
@@ -1040,7 +1300,7 @@ export default function OrdersPage() {
             net_profit: netProfit,
             total_fees: fee,
             partner_amount: partnerAmt,
-            merchant_amount: rev - partnerAmt,
+            merchant_amount: merchantAmt,
             status: editSettleImmediately ? 'settled' : 'due',
             resolution: editSettleImmediately ? 'payout' : null,
             resolved_by: editSettleImmediately ? userId : null,
@@ -1279,10 +1539,10 @@ export default function OrdersPage() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
-          <span className="pill">{t('revenue')} {fmtQ(revenue)}</span>
-          <span className="pill">{t('fee')} {fmtQ(tr.feeQAR)}</span>
-          {ok && <span className="pill">{t('cost')} {fmtQ(cost)}</span>}
-          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}</span>
+          <span className="pill">{t('revenue')} {fmtC(revenue)}</span>
+          <span className="pill">{t('fee')} {fmtC(tr.feeQAR)}</span>
+          {ok && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
+          <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
         {/* Show partner allocation for merchant-linked trades */}
@@ -1290,12 +1550,12 @@ export default function OrdersPage() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
               📊 {t('merchantNetProfit')}: <strong style={{ color: 'var(--good)' }}>
-                {fmtQ(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
+                {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
               </strong>
             </div>
             <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--bad) 10%, transparent)', fontSize: 10 }}>
               🤝 {t('partnerNetProfit')}: <strong style={{ color: 'var(--bad)' }}>
-                {fmtQ(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
+                {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
               </strong>
             </div>
           </div>
@@ -1345,21 +1605,6 @@ export default function OrdersPage() {
   };
 
   // ─── KPI computations ───
-  const myKpi = useMemo(() => {
-    const selfTrades = filtered.filter(tr => !tr.agreementFamily && !tr.linkedDealId && !tr.linkedRelId);
-    let qty = 0, vol = 0, netVal = 0;
-    for (const tr of selfTrades) {
-      const c = derived.tradeCalc.get(tr.id);
-      qty += tr.amountUSDT;
-      vol += tr.amountUSDT * tr.sellPriceQAR;
-      if (c?.ok) {
-        netVal += c.netQAR;
-      } else if (tr.manualBuyPrice) {
-        netVal += tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
-      }
-    }
-    return { count: selfTrades.length, qty, vol, net: netVal };
-  }, [filtered, derived]);
 
   const outKpi = useMemo(() => {
     let vol = 0, netVal = 0;
@@ -1414,7 +1659,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(rev)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(rev)}</div>
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
@@ -1424,13 +1669,38 @@ export default function OrdersPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span className="muted">{t('net')}</span>
             <span style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700, fontSize: 11 }}>
-              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtQ(net)}` : '—'}
+              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
             </span>
           </div>
         </div>
+
+        <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+          <button
+            className="rowBtn"
+            style={{ minHeight: 40 }}
+            onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
+          >
+            {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
+          </button>
+          {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
+            <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => openEdit(tr.id)}>{t('edit')}</button>
+          )}
+          {tr.approvalStatus === 'pending_approval' && (
+            <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
+          )}
+          {tr.approvalStatus === 'approved' && (
+            <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
+          )}
+        </div>
+
+        {detailsOpen[tr.id] && (
+          <div style={{ marginTop: 8 }}>
+            {renderDetail(tr, c)}
+          </div>
+        )}
       </div>
     );
-  }, [derived.tradeCalc, relationships, state.customers, t]);
+  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
@@ -1447,7 +1717,7 @@ export default function OrdersPage() {
     const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—';
 
     return (
-      <div key={`mobile-${deal.id}`} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
+      <div key={`mobile-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
           <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
             <span className="mono">{row.dateLabel}</span>
@@ -1482,7 +1752,7 @@ export default function OrdersPage() {
             </div>
             <div className="panel" style={{ padding: 6 }}>
               <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtQ(row.volume)}</div>
+              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(row.volume)}</div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1491,11 +1761,11 @@ export default function OrdersPage() {
               <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
             ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
               <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+                {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
               </span>
             ) : (
               <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
               </span>
             )}
           </div>
@@ -1543,36 +1813,44 @@ export default function OrdersPage() {
     <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
       <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('count').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{kpi.count}</div></div>
       {kpi.qty != null && <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>USDT {t('qty').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtU(kpi.qty)}</div></div>}
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtQ(kpi.vol)}</div></div>
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtQ(kpi.net)}</div></div>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtC(kpi.vol)}</div></div>
+      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtC(kpi.net)}</div></div>
     </div>
   );
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
-        {(['my', 'incoming', 'outgoing', 'transfers'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => {
-              setActiveTab(tab);
-              if (tab !== 'my' && tab !== 'transfers') {
-                setMerchantOrderEnabled(true);
-                setLinkedRelId('');
-                setSelectedTemplateId(null);
-                setSaleAmount('');
-              }
-            }}
-            className={`orders-tab-btn ${activeTab === tab ? 'active' : ''}`}
-          >
-            {tab === 'my' ? `👤 ${t('myOrders')}`
-              : tab === 'incoming' ? `📥 ${t('incomingOrders')}`
-              : tab === 'outgoing' ? `📤 ${t('outgoingOrders')}`
-              : `💸 ${t('usdtTransfers')}`}
-          </button>
-        ))}
+        <button
+          onClick={() => { setActiveTab('my'); setMerchantOrderEnabled(false); }}
+          className={`orders-tab-btn ${activeTab === 'my' ? 'active' : ''}`}
+        >
+          👤 {t('myOrders')}
+        </button>
+        <button
+          onClick={() => { setActiveTab('incoming'); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }}
+          className={`orders-tab-btn ${activeTab === 'incoming' ? 'active' : ''}`}
+        >
+          📥 {t('incomingOrders')}
+        </button>
+        <button
+          onClick={() => { setActiveTab('outgoing'); setMerchantOrderEnabled(true); setLinkedRelId(''); setSelectedTemplateId(null); setSaleAmount(''); }}
+          className={`orders-tab-btn ${activeTab === 'outgoing' ? 'active' : ''}`}
+        >
+          📤 {t('outgoingOrders')}
+        </button>
+        <button
+          onClick={() => { 
+            setActiveTab('transfers'); 
+            setMerchantOrderEnabled(true); 
+            setSelectedTemplateId('capital_transfer'); 
+          }}
+          className={`orders-tab-btn ${activeTab === 'transfers' ? 'active' : ''}`}
+        >
+          💸 {t('usdtTransfers')}
+        </button>
       </div>
 
       <div className="twoColPage orders-two-col">
@@ -1583,6 +1861,40 @@ export default function OrdersPage() {
           {/* ── MY ORDERS TAB ── */}
           {activeTab === 'my' && (
             <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 8, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={selectAllMonths}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -1604,7 +1916,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {filtered.map((tr) => renderMyOrderMobileCard(tr))}
+                  {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1615,7 +1927,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(tr => {
+                      {subFilteredMy.map(tr => {
                         const c = derived.tradeCalc.get(tr.id);
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
@@ -1628,7 +1940,7 @@ export default function OrdersPage() {
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
                         return (
                           <React.Fragment key={tr.id}>
-                            <tr style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
+                            <tr id={`order-${tr.id}`} data-order-id={tr.id} style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                             <td>
                               <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
                               {!ok && <span className="pill bad" style={{ fontSize: 9, marginLeft: 4 }}>!</span>}
@@ -1640,8 +1952,8 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                             <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
-                            <td className="mono r hide-mobile">{fmtQ(rev)}</td>
-                            <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtQ(net) : '—'}</td>
+                            <td className="mono r hide-mobile">{fmtC(rev)}</td>
+                            <td className="mono r" style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700 }}>{Number.isFinite(net) ? (net >= 0 ? '+' : '') + fmtC(net) : '—'}</td>
                             <td className="hide-mobile">
                               <div className={`prog ${Number.isFinite(margin) && margin < 0 ? 'neg' : ''}`} style={{ maxWidth: 90 }}><span style={{ width: `${(pct * 100).toFixed(0)}%` }} /></div>
                               <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{Number.isFinite(margin) ? `${(margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—'}</div>
@@ -1683,6 +1995,40 @@ export default function OrdersPage() {
           {/* ── INCOMING ORDERS TAB ── */}
           {activeTab === 'incoming' && (
             <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 8, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={selectAllMonths}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -1690,10 +2036,10 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📥 {t('incomingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('partnerTradesAwaitingApproval')}</div>
                 </div>
-                <span className="pill">{filteredIncomingMerchantDeals.length} {t('trades')}</span>
+                <span className="pill">{subFilteredInDeals.length} {t('trades')}</span>
               </div>
 
-              {filteredIncomingMerchantDeals.length === 0 ? (
+              {subFilteredInDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noIncomingTrades')}</div>
@@ -1701,7 +2047,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {filteredIncomingMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
+                  {subFilteredInDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1713,7 +2059,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredIncomingMerchantDeals.map(deal => {
+                      {subFilteredInDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -1729,7 +2075,7 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={deal.id}>
+                          <tr key={deal.id} id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             {/* DATE cell — identical layout to Outgoing: date + status pill + deal-type pill + split pill */}
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1746,7 +2092,7 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtC(row.volume)}</td>
                             {/* NET — same dual display as Outgoing: crossed-out full net + "my cut" */}
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
@@ -1754,15 +2100,15 @@ export default function OrdersPage() {
                               ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                                   <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
-                                    {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
+                                    {row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                     {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
+                                     {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
                                 <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
                                 </span>
                               )}
                             </td>
@@ -1799,6 +2145,40 @@ export default function OrdersPage() {
           {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
           {activeTab === 'outgoing' && (
             <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 8, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={selectAllMonths}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
@@ -1806,10 +2186,10 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div>
                 </div>
-                <span className="pill">{filteredOutgoingMerchantDeals.length} {t('trades')}</span>
+                <span className="pill">{subFilteredOutDeals.length} {t('trades')}</span>
               </div>
 
-              {filteredOutgoingMerchantDeals.length === 0 ? (
+              {subFilteredOutDeals.length === 0 ? (
                 <div className="empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10M7 20h10" /></svg>
                   <div className="empty-t">{t('noOutgoingTrades')}</div>
@@ -1817,7 +2197,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {filteredOutgoingMerchantDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
+                  {subFilteredOutDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
@@ -1828,7 +2208,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredOutgoingMerchantDeals.map(deal => {
+                      {subFilteredOutDeals.map(deal => {
                         const rel = relationships.find(r => r.id === deal.relationship_id);
                         const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                         const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -1843,7 +2223,7 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={`deal-${deal.id}`}>
+                          <tr key={`deal-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{row.dateLabel}</span>
@@ -1857,22 +2237,22 @@ export default function OrdersPage() {
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
-                            <td className="mono r hide-mobile">{fmtQ(row.volume)}</td>
+                            <td className="mono r hide-mobile">{fmtC(row.volume)}</td>
                             <td className="mono r">
                               {!row.hasAvgBuy ? (
                                 <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>
                               ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                                   <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
-                                    {row.fullNet >= 0 ? '+' : ''}{fmtQ(row.fullNet)}
+                                    {row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}
                                   </span>
                                   <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                    {row.myNet >= 0 ? '+' : ''}{fmtQ(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
+                                    {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 8, opacity: 0.7 }}>{t('myCut')}</span>
                                   </span>
                                 </div>
                               ) : (
                                 <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtQ(row.myNet)}` : '—'}
+                                  {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
                                 </span>
                               )}
                             </td>
@@ -1892,6 +2272,153 @@ export default function OrdersPage() {
                                   <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
                                 )}
                               </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── USDT TRANSFERS TAB ── */}
+          {activeTab === 'transfers' && (
+            <>
+              <div 
+                className="orders-tab-bar" 
+                style={{ 
+                  marginBottom: 8, 
+                  background: 'transparent', 
+                  border: 'none', 
+                  padding: 0, 
+                  gap: 8,
+                  boxShadow: 'none'
+                }}
+              >
+                <button
+                  onClick={selectAllMonths}
+                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                >
+                  {t('allMonths')}
+                </button>
+                {availableMonths.map(m => {
+                  const [y, mm] = m.split('-');
+                  const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMonth(m)}
+                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
+                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="tableHeader" style={{ marginBottom: 12 }}>
+                <div>
+                  <div className="title">💸 {t('usdtTransfers')}</div>
+                  <div className="subtitle">{t('capitalTransfersDesc')}</div>
+                </div>
+              </div>
+
+              {subFilteredTransfers.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)', background: 'var(--panel)', borderRadius: 12 }}>
+                  <div style={{ fontSize: 24, marginBottom: 12 }}>💸</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--t1)', marginBottom: 4 }}>{t('noTransfers')}</div>
+                  <div style={{ fontSize: 11 }}>{t('createTransferDesc')}</div>
+                </div>
+              ) : isMobile ? (
+                <div style={{ display: 'grid', gap: 8, paddingBottom: 80 }}>
+                  {subFilteredTransfers.map((tx: any) => {
+                    const rel = relationships.find(r => r.id === tx.relationship_id);
+                    const isIn = tx.direction === 'lender_to_operator';
+                    return (
+                      <div key={tx.id} id={`transfer-${tx.id}`} data-transfer-id={tx.id} className="previewBox" style={{ padding: 12, background: 'var(--panel)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(tx.created_at).toLocaleDateString()}</span>
+                          <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
+                            {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gap: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <span className="muted" style={{ fontSize: 10 }}>{t('merchant')}</span>
+                            <strong style={{ fontSize: 11, textAlign: 'right' }}>{rel?.counterparty?.display_name || '—'}</strong>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                            <div className="panel" style={{ padding: 8, background: 'var(--bg)', borderRadius: 6 }}>
+                              <div className="muted" style={{ fontSize: 9, marginBottom: 2 }}>USDT</div>
+                              <div className="mono" style={{ fontWeight: 700, fontSize: 13, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
+                                {isIn ? '+' : '−'}{fmtU(tx.amount)}
+                              </div>
+                            </div>
+                            <div className="panel" style={{ padding: 8, background: 'var(--bg)', borderRadius: 6 }}>
+                              <div className="muted" style={{ fontSize: 9, marginBottom: 2 }}>{t('costBasisQar')}</div>
+                              <div className="mono" style={{ fontWeight: 700, fontSize: 13 }}>{fmtP(tx.cost_basis)}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4, borderTop: '1px solid var(--line)' }}>
+                            <span className="muted" style={{ fontSize: 10 }}>{t('totalCostQar')}</span>
+                            <strong className="mono" style={{ fontSize: 11 }}>{fmtC(tx.total_cost)}</strong>
+                          </div>
+                          {tx.note && (
+                            <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic', background: 'var(--panel2)', padding: '4px 8px', borderRadius: 4 }}>
+                              {tx.note}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{t('date')}</th>
+                        <th>{t('direction')}</th>
+                        <th>{t('merchant')}</th>
+                        <th className="r">USDT {t('amount')}</th>
+                        <th className="r">{t('costBasisQar')}</th>
+                        <th className="r">{t('totalCostQar')}</th>
+                        <th>{t('notes')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subFilteredTransfers.map((tx: any) => {
+                        const rel = relationships.find(r => r.id === tx.relationship_id);
+                        const isIn = tx.direction === 'lender_to_operator';
+                        return (
+                          <tr key={tx.id} id={`transfer-${tx.id}`} data-transfer-id={tx.id}>
+                            <td className="mono" style={{ fontSize: 10 }}>
+                              {new Date(tx.created_at).toLocaleDateString()}
+                            </td>
+                            <td>
+                              <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                                {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: 11, fontWeight: 600 }}>
+                              {rel?.counterparty?.display_name || '—'}
+                            </td>
+                            <td className="mono r" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)', fontSize: 12 }}>
+                              {isIn ? '+' : '−'}{fmtU(tx.amount)}
+                            </td>
+                            <td className="mono r" style={{ fontSize: 10, color: 'var(--muted)' }}>
+                              {fmtP(tx.cost_basis)}
+                            </td>
+                            <td className="mono r" style={{ fontSize: 11, fontWeight: 600 }}>
+                              {fmtC(tx.total_cost)}
+                            </td>
+                            <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {tx.note || '—'}
                             </td>
                           </tr>
                         );
@@ -2167,75 +2694,58 @@ export default function OrdersPage() {
                                   <>
                                     <div className="field2" style={{ marginBottom: 4 }}>
                                       <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
-                                      <select
-                                        value={allocations[0]?.agreementId || ''}
-                                        onChange={e => {
-                                          const agr = relApprovedAgreements.find(a => a.id === e.target.value);
-                                          setAllocations(prev => {
-                                            const base = prev[0] || {
-                                              id: `alloc_${Date.now()}`, relationshipId: linkedRelId, merchantName: cpName, merchantId: cpId,
-                                              family: 'profit_share' as const, allocatedUsdt: saleAmount || '', merchantCostPerUsdt: '', note: '',
-                                            };
-                                            return [{
-                                              ...base,
-                                              agreementId: agr?.id || null,
-                                              agreementLabel: agr ? getAgreementLabel(agr) : '',
-                                              partnerSharePct: agr?.partner_ratio || 0,
-                                              merchantSharePct: agr?.merchant_ratio || 0,
-                                            }];
-                                          });
-                                        }}
-                                        style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                                      >
-                                        <option value="">{t('selectAgreement')}</option>
-                                        {relApprovedAgreements.map(agr => (
-                                          <option key={agr.id} value={agr.id}>
-                                            🤝 {agr.partner_ratio}/{agr.merchant_ratio} — {agr.settlement_cadence}
-                                          </option>
-                                        ))}
-                                      </select>
+                                      {relApprovedAgreements.length === 1 ? (
+                                        <div style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid color-mix(in srgb, var(--good) 35%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)', color: 'var(--t1)' }}>
+                                          {relApprovedAgreements[0].agreement_type === 'operator_priority'
+                                            ? `⚙️ Operator Priority · ${(relApprovedAgreements[0] as any).operator_ratio ?? 0}% fee — ${relApprovedAgreements[0].settlement_cadence}`
+                                            : `🤝 ${relApprovedAgreements[0].partner_ratio}/${relApprovedAgreements[0].merchant_ratio} — ${relApprovedAgreements[0].settlement_cadence}`}
+                                        </div>
+                                      ) : (
+                                        <select
+                                          value={allocations[0]?.agreementId || ''}
+                                          onChange={e => {
+                                            const agr = relApprovedAgreements.find(a => a.id === e.target.value);
+                                            setAllocations(prev => {
+                                              const base = prev[0] || {
+                                                id: `alloc_${Date.now()}`, relationshipId: linkedRelId, merchantName: cpName, merchantId: cpId,
+                                                family: 'profit_share' as const, allocatedUsdt: saleAmount || '', merchantCostPerUsdt: '', note: '',
+                                              };
+                                              return [{
+                                                ...base,
+                                                agreementId: agr?.id || null,
+                                                agreementLabel: agr ? getAgreementLabel(agr) : '',
+                                                partnerSharePct: agr?.partner_ratio || 0,
+                                                merchantSharePct: agr?.merchant_ratio || 0,
+                                              }];
+                                            });
+                                          }}
+                                          style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                        >
+                                          <option value="">{t('selectAgreement')}</option>
+                                          {relApprovedAgreements.map(agr => (
+                                            <option key={agr.id} value={agr.id}>
+                                              {agr.agreement_type === 'operator_priority'
+                                                ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
+                                                : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
                                     </div>
-                                    {allocations[0]?.agreementId && (
-                                      <div style={{ fontSize: 9, color: 'var(--brand)', marginTop: 2, fontWeight: 600, marginBottom: 6 }}>
-                                        {t('lockedRatio')} {allocations[0].partnerSharePct}% / {t('youShare')} {allocations[0].merchantSharePct}%
-                                      </div>
-                                    )}
+                                    {allocations[0]?.agreementId && (() => {
+                                      const selAgr = relApprovedAgreements.find(a => a.id === allocations[0]?.agreementId);
+                                      const isOp = selAgr?.agreement_type === 'operator_priority';
+                                      return (
+                                        <div style={{ fontSize: 9, color: 'var(--brand)', marginTop: 2, fontWeight: 600, marginBottom: 6 }}>
+                                          {isOp
+                                            ? `⚙️ Operator Fee ${(selAgr as any)?.operator_ratio ?? 0}% · then split by capital weight`
+                                            : `${t('lockedRatio')} ${allocations[0].partnerSharePct}% / ${t('youShare')} ${allocations[0].merchantSharePct}%`}
+                                        </div>
+                                      );
+                                    })()}
                                   </>
                                 )}
 
-                                {/* USDT & Cost fields for the allocation */}
-                                {allocations[0]?.agreementId && (
-                                  <div className="g2tight" style={{ marginTop: 6 }}>
-                                    <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>USDT {t('quantity')}</div>
-                                      <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                        <input
-                                          type="text" placeholder="0"
-                                          value={allocations[0]?.allocatedUsdt || ''}
-                                          onChange={e => {
-                                            if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
-                                              setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: e.target.value } : a));
-                                          }}
-                                          style={{ fontSize: 10 }}
-                                        />
-                                      </div>
-                                    </div>
-                                    <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
-                                      <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                        <input
-                                          type="text" placeholder="3.65"
-                                          value={allocations[0]?.merchantCostPerUsdt || ''}
-                                          onChange={e => {
-                                            if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
-                                              setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, merchantCostPerUsdt: e.target.value } : a));
-                                          }}
-                                          style={{ fontSize: 10 }}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             )}
 
@@ -2464,15 +2974,35 @@ export default function OrdersPage() {
 
                               if (!(usdt > 0) || !(sellP > 0)) return null;
 
-                              const calc = calculateAllocationEconomics({
-                                allocatedUsdt: usdt,
-                                merchantCostPerUsdt: costPerUsdt,
-                                sellPrice: sellP,
-                                totalFee,
-                                totalUsdt: salePreview.qty,
-                                family: alloc.family,
-                                partnerSharePct: alloc.partnerSharePct,
-                              });
+                              const selAgr = alloc.agreementId ? relApprovedAgreements.find(a => a.id === alloc.agreementId) : null;
+                              const isOpPriority = selAgr?.agreement_type === 'operator_priority';
+
+                              const calc = isOpPriority
+                                ? calculateOperatorPriorityAllocationEconomics({
+                                    allocatedUsdt: usdt,
+                                    merchantCostPerUsdt: costPerUsdt,
+                                    sellPrice: sellP,
+                                    totalFee,
+                                    totalUsdt: salePreview.qty,
+                                    family: alloc.family,
+                                    partnerSharePct: alloc.partnerSharePct,
+                                    operatorRatio: (selAgr as any)?.operator_ratio ?? 0,
+                                    operatorContribution: (selAgr as any)?.operator_contribution ?? 0,
+                                    lenderContribution: (selAgr as any)?.lender_contribution ?? 0,
+                                    isOperator: (selAgr as any)?.operator_merchant_id === merchantProfile?.merchant_id,
+                                  })
+                                : calculateAllocationEconomics({
+                                    allocatedUsdt: usdt,
+                                    merchantCostPerUsdt: costPerUsdt,
+                                    sellPrice: sellP,
+                                    totalFee,
+                                    totalUsdt: salePreview.qty,
+                                    family: alloc.family,
+                                    partnerSharePct: alloc.partnerSharePct,
+                                  });
+
+                              const opCalc = isOpPriority ? (calc as any) : null;
+                              const isOpViewer = !!selAgr && (selAgr as any).operator_merchant_id === merchantProfile?.merchant_id;
 
                               return (
                                 <div style={{
@@ -2485,20 +3015,25 @@ export default function OrdersPage() {
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted">{t('allocRev')}:</span>
-                                    <strong className="mono">{fmtQ(calc.revenue)}</strong>
+                                    <strong className="mono">{fmtC(calc.revenue)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted">{t('allocNet')}:</span>
-                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtQ(calc.net)}</strong>
+                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtC(calc.net)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({alloc.merchantSharePct}%):</span>
-                                    <strong className="mono" style={{ color: 'var(--good)' }}>{fmtQ(calc.merchantAmount)}</strong>
+                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({isOpPriority ? `${calc.merchantSharePct.toFixed(1)}%` : `${alloc.merchantSharePct}%`}):</span>
+                                    <strong className="mono" style={{ color: 'var(--good)' }}>{fmtC(calc.merchantAmount)}</strong>
                                   </div>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({alloc.partnerSharePct}%):</span>
-                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtQ(calc.partnerAmount)}</strong>
+                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({isOpPriority ? `${calc.partnerSharePct.toFixed(1)}%` : `${alloc.partnerSharePct}%`}):</span>
+                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtC(calc.partnerAmount)}</strong>
                                   </div>
+                                  {isOpPriority && opCalc && (
+                                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, borderTop: '1px solid color-mix(in srgb, var(--line) 30%, transparent)', paddingTop: 4 }}>
+                                      ⚙️ Operator Fee: {fmtC(opCalc.operatorFee)} · Capital split: You {fmtC(isOpViewer ? opCalc.operatorCapitalShare : opCalc.lenderCapitalShare)} / {cpName} {fmtC(isOpViewer ? opCalc.lenderCapitalShare : opCalc.operatorCapitalShare)}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -2533,15 +3068,15 @@ export default function OrdersPage() {
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
                     <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
-                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationPreview.revenue)}</strong></div>
-                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtQ(allocationPreview.fifoCost)}</strong></div>}
+                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.revenue)}</strong></div>
+                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.fifoCost)}</strong></div>}
                     {allocationPreview.baseLabel === 'net_profit' && (
-                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtQ(allocationPreview.base)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtC(allocationPreview.base)}</strong></div>
                     )}
                     {/* Iconic profit split summary */}
                     <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtQ(allocationPreview.merchantAmount)}</strong></div>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtQ(allocationPreview.partnerAmount)}</strong></div>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtC(allocationPreview.merchantAmount)}</strong></div>
+                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtC(allocationPreview.partnerAmount)}</strong></div>
                     </div>
                     <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
                   </div>
@@ -2555,12 +3090,12 @@ export default function OrdersPage() {
                     <>
                       {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
                       <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
-                      <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtQ(salePreview.revenue)}</strong></div>
-                      <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtQ(salePreview.cost) : '—'}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(salePreview.revenue)}</strong></div>
+                      <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtC(salePreview.cost) : '—'}</strong></div>
                       <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
                         <span className="muted">{t('net')}</span>
                         <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                          {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtQ(salePreview.net)}` : '—'}
+                          {Number.isFinite(salePreview.net) ? `${salePreview.net >= 0 ? '+' : ''}${fmtC(salePreview.net)}` : '—'}
                         </strong>
                       </div>
                     </>
@@ -2607,7 +3142,7 @@ export default function OrdersPage() {
                             color: cashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
                           }}
                         >
-                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtQ(salePreview.revenue)})` : t('customAmount')}
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtC(salePreview.revenue)})` : t('customAmount')}
                         </button>
                       ))}
                     </div>
@@ -2658,7 +3193,7 @@ export default function OrdersPage() {
                                 }}
                               >
                                 <span style={isMobile ? { fontSize: 11 } : undefined}>{typeIcon} {acc.name}</span>
-                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtQ(bal)}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtC(bal)}</span>
                               </button>
                             );
                           })}
@@ -2674,9 +3209,9 @@ export default function OrdersPage() {
                               .filter(e => e.accountId === selectedAcc.id)
                               .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
                             const deposit = parseFloat(cashDepositAmount) || 0;
-                            return `${selectedAcc.name}: ${fmtQ(bal)} → ${fmtQ(bal + deposit)}`;
+                            return `${selectedAcc.name}: ${fmtC(bal)} → ${fmtC(bal + deposit)}`;
                           }
-                          return `${t('cashBalanceLbl')}: ${fmtQ(state.cashQAR || 0)} → ${fmtQ((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
+                          return `${t('cashBalanceLbl')}: ${fmtC(state.cashQAR || 0)} → ${fmtC((state.cashQAR || 0) + (parseFloat(cashDepositAmount) || 0))} QAR`;
                         })()}
                       </div>
                     )}
@@ -2703,7 +3238,7 @@ export default function OrdersPage() {
             <div className="formPanel salePanel">
               <div className="hdr">📥 {t('approvalInbox')}</div>
               <div className="inner">
-                {filteredIncomingMerchantDeals.length === 0 ? (
+                {subFilteredInDeals.length === 0 ? (
                   <div className="muted" style={{ fontSize: 11, textAlign: 'center', padding: 20 }}>{t('noIncomingTrades')}</div>
                 ) : (
                   <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5 }}>
@@ -2765,111 +3300,115 @@ export default function OrdersPage() {
             </div>
           )}
 
-          {/* ── USDT TRANSFERS PANEL ── */}
+          {/* ── USDT TRANSFERS PANEL: New Transfer Form ── */}
           {activeTab === 'transfers' && (
             <div className="formPanel salePanel">
-              <div className="hdr">💸 {t('usdtTransfers')}</div>
-              <div className="inner">
-                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>
-                  {t('capitalTransfersDesc')}
-                </div>
-                {allTransfers.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 20, color: 'var(--muted)', fontSize: 11 }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{t('noTransfers')}</div>
-                    <div style={{ fontSize: 10 }}>{t('createTransferDesc')}</div>
+              <div className="hdr">💸 {t('submitTransfer')}</div>
+              <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
+                
+                <div className="previewBox" style={{ marginTop: 6, borderColor: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 4%, transparent)' }}>
+                  <div className="pt" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🧡 {t('linkToPartner')}
+                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('optional')}</span>
                   </div>
-                ) : isMobile ? (
-                  <div style={{ display: 'grid', gap: 8, paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                    {allTransfers.map((tx: any) => {
-                      const rel = relationships.find(r => r.id === tx.relationship_id);
-                      const isIn = tx.direction === 'lender_to_operator';
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0', fontSize: 11, fontWeight: 600, color: 'var(--brand)', cursor: 'default' }}>
+                    <input
+                      type="checkbox"
+                      checked={true}
+                      readOnly
+                      style={{ accentColor: 'var(--brand)', width: 14, height: 14 }}
+                    />
+                    {t('isThisSaleLinked')}
+                  </label>
+
+                  <div className="field2" style={{ marginBottom: 10 }}>
+                    <div className="lbl" style={{ color: 'var(--brand)', fontWeight: 700 }}>{t('selectPartner')} <span style={{ color: 'var(--bad)' }}>*</span></div>
+                    <select
+                      value={linkedRelId}
+                      onChange={e => setLinkedRelId(e.target.value)}
+                      style={{ width: '100%', padding: isMobile ? '10px 12px' : '6px 10px', fontSize: isMobile ? 14 : 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
+                    >
+                      <option value="">{t('noneSelected')}</option>
+                      {relationships.map(r => (
+                        <option key={r.id} value={r.id}>{r.counterparty?.display_name || r.id}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="field2" style={{ marginBottom: 12 }}>
+                    <div className="lbl" style={{ color: 'var(--brand)', fontWeight: 700 }}>{t('agreementType')} <span style={{ color: 'var(--bad)' }}>*</span></div>
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value="capital_transfer"
+                        disabled
+                        style={{ width: '100%', padding: isMobile ? '10px 12px' : '6px 10px', fontSize: isMobile ? 14 : 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined, appearance: 'none' }}
+                      >
+                        <option value="capital_transfer">💸 {t('capitalTransfer')} (0/0)</option>
+                      </select>
+                      <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--muted)' }}>🔒</div>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', paddingTop: 12, marginTop: 4 }}>
+                    {(() => {
+                      const rel = relationships.find(r => r.id === linkedRelId);
+                      const cpName = rel?.counterparty?.display_name || t('partner');
+                      const myName = merchantProfile?.display_name || t('you') || 'You';
                       return (
-                        <div key={tx.id} className="previewBox" style={{ padding: 10 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                            <span className="mono" style={{ fontSize: 10 }}>{new Date(tx.created_at).toLocaleDateString()}</span>
-                            <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 10 }}>
-                              {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
-                            </span>
-                          </div>
-                          <div style={{ display: 'grid', gap: 4 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                              <span className="muted">{t('merchant')}</span>
-                              <strong style={{ fontSize: 11, textAlign: 'right' }}>{rel?.counterparty?.display_name || '—'}</strong>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                              <div className="panel" style={{ padding: 6 }}>
-                                <div className="muted" style={{ fontSize: 9 }}>USDT</div>
-                                <div className="mono" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
-                                  {isIn ? '+' : '−'}{fmtU(tx.amount)}
-                                </div>
-                              </div>
-                              <div className="panel" style={{ padding: 6 }}>
-                                <div className="muted" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
-                                <div className="mono" style={{ fontWeight: 700 }}>{fmtP(tx.cost_basis)} QAR</div>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                              <span className="muted">{t('totalCostQar')}</span>
-                              <strong className="mono">{fmtQ(tx.total_cost)}</strong>
-                            </div>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', wordBreak: 'break-word' }}>
-                              {tx.note || '—'}
-                            </div>
-                          </div>
+                        <div className="field2" style={{ marginBottom: 8 }}>
+                          <div className="lbl" style={{ fontWeight: 700, color: 'var(--brand)' }}>{t('direction')}</div>
+                          <select
+                            value={transferDirection}
+                            onChange={e => setTransferDirection(e.target.value as any)}
+                            style={{ width: '100%', padding: isMobile ? '9px 10px' : '6px 10px', fontSize: isMobile ? 13 : 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
+                          >
+                            <option value="lender_to_operator">💸 {cpName} → {myName}</option>
+                            <option value="operator_to_lender">↩️ {myName} → {cpName}</option>
+                          </select>
                         </div>
                       );
-                    })}
+                    })()}
+                    
+                    <div className="field2" style={{ marginBottom: 8 }}>
+                      <div className="lbl" style={{ fontWeight: 700, color: 'var(--brand)' }}>USDT {t('amount')}</div>
+                      <div className="inputBox">
+                        <input
+                          type="number"
+                          value={transferAmount}
+                          onChange={e => setTransferAmount(e.target.value)}
+                          placeholder="0"
+                          style={mobileInputStyle}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="field2" style={{ marginBottom: 12 }}>
+                      <div className="lbl" style={{ fontWeight: 700, color: 'var(--brand)' }}>{t('noteOptional')}</div>
+                      <div className="inputBox">
+                        <input
+                          value={transferNote}
+                          onChange={e => setTransferNote(e.target.value)}
+                          placeholder={t('noteOptional')}
+                          style={mobileInputStyle}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="formActions" style={{ marginTop: 16 }}>
+                      <button
+                        className="btn"
+                        style={{ width: '100%', background: 'var(--brand)', color: '#000', fontWeight: 800, minHeight: isMobile ? 48 : 40, fontSize: isMobile ? 14 : 12 }}
+                        onClick={handleCapitalTransfer}
+                        disabled={submitCapitalTransfer.isPending}
+                      >
+                        💸 {t('submitTransfer')}
+                      </button>
+                    </div>
+                    {submitCapitalTransfer.isPending && <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>{t('saving')}</div>}
                   </div>
-                ) : (
-                  <div className="tableWrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>{t('date')}</th>
-                          <th>{t('direction')}</th>
-                          <th>{t('merchant')}</th>
-                          <th className="r">USDT</th>
-                          <th className="r">{t('costBasisQar')}</th>
-                          <th className="r">{t('totalCostQar')}</th>
-                          <th>{t('notes')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allTransfers.map((tx: any) => {
-                          const rel = relationships.find(r => r.id === tx.relationship_id);
-                          const isIn = tx.direction === 'lender_to_operator';
-                          return (
-                            <tr key={tx.id}>
-                              <td className="mono" style={{ fontSize: 10 }}>
-                                {new Date(tx.created_at).toLocaleDateString()}
-                              </td>
-                              <td>
-                                <span className={`pill ${isIn ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                  {isIn ? '💸 ' + t('capitalIn') : '↩️ ' + t('capitalReturn')}
-                                </span>
-                              </td>
-                              <td style={{ fontSize: 10 }}>
-                                {rel?.counterparty?.display_name || '—'}
-                              </td>
-                              <td className="mono r" style={{ fontWeight: 700, color: isIn ? 'var(--good)' : 'var(--bad)' }}>
-                                {isIn ? '+' : '−'}{fmtU(tx.amount)}
-                              </td>
-                              <td className="mono r" style={{ fontSize: 10 }}>
-                                {fmtP(tx.cost_basis)} QAR
-                              </td>
-                              <td className="mono r" style={{ fontSize: 10 }}>
-                                {fmtQ(tx.total_cost)}
-                              </td>
-                              <td style={{ fontSize: 9, color: 'var(--muted)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {tx.note || '—'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                </div>
+                
               </div>
             </div>
           )}
@@ -2908,12 +3447,12 @@ export default function OrdersPage() {
                   <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
-                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(currentVolume)}</strong>
+                    <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtC(currentVolume)}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                      <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                     <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: currentNet != null ? (currentNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                      {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtQ(currentNet)}` : '—'}
+                      {currentNet != null ? `${currentNet >= 0 ? '+' : ''}${fmtC(currentNet)}` : '—'}
                     </strong>
                   </div>
                 </div>
@@ -3033,53 +3572,141 @@ export default function OrdersPage() {
                         </select>
                       </div>
 
-                      {/* Step 2: Select order type */}
-                      {editLinkedRelId && (
+                      {/* Step 2: Select deal family */}
+                      {editLinkedRelId && (() => {
+                        const editRel = relationships.find(r => r.id === editLinkedRelId);
+                        const editCpName = editRel?.counterparty?.display_name || (editRel as any)?.counterparty_name || t('partner');
+                        const editRelApprovedAgreements = editApprovedAgreements;
+
+                        return (
                         <div style={{ marginTop: 4 }}>
-                          <div className="lbl" style={{ marginBottom: 4 }}>{t('agreementType')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
+                          <div className="lbl" style={{ marginBottom: 4 }}>{t('dealFamilyLabel')} <span style={{ color: 'var(--bad)', fontWeight: 700 }}>*</span></div>
                           <select
                             value={editSelectedTemplateId || ''}
-                            onChange={e => setEditSelectedTemplateId(e.target.value || null)}
+                            onChange={e => { setEditSelectedTemplateId(e.target.value || null); setEditSelectedAgreementId(null); }}
                             style={{ width: '100%', padding: '6px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
                           >
-                            <option value="">{t('selectAgreementType')}</option>
-                            {AGREEMENT_TEMPLATES.filter(tmpl => tmpl.family !== 'capital_transfer').map(tmpl => (
-                              <option key={tmpl.id} value={tmpl.id}>
-                                {tmpl.icon} {tmpl.label[t.lang as 'en' | 'ar']} ({tmpl.ratioDisplay})
-                              </option>
-                            ))}
+                            <option value="">{t('selectDealFamily')}</option>
+                            <option value="profit_share_family">🤝 {t('profitShareRequiresAgreement')} {editRelApprovedAgreements.length > 0 ? `(${editRelApprovedAgreements.length})` : ''}</option>
+                            <option value="sales_deal_family">📊 {t('salesDealNoApproval')}</option>
                           </select>
 
-                          {/* Template details + allocation preview */}
-                          {editSelectedTemplateId && (() => {
-                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
-                            if (!tmpl) return null;
-                            const accentVar = tmpl.accent === 'brand' ? 'var(--brand)' : 'var(--good)';
+                          {/* ─── Profit Share: approved agreement picker ─── */}
+                          {editSelectedTemplateId === 'profit_share_family' && (
+                            <div style={{ marginTop: 6 }}>
+                              {editRelApprovedAgreements.length === 0 ? (
+                                <div style={{ fontSize: 10, color: 'var(--bad)', padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--bad) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 15%, transparent)' }}>
+                                  ⚠️ {t('noApprovedAgreement')} <strong>{editCpName}</strong>. {t('createInWorkspaceFirst')}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="field2" style={{ marginBottom: 4 }}>
+                                    <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
+                                    {editRelApprovedAgreements.length === 1 ? (
+                                      <div style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid color-mix(in srgb, var(--good) 35%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)', color: 'var(--t1)' }}>
+                                        {editRelApprovedAgreements[0].agreement_type === 'operator_priority'
+                                          ? `⚙️ Operator Priority · ${(editRelApprovedAgreements[0] as any).operator_ratio ?? 0}% fee — ${editRelApprovedAgreements[0].settlement_cadence}`
+                                          : `🤝 ${editRelApprovedAgreements[0].partner_ratio}/${editRelApprovedAgreements[0].merchant_ratio} — ${editRelApprovedAgreements[0].settlement_cadence}`}
+                                      </div>
+                                    ) : (
+                                      <select
+                                        value={editSelectedAgreementId || ''}
+                                        onChange={e => setEditSelectedAgreementId(e.target.value || null)}
+                                        style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                      >
+                                        <option value="">{t('selectAgreement')}</option>
+                                        {editRelApprovedAgreements.map(agr => (
+                                          <option key={agr.id} value={agr.id}>
+                                            {agr.agreement_type === 'operator_priority'
+                                              ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
+                                              : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
+                                  </div>
+                                  {editSelectedAgreementId && (() => {
+                                    const agr = editRelApprovedAgreements.find(a => a.id === editSelectedAgreementId);
+                                    if (!agr) return null;
+                                    const isOp = agr.agreement_type === 'operator_priority';
+                                    const qty = Number(editQty) || 0;
+                                    const sell = Number(editSell) || 0;
+                                    const rev = qty * sell;
+                                    const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
+                                    const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
+                                    const netProfit = rev - fifoCost - (Number(editFee) || 0);
+                                    let partnerAmt: number;
+                                    let merchantAmt: number;
+                                    if (isOp) {
+                                      const opResult = calculateOperatorPriorityProfit({
+                                        grossProfit: netProfit,
+                                        operatorRatio: (agr as any).operator_ratio ?? 0,
+                                        operatorContribution: (agr as any).operator_contribution ?? 0,
+                                        lenderContribution: (agr as any).lender_contribution ?? 0,
+                                      });
+                                      const isOperator = (agr as any).operator_merchant_id === merchantProfile?.merchant_id;
+                                      partnerAmt = isOperator ? opResult.lenderTotal : opResult.operatorTotal;
+                                      merchantAmt = isOperator ? opResult.operatorTotal : opResult.lenderTotal;
+                                    } else {
+                                      partnerAmt = netProfit * (agr.partner_ratio / 100);
+                                      merchantAmt = netProfit - partnerAmt;
+                                    }
+                                    return (
+                                      <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, marginBottom: 3 }}>
+                                          {isOp
+                                            ? `⚙️ Operator Fee ${(agr as any).operator_ratio ?? 0}% · then split by capital weight`
+                                            : `${t('lockedRatio')} ${agr.partner_ratio}% / ${t('youShare')} ${agr.merchant_ratio}%`}
+                                        </div>
+                                        {rev > 0 && (
+                                          <div style={{ marginTop: 6, fontSize: 10 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                              <span className="muted">{t('partnerShare')}:</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtC(partnerAmt)}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                              <span className="muted">{t('merchantShareDist')}:</span>
+                                              <span className="mono" style={{ fontWeight: 700 }}>{fmtC(merchantAmt)}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>
+                                          {t('tradeWillBeSentForApproval')}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {/* ─── Sales Deal: template details + preview ─── */}
+                          {editSelectedTemplateId === 'sales_deal_family' && (() => {
                             const qty = Number(editQty) || 0;
                             const sell = Number(editSell) || 0;
                             const rev = qty * sell;
                             const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
                             const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
                             const netProfit = rev - fifoCost - (Number(editFee) || 0);
-                            const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
-                            const base = tmpl.family === 'profit_share' ? netProfit : rev;
-                            const partnerAmt = base * (partnerPct / 100);
-                            const merchantAmt = base - partnerAmt;
+                            // Sales deal defaults to 50/50 unless user changes
+                            const partnerPct = 50;
+                            const partnerAmt = netProfit * (partnerPct / 100);
+                            const merchantAmt = netProfit - partnerAmt;
                             return (
-                              <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: `color-mix(in srgb, ${accentVar} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${accentVar} 30%, transparent)` }}>
-                                <div style={{ fontSize: 10, color: accentVar, fontWeight: 600, marginBottom: 3 }}>
-                                  {getTemplateRatioLabel(tmpl, t.lang as 'en' | 'ar')}
+                              <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 30%, transparent)' }}>
+                                <div style={{ fontSize: 10, color: 'var(--good)', fontWeight: 600, marginBottom: 3 }}>
+                                  📊 {t('salesDealNoApproval')} — 50/50
                                 </div>
-                                <div style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.4 }}>{tmpl.helperText[t.lang as 'en' | 'ar']}</div>
                                 {rev > 0 && (
                                   <div style={{ marginTop: 6, fontSize: 10 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                       <span className="muted">{t('partnerShare')}:</span>
-                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(partnerAmt)}</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtC(partnerAmt)}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                       <span className="muted">{t('merchantShareDist')}:</span>
-                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtQ(merchantAmt)}</span>
+                                      <span className="mono" style={{ fontWeight: 700 }}>{fmtC(merchantAmt)}</span>
                                     </div>
                                   </div>
                                 )}
@@ -3091,23 +3718,20 @@ export default function OrdersPage() {
                           })()}
 
                           {/* Settle immediately (Sales Deal only) */}
-                          {editSelectedTemplateId && (() => {
-                            const tmpl = AGREEMENT_TEMPLATES.find(tmpl => tmpl.id === editSelectedTemplateId);
-                            if (!tmpl || tmpl.family !== 'sales_deal') return null;
-                            return (
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={editSettleImmediately}
-                                  onChange={e => setEditSettleImmediately(e.target.checked)}
-                                  style={{ accentColor: 'var(--brand)' }}
-                                />
-                                {t('settleThisTradeNow')}
-                              </label>
-                            );
-                          })()}
+                          {editSelectedTemplateId === 'sales_deal_family' && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={editSettleImmediately}
+                                onChange={e => setEditSettleImmediately(e.target.checked)}
+                                style={{ accentColor: 'var(--brand)' }}
+                              />
+                              {t('settleThisTradeNow')}
+                            </label>
+                          )}
                         </div>
-                      )}
+                        );
+                      })()}
                     </>
                   )}
                 </div>
@@ -3182,12 +3806,12 @@ export default function OrdersPage() {
                 <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.7px', textTransform: 'uppercase', color: 'var(--good)', marginBottom: 8 }}>{t('currentStatsLabel')}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                   <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('volumeLabel')}</span>
-                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtQ(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
+                  <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: 'var(--text)' }}>{fmtC(Number.isFinite(dealVol) ? dealVol : 0)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--text)' }}>{t('netLabel')}</span>
                   <strong style={{ fontFamily: 'var(--lt-font-mono)', fontSize: 13, color: Number.isFinite(dealNet) ? (dealNet >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                    {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtQ(dealNet)}` : '—'}
+                    {Number.isFinite(dealNet) ? `${dealNet >= 0 ? '+' : ''}${fmtC(dealNet)}` : '—'}
                   </strong>
                 </div>
               </div>

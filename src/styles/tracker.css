@@ -95,7 +95,19 @@
 .tracker-root .panel-body { padding: 12px; }
 
 /* ── PILLS ── */
-.tracker-root .pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted); font-size: calc(10px * var(--ui-scale,1)); white-space: nowrap; transition: all var(--lt-tr); }
+.tracker-root .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: calc(10px * var(--ui-scale, 1));
+  white-space: nowrap;
+  transition: all var(--lt-tr);
+}
 .tracker-root .pill:hover { border-color: var(--brand); color: var(--brand); background: var(--brand3); }
 .tracker-root .pill.good { color: var(--good); border-color: color-mix(in srgb,var(--good) 35%,transparent); background: color-mix(in srgb,var(--good) 10%,transparent); }
 .tracker-root .pill.bad { color: var(--bad); border-color: color-mix(in srgb,var(--bad) 35%,transparent); background: color-mix(in srgb,var(--bad) 10%,transparent); }
@@ -114,7 +126,21 @@
 .tracker-root .prog > span { position: absolute; top: 0; left: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
 
 /* ── ROW BUTTONS ── */
-.tracker-root .rowBtn { border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted); padding: 4px 8px; border-radius: var(--lt-radius-sm); cursor: pointer; font-size: calc(10px * var(--ui-scale,1)); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; transition: all var(--lt-tr); font-weight: 600; }
+.tracker-root .rowBtn {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  color: rgba(255, 255, 255, 0.55);
+  padding: 4px 8px;
+  border-radius: var(--lt-radius-sm);
+  cursor: pointer;
+  font-size: calc(10px * var(--ui-scale, 1));
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  transition: all var(--lt-tr);
+  font-weight: 600;
+}
 .tracker-root .rowBtn:hover { background: var(--hover-card); border-color: var(--brand); color: var(--brand); }
 
 /* ── BUTTONS ── */
@@ -128,15 +154,15 @@
 .tracker-root .formPanel:hover { border-color: color-mix(in srgb,var(--brand) 30%,transparent); }
 .tracker-root .formPanel .hdr { padding: 6px 10px; border-bottom: 1px solid var(--line); font-weight: 700; letter-spacing: .5px; text-transform: uppercase; font-size: calc(9px * var(--ui-scale,1)); color: var(--muted); background: linear-gradient(90deg, rgba(255,255,255,.02), transparent); }
 .tracker-root .formPanel .inner { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
-.tracker-root .salePanel .hdr { padding: 5px 8px; font-size: calc(8px * var(--ui-scale,1)); }
-.tracker-root .salePanel .inner { padding: 5px; gap: 3px; }
+.tracker-root .salePanel .hdr { padding: 4px 8px; font-size: calc(8px * var(--ui-scale,1)); }
+.tracker-root .salePanel .inner { padding: 4px; gap: 2px; }
 .tracker-root .field2 { display: flex; flex-direction: column; gap: 4px; }
 .tracker-root .field2 .lbl { font-size: calc(9px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
-.tracker-root .inputBox { position: relative; border: 1px solid var(--line); background: var(--input-bg); border-radius: var(--lt-radius-sm); padding: 8px 10px; transition: border-color var(--lt-tr), box-shadow var(--lt-tr); }
+.tracker-root .inputBox { position: relative; border: 1px solid var(--line); background: var(--input-bg); border-radius: var(--lt-radius-sm); padding: 4px 10px; transition: border-color var(--lt-tr), box-shadow var(--lt-tr); }
 .tracker-root .inputBox:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand3); }
 .tracker-root .inputBox input { border: none; outline: none; background: transparent; color: var(--text); font-size: calc(12px * var(--ui-scale,1)); width: 100%; font-family: var(--lt-font); }
 .tracker-root .inputBox input::placeholder { color: var(--muted2); }
-.tracker-root .bannerRow { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--lt-radius-sm); border: 1px solid color-mix(in srgb,var(--brand) 25%,transparent); background: var(--brand3); }
+.tracker-root .bannerRow { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: var(--lt-radius-sm); border: 1px solid color-mix(in srgb,var(--brand) 25%,transparent); background: var(--brand3); }
 .tracker-root .bannerRow .bLbl { color: var(--muted); font-size: calc(10px * var(--ui-scale,1)); font-weight: 700; }
 .tracker-root .bannerRow .bVal { font-family: var(--lt-font-mono); font-size: calc(14px * var(--ui-scale,1)); font-weight: 900; color: var(--brand); }
 .tracker-root .bannerRow .bSpacer { flex: 1; }
@@ -144,7 +170,7 @@
 .tracker-root .previewBox { border-radius: var(--lt-radius-sm); border: 1px solid color-mix(in srgb,var(--brand) 20%,transparent); background: var(--brand3); padding: 10px; }
 .tracker-root .previewBox .pt { font-size: calc(9px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .8px; text-transform: uppercase; color: var(--brand); margin-bottom: 6px; }
 .tracker-root .modeToggle { display: flex; gap: 2px; padding: 3px; border-radius: var(--lt-radius-sm); border: 1px solid var(--line); background: rgba(255,255,255,.02); }
-.tracker-root .modeToggle button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: calc(var(--lt-radius-sm) - 2px); padding: 7px; font-weight: 900; font-size: calc(10px * var(--ui-scale,1)); cursor: pointer; transition: all var(--lt-tr); }
+.tracker-root .modeToggle button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: calc(var(--lt-radius-sm) - 2px); padding: 4px 6px; font-weight: 900; font-size: calc(9px * var(--ui-scale,1)); cursor: pointer; transition: all var(--lt-tr); white-space: nowrap; }
 .tracker-root .modeToggle button.active { background: var(--brand3); color: var(--brand); border-color: color-mix(in srgb,var(--brand) 30%,transparent); }
 .tracker-root .g2tight { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tracker-root .formActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
@@ -292,7 +318,7 @@
 .tracker-seg button {
   border: 1px solid transparent;
   background: transparent;
-  color: var(--tracker-muted);
+  color: rgba(255, 255, 255, 0.5);
   border-radius: 6px;
   padding: 6px 9px;
   font-size: 11px;
@@ -494,19 +520,91 @@
   }
 }
 
-/* ── Orders Tab Bar ── */
+/* ── Orders Tab Bar (Redesigned) ── */
 .orders-tab-bar {
-  display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 2px;
-  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
 }
 .orders-tab-bar::-webkit-scrollbar { display: none; }
+
 .orders-tab-btn {
-  padding: 9px 18px; font-size: 11px; font-weight: 500;
-  color: var(--muted); border: none; border-bottom: 2px solid transparent;
-  background: transparent; cursor: pointer; transition: all 0.15s;
-  letter-spacing: .2px; white-space: nowrap; flex-shrink: 0;
+  padding: 8px 18px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  border: none;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
 }
-.orders-tab-btn.active { font-weight: 700; color: var(--brand); border-bottom-color: var(--brand); }
+
+.orders-tab-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+.orders-tab-btn.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.1);
+  font-weight: 700;
+  transform: none;
+}
+
+.orders-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0px;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: var(--brand);
+  background: linear-gradient(135deg, var(--brand), var(--brand2));
+  border-radius: inherit;
+  z-index: -1;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+/* On mobile, make it a full-width rail */
+@media (max-width: 768px) {
+  .orders-tab-bar {
+    display: flex;
+    width: 100%;
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 16px;
+  }
+  .orders-tab-btn {
+    flex: 1;
+    padding: 12px 10px;
+    justify-content: center;
+    font-size: 10px;
+    gap: 4px;
+    border-radius: 8px;
+  }
+  .orders-tab-btn.active {
+     box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 30%, transparent);
+  }
+}
 
 /* ── Orders two-col: on mobile, keep list first and form below ── */
 @media (max-width: 768px) {

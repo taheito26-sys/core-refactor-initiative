@@ -18,6 +18,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
   const { settings } = useTheme();
   const t = useT();
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing'>('my');
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
   const state = trackerState;
   const derived = useMemo(() => state ? computeFIFO(state.batches, state.trades) : null, [state]);
@@ -101,6 +102,32 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     return true;
   }), [allTrades, state?.range, settings.range, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, userId]);
 
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    const curMonthKey = new Date().toISOString().slice(0, 7);
+    months.add(curMonthKey);
+    visibleTrades.forEach(tr => {
+      const d = new Date(tr.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    allMerchantDeals.forEach((d: any) => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      months.add(key);
+    });
+    return Array.from(months).sort().reverse();
+  }, [visibleTrades, allMerchantDeals]);
+
+  const subFilteredTrades = useMemo(() => {
+    if (selectedMonth === 'all') return visibleTrades;
+    return visibleTrades.filter(tr => {
+      const d = new Date(tr.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [visibleTrades, selectedMonth]);
+
   const relationshipById = useMemo(() => new Map(
     relationships.map((r: any) => [r.id, { merchant_a_id: r.merchant_a_id, merchant_b_id: r.merchant_b_id }]),
   ), [relationships]);
@@ -132,6 +159,25 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     }) === 'outgoing'),
     [workspaceScopedDeals, merchantId, relationshipById, merchantUserByMerchantId],
   );
+
+  const subFilteredInDeals = useMemo(() => {
+    if (selectedMonth === 'all') return partnerMerchantDeals;
+    return partnerMerchantDeals.filter((d: any) => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [partnerMerchantDeals, selectedMonth]);
+
+  const subFilteredOutDeals = useMemo(() => {
+    if (selectedMonth === 'all') return creatorMerchantDeals;
+    return creatorMerchantDeals.filter((d: any) => {
+      const date = new Date(d.created_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [creatorMerchantDeals, selectedMonth]);
+
   const resolveDealAvgBuy = (deal: any, normalizedMeta?: Record<string, string>): number => {
     const meta = normalizedMeta ?? parseDealMeta(deal.notes);
     const metaAvg = Number(meta.avg_buy) || 0;
@@ -148,33 +194,33 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
 
   const myKpi = useMemo(() => {
     let qty = 0, vol = 0, net = 0;
-    for (const tr of visibleTrades.filter(tr => !tr.voided)) {
+    for (const tr of subFilteredTrades.filter(tr => !tr.voided)) {
       const c = derived?.tradeCalc.get(tr.id);
       qty += tr.amountUSDT;
       vol += tr.amountUSDT * tr.sellPriceQAR;
       if (c?.ok) net += c.netQAR;
     }
-    return { count: visibleTrades.length, qty, vol, net };
-  }, [visibleTrades, derived]);
+    return { count: subFilteredTrades.length, qty, vol, net };
+  }, [subFilteredTrades, derived]);
 
   const outKpi = useMemo(() => {
     let vol = 0, net = 0;
-    for (const deal of creatorMerchantDeals) {
+    for (const deal of subFilteredOutDeals) {
       const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
       vol += row.volume;
       net += row.myNet ?? 0;
     }
-    return { count: creatorMerchantDeals.length, vol, net };
-  }, [creatorMerchantDeals, t.isRTL]);
+    return { count: subFilteredOutDeals.length, vol, net };
+  }, [subFilteredOutDeals, t.isRTL]);
   const inKpi = useMemo(() => {
     let vol = 0, net = 0;
-    for (const deal of partnerMerchantDeals) {
+    for (const deal of subFilteredInDeals) {
       const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
       vol += row.volume;
       net += row.myNet ?? 0;
     }
-    return { count: partnerMerchantDeals.length, vol, net };
-  }, [partnerMerchantDeals, t.isRTL]);
+    return { count: subFilteredInDeals.length, vol, net };
+  }, [subFilteredInDeals, t.isRTL]);
 
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => (
     <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
@@ -190,6 +236,23 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
   }
 
   const rLabel = rangeLabel(state.range || settings.range);
+
+  const renderMonthSelector = () => (
+    <div className="orders-tab-bar" style={{ marginBottom: 8, background: 'transparent', border: 'none', padding: 0, gap: 8, boxShadow: 'none' }}>
+      <button onClick={() => setSelectedMonth('all')} className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`} style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}>
+        {t('allMonths')}
+      </button>
+      {availableMonths.map(m => {
+        const [y, mm] = m.split('-');
+        const label = new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', year: '2-digit' });
+        return (
+          <button key={m} onClick={() => setSelectedMonth(m)} className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`} style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
@@ -210,6 +273,8 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
         ))}
       </div>
 
+      {renderMonthSelector()}
+
       {activeTab === 'my' && (
         <>
           {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
@@ -220,11 +285,11 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
             </div>
             <span className="pill">{rLabel}</span>
           </div>
-          {visibleTrades.length === 0 ? <div className="empty"><div className="empty-t">{t('noTradesYet')}</div></div> : (
+          {subFilteredTrades.length === 0 ? <div className="empty"><div className="empty-t">{t('noTradesYet')}</div></div> : (
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th>
             </tr></thead><tbody>
-              {visibleTrades.map((tr) => {
+              {subFilteredTrades.map((tr) => {
                 const c = derived.tradeCalc.get(tr.id);
                 const ok = !!c?.ok;
                 const rev = tr.amountUSDT * tr.sellPriceQAR;
@@ -257,13 +322,13 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
           {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
             <div><div style={{ fontSize: 13, fontWeight: 800 }}>📥 {t('incomingOrders')}</div><div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('partnerTradesAwaitingApproval')}</div></div>
-            <span className="pill">{partnerMerchantDeals.length} {t('trades')}</span>
+            <span className="pill">{subFilteredInDeals.length} {t('trades')}</span>
           </div>
-          {partnerMerchantDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noIncomingTrades')}</div></div> : (
+          {subFilteredInDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noIncomingTrades')}</div></div> : (
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
             </tr></thead><tbody>
-              {partnerMerchantDeals.map((deal: any) => {
+              {subFilteredInDeals.map((deal: any) => {
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                 const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -308,13 +373,13 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
           {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
             <div><div style={{ fontSize: 13, fontWeight: 800 }}>📤 {t('outgoingOrders')}</div><div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('yourMerchantLinkedTrades')}</div></div>
-            <span className="pill">{creatorMerchantDeals.length} {t('trades')}</span>
+            <span className="pill">{subFilteredOutDeals.length} {t('trades')}</span>
           </div>
-          {creatorMerchantDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noOutgoingTrades')}</div></div> : (
+          {subFilteredOutDeals.length === 0 ? <div className="empty"><div className="empty-t">{t('noOutgoingTrades')}</div></div> : (
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
             </tr></thead><tbody>
-              {creatorMerchantDeals.map((deal: any) => {
+              {subFilteredOutDeals.map((deal: any) => {
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                 const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;

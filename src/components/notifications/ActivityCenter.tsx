@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, CheckCheck, Check, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,10 @@ import { useMarkAllRead, useMarkCategoryRead, useMarkNotificationRead, useMarkNo
 import { smartGroupNotifications, type SmartNotification } from '@/lib/notification-grouping';
 import { handleNotificationClick } from '@/lib/notification-router';
 import { normalizeNotificationCategory, type NotificationCategoryGroup } from '@/types/notifications';
+import { useUpdateAgreementStatus } from '@/hooks/useProfitShareAgreements';
+import { toast } from 'sonner';
 
-const categories: NotificationCategoryGroup[] = ['all', 'deal', 'order', 'invite', 'approval', 'message', 'system'];
+const categories: NotificationCategoryGroup[] = ['all', 'deal', 'order', 'invite', 'approval', 'agreement', 'message', 'system'];
 
 export default function ActivityCenter() {
   const [open, setOpen] = useState(false);
@@ -25,6 +27,8 @@ export default function ActivityCenter() {
   const markManyRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllRead();
   const markCategoryRead = useMarkCategoryRead();
+  const updateStatus = useUpdateAgreementStatus();
+  const [actioningIds, setActioningIds] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     if (!notifications) return [];
@@ -41,6 +45,27 @@ export default function ActivityCenter() {
     setOpen(false);
     handleNotificationClick(n, navigate);
   };
+
+  const handleAgreementAction = async (n: SmartNotification, status: 'approved' | 'rejected', e: React.MouseEvent) => {
+    e.stopPropagation();
+    const agreementId = n.target?.targetEntityId || n.target?.entityId;
+    if (!agreementId) return;
+
+    setActioningIds(prev => new Set(prev).add(n.id));
+    try {
+      await updateStatus.mutateAsync({ agreementId, status });
+      // Mark notification as read
+      if (!n.read_at) await markRead.mutateAsync(n.id);
+      toast.success(status === 'approved' ? t('agreementApprovedSuccess') : t('agreementRejectedSuccess'));
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed');
+    } finally {
+      setActioningIds(prev => { const next = new Set(prev); next.delete(n.id); return next; });
+    }
+  };
+
+  const isAgreementNotification = (n: SmartNotification) =>
+    n.category === 'agreement' && (n.target?.targetEntityType === 'agreement' || n.target?.entityType === 'agreement');
 
   return (
     <Popover open={open} onOpenChange={(v) => { if (v) setActiveCategory('all'); setOpen(v); }}>
@@ -72,6 +97,31 @@ export default function ActivityCenter() {
             <button key={n.id} onClick={() => onNavigate(n)} className={cn('w-full text-left p-3 border-b hover:bg-muted/40', !n.read_at && 'bg-primary/5')}>
               <div className="text-xs font-semibold">{n.title} {n.groupCount && n.groupCount > 1 ? `×${n.groupCount}` : ''}</div>
               {n.body && <div className="text-xs text-muted-foreground">{n.body}</div>}
+              {/* Inline approve/reject for agreement notifications */}
+              {isAgreementNotification(n) && !n.read_at && (
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="h-6 text-[10px] px-3"
+                    disabled={actioningIds.has(n.id)}
+                    onClick={(e) => handleAgreementAction(n, 'approved', e)}
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    {t('approveAction')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-6 text-[10px] px-3"
+                    disabled={actioningIds.has(n.id)}
+                    onClick={(e) => handleAgreementAction(n, 'rejected', e)}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    {t('rejectAction')}
+                  </Button>
+                </div>
+              )}
               <div className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}</div>
             </button>
           ))}

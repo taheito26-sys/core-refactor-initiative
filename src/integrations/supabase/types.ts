@@ -44,6 +44,63 @@ export type Database = {
         }
         Relationships: []
       }
+      capital_transfers: {
+        Row: {
+          amount: number
+          cost_basis: number
+          created_at: string
+          currency: string
+          deal_id: string | null
+          direction: string
+          id: string
+          note: string | null
+          relationship_id: string
+          total_cost: number
+          transferred_by: string
+        }
+        Insert: {
+          amount: number
+          cost_basis?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          direction: string
+          id?: string
+          note?: string | null
+          relationship_id: string
+          total_cost?: number
+          transferred_by: string
+        }
+        Update: {
+          amount?: number
+          cost_basis?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          direction?: string
+          id?: string
+          note?: string | null
+          relationship_id?: string
+          total_cost?: number
+          transferred_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capital_transfers_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capital_transfers_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_accounts: {
         Row: {
           bank_name: string | null
@@ -51,6 +108,7 @@ export type Database = {
           created_at: number
           currency: string
           id: string
+          is_merchant_account: boolean | null
           last_reconciled: number | null
           name: string
           notes: string | null
@@ -65,6 +123,7 @@ export type Database = {
           created_at: number
           currency: string
           id: string
+          is_merchant_account?: boolean | null
           last_reconciled?: number | null
           name: string
           notes?: string | null
@@ -79,6 +138,7 @@ export type Database = {
           created_at?: number
           currency?: string
           id?: string
+          is_merchant_account?: boolean | null
           last_reconciled?: number | null
           name?: string
           notes?: string | null
@@ -93,6 +153,7 @@ export type Database = {
         Row: {
           account_id: string
           amount: number
+          batch_id: string | null
           contra_account_id: string | null
           created_at: string
           currency: string
@@ -108,6 +169,7 @@ export type Database = {
         Insert: {
           account_id: string
           amount?: number
+          batch_id?: string | null
           contra_account_id?: string | null
           created_at?: string
           currency: string
@@ -123,6 +185,7 @@ export type Database = {
         Update: {
           account_id?: string
           amount?: number
+          batch_id?: string | null
           contra_account_id?: string | null
           created_at?: string
           currency?: string
@@ -195,6 +258,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_reference_rates: {
+        Row: {
+          created_at: string
+          id: string
+          rate_date: string
+          recorded_by: string
+          source: string
+          total_cost_basis_qar: number
+          total_usdt_stock: number
+          wacop_rate: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rate_date: string
+          recorded_by: string
+          source?: string
+          total_cost_basis_qar?: number
+          total_usdt_stock?: number
+          wacop_rate: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rate_date?: string
+          recorded_by?: string
+          source?: string
+          total_cost_basis_qar?: number
+          total_usdt_stock?: number
+          wacop_rate?: number
+        }
+        Relationships: []
       }
       deal_capital_ledger: {
         Row: {
@@ -315,6 +411,7 @@ export type Database = {
           currency: string
           deal_type: string
           id: string
+          metadata: Json | null
           notes: string | null
           realized_pnl: number
           relationship_id: string
@@ -330,6 +427,7 @@ export type Database = {
           currency?: string
           deal_type?: string
           id?: string
+          metadata?: Json | null
           notes?: string | null
           realized_pnl?: number
           relationship_id: string
@@ -345,6 +443,7 @@ export type Database = {
           currency?: string
           deal_type?: string
           id?: string
+          metadata?: Json | null
           notes?: string | null
           realized_pnl?: number
           relationship_id?: string
@@ -754,6 +853,7 @@ export type Database = {
       }
       notifications: {
         Row: {
+          actor_id: string | null
           anchor_id: string | null
           body: string | null
           category: string
@@ -764,10 +864,16 @@ export type Database = {
           id: string
           message_id: string | null
           read_at: string | null
+          target_entity_id: string | null
+          target_entity_type: string | null
+          target_focus: string | null
+          target_path: string | null
+          target_tab: string | null
           title: string
           user_id: string
         }
         Insert: {
+          actor_id?: string | null
           anchor_id?: string | null
           body?: string | null
           category?: string
@@ -778,10 +884,16 @@ export type Database = {
           id?: string
           message_id?: string | null
           read_at?: string | null
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          target_focus?: string | null
+          target_path?: string | null
+          target_tab?: string | null
           title: string
           user_id: string
         }
         Update: {
+          actor_id?: string | null
           anchor_id?: string | null
           body?: string | null
           category?: string
@@ -792,6 +904,11 @@ export type Database = {
           id?: string
           message_id?: string | null
           read_at?: string | null
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          target_focus?: string | null
+          target_path?: string | null
+          target_tab?: string | null
           title?: string
           user_id?: string
         }
@@ -1455,6 +1572,7 @@ export type Database = {
           effective_from: string
           expires_at: string | null
           id: string
+          invested_capital: number | null
           lender_contribution: number | null
           merchant_ratio: number
           notes: string | null
@@ -1465,6 +1583,7 @@ export type Database = {
           partner_ratio: number
           relationship_id: string
           settlement_cadence: string
+          settlement_way: string | null
           status: string
           terms_snapshot: Json | null
           updated_at: string
@@ -1479,6 +1598,7 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          invested_capital?: number | null
           lender_contribution?: number | null
           merchant_ratio: number
           notes?: string | null
@@ -1489,6 +1609,7 @@ export type Database = {
           partner_ratio: number
           relationship_id: string
           settlement_cadence?: string
+          settlement_way?: string | null
           status?: string
           terms_snapshot?: Json | null
           updated_at?: string
@@ -1503,6 +1624,7 @@ export type Database = {
           effective_from?: string
           expires_at?: string | null
           id?: string
+          invested_capital?: number | null
           lender_contribution?: number | null
           merchant_ratio?: number
           notes?: string | null
@@ -1513,6 +1635,7 @@ export type Database = {
           partner_ratio?: number
           relationship_id?: string
           settlement_cadence?: string
+          settlement_way?: string | null
           status?: string
           terms_snapshot?: Json | null
           updated_at?: string

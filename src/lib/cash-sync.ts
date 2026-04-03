@@ -15,6 +15,10 @@ function accountToRow(a: CashAccount, userId: string) {
     branch:          a.branch    ?? null,
     notes:           a.notes     ?? null,
     last_reconciled: a.lastReconciled ?? null,
+    merchant_id:     a.merchantId ?? null,
+    relationship_id: a.relationshipId ?? null,
+    purpose:         a.purpose ?? 'custody',
+    is_merchant_account: a.isMerchantAccount ?? false,
     created_at:      a.createdAt,
     updated_at:      new Date().toISOString(),
   };
@@ -31,6 +35,10 @@ function rowToAccount(row: Record<string, unknown>): CashAccount {
     branch:         (row.branch   as string | null) ?? undefined,
     notes:          (row.notes    as string | null) ?? undefined,
     lastReconciled: (row.last_reconciled as number | null) ?? undefined,
+    merchantId:     (row.merchant_id as string | null) ?? undefined,
+    relationshipId: (row.relationship_id as string | null) ?? undefined,
+    purpose:        (row.purpose as CashAccount['purpose']) ?? 'custody',
+    isMerchantAccount: (row.is_merchant_account as boolean | null) ?? false,
     createdAt:      row.created_at as number,
   };
 }
@@ -49,6 +57,12 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
     note:               e.note              ?? null,
     linked_entity_id:   e.linkedEntityId    ?? null,
     linked_entity_type: e.linkedEntityType  ?? null,
+    merchant_id:        e.merchantId        ?? null,
+    relationship_id:    e.relationshipId    ?? null,
+    trade_id:           e.tradeId           ?? null,
+    order_id:           e.orderId           ?? null,
+    batch_id:           e.batchId           ?? null,
+    settlement_id:      e.settlementId      ?? null,
   };
 }
 
@@ -64,7 +78,13 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
     currency:         row.currency as CashLedgerEntry['currency'],
     note:             (row.note as string | null) ?? undefined,
     linkedEntityId:   (row.linked_entity_id   as string | null) ?? undefined,
-    linkedEntityType: (row.linked_entity_type as 'batch' | null) ?? undefined,
+    linkedEntityType: (row.linked_entity_type as CashLedgerEntry['linkedEntityType']) ?? undefined,
+    merchantId:       (row.merchant_id as string | null) ?? undefined,
+    relationshipId:   (row.relationship_id as string | null) ?? undefined,
+    tradeId:          (row.trade_id as string | null) ?? undefined,
+    orderId:          (row.order_id as string | null) ?? undefined,
+    batchId:          (row.batch_id as string | null) ?? undefined,
+    settlementId:     (row.settlement_id as string | null) ?? undefined,
   };
 }
 

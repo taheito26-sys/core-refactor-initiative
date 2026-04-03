@@ -1,6 +1,9 @@
 import { useT } from '@/lib/i18n';
 import { useBalanceLedger, type BalanceEntry } from '@/hooks/useBalanceLedger';
-import { fmtU } from '@/lib/tracker-helpers';
+import { fmtU, fmtQWithUnit, getWACOP } from '@/lib/tracker-helpers';
+import { useTheme } from '@/lib/theme-context';
+import { useTrackerState } from '@/lib/useTrackerState';
+import { useMemo } from 'react';
 import '@/styles/tracker.css';
 
 function entryIcon(type: BalanceEntry['type']): string {
@@ -47,7 +50,11 @@ interface Props {
 
 export function BalanceLedger({ relationshipId }: Props) {
   const t = useT();
+  const { settings } = useTheme();
   const { data, isLoading } = useBalanceLedger(relationshipId);
+
+  const { derived } = useTrackerState({});
+  const wacop = useMemo(() => getWACOP(derived), [derived]);
 
   const entryLabel = (type: BalanceEntry['type'], costBasis?: number, note?: string | null): string => {
     switch (type) {
@@ -76,24 +83,24 @@ export function BalanceLedger({ relationshipId }: Props) {
         <div className="kpi-band-cols">
           <div>
             <div className="kpi-period">{t('totalLent')}</div>
-            <div className="kpi-cell-val mono">{fmtU(totalLent)}</div>
+            <div className="kpi-cell-val mono">{fmtQWithUnit(totalLent, settings.currency, wacop)}</div>
           </div>
           <div>
             <div className="kpi-period">{t('reinvestedPool')}</div>
             <div className="kpi-cell-val mono" style={{ color: totalReinvested > 0 ? 'var(--good)' : 'var(--muted)' }}>
-              {fmtU(totalReinvested)}
+              {fmtQWithUnit(totalReinvested, settings.currency, wacop)}
             </div>
           </div>
           <div>
             <div className="kpi-period">{t('payOut')}</div>
             <div className="kpi-cell-val mono" style={{ color: totalPaidOut > 0 ? 'var(--muted)' : 'var(--muted)' }}>
-              {fmtU(totalPaidOut)}
+              {fmtQWithUnit(totalPaidOut, settings.currency, wacop)}
             </div>
           </div>
           <div>
             <div className="kpi-period">{t('netBalanceLabel')}</div>
             <div className="kpi-cell-val mono" style={{ fontWeight: 800, color: netBalance > 0 ? 'var(--good)' : 'var(--muted)' }}>
-              {fmtU(netBalance)}
+              {fmtQWithUnit(netBalance, settings.currency, wacop)}
             </div>
           </div>
         </div>
@@ -132,10 +139,10 @@ export function BalanceLedger({ relationshipId }: Props) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="mono" style={{ color, fontWeight: 700, fontSize: 12 }}>
-                    {sign}{fmtU(e.amount)}
+                    {sign}{fmtQWithUnit(e.amount, settings.currency, wacop)}
                   </div>
                   <div className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>
-                    bal: {fmtU(e.running_balance)}
+                    bal: {fmtQWithUnit(e.running_balance, settings.currency, wacop)}
                   </div>
                 </div>
               </div>
