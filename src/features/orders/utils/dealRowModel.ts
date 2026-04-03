@@ -249,5 +249,9 @@ export function buildDealRowModel({
     operatorFee,
     operatorTotal,
     lenderTotal,
+    iAmOperator: isOperatorPriority && resolvedOperatorMerchantId && myMerchantId
+      ? myMerchantId === resolvedOperatorMerchantId
+      : false,
+    operatorMerchantId: resolvedOperatorMerchantId || String(mergedMeta.operator_merchant_id || ''),
   };
 }
