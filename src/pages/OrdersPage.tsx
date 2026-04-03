@@ -2599,9 +2599,9 @@ export default function OrdersPage() {
                                   </>
                                 )}
 
-                                {/* USDT & Cost fields for the allocation */}
+                                {/* USDT Quantity field for the allocation */}
                                 {allocations[0]?.agreementId && (
-                                  <div className="g2tight" style={{ marginTop: 6 }}>
+                                  <div style={{ marginTop: 6 }}>
                                     <div className="field2">
                                       <div className="lbl" style={{ fontSize: 9 }}>USDT {t('quantity')}</div>
                                       <div className="inputBox" style={{ padding: '3px 6px' }}>
@@ -2611,20 +2611,6 @@ export default function OrdersPage() {
                                           onChange={e => {
                                             if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
                                               setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: e.target.value } : a));
-                                          }}
-                                          style={{ fontSize: 10 }}
-                                        />
-                                      </div>
-                                    </div>
-                                    <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>{t('costBasisQar')}</div>
-                                      <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                        <input
-                                          type="text" placeholder="3.65"
-                                          value={allocations[0]?.merchantCostPerUsdt || ''}
-                                          onChange={e => {
-                                            if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
-                                              setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, merchantCostPerUsdt: e.target.value } : a));
                                           }}
                                           style={{ fontSize: 10 }}
                                         />
