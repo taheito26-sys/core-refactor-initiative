@@ -2599,25 +2599,6 @@ export default function OrdersPage() {
                                   </>
                                 )}
 
-                                {/* USDT Quantity field for the allocation */}
-                                {allocations[0]?.agreementId && (
-                                  <div style={{ marginTop: 6 }}>
-                                    <div className="field2">
-                                      <div className="lbl" style={{ fontSize: 9 }}>USDT {t('quantity')}</div>
-                                      <div className="inputBox" style={{ padding: '3px 6px' }}>
-                                        <input
-                                          type="text" placeholder="0"
-                                          value={allocations[0]?.allocatedUsdt || ''}
-                                          onChange={e => {
-                                            if (e.target.value === '' || /^-?\d*\.?\d*$/.test(e.target.value))
-                                              setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: e.target.value } : a));
-                                          }}
-                                          style={{ fontSize: 10 }}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             )}
 
