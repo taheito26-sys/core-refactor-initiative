@@ -37,6 +37,19 @@ export interface OperatorPriorityResult {
   lenderTotal: number;
 }
 
+export interface OperatorPriorityPerspectiveResult {
+  myRole: 'operator' | 'lender';
+  counterpartyRole: 'operator' | 'lender';
+  myAmount: number;
+  counterpartyAmount: number;
+  myEffectivePct: number;
+  counterpartyEffectivePct: number;
+  myCapitalShare: number;
+  counterpartyCapitalShare: number;
+  operatorFee: number;
+  remainingProfit: number;
+}
+
 /**
  * Calculate operator priority profit distribution.
  *
@@ -101,6 +114,30 @@ export function calculateOperatorPriorityProfit(input: OperatorPriorityInput): O
     lenderCapitalShare,
     operatorTotal: roundMoney(operatorFee + operatorCapitalShare),
     lenderTotal: lenderCapitalShare,
+  };
+}
+
+export function resolveOperatorPriorityPerspective(
+  result: OperatorPriorityResult,
+  isOperator: boolean,
+): OperatorPriorityPerspectiveResult {
+  const positiveGrossProfit = result.grossProfit > 0 ? result.grossProfit : 0;
+  const myAmount = isOperator ? result.operatorTotal : result.lenderTotal;
+  const counterpartyAmount = isOperator ? result.lenderTotal : result.operatorTotal;
+  const myCapitalShare = isOperator ? result.operatorCapitalShare : result.lenderCapitalShare;
+  const counterpartyCapitalShare = isOperator ? result.lenderCapitalShare : result.operatorCapitalShare;
+
+  return {
+    myRole: isOperator ? 'operator' : 'lender',
+    counterpartyRole: isOperator ? 'lender' : 'operator',
+    myAmount: roundMoney(myAmount),
+    counterpartyAmount: roundMoney(counterpartyAmount),
+    myEffectivePct: positiveGrossProfit > 0 ? roundMoney((myAmount / positiveGrossProfit) * 100) : 0,
+    counterpartyEffectivePct: positiveGrossProfit > 0 ? roundMoney((counterpartyAmount / positiveGrossProfit) * 100) : 0,
+    myCapitalShare: roundMoney(myCapitalShare),
+    counterpartyCapitalShare: roundMoney(counterpartyCapitalShare),
+    operatorFee: roundMoney(result.operatorFee),
+    remainingProfit: roundMoney(result.remainingProfit),
   };
 }
 

@@ -33,13 +33,17 @@ const PALETTES = [
   { bg: 'linear-gradient(135deg,#db2777,#be185d)', text: '#fff' },
   { bg: 'linear-gradient(135deg,#2563eb,#1d4ed8)', text: '#fff' },
 ];
-function getPalette(name: string) {
-  return PALETTES[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTES.length];
+function getPalette(name: string | null | undefined) {
+  const safeName = name || 'Anonymous';
+  return PALETTES[safeName.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTES.length];
 }
 
 // ─── Formatters ────────────────────────────────────────────────────────────
-function fmtListTime(s: string) {
-  const d = new Date(s), diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+function fmtListTime(s: string | null | undefined) {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '—';
+  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
   if (diff === 0) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (diff === 1) return 'Yesterday';
   if (diff < 7) return d.toLocaleDateString([], { weekday: 'short' });
@@ -47,9 +51,10 @@ function fmtListTime(s: string) {
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
-function Avatar({ name, size = 48 }: { name: string; size?: number }) {
-  const initials = name.split(/[\s_]+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('');
-  const p = getPalette(name);
+function Avatar({ name, size = 48 }: { name: string | null | undefined; size?: number }) {
+  const safeName = name || 'Anonymous';
+  const initials = safeName.split(/[\s_]+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('');
+  const p = getPalette(safeName);
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: p.bg, color: p.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.38, flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}>
       {initials}

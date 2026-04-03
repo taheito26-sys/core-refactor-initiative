@@ -8,7 +8,7 @@ interface Props {
 
 export function BusinessObjectCard({ obj, onAccept }: Props) {
   const isLocked = obj.status === 'locked';
-  const typeLabel = obj.object_type.replace('_', ' ').toUpperCase();
+  const typeLabel = (obj.object_type || 'OBJECT').replace('_', ' ').toUpperCase();
 
   return (
     <div className={`mx-6 my-4 p-6 rounded-[28px] border transition-all duration-300 flex flex-col gap-4 group ${

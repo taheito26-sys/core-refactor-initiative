@@ -62,7 +62,6 @@ export function showBrowserNotification(title: string, options: BrowserNotificat
       icon: '/favicon.svg',
       badge: '/favicon.svg',
       tag: options.tag,
-      renotify: false,
     });
 
     if (options.onClick) {

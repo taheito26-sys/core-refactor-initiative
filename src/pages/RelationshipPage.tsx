@@ -7,6 +7,7 @@ import { AgreementsTab } from '@/features/merchants/components/AgreementsTab';
 import { SettlementTab } from '@/features/merchants/components/SettlementTab';
 import { ChatTab } from '@/features/merchants/components/ChatTab';
 import { useTrackerState } from '@/lib/useTrackerState';
+import { fmtTotal } from '@/lib/tracker-helpers';
 import '@/styles/tracker.css';
 
 type WorkspaceTab = 'agreements' | 'settlements' | 'chat';
@@ -146,6 +147,49 @@ export default function RelationshipPage() {
           </span>
         </div>
       </div>
+
+      {/* ─── MERCHANT TREASURY PANEL ─── */}
+      {(() => {
+        const linkedAccounts = (trackerState.cashAccounts || []).filter(a => a.relationshipId === relationshipId);
+        if (linkedAccounts.length === 0) return null;
+
+        const ledger = trackerState.cashLedger || [];
+        const totals = new Map<string, number>();
+        let lastRecon = 0;
+
+        linkedAccounts.forEach(acc => {
+          const bal = (ledger || [])
+            .filter(e => e.accountId === acc.id)
+            .reduce((sum, e) => sum + (e.direction === 'in' ? e.amount : -e.amount), 0);
+          totals.set(acc.currency, (totals.get(acc.currency) || 0) + bal);
+          if (acc.lastReconciled && acc.lastReconciled > lastRecon) lastRecon = acc.lastReconciled;
+        });
+
+        return (
+          <div className="panel" style={{ marginBottom: 12, border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)', background: 'color-mix(in srgb, var(--brand) 4%, transparent)' }}>
+            <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2, letterSpacing: '0.05em' }}>
+                  {t('merchantTreasury' as any) || 'Merchant Treasury'}
+                </div>
+                <div style={{ display: 'flex', gap: 14 }}>
+                  {Array.from(totals.entries()).map(([curr, amt]) => (
+                    <div key={curr} className="mono" style={{ fontSize: 18, fontWeight: 900 }}>
+                      {fmtTotal(amt)} <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)' }}>{curr}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 2 }}>{t('lastReconciled' as any) || 'Last Reconciled'}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: lastRecon ? 'var(--text)' : 'var(--warn)' }}>
+                  {lastRecon ? new Date(lastRecon).toLocaleDateString() : 'Never'}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── TAB BAR ─── */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--line)', marginBottom: 12, overflowX: 'auto' }}>

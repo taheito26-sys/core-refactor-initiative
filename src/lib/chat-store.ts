@@ -6,6 +6,29 @@ export interface NotificationNavTarget {
   notificationId: string;
 }
 
+export interface ConversationSummary {
+  id: string;
+  counterparty_name: string;
+  counterparty_nickname?: string;
+  last_message: string | null;
+  last_message_at: string | null;
+  last_sender_id: string | null;
+  unread_count: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  relationship_id: string;
+  sender_id: string;
+  content: string;
+  msg_type: string;
+  created_at: string;
+  read_at: string | null;
+  metadata?: Record<string, unknown>;
+  reply_to?: string | null;
+  sender_name?: string;
+}
+
 export interface AttentionState {
   appFocused: boolean;
   inChatModule: boolean;
@@ -60,10 +83,18 @@ const initialState: ChatState = {
 
 export const useChatStore = create<ChatState & ChatActions>()((set) => ({
   ...initialState,
-  setActiveConversation: (id) => set({ activeConversationId: id, activeMessageAnchor: null, highlightMessageId: null }),
+  setActiveConversation: (id) => set((s) => {
+    if (s.activeConversationId === id) return s;
+    return { activeConversationId: id, activeMessageAnchor: null, highlightMessageId: null };
+  }),
   setAnchor: (messageId) => set({ activeMessageAnchor: messageId, highlightMessageId: messageId }),
   clearHighlight: () => set({ highlightMessageId: null }),
-  setAttention: (partial) => set((s) => ({ attention: { ...s.attention, ...partial } })),
+  setAttention: (partial) => set((s) => {
+    // Basic avoid-redundant-render check
+    const hasChange = Object.entries(partial).some(([k, v]) => (s.attention as any)[k] !== v);
+    if (!hasChange) return s;
+    return { attention: { ...s.attention, ...partial } };
+  }),
   setUnreadCount: (relationshipId, count) => set((s) => ({ unreadCounts: { ...s.unreadCounts, [relationshipId]: count } })),
   incrementUnread: (relationshipId) => set((s) => ({ unreadCounts: { ...s.unreadCounts, [relationshipId]: (s.unreadCounts[relationshipId] || 0) + 1 } })),
   markConversationRead: (relationshipId, lastMsgId) => set((s) => ({

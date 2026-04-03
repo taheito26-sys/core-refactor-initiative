@@ -24,17 +24,40 @@ export interface SettlementOverview {
   byRelationship: Map<string, { name: string; items: SettlementOverviewItem[] }>;
 }
 
-export function useSettlementOverview() {
+export function useSettlementOverview(overrideMerchantId?: string) {
   const { merchantProfile } = useAuth();
+  const effectiveMerchantId = overrideMerchantId || merchantProfile?.merchant_id;
 
   return useQuery({
-    queryKey: ['settlement-overview'],
+    queryKey: ['settlement-overview', effectiveMerchantId],
     queryFn: async (): Promise<SettlementOverview> => {
-      const { data: periods } = await supabase
+      // When viewing as admin for a specific merchant, first get that merchant's relationships
+      // to scope the settlement periods correctly
+      let scopedRelIds: string[] | null = null;
+      if (effectiveMerchantId) {
+        const { data: myRels } = await supabase
+          .from('merchant_relationships')
+          .select('id')
+          .eq('status', 'active')
+          .or(`merchant_a_id.eq.${effectiveMerchantId},merchant_b_id.eq.${effectiveMerchantId}`);
+        scopedRelIds = (myRels || []).map(r => r.id);
+      }
+
+      let periodsQuery = supabase
         .from('settlement_periods')
         .select('*')
         .in('status', ['due', 'overdue', 'pending'])
         .order('due_at', { ascending: true });
+
+      // If we have scoped relationship IDs, filter settlement periods to only those
+      if (scopedRelIds !== null) {
+        if (scopedRelIds.length === 0) {
+          return { dueCount: 0, overdueCount: 0, settledThisMonth: 0, totalOutstanding: 0, items: [], byRelationship: new Map() };
+        }
+        periodsQuery = periodsQuery.in('relationship_id', scopedRelIds);
+      }
+
+      const { data: periods } = await periodsQuery;
 
       const items: SettlementOverviewItem[] = [];
       const relIds = [...new Set((periods || []).map((p: any) => p.relationship_id))];
@@ -44,7 +67,7 @@ export function useSettlementOverview() {
       const relMap = new Map<string, string>();
       if (relIds.length > 0) {
         const { data: rels } = await supabase.from('merchant_relationships').select('*').in('id', relIds);
-        const myId = merchantProfile?.merchant_id;
+        const myId = effectiveMerchantId;
         for (const r of (rels || []) as any[]) {
           const cpId = r.merchant_a_id === myId ? r.merchant_b_id : r.merchant_a_id;
           const { data: profile } = await supabase.from('merchant_profiles').select('display_name').eq('merchant_id', cpId).maybeSingle();
@@ -83,11 +106,15 @@ export function useSettlementOverview() {
 
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const { data: settledThisMonthData } = await supabase
+      let settledQuery = supabase
         .from('settlement_periods')
         .select('id')
         .eq('status', 'settled')
         .gte('settled_at', monthStart.toISOString());
+      if (scopedRelIds !== null && scopedRelIds.length > 0) {
+        settledQuery = settledQuery.in('relationship_id', scopedRelIds);
+      }
+      const { data: settledThisMonthData } = await settledQuery;
 
       return {
         dueCount: items.filter(i => i.status === 'due').length,
@@ -98,7 +125,7 @@ export function useSettlementOverview() {
         byRelationship,
       };
     },
-    enabled: !!merchantProfile,
+    enabled: !!effectiveMerchantId,
     staleTime: 60_000,
   });
 }

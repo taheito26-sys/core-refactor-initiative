@@ -2,7 +2,25 @@ export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
 export type RoomKind = 'direct' | 'group' | 'system';
 export type CallStatus = 'ringing' | 'active' | 'ended' | 'missed' | 'cancelled';
 
-import { InboxLane, SecurityPolicies, RetentionPolicy } from '@/lib/os-store';
+export interface ChatCallSession {
+  id: string;
+  room_id: string;
+  initiated_by: string;
+  status: CallStatus;
+  started_at: string;
+  ended_at?: string;
+}
+
+export type InboxLane = 'Personal' | 'Team' | 'Customers' | 'Deals' | 'Alerts' | 'Archived';
+
+export interface SecurityPolicies {
+  disable_forwarding: boolean;
+  disable_copy: boolean;
+  disable_export: boolean;
+  watermark: boolean;
+}
+
+export type RetentionPolicy = 'indefinite' | '30d' | '7d' | '24h' | 'view_once';
 
 export interface ChatRoom {
   room_id: string;
@@ -61,53 +79,13 @@ export interface ChatBusinessObject {
   object_type: 'order' | 'payment' | 'agreement' | 'dispute' | 'task' | 'deal_offer' | 'snapshot';
   source_message_id?: string;
   created_by: string;
-  state_snapshot_hash?: string;
+  state_snapshot_hash?: string; 
   payload: any;
   status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'locked';
   created_at: string;
 }
 
 export type TimelineItem = (ChatMessage & { type?: 'message' }) | ChatBusinessObject;
-
-export interface ChatReaction {
-  message_id: string;
-  user_id: string;
-  reaction: string;
-}
-
-export interface ChatPin {
-  message_id: string;
-  pinned_at: string;
-  pinned_by: string;
-}
-
-export interface ChatSearchResult {
-  message_id: string;
-  room_id: string;
-  body: string;
-  created_at: string;
-  room_title: string | null;
-  snippet: string | null;
-}
-
-export interface ChatCallSession {
-  id: string;
-  room_id: string;
-  status: CallStatus;
-  started_by: string;
-  started_at: string;
-  answered_at: string | null;
-  ended_at: string | null;
-  ended_reason: string | null;
-}
-
-export interface ChatCallParticipant {
-  session_id: string;
-  user_id: string;
-  joined_at: string;
-  left_at: string | null;
-  is_muted: boolean;
-}
 
 export interface DeterministicResult<T> {
   ok: boolean;
@@ -123,4 +101,3 @@ export function fail<T>(fallback: T, error: unknown): DeterministicResult<T> {
   const msg = error instanceof Error ? error.message : String(error ?? 'Unknown error');
   return { ok: false, data: fallback, error: msg };
 }
-export { type InboxLane };
