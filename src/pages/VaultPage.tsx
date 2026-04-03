@@ -153,30 +153,15 @@ export default function VaultPage() {
   const [exportStatus, setExportStatus] = useState<'idle' | 'success'>('idle');
 
   // ── Ring 2 Cloud Vault State ──
-  const [cloudUrl, setCloudUrl] = useState('');
-  const [cloudStatus, setCloudStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [cloudStatus, setCloudStatus] = useState<'connected'>('connected');
   const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudLabel, setCloudLabel] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
 
-  // ── Cloud Backup Setup State ──
-  const [setupUrl, setSetupUrl] = useState('');
-  const [setupStatus, setSetupStatus] = useState<'none' | 'connected'>('none');
-
-  // Init cloud config
+  // Init cloud config — URL is built-in, always connected
   useEffect(() => {
     gasLoadConfig();
-    const url = getGasUrl();
-    setCloudUrl(url);
-    setSetupUrl(url);
-    if (url && url.startsWith('https')) {
-      setCloudStatus('connected');
-      setSetupStatus('connected');
-    } else {
-      setCloudStatus('disconnected');
-      setSetupStatus('none');
-    }
   }, []);
 
   const loadSnaps = useCallback(async () => {
