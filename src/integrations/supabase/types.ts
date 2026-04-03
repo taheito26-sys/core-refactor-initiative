@@ -108,6 +108,7 @@ export type Database = {
           created_at: number
           currency: string
           id: string
+          is_merchant_account: boolean | null
           last_reconciled: number | null
           name: string
           notes: string | null
@@ -122,6 +123,7 @@ export type Database = {
           created_at: number
           currency: string
           id: string
+          is_merchant_account?: boolean | null
           last_reconciled?: number | null
           name: string
           notes?: string | null
@@ -136,6 +138,7 @@ export type Database = {
           created_at?: number
           currency?: string
           id?: string
+          is_merchant_account?: boolean | null
           last_reconciled?: number | null
           name?: string
           notes?: string | null
@@ -150,6 +153,7 @@ export type Database = {
         Row: {
           account_id: string
           amount: number
+          batch_id: string | null
           contra_account_id: string | null
           created_at: string
           currency: string
@@ -165,6 +169,7 @@ export type Database = {
         Insert: {
           account_id: string
           amount?: number
+          batch_id?: string | null
           contra_account_id?: string | null
           created_at?: string
           currency: string
@@ -180,6 +185,7 @@ export type Database = {
         Update: {
           account_id?: string
           amount?: number
+          batch_id?: string | null
           contra_account_id?: string | null
           created_at?: string
           currency?: string
