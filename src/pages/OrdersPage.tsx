@@ -3474,7 +3474,9 @@ export default function OrdersPage() {
                                       <option value="">{t('selectAgreement')}</option>
                                       {editRelApprovedAgreements.map(agr => (
                                         <option key={agr.id} value={agr.id}>
-                                          🤝 {agr.partner_ratio}/{agr.merchant_ratio} — {agr.settlement_cadence}
+                                          {agr.agreement_type === 'operator_priority'
+                                            ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
+                                            : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
                                         </option>
                                       ))}
                                     </select>
@@ -3482,18 +3484,22 @@ export default function OrdersPage() {
                                   {editSelectedAgreementId && (() => {
                                     const agr = editRelApprovedAgreements.find(a => a.id === editSelectedAgreementId);
                                     if (!agr) return null;
+                                    const isOp = agr.agreement_type === 'operator_priority';
                                     const qty = Number(editQty) || 0;
                                     const sell = Number(editSell) || 0;
                                     const rev = qty * sell;
                                     const editCalcPreview = derived.tradeCalc.get(editingTradeId!);
                                     const fifoCost = editCalcPreview?.ok ? editCalcPreview.slices.reduce((s, x) => s + x.cost, 0) : 0;
                                     const netProfit = rev - fifoCost - (Number(editFee) || 0);
-                                    const partnerAmt = netProfit * (agr.partner_ratio / 100);
-                                    const merchantAmt = netProfit - partnerAmt;
+                                    const opFee = isOp ? netProfit * ((agr as any).operator_ratio ?? 0) / 100 : 0;
+                                    const partnerAmt = isOp ? 0 : netProfit * (agr.partner_ratio / 100);
+                                    const merchantAmt = isOp ? netProfit - opFee : netProfit - partnerAmt;
                                     return (
                                       <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' }}>
                                         <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, marginBottom: 3 }}>
-                                          {t('lockedRatio')} {agr.partner_ratio}% / {t('youShare')} {agr.merchant_ratio}%
+                                          {isOp
+                                            ? `⚙️ Operator Fee ${(agr as any).operator_ratio ?? 0}% · then split by capital weight`
+                                            : `${t('lockedRatio')} ${agr.partner_ratio}% / ${t('youShare')} ${agr.merchant_ratio}%`}
                                         </div>
                                         {rev > 0 && (
                                           <div style={{ marginTop: 6, fontSize: 10 }}>
