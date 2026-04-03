@@ -234,16 +234,7 @@ export default function VaultPage() {
   };
 
   // ── Ring 2: Cloud Vault actions ──
-  const saveCloudUrl = () => {
-    const url = cloudUrl.trim();
-    if (!url) { toast.error('Paste your Web App URL first'); return; }
-    setGasUrl(url);
-    gasSaveConfig();
-    setCloudStatus('connected');
-    setSetupUrl(url);
-    setSetupStatus('connected');
-    toast.success('✓ URL saved');
-  };
+  // Cloud URL is built-in, no user save needed
 
   const cloudBackupNow = async () => {
     if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
