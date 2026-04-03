@@ -66,12 +66,14 @@ export function buildDealRowModel({
   locale,
   resolveAvgBuy,
   agreements,
+  myMerchantId,
 }: {
   deal: MerchantDeal | any;
   perspective: DealRowPerspective;
   locale: 'en' | 'ar';
   resolveAvgBuy?: (deal: MerchantDeal | any, normalizedMeta: Record<string, string>) => number;
   agreements?: { id: string; relationship_id: string; agreement_type: string; operator_ratio?: number | null; operator_contribution?: number | null; lender_contribution?: number | null; operator_merchant_id?: string | null }[];
+  myMerchantId?: string;
 }): DealRowModel {
   const meta = parseDealMeta(deal.notes);
   const mergedMeta: Record<string, unknown> = {
