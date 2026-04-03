@@ -919,7 +919,7 @@ export default function OrdersPage() {
             notes: noteLines,
             metadata: (() => {
               const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
-              const base: Record<string, unknown> = {
+              const base: Record<string, any> = {
                 quantity: usdt,
                 sell_price: sell,
                 avg_buy: avgBuy,
