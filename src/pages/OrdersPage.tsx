@@ -2595,8 +2595,7 @@ export default function OrdersPage() {
                                             : `${t('lockedRatio')} ${allocations[0].partnerSharePct}% / ${t('youShare')} ${allocations[0].merchantSharePct}%`}
                                         </div>
                                       );
-                                    })()
-                                    )}
+                                    })()}
                                   </>
                                 )}
 
