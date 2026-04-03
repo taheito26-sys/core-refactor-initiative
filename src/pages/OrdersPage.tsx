@@ -1586,8 +1586,8 @@ export default function OrdersPage() {
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
           <span className="pill">{t('revenue')} {fmtC(revenue)}</span>
-          <span className="pill">{t('fee')} {fmtC(tr.feeQAR)}</span>
-          {ok && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
+          {tr.feeQAR > 0 && <span className="pill">{t('fee')} {fmtC(tr.feeQAR)}</span>}
+          {ok && cost > 0 && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
