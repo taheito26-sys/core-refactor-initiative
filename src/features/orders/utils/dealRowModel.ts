@@ -33,6 +33,10 @@ export interface DealRowModel {
   operatorFee: number | null;
   operatorTotal: number | null;
   lenderTotal: number | null;
+  /** true when the current user is the operator in an operator_priority deal */
+  iAmOperator: boolean;
+  /** operator_merchant_id from agreement/metadata */
+  operatorMerchantId: string;
 }
 
 /** Parse pipe-separated key:value metadata from deal.notes */
@@ -62,12 +66,14 @@ export function buildDealRowModel({
   locale,
   resolveAvgBuy,
   agreements,
+  myMerchantId,
 }: {
   deal: MerchantDeal | any;
   perspective: DealRowPerspective;
   locale: 'en' | 'ar';
   resolveAvgBuy?: (deal: MerchantDeal | any, normalizedMeta: Record<string, string>) => number;
   agreements?: { id: string; relationship_id: string; agreement_type: string; operator_ratio?: number | null; operator_contribution?: number | null; lender_contribution?: number | null; operator_merchant_id?: string | null }[];
+  myMerchantId?: string;
 }): DealRowModel {
   const meta = parseDealMeta(deal.notes);
   const mergedMeta: Record<string, unknown> = {
@@ -165,6 +171,11 @@ export function buildDealRowModel({
     }
   }
 
+  const resolvedOperatorMerchantId = String(mergedMeta.operator_merchant_id || '');
+  const iAmOperatorResolved = resolvedOperatorMerchantId && myMerchantId
+    ? myMerchantId === resolvedOperatorMerchantId
+    : false;
+
   let creatorNet: number | null;
   let partnerNet: number | null;
   let myNet: number | null;
@@ -185,16 +196,9 @@ export function buildDealRowModel({
     operatorTotal = opResult.operatorTotal;
     lenderTotal = opResult.lenderTotal;
 
-    // Determine if the deal creator is the operator
-    const operatorMerchantId = String(mergedMeta.operator_merchant_id || '');
-    // For outgoing deals, the creator is "me". Check if creator is operator.
-    const creatorIsOperator = operatorMerchantId
-      ? String(mergedMeta.my_merchant_id || '') === operatorMerchantId || perspective === 'outgoing'
-      : true; // fallback: assume creator is operator
-
-    creatorNet = creatorIsOperator ? opResult.operatorTotal : opResult.lenderTotal;
-    partnerNet = creatorIsOperator ? opResult.lenderTotal : opResult.operatorTotal;
-    myNet = perspective === 'incoming' ? partnerNet : creatorNet;
+    creatorNet = null; // not meaningful for operator priority
+    partnerNet = null;
+    myNet = iAmOperatorResolved ? opResult.operatorTotal : opResult.lenderTotal;
     myPct = fullNet > 0 ? ((myNet ?? 0) / fullNet) * 100 : 0;
     splitLabel = `⚙️ ${operatorRatio}% fee · capital weight`;
   } else {
@@ -243,5 +247,7 @@ export function buildDealRowModel({
     operatorFee,
     operatorTotal,
     lenderTotal,
+    iAmOperator: iAmOperatorResolved,
+    operatorMerchantId: resolvedOperatorMerchantId,
   };
 }
