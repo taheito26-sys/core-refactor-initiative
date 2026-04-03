@@ -248,6 +248,7 @@ export default function OrdersPage() {
         .map(p => p.user_id)
         .filter(Boolean);
       setMerchantUserIds(Array.from(new Set(myMerchantUsers)));
+      setMerchantProfileMap(profileMap as any);
 
       const enrichedRels = (relsRes.data || []).map(r => {
         const cpId = r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id;
