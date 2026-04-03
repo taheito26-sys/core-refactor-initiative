@@ -5,7 +5,7 @@ import {
   fmtQWithUnit, fmtU, fmtQ, fmtPct, fmtP,
   fmtTotal, fmtPrice,
   kpiFor, totalStock, stockCostQAR, getWACOP,
-  rangeLabel, num, startOfDay,
+  rangeLabel, num, startOfDay, inRange,
   deriveCashQAR,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
@@ -235,6 +235,22 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     applyState({ ...state, cashQAR: newCash, cashOwner: owner, cashHistory: history ?? state.cashHistory ?? [] });
   }, [state, applyState]);
 
+  // Range-aware merchant KPIs
+  const rangeMerchantKpis = useMemo(() => {
+    if (!merchantDealKpis?.dealDetails) return null;
+    const filtered = merchantDealKpis.dealDetails.filter(d => inRange(d.ts, settings.range));
+    let inCount = 0, inNet = 0, inMyShare = 0;
+    let outCount = 0, outNet = 0, outMyShare = 0;
+    for (const d of filtered) {
+      if (d.direction === 'incoming') {
+        inCount++; inNet += d.net; inMyShare += d.myShare;
+      } else {
+        outCount++; outNet += d.net; outMyShare += d.myShare;
+      }
+    }
+    return { inCount, inNet, inMyShare, outCount, outNet, outMyShare };
+  }, [merchantDealKpis, settings.range]);
+
 
   // ── P2P Averages from real trade data ──
   const p2pAvgs = useMemo(() => {
@@ -406,31 +422,31 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             </div>
           </div>
           {/* Incoming deals net profit */}
-          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+          {rangeMerchantKpis && rangeMerchantKpis.inCount > 0 && (
             <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>
-                  📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount}){isAdminView ? ` · ${t('myCutLabel')}` : ''}
+                  📥 {t('incomingDealsLabel')} ({rangeMerchantKpis.inCount}){isAdminView ? ` · ${t('myCutLabel')}` : ''}
                 </span>
-                <span className={`mono ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
-                  {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
+                <span className={`mono ${rangeMerchantKpis.inMyShare >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
+                  {rangeMerchantKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(rangeMerchantKpis.inMyShare)}
                 </span>
               </div>
               <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
-                {t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.inNet)}
+                {t('netProfitLabel')}: {fmtQWithUnit(rangeMerchantKpis.inNet)}
               </div>
             </div>
           )}
           {/* Combined total */}
-          {merchantDealKpis && merchantDealKpis.inCount > 0 && (
+          {rangeMerchantKpis && rangeMerchantKpis.inCount > 0 && (
             <>
               <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
                 <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
-                <span className={`mono ${(dR.net + merchantDealKpis.inMyShare) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {(dR.net + merchantDealKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inMyShare)}
+                <span className={`mono ${(dR.net + rangeMerchantKpis.inMyShare) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {(dR.net + rangeMerchantKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + rangeMerchantKpis.inMyShare)}
                 </span>
               </div>
-              <div className="kpi-cell-sub" style={{ marginTop: 4 }}>{t('thisMonth')}</div>
+              <div className="kpi-cell-sub" style={{ marginTop: 2, fontSize: 8 }}>{rangeLabel(settings.range)} {t('total')}</div>
             </>
           )}
         </div>
@@ -639,34 +655,34 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
 
         {/* Outgoing Deals Net Profit */}
-        {merchantDealKpis && (
+        {rangeMerchantKpis && (
           <div className="kpi-card">
             <div className="kpi-head">
               <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>
-                📤 {merchantDealKpis.outCount} deals
+                📤 {rangeMerchantKpis.outCount} deals
               </span>
             </div>
             <div className="kpi-lbl">{isAdminView ? `${t('outgoingNet')} · ${t('myCutLabel')}` : t('outgoingNet')}</div>
-            <div className={`kpi-val ${merchantDealKpis.outMyShare >= 0 ? 'good' : 'bad'}`}>
-              {merchantDealKpis.outMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outMyShare)}
+            <div className={`kpi-val ${rangeMerchantKpis.outMyShare >= 0 ? 'good' : 'bad'}`}>
+              {rangeMerchantKpis.outMyShare >= 0 ? '+' : ''}{fmtQWithUnit(rangeMerchantKpis.outMyShare)}
             </div>
-            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.outNet)}</div>
+            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(rangeMerchantKpis.outNet)}</div>
           </div>
         )}
 
         {/* Incoming Deals Net Profit */}
-        {merchantDealKpis && (
+        {rangeMerchantKpis && (
           <div className="kpi-card">
             <div className="kpi-head">
               <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
-                📥 {merchantDealKpis.inCount} deals
+                📥 {rangeMerchantKpis.inCount} deals
               </span>
             </div>
             <div className="kpi-lbl">{isAdminView ? `${t('incomingNet')} · ${t('myCutLabel')}` : t('incomingNet')}</div>
-            <div className={`kpi-val ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`}>
-              {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
+            <div className={`kpi-val ${rangeMerchantKpis.inMyShare >= 0 ? 'good' : 'bad'}`}>
+              {rangeMerchantKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(rangeMerchantKpis.inMyShare)}
             </div>
-            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.inNet)}</div>
+            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(rangeMerchantKpis.inNet)}</div>
           </div>
         )}
       </div>
