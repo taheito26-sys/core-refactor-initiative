@@ -101,7 +101,7 @@ export function useApprovedAgreements(relationshipId: string | undefined) {
           .from('profit_share_agreements' as any)
           .select('*')
           .eq('relationship_id', relationshipId)
-          .eq('status', 'approved')
+          .in('status', ['approved', 'active'])
           .order('created_at', { ascending: false });
 
         if (error) {

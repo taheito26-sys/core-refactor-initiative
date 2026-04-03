@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Camera, Download, Upload, Trash2, RefreshCw, Eye, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Camera, Download, Upload, Trash2, RefreshCw, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud, Search, LogOut } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
   clearTrackerStorage,
@@ -21,6 +21,14 @@ import {
 } from '@/lib/tracker-backup';
 import { saveTrackerStateNow } from '@/lib/tracker-sync';
 import type { TrackerState } from '@/lib/tracker-helpers';
+import {
+  gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
+  getGasLastSync, setGasLastSync, fmtBytes,
+  isCloudLoggedIn, getGasSession, clearCloudSession,
+  autoAuthenticateCloudWithDetails,
+  type CloudVersion,
+} from '@/lib/gas-cloud';
+import { useAuth } from '@/features/auth/auth-context';
 
 /* ── IDB Vault (Ring 1) ── */
 interface Snapshot {
@@ -137,6 +145,7 @@ async function clearTrackerVaultDb(): Promise<void> {
 export default function VaultPage() {
   const t = useT();
   const navigate = useNavigate();
+  const { email, userId, merchantProfile } = useAuth();
 
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [snapDesc, setSnapDesc] = useState('');
@@ -146,6 +155,45 @@ export default function VaultPage() {
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [importMsg, setImportMsg] = useState('');
   const [exportStatus, setExportStatus] = useState<'idle' | 'success'>('idle');
+
+  // ── Ring 2 Cloud Vault State ──
+  const [cloudLoggedIn, setCloudLoggedIn] = useState(false);
+  const [cloudAuthState, setCloudAuthState] = useState<'idle' | 'authenticating' | 'failed' | 'ready'>('idle');
+  const [cloudAuthError, setCloudAuthError] = useState('');
+  const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudLabel, setCloudLabel] = useState('');
+  const [selectedVersion, setSelectedVersion] = useState('');
+
+  const authenticateCloud = useCallback(async () => {
+    gasLoadConfig();
+    if (isCloudLoggedIn()) {
+      setCloudLoggedIn(true);
+      setCloudAuthState('ready');
+      setCloudAuthError('');
+      return true;
+    }
+
+    if (!email || !userId) {
+      setCloudLoggedIn(false);
+      setCloudAuthState('failed');
+      setCloudAuthError('Missing account identity (email/user id).');
+      return false;
+    }
+
+    setCloudAuthState('authenticating');
+    setCloudAuthError('');
+    const res = await autoAuthenticateCloudWithDetails(email, userId, merchantProfile?.display_name || undefined);
+    setCloudLoggedIn(res.ok);
+    setCloudAuthState(res.ok ? 'ready' : 'failed');
+    setCloudAuthError(res.reason || '');
+    return res.ok;
+  }, [email, userId, merchantProfile?.display_name]);
+
+  // Auto-authenticate with GAS using Google session
+  useEffect(() => {
+    void authenticateCloud();
+  }, [authenticateCloud]);
 
   const loadSnaps = useCallback(async () => {
     try {
@@ -215,6 +263,145 @@ export default function VaultPage() {
     saveAutoBackupToStorage(localStorage, v);
     toast(v ? (t.lang === 'ar' ? 'النسخ التلقائي مفعّل' : 'Auto-backup ON') : (t.lang === 'ar' ? 'النسخ التلقائي معطّل' : 'Auto-backup OFF'));
   };
+
+  // Cloud auth is automatic — no manual login needed
+
+  const handleCloudLogout = () => {
+    clearCloudSession();
+    setCloudLoggedIn(false);
+    setCloudAuthState('failed');
+    setCloudAuthError('Signed out from Cloud session.');
+    setCloudVersions([]);
+    toast('Logged out from Cloud');
+  };
+
+  const cloudBackupNow = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const state = getCurrentState();
+      const res = await gasPost({
+        action: 'backup',
+        exportedAt: new Date().toISOString(),
+        state,
+        label: cloudLabel || 'Manual backup',
+      });
+      if (res && res.ok === false) throw new Error(res.error || 'Backup rejected');
+      setGasLastSync(Date.now());
+      gasSaveConfig();
+      setCloudLabel('');
+      toast.success('☁ Backed up · ' + new Date().toLocaleTimeString());
+    } catch (e: any) {
+      toast.error('Backup failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const loadCloudVersions = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'meta' });
+      if (!res || res.ok === false) throw new Error(res?.error || 'Meta rejected');
+      setCloudVersions(Array.isArray(res.versions) ? res.versions : []);
+    } catch (e: any) {
+      toast.error('Failed to load versions: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const restoreCloudVersion = async (versionId: string) => {
+    if (!confirm('Restore this cloud backup? This will overwrite ALL local data.')) return;
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'restoreVersion', versionId });
+      if (!res || res.ok === false) throw new Error(res?.error || 'Restore rejected');
+      if (!res.state) { toast.error('No backup content'); return; }
+      const sk = findTrackerStorageKey(localStorage);
+      localStorage.removeItem('tracker_data_cleared');
+      localStorage.setItem(sk, JSON.stringify(res.state));
+      await saveTrackerStateNow(res.state as unknown as TrackerState);
+      toast.success('✓ Restored version ' + String(versionId).slice(0, 8));
+      window.location.reload();
+    } catch (e: any) {
+      toast.error('Restore failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const scanCloudFiles = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'scanFiles' });
+      if (res && res.files) {
+        toast.success(`Found ${res.files.length} backup files`);
+      } else {
+        toast.info('Scan complete');
+      }
+    } catch (e: any) {
+      toast.error('Scan failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const handleCloudImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result as string);
+        const normalized = normalizeImportedTrackerState(data);
+        const tradeCount = Array.isArray(normalized.trades) ? (normalized.trades as any[]).length : 0;
+        const batchCount = Array.isArray(normalized.batches) ? (normalized.batches as any[]).length : 0;
+        if (!confirm(`Import this file? (${tradeCount} trades, ${batchCount} batches)\nThis will replace your current state.`)) return;
+        const sk = findTrackerStorageKey(localStorage);
+        localStorage.removeItem('tracker_data_cleared');
+        localStorage.setItem(sk, JSON.stringify(normalized));
+        void saveTrackerStateNow(normalized as unknown as TrackerState);
+        toast.success('Data imported — reloading…');
+        setTimeout(() => window.location.reload(), 1000);
+      } catch {
+        toast.error('Invalid JSON file');
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  };
+
+  // Cloud setup actions use built-in URL
+
+  const setupRestore = async () => {
+    if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
+    setCloudLoading(true);
+    try {
+      const res = await gasPost({ action: 'restore' });
+      if (!res || res.ok === false) throw new Error(res?.error || 'Restore rejected');
+      if (!res.state) { toast.info('No backup found'); return; }
+      const dt = res.exportedAt ? new Date(res.exportedAt).toLocaleString() : 'unknown date';
+      if (!confirm(`Restore from cloud backup?\nBackup saved: ${dt}\n\nThis will overwrite ALL local data.`)) return;
+      const sk = findTrackerStorageKey(localStorage);
+      localStorage.removeItem('tracker_data_cleared');
+      localStorage.setItem(sk, JSON.stringify(res.state));
+      await saveTrackerStateNow(res.state as unknown as TrackerState);
+      setGasLastSync(Date.now());
+      gasSaveConfig();
+      toast.success('✓ Restored from Cloud');
+      window.location.reload();
+    } catch (e: any) {
+      toast.error('Restore failed: ' + e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+
+
 
   // Data export helpers
   const exportJSON = () => {
@@ -326,6 +513,8 @@ export default function VaultPage() {
     return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
   };
 
+  const lastSyncTime = getGasLastSync();
+
   return (
     <div className="tracker-page" dir={t.isRTL ? 'rtl' : 'ltr'}>
       <PageHeader 
@@ -334,8 +523,10 @@ export default function VaultPage() {
       />
 
       <div className="p-6 space-y-4">
+        {/* ── Row 1: Ring 1 + Ring 2 ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* ── Ring 1: Local IndexedDB ── */}
+
+          {/* ── 💾 Ring 1 — Local Snapshots ── */}
           <Card className="glass">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -421,7 +612,187 @@ export default function VaultPage() {
             </CardContent>
           </Card>
 
-          {/* ── Data Export & Import ── */}
+          {/* ── ☁ Ring 2 — Cloud Vault ── */}
+          <Card className="glass">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-display">
+                  {t.lang === 'ar' ? '☁ الحلقة 2 — الخزنة السحابية' : '☁ Ring 2 — Cloud Vault'}
+                </CardTitle>
+                {cloudLoggedIn ? (
+                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ {getGasSession()?.email}</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Not signed in</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!cloudLoggedIn ? (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {t.lang === 'ar' ? 'جاري الاتصال بالسحابة تلقائياً...' : 'Connecting to cloud automatically...'}
+                  </p>
+                  {cloudAuthState === 'authenticating' ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground">
+                        {t.lang === 'ar' ? 'يتم تسجيل الدخول باستخدام حسابك' : 'Signing in with your account...'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-amber-500">
+                        {t.lang === 'ar' ? 'تعذر تسجيل الدخول السحابي تلقائياً.' : 'Cloud auto sign-in failed.'}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {cloudAuthError || (t.lang === 'ar' ? 'حاول مرة أخرى بعد لحظات.' : 'Try again in a few seconds.')}
+                      </p>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => void authenticateCloud()}>
+                        {t.lang === 'ar' ? 'إعادة المحاولة' : 'Retry cloud sign-in'}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {t.lang === 'ar'
+                      ? 'نسخ سحابية عبر Google Drive. حتى 30 نسخة + نسخ دائمة مثبتة.'
+                      : 'Versioned cloud backups via Google Drive. Up to 30 versions + pinned permanent backups.'}
+                  </p>
+
+                  {/* Manual backup with label */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={cloudLabel}
+                      onChange={e => setCloudLabel(e.target.value)}
+                      placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
+                      className="flex-1 text-[11px]"
+                    />
+                    <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading}>
+                      {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                      {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
+                    </Button>
+                  </div>
+
+                  {/* Version browser */}
+                  <div className="max-h-[240px] overflow-y-auto text-[11px] border rounded-md p-2 bg-muted/20">
+                    {cloudVersions.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground p-2">
+                        {t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد. انقر "نسخ الآن" أولاً.' : 'No cloud backups yet. Click Backup Now first.'}
+                      </p>
+                    ) : (
+                  cloudVersions.map((v, idx) => {
+                    const dt = v.exportedAt ? new Date(v.exportedAt).toLocaleString() : 'unknown';
+                    const bytes = v.bytes != null ? ` · ${fmtBytes(v.bytes)}` : '';
+                    const vidShort = String(v.versionId || '').slice(0, 8);
+                    const isSel = selectedVersion === v.versionId;
+                    return (
+                      <div
+                        key={v.versionId}
+                        className={`flex justify-between items-center gap-2 p-2 rounded-md cursor-pointer border mb-1 ${isSel ? 'border-primary bg-primary/5' : 'border-border/50'}`}
+                        onClick={() => setSelectedVersion(v.versionId)}
+                      >
+                        <div className="min-w-0">
+                          <div className="font-bold text-[11px] whitespace-nowrap">
+                            {dt} <Badge variant="outline" className="text-[9px] ml-1">{vidShort}</Badge>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {idx === 0 ? 'LATEST' : ''}{bytes}{v.fileId ? ` · file ${String(v.fileId).slice(0, 8)}…` : ''}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={(e) => { e.stopPropagation(); /* preview could go here */ }}>
+                            Preview
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-destructive" onClick={(e) => { e.stopPropagation(); restoreCloudVersion(v.versionId); }}>
+                            Restore
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="secondary" size="sm" onClick={loadCloudVersions} disabled={cloudLoading}>
+                  <RefreshCw className={`w-3 h-3 mr-1 ${cloudLoading ? 'animate-spin' : ''}`} /> Refresh
+                </Button>
+                <Button variant="secondary" size="sm" onClick={scanCloudFiles} disabled={cloudLoading}>
+                  <Search className="w-3 h-3 mr-1" /> Scan Files
+                </Button>
+                <label className="cursor-pointer">
+                  <Button variant="secondary" size="sm" asChild>
+                    <span><Upload className="w-3 h-3 mr-1" /> Import File</span>
+                  </Button>
+                  <input type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} />
+                </label>
+              </div>
+
+                  {/* Logout */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-[10px] text-muted-foreground">{getGasSession()?.email}</span>
+                    <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={handleCloudLogout}>
+                      <LogOut className="w-3 h-3 mr-1" /> Sign Out
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Row 2: Cloud Backup Setup + Data Export/Import ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          {/* ── ☁ Cloud Backup Setup ── */}
+          <Card className="glass">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-display">
+                  {t.lang === 'ar' ? '☁ إعداد النسخ السحابي' : '☁ Cloud Backup Setup'}
+                </CardTitle>
+                <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ Connected</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {t.lang === 'ar'
+                  ? 'النسخ السحابي مُفعّل ومتصل تلقائياً. تُدار النسخ من الخزنة السحابية أعلاه.'
+                  : 'Cloud backup is pre-configured and connected. Manage versions from the Cloud Vault above.'}
+              </p>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="secondary" size="sm" onClick={cloudBackupNow} disabled={cloudLoading} className="flex-1 min-w-[140px]">
+                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                  Backup Now
+                </Button>
+                <Button variant="secondary" size="sm" onClick={loadCloudVersions} disabled={cloudLoading} className="flex-1 min-w-[140px]">
+                  🧾 Backups
+                </Button>
+                <Button variant="secondary" size="sm" onClick={setupRestore} disabled={cloudLoading} className="flex-1 min-w-[140px]">
+                  <Download className="w-3 h-3 mr-1" /> Restore
+                </Button>
+              </div>
+
+              {/* Auto-backup toggle */}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <Label className="text-xs">{t.lang === 'ar' ? 'نسخ تلقائي بعد كل تغيير' : 'Auto-backup after every change'}</Label>
+                <Switch checked={autoBackup} onCheckedChange={handleAutoBackupToggle} />
+              </div>
+
+              {lastSyncTime > 0 && (
+                <p className="text-[9px] text-muted-foreground">
+                  Last sync: {new Date(lastSyncTime).toLocaleString()}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── 📦 Data Export & Import ── */}
           <Card className="glass">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -496,7 +867,6 @@ export default function VaultPage() {
               </div>
 
               <div className="border-t pt-3">
-
                 <Button variant="destructive" size="sm" onClick={clearAll}>
                   <AlertTriangle className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'مسح جميع البيانات' : 'Clear All Data'}
                 </Button>

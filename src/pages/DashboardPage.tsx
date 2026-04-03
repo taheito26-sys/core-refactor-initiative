@@ -52,12 +52,19 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const rLabel = rangeLabel(settings.range);
 
   const allTrades = state.trades.filter(t => !t.voided);
+  const getTradeMyPct = (tr: typeof allTrades[0]) => {
+    const merchantPct = Number(tr.merchantPct);
+    if (Number.isFinite(merchantPct) && merchantPct > 0 && merchantPct <= 100) return merchantPct;
+    const partnerPct = Number(tr.partnerPct);
+    if (Number.isFinite(partnerPct) && partnerPct >= 0 && partnerPct < 100) return 100 - partnerPct;
+    return 100;
+  };
   const allMargins = allTrades.map(tr => {
     const c = derived.tradeCalc.get(tr.id);
     if (!c?.ok) return null;
     // For linked trades, adjust margin to reflect only my share
     if (tr.linkedDealId || tr.linkedRelId) {
-      const myPct = tr.merchantPct ?? 100;
+      const myPct = getTradeMyPct(tr);
       const myNet = c.netQAR * myPct / 100;
       const rev = tr.amountUSDT * tr.sellPriceQAR;
       return rev > 0 ? (myNet / rev) * 100 : 0;
@@ -106,6 +113,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     status: string;
     direction: 'outgoing' | 'incoming';
     dealType: string;
+    ts: number;
   }
 
   const { data: merchantDealKpis } = useQuery({
@@ -124,7 +132,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       const { data: deals } = relIds.length > 0
         ? await supabase
             .from('merchant_deals')
-            .select('id, amount, status, created_by, notes, deal_type, relationship_id, title')
+            .select('id, amount, status, created_by, notes, deal_type, relationship_id, title, created_at')
             .in('relationship_id', relIds)
             .order('created_at', { ascending: false })
         : { data: [] as any[] };
@@ -150,8 +158,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       const relMap = new Map<string, { merchant_a_id: string; merchant_b_id: string }>();
       for (const r of (rels || [])) relMap.set(r.id, r);
 
-      let outCount = 0, outVol = 0, outNet = 0;
-      let inCount = 0, inVol = 0, inNet = 0;
+      let outCount = 0, outVol = 0, outNet = 0, outMyShare = 0;
+      let inCount = 0, inVol = 0, inNet = 0, inMyShare = 0;
       let pendingCount = 0, approvedCount = 0;
       let totalMyShare = 0, totalPartnerShare = 0;
       const dealDetails: DealDetail[] = [];
@@ -181,9 +189,9 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         }
 
         if (direction === 'outgoing') {
-          outCount++; outVol += vol; outNet += dealNet;
+          outCount++; outVol += vol; outNet += dealNet; outMyShare += myShare;
         } else {
-          inCount++; inVol += vol; inNet += dealNet;
+          inCount++; inVol += vol; inNet += dealNet; inMyShare += myShare;
         }
 
         totalMyShare += myShare;
@@ -200,16 +208,22 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           status: d.status,
           direction,
           dealType: d.deal_type,
+          ts: (() => {
+            const tradeDateRaw = row.meta.trade_date;
+            const fromMeta = tradeDateRaw ? new Date(tradeDateRaw).getTime() : NaN;
+            const fromCreatedAt = d.created_at ? new Date(d.created_at).getTime() : NaN;
+            return Number.isFinite(fromMeta) ? fromMeta : (Number.isFinite(fromCreatedAt) ? fromCreatedAt : Date.now());
+          })(),
         });
       }
 
       return {
         totalDeals: activeDeals.length,
-        outCount, outVol, outNet,
-        inCount, inVol, inNet,
+        outCount, outVol, outNet, outMyShare,
+        inCount, inVol, inNet, inMyShare,
         pendingCount, approvedCount,
         totalVol: outVol + inVol,
-        totalNet: outNet + inNet,
+        totalNet: outMyShare + inMyShare,
         totalMyShare, totalPartnerShare,
         dealDetails,
       };
@@ -240,7 +254,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     else if (tr.manualBuyPrice) fullNet = tr.amountUSDT * tr.sellPriceQAR - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR;
     // For linked trades, show only my share
     if (tr.linkedDealId || tr.linkedRelId) {
-      const myPct = tr.merchantPct ?? 100;
+      const myPct = getTradeMyPct(tr);
       return fullNet * myPct / 100;
     }
     return fullNet;
@@ -325,6 +339,37 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     };
   };
 
+  const monthKpis = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+
+    let myOwnOrdersNet = 0;
+    let myOwnOrdersCount = 0;
+    for (const tr of allTrades) {
+      if (tr.ts < monthStart || tr.ts >= nextMonthStart) continue;
+      if (tr.linkedDealId || tr.linkedRelId) continue;
+      myOwnOrdersNet += tradeNet(tr);
+      myOwnOrdersCount += 1;
+    }
+
+    const inMonthDeals = (merchantDealKpis?.dealDetails || []).filter(d => d.direction === 'incoming' && d.ts >= monthStart && d.ts < nextMonthStart);
+    const outMonthDeals = (merchantDealKpis?.dealDetails || []).filter(d => d.direction === 'outgoing' && d.ts >= monthStart && d.ts < nextMonthStart);
+    const incomingNet = inMonthDeals.reduce((s, d) => s + d.myShare, 0);
+    const outgoingNet = outMonthDeals.reduce((s, d) => s + d.myShare, 0);
+    const totalNet = myOwnOrdersNet + incomingNet + outgoingNet;
+
+    return {
+      myOwnOrdersNet,
+      myOwnOrdersCount,
+      incomingNet,
+      incomingCount: inMonthDeals.length,
+      outgoingNet,
+      outgoingCount: outMonthDeals.length,
+      totalNet,
+    };
+  }, [allTrades, merchantDealKpis, tradeNet]);
+
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       {/* KPI Bands */}
@@ -364,24 +409,29 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           {merchantDealKpis && merchantDealKpis.inCount > 0 && (
             <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount})</span>
-                <span className={`mono ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
-                  {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet, settings.currency, wacop)}
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>
+                  📥 {t('incomingDealsLabel')} ({merchantDealKpis.inCount}){isAdminView ? ` · ${t('myCutLabel')}` : ''}
+                </span>
+                <span className={`mono ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
+                  {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
                 </span>
               </div>
               <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
-                {t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0), settings.currency, wacop)}
+                {t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.inNet)}
               </div>
             </div>
           )}
           {/* Combined total */}
           {merchantDealKpis && merchantDealKpis.inCount > 0 && (
-            <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
-              <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
-              <span className={`mono ${(dR.net + merchantDealKpis.inNet) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                {(dR.net + merchantDealKpis.inNet) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inNet, settings.currency, wacop)}
-              </span>
-            </div>
+            <>
+              <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
+                <span className={`mono ${(dR.net + merchantDealKpis.inMyShare) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {(dR.net + merchantDealKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inMyShare)}
+                </span>
+              </div>
+              <div className="kpi-cell-sub" style={{ marginTop: 4 }}>{t('thisMonth')}</div>
+            </>
           )}
         </div>
       </div>
@@ -596,11 +646,11 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 📤 {merchantDealKpis.outCount} deals
               </span>
             </div>
-            <div className="kpi-lbl">{t('outgoingNet')}</div>
-            <div className={`kpi-val ${merchantDealKpis.outNet >= 0 ? 'good' : 'bad'}`}>
-              {merchantDealKpis.outNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outNet, settings.currency, wacop)}
+            <div className="kpi-lbl">{isAdminView ? `${t('outgoingNet')} · ${t('myCutLabel')}` : t('outgoingNet')}</div>
+            <div className={`kpi-val ${merchantDealKpis.outMyShare >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.outMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.outMyShare)}
             </div>
-            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'outgoing').reduce((s, d) => s + d.myShare, 0), settings.currency, wacop)}</div>
+            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.outNet)}</div>
           </div>
         )}
 
@@ -612,11 +662,11 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 📥 {merchantDealKpis.inCount} deals
               </span>
             </div>
-            <div className="kpi-lbl">{t('incomingNet')}</div>
-            <div className={`kpi-val ${merchantDealKpis.inNet >= 0 ? 'good' : 'bad'}`}>
-              {merchantDealKpis.inNet >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inNet, settings.currency, wacop)}
+            <div className="kpi-lbl">{isAdminView ? `${t('incomingNet')} · ${t('myCutLabel')}` : t('incomingNet')}</div>
+            <div className={`kpi-val ${merchantDealKpis.inMyShare >= 0 ? 'good' : 'bad'}`}>
+              {merchantDealKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(merchantDealKpis.inMyShare)}
             </div>
-            <div className="kpi-sub">{t('myCutLabel')}: {fmtQWithUnit(merchantDealKpis.dealDetails.filter(d => d.direction === 'incoming').reduce((s, d) => s + d.myShare, 0), settings.currency, wacop)}</div>
+            <div className="kpi-sub">{t('netProfitLabel')}: {fmtQWithUnit(merchantDealKpis.inNet)}</div>
           </div>
         )}
       </div>

@@ -281,6 +281,11 @@ export default function OrdersPage() {
 
   useEffect(() => { reloadMerchantData(); }, [reloadMerchantData]);
 
+  // Clear shared search query on mount to prevent cross-page filter leak
+  useEffect(() => {
+    if (settings.searchQuery) update({ searchQuery: '' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Real-time listeners for merchant_deals and merchant_approvals changes
   useEffect(() => {
     const dealsChannel = supabase
@@ -2630,9 +2635,12 @@ export default function OrdersPage() {
 
                       {/* ─── Step 2: Deal Family (only after merchant selected) ─── */}
                       {linkedRelId && (() => {
-                        const cpName = linkedCounterpartyName;
-                        const cpId = linkedCounterpartyId;
-                        const relApprovedAgreements = linkedApprovedAgreements;
+                        const selectedRel = relationships.find(r => r.id === linkedRelId);
+                        const cpName = selectedRel?.counterparty?.display_name || (selectedRel as any)?.counterparty_name || t('partner');
+                        const cpId = selectedRel ? (selectedRel.merchant_a_id === merchantProfile?.merchant_id ? selectedRel.merchant_b_id : selectedRel.merchant_a_id) : '';
+                        const relApprovedAgreements = allAgreements.filter(a =>
+                          a.relationship_id === linkedRelId && isAgreementActive(a)
+                        );
 
                         return (
                           <>

@@ -480,10 +480,18 @@ export function inRange(ts: number, range: string): boolean {
 }
 
 /** Apply merchant share to net profit for linked trades (show only "my cut") */
+function getMySharePct(trade: Trade): number {
+  // Legacy rows may store 0 or invalid pct values; recover from partnerPct when possible.
+  const merchantPct = Number(trade.merchantPct);
+  if (Number.isFinite(merchantPct) && merchantPct > 0 && merchantPct <= 100) return merchantPct;
+  const partnerPct = Number(trade.partnerPct);
+  if (Number.isFinite(partnerPct) && partnerPct >= 0 && partnerPct < 100) return 100 - partnerPct;
+  return 100;
+}
+
 function applyMyShare(trade: Trade, fullNet: number): number {
   if (trade.linkedDealId || trade.linkedRelId) {
-    const myPct = trade.merchantPct ?? 100;
-    return fullNet * myPct / 100;
+    return fullNet * getMySharePct(trade) / 100;
   }
   return fullNet;
 }
