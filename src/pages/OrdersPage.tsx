@@ -2206,11 +2206,11 @@ export default function OrdersPage() {
                                   </div>
                                   {row.hasAvgBuy && row.fullNet != null && (
                                     <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                                      {row.isOperatorPriority && row.operatorFee != null ? (
+                                      {(() => { const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me'); return row.isOperatorPriority && row.operatorFee != null ? (
                                         <>
                                           <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)' }}>{fmtC(row.operatorFee)}</strong></div>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('operatorGets')}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('lenderGets')}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {names.operatorName}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
                                         </>
                                       ) : (
                                         <>
