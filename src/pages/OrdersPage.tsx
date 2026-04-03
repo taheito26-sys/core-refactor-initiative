@@ -1945,7 +1945,7 @@ export default function OrdersPage() {
         </div>
       </div>
     );
-  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, detailsOpen, fmtC]);
+  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, detailsOpen, fmtC, merchantProfile, merchantProfileMap, allAgreements]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
