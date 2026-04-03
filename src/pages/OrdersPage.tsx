@@ -1628,20 +1628,66 @@ export default function OrdersPage() {
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
         {/* Show partner allocation for merchant-linked trades */}
-        {tr.agreementFamily && tr.partnerPct != null && ok && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
-              📊 {t('merchantNetProfit')}: <strong style={{ color: 'var(--good)' }}>
-                {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
-              </strong>
+        {tr.agreementFamily && tr.partnerPct != null && ok && (() => {
+          const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
+          // Check if this is an operator priority deal via agreements
+          const matchedAgr = allAgreements?.find(a =>
+            a.relationship_id === tr.linkedRelId && a.agreement_type === 'operator_priority'
+          );
+          const isOpPriority = !!matchedAgr;
+
+          if (isOpPriority && Number.isFinite(net) && net > 0) {
+            const opResult = calculateOperatorPriorityProfit({
+              grossProfit: net,
+              operatorRatio: Number(matchedAgr!.operator_ratio) || 0,
+              operatorContribution: Number(matchedAgr!.operator_contribution) || 0,
+              lenderContribution: Number(matchedAgr!.lender_contribution) || 0,
+            });
+            const opMid = matchedAgr!.operator_merchant_id || '';
+            const opProfile = merchantProfileMap.get(opMid);
+            const operatorName = opProfile?.display_name || opProfile?.nickname || opMid || 'Operator';
+            let lenderMid = '';
+            if (linkedRel) {
+              lenderMid = (linkedRel as any).merchant_a_id === opMid ? (linkedRel as any).merchant_b_id : (linkedRel as any).merchant_a_id;
+            }
+            const lenderProfile = merchantProfileMap.get(lenderMid);
+            const lenderName = lenderProfile?.display_name || lenderProfile?.nickname || lenderMid || 'Lender';
+
+            return (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
+                  ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(opResult.operatorFee)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                  📊 {operatorName}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(opResult.operatorTotal)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                  🤝 {lenderName}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(opResult.lenderTotal)}</strong>
+                </div>
+              </div>
+            );
+          }
+
+          // Standard split — resolve merchant names
+          const myMid = merchantProfile?.merchant_id || '';
+          let counterpartyName = linkedRel?.counterparty?.display_name || '—';
+          const myName = merchantProfile?.display_name || 'Me';
+
+          return (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                📊 {myName} ({tr.merchantPct}%): <strong style={{ color: 'var(--good)' }}>
+                  {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
+                </strong>
+              </div>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                🤝 {counterpartyName} ({tr.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>
+                  {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
+                </strong>
+              </div>
             </div>
-            <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--bad) 10%, transparent)', fontSize: 10 }}>
-              🤝 {t('partnerNetProfit')}: <strong style={{ color: 'var(--bad)' }}>
-                {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
-              </strong>
-            </div>
-          </div>
-        )}
+          );
+        })()}
         <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 5 }}>{t('fifoSlices')}</div>
         {ok && slicesWithBatch.length ? slicesWithBatch.map(sl => (
           <div key={`${tr.id}-${sl.batchId}-${sl.qty}`} className="muted" style={{ fontSize: 10, margin: '2px 0' }}>
@@ -1704,7 +1750,24 @@ export default function OrdersPage() {
     const rev = tr.amountUSDT * tr.sellPriceQAR;
     const isMerchantLinked = !!(tr.agreementFamily || tr.linkedDealId || tr.linkedRelId);
     const rawNet = ok ? c!.netQAR : (tr.manualBuyPrice ? rev - tr.amountUSDT * tr.manualBuyPrice - tr.feeQAR : NaN);
-    const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
+
+    // For operator priority linked trades, compute "my net" using operator priority logic
+    let net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
+    const matchedOPAgr = isMerchantLinked ? allAgreements?.find(a =>
+      a.relationship_id === tr.linkedRelId && a.agreement_type === 'operator_priority'
+    ) : undefined;
+    if (matchedOPAgr && Number.isFinite(rawNet) && rawNet > 0) {
+      const opResult = calculateOperatorPriorityProfit({
+        grossProfit: rawNet,
+        operatorRatio: Number(matchedOPAgr.operator_ratio) || 0,
+        operatorContribution: Number(matchedOPAgr.operator_contribution) || 0,
+        lenderContribution: Number(matchedOPAgr.lender_contribution) || 0,
+      });
+      const opMid = matchedOPAgr.operator_merchant_id || '';
+      const myMid = merchantProfile?.merchant_id || '';
+      net = myMid === opMid ? opResult.operatorTotal : opResult.lenderTotal;
+    }
+
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
 
@@ -1782,7 +1845,7 @@ export default function OrdersPage() {
         )}
       </div>
     );
-  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
+  }, [derived.tradeCalc, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade, allAgreements, merchantProfile, merchantProfileMap]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
