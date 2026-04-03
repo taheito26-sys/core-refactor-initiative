@@ -788,6 +788,39 @@ export default function OrdersPage() {
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
+    const resolveDefaultCostPerUsdt = () => {
+      if (priceMode === 'manual') {
+        const manual = parseFloat(manualBuyPrice);
+        return Number.isFinite(manual) && manual > 0 ? manual : 0;
+      }
+
+      const previewAvg = salePreview?.avgBuy;
+      if (Number.isFinite(previewAvg) && previewAvg > 0) return previewAvg;
+
+      const previewTrade: Trade = {
+        id: '__alloc_cost_preview__',
+        ts,
+        inputMode: 'USDT',
+        amountUSDT,
+        sellPriceQAR: sell,
+        feeQAR: parseFloat(saleFee) || 0,
+        note: '',
+        voided: false,
+        usesStock: true,
+        revisions: [],
+        customerId: '',
+      };
+      const calc = computeFIFO(state.batches, [...state.trades, previewTrade]).tradeCalc.get(previewTrade.id);
+      const fifoAvg = calc?.ok ? calc.avgBuyQAR : NaN;
+      return Number.isFinite(fifoAvg) && fifoAvg > 0 ? fifoAvg : 0;
+    };
+    const defaultCostPerUsdt = resolveDefaultCostPerUsdt();
+    const resolveAllocationCostPerUsdt = (rawCost: string) => {
+      const manualCost = parseFloat(rawCost);
+      if (Number.isFinite(manualCost) && manualCost > 0) return manualCost;
+      return defaultCostPerUsdt;
+    };
+
     // Merchant-linked validation
     const isNewAllocFlow = selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family';
     if (merchantOrderEnabled && !isNewAllocFlow && !linkedRelId) { setSaleMessage(`${t('fixFields')} ${t('relationship')}`); return; }
@@ -802,7 +835,7 @@ export default function OrdersPage() {
         return;
       }
       for (const alloc of allocations) {
-        const resolvedCostPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
+        const resolvedCostPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
         if (!alloc.relationshipId) { setSaleMessage(t('allocNeedsMerchant')); return; }
         if (alloc.family === 'profit_share' && !alloc.agreementId) {
           setSaleMessage(`${t('profitShareLabel')} ${alloc.merchantName || t('merchant')} ${t('allocNeedsAgreement')}`);
@@ -854,7 +887,7 @@ export default function OrdersPage() {
         const createdDealIds: string[] = [];
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
+          const costPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
           const familyLabel = alloc.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
           const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
           const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
@@ -902,7 +935,7 @@ export default function OrdersPage() {
         // Now create allocation records linked to the deals
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
+          const costPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
           const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
           const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
           const calc = isOpPriority
@@ -1414,8 +1447,7 @@ export default function OrdersPage() {
     // If trade has a linked deal, cancel on server
     if (tr.linkedDealId) {
       try {
-        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
-        if (error) throw error;
+        await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
         toast.success(t('tradeCancelled'));
       } catch (err: any) { toast.error(err.message); return; }
@@ -1434,8 +1466,7 @@ export default function OrdersPage() {
     const tr = state.trades.find(x => x.id === cancelTradeId);
     if (tr?.linkedDealId) {
       try {
-        const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', tr.linkedDealId);
-        if (error) throw error;
+        await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
       } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
     }
@@ -1448,11 +1479,18 @@ export default function OrdersPage() {
     toast.success(t('tradeCancelled'));
   };
 
+  const setDealStatus = async (dealId: string, status: string) => {
+    const { error } = await supabase.rpc('set_merchant_deal_status', {
+      _deal_id: dealId,
+      _status: status,
+    } as any);
+    if (error) throw error;
+  };
+
   // Server-side approve/reject for incoming merchant deals
   const approveIncomingDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'approved' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'approved');
       await reloadMerchantData();
       toast.success(t('tradeApproved'));
     } catch (err: any) { toast.error(err.message); }
@@ -1460,8 +1498,7 @@ export default function OrdersPage() {
 
   const rejectIncomingDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'rejected' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'rejected');
       await reloadMerchantData();
       toast.success(t('tradeRejected'));
     } catch (err: any) { toast.error(err.message); }
@@ -1525,8 +1562,7 @@ export default function OrdersPage() {
 
   const deleteDeal = async (dealId: string) => {
     try {
-      const { error } = await supabase.from('merchant_deals').update({ status: 'cancelled' }).eq('id', dealId);
-      if (error) throw error;
+      await setDealStatus(dealId, 'cancelled');
       await reloadMerchantData();
       setDeleteDealConfirm(null);
       setEditingDealId(null);
