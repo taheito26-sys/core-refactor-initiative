@@ -155,7 +155,10 @@ export default function VaultPage() {
   const [exportStatus, setExportStatus] = useState<'idle' | 'success'>('idle');
 
   // ── Ring 2 Cloud Vault State ──
-  const [cloudStatus, setCloudStatus] = useState<'connected'>('connected');
+  const [cloudLoggedIn, setCloudLoggedIn] = useState(false);
+  const [cloudEmail, setCloudEmail] = useState('');
+  const [cloudPassword, setCloudPassword] = useState('');
+  const [cloudAuthMode, setCloudAuthMode] = useState<'login' | 'register'>('login');
   const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudLabel, setCloudLabel] = useState('');
@@ -164,6 +167,7 @@ export default function VaultPage() {
   // Init cloud config — URL is built-in, always connected
   useEffect(() => {
     gasLoadConfig();
+    setCloudLoggedIn(isCloudLoggedIn());
   }, []);
 
   const loadSnaps = useCallback(async () => {
