@@ -145,9 +145,10 @@ export function buildDealRowModel({
   const family = getAgreementFamilyLabel(deal.deal_type, locale);
   const splitLabel = `${normalizedPartnerPct}%/${100 - normalizedPartnerPct}%`;
 
-  const dateLabel = meta.trade_date
-    ? new Date(meta.trade_date).toLocaleDateString()
-    : (deal.created_at ? new Date(deal.created_at).toLocaleDateString() : '—');
+  const rawDate = meta.trade_date ? new Date(meta.trade_date) : (deal.created_at ? new Date(deal.created_at) : null);
+  const dateLabel = rawDate
+    ? `${rawDate.getDate()}/${rawDate.getMonth() + 1}/${rawDate.getFullYear()}`
+    : '—';
 
   return {
     meta,
