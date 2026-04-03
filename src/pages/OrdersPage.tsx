@@ -156,6 +156,71 @@ export default function OrdersPage() {
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
 
+  const linkedRelationship = useMemo(
+    () => relationships.find(r => r.id === linkedRelId),
+    [relationships, linkedRelId],
+  );
+  const linkedCounterpartyName = linkedRelationship?.counterparty?.display_name || (linkedRelationship as any)?.counterparty_name || t('partner');
+  const linkedCounterpartyId = linkedRelationship
+    ? (linkedRelationship.merchant_a_id === merchantProfile?.merchant_id ? linkedRelationship.merchant_b_id : linkedRelationship.merchant_a_id)
+    : '';
+  const linkedApprovedAgreements = useMemo(
+    () => allAgreements.filter(a => a.relationship_id === linkedRelId && a.status === 'approved' && isAgreementActive(a)),
+    [allAgreements, linkedRelId],
+  );
+
+  useEffect(() => {
+    if (!merchantOrderEnabled || selectedTemplateId !== 'profit_share_family' || !linkedRelId) return;
+    if (linkedApprovedAgreements.length !== 1) return;
+    const onlyAgreement = linkedApprovedAgreements[0];
+    if (allocations[0]?.agreementId === onlyAgreement.id) return;
+
+    setAllocations(prev => {
+      const base = prev[0] || {
+        id: `alloc_${Date.now()}`,
+        relationshipId: linkedRelId,
+        merchantName: linkedCounterpartyName,
+        merchantId: linkedCounterpartyId,
+        family: 'profit_share' as const,
+        agreementId: null,
+        agreementLabel: '',
+        allocatedUsdt: saleAmount || '',
+        merchantCostPerUsdt: '',
+        partnerSharePct: 0,
+        merchantSharePct: 0,
+        note: '',
+      };
+      return [{
+        ...base,
+        agreementId: onlyAgreement.id,
+        agreementLabel: getAgreementLabel(onlyAgreement),
+        partnerSharePct: onlyAgreement.partner_ratio || 0,
+        merchantSharePct: onlyAgreement.merchant_ratio || 0,
+      }];
+    });
+  }, [
+    merchantOrderEnabled,
+    selectedTemplateId,
+    linkedRelId,
+    linkedApprovedAgreements,
+    allocations,
+    linkedCounterpartyName,
+    linkedCounterpartyId,
+    saleAmount,
+  ]);
+
+  const editApprovedAgreements = useMemo(
+    () => allAgreements.filter(a => a.relationship_id === editLinkedRelId && a.status === 'approved' && isAgreementActive(a)),
+    [allAgreements, editLinkedRelId],
+  );
+
+  useEffect(() => {
+    if (!editLinkEnabled || editSelectedTemplateId !== 'profit_share_family' || !editLinkedRelId) return;
+    if (editApprovedAgreements.length !== 1) return;
+    if (editSelectedAgreementId === editApprovedAgreements[0].id) return;
+    setEditSelectedAgreementId(editApprovedAgreements[0].id);
+  }, [editLinkEnabled, editSelectedTemplateId, editLinkedRelId, editApprovedAgreements, editSelectedAgreementId]);
+
 
   const reloadMerchantData = useCallback(async () => {
     try {
@@ -2527,12 +2592,9 @@ export default function OrdersPage() {
 
                       {/* ─── Step 2: Deal Family (only after merchant selected) ─── */}
                       {linkedRelId && (() => {
-                        const selectedRel = relationships.find(r => r.id === linkedRelId);
-                        const cpName = selectedRel?.counterparty?.display_name || (selectedRel as any)?.counterparty_name || t('partner');
-                        const cpId = selectedRel ? (selectedRel.merchant_a_id === merchantProfile?.merchant_id ? selectedRel.merchant_b_id : selectedRel.merchant_a_id) : '';
-                        const relApprovedAgreements = allAgreements.filter(a =>
-                          a.relationship_id === linkedRelId && a.status === 'approved' && isAgreementActive(a)
-                        );
+                        const cpName = linkedCounterpartyName;
+                        const cpId = linkedCounterpartyId;
+                        const relApprovedAgreements = linkedApprovedAgreements;
 
                         return (
                           <>
@@ -2591,35 +2653,43 @@ export default function OrdersPage() {
                                   <>
                                     <div className="field2" style={{ marginBottom: 4 }}>
                                       <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
-                                      <select
-                                        value={allocations[0]?.agreementId || ''}
-                                        onChange={e => {
-                                          const agr = relApprovedAgreements.find(a => a.id === e.target.value);
-                                          setAllocations(prev => {
-                                            const base = prev[0] || {
-                                              id: `alloc_${Date.now()}`, relationshipId: linkedRelId, merchantName: cpName, merchantId: cpId,
-                                              family: 'profit_share' as const, allocatedUsdt: saleAmount || '', merchantCostPerUsdt: '', note: '',
-                                            };
-                                            return [{
-                                              ...base,
-                                              agreementId: agr?.id || null,
-                                              agreementLabel: agr ? getAgreementLabel(agr) : '',
-                                              partnerSharePct: agr?.partner_ratio || 0,
-                                              merchantSharePct: agr?.merchant_ratio || 0,
-                                            }];
-                                          });
-                                        }}
-                                        style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                                      >
-                                        <option value="">{t('selectAgreement')}</option>
-                                        {relApprovedAgreements.map(agr => (
-                                          <option key={agr.id} value={agr.id}>
-                                            {agr.agreement_type === 'operator_priority'
-                                              ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
-                                              : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
-                                          </option>
-                                        ))}
-                                      </select>
+                                      {relApprovedAgreements.length === 1 ? (
+                                        <div style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid color-mix(in srgb, var(--good) 35%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)', color: 'var(--t1)' }}>
+                                          {relApprovedAgreements[0].agreement_type === 'operator_priority'
+                                            ? `⚙️ Operator Priority · ${(relApprovedAgreements[0] as any).operator_ratio ?? 0}% fee — ${relApprovedAgreements[0].settlement_cadence}`
+                                            : `🤝 ${relApprovedAgreements[0].partner_ratio}/${relApprovedAgreements[0].merchant_ratio} — ${relApprovedAgreements[0].settlement_cadence}`}
+                                        </div>
+                                      ) : (
+                                        <select
+                                          value={allocations[0]?.agreementId || ''}
+                                          onChange={e => {
+                                            const agr = relApprovedAgreements.find(a => a.id === e.target.value);
+                                            setAllocations(prev => {
+                                              const base = prev[0] || {
+                                                id: `alloc_${Date.now()}`, relationshipId: linkedRelId, merchantName: cpName, merchantId: cpId,
+                                                family: 'profit_share' as const, allocatedUsdt: saleAmount || '', merchantCostPerUsdt: '', note: '',
+                                              };
+                                              return [{
+                                                ...base,
+                                                agreementId: agr?.id || null,
+                                                agreementLabel: agr ? getAgreementLabel(agr) : '',
+                                                partnerSharePct: agr?.partner_ratio || 0,
+                                                merchantSharePct: agr?.merchant_ratio || 0,
+                                              }];
+                                            });
+                                          }}
+                                          style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                        >
+                                          <option value="">{t('selectAgreement')}</option>
+                                          {relApprovedAgreements.map(agr => (
+                                            <option key={agr.id} value={agr.id}>
+                                              {agr.agreement_type === 'operator_priority'
+                                                ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
+                                                : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
                                     </div>
                                     {allocations[0]?.agreementId && (() => {
                                       const selAgr = relApprovedAgreements.find(a => a.id === allocations[0]?.agreementId);
@@ -3465,9 +3535,7 @@ export default function OrdersPage() {
                       {editLinkedRelId && (() => {
                         const editRel = relationships.find(r => r.id === editLinkedRelId);
                         const editCpName = editRel?.counterparty?.display_name || (editRel as any)?.counterparty_name || t('partner');
-                        const editRelApprovedAgreements = allAgreements.filter(a =>
-                          a.relationship_id === editLinkedRelId && a.status === 'approved' && isAgreementActive(a)
-                        );
+                        const editRelApprovedAgreements = editApprovedAgreements;
 
                         return (
                         <div style={{ marginTop: 4 }}>
@@ -3493,20 +3561,28 @@ export default function OrdersPage() {
                                 <>
                                   <div className="field2" style={{ marginBottom: 4 }}>
                                     <div className="lbl" style={{ fontSize: 9 }}>{t('approvedAgreement')} <span style={{ color: 'var(--bad)' }}>*</span></div>
-                                    <select
-                                      value={editSelectedAgreementId || ''}
-                                      onChange={e => setEditSelectedAgreementId(e.target.value || null)}
-                                      style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
-                                    >
-                                      <option value="">{t('selectAgreement')}</option>
-                                      {editRelApprovedAgreements.map(agr => (
-                                        <option key={agr.id} value={agr.id}>
-                                          {agr.agreement_type === 'operator_priority'
-                                            ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
-                                            : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
-                                        </option>
-                                      ))}
-                                    </select>
+                                    {editRelApprovedAgreements.length === 1 ? (
+                                      <div style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid color-mix(in srgb, var(--good) 35%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)', color: 'var(--t1)' }}>
+                                        {editRelApprovedAgreements[0].agreement_type === 'operator_priority'
+                                          ? `⚙️ Operator Priority · ${(editRelApprovedAgreements[0] as any).operator_ratio ?? 0}% fee — ${editRelApprovedAgreements[0].settlement_cadence}`
+                                          : `🤝 ${editRelApprovedAgreements[0].partner_ratio}/${editRelApprovedAgreements[0].merchant_ratio} — ${editRelApprovedAgreements[0].settlement_cadence}`}
+                                      </div>
+                                    ) : (
+                                      <select
+                                        value={editSelectedAgreementId || ''}
+                                        onChange={e => setEditSelectedAgreementId(e.target.value || null)}
+                                        style={{ width: '100%', padding: '4px 6px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
+                                      >
+                                        <option value="">{t('selectAgreement')}</option>
+                                        {editRelApprovedAgreements.map(agr => (
+                                          <option key={agr.id} value={agr.id}>
+                                            {agr.agreement_type === 'operator_priority'
+                                              ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
+                                              : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
                                   </div>
                                   {editSelectedAgreementId && (() => {
                                     const agr = editRelApprovedAgreements.find(a => a.id === editSelectedAgreementId);
