@@ -732,6 +732,16 @@ export default function VaultPage() {
                   <input type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} />
                 </label>
               </div>
+
+                  {/* Logout */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-[10px] text-muted-foreground">{getGasSession()?.email}</span>
+                    <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={handleCloudLogout}>
+                      <LogOut className="w-3 h-3 mr-1" /> Sign Out
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
