@@ -796,15 +796,30 @@ export default function OrdersPage() {
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
           const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
-          const calc = calculateAllocationEconomics({
-            allocatedUsdt: usdt,
-            merchantCostPerUsdt: costPerUsdt,
-            sellPrice: sell,
-            totalFee: fee,
-            totalUsdt: amountUSDT,
-            family: alloc.family,
-            partnerSharePct: alloc.partnerSharePct,
-          });
+          const selAgreement = alloc.agreementId ? relApprovedAgreements.find(a => a.id === alloc.agreementId) : null;
+          const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
+          const calc = isOpPriority
+            ? calculateOperatorPriorityAllocationEconomics({
+                allocatedUsdt: usdt,
+                merchantCostPerUsdt: costPerUsdt,
+                sellPrice: sell,
+                totalFee: fee,
+                totalUsdt: amountUSDT,
+                family: alloc.family,
+                partnerSharePct: alloc.partnerSharePct,
+                operatorRatio: (selAgreement as any)?.operator_ratio ?? 0,
+                operatorContribution: (selAgreement as any)?.operator_contribution ?? 0,
+                lenderContribution: (selAgreement as any)?.lender_contribution ?? 0,
+              })
+            : calculateAllocationEconomics({
+                allocatedUsdt: usdt,
+                merchantCostPerUsdt: costPerUsdt,
+                sellPrice: sell,
+                totalFee: fee,
+                totalUsdt: amountUSDT,
+                family: alloc.family,
+                partnerSharePct: alloc.partnerSharePct,
+              });
 
           return {
             sale_group_id: saleGroupId,
