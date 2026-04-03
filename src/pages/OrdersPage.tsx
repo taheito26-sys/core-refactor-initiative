@@ -2065,6 +2065,30 @@ export default function OrdersPage() {
               ) : isMobile ? (
                 <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
+                  {/* Unlinked merchant deals (same logic as desktop) */}
+                  {(() => {
+                    const localTradeIds = new Set(subFilteredMy.map(tr => tr.id));
+                    const dealsAlreadyLinked = new Set<string>();
+                    allMerchantDeals.forEach(d => {
+                      const lt = parseDealMeta(d.notes).local_trade;
+                      if (lt && localTradeIds.has(lt)) dealsAlreadyLinked.add(d.id);
+                    });
+                    const unlinkedDeals = allMerchantDeals.filter(d => {
+                      if (!isDealVisible(d)) return false;
+                      if (dealsAlreadyLinked.has(d.id)) return false;
+                      if (d.status !== 'approved') return false;
+                      if (selectedMonth !== 'all') {
+                        const dd = new Date(d.created_at);
+                        const key = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}`;
+                        if (key !== selectedMonth) return false;
+                      }
+                      return true;
+                    });
+                    return unlinkedDeals.map(deal => {
+                      const perspective = isCreatorInMyMerchant(deal.created_by) ? 'outgoing' as const : 'incoming' as const;
+                      return renderOrdersMobileCard(deal, perspective);
+                    });
+                  })()}
                 </div>
               ) : (
                 <div className="tableWrap ledgerWrap">
