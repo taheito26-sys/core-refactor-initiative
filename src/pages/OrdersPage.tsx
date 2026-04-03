@@ -917,15 +917,26 @@ export default function OrdersPage() {
             status: 'pending',
             created_by: userId!,
             notes: noteLines,
-            metadata: {
-              quantity: usdt,
-              sell_price: sell,
-              avg_buy: avgBuy,
-              fee,
-              merchant_cost: costPerUsdt,
-              partner_ratio: alloc.partnerSharePct,
-              merchant_ratio: alloc.merchantSharePct,
-            },
+            metadata: (() => {
+              const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
+              const base: Record<string, unknown> = {
+                quantity: usdt,
+                sell_price: sell,
+                avg_buy: avgBuy,
+                fee,
+                merchant_cost: costPerUsdt,
+                partner_ratio: alloc.partnerSharePct,
+                merchant_ratio: alloc.merchantSharePct,
+              };
+              if (selAgreement?.agreement_type === 'operator_priority') {
+                base.agreement_type = 'operator_priority';
+                base.operator_ratio = (selAgreement as any).operator_ratio ?? 0;
+                base.operator_contribution = (selAgreement as any).operator_contribution ?? 0;
+                base.lender_contribution = (selAgreement as any).lender_contribution ?? 0;
+                base.operator_merchant_id = (selAgreement as any).operator_merchant_id ?? '';
+              }
+              return base;
+            })(),
           }).select('id').single();
 
           if (dealError) throw dealError;
