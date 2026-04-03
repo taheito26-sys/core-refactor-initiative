@@ -25,7 +25,7 @@ import {
   gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
   getGasLastSync, setGasLastSync, fmtBytes,
   isCloudLoggedIn, getGasSession, clearCloudSession,
-  autoAuthenticateCloud,
+  autoAuthenticateCloudWithDetails,
   type CloudVersion,
 } from '@/lib/gas-cloud';
 import { useAuth } from '@/features/auth/auth-context';
@@ -158,25 +158,42 @@ export default function VaultPage() {
 
   // ── Ring 2 Cloud Vault State ──
   const [cloudLoggedIn, setCloudLoggedIn] = useState(false);
+  const [cloudAuthState, setCloudAuthState] = useState<'idle' | 'authenticating' | 'failed' | 'ready'>('idle');
+  const [cloudAuthError, setCloudAuthError] = useState('');
   const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudLabel, setCloudLabel] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
 
-  // Auto-authenticate with GAS using Google session
-  useEffect(() => {
+  const authenticateCloud = useCallback(async () => {
     gasLoadConfig();
     if (isCloudLoggedIn()) {
       setCloudLoggedIn(true);
-      return;
+      setCloudAuthState('ready');
+      setCloudAuthError('');
+      return true;
     }
-    // Auto-login using the user's Google credentials
-    if (email && userId) {
-      autoAuthenticateCloud(email, userId, merchantProfile?.display_name || undefined)
-        .then(ok => setCloudLoggedIn(ok))
-        .catch(() => setCloudLoggedIn(false));
+
+    if (!email || !userId) {
+      setCloudLoggedIn(false);
+      setCloudAuthState('failed');
+      setCloudAuthError('Missing account identity (email/user id).');
+      return false;
     }
+
+    setCloudAuthState('authenticating');
+    setCloudAuthError('');
+    const res = await autoAuthenticateCloudWithDetails(email, userId, merchantProfile?.display_name || undefined);
+    setCloudLoggedIn(res.ok);
+    setCloudAuthState(res.ok ? 'ready' : 'failed');
+    setCloudAuthError(res.reason || '');
+    return res.ok;
   }, [email, userId, merchantProfile?.display_name]);
+
+  // Auto-authenticate with GAS using Google session
+  useEffect(() => {
+    void authenticateCloud();
+  }, [authenticateCloud]);
 
   const loadSnaps = useCallback(async () => {
     try {
@@ -252,6 +269,8 @@ export default function VaultPage() {
   const handleCloudLogout = () => {
     clearCloudSession();
     setCloudLoggedIn(false);
+    setCloudAuthState('failed');
+    setCloudAuthError('Signed out from Cloud session.');
     setCloudVersions([]);
     toast('Logged out from Cloud');
   };
@@ -613,12 +632,26 @@ export default function VaultPage() {
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
                     {t.lang === 'ar' ? 'جاري الاتصال بالسحابة تلقائياً...' : 'Connecting to cloud automatically...'}
                   </p>
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground">
-                      {t.lang === 'ar' ? 'يتم تسجيل الدخول باستخدام حسابك' : 'Signing in with your account...'}
-                    </span>
-                  </div>
+                  {cloudAuthState === 'authenticating' ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground">
+                        {t.lang === 'ar' ? 'يتم تسجيل الدخول باستخدام حسابك' : 'Signing in with your account...'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-amber-500">
+                        {t.lang === 'ar' ? 'تعذر تسجيل الدخول السحابي تلقائياً.' : 'Cloud auto sign-in failed.'}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {cloudAuthError || (t.lang === 'ar' ? 'حاول مرة أخرى بعد لحظات.' : 'Try again in a few seconds.')}
+                      </p>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => void authenticateCloud()}>
+                        {t.lang === 'ar' ? 'إعادة المحاولة' : 'Retry cloud sign-in'}
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>

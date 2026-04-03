@@ -16,6 +16,11 @@ interface GasSession {
   name?: string;
 }
 
+export interface CloudAuthResult {
+  ok: boolean;
+  reason?: string;
+}
+
 const _BUILTIN_GAS_URL = 'https://script.google.com/macros/s/AKfycbyhMi7Eg2ww94tidtIhHEwjaKPsoYK-jsVGHPWIsMu-XUjgZgLuffP5_5Ka90DBrqguOw/exec';
 let _gasUrl = _BUILTIN_GAS_URL;
 let _gasLastSync = 0;
@@ -117,48 +122,81 @@ export async function gasPostAs(email: string, token: string, payloadObj: Record
  * Uses email as the username and a deterministic password derived from user_id.
  */
 export async function autoAuthenticateCloud(email: string, userId: string, displayName?: string): Promise<boolean> {
-  if (!email || !userId) return false;
+  const result = await autoAuthenticateCloudWithDetails(email, userId, displayName);
+  return result.ok;
+}
+
+function buildPasswordCandidates(userId: string): string[] {
+  // Keep newest scheme first, then legacy patterns for backward compatibility.
+  return [
+    `taheito_${userId}_cloud_2026`,
+    `taheito_${userId}_cloud`,
+    `taheito_${userId}`,
+  ];
+}
+
+export async function autoAuthenticateCloudWithDetails(
+  email: string,
+  userId: string,
+  displayName?: string,
+): Promise<CloudAuthResult> {
+  if (!email || !userId) return { ok: false, reason: 'Missing email or user id.' };
   
   // If already logged in with this email, skip
-  if (_gasSession && _gasSession.email === email && _gasSession.token) return true;
-  
-  const deterministicPassword = `taheito_${userId}_cloud_2026`;
+  if (_gasSession && _gasSession.email === email && _gasSession.token) return { ok: true };
+  const passwordCandidates = buildPasswordCandidates(userId);
   
   gasLoadConfig();
+
+  // Stored session for another account causes bad state during account switches.
+  if (_gasSession && _gasSession.email !== email) clearCloudSession();
   
-  // Try login first
-  try {
-    const res = await rawGasPost({ action: 'login', email, password: deterministicPassword });
-    if (res && res.ok && res.token) {
-      saveSession(email, res.token, displayName || res.user?.name);
-      return true;
-    }
-  } catch {
-    // Login failed, try register
-  }
-  
-  // Auto-register
-  try {
-    const res = await rawGasPost({ action: 'register', email, password: deterministicPassword, name: displayName || email.split('@')[0] });
-    if (res && res.ok && res.token) {
-      saveSession(email, res.token, displayName || res.user?.name);
-      return true;
-    }
-  } catch {
-    // Registration might fail if account exists with different password — try login once more
+  // Try login using known password patterns first.
+  for (const pw of passwordCandidates) {
     try {
-      // Last attempt: maybe the old password was different; we'll save the session from login
-      const res = await rawGasPost({ action: 'login', email, password: deterministicPassword });
+      const res = await rawGasPost({ action: 'login', email, password: pw });
       if (res && res.ok && res.token) {
         saveSession(email, res.token, displayName || res.user?.name);
-        return true;
+        return { ok: true };
       }
     } catch {
-      return false;
+      // Continue to next candidate.
     }
   }
   
-  return false;
+  // Auto-register with current password scheme.
+  const currentPassword = passwordCandidates[0];
+  try {
+    const res = await rawGasPost({
+      action: 'register',
+      email,
+      password: currentPassword,
+      name: displayName || email.split('@')[0],
+    });
+    if (res && res.ok && res.token) {
+      saveSession(email, res.token, displayName || res.user?.name);
+      return { ok: true };
+    }
+  } catch (registerError: unknown) {
+    // Registration might fail if account exists with different password.
+    for (const pw of passwordCandidates) {
+      try {
+        const res = await rawGasPost({ action: 'login', email, password: pw });
+        if (res && res.ok && res.token) {
+          saveSession(email, res.token, displayName || res.user?.name);
+          return { ok: true };
+        }
+      } catch {
+        // Keep trying all known patterns.
+      }
+    }
+    const reason = registerError instanceof Error
+      ? registerError.message
+      : 'Cloud authentication failed after login/register attempts.';
+    return { ok: false, reason };
+  }
+  
+  return { ok: false, reason: 'Cloud authentication failed: backend did not return a token.' };
 }
 
 /** Register a new cloud account */
