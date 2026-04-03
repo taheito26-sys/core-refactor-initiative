@@ -24,19 +24,19 @@ async function ensureGasSession(email: string, userId: string, name?: string): P
   const pw = deterministicPassword(userId);
   // Try login
   try {
-    const res = await rawGasPostInternal({ action: 'login', email, password: pw });
+    const res = await rawGasPost({ action: 'login', email, password: pw });
     if (res?.ok && res.token) return { email, token: res.token };
   } catch {}
   // Try register
   try {
-    const res = await rawGasPostInternal({ action: 'register', email, password: pw, name: name || email.split('@')[0] });
+    const res = await rawGasPost({ action: 'register', email, password: pw, name: name || email.split('@')[0] });
     if (res?.ok && res.token) return { email, token: res.token };
   } catch {}
   return null;
 }
 
 async function backupForUser(email: string, token: string, state: Record<string, unknown>, label: string) {
-  return rawGasPostInternal({
+  return rawGasPost({
     action: 'backup',
     email,
     token,
@@ -47,7 +47,7 @@ async function backupForUser(email: string, token: string, state: Record<string,
 }
 
 async function restoreForUser(email: string, token: string) {
-  return rawGasPostInternal({
+  return rawGasPost({
     action: 'restore',
     email,
     token,
