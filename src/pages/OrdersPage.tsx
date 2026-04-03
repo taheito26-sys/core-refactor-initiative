@@ -2107,7 +2107,7 @@ export default function OrdersPage() {
                         const cpName = selectedRel?.counterparty?.display_name || (selectedRel as any)?.counterparty_name || t('partner');
                         const cpId = selectedRel ? (selectedRel.merchant_a_id === merchantProfile?.merchant_id ? selectedRel.merchant_b_id : selectedRel.merchant_a_id) : '';
                         const relApprovedAgreements = allAgreements.filter(a =>
-                          a.relationship_id === linkedRelId && a.status === 'approved' && isAgreementActive(a)
+                          a.relationship_id === linkedRelId && isAgreementActive(a)
                         );
 
                         return (
