@@ -171,6 +171,11 @@ export function buildDealRowModel({
     }
   }
 
+  const resolvedOperatorMerchantId = String(mergedMeta.operator_merchant_id || '');
+  const iAmOperatorResolved = resolvedOperatorMerchantId && myMerchantId
+    ? myMerchantId === resolvedOperatorMerchantId
+    : false;
+
   let creatorNet: number | null;
   let partnerNet: number | null;
   let myNet: number | null;
