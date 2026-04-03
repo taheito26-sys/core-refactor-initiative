@@ -612,46 +612,78 @@ export default function VaultPage() {
                 <CardTitle className="text-sm font-display">
                   {t.lang === 'ar' ? '☁ الحلقة 2 — الخزنة السحابية' : '☁ Ring 2 — Cloud Vault'}
                 </CardTitle>
-                {cloudStatus === 'connected' ? (
-                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ Connected</Badge>
-                ) : cloudStatus === 'checking' ? (
-                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Checking…</Badge>
+                {cloudLoggedIn ? (
+                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ {getGasSession()?.email}</Badge>
                 ) : (
-                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Not configured</Badge>
+                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Not signed in</Badge>
                 )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {t.lang === 'ar'
-                  ? 'نسخ سحابية عبر Google Drive. حتى 30 نسخة + نسخ دائمة مثبتة.'
-                  : 'Versioned cloud backups via Google Drive. Up to 30 versions + pinned permanent backups.'}
-              </p>
-
-
-              {/* Manual backup with label */}
-              <div className="flex gap-2">
-                <Input
-                  value={cloudLabel}
-                  onChange={e => setCloudLabel(e.target.value)}
-                  placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
-                  className="flex-1 text-[11px]"
-                />
-                <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading}>
-                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
-                  {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
-                </Button>
-              </div>
-
-              {/* Version browser */}
-              <div className="max-h-[240px] overflow-y-auto text-[11px] border rounded-md p-2 bg-muted/20">
-                {cloudVersions.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground p-2">
-                    {cloudStatus === 'connected'
-                      ? (t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد. انقر "نسخ الآن" أولاً.' : 'No cloud backups yet. Click Backup Now first.')
-                      : (t.lang === 'ar' ? 'السحابة غير مكوّنة. أعد URL في إعدادات النسخ السحابي.' : 'Cloud not configured. Set up the Apps Script URL in Cloud Backup Setup.')}
+              {!cloudLoggedIn ? (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {t.lang === 'ar' ? 'سجّل دخولك للنسخ السحابي عبر Google Drive.' : 'Sign in to enable cloud backups via Google Drive.'}
                   </p>
-                ) : (
+                  <div className="space-y-2">
+                    <Input
+                      type="email"
+                      value={cloudEmail}
+                      onChange={e => setCloudEmail(e.target.value)}
+                      placeholder="Email"
+                      className="text-[11px]"
+                    />
+                    <Input
+                      type="password"
+                      value={cloudPassword}
+                      onChange={e => setCloudPassword(e.target.value)}
+                      placeholder="Password (min 6 chars)"
+                      className="text-[11px]"
+                      onKeyDown={e => e.key === 'Enter' && handleCloudAuth()}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleCloudAuth} disabled={cloudLoading} className="flex-1">
+                      {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : cloudAuthMode === 'login' ? <LogIn className="w-3 h-3 mr-1" /> : <UserPlus className="w-3 h-3 mr-1" />}
+                      {cloudAuthMode === 'login' ? 'Sign In' : 'Create Account'}
+                    </Button>
+                  </div>
+                  <button
+                    onClick={() => setCloudAuthMode(cloudAuthMode === 'login' ? 'register' : 'login')}
+                    className="text-[10px] text-primary underline"
+                  >
+                    {cloudAuthMode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {t.lang === 'ar'
+                      ? 'نسخ سحابية عبر Google Drive. حتى 30 نسخة + نسخ دائمة مثبتة.'
+                      : 'Versioned cloud backups via Google Drive. Up to 30 versions + pinned permanent backups.'}
+                  </p>
+
+                  {/* Manual backup with label */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={cloudLabel}
+                      onChange={e => setCloudLabel(e.target.value)}
+                      placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
+                      className="flex-1 text-[11px]"
+                    />
+                    <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading}>
+                      {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                      {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
+                    </Button>
+                  </div>
+
+                  {/* Version browser */}
+                  <div className="max-h-[240px] overflow-y-auto text-[11px] border rounded-md p-2 bg-muted/20">
+                    {cloudVersions.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground p-2">
+                        {t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد. انقر "نسخ الآن" أولاً.' : 'No cloud backups yet. Click Backup Now first.'}
+                      </p>
+                    ) : (
                   cloudVersions.map((v, idx) => {
                     const dt = v.exportedAt ? new Date(v.exportedAt).toLocaleString() : 'unknown';
                     const bytes = v.bytes != null ? ` · ${fmtBytes(v.bytes)}` : '';
