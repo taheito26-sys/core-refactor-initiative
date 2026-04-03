@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Camera, Download, Upload, Trash2, RefreshCw, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud, Search } from 'lucide-react';
+import { Camera, Download, Upload, Trash2, RefreshCw, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud, Search, LogIn, LogOut, UserPlus } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
   clearTrackerStorage,
@@ -24,6 +24,8 @@ import type { TrackerState } from '@/lib/tracker-helpers';
 import {
   gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
   getGasLastSync, setGasLastSync, fmtBytes,
+  isCloudLoggedIn, getGasSession, clearCloudSession,
+  cloudLogin, cloudRegister,
   type CloudVersion,
 } from '@/lib/gas-cloud';
 
@@ -153,7 +155,10 @@ export default function VaultPage() {
   const [exportStatus, setExportStatus] = useState<'idle' | 'success'>('idle');
 
   // ── Ring 2 Cloud Vault State ──
-  const [cloudStatus, setCloudStatus] = useState<'connected'>('connected');
+  const [cloudLoggedIn, setCloudLoggedIn] = useState(false);
+  const [cloudEmail, setCloudEmail] = useState('');
+  const [cloudPassword, setCloudPassword] = useState('');
+  const [cloudAuthMode, setCloudAuthMode] = useState<'login' | 'register'>('login');
   const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudLabel, setCloudLabel] = useState('');
@@ -162,6 +167,7 @@ export default function VaultPage() {
   // Init cloud config — URL is built-in, always connected
   useEffect(() => {
     gasLoadConfig();
+    setCloudLoggedIn(isCloudLoggedIn());
   }, []);
 
   const loadSnaps = useCallback(async () => {
@@ -233,8 +239,34 @@ export default function VaultPage() {
     toast(v ? (t.lang === 'ar' ? 'النسخ التلقائي مفعّل' : 'Auto-backup ON') : (t.lang === 'ar' ? 'النسخ التلقائي معطّل' : 'Auto-backup OFF'));
   };
 
-  // ── Ring 2: Cloud Vault actions ──
-  // Cloud URL is built-in, no user save needed
+  // ── Cloud Auth actions ──
+  const handleCloudAuth = async () => {
+    if (!cloudEmail.trim() || !cloudPassword.trim()) {
+      toast.error('Enter email and password');
+      return;
+    }
+    setCloudLoading(true);
+    try {
+      const res = cloudAuthMode === 'register'
+        ? await cloudRegister(cloudEmail.trim(), cloudPassword)
+        : await cloudLogin(cloudEmail.trim(), cloudPassword);
+      if (!res || res.ok === false) throw new Error(res?.error || 'Auth failed');
+      setCloudLoggedIn(true);
+      setCloudPassword('');
+      toast.success(cloudAuthMode === 'register' ? '✓ Account created & logged in' : '✓ Logged in to Cloud');
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const handleCloudLogout = () => {
+    clearCloudSession();
+    setCloudLoggedIn(false);
+    setCloudVersions([]);
+    toast('Logged out from Cloud');
+  };
 
   const cloudBackupNow = async () => {
     if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
@@ -580,46 +612,78 @@ export default function VaultPage() {
                 <CardTitle className="text-sm font-display">
                   {t.lang === 'ar' ? '☁ الحلقة 2 — الخزنة السحابية' : '☁ Ring 2 — Cloud Vault'}
                 </CardTitle>
-                {cloudStatus === 'connected' ? (
-                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ Connected</Badge>
-                ) : cloudStatus === 'checking' ? (
-                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Checking…</Badge>
+                {cloudLoggedIn ? (
+                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ {getGasSession()?.email}</Badge>
                 ) : (
-                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Not configured</Badge>
+                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ Not signed in</Badge>
                 )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {t.lang === 'ar'
-                  ? 'نسخ سحابية عبر Google Drive. حتى 30 نسخة + نسخ دائمة مثبتة.'
-                  : 'Versioned cloud backups via Google Drive. Up to 30 versions + pinned permanent backups.'}
-              </p>
-
-
-              {/* Manual backup with label */}
-              <div className="flex gap-2">
-                <Input
-                  value={cloudLabel}
-                  onChange={e => setCloudLabel(e.target.value)}
-                  placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
-                  className="flex-1 text-[11px]"
-                />
-                <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading}>
-                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
-                  {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
-                </Button>
-              </div>
-
-              {/* Version browser */}
-              <div className="max-h-[240px] overflow-y-auto text-[11px] border rounded-md p-2 bg-muted/20">
-                {cloudVersions.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground p-2">
-                    {cloudStatus === 'connected'
-                      ? (t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد. انقر "نسخ الآن" أولاً.' : 'No cloud backups yet. Click Backup Now first.')
-                      : (t.lang === 'ar' ? 'السحابة غير مكوّنة. أعد URL في إعدادات النسخ السحابي.' : 'Cloud not configured. Set up the Apps Script URL in Cloud Backup Setup.')}
+              {!cloudLoggedIn ? (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {t.lang === 'ar' ? 'سجّل دخولك للنسخ السحابي عبر Google Drive.' : 'Sign in to enable cloud backups via Google Drive.'}
                   </p>
-                ) : (
+                  <div className="space-y-2">
+                    <Input
+                      type="email"
+                      value={cloudEmail}
+                      onChange={e => setCloudEmail(e.target.value)}
+                      placeholder="Email"
+                      className="text-[11px]"
+                    />
+                    <Input
+                      type="password"
+                      value={cloudPassword}
+                      onChange={e => setCloudPassword(e.target.value)}
+                      placeholder="Password (min 6 chars)"
+                      className="text-[11px]"
+                      onKeyDown={e => e.key === 'Enter' && handleCloudAuth()}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleCloudAuth} disabled={cloudLoading} className="flex-1">
+                      {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : cloudAuthMode === 'login' ? <LogIn className="w-3 h-3 mr-1" /> : <UserPlus className="w-3 h-3 mr-1" />}
+                      {cloudAuthMode === 'login' ? 'Sign In' : 'Create Account'}
+                    </Button>
+                  </div>
+                  <button
+                    onClick={() => setCloudAuthMode(cloudAuthMode === 'login' ? 'register' : 'login')}
+                    className="text-[10px] text-primary underline"
+                  >
+                    {cloudAuthMode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {t.lang === 'ar'
+                      ? 'نسخ سحابية عبر Google Drive. حتى 30 نسخة + نسخ دائمة مثبتة.'
+                      : 'Versioned cloud backups via Google Drive. Up to 30 versions + pinned permanent backups.'}
+                  </p>
+
+                  {/* Manual backup with label */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={cloudLabel}
+                      onChange={e => setCloudLabel(e.target.value)}
+                      placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
+                      className="flex-1 text-[11px]"
+                    />
+                    <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading}>
+                      {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                      {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
+                    </Button>
+                  </div>
+
+                  {/* Version browser */}
+                  <div className="max-h-[240px] overflow-y-auto text-[11px] border rounded-md p-2 bg-muted/20">
+                    {cloudVersions.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground p-2">
+                        {t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد. انقر "نسخ الآن" أولاً.' : 'No cloud backups yet. Click Backup Now first.'}
+                      </p>
+                    ) : (
                   cloudVersions.map((v, idx) => {
                     const dt = v.exportedAt ? new Date(v.exportedAt).toLocaleString() : 'unknown';
                     const bytes = v.bytes != null ? ` · ${fmtBytes(v.bytes)}` : '';
@@ -668,6 +732,16 @@ export default function VaultPage() {
                   <input type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} />
                 </label>
               </div>
+
+                  {/* Logout */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-[10px] text-muted-foreground">{getGasSession()?.email}</span>
+                    <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={handleCloudLogout}>
+                      <LogOut className="w-3 h-3 mr-1" /> Sign Out
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
