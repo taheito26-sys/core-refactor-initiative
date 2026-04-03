@@ -611,37 +611,14 @@ export default function VaultPage() {
               {!cloudLoggedIn ? (
                 <>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    {t.lang === 'ar' ? 'سجّل دخولك للنسخ السحابي عبر Google Drive.' : 'Sign in to enable cloud backups via Google Drive.'}
+                    {t.lang === 'ar' ? 'جاري الاتصال بالسحابة تلقائياً...' : 'Connecting to cloud automatically...'}
                   </p>
-                  <div className="space-y-2">
-                    <Input
-                      type="email"
-                      value={cloudEmail}
-                      onChange={e => setCloudEmail(e.target.value)}
-                      placeholder="Email"
-                      className="text-[11px]"
-                    />
-                    <Input
-                      type="password"
-                      value={cloudPassword}
-                      onChange={e => setCloudPassword(e.target.value)}
-                      placeholder="Password (min 6 chars)"
-                      className="text-[11px]"
-                      onKeyDown={e => e.key === 'Enter' && handleCloudAuth()}
-                    />
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground">
+                      {t.lang === 'ar' ? 'يتم تسجيل الدخول باستخدام حسابك' : 'Signing in with your account...'}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleCloudAuth} disabled={cloudLoading} className="flex-1">
-                      {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : cloudAuthMode === 'login' ? <LogIn className="w-3 h-3 mr-1" /> : <UserPlus className="w-3 h-3 mr-1" />}
-                      {cloudAuthMode === 'login' ? 'Sign In' : 'Create Account'}
-                    </Button>
-                  </div>
-                  <button
-                    onClick={() => setCloudAuthMode(cloudAuthMode === 'login' ? 'register' : 'login')}
-                    className="text-[10px] text-primary underline"
-                  >
-                    {cloudAuthMode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}
-                  </button>
                 </>
               ) : (
                 <>
