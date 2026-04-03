@@ -1,0 +1,1 @@
+ALTER TABLE public.merchant_deals ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;

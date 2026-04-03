@@ -411,6 +411,7 @@ export type Database = {
           currency: string
           deal_type: string
           id: string
+          metadata: Json | null
           notes: string | null
           realized_pnl: number
           relationship_id: string
@@ -426,6 +427,7 @@ export type Database = {
           currency?: string
           deal_type?: string
           id?: string
+          metadata?: Json | null
           notes?: string | null
           realized_pnl?: number
           relationship_id: string
@@ -441,6 +443,7 @@ export type Database = {
           currency?: string
           deal_type?: string
           id?: string
+          metadata?: Json | null
           notes?: string | null
           realized_pnl?: number
           relationship_id?: string
