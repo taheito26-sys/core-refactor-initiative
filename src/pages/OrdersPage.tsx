@@ -1162,9 +1162,21 @@ export default function OrdersPage() {
         // Create settlement period for per_order deals
         if (cadence === 'per_order' && dealData?.id) {
           const netProfit = rev - fifoCost - fee;
-          const partnerAmt = isEditProfitShare
-            ? netProfit * (partnerPct / 100)
-            : rev * (partnerPct / 100);
+          const isEditOpPriority = editAgreement?.agreement_type === 'operator_priority';
+          let partnerAmt: number;
+          if (isEditOpPriority) {
+            const opResult = calculateOperatorPriorityProfit({
+              grossProfit: netProfit,
+              operatorRatio: (editAgreement as any).operator_ratio ?? 0,
+              operatorContribution: (editAgreement as any).operator_contribution ?? 0,
+              lenderContribution: (editAgreement as any).lender_contribution ?? 0,
+            });
+            partnerAmt = opResult.lenderTotal;
+          } else {
+            partnerAmt = isEditProfitShare
+              ? netProfit * (partnerPct / 100)
+              : rev * (partnerPct / 100);
+          }
 
           const { data: periodData } = await supabase.from('settlement_periods').insert({
             deal_id: dealData.id,
