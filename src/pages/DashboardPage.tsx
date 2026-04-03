@@ -423,14 +423,16 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           )}
           {/* Combined total */}
           {merchantDealKpis && merchantDealKpis.inCount > 0 && (
-            <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
-              <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
-              <span className={`mono ${(dR.net + merchantDealKpis.inMyShare) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                {(dR.net + merchantDealKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inMyShare)}
-              </span>
-            </div>
-            <div className="kpi-cell-sub" style={{ marginTop: 4 }}>{t('thisMonth')}</div>
-          </div>
+            <>
+              <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
+                <span className={`mono ${(dR.net + merchantDealKpis.inMyShare) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {(dR.net + merchantDealKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + merchantDealKpis.inMyShare)}
+                </span>
+              </div>
+              <div className="kpi-cell-sub" style={{ marginTop: 4 }}>{t('thisMonth')}</div>
+            </>
+          )}
         </div>
       </div>
 
