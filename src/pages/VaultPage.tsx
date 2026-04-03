@@ -239,8 +239,34 @@ export default function VaultPage() {
     toast(v ? (t.lang === 'ar' ? 'النسخ التلقائي مفعّل' : 'Auto-backup ON') : (t.lang === 'ar' ? 'النسخ التلقائي معطّل' : 'Auto-backup OFF'));
   };
 
-  // ── Ring 2: Cloud Vault actions ──
-  // Cloud URL is built-in, no user save needed
+  // ── Cloud Auth actions ──
+  const handleCloudAuth = async () => {
+    if (!cloudEmail.trim() || !cloudPassword.trim()) {
+      toast.error('Enter email and password');
+      return;
+    }
+    setCloudLoading(true);
+    try {
+      const res = cloudAuthMode === 'register'
+        ? await cloudRegister(cloudEmail.trim(), cloudPassword)
+        : await cloudLogin(cloudEmail.trim(), cloudPassword);
+      if (!res || res.ok === false) throw new Error(res?.error || 'Auth failed');
+      setCloudLoggedIn(true);
+      setCloudPassword('');
+      toast.success(cloudAuthMode === 'register' ? '✓ Account created & logged in' : '✓ Logged in to Cloud');
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const handleCloudLogout = () => {
+    clearCloudSession();
+    setCloudLoggedIn(false);
+    setCloudVersions([]);
+    toast('Logged out from Cloud');
+  };
 
   const cloudBackupNow = async () => {
     if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
