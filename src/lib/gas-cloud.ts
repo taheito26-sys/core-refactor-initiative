@@ -1,5 +1,5 @@
 // Google Apps Script Cloud Backup — Ring 2
-// Faithfully ported from the original TRACKER_CLOUDFLARE- source repo.
+// Auto-authenticates using the user's existing session credentials.
 
 const GAS_CFG_KEY = 'taheito_gas_cfg';
 const GAS_SESSION_KEY = 'taheito_gas_session';
@@ -71,7 +71,7 @@ function safeJsonParse(txt: string): any {
   try { return JSON.parse(txt); } catch { return null; }
 }
 
-async function rawGasPost(payloadObj: Record<string, unknown>): Promise<any> {
+export async function rawGasPost(payloadObj: Record<string, unknown>): Promise<any> {
   if (!_gasUrl) throw new Error('Cloud URL missing.');
   const resp = await fetch(_gasUrl, {
     method: 'POST',
@@ -103,6 +103,62 @@ export async function gasPost(payloadObj: Record<string, unknown>): Promise<any>
     payloadObj = { ...payloadObj, email: _gasSession.email, token: _gasSession.token };
   }
   return rawGasPost(payloadObj);
+}
+
+/** Post with explicit credentials (for admin acting on behalf of a user) */
+export async function gasPostAs(email: string, token: string, payloadObj: Record<string, unknown>): Promise<any> {
+  gasLoadConfig();
+  return rawGasPost({ ...payloadObj, email, token });
+}
+
+/**
+ * Auto-authenticate with GAS using the user's existing app credentials.
+ * Tries login first; if it fails, auto-registers then logs in.
+ * Uses email as the username and a deterministic password derived from user_id.
+ */
+export async function autoAuthenticateCloud(email: string, userId: string, displayName?: string): Promise<boolean> {
+  if (!email || !userId) return false;
+  
+  // If already logged in with this email, skip
+  if (_gasSession && _gasSession.email === email && _gasSession.token) return true;
+  
+  const deterministicPassword = `taheito_${userId}_cloud_2026`;
+  
+  gasLoadConfig();
+  
+  // Try login first
+  try {
+    const res = await rawGasPost({ action: 'login', email, password: deterministicPassword });
+    if (res && res.ok && res.token) {
+      saveSession(email, res.token, displayName || res.user?.name);
+      return true;
+    }
+  } catch {
+    // Login failed, try register
+  }
+  
+  // Auto-register
+  try {
+    const res = await rawGasPost({ action: 'register', email, password: deterministicPassword, name: displayName || email.split('@')[0] });
+    if (res && res.ok && res.token) {
+      saveSession(email, res.token, displayName || res.user?.name);
+      return true;
+    }
+  } catch {
+    // Registration might fail if account exists with different password — try login once more
+    try {
+      // Last attempt: maybe the old password was different; we'll save the session from login
+      const res = await rawGasPost({ action: 'login', email, password: deterministicPassword });
+      if (res && res.ok && res.token) {
+        saveSession(email, res.token, displayName || res.user?.name);
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+  
+  return false;
 }
 
 /** Register a new cloud account */

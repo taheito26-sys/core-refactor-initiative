@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Camera, Download, Upload, Trash2, RefreshCw, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud, Search, LogIn, LogOut, UserPlus } from 'lucide-react';
+import { Camera, Download, Upload, Trash2, RefreshCw, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud, Search, LogOut } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
   clearTrackerStorage,
@@ -25,9 +25,10 @@ import {
   gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
   getGasLastSync, setGasLastSync, fmtBytes,
   isCloudLoggedIn, getGasSession, clearCloudSession,
-  cloudLogin, cloudRegister,
+  autoAuthenticateCloud,
   type CloudVersion,
 } from '@/lib/gas-cloud';
+import { useAuth } from '@/features/auth/auth-context';
 
 /* ── IDB Vault (Ring 1) ── */
 interface Snapshot {
@@ -144,6 +145,7 @@ async function clearTrackerVaultDb(): Promise<void> {
 export default function VaultPage() {
   const t = useT();
   const navigate = useNavigate();
+  const { email, userId, merchantProfile } = useAuth();
 
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [snapDesc, setSnapDesc] = useState('');
@@ -156,19 +158,25 @@ export default function VaultPage() {
 
   // ── Ring 2 Cloud Vault State ──
   const [cloudLoggedIn, setCloudLoggedIn] = useState(false);
-  const [cloudEmail, setCloudEmail] = useState('');
-  const [cloudPassword, setCloudPassword] = useState('');
-  const [cloudAuthMode, setCloudAuthMode] = useState<'login' | 'register'>('login');
   const [cloudVersions, setCloudVersions] = useState<CloudVersion[]>([]);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudLabel, setCloudLabel] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
 
-  // Init cloud config — URL is built-in, always connected
+  // Auto-authenticate with GAS using Google session
   useEffect(() => {
     gasLoadConfig();
-    setCloudLoggedIn(isCloudLoggedIn());
-  }, []);
+    if (isCloudLoggedIn()) {
+      setCloudLoggedIn(true);
+      return;
+    }
+    // Auto-login using the user's Google credentials
+    if (email && userId) {
+      autoAuthenticateCloud(email, userId, merchantProfile?.display_name || undefined)
+        .then(ok => setCloudLoggedIn(ok))
+        .catch(() => setCloudLoggedIn(false));
+    }
+  }, [email, userId, merchantProfile?.display_name]);
 
   const loadSnaps = useCallback(async () => {
     try {
@@ -239,27 +247,7 @@ export default function VaultPage() {
     toast(v ? (t.lang === 'ar' ? 'النسخ التلقائي مفعّل' : 'Auto-backup ON') : (t.lang === 'ar' ? 'النسخ التلقائي معطّل' : 'Auto-backup OFF'));
   };
 
-  // ── Cloud Auth actions ──
-  const handleCloudAuth = async () => {
-    if (!cloudEmail.trim() || !cloudPassword.trim()) {
-      toast.error('Enter email and password');
-      return;
-    }
-    setCloudLoading(true);
-    try {
-      const res = cloudAuthMode === 'register'
-        ? await cloudRegister(cloudEmail.trim(), cloudPassword)
-        : await cloudLogin(cloudEmail.trim(), cloudPassword);
-      if (!res || res.ok === false) throw new Error(res?.error || 'Auth failed');
-      setCloudLoggedIn(true);
-      setCloudPassword('');
-      toast.success(cloudAuthMode === 'register' ? '✓ Account created & logged in' : '✓ Logged in to Cloud');
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setCloudLoading(false);
-    }
-  };
+  // Cloud auth is automatic — no manual login needed
 
   const handleCloudLogout = () => {
     clearCloudSession();
@@ -623,37 +611,14 @@ export default function VaultPage() {
               {!cloudLoggedIn ? (
                 <>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    {t.lang === 'ar' ? 'سجّل دخولك للنسخ السحابي عبر Google Drive.' : 'Sign in to enable cloud backups via Google Drive.'}
+                    {t.lang === 'ar' ? 'جاري الاتصال بالسحابة تلقائياً...' : 'Connecting to cloud automatically...'}
                   </p>
-                  <div className="space-y-2">
-                    <Input
-                      type="email"
-                      value={cloudEmail}
-                      onChange={e => setCloudEmail(e.target.value)}
-                      placeholder="Email"
-                      className="text-[11px]"
-                    />
-                    <Input
-                      type="password"
-                      value={cloudPassword}
-                      onChange={e => setCloudPassword(e.target.value)}
-                      placeholder="Password (min 6 chars)"
-                      className="text-[11px]"
-                      onKeyDown={e => e.key === 'Enter' && handleCloudAuth()}
-                    />
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground">
+                      {t.lang === 'ar' ? 'يتم تسجيل الدخول باستخدام حسابك' : 'Signing in with your account...'}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleCloudAuth} disabled={cloudLoading} className="flex-1">
-                      {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : cloudAuthMode === 'login' ? <LogIn className="w-3 h-3 mr-1" /> : <UserPlus className="w-3 h-3 mr-1" />}
-                      {cloudAuthMode === 'login' ? 'Sign In' : 'Create Account'}
-                    </Button>
-                  </div>
-                  <button
-                    onClick={() => setCloudAuthMode(cloudAuthMode === 'login' ? 'register' : 'login')}
-                    className="text-[10px] text-primary underline"
-                  >
-                    {cloudAuthMode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign In'}
-                  </button>
                 </>
               ) : (
                 <>
