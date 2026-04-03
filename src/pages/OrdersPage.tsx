@@ -115,6 +115,7 @@ export default function OrdersPage() {
   const [relationships, setRelationships] = useState<MerchantRelationship[]>([]);
   const [allMerchantDeals, setAllMerchantDeals] = useState<MerchantDeal[]>([]);
   const [merchantUserIds, setMerchantUserIds] = useState<string[]>([]);
+  const [merchantProfileMap, setMerchantProfileMap] = useState<Map<string, { merchant_id: string; display_name: string; nickname: string | null }>>(new Map());
   const [merchantOrderEnabled, setMerchantOrderEnabled] = useState(false);
   const [linkedRelId, setLinkedRelId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
