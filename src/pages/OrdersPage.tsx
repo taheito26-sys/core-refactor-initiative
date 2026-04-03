@@ -788,6 +788,39 @@ export default function OrdersPage() {
     if (!buyerName.trim()) errs.push(t('buyerNameRequired'));
     if (errs.length) { setSaleMessage(`${t('fixFields')} ${errs.join(', ')}`); return; }
 
+    const resolveDefaultCostPerUsdt = () => {
+      if (priceMode === 'manual') {
+        const manual = parseFloat(manualBuyPrice);
+        return Number.isFinite(manual) && manual > 0 ? manual : 0;
+      }
+
+      const previewAvg = salePreview?.avgBuy;
+      if (Number.isFinite(previewAvg) && previewAvg > 0) return previewAvg;
+
+      const previewTrade: Trade = {
+        id: '__alloc_cost_preview__',
+        ts,
+        inputMode: 'USDT',
+        amountUSDT,
+        sellPriceQAR: sell,
+        feeQAR: parseFloat(saleFee) || 0,
+        note: '',
+        voided: false,
+        usesStock: true,
+        revisions: [],
+        customerId: '',
+      };
+      const calc = computeFIFO(state.batches, [...state.trades, previewTrade]).tradeCalc.get(previewTrade.id);
+      const fifoAvg = calc?.ok ? calc.avgBuyQAR : NaN;
+      return Number.isFinite(fifoAvg) && fifoAvg > 0 ? fifoAvg : 0;
+    };
+    const defaultCostPerUsdt = resolveDefaultCostPerUsdt();
+    const resolveAllocationCostPerUsdt = (rawCost: string) => {
+      const manualCost = parseFloat(rawCost);
+      if (Number.isFinite(manualCost) && manualCost > 0) return manualCost;
+      return defaultCostPerUsdt;
+    };
+
     // Merchant-linked validation
     const isNewAllocFlow = selectedTemplateId === 'profit_share_family' || selectedTemplateId === 'sales_deal_family';
     if (merchantOrderEnabled && !isNewAllocFlow && !linkedRelId) { setSaleMessage(`${t('fixFields')} ${t('relationship')}`); return; }
@@ -802,13 +835,16 @@ export default function OrdersPage() {
         return;
       }
       for (const alloc of allocations) {
+        const resolvedCostPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
         if (!alloc.relationshipId) { setSaleMessage(t('allocNeedsMerchant')); return; }
         if (alloc.family === 'profit_share' && !alloc.agreementId) {
           setSaleMessage(`${t('profitShareLabel')} ${alloc.merchantName || t('merchant')} ${t('allocNeedsAgreement')}`);
           return;
         }
         if (!(parseFloat(alloc.allocatedUsdt) > 0)) { setSaleMessage(t('allocNeedsUsdt')); return; }
-        if (!(parseFloat(alloc.merchantCostPerUsdt) > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
+        // Profit Share flow does not expose manual merchant cost entry in the UI.
+        // In that case, use FIFO average buy as fallback so validation matches preview behavior.
+        if (!(resolvedCostPerUsdt > 0)) { setSaleMessage(t('allocNeedsCost')); return; }
       }
     }
 
@@ -851,7 +887,7 @@ export default function OrdersPage() {
         const createdDealIds: string[] = [];
         for (const alloc of allocations) {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+          const costPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
           const familyLabel = alloc.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
           const ratioStr = `${alloc.partnerSharePct}/${alloc.merchantSharePct}`;
           const title = `${familyLabel} · ${customerName} · ${ratioStr}`;
@@ -899,7 +935,7 @@ export default function OrdersPage() {
         // Now create allocation records linked to the deals
         const allocationInputs: CreateAllocationInput[] = allocations.map((alloc, idx) => {
           const usdt = parseFloat(alloc.allocatedUsdt) || 0;
-          const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || 0;
+          const costPerUsdt = resolveAllocationCostPerUsdt(alloc.merchantCostPerUsdt);
           const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
           const isOpPriority = selAgreement?.agreement_type === 'operator_priority';
           const calc = isOpPriority
@@ -1400,6 +1436,13 @@ export default function OrdersPage() {
   const handleCancelTrade = async (tradeId: string) => {
     const tr = state.trades.find(x => x.id === tradeId);
     if (!tr) return;
+
+    // Approved trades should go through the cancellation-request confirmation flow,
+    // not immediate server-side cancellation.
+    if (tr.approvalStatus === 'approved') {
+      setCancelTradeId(tradeId);
+      return;
+    }
 
     // If trade has a linked deal, cancel on server
     if (tr.linkedDealId) {
