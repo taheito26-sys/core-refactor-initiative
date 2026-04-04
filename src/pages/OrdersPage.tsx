@@ -1725,10 +1725,10 @@ export default function OrdersPage() {
           ) : (
             <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
-                📊 {names.operatorName} ({linkedRow.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.merchantPct! / 100))}</strong>
+                📊 {merchantProfile?.display_name || 'Me'} ({linkedRow.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.merchantPct! / 100))}</strong>
               </div>
               <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
-                🤝 {names.lenderName} ({linkedRow.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.partnerPct! / 100))}</strong>
+                🤝 {linkedRel?.counterparty?.display_name || '—'} ({linkedRow.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.partnerPct! / 100))}</strong>
               </div>
             </div>
           );
@@ -1988,13 +1988,13 @@ export default function OrdersPage() {
               ) : (
               <>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
-                  📊 {perspective === 'outgoing' ? t('merchantNetProfit') : t('partnerNetProfit')} ({row.merchantPct}%):
+                  📊 {perspective === 'outgoing' ? (merchantProfile?.display_name || 'Me') : merchantName} ({row.merchantPct}%):
                   <strong style={{ color: 'var(--good)', marginLeft: 4 }}>
                     {fmtC(row.fullNet * (row.merchantPct! / 100))}
                   </strong>
                 </div>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
-                  🤝 {perspective === 'outgoing' ? t('partnerNetProfit') : t('merchantNetProfit')} ({row.partnerPct}%):
+                  🤝 {perspective === 'outgoing' ? merchantName : (merchantProfile?.display_name || 'Me')} ({row.partnerPct}%):
                   <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>
                     {fmtC(row.fullNet * (row.partnerPct! / 100))}
                   </strong>
@@ -2337,8 +2337,8 @@ export default function OrdersPage() {
                                         </>
                                       ) : (
                                         <>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {perspective === 'outgoing' ? (merchantProfile?.display_name || 'Me') : merchantName} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {perspective === 'outgoing' ? merchantName : (merchantProfile?.display_name || 'Me')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
                                         </>
                                       ); })()}
                                     </div>
@@ -2522,8 +2522,8 @@ export default function OrdersPage() {
                                     </>
                                   ) : (
                                     <>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {merchantName} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {merchantProfile?.display_name || 'Me'} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
                                     </>
                                   ); })()}
                                 </div>
@@ -2697,8 +2697,8 @@ export default function OrdersPage() {
                                     </>
                                   ) : (
                                     <>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {merchantProfile?.display_name || 'Me'} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {merchantName} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
                                     </>
                                   ); })()}
                                 </div>
