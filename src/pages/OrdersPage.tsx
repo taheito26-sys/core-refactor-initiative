@@ -1621,7 +1621,7 @@ export default function OrdersPage() {
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const linkedDeal = resolveLinkedOutgoingDeal(tr);
     const linkedRow = linkedDeal
-      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements })
       : null;
     const fifoOk = !!c?.ok;
     const ok = fifoOk || !!linkedRow?.hasAvgBuy;
@@ -1706,6 +1706,33 @@ export default function OrdersPage() {
             </div>
           );
         })()}
+        {/* Fallback: show breakdown from linked deal when trade has no agreementFamily set directly */}
+        {!tr.agreementFamily && linkedRow && linkedRow.merchantPct != null && ok && (() => {
+          const linkedRel = linkedDeal ? relationships.find(r => r.id === linkedDeal.relationship_id) : null;
+          const names = resolveOpNames(linkedRow, linkedRel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me');
+          return linkedRow.isOperatorPriority && linkedRow.operatorFee != null ? (
+            <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
+                ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(linkedRow.operatorFee)}</strong>
+              </div>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                📊 {names.operatorName}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(linkedRow.operatorTotal ?? 0)}</strong>
+              </div>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(linkedRow.lenderTotal ?? 0)}</strong>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                📊 {names.operatorName} ({linkedRow.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.merchantPct! / 100))}</strong>
+              </div>
+              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                🤝 {names.lenderName} ({linkedRow.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.partnerPct! / 100))}</strong>
+              </div>
+            </div>
+          );
+        })()}
         <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: '.8px', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 5 }}>{t('fifoSlices')}</div>
         {fifoOk && slicesWithBatch.length ? slicesWithBatch.map(sl => (
           <div key={`${tr.id}-${sl.batchId}-${sl.qty}`} className="muted" style={{ fontSize: 10, margin: '2px 0' }}>
@@ -1770,7 +1797,7 @@ export default function OrdersPage() {
     const c = derived.tradeCalc.get(tr.id);
     const linkedDeal = resolveLinkedOutgoingDeal(tr);
     const linkedRow = linkedDeal
-      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements })
       : null;
     const ok = !!c?.ok || !!linkedRow?.hasAvgBuy;
     const rev = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
@@ -2594,7 +2621,8 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={`deal-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id}>
+                          <React.Fragment key={`deal-${deal.id}`}>
+                          <tr id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{row.dateLabel}</span>
@@ -2633,6 +2661,9 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
+                                <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [`deal-${deal.id}`]: !prev[`deal-${deal.id}`] }))}>
+                                  {detailsOpen[`deal-${deal.id}`] ? t('hideDetails') : t('details')}
+                                </button>
                                 {deal.status === 'pending' && (
                                   <>
                                     <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
@@ -2645,6 +2676,36 @@ export default function OrdersPage() {
                               </div>
                             </td>
                           </tr>
+                          {detailsOpen[`deal-${deal.id}`] && (
+                            <tr><td colSpan={10} style={{ padding: 8 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
+                                <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>
+                                {row.fee > 0 && <span className="pill">{t('fee')} {fmtC(row.fee)}</span>}
+                                {row.hasAvgBuy && row.cost > 0 && <span className="pill">{t('cost')} {fmtC(row.cost)}</span>}
+                                <span className={`pill ${row.fullNet != null ? (row.fullNet >= 0 ? 'good' : 'bad') : ''}`}>
+                                  {t('net')} {row.fullNet != null ? `${row.fullNet >= 0 ? '+' : ''}${fmtC(row.fullNet)}` : '—'}
+                                </span>
+                              </div>
+                              {row.hasAvgBuy && row.fullNet != null && (
+                                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                  {(() => { const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me'); return row.isOperatorPriority && row.operatorFee != null ? (
+                                    <>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)' }}>{fmtC(row.operatorFee)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {names.operatorName}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                    </>
+                                  ); })()}
+                                </div>
+                              )}
+                            </td></tr>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
