@@ -1645,23 +1645,42 @@ export default function OrdersPage() {
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
-        {/* Show partner allocation for merchant-linked trades */}
-        {tr.agreementFamily && tr.partnerPct != null && ok && (() => {
+        {/* Show partner allocation for all linked trades */}
+        {tr.linkedRelId && ok && (() => {
           const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
-          // Check if this is an operator priority deal via agreements
+          const counterpartyName = linkedRel?.counterparty?.display_name || '—';
+          const myName = merchantProfile?.display_name || 'Me';
+
+          // Prefer linkedRow (deal model) for op-priority; fall back to agreement lookup; then trade fields
+          if (linkedRow && linkedRow.isOperatorPriority && linkedRow.operatorFee != null) {
+            const names = resolveOpNames(linkedRow, linkedRel, merchantProfile?.merchant_id, merchantProfileMap, myName);
+            return (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
+                  ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(linkedRow.operatorFee)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                  📊 {names.operatorName}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(linkedRow.operatorTotal ?? 0)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                  🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(linkedRow.lenderTotal ?? 0)}</strong>
+                </div>
+              </div>
+            );
+          }
+
+          // Check agreement directly for op-priority (when no linked deal exists)
           const matchedAgr = allAgreements?.find(a =>
             a.relationship_id === tr.linkedRelId && a.agreement_type === 'operator_priority'
           );
-          const isOpPriority = !!matchedAgr;
-
-          if (isOpPriority && Number.isFinite(net) && net > 0) {
+          if (matchedAgr && Number.isFinite(net) && net > 0) {
             const opResult = calculateOperatorPriorityProfit({
               grossProfit: net,
-              operatorRatio: Number(matchedAgr!.operator_ratio) || 0,
-              operatorContribution: Number(matchedAgr!.operator_contribution) || 0,
-              lenderContribution: Number(matchedAgr!.lender_contribution) || 0,
+              operatorRatio: Number(matchedAgr.operator_ratio) || 0,
+              operatorContribution: Number(matchedAgr.operator_contribution) || 0,
+              lenderContribution: Number(matchedAgr.lender_contribution) || 0,
             });
-            const opMid = matchedAgr!.operator_merchant_id || '';
+            const opMid = matchedAgr.operator_merchant_id || '';
             const opProfile = merchantProfileMap.get(opMid);
             const operatorName = opProfile?.display_name || opProfile?.nickname || opMid || 'Operator';
             let lenderMid = '';
@@ -1670,7 +1689,6 @@ export default function OrdersPage() {
             }
             const lenderProfile = merchantProfileMap.get(lenderMid);
             const lenderName = lenderProfile?.display_name || lenderProfile?.nickname || lenderMid || 'Lender';
-
             return (
               <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
                 <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
@@ -1686,49 +1704,21 @@ export default function OrdersPage() {
             );
           }
 
-          // Standard split — resolve merchant names
-          const myMid = merchantProfile?.merchant_id || '';
-          let counterpartyName = linkedRel?.counterparty?.display_name || '—';
-          const myName = merchantProfile?.display_name || 'Me';
-
+          // Standard split — use percentages from linkedRow > trade fields > 50/50 default
+          const effectiveMerchantPct = linkedRow?.merchantPct ?? tr.merchantPct ?? 50;
+          const effectivePartnerPct = linkedRow?.partnerPct ?? tr.partnerPct ?? (100 - effectiveMerchantPct);
+          const netForSplit = Number.isFinite(net) ? net : (linkedRow?.fullNet ?? 0);
           return (
             <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
-                📊 {myName} ({tr.merchantPct}%): <strong style={{ color: 'var(--good)' }}>
-                  {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
+                📊 {myName} ({effectiveMerchantPct}%): <strong style={{ color: 'var(--good)' }}>
+                  {fmtC(netForSplit * (effectiveMerchantPct / 100))}
                 </strong>
               </div>
               <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
-                🤝 {counterpartyName} ({tr.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>
-                  {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
+                🤝 {counterpartyName} ({effectivePartnerPct}%): <strong style={{ color: 'var(--brand)' }}>
+                  {fmtC(netForSplit * (effectivePartnerPct / 100))}
                 </strong>
-              </div>
-            </div>
-          );
-        })()}
-        {/* Fallback: show breakdown from linked deal when trade has no agreementFamily set directly */}
-        {!tr.agreementFamily && linkedRow && linkedRow.merchantPct != null && ok && (() => {
-          const linkedRel = linkedDeal ? relationships.find(r => r.id === linkedDeal.relationship_id) : null;
-          const names = resolveOpNames(linkedRow, linkedRel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me');
-          return linkedRow.isOperatorPriority && linkedRow.operatorFee != null ? (
-            <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
-              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
-                ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(linkedRow.operatorFee)}</strong>
-              </div>
-              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
-                📊 {names.operatorName}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(linkedRow.operatorTotal ?? 0)}</strong>
-              </div>
-              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
-                🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(linkedRow.lenderTotal ?? 0)}</strong>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
-                📊 {merchantProfile?.display_name || 'Me'} ({linkedRow.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.merchantPct! / 100))}</strong>
-              </div>
-              <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
-                🤝 {linkedRel?.counterparty?.display_name || '—'} ({linkedRow.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC((linkedRow.fullNet ?? 0) * (linkedRow.partnerPct! / 100))}</strong>
               </div>
             </div>
           );
