@@ -1,4 +1,4 @@
-import { uid, deriveCashQAR, type TrackerState, type CashLedgerEntry, type CashTransaction } from '@/lib/tracker-helpers';
+import { uid, deriveCashQAR, type TrackerState, type CashLedgerEntry } from '@/lib/tracker-helpers';
 
 export interface ApplyOrderCashDepositInput {
   nextState: TrackerState;
@@ -76,21 +76,10 @@ export function applyOrderCashDeposit({
   };
   const nextAccounts = [...(nextState.cashAccounts || []), autoAccount];
   const nextLedger = [...(nextState.cashLedger || []), ledgerEntry];
-  const cashTx: CashTransaction = {
-    id: uid(),
-    ts: now,
-    type: 'sale_deposit',
-    amount: depositAmt,
-    balanceAfter: deriveCashQAR(nextAccounts, nextLedger),
-    owner: nextState.cashOwner || '',
-    bankAccount: '',
-    note,
-  };
   return {
     ...nextState,
     cashAccounts: nextAccounts,
     cashLedger: nextLedger,
     cashQAR: deriveCashQAR(nextAccounts, nextLedger),
-    cashHistory: [...(nextState.cashHistory || []), cashTx],
   };
 }

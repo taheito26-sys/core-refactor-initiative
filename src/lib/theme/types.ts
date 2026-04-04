@@ -41,7 +41,7 @@ export interface LayoutDef {
 export interface AppSettings {
   layout: string;
   theme: string;
-  range: 'today' | '7d' | '30d' | 'all';
+  range: 'today' | '7d' | '30d' | 'this_month' | 'last_month' | 'all';
   currency: 'QAR' | 'USDT';
   language: 'en' | 'ar';
   searchQuery: string;

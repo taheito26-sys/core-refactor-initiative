@@ -111,8 +111,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
           cashAccounts: cashData.accounts,
           cashLedger:   cashData.ledger,
         }));
-      }).catch(() => {});
-    }).catch(() => {
+      }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
+    }).catch((err) => {
+      console.error('[useTrackerState] cloud load failed:', err);
       setCloudLoaded(true);
     });
 
