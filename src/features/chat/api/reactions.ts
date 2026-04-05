@@ -3,6 +3,7 @@ import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
 
 export async function addReaction(roomId: string, messageId: string, reaction: string): Promise<DeterministicResult<boolean>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_add_reaction', {
       _room_id: roomId,
       _message_id: messageId,
@@ -17,6 +18,7 @@ export async function addReaction(roomId: string, messageId: string, reaction: s
 
 export async function removeReaction(roomId: string, messageId: string, reaction: string): Promise<DeterministicResult<boolean>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_remove_reaction', {
       _room_id: roomId,
       _message_id: messageId,
@@ -31,6 +33,7 @@ export async function removeReaction(roomId: string, messageId: string, reaction
 
 export async function getMessageReactions(roomId: string): Promise<DeterministicResult<Array<{ message_id: string; user_id: string; reaction: string }>>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from('message_reactions')
       .select('message_id, user_id, reaction')

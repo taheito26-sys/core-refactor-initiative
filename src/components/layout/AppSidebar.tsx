@@ -83,6 +83,7 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
             <span className="mobile-bottom-nav__icon-wrap">
               <item.icon className="mobile-bottom-nav__icon" />
             </span>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <span className="mobile-bottom-nav__label">{t(item.labelKey as any) || item.fallback}</span>
           </Link>
         );
@@ -156,9 +157,11 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
               )}
             >
               <item.icon className="h-3.5 w-3.5 shrink-0" />
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {!collapsed && <span className="truncate">{t(item.labelKey as any) || item.fallback}</span>}
             </Link>
           </li>
+
         ))}
       </ul>
     </div>

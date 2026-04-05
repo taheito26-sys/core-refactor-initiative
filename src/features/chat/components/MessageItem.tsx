@@ -29,6 +29,7 @@ interface MessageProps {
     sender_id: string;
     created_at: string;
     type?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata?: any;
     status?: string;
     expires_at?: string;

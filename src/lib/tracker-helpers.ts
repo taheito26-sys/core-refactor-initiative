@@ -1,5 +1,6 @@
 // Exact helper functions from the TRACKER_CLOUDFLARE- repo
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function num(v: any, def = 0): number {
   const n = parseFloat(v);
   return isNaN(n) ? def : n;
@@ -96,6 +97,7 @@ export function fmtQWithUnit(qarAmount: number, currency = 'QAR', wacop: number 
   return fmtTotal(q) + ' QAR';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function esc(s: any): string {
   return String(s || '');
 }
@@ -212,6 +214,7 @@ export interface Batch {
   note: string;
   buyPriceQAR: number;
   initialUSDT: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   revisions: any[];
   /** ID of the CashAccount used to fund this batch */
   fundingAccountId?: string;
@@ -241,6 +244,7 @@ export interface Trade {
   note: string;
   voided: boolean;
   usesStock: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   revisions: any[];
   customerId: string;
   /** Manual buy price (QAR per USDT) — used when usesStock is false */

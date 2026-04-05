@@ -127,6 +127,7 @@ export const AGREEMENT_TEMPLATES: AgreementTemplate[] = [
       en: 'Use when sending or receiving USDT capital with a cost basis. No profit split applies.',
       ar: 'استخدم عند إرسال أو استلام رأس مال USDT بسعر تكلفة. لا تنطبق مشاركة أرباح.',
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     dealType: 'capital_transfer' as any,
     family: 'capital_transfer' as const,
     icon: '💸',

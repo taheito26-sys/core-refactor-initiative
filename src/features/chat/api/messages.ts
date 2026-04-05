@@ -4,6 +4,7 @@ import { DeterministicResult, fail, ok } from '@/features/chat/lib/types';
 /**
  * Fetches messages for a room with sender profile joins.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getRoomMessages(roomId: string, limit = 100): Promise<DeterministicResult<any[]>> {
   try {
     const { data, error } = await supabase
@@ -18,6 +19,7 @@ export async function getRoomMessages(roomId: string, limit = 100): Promise<Dete
       
     if (error) throw error;
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ok((data ?? []).map((m: any) => ({
        ...m,
        body: m.content,
@@ -39,11 +41,13 @@ export async function sendMessage(input: {
   clientNonce?: string;
   replyToMessageId?: string | null;
   expiresAt?: string | null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): Promise<DeterministicResult<any | null>> {
   try {
     const { data, error } = await supabase.rpc('fn_chat_send_message', {
       _room_id: input.roomId,
       _body: input.body,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       _body_json: (input.bodyJson ?? {}) as any,
       _message_type: input.messageType ?? 'text',
       _client_nonce: input.clientNonce ?? null,

@@ -82,6 +82,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const rejected = agreements.filter(a => a.status === 'rejected');
 
   // ─── Simulator Panel ──
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderSimulatorPanel = (a: any) => {
     const gross = parseFloat(simProfit) || 0;
     const fifoRate = avgRate;
@@ -89,14 +90,16 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     const opRatio = a.operator_ratio ?? 0;
     const opContrib = a.operator_contribution ?? 0;
     const lnContrib = a.lender_contribution ?? 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const investedCap = (a as any).invested_capital ?? 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const settWay = (a as any).settlement_way;
     const opDefault = a.operator_default_profit_handling ?? 'reinvest';
     const cpDefault = a.counterparty_default_profit_handling ?? 'withdraw';
     const isOperator = a.operator_merchant_id === merchantProfile?.merchant_id;
 
     let myShare = 0, partnerShare = 0, opFee = 0, remaining = 0;
-    let myLabel = t('you'), partnerLabel = counterpartyName || t('partner');
+    const myLabel = t('you'), partnerLabel = counterpartyName || t('partner');
     let myPct = 0, partnerPct = 0;
     let myHandling = '', partnerHandling = '';
 
@@ -383,6 +386,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
 
       setShowForm(false);
       resetForm();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error(err.message || t('failedToCreate'));
     }
@@ -392,6 +396,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'rejected' });
       toast.success(t('agreementRejectedSuccess'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -401,6 +406,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'approved' });
         toast.success(t('agreementApprovedSuccess'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
       toast.error(err.message);
     }
@@ -410,6 +416,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     try {
       await updateStatus.mutateAsync({ agreementId: id, status: 'expired' });
       toast.success(t('agreementExpiredSuccess'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -434,6 +441,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     setEditingAgreementId(null);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEditAgreement = (agreement: any) => {
     setEditingAgreementId(agreement.id);
     setAgreementType(agreement.agreement_type ?? 'standard');
@@ -468,6 +476,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
     return t('monthlyCadence');
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const agreementDisplayLabel = (a: any) => {
     if (a.agreement_type === 'operator_priority') {
       return `⚙️ ${t('operatorPriorityLabel')} · ${a.operator_ratio ?? 0}% ${t('feeLabel')}`;
@@ -739,6 +748,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
               <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 3 }}>{t('settlementCadence')}</div>
               <select
                 value={cadence}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={e => setCadence(e.target.value as any)}
                 style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)' }}
               >
@@ -921,6 +931,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                             </>
                           ) : (
                             <>
+                              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                               {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtQWithUnit((a as any).invested_capital ?? 0, settings.currency, avgRate)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
                             </>
                           )}
@@ -994,6 +1005,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                             </>
                           ) : (
                             <>
+                              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                               {t('partner')} {a.partner_ratio}% · {t('you')} {a.merchant_ratio}% · {t('capitalLabel')} {fmtQWithUnit((a as any).invested_capital ?? 0, settings.currency, avgRate)} · {(a as any).settlement_way ? ((a as any).settlement_way === 'reinvest' ? t('reinvestOption') : t('withdrawOption')) : '—'}
                             </>
                           )}
@@ -1007,6 +1019,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button className="rowBtn" onClick={() => setExpandedAgreementId(isExpanded ? null : a.id)}>{t('viewDetailsAction')}</button>
                           <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                           <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
                           <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                         </div>

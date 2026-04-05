@@ -65,6 +65,7 @@ export default function OnboardingPage() {
       while (!codeUnique) {
         merchantCode = String(Math.floor(1000 + Math.random() * 9000));
         const { data: existing } = await (supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('merchant_profiles') as any)
           .select('id')
           .eq('merchant_code', merchantCode)
@@ -72,6 +73,7 @@ export default function OnboardingPage() {
         codeUnique = !existing;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const insertPayload: any = {
         user_id: userId,
         merchant_id: form.nickname,

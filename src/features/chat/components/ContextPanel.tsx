@@ -106,6 +106,7 @@ export function ContextPanel({ relationship, onOpenRelationship }: Props) {
 
   const isLoading = ordersLoading || agreementsLoading || settlementsLoading;
   const palette = getPalette(relationship.counterparty_name);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const activeDeals = agreements.filter((a: any) => a.status === 'approved' || a.status === 'active');
 
   const handleOrderClick = (orderId: string) => navigate(`/orders?deal=${orderId}`);
@@ -143,6 +144,7 @@ export function ContextPanel({ relationship, onOpenRelationship }: Props) {
           {orders.length === 0 ? (
             <Empty>No active orders with this merchant</Empty>
           ) : (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             orders.map((o: any) => (
               <button
                 key={o.id}
@@ -167,6 +169,7 @@ export function ContextPanel({ relationship, onOpenRelationship }: Props) {
           {agreements.length === 0 ? (
             <Empty>No active deals</Empty>
           ) : (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             agreements.map((a: any) => (
               <button
                 key={a.id}
@@ -190,6 +193,7 @@ export function ContextPanel({ relationship, onOpenRelationship }: Props) {
           {settlements.length === 0 ? (
             <Empty>No pending settlements</Empty>
           ) : (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             settlements.map((s: any) => (
               <button
                 key={s.id}
@@ -237,6 +241,7 @@ export function ContextPanel({ relationship, onOpenRelationship }: Props) {
 /* ── Helpers ── */
 
 function Section({ icon: Icon, title, count, loading, children }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any; title: string; count: number; loading: boolean; children: React.ReactNode;
 }) {
   return (

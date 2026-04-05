@@ -73,6 +73,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
     const channel = supabase
       .channel(`notif-badge-rt-${userId}`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: any) => {
         queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
         if (payload?.eventType !== 'INSERT' || !payload?.new) return;

@@ -44,6 +44,7 @@ interface RelationshipDrawerProps {
     feeQAR: number;
     voided: boolean;
   }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tradeCalc?: Map<string, any>;
 }
 

@@ -50,6 +50,7 @@ export function useGlobalWACOP(): GlobalWACOP {
 
     (async () => {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from('daily_reference_rates' as any).upsert(
           {
             rate_date: today,

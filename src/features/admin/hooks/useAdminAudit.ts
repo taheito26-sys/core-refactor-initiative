@@ -15,7 +15,7 @@ export function useAdminAuditLogs(search: string = '') {
   return useQuery({
     queryKey: ['admin-audit', search],
     queryFn: async (): Promise<AuditLogRow[]> => {
-      let query = supabase
+      const query = supabase
         .from('admin_audit_logs')
         .select('*')
         .order('created_at', { ascending: false })

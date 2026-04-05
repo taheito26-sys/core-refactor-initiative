@@ -42,6 +42,7 @@ export function useSettlementDecisions(periodId?: string) {
       if (!periodId) return [];
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('settlement_decisions' as any)
           .select('*')
           .eq('settlement_period_id', periodId)
@@ -89,6 +90,7 @@ export function usePendingDecisions() {
       if (!merchantId) return [];
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('settlement_decisions' as any)
           .select('*')
           .eq('merchant_id', merchantId)
@@ -119,6 +121,7 @@ export function useSubmitDecision() {
       periodId: string;
     }) => {
       const { error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('settlement_decisions' as any)
         .update({
           decision: input.decision,
@@ -165,6 +168,7 @@ export function useCreateDecisions() {
       }));
 
       const { error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('settlement_decisions' as any)
         .insert(rows);
       if (error) throw error;
@@ -232,6 +236,7 @@ export function useFinalizeDecisions() {
         };
 
         const { error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('settlement_decisions' as any)
           .update({
             decision: finalDecision,

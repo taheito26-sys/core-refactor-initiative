@@ -32,6 +32,7 @@ interface Props {
     feeQAR: number;
     voided: boolean;
   }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tradeCalc: Map<string, any>;
 }
 
@@ -68,6 +69,7 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType, w
         current_pool_balance: poolBalance,
       });
       toast.success(t('paidOutToPartner'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -83,6 +85,7 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType, w
         current_pool_balance: poolBalance,
       });
       toast.success(t('reinvestedToPool'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 

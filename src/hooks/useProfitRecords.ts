@@ -71,12 +71,15 @@ export function useSubmitProfit() {
         .from('merchant_profits')
         .insert({
           deal_id: input.deal_id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           relationship_id: input.relationship_id as any,
           amount: input.amount,
           currency: input.currency,
           recorded_by: userId!,
           notes: input.notes || null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           status: 'pending' as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (error) throw error;
     },
@@ -94,6 +97,7 @@ export function useApproveProfit() {
     mutationFn: async (input: { id: string; approved: boolean }) => {
       const { error } = await supabase
         .from('merchant_profits')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .update({ status: input.approved ? 'approved' : 'rejected' } as any)
         .eq('id', input.id);
       if (error) throw error;

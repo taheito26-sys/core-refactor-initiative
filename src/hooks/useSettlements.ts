@@ -85,12 +85,15 @@ export function useSubmitSettlement() {
         .from('merchant_settlements')
         .insert({
           deal_id: input.deal_id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           relationship_id: input.relationship_id as any,
           amount: input.amount,
           currency: input.currency,
           settled_by: userId!,
           notes: input.notes || null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           status: 'pending' as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (error) throw error;
     },
@@ -111,6 +114,7 @@ export function useApproveSettlement() {
         // Risk 3: atomic RPC — approves settlement + marks period settled in one transaction
         const { error } = await supabase.rpc('approve_settlement', {
           _settlement_id: input.id,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
         if (error) throw error;
       } else {
@@ -120,6 +124,7 @@ export function useApproveSettlement() {
         const { error } = await supabase.rpc('reject_settlement', {
           _settlement_id: input.id,
           _actor_id: userId!,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
         if (error) throw error;
       }

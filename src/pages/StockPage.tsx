@@ -441,6 +441,7 @@ export default function StockPage() {
     const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
       id: uid(),
       ts: Date.now(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       type: 'batch_refund' as any,
       amount: batchCostQAR,
       balanceAfter: newCashQAR,

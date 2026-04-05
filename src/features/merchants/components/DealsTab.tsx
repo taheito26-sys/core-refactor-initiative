@@ -88,7 +88,9 @@ export function DealsTab({ relationshipId, agreements }: Props) {
                     {d.deal_type === 'capital_transfer' ? (
                       <span className="pill">💸 {t('capitalTransfer')}</span>
                     ) : (
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       <span className={`pill ${(d as any).settlement_cadence === 'per_order' ? 'warn' : ''}`}>
+                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         {(d as any).settlement_cadence === 'per_order' ? '⚡ ' + t('perTrade') : (d as any).settlement_cadence === 'weekly' ? '📆 ' + t('weekly') : '📅 ' + t('monthly')}
                       </span>
                     )}

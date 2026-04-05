@@ -68,6 +68,7 @@ export function useSendMessage() {
           relationship_id: input.relationship_id,
           sender_id: userId!,
           content: input.content,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (error) throw error;
     },

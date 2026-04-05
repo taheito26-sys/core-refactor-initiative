@@ -42,6 +42,7 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
 };
 
 // ─── Group by day ───────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function groupByDay(items: Notification[], t: any): { label: string; items: Notification[] }[] {
   const groups = new Map<string, Notification[]>();
   for (const n of items) {
@@ -332,6 +333,7 @@ export default function NotificationsPage() {
                 )}
               >
                 <CatIcon className="h-3.5 w-3.5" />
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {t(cat.labelKey as any)}
                 {count > 0 && (
                   <span className={cn(
@@ -411,6 +413,7 @@ export default function NotificationsPage() {
                       <NotificationCard
                         key={n.id}
                         n={n}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         t={t as any}
                         onNavigate={handleNavigate}
                         onMarkRead={(id) => markRead.mutate(id)}

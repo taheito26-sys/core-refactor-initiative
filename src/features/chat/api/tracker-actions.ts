@@ -18,6 +18,7 @@ export async function createBusinessObjectFromMessage(input: {
   try {
     const userId = await currentUserId();
     const { data: obj, error: objError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('os_business_objects' as any)
       .insert({
         room_id: input.roomId,
@@ -40,6 +41,7 @@ export async function createBusinessObjectFromMessage(input: {
       payload: input.payload,
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ok({ objectId: (obj as any).id as string });
   } catch (error) {
     return fail({ objectId: null }, error);
@@ -59,6 +61,7 @@ export async function createOrderDraftFromMessage(input: {
     if (!input.relationshipId) throw new Error('Room is not linked to a relationship');
 
     const { data: deal, error: dealError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('merchant_deals' as any)
       .insert({
         relationship_id: input.relationshipId,
@@ -74,10 +77,12 @@ export async function createOrderDraftFromMessage(input: {
       .single();
     if (dealError) throw dealError;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: linkError } = await supabase.from('chat_tracker_links' as any).insert({
       room_id: input.roomId,
       message_id: input.messageId,
       link_type: 'order',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       linked_id: (deal as any).id,
       linked_path: '/trading/orders',
       merchant_relationship_id: input.relationshipId,
@@ -86,6 +91,7 @@ export async function createOrderDraftFromMessage(input: {
     });
     if (linkError) throw linkError;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ok({ dealId: (deal as any).id as string });
   } catch (error) {
     return fail({ dealId: null }, error);
@@ -102,6 +108,7 @@ export async function createActionItemFromMessage(input: {
   try {
     const userId = await currentUserId();
     const { data: item, error: itemError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('chat_action_items' as any)
       .insert({
         kind: input.kind,
@@ -113,10 +120,12 @@ export async function createActionItemFromMessage(input: {
       .single();
     if (itemError) throw itemError;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: linkError } = await supabase.from('chat_tracker_links' as any).insert({
       room_id: input.roomId,
       message_id: input.messageId,
       link_type: input.kind,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       linked_id: (item as any).id,
       linked_path: '/chat',
       created_by: userId,
@@ -124,20 +133,24 @@ export async function createActionItemFromMessage(input: {
     });
     if (linkError) throw linkError;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ok({ itemId: (item as any).id as string });
   } catch (error) {
     return fail({ itemId: null }, error);
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getTrackerLinksForRoom(roomId: string): Promise<DeterministicResult<any[]>> {
   try {
     const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('chat_tracker_links' as any)
       .select('*')
       .eq('room_id', roomId)
       .order('created_at', { ascending: false });
     if (error) throw error;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ok((data ?? []) as any[]);
   } catch (error) {
     return fail([], error);

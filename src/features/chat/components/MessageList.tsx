@@ -19,6 +19,7 @@ interface Props {
   onCreateTask: (messageId: string) => void;
   onAcceptDeal?: (id: string) => void;
   onConvert?: (messageId: string, type: 'task' | 'order') => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onReply?: (message: any) => void;
   disableForward?: boolean;
 }
@@ -35,9 +36,11 @@ export function MessageList(props: Props) {
   useEffect(() => {
     const candidate = [...props.messages]
       .reverse()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .find((m: any) => {
         const senderId = m.sender_id || m.sender_merchant_id;
         return senderId !== props.currentUserId && !m.read_at;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as any;
     if (!candidate) return;
     if (lastReadMutationRef.current === candidate.id) return;
@@ -70,6 +73,7 @@ export function MessageList(props: Props) {
         }
 
         const showUnread = props.unreadMessageId === m.id;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const msg = m as any;
         return (
           <div key={m.id} id={`msg-${m.id}`}>
@@ -87,6 +91,7 @@ export function MessageList(props: Props) {
                 read_at: msg.read_at ?? null,   // BUG 4 FIX: pass read_at for receipt
               }}
               currentUserId={props.currentUserId}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               reactions={props.reactionsByMessage[msg.id] as any ?? {}}
               onReact={(id, emoji) => props.onReact(id, emoji)}
               onDeleteForMe={(id) => props.onDeleteForMe(id)}

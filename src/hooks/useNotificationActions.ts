@@ -27,6 +27,7 @@ export function useInlineDealApprove() {
       const { error } = await supabase.rpc('set_merchant_deal_status', {
         _deal_id: dealId,
         _status: 'approved',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       if (error) throw error;
     },
@@ -47,6 +48,7 @@ export function useInlineDealReject() {
       const { error } = await supabase.rpc('set_merchant_deal_status', {
         _deal_id: dealId,
         _status: 'rejected',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       if (error) throw error;
     },
@@ -160,6 +162,7 @@ export function useInlineSettlementApprove() {
     mutationFn: async (settlementId: string) => {
       const { error } = await supabase.rpc('approve_settlement', {
         _settlement_id: settlementId,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       if (error) throw error;
     },
@@ -180,6 +183,7 @@ export function useInlineSettlementReject() {
       const { error } = await supabase.rpc('reject_settlement', {
         _settlement_id: settlementId,
         _actor_id: userId!,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       if (error) throw error;
     },

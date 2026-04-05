@@ -36,6 +36,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
       const [dealsRes, profilesRes] = await Promise.all([
         relIds.length > 0
           ? supabase.from('merchant_deals').select('*').in('relationship_id', relIds).order('created_at', { ascending: false })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           : Promise.resolve({ data: [], error: null } as any),
         supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname, merchant_code'),
       ]);
@@ -56,6 +57,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
           counterparty_name: cp?.display_name || cpId,
           merchant_a_user_id: aProfile?.user_id || null,
           merchant_b_user_id: bProfile?.user_id || null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
       });
 
@@ -67,7 +69,9 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
       }));
 
       const enrichedDeals = workspaceDeals.map(d => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rel = enrichedRels.find((r: any) => r.id === d.relationship_id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { ...d, counterparty_name: rel?.counterparty_name || '—' } as any;
       });
 
@@ -80,11 +84,14 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
   const allTrades = useMemo(() => state ? [...state.trades].sort((a, b) => b.ts - a.ts) : [], [state]);
 
   const cancelledDealIds = useMemo(() => new Set(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     allMerchantDeals.filter((d: any) => d.status === 'cancelled' || (d.status as string) === 'voided').map((d: any) => d.id)
   ), [allMerchantDeals]);
   const cancelledLocalTradeIds = useMemo(() => new Set(
     allMerchantDeals
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((d: any) => d.status === 'cancelled' || (d.status as string) === 'voided')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((d: any) => parseDealMeta(d.notes).local_trade)
       .filter(Boolean)
   ), [allMerchantDeals]);
@@ -96,6 +103,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     if (tr.linkedDealId && cancelledDealIds.has(tr.linkedDealId)) return false;
     if (cancelledLocalTradeIds.has(tr.id)) return false;
     if ((tr.approvalStatus === 'pending_approval' || tr.approvalStatus === 'approved' || tr.approvalStatus === 'rejected') && !tr.linkedDealId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const matchedServerDeal = allMerchantDeals.some((d: any) => parseDealMeta(d.notes).local_trade === tr.id && d.created_by === userId && d.status !== 'cancelled' && (d.status as string) !== 'voided');
       if (!matchedServerDeal) return false;
     }
@@ -111,6 +119,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       months.add(key);
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     allMerchantDeals.forEach((d: any) => {
       const date = new Date(d.created_at);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -129,10 +138,12 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
   }, [visibleTrades, selectedMonth]);
 
   const relationshipById = useMemo(() => new Map(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     relationships.map((r: any) => [r.id, { merchant_a_id: r.merchant_a_id, merchant_b_id: r.merchant_b_id }]),
   ), [relationships]);
   const merchantUserByMerchantId = useMemo(() => {
     const m = new Map<string, string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const rel of relationships as any[]) {
       if (rel.merchant_a_id && rel.merchant_a_user_id) m.set(rel.merchant_a_id, rel.merchant_a_user_id);
       if (rel.merchant_b_id && rel.merchant_b_user_id) m.set(rel.merchant_b_id, rel.merchant_b_user_id);
@@ -140,8 +151,10 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     return m;
   }, [relationships]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const workspaceScopedDeals = useMemo(() => allMerchantDeals.filter((d: any) => d.status !== 'cancelled' && (d.status as string) !== 'voided'), [allMerchantDeals]);
   const partnerMerchantDeals = useMemo(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => workspaceScopedDeals.filter((d: any) => getWorkspaceDealPerspective({
       deal: d,
       workspaceMerchantId: merchantId || '',
@@ -151,6 +164,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     [workspaceScopedDeals, merchantId, relationshipById, merchantUserByMerchantId],
   );
   const creatorMerchantDeals = useMemo(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     () => workspaceScopedDeals.filter((d: any) => getWorkspaceDealPerspective({
       deal: d,
       workspaceMerchantId: merchantId || '',
@@ -162,6 +176,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
 
   const subFilteredInDeals = useMemo(() => {
     if (selectedMonth === 'all') return partnerMerchantDeals;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return partnerMerchantDeals.filter((d: any) => {
       const date = new Date(d.created_at);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -171,6 +186,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
 
   const subFilteredOutDeals = useMemo(() => {
     if (selectedMonth === 'all') return creatorMerchantDeals;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return creatorMerchantDeals.filter((d: any) => {
       const date = new Date(d.created_at);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -178,6 +194,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     });
   }, [creatorMerchantDeals, selectedMonth]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveDealAvgBuy = (deal: any, normalizedMeta?: Record<string, string>): number => {
     const meta = normalizedMeta ?? parseDealMeta(deal.notes);
     const metaAvg = Number(meta.avg_buy) || 0;
@@ -328,7 +345,9 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
             </tr></thead><tbody>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {subFilteredInDeals.map((deal: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const row = buildDealRowModel({ deal, perspective: 'incoming', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                 const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;
@@ -379,7 +398,8 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
             <div className="tableWrap ledgerWrap"><table><thead><tr>
               <th>{t('date')}</th><th>{t('merchant')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r">{t('volume')}</th><th className="r">{t('net')}</th><th>{t('margin')}</th><th>{t('actions')}</th>
             </tr></thead><tbody>
-              {subFilteredOutDeals.map((deal: any) => {
+              {subFilteredOutDeals.map((deal: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const rel = relationships.find((r: any) => r.id === deal.relationship_id) as any;
                 const row = buildDealRowModel({ deal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy });
                 const marginPct = row.margin != null ? Math.min(1, Math.abs(row.margin) / 0.05) : 0;

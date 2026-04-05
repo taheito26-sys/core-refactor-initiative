@@ -46,6 +46,7 @@ export function useP2PMarketData(market: MarketId) {
 
       const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
       const { data: histRowsDesc } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
         .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
         .eq('market', market)
@@ -53,6 +54,7 @@ export function useP2PMarketData(market: MarketId) {
         .order('fetched_at', { ascending: false })
         .limit(10000);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const historyPoints = (histRowsDesc || []).reverse().flatMap((row: any) => {
         const ts = row.fetched_at ? new Date(row.fetched_at).getTime() : toFiniteNumber(row.ts_val);
         if (!ts) return [];
@@ -68,6 +70,7 @@ export function useP2PMarketData(market: MarketId) {
 
       const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: merchantRowsDesc } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
         .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
         .eq('market', market)
@@ -75,6 +78,7 @@ export function useP2PMarketData(market: MarketId) {
         .order('fetched_at', { ascending: false })
         .limit(2500);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows = (merchantRowsDesc || []) as any[];
       const marketPolls = Math.max(rows.length, 1);
       const merchantMap = new Map<string, { appearances: number; totalAvailable: number; sampleCount: number; maxAvailable: number }>();

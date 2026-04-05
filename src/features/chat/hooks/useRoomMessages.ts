@@ -51,8 +51,10 @@ export function useRoomMessages(roomId: string | null) {
       .channel(`room-messages-rt-${roomId}`)
       // New messages — append to cache for instant delivery
       .on(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         'postgres_changes' as any,
         { event: 'INSERT', schema: 'public', table: 'os_messages', filter: `room_id=eq.${roomId}` },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (payload: any) => {
           const row = payload.new as Record<string, unknown>;
           // Own messages are handled by onSettled refetch; skip to avoid transient duplicate
@@ -68,8 +70,10 @@ export function useRoomMessages(roomId: string | null) {
       )
       // read_at updates — sender sees ✓✓ turn blue when counterparty reads
       .on(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         'postgres_changes' as any,
         { event: 'UPDATE', schema: 'public', table: 'os_messages', filter: `room_id=eq.${roomId}` },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (payload: any) => {
           const row = payload.new as Record<string, unknown>;
           qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => {

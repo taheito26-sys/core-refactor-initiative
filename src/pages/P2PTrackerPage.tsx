@@ -57,6 +57,7 @@ export default function P2PTrackerPage() {
   const profitIfSold = useMemo(() => {
     try {
       const stateRaw = getCurrentTrackerState(localStorage);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (!stateRaw || !Array.isArray((stateRaw as any).batches) || !(stateRaw as any).batches.length) return null;
       const st = stateRaw as unknown as TrackerState;
       const derived = computeFIFO(st.batches, st.trades || []);

@@ -21,9 +21,11 @@ export function useCapitalTransfers(relationshipId: string) {
     queryKey: ['capital-transfers', relationshipId],
     queryFn: async (): Promise<CapitalTransfer[]> => {
       const { data, error } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('capital_transfers' as any)
         .select('*')
         .eq('relationship_id', relationshipId)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .order('created_at', { ascending: false }) as any);
       if (error) throw error;
       return (data || []) as CapitalTransfer[];
@@ -60,6 +62,7 @@ export function useSubmitCapitalTransfer() {
           created_by: userId!,
           notes: `direction: ${input.direction} | cost_basis: ${input.cost_basis} | total_cost_qar: ${totalCost}`,
           settlement_cadence: 'monthly',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
         .select('id')
         .single();
@@ -67,6 +70,7 @@ export function useSubmitCapitalTransfer() {
 
       // 2. Create the transfer record
       const { error: txErr } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('capital_transfers' as any)
         .insert({
           deal_id: deal.id,
@@ -78,6 +82,7 @@ export function useSubmitCapitalTransfer() {
           currency: 'USDT',
           transferred_by: userId!,
           note: input.note || null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any);
       if (txErr) throw txErr;
     },

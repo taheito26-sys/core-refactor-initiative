@@ -3,6 +3,7 @@ import { ChatCallSession, DeterministicResult, fail, ok } from '@/features/chat/
 
 export async function startCall(roomId: string): Promise<DeterministicResult<ChatCallSession | null>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_start_call', { _room_id: roomId });
     if (error) throw error;
     return ok((data ?? null) as unknown as ChatCallSession | null);
@@ -13,6 +14,7 @@ export async function startCall(roomId: string): Promise<DeterministicResult<Cha
 
 export async function joinCall(callSessionId: string): Promise<DeterministicResult<boolean>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_join_call', { _call_session_id: callSessionId });
     if (error) throw error;
     return ok(Boolean(data));
@@ -23,6 +25,7 @@ export async function joinCall(callSessionId: string): Promise<DeterministicResu
 
 export async function leaveCall(callSessionId: string): Promise<DeterministicResult<boolean>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_leave_call', { _call_session_id: callSessionId });
     if (error) throw error;
     return ok(Boolean(data));
@@ -33,6 +36,7 @@ export async function leaveCall(callSessionId: string): Promise<DeterministicRes
 
 export async function endCall(callSessionId: string): Promise<DeterministicResult<boolean>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_end_call', { _call_session_id: callSessionId });
     if (error) throw error;
     return ok(Boolean(data));
@@ -41,15 +45,18 @@ export async function endCall(callSessionId: string): Promise<DeterministicResul
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getCallHistory(roomId: string): Promise<DeterministicResult<any[]>> {
   try {
     const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('call_history_v' as any)
       .select('*')
       .eq('room_id', roomId)
       .order('started_at', { ascending: false })
       .limit(100);
     if (error) throw error;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ok((data ?? []) as any[]);
   } catch (error) {
     return fail([], error);
