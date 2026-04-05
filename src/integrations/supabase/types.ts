@@ -301,6 +301,7 @@ export type Database = {
           id: string
           initiated_by: string
           note: string | null
+          original_entry_id: string | null
           period_id: string | null
           pool_balance_after: number
           relationship_id: string
@@ -314,6 +315,7 @@ export type Database = {
           id?: string
           initiated_by: string
           note?: string | null
+          original_entry_id?: string | null
           period_id?: string | null
           pool_balance_after?: number
           relationship_id: string
@@ -327,6 +329,7 @@ export type Database = {
           id?: string
           initiated_by?: string
           note?: string | null
+          original_entry_id?: string | null
           period_id?: string | null
           pool_balance_after?: number
           relationship_id?: string
@@ -338,6 +341,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_capital_ledger_original_entry_id_fkey"
+            columns: ["original_entry_id"]
+            isOneToOne: false
+            referencedRelation: "deal_capital_ledger"
             referencedColumns: ["id"]
           },
           {
@@ -1951,6 +1961,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      approve_settlement: {
+        Args: { _settlement_id: string }
+        Returns: undefined
+      }
       current_merchant_id: { Args: never; Returns: string }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
       fn_chat_mark_read: {
@@ -2030,6 +2044,10 @@ export type Database = {
       os_send_notification: {
         Args: { _message_id: string; _room_id: string; _urgency?: string }
         Returns: number
+      }
+      reject_settlement: {
+        Args: { _actor_id: string; _settlement_id: string }
+        Returns: undefined
       }
       set_merchant_deal_status: {
         Args: { _deal_id: string; _status: string }

@@ -126,6 +126,10 @@ export default function OrdersPage() {
   const [editFee, setEditFee] = useState('0');
   const [editNote, setEditNote] = useState('');
   const [editCustomerId, setEditCustomerId] = useState('');
+  // Cash deposit for edit modal
+  const [editCashDepositMode, setEditCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
+  const [editCashDepositAmount, setEditCashDepositAmount] = useState('');
+  const [editCashDepositAccountId, setEditCashDepositAccountId] = useState('');
 
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
@@ -798,6 +802,57 @@ export default function OrdersPage() {
     });
   };
 
+  // Helper: show rich sale confirmation toast
+  const showSaleToast = (opts: {
+    amountUSDT: number;
+    sell: number;
+    net?: number;
+    partnerName?: string;
+    isApproval?: boolean;
+  }) => {
+    const { amountUSDT, sell, net, partnerName, isApproval } = opts;
+    const revenue = amountUSDT * sell;
+    const depositAmt = cashDepositMode === 'full'
+      ? revenue
+      : cashDepositMode === 'partial' ? Math.min(parseFloat(cashDepositAmount) || 0, revenue) : 0;
+    const depositAccName = cashDepositMode !== 'none'
+      ? state.cashAccounts?.find(a => a.id === cashDepositAccountId)?.name || t('cashWallet')
+      : null;
+    const title = isApproval ? t('tradeSentForApproval') : t('saleRecorded');
+    const isRTL = t.isRTL;
+
+    toast.success(title, {
+      duration: 5000,
+      description: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+            <span style={{ opacity: 0.7, fontSize: 11 }}>{fmtU(amountUSDT)} USDT @ {fmtP(sell)}</span>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>{fmtC(revenue)} QAR</span>
+          </div>
+          {Number.isFinite(net) && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+              <span style={{ opacity: 0.7, fontSize: 11 }}>{t('netProfitLabel')}</span>
+              <span style={{ fontWeight: 600, fontSize: 12, color: (net as number) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                {fmtC(net as number)} QAR
+              </span>
+            </div>
+          )}
+          {depositAmt > 0 && depositAccName && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: '1px solid var(--line)', paddingTop: 4, marginTop: 2 }}>
+              <span style={{ opacity: 0.7, fontSize: 11 }}>💵 {t('cashDeposited')} → {depositAccName}</span>
+              <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--good)' }}>+{fmtC(depositAmt)} QAR</span>
+            </div>
+          )}
+          {partnerName && (
+            <div style={{ opacity: 0.7, fontSize: 11, marginTop: 2 }}>
+              🤝 {partnerName}
+            </div>
+          )}
+        </div>
+      ) as any,
+    });
+  };
+
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
   const addTrade = async () => {
     // Capital transfers are handled separately via handleCapitalTransfer
@@ -1050,7 +1105,8 @@ export default function OrdersPage() {
         };
         applyState(applyCashDeposit(next, sell, amountUSDT));
         await reloadMerchantData();
-        toast.success(t('tradeSentForApproval'));
+        const _allocPartner = allocations[0]?.merchantName || relationships.find(r => r.id === allocations[0]?.relationshipId)?.counterparty?.display_name;
+        showSaleToast({ amountUSDT, sell, net: salePreview?.net, partnerName: _allocPartner, isApproval: true });
 
         // Reset
         setSaleAmount('');
@@ -1176,7 +1232,8 @@ export default function OrdersPage() {
         applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
 
         await reloadMerchantData();
-        toast.success(t('tradeSentForApproval'));
+        const _legacyPartner = relationships.find(r => r.id === linkedRelId)?.counterparty?.display_name;
+        showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net, partnerName: _legacyPartner, isApproval: true });
       } catch (err: any) {
         console.error('Failed to create deal:', err);
         toast.error(err.message || t('failedCreateDeal'));
@@ -1189,7 +1246,7 @@ export default function OrdersPage() {
         range: inRange(ts, state.range) ? state.range : 'all'
       };
       applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
-      setSaleMessage(t('tradeLogged'));
+      showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
     }
 
     // Reset form
@@ -1241,6 +1298,10 @@ export default function OrdersPage() {
     setEditSelectedTemplateId(null);
     setEditSelectedAgreementId(null);
     setEditSettleImmediately(false);
+    // Reset cash deposit state
+    setEditCashDepositMode('none');
+    setEditCashDepositAmount('');
+    setEditCashDepositAccountId('');
   };
 
   const saveTradeEdit = async () => {
@@ -1421,7 +1482,17 @@ export default function OrdersPage() {
         revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
       };
     });
-    applyState({ ...state, trades: nextTrades });
+    const baseNextState = { ...state, trades: nextTrades };
+    const stateWithEditDeposit = applyOrderCashDeposit({
+      nextState: baseNextState,
+      cashDepositMode: editCashDepositMode,
+      cashDepositAmountRaw: editCashDepositAmount,
+      cashDepositAccountId: editCashDepositAccountId,
+      sell,
+      amountUSDT: qty,
+      note: `${t('saleProceeds')}: ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
+    });
+    applyState(stateWithEditDeposit);
 
     // Propagate edits to linked server deal and trigger re-approval
     if (existingTrade.linkedDealId && !editLinkEnabled) {
@@ -1452,7 +1523,7 @@ export default function OrdersPage() {
         const resetTrades = nextTrades.map(tr =>
           tr.id === editingTradeId ? { ...tr, approvalStatus: 'pending_approval' as LinkedTradeStatus } : tr
         );
-        applyState({ ...state, trades: resetTrades });
+        applyState({ ...stateWithEditDeposit, trades: resetTrades });
         await reloadMerchantData();
         // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
@@ -1621,7 +1692,7 @@ export default function OrdersPage() {
   const renderDetail = (tr: Trade, c?: TradeCalcResult) => {
     const linkedDeal = resolveLinkedOutgoingDeal(tr);
     const linkedRow = linkedDeal
-      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements })
       : null;
     const fifoOk = !!c?.ok;
     const ok = fifoOk || !!linkedRow?.hasAvgBuy;
@@ -1645,23 +1716,42 @@ export default function OrdersPage() {
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
-        {/* Show partner allocation for merchant-linked trades */}
-        {tr.agreementFamily && tr.partnerPct != null && ok && (() => {
+        {/* Show partner allocation for all linked trades */}
+        {tr.linkedRelId && ok && (() => {
           const linkedRel = relationships.find(r => r.id === tr.linkedRelId);
-          // Check if this is an operator priority deal via agreements
+          const counterpartyName = linkedRel?.counterparty?.display_name || '—';
+          const myName = merchantProfile?.display_name || 'Me';
+
+          // Prefer linkedRow (deal model) for op-priority; fall back to agreement lookup; then trade fields
+          if (linkedRow && linkedRow.isOperatorPriority && linkedRow.operatorFee != null) {
+            const names = resolveOpNames(linkedRow, linkedRel, merchantProfile?.merchant_id, merchantProfileMap, myName);
+            return (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
+                  ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(linkedRow.operatorFee)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
+                  📊 {names.operatorName}: <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(linkedRow.operatorTotal ?? 0)}</strong>
+                </div>
+                <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
+                  🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(linkedRow.lenderTotal ?? 0)}</strong>
+                </div>
+              </div>
+            );
+          }
+
+          // Check agreement directly for op-priority (when no linked deal exists)
           const matchedAgr = allAgreements?.find(a =>
             a.relationship_id === tr.linkedRelId && a.agreement_type === 'operator_priority'
           );
-          const isOpPriority = !!matchedAgr;
-
-          if (isOpPriority && Number.isFinite(net) && net > 0) {
+          if (matchedAgr && Number.isFinite(net) && net > 0) {
             const opResult = calculateOperatorPriorityProfit({
               grossProfit: net,
-              operatorRatio: Number(matchedAgr!.operator_ratio) || 0,
-              operatorContribution: Number(matchedAgr!.operator_contribution) || 0,
-              lenderContribution: Number(matchedAgr!.lender_contribution) || 0,
+              operatorRatio: Number(matchedAgr.operator_ratio) || 0,
+              operatorContribution: Number(matchedAgr.operator_contribution) || 0,
+              lenderContribution: Number(matchedAgr.lender_contribution) || 0,
             });
-            const opMid = matchedAgr!.operator_merchant_id || '';
+            const opMid = matchedAgr.operator_merchant_id || '';
             const opProfile = merchantProfileMap.get(opMid);
             const operatorName = opProfile?.display_name || opProfile?.nickname || opMid || 'Operator';
             let lenderMid = '';
@@ -1670,7 +1760,6 @@ export default function OrdersPage() {
             }
             const lenderProfile = merchantProfileMap.get(lenderMid);
             const lenderName = lenderProfile?.display_name || lenderProfile?.nickname || lenderMid || 'Lender';
-
             return (
               <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
                 <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>
@@ -1686,21 +1775,20 @@ export default function OrdersPage() {
             );
           }
 
-          // Standard split — resolve merchant names
-          const myMid = merchantProfile?.merchant_id || '';
-          let counterpartyName = linkedRel?.counterparty?.display_name || '—';
-          const myName = merchantProfile?.display_name || 'Me';
-
+          // Standard split — use percentages from linkedRow > trade fields > 50/50 default
+          const effectiveMerchantPct = linkedRow?.merchantPct ?? tr.merchantPct ?? 50;
+          const effectivePartnerPct = linkedRow?.partnerPct ?? tr.partnerPct ?? (100 - effectiveMerchantPct);
+          const netForSplit = Number.isFinite(net) ? net : (linkedRow?.fullNet ?? 0);
           return (
             <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
               <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>
-                📊 {myName} ({tr.merchantPct}%): <strong style={{ color: 'var(--good)' }}>
-                  {fmtC(Number.isFinite(net) ? net * (tr.merchantPct! / 100) : 0)}
+                📊 {myName} ({effectiveMerchantPct}%): <strong style={{ color: 'var(--good)' }}>
+                  {fmtC(netForSplit * (effectiveMerchantPct / 100))}
                 </strong>
               </div>
               <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>
-                🤝 {counterpartyName} ({tr.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>
-                  {fmtC(Number.isFinite(net) ? net * (tr.partnerPct! / 100) : 0)}
+                🤝 {counterpartyName} ({effectivePartnerPct}%): <strong style={{ color: 'var(--brand)' }}>
+                  {fmtC(netForSplit * (effectivePartnerPct / 100))}
                 </strong>
               </div>
             </div>
@@ -1770,7 +1858,7 @@ export default function OrdersPage() {
     const c = derived.tradeCalc.get(tr.id);
     const linkedDeal = resolveLinkedOutgoingDeal(tr);
     const linkedRow = linkedDeal
-      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy })
+      ? buildDealRowModel({ deal: linkedDeal, perspective: 'outgoing', locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements })
       : null;
     const ok = !!c?.ok || !!linkedRow?.hasAvgBuy;
     const rev = linkedRow?.volume ?? (tr.amountUSDT * tr.sellPriceQAR);
@@ -1961,13 +2049,13 @@ export default function OrdersPage() {
               ) : (
               <>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
-                  📊 {perspective === 'outgoing' ? t('merchantNetProfit') : t('partnerNetProfit')} ({row.merchantPct}%):
+                  📊 {perspective === 'outgoing' ? (merchantProfile?.display_name || 'Me') : merchantName} ({row.merchantPct}%):
                   <strong style={{ color: 'var(--good)', marginLeft: 4 }}>
                     {fmtC(row.fullNet * (row.merchantPct! / 100))}
                   </strong>
                 </div>
                 <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
-                  🤝 {perspective === 'outgoing' ? t('partnerNetProfit') : t('merchantNetProfit')} ({row.partnerPct}%):
+                  🤝 {perspective === 'outgoing' ? merchantName : (merchantProfile?.display_name || 'Me')} ({row.partnerPct}%):
                   <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>
                     {fmtC(row.fullNet * (row.partnerPct! / 100))}
                   </strong>
@@ -2310,8 +2398,8 @@ export default function OrdersPage() {
                                         </>
                                       ) : (
                                         <>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
-                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {perspective === 'outgoing' ? (merchantProfile?.display_name || 'Me') : merchantName} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                          <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {perspective === 'outgoing' ? merchantName : (merchantProfile?.display_name || 'Me')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
                                         </>
                                       ); })()}
                                     </div>
@@ -2495,8 +2583,8 @@ export default function OrdersPage() {
                                     </>
                                   ) : (
                                     <>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {t('merchantNetProfit')} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
-                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {t('partnerNetProfit')} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {merchantName} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {merchantProfile?.display_name || 'Me'} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
                                     </>
                                   ); })()}
                                 </div>
@@ -2594,7 +2682,8 @@ export default function OrdersPage() {
                         const sc = statusColors[deal.status] || statusColors.pending;
 
                         return (
-                          <tr key={`deal-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id}>
+                          <React.Fragment key={`deal-${deal.id}`}>
+                          <tr id={`deal-${deal.id}`} data-deal-id={deal.id}>
                             <td>
                               <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <span className="mono">{row.dateLabel}</span>
@@ -2633,6 +2722,9 @@ export default function OrdersPage() {
                             </td>
                             <td>
                               <div className="actionsRow">
+                                <button className="rowBtn" onClick={() => setDetailsOpen(prev => ({ ...prev, [`deal-${deal.id}`]: !prev[`deal-${deal.id}`] }))}>
+                                  {detailsOpen[`deal-${deal.id}`] ? t('hideDetails') : t('details')}
+                                </button>
                                 {deal.status === 'pending' && (
                                   <>
                                     <button className="rowBtn" onClick={() => openDealEdit(deal)}>{t('edit')}</button>
@@ -2645,6 +2737,36 @@ export default function OrdersPage() {
                               </div>
                             </td>
                           </tr>
+                          {detailsOpen[`deal-${deal.id}`] && (
+                            <tr><td colSpan={10} style={{ padding: 8 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
+                                <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>
+                                {row.fee > 0 && <span className="pill">{t('fee')} {fmtC(row.fee)}</span>}
+                                {row.hasAvgBuy && row.cost > 0 && <span className="pill">{t('cost')} {fmtC(row.cost)}</span>}
+                                <span className={`pill ${row.fullNet != null ? (row.fullNet >= 0 ? 'good' : 'bad') : ''}`}>
+                                  {t('net')} {row.fullNet != null ? `${row.fullNet >= 0 ? '+' : ''}${fmtC(row.fullNet)}` : '—'}
+                                </span>
+                              </div>
+                              {row.hasAvgBuy && row.fullNet != null && (
+                                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                  {(() => { const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me'); return row.isOperatorPriority && row.operatorFee != null ? (
+                                    <>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 10 }}>⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)' }}>{fmtC(row.operatorFee)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {names.operatorName}: <strong style={{ color: 'var(--good)' }}>{fmtC(row.operatorTotal ?? 0)}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {names.lenderName}: <strong style={{ color: 'var(--brand)' }}>{fmtC(row.lenderTotal ?? 0)}</strong></div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 10 }}>📊 {merchantProfile?.display_name || 'Me'} ({row.merchantPct}%): <strong style={{ color: 'var(--good)' }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong></div>
+                                      <div style={{ padding: '4px 8px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 10 }}>🤝 {merchantName} ({row.partnerPct}%): <strong style={{ color: 'var(--brand)' }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong></div>
+                                    </>
+                                  ); })()}
+                                </div>
+                              )}
+                            </td></tr>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -3883,6 +4005,107 @@ export default function OrdersPage() {
                   />
                 </div>
               </div>
+
+              {/* Cash Deposit Option */}
+              {!isApproved && (() => {
+                const editRevenue = (Number(editQty) || 0) * (Number(editSell) || 0);
+                if (!(editRevenue > 0)) return null;
+                return (
+                  <div style={{
+                    padding: '8px 10px', borderRadius: 8, marginBottom: 16,
+                    background: 'color-mix(in srgb, var(--good) 6%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>{t('addSaleProceedsToCash')}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(['none', 'full', 'partial'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => {
+                            setEditCashDepositMode(mode);
+                            if (mode === 'full') setEditCashDepositAmount(String(Math.round(editRevenue * 100) / 100));
+                            if (mode === 'none') { setEditCashDepositAmount(''); setEditCashDepositAccountId(''); }
+                            if (mode !== 'none' && !editCashDepositAccountId) {
+                              const first = state.cashAccounts?.find(a => a.status === 'active');
+                              if (first) setEditCashDepositAccountId(first.id);
+                            }
+                          }}
+                          style={{
+                            padding: isMobile ? '8px 10px' : '4px 10px', borderRadius: 6,
+                            fontSize: isMobile ? 11 : 10, fontWeight: 600, cursor: 'pointer',
+                            minHeight: isMobile ? 40 : undefined,
+                            border: editCashDepositMode === mode ? '1.5px solid var(--good)' : '1px solid var(--line)',
+                            background: editCashDepositMode === mode ? 'color-mix(in srgb, var(--good) 15%, transparent)' : 'var(--panel2)',
+                            color: editCashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
+                          }}
+                        >
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtC(editRevenue)})` : t('customAmount')}
+                        </button>
+                      ))}
+                    </div>
+                    {editCashDepositMode === 'partial' && (
+                      <div style={{ marginTop: 6 }}>
+                        <div className="inputBox" style={{ maxWidth: isMobile ? '100%' : 180 }}>
+                          <input
+                            inputMode="decimal"
+                            placeholder={t('amountInQar')}
+                            value={editCashDepositAmount}
+                            onChange={numericOnly(setEditCashDepositAmount)}
+                            style={mobileInputStyle}
+                          />
+                        </div>
+                        {parseFloat(editCashDepositAmount) > editRevenue && (
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>{t('amountExceedsSaleRevenue')}</div>
+                        )}
+                      </div>
+                    )}
+                    {editCashDepositMode !== 'none' && (state.cashAccounts?.filter(a => a.status === 'active').length ?? 0) > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>{t('depositTo')}</div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {state.cashAccounts!.filter(a => a.status === 'active').map(acc => {
+                            const isSelected = editCashDepositAccountId === acc.id;
+                            const typeIcon = acc.type === 'hand' ? '💵' : acc.type === 'bank' ? '🏦' : '🔐';
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === acc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            return (
+                              <button
+                                key={acc.id}
+                                onClick={() => setEditCashDepositAccountId(acc.id)}
+                                style={{
+                                  padding: '5px 10px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+                                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                                  alignItems: 'flex-start', gap: 2, minWidth: 90,
+                                  border: isSelected ? '1.5px solid var(--good)' : '1px solid var(--line)',
+                                  background: isSelected ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'var(--panel2)',
+                                  color: isSelected ? 'var(--good)' : 'var(--t2)',
+                                }}
+                              >
+                                <span style={isMobile ? { fontSize: 11 } : undefined}>{typeIcon} {acc.name}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtC(bal)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {editCashDepositMode !== 'none' && (() => {
+                      const selectedAcc = state.cashAccounts?.find(a => a.id === editCashDepositAccountId);
+                      if (!selectedAcc) return null;
+                      const bal = (state.cashLedger || [])
+                        .filter(e => e.accountId === selectedAcc.id)
+                        .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                      const deposit = editCashDepositMode === 'full' ? editRevenue : (parseFloat(editCashDepositAmount) || 0);
+                      return (
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
+                          {selectedAcc.name}: {fmtC(bal)} → {fmtC(bal + deposit)} QAR
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })()}
 
               {/* Already linked indicator */}
               {editingTrade && (editingTrade.agreementFamily || editingTrade.linkedDealId) && (

@@ -6,13 +6,14 @@ export interface CapitalEntry {
   id: string;
   deal_id: string;
   relationship_id: string;
-  type: 'reinvest' | 'withdrawal' | 'payout';
+  type: 'reinvest' | 'withdrawal' | 'payout' | 'reversal';
   amount: number;
   currency: string;
   period_id: string | null;
   initiated_by: string;
   note: string | null;
   pool_balance_after: number;
+  original_entry_id: string | null; // Risk 5: links reversal back to original entry
   created_at: string;
 }
 
@@ -71,6 +72,15 @@ export function useReinvestProfit() {
       currency: string;
       current_pool_balance: number;
     }) => {
+      // Risk 6: idempotency guard — prevent double-entry for same period
+      const { data: existing } = await supabase
+        .from('deal_capital_ledger')
+        .select('id')
+        .eq('period_id', input.period_id)
+        .neq('type', 'reversal')
+        .maybeSingle();
+      if (existing) throw new Error('Settlement already processed for this period');
+
       const newBalance = input.current_pool_balance + input.amount;
 
       const { error: ledgerErr } = await supabase
@@ -88,6 +98,7 @@ export function useReinvestProfit() {
         } as any);
       if (ledgerErr) throw ledgerErr;
 
+      // Reinvest has no external approval step — mark settled immediately
       const { error: periodErr } = await supabase
         .from('settlement_periods')
         .update({
@@ -121,7 +132,16 @@ export function usePayoutProfit() {
       currency: string;
       current_pool_balance: number;
     }) => {
-      // Create settlement record
+      // Risk 6: idempotency guard — prevent double-entry for same period
+      const { data: existing } = await supabase
+        .from('deal_capital_ledger')
+        .select('id')
+        .eq('period_id', input.period_id)
+        .neq('type', 'reversal')
+        .maybeSingle();
+      if (existing) throw new Error('Settlement already processed for this period');
+
+      // Create settlement record (awaits merchant approval)
       const { data: settlement, error: settErr } = await supabase
         .from('merchant_settlements')
         .insert({
@@ -137,7 +157,8 @@ export function usePayoutProfit() {
         .single();
       if (settErr) throw settErr;
 
-      // Capital ledger entry (pool unchanged on payout)
+      // Capital ledger entry — payout is cash, does not reduce pool
+      // pool_balance_after stays at current_pool_balance (Risk 2: correct for payouts)
       const { error: ledgerErr } = await supabase
         .from('deal_capital_ledger')
         .insert({
@@ -153,11 +174,12 @@ export function usePayoutProfit() {
         } as any);
       if (ledgerErr) throw ledgerErr;
 
-      // Mark period settled
+      // Risk 4: mark period as pending_settlement — NOT settled yet.
+      // The reject_settlement / approve_settlement RPCs will finalize this.
       const { error: periodErr } = await supabase
         .from('settlement_periods')
         .update({
-          status: 'settled',
+          status: 'pending_settlement',
           resolution: 'payout',
           resolved_by: userId,
           resolved_at: new Date().toISOString(),

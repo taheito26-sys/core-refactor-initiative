@@ -903,7 +903,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
                     {/* Actions */}
                     {!isInactive && (
-                      <div style={{ display: 'grid', gap: 6, flexWrap: 'wrap', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, auto)' }}>
+                      <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(2, 1fr)' }}>
                         {acc.type === 'merchant_custody' ? (
                           <>
                             <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
@@ -937,7 +937,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setReconcileAccountData(acc)}>{t('reconcileBtn')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)' }} onClick={() => setClearLedgerPromptId(acc.id)}>🗑️ {t('clearLedger')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)', gridColumn: '1 / -1' }} onClick={() => setClearLedgerPromptId(acc.id)}>🗑️ {t('clearLedger')}</button>
                       </div>
                     )}
                     {isInactive && (

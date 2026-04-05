@@ -21,6 +21,7 @@ import {
   detectOptimalFontSize,
   type ThemeDef,
 } from '@/lib/theme-context';
+import type { AppSettings } from '@/lib/theme/types';
 
 export default function SettingsPage() {
   const {
@@ -170,10 +171,10 @@ export default function SettingsPage() {
             <div>
               <Label className="text-xs mb-2 block">{t('dateRange')}</Label>
               <div className="flex gap-1.5">
-                {([{ id: 'today', labelKey: 'oneDay2' as const }, { id: '7d', labelKey: 'sevenDays2' as const }, { id: '30d', labelKey: 'thirtyDays' as const }, { id: 'all', labelKey: 'allLabel' as const }]).map(r => (
+                {([{ id: 'today', labelKey: 'oneDay2' as const }, { id: '7d', labelKey: 'sevenDays2' as const }, { id: '30d', labelKey: 'thirtyDays' as const }, { id: 'this_month', labelKey: 'thisMonth' as const }, { id: 'last_month', labelKey: 'lastMonth' as const }, { id: 'all', labelKey: 'allLabel' as const }]).map(r => (
                   <button
                     key={r.id}
-                    onClick={() => update({ range: r.id as any })}
+                    onClick={() => update({ range: r.id as AppSettings['range'] })}
                     className={cn(
                       'px-3 py-1.5 rounded text-xs border transition-all',
                       draft.range === r.id ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'

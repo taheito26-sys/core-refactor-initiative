@@ -48,7 +48,8 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (next.cashAccounts?.length || next.cashLedger?.length) {
       if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
       cashSaveTimer.current = setTimeout(() => {
-        void saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
+        saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
+          .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
       }, 2500);
     }
   }, [options.preloadedState]);
@@ -102,17 +103,22 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // Also update localStorage with merged state
       saveTrackerState(rebuilt.state);
 
-      // Load dedicated cash tables and prefer them over blob data
+      // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
       loadCashFromCloud().then(cashData => {
         if (!cashData) return;
         if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
-        setState(prev => ({
-          ...prev,
-          cashAccounts: cashData.accounts,
-          cashLedger:   cashData.ledger,
-        }));
-      }).catch(() => {});
-    }).catch(() => {
+        setState(prev => {
+          const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
+          const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
+          return {
+            ...prev,
+            cashAccounts: cashData.accounts,
+            cashLedger: [...cashData.ledger, ...localOnly],
+          };
+        });
+      }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
+    }).catch((err) => {
+      console.error('[useTrackerState] cloud load failed:', err);
       setCloudLoaded(true);
     });
 

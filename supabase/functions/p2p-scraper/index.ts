@@ -37,6 +37,7 @@ const MARKETS: MarketConfig[] = [
   { id: "oman", fiat: "OMR", asset: "USDT" },
   { id: "georgia", fiat: "GEL", asset: "USDT" },
   { id: "kazakhstan", fiat: "KZT", asset: "USDT" },
+  { id: "uganda", fiat: "UGX", asset: "USDT" },
 ];
 
 async function fetchBinanceP2P(
@@ -56,7 +57,8 @@ async function fetchBinanceP2P(
     shieldMerchantAds: false,
     publisherType: null,
     payTypes: [],
-    classifies: ["mass", "profession", "fiat_trade"],
+    // Relaxed classifies to ensure results in smaller markets like Uganda
+    classifies: ["mass"], 
   };
 
   const res = await fetch(
@@ -95,10 +97,8 @@ function buildSnapshot(
   buyRaw: BinanceP2POffer[],
   marketId: string,
 ) {
-  // sellRaw = Binance SELL ads = people selling USDT = YOUR restock source
-  // buyRaw = Binance BUY ads = people buying USDT = YOUR sell targets
-  const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);   // highest first
-  const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);   // cheapest first
+  const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);
+  const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);
 
   const topNForAvg = marketId === "qatar" ? 5 : 10;
   const topSell = sellOffers.slice(0, topNForAvg);
@@ -174,8 +174,6 @@ Deno.serve(async (req: Request) => {
           fetchBinanceP2P(market.fiat, "BUY", market.asset, apiRows),
         ]);
 
-        console.log(`[${market.id}] API response: SELL=${sellRaw.length} offers, BUY=${buyRaw.length} offers`);
-
         const snapshot = buildSnapshot(sellRaw, buyRaw, market.id);
 
         const { error } = await supabase.from("p2p_snapshots").insert({
@@ -185,8 +183,6 @@ Deno.serve(async (req: Request) => {
 
         if (error) {
           console.error(`[${market.id}] DB insert FAILED:`, error.message);
-        } else {
-          console.log(`[${market.id}] Snapshot inserted: sellAvg=${snapshot.sellAvg}, buyAvg=${snapshot.buyAvg}, ts=${new Date().toISOString()}`);
         }
 
         results[market.id] = {
@@ -199,7 +195,6 @@ Deno.serve(async (req: Request) => {
           },
         };
       } catch (err) {
-        console.error(`[${market.id}] Scrape ERROR:`, String(err));
         results[market.id] = { error: String(err) };
       }
     }
@@ -209,7 +204,6 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("P2P scraper error:", err);
     return new Response(
       JSON.stringify({ error: String(err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
