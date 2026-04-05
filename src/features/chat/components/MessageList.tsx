@@ -52,7 +52,7 @@ export function MessageList(props: Props) {
       .reverse()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .find((m: any) => {
-        const senderId = m.sender_id || m.sender_merchant_id;
+        const senderId = m.sender_merchant_id || m.sender_id;
         return senderId !== props.currentUserId && !m.read_at;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as any;
@@ -107,9 +107,10 @@ export function MessageList(props: Props) {
               message={{
                 id: msg.id,
                 content: msg.content || msg.body || '',
-                sender_id: msg.sender_id || msg.sender_merchant_id || '',
+                sender_id: msg.sender_id || '',
+                sender_merchant_id: msg.sender_merchant_id || '',
                 created_at: msg.created_at,
-                type: msg.message_type,
+                type: msg.message_type || msg.type,
                 status: msg.status,
                 expires_at: msg.expires_at,
                 metadata: msg.metadata,

@@ -27,6 +27,9 @@ interface MessageProps {
     id: string;
     content: string;
     sender_id: string;
+    /** ROOT CAUSE FIX: os_messages uses sender_merchant_id, not sender_id.
+     *  Both are accepted; isMe checks whichever is non-empty. */
+    sender_merchant_id?: string;
     created_at: string;
     type?: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,7 +54,10 @@ function ReadStatusIcon({ status, readAt }: { status?: string; readAt?: string |
 }
 
 export function MessageItem({ message, currentUserId, onReact, onDeleteForMe, reactions = {} }: MessageProps) {
-  const isMe     = message.sender_id === currentUserId;
+  // ROOT CAUSE FIX: os_messages stores sender as sender_merchant_id, not sender_id.
+  // Accept either field so the bubble renders on the correct side.
+  const effectiveSenderId = message.sender_merchant_id || message.sender_id;
+  const isMe     = effectiveSenderId === currentUserId;
   const isSystem = message.type === 'system';
   const parsed   = useMemo(() => parseMsg(message.content), [message.content]);
   const navigate = useNavigate();
