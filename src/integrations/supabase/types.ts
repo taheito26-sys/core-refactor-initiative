@@ -301,7 +301,6 @@ export type Database = {
           id: string
           initiated_by: string
           note: string | null
-          original_entry_id: string | null
           period_id: string | null
           pool_balance_after: number
           relationship_id: string
@@ -315,7 +314,6 @@ export type Database = {
           id?: string
           initiated_by: string
           note?: string | null
-          original_entry_id?: string | null
           period_id?: string | null
           pool_balance_after?: number
           relationship_id: string
@@ -329,7 +327,6 @@ export type Database = {
           id?: string
           initiated_by?: string
           note?: string | null
-          original_entry_id?: string | null
           period_id?: string | null
           pool_balance_after?: number
           relationship_id?: string
