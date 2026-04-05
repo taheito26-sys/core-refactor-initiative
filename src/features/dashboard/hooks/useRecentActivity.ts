@@ -11,19 +11,34 @@ export interface ActivityItem {
   timestamp: string;
 }
 
+/**
+ * ISSUE 4 FIX: The Supabase realtime channel previously subscribed to ALL
+ * rows in the notifications table with no filter.  Every notification for
+ * every user in the system would trigger a cache invalidation for the current
+ * user, causing unnecessary network traffic and — if Supabase row-level
+ * replication is not restricted — a potential data-visibility leak.
+ *
+ * Fix: add `filter: \`user_id=eq.${userId}\`` so Supabase only sends
+ * change events that belong to the current user.
+ */
 export function useRecentActivity() {
   const { userId, merchantProfile } = useAuth();
   const merchantId = merchantProfile?.merchant_id;
   const queryClient = useQueryClient();
 
-  // Real-time listener for notifications
+  // ISSUE 4 FIX: scoped filter — only listen to this user's notifications
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`recent-activity-rt-${userId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,   // ← was missing; was listening to all users
+        },
         () => { queryClient.invalidateQueries({ queryKey: ['recent-activity'] }); }
       )
       .subscribe();

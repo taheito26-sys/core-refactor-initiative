@@ -8,6 +8,7 @@ export function useP2PMarketData(market: MarketId) {
   const [history, setHistory] = useState<P2PHistoryPoint[]>([]);
   const [merchantStats, setMerchantStats] = useState<MerchantStat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);  // ISSUE 8 FIX: expose error state
   const [latestFetchedAt, setLatestFetchedAt] = useState<string | null>(null);
   const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
 
@@ -107,7 +108,11 @@ export function useP2PMarketData(market: MarketId) {
         maxAvailable: stat.maxAvailable,
       })));
     } catch (err) {
+      // ISSUE 8 FIX: surface error to consumers so the UI can show an error
+      // state instead of silently rendering empty/stale charts.
+      const msg = err instanceof Error ? err.message : 'Unknown P2P load error';
       console.error('P2P load error:', err);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -115,6 +120,7 @@ export function useP2PMarketData(market: MarketId) {
 
   useEffect(() => {
     setLoading(true);
+    setError(null);   // ISSUE 8 FIX: reset error on market change
     loadFromDb();
 
     const channel = supabase
@@ -127,5 +133,5 @@ export function useP2PMarketData(market: MarketId) {
     return () => { void supabase.removeChannel(channel); };
   }, [market, loadFromDb]);
 
-  return { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, refresh: loadFromDb };
+  return { snapshot, history, merchantStats, loading, error, latestFetchedAt, qatarRates, refresh: loadFromDb };
 }

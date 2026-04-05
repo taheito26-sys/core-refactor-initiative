@@ -104,17 +104,23 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       saveTrackerState(rebuilt.state);
 
       // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
+      // ISSUE 6 FIX: previously stateRef.current was never updated after the
+      // async setState callback, so any call to applyState() that happened
+      // immediately after the cash merge would read stale pre-cash data from
+      // stateRef.current and overwrite the cloud cash values when persisting.
       loadCashFromCloud().then(cashData => {
         if (!cashData) return;
         if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
         setState(prev => {
           const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
           const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
-          return {
+          const next = {
             ...prev,
             cashAccounts: cashData.accounts,
             cashLedger: [...cashData.ledger, ...localOnly],
           };
+          stateRef.current = next;   // ← ISSUE 6 FIX: keep ref in sync with merged cash state
+          return next;
         });
       }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
     }).catch((err) => {
