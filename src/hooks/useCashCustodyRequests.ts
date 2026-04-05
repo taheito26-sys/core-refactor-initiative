@@ -54,9 +54,8 @@ export function useCashCustodyRequests() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        const { data, error } = await (supabase
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .from('cash_custody_requests') as any)
+        const { data, error } = await supabase
+          .from('cash_custody_requests')
           .select('*')
           .or(`requester_user_id.eq.${user.id},custodian_user_id.eq.${user.id}`)
           .order('created_at', { ascending: false });
@@ -65,8 +64,7 @@ export function useCashCustodyRequests() {
           console.warn('[useCashCustodyRequests] query error:', error.message);
           return [];
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (data ?? []).map((r: any) => rowToRequest(r));
+        return (data ?? []).map((r) => rowToRequest(r));
       } catch (err) {
         console.warn('[useCashCustodyRequests] unexpected error:', err);
         return [];
@@ -81,8 +79,7 @@ export function useCashCustodyRequests() {
     if (!user?.id) return;
     const channel = supabase
       .channel('cash-custody-requests-realtime')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .on('postgres_changes' as any, {
+      .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'cash_custody_requests',
@@ -104,9 +101,8 @@ export function useCashCustodyRequests() {
       relationshipId?: string;
     }) => {
       if (!user?.id) throw new Error('Not authenticated');
-      const { data, error } = await (supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from('cash_custody_requests') as any)
+      const { data, error } = await supabase
+        .from('cash_custody_requests')
         .insert({
           requester_merchant_id: input.requesterMerchantId,
           custodian_merchant_id: input.custodianMerchantId,
@@ -149,9 +145,8 @@ export function useCashCustodyRequests() {
         updates.counter_amount = input.counterAmount;
         updates.counter_note = input.counterNote ?? null;
       }
-      const { error } = await (supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from('cash_custody_requests') as any)
+      const { error } = await supabase
+        .from('cash_custody_requests')
         .update(updates)
         .eq('id', input.id);
       if (error) throw error;
@@ -166,9 +161,8 @@ export function useCashCustodyRequests() {
 
   const cancelRequest = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from('cash_custody_requests') as any)
+      const { error } = await supabase
+        .from('cash_custody_requests')
         .update({ status: 'cancelled' })
         .eq('id', id);
       if (error) throw error;

@@ -188,6 +188,71 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_custody_requests: {
+        Row: {
+          accepted_at: string | null
+          amount: number
+          counter_amount: number | null
+          counter_note: string | null
+          created_at: string
+          currency: string
+          custodian_merchant_id: string
+          custodian_user_id: string | null
+          id: string
+          note: string | null
+          rejected_at: string | null
+          relationship_id: string | null
+          requester_merchant_id: string
+          requester_user_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          amount: number
+          counter_amount?: number | null
+          counter_note?: string | null
+          created_at?: string
+          currency?: string
+          custodian_merchant_id: string
+          custodian_user_id?: string | null
+          id?: string
+          note?: string | null
+          rejected_at?: string | null
+          relationship_id?: string | null
+          requester_merchant_id: string
+          requester_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          amount?: number
+          counter_amount?: number | null
+          counter_note?: string | null
+          created_at?: string
+          currency?: string
+          custodian_merchant_id?: string
+          custodian_user_id?: string | null
+          id?: string
+          note?: string | null
+          rejected_at?: string | null
+          relationship_id?: string | null
+          requester_merchant_id?: string
+          requester_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_custody_requests_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_ledger: {
         Row: {
           account_id: string
