@@ -335,13 +335,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div>
               <div className="kpi-period">{curMo}</div>
               <div className={`kpi-cell-val ${dM.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dM.net, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dM.fee, settings.currency, wacop)}</div>
+              {dM.fee > 0 && <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dM.fee, settings.currency, wacop)}</div>}
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
             <div>
               <div className="kpi-period">{prevMo}</div>
               <div className={`kpi-cell-val ${dL.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dL.net, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dL.fee, settings.currency, wacop)}</div>
+              {dL.fee > 0 && <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dL.fee, settings.currency, wacop)}</div>}
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
           </div>
@@ -637,7 +637,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="panel-body">
             <div className="prev-row"><span className="muted">{t('volume')}</span><strong className="mono t1v">{fmtQWithUnit(dR.rev, settings.currency, wacop)}</strong></div>
             <div className="prev-row"><span className="muted">{t('cost')}</span><strong className="mono">{fmtQWithUnit(dR.rev - dR.net - dR.fee, settings.currency, wacop)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtQWithUnit(dR.fee, settings.currency, wacop)}</strong></div>
+            {dR.fee > 0 && <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtQWithUnit(dR.fee, settings.currency, wacop)}</strong></div>}
             <div className="prev-row"><span className="muted">{t('netProfitLabel')}</span><strong className={`mono ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net, settings.currency, wacop)}</strong></div>
             <div className="prev-row"><span className="muted">{t('avgMargin')}</span><strong className="mono" style={{ color: 'var(--t3)' }}>{fmtPct(avgM)}</strong></div>
             <div className="prev-row"><span className="muted">{t('trades')}</span><strong className="mono">{dR.count}</strong></div>
