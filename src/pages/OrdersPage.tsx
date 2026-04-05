@@ -126,6 +126,10 @@ export default function OrdersPage() {
   const [editFee, setEditFee] = useState('0');
   const [editNote, setEditNote] = useState('');
   const [editCustomerId, setEditCustomerId] = useState('');
+  // Cash deposit for edit modal
+  const [editCashDepositMode, setEditCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
+  const [editCashDepositAmount, setEditCashDepositAmount] = useState('');
+  const [editCashDepositAccountId, setEditCashDepositAccountId] = useState('');
 
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
@@ -1294,6 +1298,10 @@ export default function OrdersPage() {
     setEditSelectedTemplateId(null);
     setEditSelectedAgreementId(null);
     setEditSettleImmediately(false);
+    // Reset cash deposit state
+    setEditCashDepositMode('none');
+    setEditCashDepositAmount('');
+    setEditCashDepositAccountId('');
   };
 
   const saveTradeEdit = async () => {
@@ -1474,7 +1482,17 @@ export default function OrdersPage() {
         revisions: [{ at: Date.now(), before: { ts: tr.ts, amountUSDT: tr.amountUSDT, sellPriceQAR: tr.sellPriceQAR, customerId: tr.customerId, usesStock: tr.usesStock, feeQAR: tr.feeQAR, note: tr.note } }, ...tr.revisions].slice(0, 20),
       };
     });
-    applyState({ ...state, trades: nextTrades });
+    const baseNextState = { ...state, trades: nextTrades };
+    const stateWithEditDeposit = applyOrderCashDeposit({
+      nextState: baseNextState,
+      cashDepositMode: editCashDepositMode,
+      cashDepositAmountRaw: editCashDepositAmount,
+      cashDepositAccountId: editCashDepositAccountId,
+      sell,
+      amountUSDT: qty,
+      note: `${t('saleProceeds')}: ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
+    });
+    applyState(stateWithEditDeposit);
 
     // Propagate edits to linked server deal and trigger re-approval
     if (existingTrade.linkedDealId && !editLinkEnabled) {
@@ -1505,7 +1523,7 @@ export default function OrdersPage() {
         const resetTrades = nextTrades.map(tr =>
           tr.id === editingTradeId ? { ...tr, approvalStatus: 'pending_approval' as LinkedTradeStatus } : tr
         );
-        applyState({ ...state, trades: resetTrades });
+        applyState({ ...stateWithEditDeposit, trades: resetTrades });
         await reloadMerchantData();
         // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
@@ -3987,6 +4005,107 @@ export default function OrdersPage() {
                   />
                 </div>
               </div>
+
+              {/* Cash Deposit Option */}
+              {!isApproved && (() => {
+                const editRevenue = (Number(editQty) || 0) * (Number(editSell) || 0);
+                if (!(editRevenue > 0)) return null;
+                return (
+                  <div style={{
+                    padding: '8px 10px', borderRadius: 8, marginBottom: 16,
+                    background: 'color-mix(in srgb, var(--good) 6%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)',
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--good)', marginBottom: 6 }}>{t('addSaleProceedsToCash')}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(['none', 'full', 'partial'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => {
+                            setEditCashDepositMode(mode);
+                            if (mode === 'full') setEditCashDepositAmount(String(Math.round(editRevenue * 100) / 100));
+                            if (mode === 'none') { setEditCashDepositAmount(''); setEditCashDepositAccountId(''); }
+                            if (mode !== 'none' && !editCashDepositAccountId) {
+                              const first = state.cashAccounts?.find(a => a.status === 'active');
+                              if (first) setEditCashDepositAccountId(first.id);
+                            }
+                          }}
+                          style={{
+                            padding: isMobile ? '8px 10px' : '4px 10px', borderRadius: 6,
+                            fontSize: isMobile ? 11 : 10, fontWeight: 600, cursor: 'pointer',
+                            minHeight: isMobile ? 40 : undefined,
+                            border: editCashDepositMode === mode ? '1.5px solid var(--good)' : '1px solid var(--line)',
+                            background: editCashDepositMode === mode ? 'color-mix(in srgb, var(--good) 15%, transparent)' : 'var(--panel2)',
+                            color: editCashDepositMode === mode ? 'var(--good)' : 'var(--t2)',
+                          }}
+                        >
+                          {mode === 'none' ? t('dontAdd') : mode === 'full' ? `${t('fullAmount')} (${fmtC(editRevenue)})` : t('customAmount')}
+                        </button>
+                      ))}
+                    </div>
+                    {editCashDepositMode === 'partial' && (
+                      <div style={{ marginTop: 6 }}>
+                        <div className="inputBox" style={{ maxWidth: isMobile ? '100%' : 180 }}>
+                          <input
+                            inputMode="decimal"
+                            placeholder={t('amountInQar')}
+                            value={editCashDepositAmount}
+                            onChange={numericOnly(setEditCashDepositAmount)}
+                            style={mobileInputStyle}
+                          />
+                        </div>
+                        {parseFloat(editCashDepositAmount) > editRevenue && (
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 2 }}>{t('amountExceedsSaleRevenue')}</div>
+                        )}
+                      </div>
+                    )}
+                    {editCashDepositMode !== 'none' && (state.cashAccounts?.filter(a => a.status === 'active').length ?? 0) > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--t2)', marginBottom: 4 }}>{t('depositTo')}</div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {state.cashAccounts!.filter(a => a.status === 'active').map(acc => {
+                            const isSelected = editCashDepositAccountId === acc.id;
+                            const typeIcon = acc.type === 'hand' ? '💵' : acc.type === 'bank' ? '🏦' : '🔐';
+                            const bal = (state.cashLedger || [])
+                              .filter(e => e.accountId === acc.id)
+                              .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                            return (
+                              <button
+                                key={acc.id}
+                                onClick={() => setEditCashDepositAccountId(acc.id)}
+                                style={{
+                                  padding: '5px 10px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+                                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                                  alignItems: 'flex-start', gap: 2, minWidth: 90,
+                                  border: isSelected ? '1.5px solid var(--good)' : '1px solid var(--line)',
+                                  background: isSelected ? 'color-mix(in srgb, var(--good) 12%, transparent)' : 'var(--panel2)',
+                                  color: isSelected ? 'var(--good)' : 'var(--t2)',
+                                }}
+                              >
+                                <span style={isMobile ? { fontSize: 11 } : undefined}>{typeIcon} {acc.name}</span>
+                                <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>{fmtC(bal)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {editCashDepositMode !== 'none' && (() => {
+                      const selectedAcc = state.cashAccounts?.find(a => a.id === editCashDepositAccountId);
+                      if (!selectedAcc) return null;
+                      const bal = (state.cashLedger || [])
+                        .filter(e => e.accountId === selectedAcc.id)
+                        .reduce((s, e) => s + (e.direction === 'in' ? e.amount : -e.amount), 0);
+                      const deposit = editCashDepositMode === 'full' ? editRevenue : (parseFloat(editCashDepositAmount) || 0);
+                      return (
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>
+                          {selectedAcc.name}: {fmtC(bal)} → {fmtC(bal + deposit)} QAR
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })()}
 
               {/* Already linked indicator */}
               {editingTrade && (editingTrade.agreementFamily || editingTrade.linkedDealId) && (
