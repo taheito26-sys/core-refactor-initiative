@@ -2010,6 +2010,15 @@ export type Database = {
         Args: { p_message_id: string; p_room_id: string }
         Returns: undefined
       }
+      fn_finalize_settlement_decisions: {
+        Args: {
+          p_agreement_id: string
+          p_agreement_snapshot: Json
+          p_period_id: string
+        }
+        Returns: undefined
+      }
+      fn_get_dashboard_stats: { Args: { p_merchant_id: string }; Returns: Json }
       get_unread_counts: {
         Args: { _user_id?: string }
         Returns: {
