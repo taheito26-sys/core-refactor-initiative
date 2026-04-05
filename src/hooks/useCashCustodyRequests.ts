@@ -78,8 +78,7 @@ export function useCashCustodyRequests() {
     if (!user?.id) return;
     const channel = supabase
       .channel('cash-custody-requests-realtime')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .on('postgres_changes' as any, {
+      .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'cash_custody_requests',
