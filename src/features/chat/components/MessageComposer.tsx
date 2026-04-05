@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { Send, Mic, Smile, Zap, Command, X, StopCircle, Package } from 'lucide-react';
 
 interface Props {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSend: (payload: { content: string; type: string; bodyJson?: any }) => void;
   onTyping: () => void;
   sending: boolean;

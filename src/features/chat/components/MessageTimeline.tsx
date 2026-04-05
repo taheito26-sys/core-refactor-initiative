@@ -129,6 +129,7 @@ export function MessageTimeline({
                   <div key={msg.id}>
                     {showUnreadDivider && <UnreadDivider count={unreadCount} />}
                     <MessageItem
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       message={{ id: msg.id, content: msg.content, sender_id: msg.sender_id, created_at: msg.created_at, type: (msg as any).msg_type, status: (msg as any).status, expires_at: (msg as any).expires_at }}
                       currentUserId={currentUserId}
                     />

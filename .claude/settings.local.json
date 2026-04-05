@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(grep -n \"^import\\\\|from ''''sonner''''\\\\|from \"\"sonner\"\"\" src/pages/OrdersPage.tsx)",
+      "Bash(find /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/priceless-agnesi/src -iname *settlement* -o -iname *reversal* -o -iname *pool*)",
+      "Bash(find /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/priceless-agnesi -iname *rpc* -o -iname *mutation*)",
+      "Bash(find /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/priceless-agnesi -name *settlement* -o -name *reversal*)",
+      "Bash(find /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/priceless-agnesi/supabase -name *.sql -exec grep -l \"reversal\\\\|reverse\\\\|original_entry\" {})",
+      "Bash(2)",
+      "Bash(grep -r \"reversal\\\\|reverse\\\\|original_entry\" /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/priceless-agnesi/supabase/migrations/*.sql)",
+      "Bash(grep -r \"status.*settled\\\\|pre.*settled\\\\|period.*settled\" /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/priceless-agnesi/src/hooks --include=*.ts)",
+      "Bash(where supabase:*)",
+      "Bash(npx supabase:*)",
+      "Bash(node -e \":*)",
+      "Bash(find src/pages -name *p2p* -o -name *trading* -o -name *market*)",
+      "Bash(ls \"C:\\\\Data\\\\GITHUB\\\\core-refactor-initiative\\\\.claude\\\\worktrees\\\\priceless-agnesi\"\" | head -20 && echo \"---\" && git -C \"C:DataGITHUBcore-refactor-initiative.claudeworktreespriceless-agnesi \" worktree list)",
+      "Bash(gh pr:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(ls src/types/ src/lib/notification* src/lib/focus* src/lib/chat-store* src/components/notifications/)",
+      "Bash(grep -n \"approveTrade\\\\|rejectTrade\\\\|approveAllocation\\\\|rejectAllocation\" src/hooks/*.ts src/features/**/*.ts)",
+      "Bash(npx vitest:*)",
+      "Bash(find C:/Data/GITHUB/core-refactor-initiative/.claude/worktrees/priceless-agnesi/src -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(/tmp/fee_display_report.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(npx eslint:*)",
+      "Bash(mkdir -p /c/tmp)",
+      "Bash(echo \"Done: $?\")",
+      "Bash(grep -v \"^\\\\s*//\")",
+      "Bash(node:*)"
+    ]
+  }
+}

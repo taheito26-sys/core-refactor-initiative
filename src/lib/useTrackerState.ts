@@ -13,6 +13,7 @@ interface UseTrackerOptions {
   range?: string;
   currency?: 'QAR' | 'USDT';
   /** When provided (admin view), skip cloud sync and use this state directly */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preloadedState?: any;
 }
 

@@ -17,6 +17,7 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

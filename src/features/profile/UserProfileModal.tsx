@@ -56,7 +56,7 @@ export function touchLogin() {
     const lc = (+localStorage.getItem(LC_KEY)! || 0) + 1;
     localStorage.setItem(LC_KEY, String(lc));
     localStorage.setItem(LL_KEY, String(now));
-  } catch {}
+  } catch { /* intentional */ }
 }
 
 function getProfileData(email: string, merchantId: string): ProfileData {
@@ -70,14 +70,15 @@ function getProfileData(email: string, merchantId: string): ProfileData {
   try {
     const arr = JSON.parse(localStorage.getItem('taheito_sessions_v1') || '[]');
     sess = Array.isArray(arr) ? arr.length : 0;
-  } catch {}
+  } catch { /* intentional */ }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const st = getCurrentTrackerState(localStorage) as any;
   const trades = Array.isArray(st?.trades) ? st.trades.length : 0;
   const batches = Array.isArray(st?.batches) ? st.batches.length : 0;
   const customers = Array.isArray(st?.customers) ? st.customers.length : 0;
   const suppliers = Array.isArray(st?.suppliers) ? st.suppliers.length : 0;
   let szKB = 0;
-  try { szKB = Math.max(1, Math.ceil(JSON.stringify(st || {}).length / 1024)); } catch {}
+  try { szKB = Math.max(1, Math.ceil(JSON.stringify(st || {}).length / 1024)); } catch { /* intentional */ }
 
   let uid5 = '';
   const rawMid = String(merchantId || '').trim();

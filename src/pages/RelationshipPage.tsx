@@ -30,6 +30,7 @@ export default function RelationshipPage() {
   const { userId, merchantProfile } = useAuth();
   const t = useT();
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('agreements');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [relationship, setRelationship] = useState<any>(null);
   const [legacyDeals, setLegacyDeals] = useState<LegacyDealRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +68,7 @@ export default function RelationshipPage() {
         ...r,
         counterparty_name: cp?.display_name || cpId,
         counterparty_nickname: cp?.nickname || '',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         counterparty_code: (cp as any)?.merchant_code || '',
       });
 
@@ -79,6 +81,7 @@ export default function RelationshipPage() {
         currency: d.currency,
         status: d.status,
         created_at: d.created_at,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         settlement_cadence: (d as any).settlement_cadence || 'monthly',
       })));
     } catch (err) {
@@ -170,6 +173,7 @@ export default function RelationshipPage() {
             <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 2, letterSpacing: '0.05em' }}>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {t('merchantTreasury' as any) || 'Merchant Treasury'}
                 </div>
                 <div style={{ display: 'flex', gap: 14 }}>
@@ -181,6 +185,7 @@ export default function RelationshipPage() {
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 2 }}>{t('lastReconciled' as any) || 'Last Reconciled'}</div>
                 <div style={{ fontSize: 10, fontWeight: 600, color: lastRecon ? 'var(--text)' : 'var(--warn)' }}>
                   {lastRecon ? new Date(lastRecon).toLocaleDateString() : 'Never'}

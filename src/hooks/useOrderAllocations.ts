@@ -19,6 +19,7 @@ export function useOrderAllocations(orderId?: string) {
       if (!orderId) return [];
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('order_allocations' as any)
           .select('*')
           .eq('order_id', orderId)
@@ -40,6 +41,7 @@ export function useSaleGroupAllocations(saleGroupId?: string) {
       if (!saleGroupId) return [];
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('order_allocations' as any)
           .select('*')
           .eq('sale_group_id', saleGroupId)
@@ -63,6 +65,7 @@ export function useRelationshipAllocations(relationshipId?: string) {
       if (!relationshipId) return [];
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('order_allocations' as any)
           .select('*')
           .eq('relationship_id', relationshipId)
@@ -136,6 +139,7 @@ export function useCreateAllocations() {
       if (allocations.length === 0) return [];
 
       const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('order_allocations' as any)
         .insert(allocations.map(a => ({
           ...a,

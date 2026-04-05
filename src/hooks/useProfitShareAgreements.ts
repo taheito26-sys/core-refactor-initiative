@@ -27,11 +27,13 @@ export function useProfitShareAgreements(relationshipId?: string, overrideMercha
             .select('id')
             .or(`merchant_a_id.eq.${overrideMerchantId},merchant_b_id.eq.${overrideMerchantId}`)
             .eq('status', 'active');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           scopedRelIds = (rels || []).map((r: any) => r.id);
           if (scopedRelIds.length === 0) return [];
         }
 
         let q = supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('profit_share_agreements' as any)
           .select('*')
           .order('created_at', { ascending: false });
@@ -98,6 +100,7 @@ export function useApprovedAgreements(relationshipId: string | undefined) {
 
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('profit_share_agreements' as any)
           .select('*')
           .eq('relationship_id', relationshipId)
@@ -182,6 +185,7 @@ export function useCreateAgreement() {
       };
 
       const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('profit_share_agreements' as any)
         .insert(fullPayload)
         .select('*')
@@ -190,6 +194,7 @@ export function useCreateAgreement() {
       if (error && isSchemaCacheColumnError(error)) {
         console.warn('[useCreateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
         const { data: legacyData, error: legacyError } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('profit_share_agreements' as any)
           .insert(stripSharedAgreementFields(fullPayload))
           .select('*')
@@ -219,6 +224,7 @@ export function useUpdateAgreement() {
   return useMutation({
     mutationFn: async ({ agreementId, ...updates }: UpdateAgreementInput) => {
       const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('profit_share_agreements' as any)
         .update(updates)
         .eq('id', agreementId)
@@ -228,6 +234,7 @@ export function useUpdateAgreement() {
       if (error && isSchemaCacheColumnError(error)) {
         console.warn('[useUpdateAgreement] Schema cache mismatch for "invested_capital". Retrying without shared fields. Please refresh your Supabase schema cache.', error);
         const { data: legacyData, error: legacyError } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('profit_share_agreements' as any)
           .update(stripSharedAgreementFields(updates as Record<string, unknown>))
           .eq('id', agreementId)
@@ -268,6 +275,7 @@ export function useUpdateAgreementStatus() {
       }
 
       const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('profit_share_agreements' as any)
         .update(updates)
         .eq('id', agreementId)

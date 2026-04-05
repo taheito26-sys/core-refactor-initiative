@@ -43,6 +43,7 @@ export function useSettlementPeriods(relationshipId: string) {
         .order('period_end', { ascending: false });
       if (error) throw error;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dealIds = [...new Set((data || []).map((p: any) => p.deal_id))];
       const dealMap = new Map<string, { title: string; deal_type: string }>();
       if (dealIds.length > 0) {
@@ -53,6 +54,7 @@ export function useSettlementPeriods(relationshipId: string) {
         (deals || []).forEach(d => dealMap.set(d.id, { title: d.title, deal_type: d.deal_type }));
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data || []).map((p: any) => ({
         ...p,
         deal_title: dealMap.get(p.deal_id)?.title,
@@ -83,6 +85,7 @@ export function useSyncSettlementPeriods(relationshipId: string) {
         feeQAR: number;
         voided: boolean;
       }>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tradeCalc: Map<string, any>;
     }) => {
       const now = new Date();
@@ -98,6 +101,7 @@ export function useSyncSettlementPeriods(relationshipId: string) {
           .select('period_key, id, status, settled_amount')
           .eq('deal_id', deal.id);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const existingMap = new Map((existing || []).map((e: any) => [e.period_key, e]));
 
         // Find local trades linked to this deal
@@ -116,12 +120,14 @@ export function useSyncSettlementPeriods(relationshipId: string) {
           if (ratioMatch) partnerPct = Number(ratioMatch[1]);
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let agreement: any = null;
         // Parse agreement ID from pipe-separated notes metadata
         const agreementIdMatch = dealMeta?.notes ? (dealMeta.notes as string).match(/profit_share_agreement_id:\s*([a-f0-9-]+)/) : null;
         const agreementId = agreementIdMatch ? agreementIdMatch[1] : null;
         if (agreementId) {
           const { data: agr } = await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .from('profit_share_agreements' as any)
             .select('*')
             .eq('id', agreementId)
@@ -150,6 +156,7 @@ export function useSyncSettlementPeriods(relationshipId: string) {
             netProfit += calc?.ok ? calc.netQAR : (rev - cost - t.feeQAR);
           }
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const allocationBase = (dealMeta as any)?.deal_type === 'partnership' ? netProfit : grossVolume;
           let partnerAmount = allocationBase * (partnerPct / 100);
           let merchantAmount = allocationBase - partnerAmount;
@@ -187,6 +194,7 @@ export function useSyncSettlementPeriods(relationshipId: string) {
               partner_amount: partnerAmount,
               merchant_amount: merchantAmount,
               settled_amount: 0,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any);
           } else if (ep.status !== 'settled') {
             const newStatus = computePeriodStatus(period.end, Number(ep.settled_amount) > 0, now);
@@ -199,6 +207,7 @@ export function useSyncSettlementPeriods(relationshipId: string) {
               partner_amount: partnerAmount,
               merchant_amount: merchantAmount,
               status: newStatus,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any).eq('id', ep.id);
           }
         }

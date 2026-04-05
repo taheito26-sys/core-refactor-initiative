@@ -90,6 +90,17 @@ export default function AdminApprovalsPage() {
   const approve = useApproveProfile();
   const reject = useRejectProfile();
 
+  useEffect(() => {
+    const focusApprovalId = searchParams.get('focusApprovalId');
+    if (!focusApprovalId) return;
+    window.setTimeout(() => {
+      focusElementBySelectors([
+        `#approval-${focusApprovalId}`,
+        `[data-approval-id="${focusApprovalId}"]`,
+      ]);
+    }, 150);
+  }, [searchParams, profiles]);
+
   if (roleLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -114,18 +125,6 @@ export default function AdminApprovalsPage() {
 
   const pending = profiles?.filter((p) => p.status === 'pending') ?? [];
   const others = profiles?.filter((p) => p.status !== 'pending') ?? [];
-
-
-  useEffect(() => {
-    const focusApprovalId = searchParams.get('focusApprovalId');
-    if (!focusApprovalId) return;
-    window.setTimeout(() => {
-      focusElementBySelectors([
-        `#approval-${focusApprovalId}`,
-        `[data-approval-id="${focusApprovalId}"]`,
-      ]);
-    }, 150);
-  }, [searchParams, profiles]);
 
   const handleApprove = async (p: PendingProfile) => {
     try {

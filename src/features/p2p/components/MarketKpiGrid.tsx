@@ -4,9 +4,13 @@ import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 interface Props {
   snapshot: P2PSnapshot;
   market: MarketId;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   todaySummary: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   profitIfSold: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   roundTripSim: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
 }
 

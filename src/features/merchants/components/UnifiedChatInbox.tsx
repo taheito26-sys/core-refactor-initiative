@@ -89,7 +89,7 @@ function lsGet<T>(key: string, def: T): T {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
 }
 function lsSet(key: string, val: unknown) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* intentional */ }
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -561,6 +561,7 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
         recordingTimeRef.current += 1;
         setRecordingTime(t => t + 1);
       }, 1000);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error('Microphone access denied. Please allow microphone permissions.');
     }
@@ -680,6 +681,7 @@ export function UnifiedChatInbox({ relationships, fullPage }: Props) {
               </div>
               <div className="chat-info-row">
                 <span>Disappearing Messages</span>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <select value={disTimer} onChange={e => setDisappearTimer(activeRelId, e.target.value as any)} className="chat-select">
                   <option value="off">Off</option>
                   <option value="24h">24 Hours</option>

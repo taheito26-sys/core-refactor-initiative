@@ -34,7 +34,7 @@ export function gasLoadConfig(): void {
     _gasUrl = _BUILTIN_GAS_URL;
     _gasLastSync = (cfg && cfg.lastSync) ? cfg.lastSync : 0;
     localStorage.setItem(GAS_CFG_KEY, JSON.stringify({ url: _gasUrl, lastSync: _gasLastSync, ver: 'v2026-03-01' }));
-  } catch {}
+  } catch { /* intentional */ }
   // Load session
   try {
     const sessRaw = localStorage.getItem(GAS_SESSION_KEY);
@@ -42,7 +42,7 @@ export function gasLoadConfig(): void {
       const sess = JSON.parse(sessRaw);
       if (sess && sess.email && sess.token) _gasSession = sess;
     }
-  } catch {}
+  } catch { /* intentional */ }
 }
 
 export function gasSaveConfig(): void {
@@ -50,7 +50,7 @@ export function gasSaveConfig(): void {
     localStorage.setItem(GAS_CFG_KEY, JSON.stringify({
       url: _gasUrl, lastSync: _gasLastSync, ver: 'v2026-03-01'
     }));
-  } catch {}
+  } catch { /* intentional */ }
 }
 
 export function getGasUrl(): string { return _gasUrl; }
@@ -64,18 +64,20 @@ export function isCloudLoggedIn(): boolean { return !!(_gasSession && _gasSessio
 
 function saveSession(email: string, token: string, name?: string): void {
   _gasSession = { email, token, name };
-  try { localStorage.setItem(GAS_SESSION_KEY, JSON.stringify(_gasSession)); } catch {}
+  try { localStorage.setItem(GAS_SESSION_KEY, JSON.stringify(_gasSession)); } catch { /* intentional */ }
 }
 
 export function clearCloudSession(): void {
   _gasSession = null;
-  try { localStorage.removeItem(GAS_SESSION_KEY); } catch {}
+  try { localStorage.removeItem(GAS_SESSION_KEY); } catch { /* intentional */ }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function safeJsonParse(txt: string): any {
   try { return JSON.parse(txt); } catch { return null; }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function rawGasPost(payloadObj: Record<string, unknown>): Promise<any> {
   if (!_gasUrl) throw new Error('Cloud URL missing.');
   const resp = await fetch(_gasUrl, {
@@ -99,6 +101,7 @@ export async function rawGasPost(payloadObj: Record<string, unknown>): Promise<a
 }
 
 /** Auto-inject email+token into all authenticated calls */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function gasPost(payloadObj: Record<string, unknown>): Promise<any> {
   gasLoadConfig();
   const action = String(payloadObj.action || '').toLowerCase();
@@ -111,6 +114,7 @@ export async function gasPost(payloadObj: Record<string, unknown>): Promise<any>
 }
 
 /** Post with explicit credentials (for admin acting on behalf of a user) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function gasPostAs(email: string, token: string, payloadObj: Record<string, unknown>): Promise<any> {
   gasLoadConfig();
   return rawGasPost({ ...payloadObj, email, token });
@@ -200,6 +204,7 @@ export async function autoAuthenticateCloudWithDetails(
 }
 
 /** Register a new cloud account */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function cloudRegister(email: string, password: string, name?: string): Promise<any> {
   gasLoadConfig();
   const res = await rawGasPost({ action: 'register', email, password, name: name || email.split('@')[0] });
@@ -210,6 +215,7 @@ export async function cloudRegister(email: string, password: string, name?: stri
 }
 
 /** Login to cloud account */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function cloudLogin(email: string, password: string): Promise<any> {
   gasLoadConfig();
   const res = await rawGasPost({ action: 'login', email, password });

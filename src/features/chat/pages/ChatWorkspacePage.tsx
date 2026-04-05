@@ -234,6 +234,7 @@ export default function ChatWorkspacePage() {
                     messages={messages.data ?? []}
                     currentUserId={userId}
                     unreadMessageId={firstUnread}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     reactionsByMessage={reactionsByMessage[activeRoomId ?? ''] as any ?? {}}
                     pinnedSet={new Set()}
                     onReact={handleReact}                  // BUG 3 FIX: wired

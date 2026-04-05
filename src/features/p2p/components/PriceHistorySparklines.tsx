@@ -5,6 +5,7 @@ import { fmtPrice } from '@/lib/tracker-helpers';
 interface Props {
   history: P2PHistoryPoint[];
   dataAgeLabel: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
 }
 

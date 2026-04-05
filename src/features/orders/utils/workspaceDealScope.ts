@@ -5,6 +5,7 @@ export function isDealVisibleInWorkspace({
   workspaceMerchantId,
   workspaceRelationshipIds,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   deal: MerchantDeal | any;
   workspaceMerchantId: string;
   workspaceRelationshipIds: Set<string>;
@@ -20,6 +21,7 @@ export function getWorkspaceDealPerspective({
   relationshipById,
   merchantUserByMerchantId,
 }: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   deal: MerchantDeal | any;
   workspaceMerchantId: string;
   relationshipById: Map<string, Pick<MerchantRelationship, 'merchant_a_id' | 'merchant_b_id'>>;

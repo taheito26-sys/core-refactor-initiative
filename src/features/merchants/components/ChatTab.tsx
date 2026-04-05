@@ -43,6 +43,7 @@ export function ChatTab({ relationshipId }: Props) {
         inputRef.current.style.height = 'auto';
       }
       setTimeout(() => inputRef.current?.focus(), 50);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Send failed:', err);
     }

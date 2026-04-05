@@ -138,6 +138,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
 
   // ── Agreement ─────────────────────────────────────────────────────────────
   if (isAgreement) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const agreementId = (n.target as any).targetEntityId ?? entityId;
     if (!agreementId) return null;
     return (
@@ -148,6 +149,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await updateAgreement.mutateAsync({ agreementId, status: 'approved' });
               onDone(ids);
               toast.success(t('agreementApprovedSuccess'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <Check className="h-3 w-3" />{t('approve')}
@@ -158,6 +160,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await updateAgreement.mutateAsync({ agreementId, status: 'rejected' });
               onDone(ids);
               toast.success(t('agreementRejectedSuccess'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <X className="h-3 w-3" />{t('reject')}
@@ -176,6 +179,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await dealApprove.mutateAsync(entityId!);
               onDone(ids);
               toast.success(t('tradeApproved'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <Check className="h-3 w-3" />{t('approve')}
@@ -186,6 +190,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await dealReject.mutateAsync(entityId!);
               onDone(ids);
               toast.success(t('tradeRejected'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <X className="h-3 w-3" />{t('reject')}
@@ -205,6 +210,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await inviteAccept.mutateAsync(entityId!);
               onDone(ids);
               toast.success(t('inviteAccepted'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <Check className="h-3 w-3" />{t('accept')}
@@ -215,6 +221,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await inviteReject.mutateAsync(entityId!);
               onDone(ids);
               toast.success(t('inviteRejected'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <X className="h-3 w-3" />{t('decline')}
@@ -241,6 +248,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
                   await profileReject.mutateAsync({ profileUserId: entityId!, reason: rejectReason.trim() });
                   onDone(ids);
                   toast.success(t('rejected'));
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } catch (e: any) { toast.error(e.message); }
               }}>
               {t('confirmReject')}
@@ -260,6 +268,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await profileApprove.mutateAsync(entityId!);
               onDone(ids);
               toast.success(t('tradeApproved'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <Check className="h-3 w-3" />{t('approve')}
@@ -282,6 +291,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await settlApprove.mutateAsync(entityId!);
               onDone(ids);
               toast.success(t('settlementApproved'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <Check className="h-3 w-3" />{t('approve')}
@@ -292,6 +302,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
               await settlReject.mutateAsync(entityId!);
               onDone(ids);
               toast.success(t('rejectedNoMutation'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (e: any) { toast.error(e.message); }
           }}>
           <X className="h-3 w-3" />{t('reject')}
@@ -539,6 +550,7 @@ export default function ActivityCenter() {
                 )}
               >
                 <cfg.Icon className={cn('h-3 w-3', active ? '' : cfg.color)} />
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 <span>{t(cfg.labelKey as any) || cat}</span>
                 {count > 0 && (
                   <span className={cn(
