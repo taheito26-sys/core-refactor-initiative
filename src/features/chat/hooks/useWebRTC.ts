@@ -134,7 +134,17 @@ export function useWebRTC({ roomId, userId, onTimelineEvent }: Props) {
       .subscribe();
 
     channelRef.current = channel;
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+      // BUG 6 FIX: close the RTCPeerConnection when room changes.
+      // Previously only the signalling channel was removed, leaving orphaned
+      // peer connections and media streams accumulating across room switches.
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
+    };
   }, [roomId, userId, setupPC, setCall, cleanup]);
 
   return { callState, isIncoming, callerId, remoteStream, initiateCall, acceptCall, endCall: () => cleanup('call_ended'), toggleMute };
