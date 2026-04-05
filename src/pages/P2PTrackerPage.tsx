@@ -8,6 +8,9 @@ import { format } from 'date-fns';
 
 import { MarketId, MARKETS } from '@/features/p2p/types';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
+import { computeFIFO, totalStock, getWACOP, stockCostQAR } from '@/lib/tracker-helpers';
+import { getCurrentTrackerState } from '@/lib/tracker-backup';
+import type { TrackerState } from '@/lib/tracker-helpers';
 import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
 import { PriceHistorySparklines } from '@/features/p2p/components/PriceHistorySparklines';
 import { MerchantDepthStats } from '@/features/p2p/components/MerchantDepthStats';
@@ -40,6 +43,79 @@ export default function P2PTrackerPage() {
     if (ageMin < 60) return `${ageMin} min ago`;
     return `${Math.floor(ageMin / 60)}h ago`;
   }, [latestFetchedAt]);
+
+  // ── Derive mid-rate helper ──────────────────────────────────────────────────
+  const deriveMid = (s: number | null, b: number | null): number | null => {
+    if (s != null && b != null && s > 0 && b > 0) return (s + b) / 2;
+    return s ?? b ?? null;
+  };
+
+  const sellAvg = snapshot?.sellAvg ?? null;
+  const buyAvg  = snapshot?.buyAvg  ?? null;
+
+  // ── Profit if sold now in this market ──────────────────────────────────────
+  const profitIfSold = useMemo(() => {
+    try {
+      const stateRaw = getCurrentTrackerState(localStorage);
+      if (!stateRaw || !Array.isArray((stateRaw as any).batches) || !(stateRaw as any).batches.length) return null;
+      const st = stateRaw as unknown as TrackerState;
+      const derived = computeFIFO(st.batches, st.trades || []);
+      const stock = totalStock(derived);
+      if (stock <= 0) return null;
+      const wacop = getWACOP(derived);
+      const costBasis = stockCostQAR(derived);
+      if (!wacop || wacop <= 0) return null;
+
+      const localMid = deriveMid(sellAvg, buyAvg);
+      const qatarMid = market === 'qatar'
+        ? localMid
+        : qatarRates ? deriveMid(qatarRates.sellAvg, qatarRates.buyAvg) : null;
+      if (!localMid || localMid <= 0 || !qatarMid || qatarMid <= 0 || !sellAvg || sellAvg <= 0) return null;
+
+      const localToUsd  = 1 / localMid;
+      const qarToUsd    = 1 / qatarMid;
+      const qarToLocal  = localMid / qatarMid;
+
+      const costQAR        = costBasis;
+      const costLocal      = costQAR * qarToLocal;
+      const sellValueLocal = stock * sellAvg;
+      const profitLocal    = sellValueLocal - costLocal;
+      const profit         = profitLocal * localToUsd;
+
+      return {
+        stock, wacop, costQAR, costLocal,
+        costBasisUSD: costQAR * qarToUsd,
+        sellValueLocal, sellValueUSD: sellValueLocal * localToUsd,
+        profitLocal, profit,
+        fx: { localToUsd, qarToUsd, qarToLocal },
+      };
+    } catch { return null; }
+  }, [sellAvg, buyAvg, market, qatarRates]);
+
+  // ── Round-trip spread simulation ───────────────────────────────────────────
+  const roundTripSim = useMemo(() => {
+    if (!profitIfSold || !sellAvg || !buyAvg || sellAvg <= 0 || buyAvg <= 0) return null;
+    const { qarToLocal, localToUsd } = profitIfSold.fx;
+    if (!qarToLocal || !localToUsd || qarToLocal <= 0 || localToUsd <= 0) return null;
+
+    const startingCapitalLocal = profitIfSold.costQAR * qarToLocal;
+    if (startingCapitalLocal <= 0) return null;
+
+    const boughtUSDT         = startingCapitalLocal / buyAvg;
+    const finalLocal         = boughtUSDT * sellAvg;
+    const roundTripProfitLocal = finalLocal - startingCapitalLocal;
+    const profit             = roundTripProfitLocal * localToUsd;
+    const pct                = (roundTripProfitLocal / startingCapitalLocal) * 100;
+
+    return {
+      startingCapitalLocal,
+      startingCapitalUSD: startingCapitalLocal * localToUsd,
+      finalLocal, finalUSD: finalLocal * localToUsd,
+      boughtUSDT, profit,
+      spreadRatio: sellAvg / buyAvg,
+      pct,
+    };
+  }, [profitIfSold, sellAvg, buyAvg]);
 
   if (loading && (!snapshot || snapshot.sellAvg === null)) {
     return <div className="p-8 text-center text-muted-foreground">Loading market data...</div>;
@@ -86,8 +162,8 @@ export default function P2PTrackerPage() {
             snapshot={snapshot}
             market={market}
             todaySummary={todaySummary}
-            profitIfSold={null}
-            roundTripSim={null}
+            profitIfSold={profitIfSold}
+            roundTripSim={roundTripSim}
             t={t}
           />
 
