@@ -1,4 +1,4 @@
-export type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'turkey' | 'oman' | 'georgia' | 'kazakhstan' | 'uganda';
+export type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'turkey' | 'oman' | 'georgia' | 'kazakhstan';
 
 export interface MarketConfig {
   id: MarketId;
@@ -66,7 +66,6 @@ export const MARKETS: MarketConfig[] = [
   { id: 'oman', label: 'Oman', currency: 'OMR', pair: 'USDT/OMR' },
   { id: 'georgia', label: 'Georgia', currency: 'GEL', pair: 'USDT/GEL' },
   { id: 'kazakhstan', label: 'Kazakhstan', currency: 'KZT', pair: 'USDT/KZT' },
-  { id: 'uganda', label: 'Uganda', currency: 'UGX', pair: 'USDT/UGX' },
 ];
 
 export const EMPTY_SNAPSHOT: P2PSnapshot = {
