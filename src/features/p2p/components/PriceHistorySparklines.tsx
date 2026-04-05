@@ -63,7 +63,7 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
       <div className="panel-head" style={{ padding: '8px 12px' }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>{t('p2pPriceHistory')}</h2>
         <span className="pill" style={{ fontSize: 9 }}>
-          24h Trend {dataAgeLabel && <> · {dataAgeLabel}</>}
+          {t('p2pTrend24h')} {dataAgeLabel && <> · {dataAgeLabel}</>}
         </span>
       </div>
       <div className="panel-body" style={{ padding: '8px 12px 12px', minHeight: 150, display: 'flex', flexDirection: 'column', gap: 10 }}>

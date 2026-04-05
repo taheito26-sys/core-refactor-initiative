@@ -13,8 +13,6 @@ interface Props {
 }
 
 export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, t }: Props) {
-  const ccy = snapshot.sellAvg ? '' : ''; // Placeholder for currency logic if needed
-
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
       <div className="kpis" style={{ gridTemplateColumns: `repeat(${6 + (profitIfSold ? 1 : 0) + (roundTripSim ? 1 : 0)}, minmax(0, 1fr))` }}>
@@ -63,11 +61,11 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
         )}
         {roundTripSim && (
           <div className="kpi-card">
-            <div className="kpi-lbl">Round-Trip Spread</div>
+            <div className="kpi-lbl">{t('p2pRoundTripSpread')}</div>
             <div className="kpi-val" style={{ color: roundTripSim.profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>
               {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)}
             </div>
-            <div className="kpi-sub">{fmtPrice(roundTripSim.pct)}% · sim</div>
+            <div className="kpi-sub">{fmtPrice(roundTripSim.pct)}% · {t('p2pSim')}</div>
           </div>
         )}
       </div>
