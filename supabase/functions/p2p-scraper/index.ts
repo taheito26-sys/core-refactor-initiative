@@ -37,6 +37,7 @@ const MARKETS: MarketConfig[] = [
   { id: "oman", fiat: "OMR", asset: "USDT" },
   { id: "georgia", fiat: "GEL", asset: "USDT" },
   { id: "kazakhstan", fiat: "KZT", asset: "USDT" },
+  { id: "uganda", fiat: "UGX", asset: "USDT" },
 ];
 
 async function fetchBinanceP2P(

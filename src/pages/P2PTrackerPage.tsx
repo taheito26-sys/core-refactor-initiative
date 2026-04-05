@@ -14,7 +14,6 @@ import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 import { getCurrentTrackerState } from '@/lib/tracker-backup';
 import { useT } from '@/lib/i18n';
 import '@/styles/tracker.css';
-import '@/styles/tracker.css';
 
 // ── Types ──
 interface P2POffer {
@@ -219,7 +218,7 @@ function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
 }
 
 // ── Markets ──
-type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'turkey' | 'oman' | 'georgia' | 'kazakhstan';
+type MarketId = 'qatar' | 'uae' | 'egypt' | 'ksa' | 'turkey' | 'oman' | 'georgia' | 'kazakhstan' | 'uganda';
 
 const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[] = [
   { id: 'qatar', label: 'Qatar', currency: 'QAR', pair: 'USDT/QAR' },
@@ -230,6 +229,7 @@ const MARKETS: { id: MarketId; label: string; currency: string; pair: string }[]
   { id: 'oman', label: 'Oman', currency: 'OMR', pair: 'USDT/OMR' },
   { id: 'georgia', label: 'Georgia', currency: 'GEL', pair: 'USDT/GEL' },
   { id: 'kazakhstan', label: 'Kazakhstan', currency: 'KZT', pair: 'USDT/KZT' },
+  { id: 'uganda', label: 'Uganda', currency: 'UGX', pair: 'USDT/UGX' },
 ];
 
 const EMPTY_SNAPSHOT: P2PSnapshot = {
