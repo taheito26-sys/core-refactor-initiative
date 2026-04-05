@@ -1422,8 +1422,8 @@ const translations = {
   bankNamePh:            { en: 'QNB, CBQ, Doha Bank...',       ar: 'QNB، CBQ، بنك الدوحة...' },
   branchLbl:             { en: 'Branch / Label',               ar: 'الفرع / الوصف' },
   branchPh:              { en: 'Main Branch, USD acc...',       ar: 'الفرع الرئيسي، حساب USD...' },
-  notesOptionalAcc:      { en: 'Notes (optional)',              ar: 'ملاحظات (اختي<dyad-write path="src/lib/i18n.ts" description="Continuing P2P market localization keys in the translation dictionary">
-اري)', notesAccPh: { en: 'Any notes about this account...', ar: 'أي ملاحظات عن هذا الحساب...' },
+  notesOptionalAcc:      { en: 'Notes (optional)',              ar: 'ملاحظات (اختياري)' },
+  notesAccPh:            { en: 'Any notes about this account...', ar: 'أي ملاحظات عن هذا الحساب...' },
   createAccountBtn:      { en: 'Create Account',               ar: 'إنشاء حساب' },
   accountNameRequired:   { en: 'Account name is required',     ar: 'اسم الحساب مطلوب' },
 
