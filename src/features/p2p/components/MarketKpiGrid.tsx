@@ -1,7 +1,5 @@
-import { useMemo } from 'react';
 import { P2PSnapshot, MarketId } from '../types';
 import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
-import { format } from 'date-fns';
 
 interface Props {
   snapshot: P2PSnapshot;
