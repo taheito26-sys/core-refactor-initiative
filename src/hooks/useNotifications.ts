@@ -167,6 +167,20 @@ export function useMarkAllRead() {
       const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', userId!).is('read_at', null);
       if (error) throw error;
     },
+    /**
+     * ISSUE 9 FIX: previously there was no onMutate, so clicking "Mark all
+     * as read" showed no visual change until the server responded and
+     * invalidateQueries triggered a full refetch (which could take 1–2 s on
+     * slow connections).  Optimistic update clears all badges immediately.
+     */
+    onMutate: async () => {
+      const readAt = new Date().toISOString();
+      applyReadStateToCache(
+        queryClient,
+        (queryClient.getQueryData<Notification[]>(['notifications', userId]) ?? []).map(n => n.id),
+        readAt,
+      );
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 }
@@ -183,6 +197,17 @@ export function useMarkCategoryRead() {
         .eq('category', category)
         .is('read_at', null);
       if (error) throw error;
+    },
+    /**
+     * ISSUE 9 FIX: same as useMarkAllRead — add optimistic update so the
+     * category unread badge clears immediately on click instead of waiting
+     * for the server round-trip + refetch.
+     */
+    onMutate: async (category: string) => {
+      const readAt = new Date().toISOString();
+      const all = queryClient.getQueryData<Notification[]>(['notifications', userId]) ?? [];
+      const ids = all.filter(n => !n.read_at && n.category === category).map(n => n.id);
+      applyReadStateToCache(queryClient, ids, readAt);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
