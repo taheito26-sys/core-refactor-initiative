@@ -229,3 +229,30 @@ export async function deleteCashAccountFromCloud(accountId: string): Promise<voi
     .eq('id', accountId)
     .eq('user_id', user.id);
 }
+
+/** Delete specific ledger entries by ID from the cloud */
+export async function deleteLedgerEntriesFromCloud(entryIds: string[]): Promise<void> {
+  if (entryIds.length === 0) return;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('cash_ledger') as any)
+    .delete()
+    .in('id', entryIds)
+    .eq('user_id', user.id);
+  if (error) console.warn('[cash-sync] deleteLedgerEntriesFromCloud failed:', error.message);
+}
+
+/** Delete all ledger entries for a given account ID from the cloud */
+export async function deleteCashAccountLedgerFromCloud(accountId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('cash_ledger') as any)
+    .delete()
+    .eq('account_id', accountId)
+    .eq('user_id', user.id);
+  if (error) console.warn('[cash-sync] deleteCashAccountLedgerFromCloud failed:', error.message);
+}

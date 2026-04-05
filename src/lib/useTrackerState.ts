@@ -51,7 +51,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       cashSaveTimer.current = setTimeout(() => {
         saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
           .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
-      }, 2500);
+      }, 500);
     }
   }, [options.preloadedState]);
 
@@ -115,9 +115,12 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         setState(prev => {
           const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
           const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
+          // Merge accounts by ID: prefer cloud for existing accounts, keep local-only accounts
+          const cloudAccountIds = new Set(cashData.accounts.map((a: { id: string }) => a.id));
+          const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
           const next = {
             ...prev,
-            cashAccounts: cashData.accounts,
+            cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
             cashLedger: [...cashData.ledger, ...localOnly],
           };
           stateRef.current = next;   // ← ISSUE 6 FIX: keep ref in sync with merged cash state
