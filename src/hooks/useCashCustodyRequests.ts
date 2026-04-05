@@ -162,9 +162,8 @@ export function useCashCustodyRequests() {
 
   const cancelRequest = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from('cash_custody_requests') as any)
+      const { error } = await supabase
+        .from('cash_custody_requests')
         .update({ status: 'cancelled' })
         .eq('id', id);
       if (error) throw error;
