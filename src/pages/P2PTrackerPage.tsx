@@ -125,58 +125,62 @@ export default function P2PTrackerPage() {
   const hasNoData = !snapshot || (snapshot.sellAvg === null && snapshot.buyAvg === null && !history.length);
 
   return (
-    <div className="space-y-2 p-2 md:p-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col h-[calc(100vh-110px)] overflow-hidden space-y-1.5 p-2 md:p-3">
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
         <Tabs value={market} onValueChange={(v) => setMarket(v as MarketId)}>
-          <TabsList>
+          <TabsList className="h-8">
             {MARKETS.map(m => (
-              <TabsTrigger key={m.id} value={m.id} className="text-[11px] px-3">{m.label}</TabsTrigger>
+              <TabsTrigger key={m.id} value={m.id} className="text-[10px] px-2.5 h-7">{m.label}</TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
 
-        <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5 h-8 text-[11px]">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1 h-7 text-[10px] px-2">
+          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
           {t('p2pRefresh')}
         </Button>
 
-        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-          {hasNoData ? 'Waiting for first sync…' : 'Sync · 5 min'}
+        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+          {hasNoData ? 'Waiting...' : 'Sync · 5m'}
         </span>
 
-        <Badge variant="outline" className="font-mono text-[11px]">{currentMarket.pair}</Badge>
+        <Badge variant="outline" className="font-mono text-[10px] h-6 px-1.5">{currentMarket.pair}</Badge>
       </div>
 
       {hasNoData ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
           <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse" />
           <p className="text-sm font-semibold text-muted-foreground">Collecting data for {currentMarket.label}…</p>
           <p className="text-xs text-muted-foreground/60 max-w-xs">
-            The backend sync runs every 5 minutes. First data point will appear automatically — no refresh needed.
+            The backend sync runs every 5 minutes. First data point will appear automatically.
           </p>
         </div>
       ) : snapshot && (
-        <>
-          <MarketKpiGrid
-            snapshot={snapshot}
-            market={market}
-            todaySummary={todaySummary}
-            profitIfSold={profitIfSold}
-            roundTripSim={roundTripSim}
-            t={t}
-          />
+        <div className="flex-1 flex flex-col min-h-0 space-y-1.5">
+          <div className="shrink-0">
+            <MarketKpiGrid
+              snapshot={snapshot}
+              market={market}
+              todaySummary={todaySummary}
+              profitIfSold={profitIfSold}
+              roundTripSim={roundTripSim}
+              t={t}
+            />
+          </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-1.5 shrink-0 h-[140px]">
             <PriceHistorySparklines history={history} dataAgeLabel={dataAgeLabel} t={t} />
             <MerchantDepthStats merchantStats={merchantStats} />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-            <P2POfferTable offers={snapshot.sellOffers} type="sell" t={t} />
-            <P2POfferTable offers={snapshot.buyOffers} type="buy" t={t} />
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-1.5 h-full">
+              <P2POfferTable offers={snapshot.sellOffers} type="sell" t={t} />
+              <P2POfferTable offers={snapshot.buyOffers} type="buy" t={t} />
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

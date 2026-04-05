@@ -59,29 +59,29 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
   }, [history]);
 
   return (
-    <div className="tracker-root panel">
-      <div className="panel-head" style={{ padding: '8px 12px' }}>
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>{t('p2pPriceHistory')}</h2>
-        <span className="pill" style={{ fontSize: 9 }}>
+    <div className="tracker-root panel h-full flex flex-col overflow-hidden">
+      <div className="panel-head shrink-0" style={{ padding: '6px 10px' }}>
+        <h2 style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>{t('p2pPriceHistory')}</h2>
+        <span className="pill" style={{ fontSize: 8 }}>
           24h Trend {dataAgeLabel && <> · {dataAgeLabel}</>}
         </span>
       </div>
-      <div className="panel-body" style={{ padding: '8px 12px 12px', minHeight: 150, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="panel-body flex-1 min-h-0" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div className="flex items-start justify-between gap-2">
-          <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pSellAvgLabel')}</span>
-          <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? fmtPrice(priceBarData.sellLatest) : '—'}</span>
+          <span className="text-[8px] font-extrabold tracking-[0.1em] uppercase muted">{t('p2pSellAvgLabel')}</span>
+          <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--good)' }}>{priceBarData.sellLatest ? fmtPrice(priceBarData.sellLatest) : '—'}</span>
         </div>
-        <div className="flex items-end gap-1 h-5 relative">
+        <div className="flex items-end gap-1 h-4 relative">
           {priceBarData.sellBars.map((pct, i) => (
             <div
               key={`sell-${i}`}
               className="flex-1 rounded-sm cursor-pointer transition-all duration-100"
               style={{
-                height: `${Math.max(2, pct * 0.22)}px`,
+                height: `${Math.max(2, pct * 0.16)}px`,
                 background: hoveredBar?.type === 'sell' && hoveredBar.index === i
                   ? 'color-mix(in srgb, var(--good) 100%, transparent)'
                   : 'color-mix(in srgb, var(--good) 82%, transparent)',
-                transform: hoveredBar?.type === 'sell' && hoveredBar.index === i ? 'scaleY(1.3)' : 'scaleY(1)',
+                transform: hoveredBar?.type === 'sell' && hoveredBar.index === i ? 'scaleY(1.2)' : 'scaleY(1)',
                 transformOrigin: 'bottom',
               }}
               onMouseEnter={() => setHoveredBar({ type: 'sell', index: i })}
@@ -90,20 +90,20 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
           ))}
         </div>
         <div className="flex items-start justify-between gap-2">
-          <span className="text-[9px] font-extrabold tracking-[0.14em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
-          <span className="font-mono text-[14px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? fmtPrice(priceBarData.buyLatest) : '—'}</span>
+          <span className="text-[8px] font-extrabold tracking-[0.1em] uppercase muted">{t('p2pBuyAvgLabel')}</span>
+          <span className="font-mono text-[12px] font-extrabold" style={{ color: 'var(--bad)' }}>{priceBarData.buyLatest ? fmtPrice(priceBarData.buyLatest) : '—'}</span>
         </div>
-        <div className="flex items-end gap-1 h-5 relative">
+        <div className="flex items-end gap-1 h-4 relative">
           {priceBarData.buyBars.map((pct, i) => (
             <div
               key={`buy-${i}`}
               className="flex-1 rounded-sm cursor-pointer transition-all duration-100"
               style={{
-                height: `${Math.max(2, pct * 0.22)}px`,
+                height: `${Math.max(2, pct * 0.16)}px`,
                 background: hoveredBar?.type === 'buy' && hoveredBar.index === i
                   ? 'color-mix(in srgb, var(--bad) 100%, transparent)'
                   : 'color-mix(in srgb, var(--bad) 82%, transparent)',
-                transform: hoveredBar?.type === 'buy' && hoveredBar.index === i ? 'scaleY(1.3)' : 'scaleY(1)',
+                transform: hoveredBar?.type === 'buy' && hoveredBar.index === i ? 'scaleY(1.2)' : 'scaleY(1)',
                 transformOrigin: 'bottom',
               }}
               onMouseEnter={() => setHoveredBar({ type: 'buy', index: i })}
@@ -111,9 +111,9 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
             />
           ))}
         </div>
-        <div className="flex gap-2">
-          <span className="pill" style={{ fontSize: 9 }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.sellChange)}</span>
-          <span className="pill" style={{ fontSize: 9 }}>{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.buyChange)}</span>
+        <div className="flex gap-2 mt-auto">
+          <span className="pill" style={{ fontSize: 8, padding: '1px 5px' }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.sellChange)}</span>
+          <span className="pill" style={{ fontSize: 8, padding: '1px 5px' }}>{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.buyChange)}</span>
         </div>
       </div>
     </div>
