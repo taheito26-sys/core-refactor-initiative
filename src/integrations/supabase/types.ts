@@ -966,6 +966,55 @@ export type Database = {
           },
         ]
       }
+      message_reactions: {
+        Row: {
+          created_at: string
+          id: string
+          message_id: string
+          reaction: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          reaction: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          reaction?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "os_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           actor_id: string | null
@@ -2204,6 +2253,10 @@ export type Database = {
       }
       current_merchant_id: { Args: never; Returns: string }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
+      fn_chat_add_reaction: {
+        Args: { _message_id: string; _reaction: string; _room_id: string }
+        Returns: boolean
+      }
       fn_chat_delete_message: {
         Args: { p_message_id: string; p_room_id: string }
         Returns: undefined
@@ -2215,6 +2268,10 @@ export type Database = {
       fn_chat_pin_message: {
         Args: { p_message_id: string; p_room_id: string }
         Returns: undefined
+      }
+      fn_chat_remove_reaction: {
+        Args: { _message_id: string; _reaction: string; _room_id: string }
+        Returns: boolean
       }
       fn_chat_send_message: {
         Args: {
