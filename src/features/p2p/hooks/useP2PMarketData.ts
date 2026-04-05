@@ -44,14 +44,13 @@ export function useP2PMarketData(market: MarketId) {
       }
 
       const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-      const histQuery: any = supabase
-        .from('p2p_snapshots')
+      const { data: histRowsDesc } = await (supabase
+        .from('p2p_snapshots') as any)
         .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
         .eq('market', market)
         .gte('fetched_at', cutoff)
         .order('fetched_at', { ascending: false })
         .limit(10000);
-      const { data: histRowsDesc } = await histQuery;
 
       const historyPoints = (histRowsDesc || []).reverse().flatMap((row: any) => {
         const ts = row.fetched_at ? new Date(row.fetched_at).getTime() : toFiniteNumber(row.ts_val);
