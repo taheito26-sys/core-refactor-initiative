@@ -164,16 +164,27 @@ export default function ChatWorkspacePage() {
     }),
   });
 
-  // ── Relationship metadata (for header title) ──────────────────────────────
+  // ── Active room + relationship metadata ──────────────────────────────────
+  // ROOT CAUSE FIX: previously queried merchant_relationships.eq('id', activeRoomId)
+  // but activeRoomId is an os_rooms UUID — not a relationship UUID — so the query
+  // always returned null and the header always showed "Conversation".
+  // Fix: get the room title directly from the rooms list (already loaded), and use
+  // room.relationship_id to fetch merchant_relationships when needed for ContextPanel.
+
+  const activeRoom = useMemo(
+    () => rooms.find((r) => r.room_id === activeRoomId) ?? null,
+    [rooms, activeRoomId],
+  );
 
   const { data: relationship } = useQuery({
-    queryKey: ['chat-relationship', activeRoomId],
+    queryKey: ['chat-relationship', activeRoom?.relationship_id],
     queryFn: async () => {
-      if (!activeRoomId) return null;
+      const relId = activeRoom?.relationship_id;
+      if (!relId) return null;
       const { data: rel } = await supabase
         .from('merchant_relationships')
         .select('*')
-        .eq('id', activeRoomId)
+        .eq('id', relId)
         .maybeSingle();
       if (!rel) return null;
       const cpId = rel.merchant_a_id === merchantProfile?.merchant_id
@@ -190,7 +201,7 @@ export default function ChatWorkspacePage() {
         counterparty_nickname: cp?.nickname     || cpId,
       };
     },
-    enabled: !!activeRoomId && !!merchantProfile,
+    enabled: !!activeRoom?.relationship_id && !!merchantProfile,
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -220,7 +231,8 @@ export default function ChatWorkspacePage() {
           {activeRoomId ? (
             <>
               <ConversationHeader
-                title={relationship?.counterparty_name}
+                title={relationship?.counterparty_name ?? activeRoom?.title ?? 'Conversation'}
+                nickname={relationship?.counterparty_nickname}
                 onDashboardToggle={() => setShowContext(!showContext)}
                 onCallVoice={() => initiateCall(false)}
                 onCallVideo={() => initiateCall(true)}
@@ -234,8 +246,10 @@ export default function ChatWorkspacePage() {
                     messages={messages.data ?? []}
                     currentUserId={userId}
                     unreadMessageId={firstUnread}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    reactionsByMessage={reactionsByMessage[activeRoomId ?? ''] as any ?? {}}
+                    // ROOT CAUSE FIX: was reactionsByMessage[activeRoomId] which indexed
+                    // by room ID but the map is keyed by message ID → always undefined.
+                    // Pass the full map; MessageList does the per-message lookup itself.
+                    reactionsByMessage={reactionsByMessage}
                     pinnedSet={new Set()}
                     onReact={handleReact}                  // BUG 3 FIX: wired
                     onPinToggle={() => {}}                 // needs backend: fn_chat_pin_message RPC
