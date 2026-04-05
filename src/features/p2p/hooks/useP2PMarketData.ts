@@ -67,13 +67,14 @@ export function useP2PMarketData(market: MarketId) {
       setHistory(historyPoints);
 
       const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: merchantRowsDesc } = await (supabase
+      const merchantQuery: any = supabase
         .from('p2p_snapshots')
         .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
         .eq('market', market)
         .gte('fetched_at', cutoff24h)
         .order('fetched_at', { ascending: false })
-        .limit(2500) as any);
+        .limit(2500);
+      const { data: merchantRowsDesc } = await merchantQuery;
 
       const rows = (merchantRowsDesc || []) as any[];
       const marketPolls = Math.max(rows.length, 1);
