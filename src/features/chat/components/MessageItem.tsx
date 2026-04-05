@@ -79,10 +79,33 @@ export function MessageItem({ message, currentUserId, onReact, onDeleteForMe, re
 
   // ── System message ────────────────────────────────────────────────────────
   if (isSystem) {
+    // BUG B FIX: codec sets parsed.text = '' and isSystemEvent = true when it
+    // parses ||SYS_CALL||Call ended||/SYS_CALL|| — we must read systemEventFields
+    // for the human-readable label.  Previously fell back to message.content
+    // which produced the raw codec string (||SYS_CALL||Call ended||/SYS_CALL||).
+    const systemLabel = parsed.isSystemEvent
+      ? (parsed.systemEventFields?.[0] ?? parsed.text)
+      : (parsed.text || message.content);
+
+    // Map known event types to friendlier labels
+    const CALL_LABELS: Record<string, string> = {
+      'Call started':  '📞 Call started',
+      'Call accepted': '✅ Call accepted',
+      'Call ended':    '📵 Call ended',
+      'call_started':  '📞 Call started',
+      'call_accepted': '✅ Call accepted',
+      'call_ended':    '📵 Call ended',
+      'call_failed':   '❌ Call failed',
+      'call_rejected': '🚫 Call rejected',
+      'call_missed':   '📵 Missed call',
+    };
+
+    const display = CALL_LABELS[systemLabel] ?? systemLabel;
+
     return (
       <div className="flex justify-center my-4">
         <span className="bg-muted/50 text-muted-foreground text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-[0.2em] border border-border/50">
-          {parsed.text || message.content}
+          {display}
         </span>
       </div>
     );

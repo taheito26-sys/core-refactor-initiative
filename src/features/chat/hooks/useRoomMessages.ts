@@ -57,13 +57,36 @@ export function useRoomMessages(roomId: string | null) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (payload: any) => {
           const row = payload.new as Record<string, unknown>;
-          // Own messages are handled by onSettled refetch; skip to avoid transient duplicate
-          if (row.sender_merchant_id === actorId) return;
+
           qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => {
             const existing = old ?? [];
-            if (existing.some((m) => m.id === row.id)) return existing; // strict dedup
+
+            // Already in cache (e.g. from a previous refetch) — skip
+            if (existing.some((m) => m.id === row.id)) return existing;
+
+            if (row.sender_merchant_id === actorId) {
+              // OWN MESSAGE — BUG A FIX:
+              // Previously we skipped own messages here and relied on onSettled
+              // to refetch them. But onSettled can race against the Supabase
+              // write propagation on read replicas: the refetch returns BEFORE
+              // the new row is visible, the optimistic temp message is wiped,
+              // and the real message never appears in the window (even though
+              // the sidebar picks it up via a separate useRooms subscription).
+              //
+              // Fix: let the realtime INSERT be the source of truth for own
+              // messages too.  Remove any outstanding temp-* optimistic entries
+              // (they were placeholders while the RPC was in-flight) and slot
+              // in the confirmed server row.
+              const withoutTemps = existing.filter(
+                (m) => !String(m.id).startsWith('temp-'),
+              );
+              return [...withoutTemps, normalizeRealtimeRow(row)];
+            }
+
+            // Counterparty message — append
             return [...existing, normalizeRealtimeRow(row)];
           });
+
           // Keep sidebar last-message preview fresh
           qc.invalidateQueries({ queryKey: ['chat', 'rooms'] });
         },
