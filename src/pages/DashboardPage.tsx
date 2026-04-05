@@ -42,6 +42,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const dM = kpiFor(state, derived, 'this_month');
   const dL = kpiFor(state, derived, 'last_month');
+  const d7  = kpiFor(state, derived, '7d');
+  const d30 = kpiFor(state, derived, '30d');
   const dR = kpiFor(state, derived, settings.range);
   const stk = totalStock(derived);
   const stCost = stockCostQAR(derived);
