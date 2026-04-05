@@ -12,7 +12,6 @@ import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
 import { PriceHistorySparklines } from '@/features/p2p/components/PriceHistorySparklines';
 import { MerchantDepthStats } from '@/features/p2p/components/MerchantDepthStats';
 import { P2POfferTable } from '@/features/p2p/components/P2POfferTable';
-import { computeDailySummaries } from '@/features/p2p/utils/converters';
 
 export default function P2PTrackerPage() {
   const t = useT();
@@ -42,9 +41,12 @@ export default function P2PTrackerPage() {
     return `${Math.floor(ageMin / 60)}h ago`;
   }, [latestFetchedAt]);
 
-  if (loading && !snapshot) {
+  if (loading && (!snapshot || snapshot.sellAvg === null)) {
     return <div className="p-8 text-center text-muted-foreground">Loading market data...</div>;
   }
+
+  // Handle "No data yet" state for new markets
+  const hasNoData = !snapshot || (snapshot.sellAvg === null && snapshot.buyAvg === null && !history.length);
 
   return (
     <div className="space-y-2 p-2 md:p-3">
@@ -64,19 +66,27 @@ export default function P2PTrackerPage() {
 
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-          Sync · 5 min
+          {hasNoData ? 'Waiting for first sync…' : 'Sync · 5 min'}
         </span>
 
         <Badge variant="outline" className="font-mono text-[11px]">{currentMarket.pair}</Badge>
       </div>
 
-      {snapshot && (
+      {hasNoData ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+          <span className="h-3 w-3 rounded-full bg-amber-400 animate-pulse" />
+          <p className="text-sm font-semibold text-muted-foreground">Collecting data for {currentMarket.label}…</p>
+          <p className="text-xs text-muted-foreground/60 max-w-xs">
+            The backend sync runs every 5 minutes. First data point will appear automatically — no refresh needed.
+          </p>
+        </div>
+      ) : snapshot && (
         <>
           <MarketKpiGrid
             snapshot={snapshot}
             market={market}
             todaySummary={todaySummary}
-            profitIfSold={null} // Logic can be re-added if needed
+            profitIfSold={null}
             roundTripSim={null}
             t={t}
           />

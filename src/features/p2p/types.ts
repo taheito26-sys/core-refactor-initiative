@@ -68,3 +68,17 @@ export const MARKETS: MarketConfig[] = [
   { id: 'kazakhstan', label: 'Kazakhstan', currency: 'KZT', pair: 'USDT/KZT' },
   { id: 'uganda', label: 'Uganda', currency: 'UGX', pair: 'USDT/UGX' },
 ];
+
+export const EMPTY_SNAPSHOT: P2PSnapshot = {
+  ts: Date.now(),
+  sellAvg: null,
+  buyAvg: null,
+  bestSell: null,
+  bestBuy: null,
+  spread: null,
+  spreadPct: null,
+  sellDepth: 0,
+  buyDepth: 0,
+  sellOffers: [],
+  buyOffers: [],
+};
