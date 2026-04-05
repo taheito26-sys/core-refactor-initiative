@@ -1178,9 +1178,14 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          deleted_at: string | null
           expires_at: string | null
           id: string
+          is_deleted: boolean
+          is_pinned: boolean
           permissions: Json
+          pinned_at: string | null
+          pinned_by: string | null
           read_at: string | null
           retention_policy: string
           room_id: string
@@ -1192,9 +1197,14 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string
+          deleted_at?: string | null
           expires_at?: string | null
           id?: string
+          is_deleted?: boolean
+          is_pinned?: boolean
           permissions?: Json
+          pinned_at?: string | null
+          pinned_by?: string | null
           read_at?: string | null
           retention_policy?: string
           room_id: string
@@ -1206,9 +1216,14 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          deleted_at?: string | null
           expires_at?: string | null
           id?: string
+          is_deleted?: boolean
+          is_pinned?: boolean
           permissions?: Json
+          pinned_at?: string | null
+          pinned_by?: string | null
           read_at?: string | null
           retention_policy?: string
           room_id?: string
@@ -1967,9 +1982,17 @@ export type Database = {
       }
       current_merchant_id: { Args: never; Returns: string }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
+      fn_chat_delete_message: {
+        Args: { p_message_id: string; p_room_id: string }
+        Returns: undefined
+      }
       fn_chat_mark_read: {
         Args: { _message_id: string; _room_id: string }
         Returns: boolean
+      }
+      fn_chat_pin_message: {
+        Args: { p_message_id: string; p_room_id: string }
+        Returns: undefined
       }
       fn_chat_send_message: {
         Args: {
@@ -1982,6 +2005,10 @@ export type Database = {
           _room_id: string
         }
         Returns: Json
+      }
+      fn_chat_unpin_message: {
+        Args: { p_message_id: string; p_room_id: string }
+        Returns: undefined
       }
       get_unread_counts: {
         Args: { _user_id?: string }

@@ -387,13 +387,14 @@ function NotificationRow({ n, onNavigate, onActionDone, t }: RowProps) {
 
 function EmptyState({ category, t }: { category: NotificationCategoryGroup; t: ReturnType<typeof useT> }) {
   const messages: Record<NotificationCategoryGroup, string> = {
-    all:      t('noNotifications'),
-    approval: t('noApprovals'),
-    deal:     t('noNotifications'),
-    order:    t('noNotifications'),
-    invite:   t('acceptInviteToStart'),
-    message:  t('noNotifications'),
-    system:   t('noNotifications'),
+    all:       t('noNotifications'),
+    approval:  t('noApprovals'),
+    deal:      t('noNotifications'),
+    order:     t('noNotifications'),
+    invite:    t('acceptInviteToStart'),
+    agreement: t('noNotifications'),
+    message:   t('noNotifications'),
+    system:    t('noNotifications'),
   };
   const cfg = CAT_CONFIG.find(c => c.id === category) ?? CAT_CONFIG[0];
   const { Icon, color } = cfg;

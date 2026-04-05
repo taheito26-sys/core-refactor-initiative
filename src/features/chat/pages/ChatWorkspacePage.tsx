@@ -79,7 +79,7 @@ export default function ChatWorkspacePage() {
 
   const pnlSummary = useMemo(() => {
     const d = kpiFor(trackerState, derived, settings.range);
-    const stock = fmtU(derived.stockBalance);
+    const stock = fmtU(derived.batches.reduce((s, b) => s + Math.max(0, b.remainingUSDT), 0));
     const net   = `${d.net >= 0 ? '+' : ''}${fmtU(d.net)} USDT`;
     const margin = fmtPct(d.count > 0 ? d.net / Math.max(d.rev, 1) : 0);
     const trades = d.count;
