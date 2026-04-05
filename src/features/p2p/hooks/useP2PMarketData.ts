@@ -44,8 +44,8 @@ export function useP2PMarketData(market: MarketId) {
       }
 
       const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: histRowsDesc } = await supabase
-        .from('p2p_snapshots')
+      const { data: histRowsDesc } = await (supabase
+        .from('p2p_snapshots') as any)
         .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
         .eq('market', market)
         .gte('fetched_at', cutoff)
@@ -66,8 +66,8 @@ export function useP2PMarketData(market: MarketId) {
       setHistory(historyPoints);
 
       const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: merchantRowsDesc } = await supabase
-        .from('p2p_snapshots')
+      const { data: merchantRowsDesc } = await (supabase
+        .from('p2p_snapshots') as any)
         .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
         .eq('market', market)
         .gte('fetched_at', cutoff24h)
