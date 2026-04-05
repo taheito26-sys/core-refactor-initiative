@@ -136,6 +136,43 @@
   }
 }
 
+/* ── NATIVE SELECT DARK THEME — GLOBAL FIX ────────────────────────────────────
+   Applied to the entire app (not just tracker-root) so every <select> on every
+   page respects the dark theme.  CSS custom properties do NOT work inside the
+   OS-rendered native dropdown popup; we use hardcoded hex values that match the
+   app's dark palette. color-scheme:dark instructs the browser/OS to render the
+   native popup chrome in dark mode automatically. */
+html,
+body,
+#root {
+  color-scheme: dark;
+}
+
+select {
+  background-color: #0f1629;
+  color: #e2e8f0;
+  border-color: rgba(100, 116, 139, 0.3);
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #0f1629;
+  color: #e2e8f0;
+}
+
+select option:checked,
+select option:hover {
+  background-color: #1e3a5f;
+  color: #ffffff;
+}
+
+select:focus {
+  outline: none;
+  border-color: hsl(var(--ring));
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .app-shell {
   width: 100%;
   max-width: none;
