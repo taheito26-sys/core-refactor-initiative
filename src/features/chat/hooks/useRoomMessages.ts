@@ -165,7 +165,32 @@ export function useRoomMessages(roomId: string | null) {
       toast.error('Message failed to send — please try again');
     },
 
+    // ROOT CAUSE FIX: use the confirmed server row from the RPC response to
+    // update the cache immediately, without waiting for a realtime event or a
+    // refetch.  This guarantees the message appears even when os_messages is
+    // not yet in the supabase_realtime publication, and eliminates the
+    // read-replica race that caused temp messages to vanish.
+    onSuccess: (data) => {
+      if (!data) return;
+      const confirmed = {
+        ...data,
+        body: data.content,
+        sender_id: data.sender_merchant_id,
+        status: 'sent',
+        read_at: null,
+        created_at: data.created_at ?? new Date().toISOString(),
+      };
+      qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => {
+        const without = (old ?? []).filter((m) => !String(m.id).startsWith('temp-'));
+        // Avoid duplicate if realtime already inserted it
+        if (without.some((m) => m.id === confirmed.id)) return without;
+        return [...without, confirmed];
+      });
+    },
+
     onSettled: () => {
+      // Still invalidate so any server-side fields we don't have (message_type,
+      // expires_at, metadata, etc.) get backfilled from a fresh fetch.
       qc.invalidateQueries({ queryKey: ['chat', 'messages', roomId] });
     },
   });
