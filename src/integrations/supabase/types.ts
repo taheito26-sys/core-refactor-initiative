@@ -44,6 +44,45 @@ export type Database = {
         }
         Relationships: []
       }
+      balance_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          merchant_id: string
+          note: string | null
+          reference_id: string | null
+          reference_type: string | null
+          relationship_id: string
+          type: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          merchant_id: string
+          note?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          relationship_id: string
+          type?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          merchant_id?: string
+          note?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          relationship_id?: string
+          type?: string
+        }
+        Relationships: []
+      }
       capital_transfers: {
         Row: {
           amount: number
@@ -292,6 +331,45 @@ export type Database = {
         }
         Relationships: []
       }
+      deal_capital: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          deal_id: string
+          id: string
+          merchant_id: string
+          relationship_id: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id: string
+          id?: string
+          merchant_id: string
+          relationship_id: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string
+          id?: string
+          merchant_id?: string
+          relationship_id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deal_capital_ledger: {
         Row: {
           amount: number
@@ -365,6 +443,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      gas_log: {
+        Row: {
+          action: string
+          created_at: string
+          gas_used: number
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          gas_used?: number
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          gas_used?: number
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: []
       }
       merchant_approvals: {
         Row: {
@@ -1586,6 +1691,57 @@ export type Database = {
         }
         Relationships: []
       }
+      profit_records: {
+        Row: {
+          agreement_id: string | null
+          amount: number
+          created_at: string
+          currency: string
+          deal_id: string | null
+          id: string
+          merchant_id: string
+          notes: string | null
+          period_id: string | null
+          recorded_by: string | null
+          relationship_id: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          agreement_id?: string | null
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          id?: string
+          merchant_id: string
+          notes?: string | null
+          period_id?: string | null
+          recorded_by?: string | null
+          relationship_id: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          agreement_id?: string | null
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          id?: string
+          merchant_id?: string
+          notes?: string | null
+          period_id?: string | null
+          recorded_by?: string | null
+          relationship_id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profit_share_agreements: {
         Row: {
           agreement_type: string
@@ -1753,6 +1909,45 @@ export type Database = {
           },
         ]
       }
+      settlement_overviews: {
+        Row: {
+          agreement_id: string | null
+          created_at: string
+          id: string
+          period_label: string | null
+          relationship_id: string
+          status: string
+          total_profit: number
+          total_reinvested: number
+          total_withdrawn: number
+          updated_at: string
+        }
+        Insert: {
+          agreement_id?: string | null
+          created_at?: string
+          id?: string
+          period_label?: string | null
+          relationship_id: string
+          status?: string
+          total_profit?: number
+          total_reinvested?: number
+          total_withdrawn?: number
+          updated_at?: string
+        }
+        Update: {
+          agreement_id?: string | null
+          created_at?: string
+          id?: string
+          period_label?: string | null
+          relationship_id?: string
+          status?: string
+          total_profit?: number
+          total_reinvested?: number
+          total_withdrawn?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settlement_periods: {
         Row: {
           cadence: string
@@ -1880,6 +2075,33 @@ export type Database = {
           state?: Json
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      tracker_states: {
+        Row: {
+          created_at: string
+          id: string
+          state: Json
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id?: string
+          version?: number
         }
         Relationships: []
       }
