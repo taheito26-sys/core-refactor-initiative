@@ -146,9 +146,8 @@ export function useCashCustodyRequests() {
         updates.counter_amount = input.counterAmount;
         updates.counter_note = input.counterNote ?? null;
       }
-      const { error } = await (supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from('cash_custody_requests') as any)
+      const { error } = await supabase
+        .from('cash_custody_requests')
         .update(updates)
         .eq('id', input.id);
       if (error) throw error;
