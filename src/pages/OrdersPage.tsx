@@ -798,6 +798,57 @@ export default function OrdersPage() {
     });
   };
 
+  // Helper: show rich sale confirmation toast
+  const showSaleToast = (opts: {
+    amountUSDT: number;
+    sell: number;
+    net?: number;
+    partnerName?: string;
+    isApproval?: boolean;
+  }) => {
+    const { amountUSDT, sell, net, partnerName, isApproval } = opts;
+    const revenue = amountUSDT * sell;
+    const depositAmt = cashDepositMode === 'full'
+      ? revenue
+      : cashDepositMode === 'partial' ? Math.min(parseFloat(cashDepositAmount) || 0, revenue) : 0;
+    const depositAccName = cashDepositMode !== 'none'
+      ? state.cashAccounts?.find(a => a.id === cashDepositAccountId)?.name || t('cashWallet')
+      : null;
+    const title = isApproval ? t('tradeSentForApproval') : t('saleRecorded');
+    const isRTL = t.isRTL;
+
+    toast.success(title, {
+      duration: 5000,
+      description: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+            <span style={{ opacity: 0.7, fontSize: 11 }}>{fmtU(amountUSDT)} USDT @ {fmtP(sell)}</span>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>{fmtC(revenue)} QAR</span>
+          </div>
+          {Number.isFinite(net) && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+              <span style={{ opacity: 0.7, fontSize: 11 }}>{t('netProfitLabel')}</span>
+              <span style={{ fontWeight: 600, fontSize: 12, color: (net as number) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                {fmtC(net as number)} QAR
+              </span>
+            </div>
+          )}
+          {depositAmt > 0 && depositAccName && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: '1px solid var(--line)', paddingTop: 4, marginTop: 2 }}>
+              <span style={{ opacity: 0.7, fontSize: 11 }}>💵 {t('cashDeposited')} → {depositAccName}</span>
+              <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--good)' }}>+{fmtC(depositAmt)} QAR</span>
+            </div>
+          )}
+          {partnerName && (
+            <div style={{ opacity: 0.7, fontSize: 11, marginTop: 2 }}>
+              🤝 {partnerName}
+            </div>
+          )}
+        </div>
+      ) as any,
+    });
+  };
+
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
   const addTrade = async () => {
     // Capital transfers are handled separately via handleCapitalTransfer
@@ -1050,7 +1101,8 @@ export default function OrdersPage() {
         };
         applyState(applyCashDeposit(next, sell, amountUSDT));
         await reloadMerchantData();
-        toast.success(t('tradeSentForApproval'));
+        const _allocPartner = allocations[0]?.merchantName || relationships.find(r => r.id === allocations[0]?.relationshipId)?.counterparty?.display_name;
+        showSaleToast({ amountUSDT, sell, net: salePreview?.net, partnerName: _allocPartner, isApproval: true });
 
         // Reset
         setSaleAmount('');
@@ -1176,7 +1228,8 @@ export default function OrdersPage() {
         applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
 
         await reloadMerchantData();
-        toast.success(t('tradeSentForApproval'));
+        const _legacyPartner = relationships.find(r => r.id === linkedRelId)?.counterparty?.display_name;
+        showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net, partnerName: _legacyPartner, isApproval: true });
       } catch (err: any) {
         console.error('Failed to create deal:', err);
         toast.error(err.message || t('failedCreateDeal'));
@@ -1189,7 +1242,7 @@ export default function OrdersPage() {
         range: inRange(ts, state.range) ? state.range : 'all'
       };
       applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
-      setSaleMessage(t('tradeLogged'));
+      showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
     }
 
     // Reset form

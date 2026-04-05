@@ -181,7 +181,7 @@ const App = () => (
     <ThemeProvider>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
+        <Sonner richColors position="bottom-right" />
          <BrowserRouter>
           <NativePlatformBootstrap />
           <AuthProvider>
