@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WelcomeMsg } from '@/hooks/useWelcomeMessage';
 
-const DURATION_MS = 10000;
+const DURATION_MS = 4000;
 
 interface Props {
   msg: WelcomeMsg;
