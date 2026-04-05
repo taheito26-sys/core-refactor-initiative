@@ -7,6 +7,8 @@ interface Props {
   onTyping: () => void;
   sending: boolean;
   compact?: boolean;
+  /** BUG 9 FIX: real P&L summary string from tracker state, used by /pnl command */
+  pnlSummary?: string;
 }
 
 const COMMANDS = [
@@ -15,7 +17,7 @@ const COMMANDS = [
   { key: '/pnl', label: 'Share P&L', icon: Command, desc: 'Post current session performance' },
 ];
 
-export function MessageComposer({ onSend, onTyping, sending, compact }: Props) {
+export function MessageComposer({ onSend, onTyping, sending, compact, pnlSummary }: Props) {
   const [content, setContent] = useState('');
   const [showCommands, setShowCommands] = useState(false);
 
@@ -25,7 +27,9 @@ export function MessageComposer({ onSend, onTyping, sending, compact }: Props) {
     } else if (cmd === '/stock') {
       onSend({ content: '||SYS_ACTION||check_stock||/SYS_ACTION||', type: 'text' });
     } else if (cmd === '/pnl') {
-      onSend({ content: '||AI_SUMMARY|| Current Session ROI: +2.4% | Volume: 45k USDT', type: 'text' });
+      // BUG 9 FIX: use real tracker P&L passed from ChatWorkspacePage
+      const summary = pnlSummary ?? 'P&L unavailable — open the Dashboard to sync data';
+      onSend({ content: `||AI_SUMMARY|| ${summary}`, type: 'text' });
     }
     setContent('');
     setShowCommands(false);

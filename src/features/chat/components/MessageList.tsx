@@ -75,8 +75,21 @@ export function MessageList(props: Props) {
           <div key={m.id} id={`msg-${m.id}`}>
             {showUnread && unreadCount > 0 && <UnreadDivider count={unreadCount} />}
             <MessageItem
-              message={{ id: msg.id, content: msg.content || msg.body || '', sender_id: msg.sender_id || msg.sender_merchant_id || '', created_at: msg.created_at, type: msg.message_type, status: msg.status, expires_at: msg.expires_at, metadata: msg.metadata }}
+              message={{
+                id: msg.id,
+                content: msg.content || msg.body || '',
+                sender_id: msg.sender_id || msg.sender_merchant_id || '',
+                created_at: msg.created_at,
+                type: msg.message_type,
+                status: msg.status,
+                expires_at: msg.expires_at,
+                metadata: msg.metadata,
+                read_at: msg.read_at ?? null,   // BUG 4 FIX: pass read_at for receipt
+              }}
               currentUserId={props.currentUserId}
+              reactions={props.reactionsByMessage[msg.id] as any ?? {}}
+              onReact={(id, emoji) => props.onReact(id, emoji)}
+              onDeleteForMe={(id) => props.onDeleteForMe(id)}
             />
           </div>
         );

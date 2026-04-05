@@ -1,12 +1,36 @@
+/**
+ * useRoomMessages
+ *
+ * BUG 1 FIX: Real-time INSERT subscription — new messages from counterparty
+ *            appear instantly without page refresh.
+ * BUG 1 FIX: Real-time UPDATE subscription — read_at changes (read receipts)
+ *            propagate to the sender's UI immediately.
+ * BUG 2 FIX: onError rollback restores optimistic cache snapshot and shows
+ *            a toast so users know the send failed.
+ */
+
+import { useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { getRoomMessages, markMessagesReadUpTo, sendMessage } from '@/features/chat/api/messages';
 import { randomUUID } from '@/features/chat/utils/uuid';
 import { useAuth } from '@/features/auth/auth-context';
 import { setRoomUnreadCountInCache } from '@/features/chat/api/rooms';
+import { toast } from 'sonner';
+
+type CacheMsg = Record<string, unknown>;
+
+/** Shape the raw realtime row into the same format getRoomMessages returns */
+function normalizeRealtimeRow(row: Record<string, unknown>): CacheMsg {
+  return { ...row, body: row.content, sender_name: row.sender_merchant_id };
+}
 
 export function useRoomMessages(roomId: string | null) {
   const qc = useQueryClient();
-  const { userId } = useAuth();
+  const { userId, merchantProfile } = useAuth();
+  const actorId = merchantProfile?.merchant_id || userId;
+
+  // ── Initial fetch ──────────────────────────────────────────────────────
 
   const query = useQuery({
     queryKey: ['chat', 'messages', roomId],
@@ -18,47 +42,108 @@ export function useRoomMessages(roomId: string | null) {
     },
   });
 
+  // ── BUG 1 FIX: Real-time subscription ─────────────────────────────────
+
+  useEffect(() => {
+    if (!roomId) return;
+
+    const channel = supabase
+      .channel(`room-messages-rt-${roomId}`)
+      // New messages — append to cache for instant delivery
+      .on(
+        'postgres_changes' as any,
+        { event: 'INSERT', schema: 'public', table: 'os_messages', filter: `room_id=eq.${roomId}` },
+        (payload: any) => {
+          const row = payload.new as Record<string, unknown>;
+          // Own messages are handled by onSettled refetch; skip to avoid transient duplicate
+          if (row.sender_merchant_id === actorId) return;
+          qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => {
+            const existing = old ?? [];
+            if (existing.some((m) => m.id === row.id)) return existing; // strict dedup
+            return [...existing, normalizeRealtimeRow(row)];
+          });
+          // Keep sidebar last-message preview fresh
+          qc.invalidateQueries({ queryKey: ['chat', 'rooms'] });
+        },
+      )
+      // read_at updates — sender sees ✓✓ turn blue when counterparty reads
+      .on(
+        'postgres_changes' as any,
+        { event: 'UPDATE', schema: 'public', table: 'os_messages', filter: `room_id=eq.${roomId}` },
+        (payload: any) => {
+          const row = payload.new as Record<string, unknown>;
+          qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => {
+            if (!old) return old;
+            return old.map((m) => m.id === row.id ? { ...m, ...row, body: row.content } : m);
+          });
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [roomId, actorId, qc]);
+
+  // ── Send (BUG 2 FIX: onError restores snapshot) ───────────────��────────
+
   const send = useMutation({
-    mutationFn: async (payload: { content: string; type?: string; bodyJson?: Record<string, unknown>; expiresAt?: string | null }) => {
+    mutationFn: async (payload: {
+      content: string;
+      type?: string;
+      bodyJson?: Record<string, unknown>;
+      expiresAt?: string | null;
+      replyToMessageId?: string | null;
+    }) => {
       if (!roomId) throw new Error('No active room');
       const clientNonce = randomUUID();
       const res = await sendMessage({
         roomId,
         clientNonce,
         body: payload.content,
-        messageType: payload.type || 'text',
+        messageType: payload.type ?? 'text',
         bodyJson: payload.bodyJson,
         expiresAt: payload.expiresAt,
+        replyToMessageId: payload.replyToMessageId,
       });
       if (!res.ok) throw new Error(res.error ?? 'Send failed');
       return res.data;
     },
+
     onMutate: async (newMsg) => {
       await qc.cancelQueries({ queryKey: ['chat', 'messages', roomId] });
       const previous = qc.getQueryData(['chat', 'messages', roomId]);
-
-      qc.setQueryData(['chat', 'messages', roomId], (old: any) => [
-        ...(old || []),
+      qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => [
+        ...(old ?? []),
         {
           id: `temp-${Date.now()}`,
           room_id: roomId,
-          sender_id: userId,
-          sender_merchant_id: userId,
+          sender_id: actorId,
+          sender_merchant_id: actorId,
           content: newMsg.content,
           body: newMsg.content,
-          body_json: newMsg.bodyJson || {},
-          message_type: newMsg.type || 'text',
+          body_json: newMsg.bodyJson ?? {},
+          message_type: newMsg.type ?? 'text',
           status: 'sending',
           created_at: new Date().toISOString(),
+          read_at: null,
         },
       ]);
-
       return { previous };
     },
+
+    // BUG 2 FIX: restore previous cache and alert the user
+    onError: (_err, _vars, context: { previous: unknown } | undefined) => {
+      if (context?.previous !== undefined) {
+        qc.setQueryData(['chat', 'messages', roomId], context.previous);
+      }
+      toast.error('Message failed to send — please try again');
+    },
+
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['chat', 'messages', roomId] });
     },
   });
+
+  // ── Mark read ──────────────────────────────────────────────────────────
 
   const read = useMutation({
     mutationFn: async (messageId: string) => {
@@ -68,12 +153,17 @@ export function useRoomMessages(roomId: string | null) {
     },
     onMutate: async (messageId: string) => {
       if (!roomId) return;
-      qc.setQueryData(['chat', 'messages', roomId], (old: any[] | undefined) => {
+      qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => {
         if (!old) return old;
-        const target = old.find((m: any) => m.id === messageId);
+        const target = old.find((m) => m.id === messageId);
         if (!target) return old;
-        const targetTs = new Date(target.created_at).getTime();
-        return old.map((m: any) => (new Date(m.created_at).getTime() <= targetTs && !m.read_at ? { ...m, read_at: new Date().toISOString() } : m));
+        const cutoff = new Date(target.created_at as string).getTime();
+        const readAt = new Date().toISOString();
+        return old.map((m) =>
+          new Date(m.created_at as string).getTime() <= cutoff && !m.read_at
+            ? { ...m, read_at: readAt }
+            : m,
+        );
       });
       setRoomUnreadCountInCache(qc, roomId, 0);
     },
@@ -83,5 +173,14 @@ export function useRoomMessages(roomId: string | null) {
     },
   });
 
-  return { ...query, send, read };
+  // ── Delete for me (local optimistic — BUG 3 partial fix) ──────────────
+
+  const deleteForMe = useCallback((messageId: string) => {
+    qc.setQueryData(['chat', 'messages', roomId], (old: CacheMsg[] | undefined) => {
+      if (!old) return old;
+      return old.filter((m) => m.id !== messageId);
+    });
+  }, [qc, roomId]);
+
+  return { ...query, send, read, deleteForMe };
 }

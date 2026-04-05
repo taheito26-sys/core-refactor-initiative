@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ChatRoom } from '@/features/chat/lib/types';
-import { Search, SlidersHorizontal, Mic, BarChart3, Forward, Reply, Clock } from 'lucide-react';
+import { Search, SlidersHorizontal, Mic, BarChart3, Forward, Reply, Clock, X } from 'lucide-react';
 import { parseMsg, fmtListTime, getPalette } from '../lib/message-codec';
 
 interface Props {
@@ -22,7 +22,27 @@ function previewText(raw: string): { icon?: React.ReactNode; text: string } {
   return { text: p.text?.slice(0, 60) || 'No messages yet' };
 }
 
+type LaneFilter = 'ALL' | 'DEALS' | 'ALERTS';
+
 export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isMobile }: Props) {
+  // BUG 5 FIX: search was a dead uncontrolled input; now filters room list
+  const [search, setSearch]           = useState('');
+  const [laneFilter, setLaneFilter]   = useState<LaneFilter>('ALL');
+
+  const filteredRooms = useMemo(() => {
+    let list = rooms;
+    if (laneFilter === 'DEALS')  list = list.filter((r) => r.type === 'deal' || r.lane === 'Deals');
+    if (laneFilter === 'ALERTS') list = list.filter((r) => r.lane === 'Alerts');
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((r) =>
+        r.title?.toLowerCase().includes(q) ||
+        r.last_message_body?.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [rooms, search, laneFilter]);
+
   return (
     <aside className={`${isMobile ? 'w-full' : 'w-[280px]'} bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0`}>
       <div className="p-4 pb-2 shrink-0">
@@ -30,27 +50,46 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isMobil
           Inbox
           <SlidersHorizontal size={16} className="text-muted-foreground/60 cursor-pointer hover:text-primary transition-colors" />
         </h2>
+        {/* BUG 5 FIX: controlled search input that actually filters the list */}
         <div className="relative mb-3">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
           <input
             type="text"
-            placeholder="Search protocols..."
-            className="w-full bg-muted/60 border border-border/50 rounded-xl py-2.5 pl-9 pr-3 text-xs font-medium text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-background focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search conversations..."
+            className="w-full bg-muted/60 border border-border/50 rounded-xl py-2.5 pl-9 pr-8 text-xs font-medium text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-background focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
           />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground">
+              <X size={12} />
+            </button>
+          )}
         </div>
 
+        {/* BUG 5 FIX: lane tabs now control the laneFilter state */}
         <div className="flex gap-4 px-1 border-b border-border pb-2">
-          <button className="relative text-xs font-bold text-foreground pb-1 group min-h-[36px]">
-            ALL
-            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full" />
-          </button>
-          <button className="text-xs font-bold text-muted-foreground/60 pb-1 hover:text-foreground transition-colors min-h-[36px]">DEALS</button>
-          <button className="text-xs font-bold text-muted-foreground/60 pb-1 hover:text-foreground transition-colors min-h-[36px]">ALERTS</button>
+          {(['ALL', 'DEALS', 'ALERTS'] as LaneFilter[]).map((lane) => (
+            <button
+              key={lane}
+              onClick={() => setLaneFilter(lane)}
+              className={`relative text-xs font-bold pb-1 min-h-[36px] transition-colors ${laneFilter === lane ? 'text-foreground' : 'text-muted-foreground/60 hover:text-foreground'}`}
+            >
+              {lane}
+              {laneFilter === lane && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full" />}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 pt-2 space-y-1 pb-6">
-        {rooms.map((room) => {
+        {filteredRooms.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
+            <Search size={20} className="text-muted-foreground/30" />
+            <p className="text-xs text-muted-foreground/50">No conversations found</p>
+          </div>
+        )}
+        {filteredRooms.map((room) => {
           const isActive = activeRoomId === room.room_id;
           const palette = getPalette(room.title || 'R');
           const preview = previewText(room.last_message_body || '');
