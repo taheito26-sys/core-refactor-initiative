@@ -138,6 +138,24 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
     onSave(account);
   };
 
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    minHeight: 42,
+    padding: '8px 10px',
+    fontSize: 12,
+    borderRadius: 6,
+    border: '1px solid var(--line)',
+    background: 'var(--panel)',
+    color: 'var(--text)',
+    cursor: 'pointer',
+    outline: 'none'
+  };
+
+  const optionStyle: React.CSSProperties = {
+    background: 'var(--panel)',
+    color: 'var(--text)'
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
@@ -171,21 +189,19 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
         <div className="g2tight" style={{ marginBottom: 10 }}>
           <div className="field2">
             <div className="lbl">{t('accountTypeLbl')}</div>
-            <select value={type} onChange={e => setType(e.target.value as CashAccountType)}
-              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="hand">💵 {t('accTypeHand')}</option>
-              <option value="bank">🏦 {t('accTypeBank')}</option>
-              <option value="vault">🔒 {t('accTypeVault')}</option>
-              <option value="merchant_custody">🤝 {t('accTypeMerchant') || 'Merchant Custody'}</option>
+            <select value={type} onChange={e => setType(e.target.value as CashAccountType)} style={selectStyle}>
+              <option value="hand" style={optionStyle}>💵 {t('accTypeHand')}</option>
+              <option value="bank" style={optionStyle}>🏦 {t('accTypeBank')}</option>
+              <option value="vault" style={optionStyle}>🔒 {t('accTypeVault')}</option>
+              <option value="merchant_custody" style={optionStyle}>🤝 {t('accTypeMerchant') || 'Merchant Custody'}</option>
             </select>
           </div>
           <div className="field2">
             <div className="lbl">{t('accountCurrencyLbl')}</div>
-            <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
-              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="QAR">🇶🇦 QAR</option>
-              <option value="USDT">💲 USDT</option>
-              <option value="USD">🇺🇸 USD</option>
+            <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)} style={selectStyle}>
+              <option value="QAR" style={optionStyle}>🇶🇦 QAR</option>
+              <option value="USDT" style={optionStyle}>💲 USDT</option>
+              <option value="USD" style={optionStyle}>🇺🇸 USD</option>
             </select>
           </div>
         </div>
@@ -206,17 +222,10 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
         {type === 'merchant_custody' && (
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('linkToMerchant' as any) || 'Link to Merchant'}</div>
-            <select value={relationshipId} onChange={e => {
-              const relId = e.target.value;
-              setRelationshipId(relId);
-              // Automagically set merchantId based on relationship
-              // (Note: this assumes relationships are available via props or global state)
-            }}
-              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="">{t('selectRelationship' as any) || 'Select Relationship...'}</option>
-              {/* Opions will be passed via state/props in main component */}
+            <select value={relationshipId} onChange={e => setRelationshipId(e.target.value)} style={selectStyle}>
+              <option value="" style={optionStyle}>{t('selectRelationship' as any) || 'Select Relationship...'}</option>
               {(window as any)._allRels?.map((r: any) => (
-                <option key={r.id} value={r.id}>{r.counterparty_name || r.id}</option>
+                <option key={r.id} value={r.id} style={optionStyle}>{r.counterparty_name || r.id}</option>
               ))}
             </select>
           </div>
@@ -421,6 +430,23 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
   onSave([outEntry, inEntry]);
   };
 
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 10px',
+    fontSize: 12,
+    borderRadius: 6,
+    border: '1px solid var(--line)',
+    background: 'var(--panel)',
+    color: 'var(--text)',
+    cursor: 'pointer',
+    outline: 'none'
+  };
+
+  const optionStyle: React.CSSProperties = {
+    background: 'var(--panel)',
+    color: 'var(--text)'
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
@@ -432,16 +458,14 @@ function TransferModal({ accounts, balances, defaultFromId, onSave, onClose, isM
         <div className="g2tight" style={{ marginBottom: 10, alignItems: 'end', ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           <div className="field2">
             <div className="lbl">{t('transferFromLbl' as any)}</div>
-            <select value={fromId} onChange={e => setFromId(e.target.value)}
-              style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              {active.map(a => <option key={a.id} value={a.id}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
+            <select value={fromId} onChange={e => setFromId(e.target.value)} style={selectStyle}>
+              {active.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
             </select>
           </div>
           <div className="field2">
             <div className="lbl">{t('transferToLbl' as any)}</div>
-            <select value={toId} onChange={e => setToId(e.target.value)}
-              style={{ width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              {active.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <select value={toId} onChange={e => setToId(e.target.value)} style={selectStyle}>
+              {active.filter(a => a.id !== fromId).map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name}</option>)}
             </select>
           </div>
         </div>
@@ -968,15 +992,15 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           {/* Filters */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
             <select value={ledgerFilter.accountId} onChange={e => setLedgerFilter(f => ({ ...f, accountId: e.target.value }))}
-              style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="">{t('allAccountsOpt')}</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+              <option value="" style={{ background: 'var(--panel)', color: 'var(--text)' }}>{t('allAccountsOpt')}</option>
+              {accounts.map(a => <option key={a.id} value={a.id} style={{ background: 'var(--panel)', color: 'var(--text)' }}>{a.name}</option>)}
             </select>
             <select value={ledgerFilter.type} onChange={e => setLedgerFilter(f => ({ ...f, type: e.target.value }))}
-              style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="">{t('allTypesOpt')}</option>
+              style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+              <option value="" style={{ background: 'var(--panel)', color: 'var(--text)' }}>{t('allTypesOpt')}</option>
               {(Object.keys(LEDGER_TYPE_LABELS) as LedgerEntryType[]).map(lType => (
-                <option key={lType} value={lType}>{LEDGER_TYPE_LABELS[lType]}</option>
+                <option key={lType} value={lType} style={{ background: 'var(--panel)', color: 'var(--text)' }}>{LEDGER_TYPE_LABELS[lType]}</option>
               ))}
             </select>
             {(ledgerFilter.accountId || ledgerFilter.type) && (
