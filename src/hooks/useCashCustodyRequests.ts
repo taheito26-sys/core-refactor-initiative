@@ -64,8 +64,7 @@ export function useCashCustodyRequests() {
           console.warn('[useCashCustodyRequests] query error:', error.message);
           return [];
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (data ?? []).map((r: any) => rowToRequest(r));
+        return (data ?? []).map((r) => rowToRequest(r));
       } catch (err) {
         console.warn('[useCashCustodyRequests] unexpected error:', err);
         return [];
