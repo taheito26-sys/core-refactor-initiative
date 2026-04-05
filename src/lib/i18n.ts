@@ -1556,6 +1556,24 @@ const translations = {
   settlementWayPreview:         { en: 'Settlement way',                     ar: 'طريقة التسوية' },
   capitalLabel:                 { en: 'Capital',                            ar: 'رأس المال' },
   editAgreementTitle:           { en: 'Edit Profit Share Agreement',        ar: 'تعديل اتفاقية مشاركة الأرباح' },
+
+  // ── Notification category tabs ──
+  notifCatAll:       { en: 'All',       ar: 'الكل'       },
+  notifCatApproval:  { en: 'Approvals', ar: 'الموافقات'   },
+  notifCatDeal:      { en: 'Deals',     ar: 'الصفقات'     },
+  notifCatOrder:     { en: 'Orders',    ar: 'الأوامر'     },
+  notifCatInvite:    { en: 'Invites',   ar: 'الدعوات'     },
+  notifCatMessage:   { en: 'Messages',  ar: 'الرسائل'     },
+  notifCatSystem:    { en: 'System',    ar: 'النظام'      },
+
+  // ── Notification UI ──
+  notifTotalCount:         { en: 'notifications',        ar: 'إشعار'                       },
+  viewAllNotifications:    { en: 'View all',             ar: 'عرض الكل'                    },
+  viewDetails:             { en: 'View details',         ar: 'عرض التفاصيل'               },
+  settlementApproved:      { en: 'Settlement approved ✓', ar: 'تمت الموافقة على التسوية ✓' },
+  confirmReject:           { en: 'Confirm Reject',       ar: 'تأكيد الرفض'                },
+  rejectReasonPlaceholder: { en: 'Reason for rejection…', ar: 'سبب الرفض...'              },
+  decline:                 { en: 'Decline',              ar: 'رفض'                         },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
