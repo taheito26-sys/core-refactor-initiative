@@ -23,7 +23,8 @@ export interface CashCustodyRequest {
   updatedAt: string;
 }
 
-function rowToRequest(r: Record<string, unknown>): CashCustodyRequest {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToRequest(r: any): CashCustodyRequest {
   return {
     id: r.id,
     requesterMerchantId: r.requester_merchant_id,
