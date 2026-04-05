@@ -102,9 +102,8 @@ export function useCashCustodyRequests() {
       relationshipId?: string;
     }) => {
       if (!user?.id) throw new Error('Not authenticated');
-      const { data, error } = await (supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from('cash_custody_requests') as any)
+      const { data, error } = await supabase
+        .from('cash_custody_requests')
         .insert({
           requester_merchant_id: input.requesterMerchantId,
           custodian_merchant_id: input.custodianMerchantId,
