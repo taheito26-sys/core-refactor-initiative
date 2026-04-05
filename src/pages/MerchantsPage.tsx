@@ -59,14 +59,17 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
     if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements' || qTab === 'liquidity') return qTab as MerchantTab;
     return 'relationships';
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [relationships, setRelationships] = useState<any[]>([]);
   const [agreements, setAgreements] = useState<AgreementRow[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [invites, setInvites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   // Find a Merchant state
   const [findQuery, setFindQuery] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [findResult, setFindResult] = useState<any>(null);
   const [findStatus, setFindStatus] = useState<'idle' | 'searching' | 'found' | 'not_found' | 'already_connected'>('idle');
   const [sendingInvite, setSendingInvite] = useState(false);
@@ -150,6 +153,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
           ...r,
           counterparty_name: cp?.display_name || cpId,
           counterparty_nickname: cp?.nickname || '',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           counterparty_code: (cp as any)?.merchant_code || '',
         };
       });
@@ -173,6 +177,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
           created_at: d.created_at,
           counterparty_name: rel?.counterparty_name || '—',
           order_count: 0,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           settlement_cadence: (d as any).settlement_cadence || 'monthly',
         };
       });
@@ -253,10 +258,12 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
       toast.success(`${t('inviteSentTo') || 'Invite sent to'} ${findResult.display_name}`);
       setFindQuery(''); setFindResult(null); setFindStatus('idle'); setInviteMessage('');
       loadData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message || 'Failed to send invite'); }
     finally { setSendingInvite(false); }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAcceptInvite = async (invite: any) => {
     try {
       const { error: relError } = await supabase.from('merchant_relationships').insert({
@@ -269,6 +276,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
       if (invError) throw invError;
       toast.success(t('inviteAccepted') || 'Invite accepted — relationship created!');
       loadData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -278,6 +286,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
       if (error) throw error;
       toast.success(t('inviteRejected') || 'Invite rejected');
       loadData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -287,6 +296,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
       if (error) throw error;
       toast.success(t('inviteWithdrawn') || 'Invite withdrawn');
       loadData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 

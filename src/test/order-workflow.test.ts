@@ -53,6 +53,7 @@ describe('trading/profit-service — calculateNetProfit', () => {
   it('unknown type returns 0', () => {
     const result = calculateNetProfit({
       quantity: 100, unitPrice: 10,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       snapshot: { ...base, agreementType: 'unknown' as any },
     });
     expect(result).toBe(0);

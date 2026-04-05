@@ -158,6 +158,7 @@ export function MyLiquidityEditor({ myProfile, internal, saveProfile, isSaving, 
     try {
       await saveProfile(draft);
       toast.success(t('liquidityPublishUpdated') || 'Liquidity settings updated');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       toast.error(error?.message || (t('liquidityPublishFailed') || 'Failed to publish'));
     }

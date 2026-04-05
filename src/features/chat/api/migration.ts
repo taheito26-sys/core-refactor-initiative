@@ -8,8 +8,10 @@ export async function runLegacyMigration(dryRun = true): Promise<DeterministicRe
   return svc.runMigration(dryRun);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function migrationHealth(): Promise<DeterministicResult<any>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_migration_health');
     if (error) throw error;
     return ok(data);

@@ -91,6 +91,7 @@ export const useChatStore = create<ChatState & ChatActions>()((set) => ({
   clearHighlight: () => set({ highlightMessageId: null }),
   setAttention: (partial) => set((s) => {
     // Basic avoid-redundant-render check
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const hasChange = Object.entries(partial).some(([k, v]) => (s.attention as any)[k] !== v);
     if (!hasChange) return s;
     return { attention: { ...s.attention, ...partial } };

@@ -6,6 +6,7 @@ export async function getRooms(): Promise<DeterministicResult<ChatRoom[]>> {
   try {
     // We query the new room summary view which handles unread counts and last messages
     const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('chat_room_summary_v' as any)
       .select('*')
       .order('last_message_at', { ascending: false });
@@ -18,10 +19,12 @@ export async function getRooms(): Promise<DeterministicResult<ChatRoom[]>> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeRoom(r: any): ChatRoom {
   return {
     room_id: r.id,
     kind: r.type === 'standard' ? 'direct' : 'group',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lane: (r.lane as any) || 'Personal',
     title: r.name || 'Secure Channel',
     relationship_id: r.relationship_id || null,
@@ -44,6 +47,7 @@ export async function createRoom(input: {
   members: string[];
 }): Promise<DeterministicResult<string | null>> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.rpc as any)('fn_chat_create_room', {
       _name: input.name,
       _type: input.type,

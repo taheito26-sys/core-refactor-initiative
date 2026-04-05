@@ -8,7 +8,13 @@ interface Props {
   messages: TimelineItem[];
   currentUserId: string;
   unreadMessageId: string | null;
-  reactionsByMessage: Record<string, string[]>;
+  /**
+   * ROOT CAUSE FIX (reactions): map is keyed by messageId → emoji → userIds[].
+   * Previously typed as Record<string,string[]> which was one level too shallow,
+   * and ChatWorkspacePage was passing reactionsByMessage[roomId] (always undefined)
+   * instead of the full map.  Both the type and the call-site are now corrected.
+   */
+  reactionsByMessage: Record<string, Record<string, string[]>>;
   pinnedSet: Set<string>;
   onReact: (messageId: string, emoji: string, remove?: boolean) => void;
   onPinToggle: (messageId: string, pinned: boolean) => void;
@@ -19,12 +25,15 @@ interface Props {
   onCreateTask: (messageId: string) => void;
   onAcceptDeal?: (id: string) => void;
   onConvert?: (messageId: string, type: 'task' | 'order') => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onReply?: (message: any) => void;
   disableForward?: boolean;
 }
 
 export function MessageList(props: Props) {
   const lastReadMutationRef = useRef<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
   const unreadCount = useMemo(() => {
     if (!props.unreadMessageId) return 0;
     const idx = props.messages.findIndex((m) => m.id === props.unreadMessageId);
@@ -32,12 +41,20 @@ export function MessageList(props: Props) {
     return props.messages.length - idx;
   }, [props.messages, props.unreadMessageId]);
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [props.messages.length]);
+
+  // Auto mark-read when unread message scrolls into view
   useEffect(() => {
     const candidate = [...props.messages]
       .reverse()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .find((m: any) => {
-        const senderId = m.sender_id || m.sender_merchant_id;
+        const senderId = m.sender_merchant_id || m.sender_id;
         return senderId !== props.currentUserId && !m.read_at;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as any;
     if (!candidate) return;
     if (lastReadMutationRef.current === candidate.id) return;
@@ -58,6 +75,17 @@ export function MessageList(props: Props) {
 
   return (
     <div className="flex-1 overflow-auto py-2">
+      {props.messages.length === 0 && (
+        <div className="flex flex-col items-center justify-center h-full gap-2 opacity-30 py-16">
+          <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+            No messages yet
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            Send the first message to start the conversation
+          </span>
+        </div>
+      )}
+
       {props.messages.map((m) => {
         if (m.type === 'business_object') {
           return (
@@ -70,17 +98,36 @@ export function MessageList(props: Props) {
         }
 
         const showUnread = props.unreadMessageId === m.id;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const msg = m as any;
         return (
           <div key={m.id} id={`msg-${m.id}`}>
             {showUnread && unreadCount > 0 && <UnreadDivider count={unreadCount} />}
             <MessageItem
-              message={{ id: msg.id, content: msg.content || msg.body || '', sender_id: msg.sender_id || msg.sender_merchant_id || '', created_at: msg.created_at, type: msg.message_type, status: msg.status, expires_at: msg.expires_at, metadata: msg.metadata }}
+              message={{
+                id: msg.id,
+                content: msg.content || msg.body || '',
+                sender_id: msg.sender_id || '',
+                sender_merchant_id: msg.sender_merchant_id || '',
+                created_at: msg.created_at,
+                type: msg.message_type || msg.type,
+                status: msg.status,
+                expires_at: msg.expires_at,
+                metadata: msg.metadata,
+                read_at: msg.read_at ?? null,
+              }}
               currentUserId={props.currentUserId}
+              // ROOT CAUSE FIX: index by msg.id into the full map
+              reactions={props.reactionsByMessage[msg.id] ?? {}}
+              onReact={(id, emoji) => props.onReact(id, emoji)}
+              onDeleteForMe={(id) => props.onDeleteForMe(id)}
             />
           </div>
         );
       })}
+
+      {/* Scroll anchor */}
+      <div ref={bottomRef} />
     </div>
   );
 }

@@ -27,9 +27,11 @@ export function useBalanceLedger(relationshipId: string) {
     queryFn: async (): Promise<BalanceSummary> => {
       const [transfersRes, ledgerRes] = await Promise.all([
         supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('capital_transfers' as any)
           .select('*')
           .eq('relationship_id', relationshipId)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .order('created_at', { ascending: true }) as any,
         supabase
           .from('deal_capital_ledger')
@@ -42,6 +44,7 @@ export function useBalanceLedger(relationshipId: string) {
 
       const allEvents: { ts: string; entry: BalanceEntry }[] = [];
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const tx of (transfers || []) as any[]) {
         const isIn = tx.direction === 'lender_to_operator';
         allEvents.push({
@@ -59,6 +62,7 @@ export function useBalanceLedger(relationshipId: string) {
         });
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const le of (ledgerEntries || []) as any[]) {
         allEvents.push({
           ts: le.created_at,

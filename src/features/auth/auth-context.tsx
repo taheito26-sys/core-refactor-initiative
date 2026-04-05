@@ -110,11 +110,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user_metadata: { full_name: 'Dev Admin' },
           aud: 'authenticated',
           created_at: new Date().toISOString(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
 
         const mockSession: Session = {
           access_token: 'mock-access-token',
           user: mockUser,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
 
         const mockProfile: Profile = {
@@ -123,6 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: mockUser.email!,
           status: 'approved',
           approved_at: new Date().toISOString(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
 
         const mockMerchant: MerchantProfile = {
@@ -133,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           display_name: 'Alpha Merchant (DEV)',
           status: 'active',
           default_currency: 'USDT',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any;
 
         setSession(mockSession);

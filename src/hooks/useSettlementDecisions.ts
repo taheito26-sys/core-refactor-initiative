@@ -42,6 +42,7 @@ export function useSettlementDecisions(periodId?: string) {
       if (!periodId) return [];
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('settlement_decisions' as any)
           .select('*')
           .eq('settlement_period_id', periodId)
@@ -89,6 +90,7 @@ export function usePendingDecisions() {
       if (!merchantId) return [];
       try {
         const { data, error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('settlement_decisions' as any)
           .select('*')
           .eq('merchant_id', merchantId)
@@ -119,6 +121,7 @@ export function useSubmitDecision() {
       periodId: string;
     }) => {
       const { error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('settlement_decisions' as any)
         .update({
           decision: input.decision,
@@ -165,6 +168,7 @@ export function useCreateDecisions() {
       }));
 
       const { error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('settlement_decisions' as any)
         .insert(rows);
       if (error) throw error;
@@ -192,6 +196,22 @@ export function useFinalizeDecisions() {
       decisions: SettlementDecision[];
       agreementSnapshot: Record<string, unknown>;
     }) => {
+      /**
+       * ISSUE 7 FIX: The original loop made N sequential UPDATE calls with no
+       * atomic guarantee.  A failure on decision #3 of 5 would leave the period
+       * half-finalized, corrupting settlement state permanently.
+       *
+       * Frontend fix: collect ALL errors before throwing so callers get a full
+       * picture of what failed, and stop treating partial success as success.
+       *
+       * ⚠️ BACKEND TASK FOR LOVABLE: replace this entire loop with a single
+       * fn_finalize_settlement_decisions(p_period_id, p_agreement_id,
+       * p_agreement_snapshot) RPC that runs everything inside one transaction.
+       * See the Supabase backend prompt for the exact function signature.
+       */
+      const finalizedAt = new Date().toISOString();
+      const errors: string[] = [];
+
       for (const d of input.decisions) {
         const finalDecision: 'reinvest' | 'withdraw' =
           d.decision === 'pending' ? d.default_behavior : (d.decision as 'reinvest' | 'withdraw');
@@ -216,6 +236,7 @@ export function useFinalizeDecisions() {
         };
 
         const { error } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('settlement_decisions' as any)
           .update({
             decision: finalDecision,
@@ -223,10 +244,18 @@ export function useFinalizeDecisions() {
             withdrawn_amount: withdrawnAmount,
             effective_capital_after: effectiveCapitalAfter,
             finalization_snapshot: snapshot,
-            finalized_at: new Date().toISOString(),
+            finalized_at: finalizedAt,
           })
           .eq('id', d.id);
-        if (error) throw error;
+
+        // ISSUE 7 FIX: accumulate errors instead of throwing on first failure
+        if (error) errors.push(`[${d.id}] ${error.message}`);
+      }
+
+      // ISSUE 7 FIX: throw after the loop so callers know exactly which rows
+      // failed; partial finalization is exposed rather than silently accepted.
+      if (errors.length > 0) {
+        throw new Error(`Finalization partially failed (${errors.length}/${input.decisions.length} rows): ${errors.join(' | ')}`);
       }
     },
     onSuccess: (_, vars) => {

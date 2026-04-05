@@ -26,12 +26,12 @@ async function ensureGasSession(email: string, userId: string, name?: string): P
   try {
     const res = await rawGasPost({ action: 'login', email, password: pw });
     if (res?.ok && res.token) return { email, token: res.token };
-  } catch {}
+  } catch { /* intentional */ }
   // Try register
   try {
     const res = await rawGasPost({ action: 'register', email, password: pw, name: name || email.split('@')[0] });
     if (res?.ok && res.token) return { email, token: res.token };
-  } catch {}
+  } catch { /* intentional */ }
   return null;
 }
 
@@ -84,6 +84,7 @@ export function AdminBackupManager() {
         display_name: merchantMap.get(p.user_id) || p.email,
         status: p.status,
       })));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error('Failed to load users: ' + e.message);
     } finally {
@@ -114,6 +115,7 @@ export function AdminBackupManager() {
 
       await backupForUser(session.email, session.token, data.state as Record<string, unknown>, `Admin backup — ${new Date().toISOString()}`);
       toast.success(`✓ Backed up ${user.display_name}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error(`Backup failed for ${user.display_name}: ${e.message}`);
     } finally {
@@ -149,6 +151,7 @@ export function AdminBackupManager() {
 
       if (error) throw error;
       toast.success(`✓ Restored ${user.display_name} from cloud backup`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error(`Restore failed for ${user.display_name}: ${e.message}`);
     } finally {

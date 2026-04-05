@@ -64,6 +64,7 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
         {RANGES.map(r => (
           <button
             key={r.id}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onClick={() => update({ range: r.id as any })}
             className={cn(
               'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',

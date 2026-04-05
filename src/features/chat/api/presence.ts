@@ -15,6 +15,7 @@ export async function setTyping(roomId: string, isTyping: boolean): Promise<Dete
       updated_at: new Date().toISOString(),
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from('typing_presence' as any).upsert(payload, { onConflict: 'room_id,user_id' } as any);
     if (error) throw error;
     return ok(true);
@@ -26,6 +27,7 @@ export async function setTyping(roomId: string, isTyping: boolean): Promise<Dete
 export async function getTyping(roomId: string): Promise<DeterministicResult<Array<{ user_id: string; is_typing: boolean; expires_at: string }>>> {
   try {
     const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('typing_presence' as any)
       .select('user_id, is_typing, expires_at')
       .eq('room_id', roomId)

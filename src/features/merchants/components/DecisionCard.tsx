@@ -46,6 +46,7 @@ export function DecisionCard({ periodId, periodKey }: Props) {
                 periodId,
               });
               toast.success(t('decisionSaved'));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (err: any) {
               toast.error(err.message);
             }
@@ -91,6 +92,7 @@ function DecisionRow({ decision, isMe, onSubmit, isPending }: {
           <span className={`pill ${decision.decision === 'reinvest' ? 'good' : 'warn'}`}>
             {decision.decision === 'reinvest' ? `🔄 ${t('reinvestOption')}` : `💰 ${t('withdrawOption')}`}
           </span>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {decision.finalization_snapshot && (decision.finalization_snapshot as any).auto_finalized && (
             <span style={{ fontSize: 8, color: 'var(--muted)' }}>({t('autoFinalizedLabel')})</span>
           )}

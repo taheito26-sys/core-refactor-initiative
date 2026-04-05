@@ -83,6 +83,7 @@ function persistToLocal(state: TrackerState): void {
 /** Upsert row ensuring user_id row exists */
 async function ensureRow(userId: string): Promise<void> {
   await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .upsert(
       { user_id: userId, updated_at: new Date().toISOString() },
@@ -99,8 +100,10 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   if (!user) return;
 
   const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .upsert(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { user_id: user.id, state: state as any, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     );
@@ -141,6 +144,7 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
     .maybeSingle();
 
   let cloudState: Partial<TrackerState> | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const merchantId = (myMerchantProfile as any)?.merchant_id as string | undefined;
 
   if (merchantId) {
@@ -148,9 +152,11 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
       .from('merchant_profiles')
       .select('user_id')
       .eq('merchant_id', merchantId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const merchantUserIds = Array.from(new Set((merchantUsers || []).map((m: any) => m.user_id).filter(Boolean)));
 
     const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
       .select('state, updated_at, user_id')
       .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
@@ -159,11 +165,13 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
     }
   } else {
     const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
       .select('state, updated_at')
       .eq('user_id', user.id)
       .maybeSingle();
     if (!error && data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       cloudState = (data as any).state as Partial<TrackerState> | null;
     }
   }
@@ -202,8 +210,10 @@ async function persistPrefsToCloud(prefs: Record<string, unknown>): Promise<void
   if (!user) return;
 
   const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .upsert(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { user_id: user.id, preferences: prefs as any, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     );
@@ -221,6 +231,7 @@ export async function loadPreferencesFromCloud(): Promise<Record<string, unknown
   if (!user) return null;
 
   const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .select('preferences')
     .eq('user_id', user.id)
@@ -228,6 +239,7 @@ export async function loadPreferencesFromCloud(): Promise<Record<string, unknown
 
   if (error || !data) return null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prefs = (data as any).preferences as Record<string, unknown> | null;
   if (!prefs || typeof prefs !== 'object' || Object.keys(prefs).length === 0) return null;
 

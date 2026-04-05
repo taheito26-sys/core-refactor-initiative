@@ -24,6 +24,7 @@ import '@/styles/tracker.css';
 interface DashboardPageProps {
   adminUserId?: string;
   adminMerchantId?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adminTrackerState?: any;
   isAdminView?: boolean;
 }
@@ -131,6 +132,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             .select('id, amount, status, created_by, notes, deal_type, relationship_id, title, created_at')
             .in('relationship_id', relIds)
             .order('created_at', { ascending: false })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         : { data: [] as any[] };
       if (!deals || deals.length === 0) return null;
 
@@ -138,6 +140,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       const dealRelIds = [...new Set(activeDeals.map(d => d.relationship_id))];
       const { data: rels } = dealRelIds.length > 0
         ? await supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id').in('id', dealRelIds)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         : { data: [] as any[] };
 
       const allMerchantIds = new Set<string>();
@@ -145,6 +148,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       const { data: profiles } = allMerchantIds.size > 0
         ? await supabase.from('merchant_profiles').select('merchant_id, display_name, user_id').in('merchant_id', [...allMerchantIds])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         : { data: [] as any[] };
 
       const profileMap = new Map<string, { name: string; userId: string }>();
@@ -278,6 +282,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     });
   }, [allTrades, tradeNet]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ChartTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
@@ -286,6 +291,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         borderRadius: 6, padding: '6px 10px', fontSize: 10,
       }}>
         <div style={{ fontWeight: 700, marginBottom: 3 }}>{label}</div>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {payload.map((p: any, i: number) => (
           <div key={i} style={{ color: p.color, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
             <span>{p.name}</span>
@@ -307,8 +313,10 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   const now = new Date();
   const monthKeys = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const curMo = t(monthKeys[now.getMonth()] as any);
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prevMo = t(monthKeys[prevDate.getMonth()] as any);
 
   return (
@@ -335,13 +343,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div>
               <div className="kpi-period">{curMo}</div>
               <div className={`kpi-cell-val ${dM.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dM.net, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dM.fee, settings.currency, wacop)}</div>
+              {dM.fee > 0 && <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dM.fee, settings.currency, wacop)}</div>}
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
             <div>
               <div className="kpi-period">{prevMo}</div>
               <div className={`kpi-cell-val ${dL.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dL.net, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dL.fee, settings.currency, wacop)}</div>
+              {dL.fee > 0 && <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dL.fee, settings.currency, wacop)}</div>}
               <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
             </div>
           </div>
@@ -637,7 +645,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="panel-body">
             <div className="prev-row"><span className="muted">{t('volume')}</span><strong className="mono t1v">{fmtQWithUnit(dR.rev, settings.currency, wacop)}</strong></div>
             <div className="prev-row"><span className="muted">{t('cost')}</span><strong className="mono">{fmtQWithUnit(dR.rev - dR.net - dR.fee, settings.currency, wacop)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtQWithUnit(dR.fee, settings.currency, wacop)}</strong></div>
+            {dR.fee > 0 && <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtQWithUnit(dR.fee, settings.currency, wacop)}</strong></div>}
             <div className="prev-row"><span className="muted">{t('netProfitLabel')}</span><strong className={`mono ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net, settings.currency, wacop)}</strong></div>
             <div className="prev-row"><span className="muted">{t('avgMargin')}</span><strong className="mono" style={{ color: 'var(--t3)' }}>{fmtPct(avgM)}</strong></div>
             <div className="prev-row"><span className="muted">{t('trades')}</span><strong className="mono">{dR.count}</strong></div>

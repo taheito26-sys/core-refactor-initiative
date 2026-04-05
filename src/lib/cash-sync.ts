@@ -140,11 +140,13 @@ export async function saveCashToCloud(
   // Upsert accounts
   if (accounts.length > 0) {
     const { error: accErr } = await (supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('cash_accounts') as any)
       .upsert(accounts.map(a => accountToRow(a, uid)), { onConflict: 'id' });
     if (accErr) {
       if (accErr.message?.includes("Could not find the 'merchant_id' column")) {
         const { error: legacyAccErr } = await (supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('cash_accounts') as any)
           .upsert(accounts.map(a => accountToRowLegacy(a, uid)), { onConflict: 'id' });
         if (legacyAccErr) console.warn('[cash-sync] accounts upsert failed (legacy retry):', legacyAccErr.message);
@@ -157,11 +159,13 @@ export async function saveCashToCloud(
   // Upsert ledger entries
   if (ledger.length > 0) {
     const { error: ledErr } = await (supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('cash_ledger') as any)
       .upsert(ledger.map(e => entryToRow(e, uid)), { onConflict: 'id' });
     if (ledErr) {
       if (ledErr.message?.includes("Could not find the 'merchant_id' column")) {
         const { error: legacyLedErr } = await (supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from('cash_ledger') as any)
           .upsert(ledger.map(e => entryToRowLegacy(e, uid)), { onConflict: 'id' });
         if (legacyLedErr) console.warn('[cash-sync] ledger upsert failed (legacy retry):', legacyLedErr.message);
@@ -183,11 +187,13 @@ export async function loadCashFromCloud(): Promise<{
 
   const [accResult, ledResult] = await Promise.all([
     (supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('cash_accounts') as any)
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true }),
     (supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('cash_ledger') as any)
       .select('*')
       .eq('user_id', user.id)
@@ -204,7 +210,9 @@ export async function loadCashFromCloud(): Promise<{
   }
 
   return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     accounts: (accResult.data ?? []).map((r: any) => rowToAccount(r as Record<string,unknown>)),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ledger:   (ledResult.data ?? []).map((r: any) => rowToEntry(r as Record<string,unknown>)),
   };
 }
@@ -215,8 +223,36 @@ export async function deleteCashAccountFromCloud(accountId: string): Promise<voi
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   await (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('cash_accounts') as any)
     .delete()
     .eq('id', accountId)
     .eq('user_id', user.id);
+}
+
+/** Delete specific ledger entries by ID from the cloud */
+export async function deleteLedgerEntriesFromCloud(entryIds: string[]): Promise<void> {
+  if (entryIds.length === 0) return;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('cash_ledger') as any)
+    .delete()
+    .in('id', entryIds)
+    .eq('user_id', user.id);
+  if (error) console.warn('[cash-sync] deleteLedgerEntriesFromCloud failed:', error.message);
+}
+
+/** Delete all ledger entries for a given account ID from the cloud */
+export async function deleteCashAccountLedgerFromCloud(accountId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('cash_ledger') as any)
+    .delete()
+    .eq('account_id', accountId)
+    .eq('user_id', user.id);
+  if (error) console.warn('[cash-sync] deleteCashAccountLedgerFromCloud failed:', error.message);
 }

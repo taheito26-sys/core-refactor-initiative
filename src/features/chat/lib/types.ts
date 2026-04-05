@@ -80,6 +80,7 @@ export interface ChatBusinessObject {
   source_message_id?: string;
   created_by: string;
   state_snapshot_hash?: string; 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: any;
   status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'locked';
   created_at: string;

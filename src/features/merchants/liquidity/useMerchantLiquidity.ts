@@ -87,8 +87,10 @@ export function useMerchantLiquidity() {
 
       const relationships = (relationshipsRes.data || []) as MerchantRelationship[];
       const profiles = profilesRes.data || [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const postings = ((liquidityTableMissing ? [] : postingsRes.data) || []) as any[];
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const profileMap = new Map(profiles.map((p: any) => [p.merchant_id, p]));
       const relByCounterparty = new Map<string, MerchantRelationship>();
 
@@ -97,13 +99,16 @@ export function useMerchantLiquidity() {
         relByCounterparty.set(cp, rel);
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const activeAccountIds = new Set(((accountsRes.error ? [] : accountsRes.data) || []).filter((a: any) => a.status === 'active').map((a: any) => a.id));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cashAvailable = ((ledgerRes.error ? [] : ledgerRes.data) || []).reduce((sum: number, row: any) => {
         if (!activeAccountIds.has(row.account_id)) return sum;
         const signed = row.direction === 'in' ? Number(row.amount || 0) : -Number(row.amount || 0);
         return sum + signed;
       }, 0);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const reservedUsdt = ((allocationsRes.error ? [] : allocationsRes.data) || []).reduce((sum: number, row: any) => {
         if (row.status === 'void' || row.status === 'cancelled') return sum;
         return sum + Number(row.allocated_usdt || 0);

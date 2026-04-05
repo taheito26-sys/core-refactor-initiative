@@ -51,6 +51,7 @@ function toInputFromTs(ts: number) { return new Date(ts).toISOString().slice(0, 
 /** Resolve operator & lender display names for an operator priority deal row */
 function resolveOpNames(
   row: { operatorMerchantId: string; iAmOperator: boolean },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rel: any,
   myMerchantId: string | undefined,
   profileMap: Map<string, { display_name: string; nickname: string | null }>,
@@ -157,6 +158,7 @@ export default function OrdersPage() {
   const [transferCostBasis, setTransferCostBasis] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
   const [transferNote, setTransferNote] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [allTransfers, setAllTransfers] = useState<any[]>([]);
 
   // Cancellation request dialog
@@ -190,6 +192,7 @@ export default function OrdersPage() {
     () => relationships.find(r => r.id === linkedRelId),
     [relationships, linkedRelId],
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const linkedCounterpartyName = linkedRelationship?.counterparty?.display_name || (linkedRelationship as any)?.counterparty_name || t('partner');
   const linkedCounterpartyId = linkedRelationship
     ? (linkedRelationship.merchant_a_id === merchantProfile?.merchant_id ? linkedRelationship.merchant_b_id : linkedRelationship.merchant_a_id)
@@ -275,6 +278,7 @@ export default function OrdersPage() {
         .map(p => p.user_id)
         .filter(Boolean);
       setMerchantUserIds(Array.from(new Set(myMerchantUsers)));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setMerchantProfileMap(profileMap as any);
 
       const enrichedRels = (relsRes.data || []).map(r => {
@@ -284,6 +288,7 @@ export default function OrdersPage() {
           ...r,
           counterparty: { display_name: cp?.display_name || cpId, nickname: cp?.nickname || '' },
           counterparty_name: cp?.display_name || cpId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any as MerchantRelationship;
       });
 
@@ -291,6 +296,7 @@ export default function OrdersPage() {
 
       const enrichedDeals = (dealsRes.data || []).map(d => {
         const rel = enrichedRels.find(r => r.id === d.relationship_id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return { ...d, counterparty_name: (rel as any)?.counterparty_name || '—' } as any as MerchantDeal;
       });
       setAllMerchantDeals(enrichedDeals);
@@ -298,10 +304,12 @@ export default function OrdersPage() {
       // Fetch capital transfers across all relationships
       const transferResults = await Promise.all(
         (relsRes.data || []).map(r =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           supabase.from('capital_transfers' as any).select('*').eq('relationship_id', r.id) as any
         )
       );
       const allTx = transferResults.flatMap(r => r.data || []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAllTransfers(allTx.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch {
       // keep tracker usable
@@ -376,6 +384,7 @@ export default function OrdersPage() {
       .map(d => parseDealMeta(d.notes).local_trade)
       .filter(Boolean)
   ), [allMerchantDeals]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isDealVisible = (d: any) => d.status !== 'cancelled' && d.status !== 'rejected' && d.status !== 'voided';
   const isCreatorInMyMerchant = useCallback((creatorUserId: string) => {
     if (merchantUserIds.length === 0) return creatorUserId === userId;
@@ -617,6 +626,7 @@ export default function OrdersPage() {
   }, [filteredOutgoingMerchantDeals, selectedMonth]);
 
   /** Resolve avg buy for a deal — use metadata first, fallback to local FIFO trade calc */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveDealAvgBuy = useCallback((deal: any, normalizedMeta?: Record<string, string>): number => {
     const meta = normalizedMeta ?? parseDealMeta(deal.notes);
     const metaAvg = Number(meta.avg_buy) || 0;
@@ -763,6 +773,7 @@ export default function OrdersPage() {
       setSelectedTemplateId(null);
       setMerchantOrderEnabled(false);
       reloadMerchantData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -849,6 +860,7 @@ export default function OrdersPage() {
             </div>
           )}
         </div>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ) as any,
     });
   };
@@ -957,6 +969,7 @@ export default function OrdersPage() {
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? (selectedTemplateId === 'profit_share_family' ? 'profit_share' : 'sales_deal') as any
         : tmpl?.family as 'profit_share' | 'sales_deal' | 'capital_transfer' | undefined,
       agreementTemplateId: isNewAllocFlowActive ? undefined : tmpl?.id,
@@ -1011,6 +1024,7 @@ export default function OrdersPage() {
             notes: noteLines,
             metadata: (() => {
               const selAgreement = alloc.agreementId ? allAgreements.find(a => a.id === alloc.agreementId) : null;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const base: Record<string, any> = {
                 quantity: usdt,
                 sell_price: sell,
@@ -1022,9 +1036,13 @@ export default function OrdersPage() {
               };
               if (selAgreement?.agreement_type === 'operator_priority') {
                 base.agreement_type = 'operator_priority';
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 base.operator_ratio = (selAgreement as any).operator_ratio ?? 0;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 base.operator_contribution = (selAgreement as any).operator_contribution ?? 0;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 base.lender_contribution = (selAgreement as any).lender_contribution ?? 0;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 base.operator_merchant_id = (selAgreement as any).operator_merchant_id ?? '';
               }
               return base;
@@ -1050,9 +1068,13 @@ export default function OrdersPage() {
                 totalUsdt: amountUSDT,
                 family: alloc.family,
                 partnerSharePct: alloc.partnerSharePct,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 operatorRatio: (selAgreement as any)?.operator_ratio ?? 0,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 operatorContribution: (selAgreement as any)?.operator_contribution ?? 0,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 lenderContribution: (selAgreement as any)?.lender_contribution ?? 0,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 isOperator: (selAgreement as any)?.operator_merchant_id === merchantProfile?.merchant_id,
               })
             : calculateAllocationEconomics({
@@ -1115,6 +1137,7 @@ export default function OrdersPage() {
         setSelectedTemplateId(null);
         setAllocations([]);
         return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Failed to create allocations:', err);
         toast.error(err.message || t('failedCreateAllocations'));
@@ -1177,8 +1200,10 @@ export default function OrdersPage() {
         if (error) throw error;
 
         // Per-order settlement period creation
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dealCadence = (tmpl as any)?.defaults?.settlement_period || 'monthly';
         if (dealCadence === 'per_order' && data?.id) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const partnerPct = (tmpl as any).defaults?.counterparty_share_pct ?? (tmpl as any).defaults?.partner_ratio ?? 0;
           const rev = baseTrade.amountUSDT * sell;
           const netProfit = rev - fifoCost - fee;
@@ -1204,6 +1229,7 @@ export default function OrdersPage() {
             resolved_by: settleImmediately ? userId : null,
             resolved_at: settleImmediately ? new Date().toISOString() : null,
             settled_amount: settleImmediately ? partnerAmt : 0,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any).select('id').single();
 
           if (settleImmediately && periodData?.id) {
@@ -1215,6 +1241,7 @@ export default function OrdersPage() {
               settled_by: userId!,
               notes: `Immediate settlement for order ${baseTrade.id}`,
               status: 'pending',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any);
           }
         }
@@ -1234,6 +1261,7 @@ export default function OrdersPage() {
         await reloadMerchantData();
         const _legacyPartner = relationships.find(r => r.id === linkedRelId)?.counterparty?.display_name;
         showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net, partnerName: _legacyPartner, isApproval: true });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Failed to create deal:', err);
         toast.error(err.message || t('failedCreateDeal'));
@@ -1417,10 +1445,14 @@ export default function OrdersPage() {
           if (isEditOpPriority) {
             const opResult = calculateOperatorPriorityProfit({
               grossProfit: netProfit,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               operatorRatio: (editAgreement as any).operator_ratio ?? 0,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               operatorContribution: (editAgreement as any).operator_contribution ?? 0,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               lenderContribution: (editAgreement as any).lender_contribution ?? 0,
             });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const isOperator = (editAgreement as any).operator_merchant_id === merchantProfile?.merchant_id;
             partnerAmt = isOperator ? opResult.lenderTotal : opResult.operatorTotal;
             merchantAmt = isOperator ? opResult.operatorTotal : opResult.lenderTotal;
@@ -1451,6 +1483,7 @@ export default function OrdersPage() {
             resolved_by: editSettleImmediately ? userId : null,
             resolved_at: editSettleImmediately ? new Date().toISOString() : null,
             settled_amount: editSettleImmediately ? partnerAmt : 0,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any).select('id').single();
 
           if (editSettleImmediately && periodData?.id) {
@@ -1462,12 +1495,14 @@ export default function OrdersPage() {
               settled_by: userId!,
               notes: `Immediate settlement for linked order ${editingTradeId}`,
               status: 'pending',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any);
           }
         }
 
         toast.success(t('orderLinkedToPartner') || 'Order linked to partner deal');
         reloadMerchantData();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         toast.error(err.message);
         return; // Don't save local trade if deal creation failed
@@ -1501,6 +1536,7 @@ export default function OrdersPage() {
         const oldMeta = parseDealMeta(existingDeal?.notes);
         const updatedCalc = computeFIFO(state.batches, nextTrades).tradeCalc.get(editingTradeId!);
         const updatedAvgBuy = updatedCalc?.ok ? updatedCalc.avgBuyQAR : (existingTrade.manualBuyPrice || Number(oldMeta.avg_buy) || 0);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updatedFifoCost = updatedCalc?.ok ? updatedCalc.slices.reduce((s: number, x: any) => s + x.cost, 0) : 0;
         const preservedKeys = ['template', 'customer', 'local_trade', 'merchant_cost', 'partner_ratio', 'merchant_ratio', 'counterparty_share', 'merchant_share'];
         const preserved = preservedKeys
@@ -1528,6 +1564,7 @@ export default function OrdersPage() {
         // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
         toast.success(t('dealUpdatedReapproval'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Failed to update linked deal:', err);
       }
@@ -1569,6 +1606,7 @@ export default function OrdersPage() {
         await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
         toast.success(t('tradeCancelled'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) { toast.error(err.message); return; }
     }
 
@@ -1587,6 +1625,7 @@ export default function OrdersPage() {
       try {
         await setDealStatus(tr.linkedDealId, 'cancelled');
         await reloadMerchantData();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) { toast.error(err.message); setCancelTradeId(null); return; }
     }
     // Set voided so FIFO releases stock
@@ -1602,6 +1641,7 @@ export default function OrdersPage() {
     const { error } = await supabase.rpc('set_merchant_deal_status', {
       _deal_id: dealId,
       _status: status,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
     if (error) throw error;
   };
@@ -1612,6 +1652,7 @@ export default function OrdersPage() {
       await setDealStatus(dealId, 'approved');
       await reloadMerchantData();
       toast.success(t('tradeApproved'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -1620,6 +1661,7 @@ export default function OrdersPage() {
       await setDealStatus(dealId, 'rejected');
       await reloadMerchantData();
       toast.success(t('tradeRejected'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -1676,6 +1718,7 @@ export default function OrdersPage() {
       void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
       setEditingDealId(null);
       toast.success(t('saveCorrection'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -1686,6 +1729,7 @@ export default function OrdersPage() {
       setDeleteDealConfirm(null);
       setEditingDealId(null);
       toast.success(t('dealCancelled'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -1711,7 +1755,7 @@ export default function OrdersPage() {
           <span className="pill">{new Date(tr.ts).toLocaleString()}</span>
           {ok && <span className="pill">{t('avgBuy')} {fmtP(c!.avgBuyQAR)}</span>}
           <span className="pill">{t('revenue')} {fmtC(revenue)}</span>
-          <span className="pill">{t('fee')} {fmtC(fee)}</span>
+          {fee > 0 && <span className="pill">{t('fee')} {fmtC(fee)}</span>}
           {ok && <span className="pill">{t('cost')} {fmtC(cost)}</span>}
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
@@ -1756,6 +1800,7 @@ export default function OrdersPage() {
             const operatorName = opProfile?.display_name || opProfile?.nickname || opMid || 'Operator';
             let lenderMid = '';
             if (linkedRel) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               lenderMid = (linkedRel as any).merchant_a_id === opMid ? (linkedRel as any).merchant_b_id : (linkedRel as any).merchant_a_id;
             }
             const lenderProfile = merchantProfileMap.get(lenderMid);
@@ -2828,6 +2873,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div style={{ display: 'grid', gap: 8, paddingBottom: 80 }}>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {subFilteredTransfers.map((tx: any) => {
                     const rel = relationships.find(r => r.id === tx.relationship_id);
                     const isIn = tx.direction === 'lender_to_operator';
@@ -2885,7 +2931,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {subFilteredTransfers.map((tx: any) => {
+                      {subFilteredTransfers.map((tx: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                         const rel = relationships.find(r => r.id === tx.relationship_id);
                         const isIn = tx.direction === 'lender_to_operator';
                         return (
@@ -2933,6 +2979,7 @@ export default function OrdersPage() {
             <div className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
                 {!isCapitalTransfer && (<>
 
@@ -3124,6 +3171,7 @@ export default function OrdersPage() {
                       {/* ─── Step 2: Deal Family (only after merchant selected) ─── */}
                       {linkedRelId && (() => {
                         const selectedRel = relationships.find(r => r.id === linkedRelId);
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const cpName = selectedRel?.counterparty?.display_name || (selectedRel as any)?.counterparty_name || t('partner');
                         const cpId = selectedRel ? (selectedRel.merchant_a_id === merchantProfile?.merchant_id ? selectedRel.merchant_b_id : selectedRel.merchant_a_id) : '';
                         const relApprovedAgreements = allAgreements.filter(a =>
@@ -3190,6 +3238,7 @@ export default function OrdersPage() {
                                       {relApprovedAgreements.length === 1 ? (
                                         <div style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid color-mix(in srgb, var(--good) 35%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)', color: 'var(--t1)' }}>
                                           {relApprovedAgreements[0].agreement_type === 'operator_priority'
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             ? `⚙️ Operator Priority · ${(relApprovedAgreements[0] as any).operator_ratio ?? 0}% fee — ${relApprovedAgreements[0].settlement_cadence}`
                                             : `🤝 ${relApprovedAgreements[0].partner_ratio}/${relApprovedAgreements[0].merchant_ratio} — ${relApprovedAgreements[0].settlement_cadence}`}
                                         </div>
@@ -3218,6 +3267,7 @@ export default function OrdersPage() {
                                           {relApprovedAgreements.map(agr => (
                                             <option key={agr.id} value={agr.id}>
                                               {agr.agreement_type === 'operator_priority'
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                                 ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
                                                 : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
                                             </option>
@@ -3231,6 +3281,7 @@ export default function OrdersPage() {
                                       return (
                                         <div style={{ fontSize: 9, color: 'var(--brand)', marginTop: 2, fontWeight: 600, marginBottom: 6 }}>
                                           {isOp
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             ? `⚙️ Operator Fee ${(selAgr as any)?.operator_ratio ?? 0}% · then split by capital weight`
                                             : `${t('lockedRatio')} ${allocations[0].partnerSharePct}% / ${t('youShare')} ${allocations[0].merchantSharePct}%`}
                                         </div>
@@ -3430,6 +3481,7 @@ export default function OrdersPage() {
                                       <div className="lbl">{t('direction')}</div>
                                       <select
                                         value={transferDirection}
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         onChange={e => setTransferDirection(e.target.value as any)}
                                         style={{ width: '100%', padding: isMobile ? '9px 10px' : '4px 6px', fontSize: isMobile ? 13 : 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
                                       >
@@ -3479,9 +3531,13 @@ export default function OrdersPage() {
                                     totalUsdt: salePreview.qty,
                                     family: alloc.family,
                                     partnerSharePct: alloc.partnerSharePct,
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     operatorRatio: (selAgr as any)?.operator_ratio ?? 0,
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     operatorContribution: (selAgr as any)?.operator_contribution ?? 0,
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     lenderContribution: (selAgr as any)?.lender_contribution ?? 0,
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     isOperator: (selAgr as any)?.operator_merchant_id === merchantProfile?.merchant_id,
                                   })
                                 : calculateAllocationEconomics({
@@ -3494,7 +3550,9 @@ export default function OrdersPage() {
                                     partnerSharePct: alloc.partnerSharePct,
                                   });
 
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               const opCalc = isOpPriority ? (calc as any) : null;
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               const isOpViewer = !!selAgr && (selAgr as any).operator_merchant_id === merchantProfile?.merchant_id;
 
                               return (
@@ -3853,6 +3911,7 @@ export default function OrdersPage() {
                           <div className="lbl" style={{ fontWeight: 700, color: 'var(--brand)' }}>{t('direction')}</div>
                           <select
                             value={transferDirection}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onChange={e => setTransferDirection(e.target.value as any)}
                             style={{ width: '100%', padding: isMobile ? '9px 10px' : '6px 10px', fontSize: isMobile ? 13 : 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--t1)', minHeight: isMobile ? 44 : undefined }}
                           >
@@ -4169,6 +4228,7 @@ export default function OrdersPage() {
                       {/* Step 2: Select deal family */}
                       {editLinkedRelId && (() => {
                         const editRel = relationships.find(r => r.id === editLinkedRelId);
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const editCpName = editRel?.counterparty?.display_name || (editRel as any)?.counterparty_name || t('partner');
                         const editRelApprovedAgreements = editApprovedAgreements;
 
@@ -4199,6 +4259,7 @@ export default function OrdersPage() {
                                     {editRelApprovedAgreements.length === 1 ? (
                                       <div style={{ width: '100%', padding: '6px 8px', fontSize: 10, borderRadius: 4, border: '1px solid color-mix(in srgb, var(--good) 35%, transparent)', background: 'color-mix(in srgb, var(--good) 8%, transparent)', color: 'var(--t1)' }}>
                                         {editRelApprovedAgreements[0].agreement_type === 'operator_priority'
+                                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                           ? `⚙️ Operator Priority · ${(editRelApprovedAgreements[0] as any).operator_ratio ?? 0}% fee — ${editRelApprovedAgreements[0].settlement_cadence}`
                                           : `🤝 ${editRelApprovedAgreements[0].partner_ratio}/${editRelApprovedAgreements[0].merchant_ratio} — ${editRelApprovedAgreements[0].settlement_cadence}`}
                                       </div>
@@ -4212,6 +4273,7 @@ export default function OrdersPage() {
                                         {editRelApprovedAgreements.map(agr => (
                                           <option key={agr.id} value={agr.id}>
                                             {agr.agreement_type === 'operator_priority'
+                                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                               ? `⚙️ Operator Priority · ${(agr as any).operator_ratio ?? 0}% fee — ${agr.settlement_cadence}`
                                               : `🤝 ${agr.partner_ratio}/${agr.merchant_ratio} — ${agr.settlement_cadence}`}
                                           </option>
@@ -4234,10 +4296,14 @@ export default function OrdersPage() {
                                     if (isOp) {
                                       const opResult = calculateOperatorPriorityProfit({
                                         grossProfit: netProfit,
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         operatorRatio: (agr as any).operator_ratio ?? 0,
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         operatorContribution: (agr as any).operator_contribution ?? 0,
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         lenderContribution: (agr as any).lender_contribution ?? 0,
                                       });
+                                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                       const isOperator = (agr as any).operator_merchant_id === merchantProfile?.merchant_id;
                                       partnerAmt = isOperator ? opResult.lenderTotal : opResult.operatorTotal;
                                       merchantAmt = isOperator ? opResult.operatorTotal : opResult.lenderTotal;
@@ -4249,6 +4315,7 @@ export default function OrdersPage() {
                                       <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' }}>
                                         <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600, marginBottom: 3 }}>
                                           {isOp
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             ? `⚙️ Operator Fee ${(agr as any).operator_ratio ?? 0}% · then split by capital weight`
                                             : `${t('lockedRatio')} ${agr.partner_ratio}% / ${t('youShare')} ${agr.merchant_ratio}%`}
                                         </div>

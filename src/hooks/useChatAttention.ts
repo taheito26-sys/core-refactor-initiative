@@ -85,13 +85,18 @@ export function useChatAttention() {
     };
   }, [handleScroll]);
 
-  // Reset visible state when conversation changes
+  // BUG 7 FIX: Reset visible state to FALSE when conversation changes.
+  // Previously set to true immediately on room switch, which caused incoming
+  // messages to be suppressed (treated as "seen") before the user had scrolled
+  // to the bottom of the new conversation.  The scroll handler will flip it
+  // back to true as soon as the container confirms it is near-bottom.
   useEffect(() => {
     if (activeConversationId) {
-      // Assume visible until scroll proves otherwise
-      setAttention({ activeConversationVisible: true });
+      setAttention({ activeConversationVisible: false });
+      // Re-check immediately in case the scroll container is already at bottom
+      handleScroll();
     }
-  }, [activeConversationId, setAttention]);
+  }, [activeConversationId, setAttention, handleScroll]);
 
   return { setScrollRef, scrollRef };
 }

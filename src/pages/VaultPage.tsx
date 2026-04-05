@@ -86,7 +86,9 @@ async function idbSave(state: Record<string, unknown>, label: string): Promise<v
     label: label || 'Manual',
     sizeKB: Math.max(1, Math.ceil(str.length / 1024)),
     checksum: fnv1a(str),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tradeCount: Array.isArray((state as any)?.trades) ? (state as any).trades.length : 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     batchCount: Array.isArray((state as any)?.batches) ? (state as any).batches.length : 0,
     state,
   };
@@ -218,6 +220,7 @@ export default function VaultPage() {
       setSnapDesc('');
       toast.success(t.lang === 'ar' ? '📸 تم حفظ النسخة' : '📸 Snapshot saved');
       await loadSnaps();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error((t.lang === 'ar' ? 'فشل: ' : 'Failed: ') + (e.message || 'error'));
     } finally {
@@ -236,6 +239,7 @@ export default function VaultPage() {
       await saveTrackerStateNow(snap.state as unknown as TrackerState);
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة' : '✓ Restored from local snapshot');
       window.location.reload();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error((t.lang === 'ar' ? 'فشلت الاستعادة: ' : 'Restore failed: ') + e.message);
     }
@@ -291,6 +295,7 @@ export default function VaultPage() {
       gasSaveConfig();
       setCloudLabel('');
       toast.success('☁ Backed up · ' + new Date().toLocaleTimeString());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error('Backup failed: ' + e.message);
     } finally {
@@ -305,6 +310,7 @@ export default function VaultPage() {
       const res = await gasPost({ action: 'meta' });
       if (!res || res.ok === false) throw new Error(res?.error || 'Meta rejected');
       setCloudVersions(Array.isArray(res.versions) ? res.versions : []);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error('Failed to load versions: ' + e.message);
     } finally {
@@ -325,6 +331,7 @@ export default function VaultPage() {
       await saveTrackerStateNow(res.state as unknown as TrackerState);
       toast.success('✓ Restored version ' + String(versionId).slice(0, 8));
       window.location.reload();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error('Restore failed: ' + e.message);
     } finally {
@@ -342,6 +349,7 @@ export default function VaultPage() {
       } else {
         toast.info('Scan complete');
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error('Scan failed: ' + e.message);
     } finally {
@@ -357,7 +365,9 @@ export default function VaultPage() {
       try {
         const data = JSON.parse(reader.result as string);
         const normalized = normalizeImportedTrackerState(data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tradeCount = Array.isArray(normalized.trades) ? (normalized.trades as any[]).length : 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const batchCount = Array.isArray(normalized.batches) ? (normalized.batches as any[]).length : 0;
         if (!confirm(`Import this file? (${tradeCount} trades, ${batchCount} batches)\nThis will replace your current state.`)) return;
         const sk = findTrackerStorageKey(localStorage);
@@ -393,6 +403,7 @@ export default function VaultPage() {
       gasSaveConfig();
       toast.success('✓ Restored from Cloud');
       window.location.reload();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       toast.error('Restore failed: ' + e.message);
     } finally {
@@ -414,10 +425,12 @@ export default function VaultPage() {
   };
 
   const exportCSV = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state = getCurrentState() as any;
     const trades = state.trades || [];
     if (!trades.length) { toast.error(t.lang === 'ar' ? 'لا توجد صفقات للتصدير' : 'No trades to export'); return; }
     const headers = ['id', 'ts', 'amountUSDT', 'sellPriceQAR', 'feeQAR', 'note', 'voided'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = trades.map((t: any) => headers.map(h => JSON.stringify(t[h] ?? '')).join(','));
     downloadBlob([headers.join(','), ...rows].join('\n'), `trades-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
     setExportStatus('success');
@@ -426,6 +439,7 @@ export default function VaultPage() {
   };
 
   const exportExcel = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state = getCurrentState() as any;
     const trades = state.trades || [];
     const batches = state.batches || [];
@@ -434,12 +448,14 @@ export default function VaultPage() {
       return;
     }
     const tradeHeaders = ['ID', 'Date', 'Amount USDT', 'Sell Price QAR', 'Fee QAR', 'Note', 'Voided'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tradeRows = trades.map((tr: any) => [
       tr.id || '', new Date(tr.ts || tr.created_at || 0).toLocaleString(),
       tr.amountUSDT ?? tr.quantity ?? '', tr.sellPriceQAR ?? tr.unit_price ?? '',
       tr.feeQAR ?? tr.fee ?? '', tr.note ?? tr.notes ?? '', tr.voided ?? tr.status ?? ''
     ].join('\t'));
     const batchHeaders = ['ID', 'Date', 'Quantity', 'Price', 'Source', 'Note'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchRows = batches.map((b: any) => [
       b.id || '', new Date(b.ts || b.acquired_at || b.created_at || 0).toLocaleString(),
       b.qty ?? b.quantity ?? '', b.priceQAR ?? b.unit_cost ?? '',
@@ -462,7 +478,9 @@ export default function VaultPage() {
       try {
         const data = JSON.parse(reader.result as string);
         const normalized = normalizeImportedTrackerState(data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tradeCount = Array.isArray(normalized.trades) ? (normalized.trades as any[]).length : 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const batchCount = Array.isArray(normalized.batches) ? (normalized.batches as any[]).length : 0;
         
         if (!confirm(
@@ -483,6 +501,7 @@ export default function VaultPage() {
           : `✓ Imported: ${tradeCount} trades, ${batchCount} batches`);
         toast.success(t.lang === 'ar' ? 'تم استيراد البيانات — جاري إعادة التحميل…' : 'Data imported — reloading…');
         setTimeout(() => window.location.reload(), 1000);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         setImportStatus('error');
         setImportMsg(t.lang === 'ar' ? 'ملف JSON غير صالح أو تنسيق غير مدعوم' : 'Invalid JSON file or unsupported format');

@@ -42,7 +42,7 @@ function loadSavedSettings(): AppSettings {
   try {
     const raw = localStorage.getItem('tracker_settings');
     if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-  } catch {}
+  } catch { /* intentional */ }
   return { ...DEFAULT_SETTINGS };
 }
 
@@ -50,7 +50,7 @@ function loadLogs(): LogEntry[] {
   try {
     const raw = localStorage.getItem('tracker_logs');
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch { /* intentional */ }
   return [];
 }
 
@@ -107,6 +107,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       autoSaveTimer.current = setTimeout(() => {
         localStorage.setItem('tracker_settings', JSON.stringify(next));
         setSaved(next); setDirty(false);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         import('./tracker-sync').then(({ savePreferencesToCloud }) => savePreferencesToCloud(next as any));
       }, 800);
     }
@@ -115,6 +116,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const save = useCallback(() => {
     localStorage.setItem('tracker_settings', JSON.stringify(draft));
     setSaved(draft); setDirty(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     import('./tracker-sync').then(({ savePreferencesNow }) => savePreferencesNow(draft as any));
   }, [draft]);
 

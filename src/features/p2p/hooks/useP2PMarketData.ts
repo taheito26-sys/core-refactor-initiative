@@ -8,6 +8,7 @@ export function useP2PMarketData(market: MarketId) {
   const [history, setHistory] = useState<P2PHistoryPoint[]>([]);
   const [merchantStats, setMerchantStats] = useState<MerchantStat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);  // ISSUE 8 FIX: expose error state
   const [latestFetchedAt, setLatestFetchedAt] = useState<string | null>(null);
   const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
 
@@ -45,6 +46,7 @@ export function useP2PMarketData(market: MarketId) {
 
       const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
       const { data: histRowsDesc } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
         .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
         .eq('market', market)
@@ -52,6 +54,7 @@ export function useP2PMarketData(market: MarketId) {
         .order('fetched_at', { ascending: false })
         .limit(10000);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const historyPoints = (histRowsDesc || []).reverse().flatMap((row: any) => {
         const ts = row.fetched_at ? new Date(row.fetched_at).getTime() : toFiniteNumber(row.ts_val);
         if (!ts) return [];
@@ -67,6 +70,7 @@ export function useP2PMarketData(market: MarketId) {
 
       const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data: merchantRowsDesc } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
         .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
         .eq('market', market)
@@ -74,6 +78,7 @@ export function useP2PMarketData(market: MarketId) {
         .order('fetched_at', { ascending: false })
         .limit(2500);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows = (merchantRowsDesc || []) as any[];
       const marketPolls = Math.max(rows.length, 1);
       const merchantMap = new Map<string, { appearances: number; totalAvailable: number; sampleCount: number; maxAvailable: number }>();
@@ -107,7 +112,11 @@ export function useP2PMarketData(market: MarketId) {
         maxAvailable: stat.maxAvailable,
       })));
     } catch (err) {
+      // ISSUE 8 FIX: surface error to consumers so the UI can show an error
+      // state instead of silently rendering empty/stale charts.
+      const msg = err instanceof Error ? err.message : 'Unknown P2P load error';
       console.error('P2P load error:', err);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -115,6 +124,7 @@ export function useP2PMarketData(market: MarketId) {
 
   useEffect(() => {
     setLoading(true);
+    setError(null);   // ISSUE 8 FIX: reset error on market change
     loadFromDb();
 
     const channel = supabase
@@ -127,5 +137,5 @@ export function useP2PMarketData(market: MarketId) {
     return () => { void supabase.removeChannel(channel); };
   }, [market, loadFromDb]);
 
-  return { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, refresh: loadFromDb };
+  return { snapshot, history, merchantStats, loading, error, latestFetchedAt, qatarRates, refresh: loadFromDb };
 }

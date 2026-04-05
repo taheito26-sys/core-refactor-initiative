@@ -95,6 +95,7 @@ export function useReinvestProfit() {
           initiated_by: userId!,
           pool_balance_after: newBalance,
           note: 'Reinvested from settlement period',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (ledgerErr) throw ledgerErr;
 
@@ -107,6 +108,7 @@ export function useReinvestProfit() {
           resolved_by: userId,
           resolved_at: new Date().toISOString(),
           settled_amount: input.amount,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
         .eq('id', input.period_id);
       if (periodErr) throw periodErr;
@@ -152,6 +154,7 @@ export function usePayoutProfit() {
           settled_by: userId!,
           notes: 'Payout for settlement period',
           status: 'pending',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
         .select('id')
         .single();
@@ -171,6 +174,7 @@ export function usePayoutProfit() {
           initiated_by: userId!,
           pool_balance_after: input.current_pool_balance,
           note: 'Payout for settlement period',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (ledgerErr) throw ledgerErr;
 
@@ -184,7 +188,9 @@ export function usePayoutProfit() {
           resolved_by: userId,
           resolved_at: new Date().toISOString(),
           settled_amount: input.amount,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           settlement_id: (settlement as any).id,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
         .eq('id', input.period_id);
       if (periodErr) throw periodErr;
@@ -226,6 +232,7 @@ export function useWithdrawFromPool() {
           initiated_by: userId!,
           pool_balance_after: newBalance,
           note: 'Partner withdrawal from reinvested pool',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (ledgerErr) throw ledgerErr;
 
@@ -240,6 +247,7 @@ export function useWithdrawFromPool() {
           settled_by: userId!,
           notes: 'Withdrawal from reinvested profit pool',
           status: 'pending',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (settErr) throw settErr;
     },

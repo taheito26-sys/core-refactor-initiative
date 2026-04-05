@@ -30,6 +30,7 @@ export default function CalendarPage() {
   const firstDay = new Date(year, month, 1).getDay();
 
   // Build month data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mData: Record<number, { profit: number; trades: number; volumeQAR: number; wins: number; losses: number; marginSum: number; tradeList: any[] }> = {};
   for (let d = 1; d <= daysInM; d++) mData[d] = { profit: 0, trades: 0, volumeQAR: 0, wins: 0, losses: 0, marginSum: 0, tradeList: [] };
 
@@ -58,6 +59,7 @@ export default function CalendarPage() {
       }
       // For linked/partner trades, show only my share of the profit
       if (tr.linkedDealId || tr.linkedRelId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const myPct = (tr as any).merchantPct ?? 100;
         netQAR = netQAR * myPct / 100;
         margin = rev > 0 ? (netQAR / rev) * 100 : 0;
@@ -67,7 +69,7 @@ export default function CalendarPage() {
         mData[d2].volumeQAR += rev;
         mData[d2].trades++;
         mData[d2].marginSum += Number.isFinite(margin) ? margin : 0;
-        (netQAR >= 0 ? mData[d2].wins++ : mData[d2].losses++);
+        void (netQAR >= 0 ? mData[d2].wins++ : mData[d2].losses++);
         mData[d2].tradeList.push({
           ...tr, net: netQAR, margin, avgBuy, rev,
           isLinked: !!tr.linkedDealId || !!tr.linkedRelId,
@@ -201,6 +203,7 @@ export default function CalendarPage() {
                 </tr>
               </thead>
               <tbody>
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {selData.tradeList.map((tr: any) => (
                   <tr key={tr.id}>
                     <td className="mono">

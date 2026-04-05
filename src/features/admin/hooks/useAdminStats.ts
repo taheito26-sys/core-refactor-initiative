@@ -21,6 +21,7 @@ export function useAdminStats() {
   return useQuery({
     queryKey: ['admin-system-stats'],
     queryFn: async (): Promise<SystemStats> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await supabase.rpc('admin_system_stats' as any);
       if (error) throw error;
       return data as unknown as SystemStats;

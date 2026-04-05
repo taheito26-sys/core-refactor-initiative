@@ -60,7 +60,9 @@ export function useSettlementOverview(overrideMerchantId?: string) {
       const { data: periods } = await periodsQuery;
 
       const items: SettlementOverviewItem[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const relIds = [...new Set((periods || []).map((p: any) => p.relationship_id))];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dealIds = [...new Set((periods || []).map((p: any) => p.deal_id))];
 
       // Fetch counterparty names
@@ -68,6 +70,7 @@ export function useSettlementOverview(overrideMerchantId?: string) {
       if (relIds.length > 0) {
         const { data: rels } = await supabase.from('merchant_relationships').select('*').in('id', relIds);
         const myId = effectiveMerchantId;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const r of (rels || []) as any[]) {
           const cpId = r.merchant_a_id === myId ? r.merchant_b_id : r.merchant_a_id;
           const { data: profile } = await supabase.from('merchant_profiles').select('display_name').eq('merchant_id', cpId).maybeSingle();
@@ -82,6 +85,7 @@ export function useSettlementOverview(overrideMerchantId?: string) {
         (deals || []).forEach(d => dealMap.set(d.id, d.title));
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const p of (periods || []) as any[]) {
         items.push({
           period_id: p.id,
