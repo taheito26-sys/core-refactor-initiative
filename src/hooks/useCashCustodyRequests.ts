@@ -54,9 +54,8 @@ export function useCashCustodyRequests() {
     queryFn: async () => {
       if (!user?.id) return [];
       try {
-        const { data, error } = await (supabase
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .from('cash_custody_requests') as any)
+        const { data, error } = await supabase
+          .from('cash_custody_requests')
           .select('*')
           .or(`requester_user_id.eq.${user.id},custodian_user_id.eq.${user.id}`)
           .order('created_at', { ascending: false });
