@@ -2176,17 +2176,17 @@ export default function OrdersPage() {
       ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
     ];
     return (
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {kpis.map(k => (
           <div key={k.label} style={{
-            flex: '1 1 80px', minWidth: 80,
-            padding: '8px 12px',
+            flex: '1 1 60px', minWidth: 60,
+            padding: '5px 9px',
             background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
             border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
-            borderRadius: 10,
+            borderRadius: 8,
           }}>
-            <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 3 }}>{k.label}</div>
-            <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: k.color || 'var(--fg)' }}>{k.value}</div>
+            <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{k.label}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: k.color || 'var(--fg)', whiteSpace: 'nowrap' }}>{k.value}</div>
           </div>
         ))}
       </div>
@@ -2947,7 +2947,6 @@ export default function OrdersPage() {
             <div className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
                 {!isCapitalTransfer && (<>
 
