@@ -415,7 +415,7 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
     const margin = rev > 0 ? (netQAR / rev) * 100 : 0;
 
     tradeCalc.set(t.id, {
-      ok: qtyLeft <= 0 || !t.usesStock,
+      ok: slices.length > 0 || !t.usesStock,
       netQAR,
       avgBuyQAR,
       margin,

@@ -36,16 +36,6 @@ export interface LayoutDef {
   shadow: string;
   swatches: string[];
   themes: Record<string, ThemeDef>;
-  /** font-weight for labels, headings, badges. Default '900' */
-  fontWeightUi?: string;
-  /** font-weight for large numeric values. Default '800' */
-  fontWeightVal?: string;
-  /** letter-spacing for uppercase labels. Default '.5px' */
-  labelTracking?: string;
-  /** letter-spacing for numeric values. Default '-.3px' */
-  valTracking?: string;
-  /** opacity multiplier (0–1) for decorative card ornament blob. Default '1' */
-  cardOrnament?: string;
 }
 
 export interface AppSettings {
