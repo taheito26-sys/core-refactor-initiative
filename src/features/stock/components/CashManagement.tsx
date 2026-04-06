@@ -148,15 +148,18 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
     fontSize: 12,
     borderRadius: 6,
     border: '1px solid var(--line)',
-    background: 'var(--panel)',
-    color: 'var(--text)',
+    /* Hardcoded: CSS vars don't resolve in native OS dropdown popup */
+    background: '#1a1d38',
+    color: '#e8eaff',
     cursor: 'pointer',
-    outline: 'none'
+    outline: 'none',
+    colorScheme: 'dark',
   };
 
   const optionStyle: React.CSSProperties = {
-    background: 'var(--panel)',
-    color: 'var(--text)'
+    /* Hardcoded: CSS vars don't resolve in native OS dropdown popup */
+    backgroundColor: '#1a1d38',
+    color: '#e8eaff',
   };
 
   return (
@@ -654,7 +657,7 @@ function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">Select Merchant (Custodian)</div>
           <select value={relId} onChange={e => setRelId(e.target.value)}
-            style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+            style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
             <option value="">Select relationship...</option>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {relationships.map((r: any) => (
@@ -671,7 +674,7 @@ function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, 
           <div className="field2">
             <div className="lbl">Currency</div>
             <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
-              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--input-bg)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
+              style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
               <option value="QAR">QAR</option>
               <option value="USDT">USDT</option>
               <option value="USD">USD</option>
@@ -1060,7 +1063,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                   <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '12px 12px 14px' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
                           <TypeIcon />
                         </div>
                         <div>
