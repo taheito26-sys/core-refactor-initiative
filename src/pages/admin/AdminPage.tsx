@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell, Cloud } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, CheckCircle, Bell, FileText, Cloud, Shield } from 'lucide-react';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 import { AdminDashboard } from '@/features/admin/components/AdminDashboard';
 import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirectory';
@@ -10,39 +10,46 @@ import { AdminBackupManager } from '@/features/admin/components/AdminBackupManag
 import AdminApprovalsPage from './AdminApprovalsPage';
 
 const TABS = [
-  { id: 'overview',       label: 'Overview',       Icon: LayoutDashboard },
-  { id: 'users',          label: 'Users',           Icon: Users           },
-  { id: 'approvals',      label: 'Approvals',       Icon: CheckCircle     },
-  { id: 'notifications',  label: 'Notifications',   Icon: Bell            },
-  { id: 'audit',          label: 'Audit Log',       Icon: FileText        },
-  { id: 'backups',        label: 'Backups',         Icon: Cloud           },
+  { id: 'overview',      label: 'Overview',      Icon: LayoutDashboard },
+  { id: 'users',         label: 'Users',          Icon: Users           },
+  { id: 'approvals',     label: 'Approvals',      Icon: CheckCircle     },
+  { id: 'notifications', label: 'Notifications',  Icon: Bell            },
+  { id: 'audit',         label: 'Audit Log',      Icon: FileText        },
+  { id: 'backups',       label: 'Backups',        Icon: Cloud           },
 ] as const;
+
+type TabId = typeof TABS[number]['id'];
 
 export default function AdminPage() {
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<typeof TABS[number]['id']>('overview');
 
   if (roleLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
-        <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', color: 'var(--muted)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 280 }}>
+        <Loader2 style={{ width: 18, height: 18, animation: 'spin 1s linear infinite', color: 'var(--tracker-brand)' }} />
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
         <div style={{
-          textAlign: 'center', padding: '32px 40px',
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 12,
+          textAlign: 'center', padding: '36px 48px',
+          background: 'var(--tracker-panel)',
+          border: '1px solid var(--tracker-line)',
+          borderRadius: 'var(--lt-radius)',
+          boxShadow: 'var(--lt-shadow)',
         }}>
-          <Shield style={{ width: 32, height: 32, color: 'var(--bad)', margin: '0 auto 12px' }} />
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 6 }}>Access Denied</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>You don't have admin privileges.</div>
+          <Shield style={{ width: 28, height: 28, color: 'var(--tracker-bad)', margin: '0 auto 14px' }} />
+          <div style={{ fontSize: 15, fontWeight: 400, color: 'var(--tracker-text)', letterSpacing: '-0.01em', marginBottom: 6 }}>
+            Access Denied
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--tracker-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Admin privileges required
+          </div>
         </div>
       </div>
     );
@@ -50,41 +57,51 @@ export default function AdminPage() {
 
   if (workspaceUserId) {
     return (
-      <div style={{ padding: '16px 20px' }}>
+      <div style={{ minHeight: '100%', padding: '18px 20px' }}>
         <AdminUserWorkspace userId={workspaceUserId} onBack={() => setWorkspaceUserId(null)} />
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--bg, #0d0e14)' }}>
+    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Header ── */}
+      {/* ── Masthead ── */}
       <div style={{
-        padding: '18px 20px 0',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        padding: '20px 24px 0',
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--tracker-brand) 4%, transparent) 0%, transparent 100%)',
+        borderBottom: '1px solid var(--tracker-line)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'rgba(99,102,241,0.12)',
-            border: '1px solid rgba(99,102,241,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Shield style={{ width: 14, height: 14, color: '#818cf8' }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 28, height: 28,
+              borderRadius: 'var(--lt-radius-sm)',
+              background: 'color-mix(in srgb, var(--tracker-brand) 12%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--tracker-brand) 22%, transparent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Shield style={{ width: 13, height: 13, color: 'var(--tracker-brand)' }} />
+            </div>
+            <span style={{ fontSize: 22, fontWeight: 400, color: 'var(--tracker-text)', letterSpacing: '-0.03em', lineHeight: 1 }}>
               Admin
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              Control Center
-            </div>
+            </span>
+          </div>
+          <div style={{
+            fontSize: 9, fontWeight: 400,
+            color: 'var(--tracker-brand)',
+            letterSpacing: '0.18em', textTransform: 'uppercase',
+            borderLeft: '1px solid color-mix(in srgb, var(--tracker-brand) 25%, transparent)',
+            paddingLeft: 14,
+          }}>
+            Control Center
           </div>
         </div>
 
-        {/* ── Tab Nav ── */}
-        <div style={{ display: 'flex', gap: 0, overflowX: 'auto', scrollbarWidth: 'none' }}>
+        {/* ── Tab rail ── */}
+        <div style={{ display: 'flex', gap: 0, overflowX: 'auto', scrollbarWidth: 'none', marginBottom: -1 }}>
           {TABS.map(({ id, label, Icon }) => {
             const active = activeTab === id;
             return (
@@ -92,22 +109,24 @@ export default function AdminPage() {
                 key={id}
                 onClick={() => setActiveTab(id)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px',
-                  fontSize: 12,
-                  fontWeight: active ? 600 : 400,
-                  color: active ? 'var(--fg)' : 'var(--muted)',
-                  background: 'transparent',
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '9px 16px',
+                  fontSize: 11, fontWeight: 400,
+                  letterSpacing: active ? '0.05em' : '0.02em',
+                  textTransform: 'uppercase',
+                  color: active ? 'var(--tracker-brand)' : 'var(--tracker-muted)',
+                  background: active ? 'color-mix(in srgb, var(--tracker-brand) 6%, transparent)' : 'transparent',
                   border: 'none',
-                  borderBottom: active ? '2px solid #818cf8' : '2px solid transparent',
-                  marginBottom: -1,
+                  borderBottom: active ? '2px solid var(--tracker-brand)' : '2px solid transparent',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  transition: 'color 0.15s ease, border-color 0.15s ease',
                   flexShrink: 0,
+                  borderRadius: '2px 2px 0 0',
+                  transition: 'color 0.15s, background 0.15s',
+                  fontFamily: 'inherit',
                 }}
               >
-                <Icon style={{ width: 13, height: 13, opacity: active ? 1 : 0.6 }} />
+                <Icon style={{ width: 12, height: 12 }} />
                 {label}
               </button>
             );
@@ -116,7 +135,7 @@ export default function AdminPage() {
       </div>
 
       {/* ── Content ── */}
-      <div style={{ padding: '20px' }}>
+      <div style={{ flex: 1, padding: '24px' }}>
         {activeTab === 'overview'      && <AdminDashboard />}
         {activeTab === 'users'         && <AdminUserDirectory onOpenWorkspace={uid => setWorkspaceUserId(uid)} />}
         {activeTab === 'approvals'     && <AdminApprovalsPage />}

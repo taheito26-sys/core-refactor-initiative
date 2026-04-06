@@ -135,8 +135,16 @@ export function applyThemeToDOM(settings: AppSettings) {
   root.style.setProperty('--lt-shadow', layout.shadow);
   root.style.setProperty('--lt-shadow2', dark ? '0 2px 8px rgba(0,0,0,.2)' : '0 2px 8px rgba(0,0,0,.08)');
 
+  // Typography scale variables — layout-specific, falling back to sane defaults
+  root.style.setProperty('--lt-fw-ui',            layout.fontWeightUi    ?? '900');
+  root.style.setProperty('--lt-fw-val',           layout.fontWeightVal   ?? '800');
+  root.style.setProperty('--lt-label-tracking',   layout.labelTracking   ?? '.5px');
+  root.style.setProperty('--lt-val-tracking',     layout.valTracking     ?? '-.3px');
+  root.style.setProperty('--lt-card-ornament',    layout.cardOrnament    ?? '1');
+
   root.style.setProperty('--font-display', `'${layout.font}', ${layout.font === layout.fontMono ? 'monospace' : 'sans-serif'}`);
   root.style.setProperty('--font-body', `'${layout.font}', sans-serif`);
+  root.style.setProperty('--lt-display-font', `'${layout.font}', sans-serif`);
   root.style.setProperty('--font-ledger', `'${settings.ledgerFont}', sans-serif`);
   root.style.setProperty('--lt-font', `'${settings.ledgerFont}', sans-serif`);
   root.style.setProperty('--lt-font-mono', `'${layout.fontMono}', 'Fira Code', monospace`);
@@ -152,7 +160,7 @@ export function applyThemeToDOM(settings: AppSettings) {
   root.style.setProperty('--ledger-fs', `${lfsClamped}px`);
   root.style.setProperty('--ledger-font-size', `${lfsClamped}px`);
 
-  document.body.style.fontFamily = `'${settings.ledgerFont}', sans-serif`;
+  document.body.style.fontFamily = `'${layout.font}', '${settings.ledgerFont}', sans-serif`;
   document.body.style.fontSize = `${lfsClamped}px`;
 
   root.dir = settings.language === 'ar' ? 'rtl' : 'ltr';
