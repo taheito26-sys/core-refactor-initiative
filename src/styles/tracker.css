@@ -201,7 +201,7 @@
 .tracker-root .previewBox { border-radius: var(--lt-radius-sm); border: 1px solid color-mix(in srgb,var(--brand) 20%,transparent); background: var(--brand3); padding: 10px; }
 .tracker-root .previewBox .pt { font-size: calc(9px * var(--ui-scale,1)); font-weight: var(--lt-fw-ui,900); letter-spacing: var(--lt-label-tracking,.8px); text-transform: uppercase; color: var(--brand); margin-bottom: 6px; }
 .tracker-root .modeToggle { display: flex; gap: 2px; padding: 3px; border-radius: var(--lt-radius-sm); border: 1px solid var(--line); background: rgba(255,255,255,.02); }
-.tracker-root .modeToggle button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: calc(var(--lt-radius-sm) - 2px); padding: 4px 6px; font-weight: var(--lt-fw-ui,900); font-size: calc(9px * var(--ui-scale,1)); cursor: pointer; transition: all var(--lt-tr); white-space: nowrap; }
+.tracker-root .modeToggle button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: max(0px, calc(var(--lt-radius-sm) - 2px)); padding: 4px 6px; font-weight: var(--lt-fw-ui,900); font-size: calc(9px * var(--ui-scale,1)); cursor: pointer; transition: all var(--lt-tr); white-space: normal; text-align: center; line-height: 1.25; overflow: hidden; min-width: 0; }
 .tracker-root .modeToggle button.active { background: var(--brand3); color: var(--brand); border-color: color-mix(in srgb,var(--brand) 30%,transparent); }
 .tracker-root .g2tight { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tracker-root .formActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
@@ -502,16 +502,19 @@
   .tracker-root .formActions { padding: 0; }
   .tracker-root .formActions .btn { width: 100%; }
 
-  /* ── Mobile entry mode toggles: allow wrapping ── */
+  /* ── Mobile entry mode toggles ── */
   .tracker-root .modeToggle {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   .tracker-root .modeToggle button {
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     font-size: 9px !important;
     padding: 6px 4px !important;
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
+    overflow: hidden;
   }
 
   /* ── Mobile KPI bands: shrink text ── */
