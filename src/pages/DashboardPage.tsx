@@ -249,41 +249,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     return { inCount, inNet, inMyShare, outCount, outNet, outMyShare };
   }, [merchantDealKpis, settings.range]);
 
-  // ── Segmented Net Profit KPI (Own / Incoming / Outgoing) ──────────────
-  const segmentedProfit = useMemo(() => {
-    const computeForRange = (range: string) => {
-      // Own Orders: tracker trades NOT linked to any deal
-      const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range));
-      let ownNet = 0;
-      for (const tr of ownTrades) { ownNet += tradeNet(tr); }
-
-      // Incoming / Outgoing: from merchant deal details, deduplicated by deal_id
-      let inMyShare = 0, outMyShare = 0;
-      if (merchantDealKpis?.dealDetails) {
-        const seen = new Set<string>();
-        for (const d of merchantDealKpis.dealDetails) {
-          if (!inRange(d.ts, range)) continue;
-          if (seen.has(d.id)) continue;
-          seen.add(d.id);
-          // Validate: skip if myShare is not a valid finite number
-          if (!Number.isFinite(d.myShare)) continue;
-          if (d.direction === 'incoming') {
-            inMyShare += d.myShare;
-          } else if (d.direction === 'outgoing') {
-            outMyShare += d.myShare;
-          }
-        }
-      }
-      const total = ownNet + inMyShare + outMyShare;
-      return { ownNet, inMyShare, outMyShare, total };
-    };
-    return {
-      thisMonth: computeForRange('this_month'),
-      lastMonth: computeForRange('last_month'),
-      range: computeForRange(settings.range),
-    };
-  }, [allTrades, merchantDealKpis, settings.range, tradeNet]);
-
   const p2pAvgs = useMemo(() => {
     const sellTrades = allTrades.filter(t => t.usesStock && t.sellPriceQAR > 0);
     const avgSell = sellTrades.length ? sellTrades.reduce((s, t) => s + t.sellPriceQAR, 0) / sellTrades.length : null;
@@ -303,6 +268,33 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     }
     return fullNet;
   }, [derived.tradeCalc]);
+
+  // ── Segmented Net Profit KPI (Own / Incoming / Outgoing) ──────────────
+  const segmentedProfit = useMemo(() => {
+    const computeForRange = (range: string) => {
+      const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range));
+      let ownNet = 0;
+      for (const tr of ownTrades) { ownNet += tradeNet(tr); }
+      let inMyShare = 0, outMyShare = 0;
+      if (merchantDealKpis?.dealDetails) {
+        const seen = new Set<string>();
+        for (const d of merchantDealKpis.dealDetails) {
+          if (!inRange(d.ts, range)) continue;
+          if (seen.has(d.id)) continue;
+          seen.add(d.id);
+          if (!Number.isFinite(d.myShare)) continue;
+          if (d.direction === 'incoming') { inMyShare += d.myShare; }
+          else if (d.direction === 'outgoing') { outMyShare += d.myShare; }
+        }
+      }
+      return { ownNet, inMyShare, outMyShare, total: ownNet + inMyShare + outMyShare };
+    };
+    return {
+      thisMonth: computeForRange('this_month'),
+      lastMonth: computeForRange('last_month'),
+      range: computeForRange(settings.range),
+    };
+  }, [allTrades, merchantDealKpis, settings.range, tradeNet]);
 
   const trendData = useMemo(() => {
     const sorted = [...allTrades].sort((a, b) => a.ts - b.ts).slice(-14);
