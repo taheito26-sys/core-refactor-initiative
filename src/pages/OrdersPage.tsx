@@ -3564,7 +3564,14 @@ export default function OrdersPage() {
                                     <span className="muted">Cost (FIFO):</span>
                                     <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtC(calc.cost)}</strong>
                                   </div>
-                                   {/* Row 3: Your total cut (includes op fee if you are operator) */}
+                                  {/* Row 3: Net Profit (revenue - cost - fee) */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2, borderTop: '1px solid color-mix(in srgb, var(--line) 30%, transparent)', paddingTop: 4, marginTop: 2 }}>
+                                    <span className="muted" style={{ fontWeight: 700 }}>Net Profit:</span>
+                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                                      {calc.net >= 0 ? '+' : ''}{fmtC(calc.net)}
+                                    </strong>
+                                  </div>
+                                  {/* Row 4: Your total cut (includes op fee if you are operator) */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({isOpPriority ? `${(calc.net > 0 ? (calc.merchantAmount / calc.net * 100) : 0).toFixed(1)}%` : `${alloc.merchantSharePct}%`}):</span>
                                     <strong className="mono" style={{ color: 'var(--good)' }}>
