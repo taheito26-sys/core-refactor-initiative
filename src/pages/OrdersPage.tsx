@@ -111,6 +111,19 @@ export default function OrdersPage() {
     if (v === '' || /^-?\d*\.?\d*$/.test(v)) setter(v);
   };
 
+  // ─── Canonical USDT Quantity ───────────────────────────────────────
+  // Single source of truth for the sold USDT quantity, derived correctly
+  // from whichever entry mode is active. Never use raw saleAmount for qty.
+  const canonicalSaleQtyUsdt = useMemo(() => {
+    if (saleEntryMode === 'qty_total') return Number(saleUsdtQty) || 0;
+    if (saleEntryMode === 'qty_price') return Number(saleUsdtQty) || 0;
+    // price_vol
+    const raw = Number(saleAmount) || 0;
+    if (saleMode === 'USDT') return raw;
+    const sell = Number(saleSell) || 0;
+    return sell > 0 ? raw / sell : 0;
+  }, [saleEntryMode, saleMode, saleAmount, saleUsdtQty, saleSell]);
+
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
   const [addBuyerOpen, setAddBuyerOpen] = useState(false);
   const [newBuyerName, setNewBuyerName] = useState('');
