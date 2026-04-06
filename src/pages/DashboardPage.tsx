@@ -418,11 +418,11 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       <div className="kpis">
         <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge" style={badgeStyle(dR.net >= 0 ? 'good' : 'bad')}>{rLabel}</span>
+            <span className="kpi-badge" style={badgeStyle(segmentedProfit.range.total >= 0 ? 'good' : 'bad')}>{rLabel}</span>
           </div>
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
-          <div className={`kpi-val ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net, settings.currency, wacop)}</div>
-          <div className="kpi-sub">{dR.count} {t('trades')} · {fmtQ(dR.rev)} {t('revSuffix')}</div>
+          <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(segmentedProfit.range.total)}</div>
+          <div className="kpi-sub">{t('ownLabel') || 'Own'} {fmtQ(segmentedProfit.range.ownNet)} · {t('incomingDealsLabel') || 'In'} {fmtQ(segmentedProfit.range.inMyShare)} · {t('outgoing') || 'Out'} {fmtQ(segmentedProfit.range.outMyShare)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
