@@ -18,6 +18,7 @@ import { AdminOrdersMirror } from './AdminOrdersMirror';
 import { AdminStockMirror } from './AdminStockMirror';
 import DashboardPage from '@/pages/DashboardPage';
 import MerchantsPage from '@/pages/MerchantsPage';
+import CRMPage from '@/pages/CRMPage';
 import { fmtTotal } from '@/lib/tracker-helpers';
 import {
   useAdminUserDeals,
