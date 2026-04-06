@@ -273,9 +273,15 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const segmentedProfit = useMemo(() => {
     const computeForRange = (range: string) => {
       const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range));
-      let ownNet = 0;
-      for (const tr of ownTrades) { ownNet += tradeNet(tr); }
-      let inMyShare = 0, outMyShare = 0;
+      let ownNet = 0, ownRev = 0, ownQty = 0, ownCount = 0;
+      for (const tr of ownTrades) {
+        ownNet += tradeNet(tr);
+        ownRev += tr.amountUSDT * tr.sellPriceQAR;
+        ownQty += tr.amountUSDT;
+        ownCount++;
+      }
+      let inMyShare = 0, inVol = 0, inCount = 0;
+      let outMyShare = 0, outVol = 0, outCount = 0;
       if (merchantDealKpis?.dealDetails) {
         const seen = new Set<string>();
         for (const d of merchantDealKpis.dealDetails) {
@@ -283,11 +289,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           if (seen.has(d.id)) continue;
           seen.add(d.id);
           if (!Number.isFinite(d.myShare)) continue;
-          if (d.direction === 'incoming') { inMyShare += d.myShare; }
-          else if (d.direction === 'outgoing') { outMyShare += d.myShare; }
+          if (d.direction === 'incoming') { inMyShare += d.myShare; inVol += d.vol; inCount++; }
+          else if (d.direction === 'outgoing') { outMyShare += d.myShare; outVol += d.vol; outCount++; }
         }
       }
-      return { ownNet, inMyShare, outMyShare, total: ownNet + inMyShare + outMyShare };
+      const totalNet = ownNet + inMyShare + outMyShare;
+      const totalRev = ownRev + inVol + outVol;
+      return { ownNet, ownRev, ownQty, ownCount, inMyShare, inVol, inCount, outMyShare, outVol, outCount, total: totalNet, totalRev };
     };
     return {
       thisMonth: computeForRange('this_month'),
