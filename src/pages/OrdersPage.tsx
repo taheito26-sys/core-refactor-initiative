@@ -111,6 +111,19 @@ export default function OrdersPage() {
     if (v === '' || /^-?\d*\.?\d*$/.test(v)) setter(v);
   };
 
+  // ─── Canonical USDT Quantity ───────────────────────────────────────
+  // Single source of truth for the sold USDT quantity, derived correctly
+  // from whichever entry mode is active. Never use raw saleAmount for qty.
+  const canonicalSaleQtyUsdt = useMemo(() => {
+    if (saleEntryMode === 'qty_total') return Number(saleUsdtQty) || 0;
+    if (saleEntryMode === 'qty_price') return Number(saleUsdtQty) || 0;
+    // price_vol
+    const raw = Number(saleAmount) || 0;
+    if (saleMode === 'USDT') return raw;
+    const sell = Number(saleSell) || 0;
+    return sell > 0 ? raw / sell : 0;
+  }, [saleEntryMode, saleMode, saleAmount, saleUsdtQty, saleSell]);
+
   const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
   const [addBuyerOpen, setAddBuyerOpen] = useState(false);
   const [newBuyerName, setNewBuyerName] = useState('');
@@ -170,15 +183,16 @@ export default function OrdersPage() {
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
 
-  // Sync saleAmount into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
+  // Sync canonical USDT quantity into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
+    const qtyStr = canonicalSaleQtyUsdt > 0 ? String(canonicalSaleQtyUsdt) : '';
     if (selectedTemplateId === 'profit_share_family' && allocations.length > 0 && allocations[0].agreementId) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: qtyStr } : a));
     }
     if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: qtyStr } : a));
     }
-  }, [saleAmount]);
+  }, [canonicalSaleQtyUsdt]);
 
   const [editingDealId, setEditingDealId] = useState<string | null>(null);
   const [editDealTitle, setEditDealTitle] = useState('');
@@ -218,7 +232,7 @@ export default function OrdersPage() {
         family: 'profit_share' as const,
         agreementId: null,
         agreementLabel: '',
-        allocatedUsdt: saleAmount || '',
+        allocatedUsdt: canonicalSaleQtyUsdt > 0 ? String(canonicalSaleQtyUsdt) : '',
         merchantCostPerUsdt: '',
         partnerSharePct: 0,
         merchantSharePct: 0,
@@ -240,7 +254,7 @@ export default function OrdersPage() {
     allocations,
     linkedCounterpartyName,
     linkedCounterpartyId,
-    saleAmount,
+    canonicalSaleQtyUsdt,
   ]);
 
   const editApprovedAgreements = useMemo(
