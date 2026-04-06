@@ -2162,14 +2162,36 @@ export default function OrdersPage() {
     return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
-  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => (
-    <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('count').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{kpi.count}</div></div>
-      {kpi.qty != null && <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>USDT {t('qty').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtU(kpi.qty)}</div></div>}
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtC(kpi.vol)}</div></div>
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtC(kpi.net)}</div></div>
-    </div>
-  );
+  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => {
+    const avgMargin = kpi.vol > 0 ? (kpi.net / kpi.vol) * 100 : 0;
+    const avgTrade = kpi.qty != null && kpi.count > 0 ? kpi.qty / kpi.count : null;
+    const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
+    const kpis = [
+      { label: 'COUNT', value: String(kpi.count) },
+      ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
+      { label: 'VOLUME', value: fmtC(kpi.vol) },
+      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
+      { label: 'AVG MARGIN', value: `${avgMargin >= 0 ? '+' : ''}${avgMargin.toFixed(2)}%`, color: avgMargin >= 0 ? 'var(--good)' : 'var(--bad)' },
+      ...(avgTrade != null ? [{ label: 'AVG TRADE', value: `${fmtU(avgTrade)} USDT` }] : []),
+      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
+    ];
+    return (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{
+            flex: '1 1 80px', minWidth: 80,
+            padding: '8px 12px',
+            background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+            borderRadius: 10,
+          }}>
+            <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 3 }}>{k.label}</div>
+            <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: k.color || 'var(--fg)' }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
@@ -2214,21 +2236,10 @@ export default function OrdersPage() {
           {/* ── MY ORDERS TAB ── */}
           {activeTab === 'my' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2239,8 +2250,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -2250,15 +2260,9 @@ export default function OrdersPage() {
 
               {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800 }}>{t('trades')}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('fifoCostBasisMargin')}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <span className="pill">{rLabel}</span>
-                  <button className="btn secondary" onClick={exportCsv}>CSV</button>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 8, gap: 6 }}>
+                <span className="pill">{rLabel}</span>
+                <button className="btn secondary" onClick={exportCsv}>CSV</button>
               </div>
 
               {filtered.length === 0 ? (
@@ -2465,21 +2469,10 @@ export default function OrdersPage() {
           {/* ── INCOMING ORDERS TAB ── */}
           {activeTab === 'incoming' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2490,8 +2483,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -2649,21 +2641,10 @@ export default function OrdersPage() {
           {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
           {activeTab === 'outgoing' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2674,8 +2655,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -2824,21 +2804,10 @@ export default function OrdersPage() {
           {/* ── USDT TRANSFERS TAB ── */}
           {activeTab === 'transfers' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2849,8 +2818,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
