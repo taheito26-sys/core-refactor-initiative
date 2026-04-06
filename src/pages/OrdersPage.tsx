@@ -25,6 +25,7 @@ import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority
 import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
+import { deriveSaleDraft } from '@/features/orders/utils/sale-draft';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 
@@ -169,16 +170,31 @@ export default function OrdersPage() {
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
+  const saleDraft = useMemo(() => deriveSaleDraft({
+    saleEntryMode,
+    saleMode,
+    saleUsdtQty,
+    saleAmount,
+    saleSell,
+    saleFee,
+  }), [saleEntryMode, saleMode, saleUsdtQty, saleAmount, saleSell, saleFee]);
 
-  // Sync saleAmount into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
+  // Sync canonical sale quantity into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
-    if (selectedTemplateId === 'profit_share_family' && allocations.length > 0 && allocations[0].agreementId) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+    const canonicalQty = saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '';
+    if (selectedTemplateId === 'profit_share_family') {
+      setAllocations(prev => {
+        if (prev.length === 0 || !prev[0].agreementId || prev[0].allocatedUsdt === canonicalQty) return prev;
+        return prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: canonicalQty } : a);
+      });
     }
-    if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+    if (selectedTemplateId === 'sales_deal_family') {
+      setAllocations(prev => {
+        if (prev.length === 0 || prev[0].partnerSharePct !== 50 || prev[0].allocatedUsdt === canonicalQty) return prev;
+        return prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: canonicalQty } : a);
+      });
     }
-  }, [saleAmount]);
+  }, [saleDraft.quantityUsdt, selectedTemplateId]);
 
   const [editingDealId, setEditingDealId] = useState<string | null>(null);
   const [editDealTitle, setEditDealTitle] = useState('');
@@ -218,7 +234,7 @@ export default function OrdersPage() {
         family: 'profit_share' as const,
         agreementId: null,
         agreementLabel: '',
-        allocatedUsdt: saleAmount || '',
+        allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '',
         merchantCostPerUsdt: '',
         partnerSharePct: 0,
         merchantSharePct: 0,
@@ -240,7 +256,7 @@ export default function OrdersPage() {
     allocations,
     linkedCounterpartyName,
     linkedCounterpartyId,
-    saleAmount,
+    saleDraft.quantityUsdt,
   ]);
 
   const editApprovedAgreements = useMemo(
@@ -664,41 +680,26 @@ export default function OrdersPage() {
 
   // Sale preview computation
   const salePreview = useMemo(() => {
-    let sell: number, amountUSDT: number;
     const ts = new Date(saleDate).getTime();
-    const fee = parseFloat(saleFee) || 0;
-
-    if (saleEntryMode === 'qty_total') {
-      // USDT + QAR → auto-calc sell price
-      amountUSDT = Number(saleUsdtQty);
-      const totalQar = Number(saleAmount);
-      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
-    } else if (saleEntryMode === 'qty_price') {
-      // USDT + Price → auto-calc total QAR
-      amountUSDT = Number(saleUsdtQty);
-      sell = Number(saleSell);
-    } else {
-      // price_vol: original mode
-      sell = Number(saleSell);
-      const raw = Number(saleAmount);
-      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
-    }
+    const amountUSDT = saleDraft.quantityUsdt;
+    const sell = saleDraft.sellPriceQar;
+    const fee = saleDraft.feeQar;
 
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     if (priceMode === 'manual') {
       const buyP = parseFloat(manualBuyPrice) || 0;
-      const rev = amountUSDT * sell;
+      const rev = saleDraft.revenueQar;
       const cost = amountUSDT * buyP;
       const net = rev - cost - fee;
       return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net };
     }
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
-    const rev = amountUSDT * sell;
+    const rev = saleDraft.revenueQar;
     const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
     const net = calc?.ok ? rev - cost - fee : NaN;
     return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
-  }, [saleAmount, saleDate, saleEntryMode, saleMode, saleUsdtQty, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
+  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
@@ -872,19 +873,9 @@ export default function OrdersPage() {
     if (isCapitalTransfer) return;
 
     const ts = new Date(saleDate).getTime();
-    let sell: number, amountUSDT: number;
-    if (saleEntryMode === 'qty_total') {
-      amountUSDT = Number(saleUsdtQty);
-      const totalQar = Number(saleAmount);
-      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
-    } else if (saleEntryMode === 'qty_price') {
-      amountUSDT = Number(saleUsdtQty);
-      sell = Number(saleSell);
-    } else {
-      sell = Number(saleSell);
-      const raw = Number(saleAmount);
-      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
-    }
+    const sell = saleDraft.sellPriceQar;
+    const amountUSDT = saleDraft.quantityUsdt;
+    const feeQar = saleDraft.feeQar;
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
@@ -908,7 +899,7 @@ export default function OrdersPage() {
         inputMode: 'USDT',
         amountUSDT,
         sellPriceQAR: sell,
-        feeQAR: parseFloat(saleFee) || 0,
+        feeQAR: feeQar,
         note: '',
         voided: false,
         usesStock: true,
@@ -966,7 +957,7 @@ export default function OrdersPage() {
     const isNewAllocFlowActive = isNewAllocFlow && allocations.length > 0;
 
     const baseTrade: Trade = {
-      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: feeQar, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
@@ -983,7 +974,7 @@ export default function OrdersPage() {
     if (merchantOrderEnabled && isNewAllocFlowActive) {
       try {
         const saleGroupId = crypto.randomUUID();
-        const fee = parseFloat(saleFee) || 0;
+        const fee = feeQar;
         const customerName = buyerName.trim() || t('buyer');
         const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
         const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
@@ -1152,9 +1143,8 @@ export default function OrdersPage() {
       try {
         const customerName = buyerName.trim() || t('buyer');
         const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
-        const amount = Number(saleAmount) || 0;
-        const sell = Number(saleSell) || 0;
-        const fee = parseFloat(saleFee) || 0;
+        const sell = saleDraft.sellPriceQar;
+        const fee = feeQar;
 
         const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
@@ -3188,7 +3178,7 @@ export default function OrdersPage() {
                                       family: val === 'profit_share_family' ? 'profit_share' : 'sales_deal',
                                       agreementId: null,
                                       agreementLabel: '',
-                                      allocatedUsdt: saleAmount || '',
+                                      allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '',
                                       merchantCostPerUsdt: '',
                                       partnerSharePct: 0,
                                       merchantSharePct: 0,
@@ -3240,7 +3230,7 @@ export default function OrdersPage() {
                                             setAllocations(prev => {
                                               const base = prev[0] || {
                                                 id: `alloc_${Date.now()}`, relationshipId: linkedRelId, merchantName: cpName, merchantId: cpId,
-                                                family: 'profit_share' as const, allocatedUsdt: saleAmount || '', merchantCostPerUsdt: '', note: '',
+                                                family: 'profit_share' as const, allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '', merchantCostPerUsdt: '', note: '',
                                               };
                                               return [{
                                                 ...base,
@@ -3299,7 +3289,12 @@ export default function OrdersPage() {
                                 <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>{t('quickTemplate')}</div>
                                 <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
                                    <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
-                                     onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>{t('equalSplit')}
+                                     onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? {
+                                       ...a,
+                                       partnerSharePct: 50,
+                                       merchantSharePct: 50,
+                                       allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : a.allocatedUsdt,
+                                     } : a))}>{t('equalSplit')}
                                   </button>
                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations.length > 1 ? '1.5px solid var(--brand)' : undefined }}
                                     onClick={() => {
@@ -3504,8 +3499,8 @@ export default function OrdersPage() {
                               const alloc = allocations[0];
                               const usdt = parseFloat(alloc.allocatedUsdt) || 0;
                               const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
-                              const sellP = Number(saleSell) || 0;
-                              const totalFee = parseFloat(saleFee) || 0;
+                              const sellP = saleDraft.sellPriceQar;
+                              const totalFee = saleDraft.feeQar;
 
                               if (!(usdt > 0) || !(sellP > 0)) return null;
 
