@@ -409,13 +409,14 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
       qtyLeft -= allocated;
     }
 
+    const fullyMatched = qtyLeft <= 0;
     const rev = t.amountUSDT * t.sellPriceQAR;
-    const netQAR = rev - totalCost - t.feeQAR;
-    const avgBuyQAR = t.amountUSDT > 0 ? totalCost / t.amountUSDT : 0;
-    const margin = rev > 0 ? (netQAR / rev) * 100 : 0;
+    const netQAR = fullyMatched ? rev - totalCost - t.feeQAR : 0;
+    const avgBuyQAR = fullyMatched && t.amountUSDT > 0 ? totalCost / t.amountUSDT : 0;
+    const margin = fullyMatched && rev > 0 ? (netQAR / rev) * 100 : 0;
 
     tradeCalc.set(t.id, {
-      ok: slices.length > 0 || !t.usesStock,
+      ok: fullyMatched || !t.usesStock,
       netQAR,
       avgBuyQAR,
       margin,
