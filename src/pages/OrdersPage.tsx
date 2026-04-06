@@ -3564,22 +3564,18 @@ export default function OrdersPage() {
                                     <span className="muted">Cost (FIFO):</span>
                                     <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtC(calc.cost)}</strong>
                                   </div>
-                                  {/* Row 3: Your net profit share (capital split after op fee) */}
+                                   {/* Row 3: Your total cut (includes op fee if you are operator) */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({isOpPriority ? `${calc.merchantSharePct.toFixed(1)}%` : `${alloc.merchantSharePct}%`}):</span>
+                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({isOpPriority ? `${(calc.net > 0 ? (calc.merchantAmount / calc.net * 100) : 0).toFixed(1)}%` : `${alloc.merchantSharePct}%`}):</span>
                                     <strong className="mono" style={{ color: 'var(--good)' }}>
-                                      {fmtC(isOpPriority && opCalc
-                                        ? (isOpViewer ? opCalc.operatorCapitalShare : opCalc.lenderCapitalShare)
-                                        : calc.merchantAmount)}
+                                      {fmtC(calc.merchantAmount)}
                                     </strong>
                                   </div>
-                                  {/* Row 4: Partner's net profit share (capital split after op fee) */}
+                                  {/* Row 4: Partner's total cut (includes op fee if they are operator) */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({isOpPriority ? `${calc.partnerSharePct.toFixed(1)}%` : `${alloc.partnerSharePct}%`}):</span>
+                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({isOpPriority ? `${(calc.net > 0 ? (calc.partnerAmount / calc.net * 100) : 0).toFixed(1)}%` : `${alloc.partnerSharePct}%`}):</span>
                                     <strong className="mono" style={{ color: 'var(--bad)' }}>
-                                      {fmtC(isOpPriority && opCalc
-                                        ? (isOpViewer ? opCalc.lenderCapitalShare : opCalc.operatorCapitalShare)
-                                        : calc.partnerAmount)}
+                                      {fmtC(calc.partnerAmount)}
                                     </strong>
                                   </div>
                                   {/* Footnote: operator fee + capital split breakdown */}
