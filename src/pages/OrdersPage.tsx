@@ -25,6 +25,7 @@ import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority
 import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
+import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 
@@ -104,6 +105,8 @@ export default function OrdersPage() {
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
   const [cashDepositAccountId, setCashDepositAccountId] = useState('');
+  const [stockOverrideEnabled, setStockOverrideEnabled] = useState(false);
+  const [stockOverrideConfirmed, setStockOverrideConfirmed] = useState(false);
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,16 +172,54 @@ export default function OrdersPage() {
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
+  const saleDraft = useMemo(() => deriveSaleDraft({
+    saleEntryMode,
+    saleMode,
+    saleUsdtQty,
+    saleAmount,
+    saleSell,
+    saleFee,
+  }), [saleEntryMode, saleMode, saleUsdtQty, saleAmount, saleSell, saleFee]);
+  const availableFifoUsdt = useMemo(
+    () => derived.batches.reduce((sum, b) => sum + Math.max(0, b.remainingUSDT), 0),
+    [derived.batches],
+  );
+  const stockCoverage = useMemo(
+    () => computeStockCoverage(availableFifoUsdt, saleDraft.quantityUsdt),
+    [availableFifoUsdt, saleDraft.quantityUsdt],
+  );
+  const isInsufficientStock = useStock && stockCoverage.stockShortfall > 0;
+  const canSubmitSale = canSubmitWithStockCoverage(
+    stockCoverage,
+    useStock,
+    stockOverrideEnabled,
+    stockOverrideConfirmed,
+  );
+  const needsManualBuyPrice = priceMode === 'manual' && !(parseFloat(manualBuyPrice) > 0);
 
-  // Sync saleAmount into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
-    if (selectedTemplateId === 'profit_share_family' && allocations.length > 0 && allocations[0].agreementId) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+    if (!isInsufficientStock) {
+      setStockOverrideEnabled(false);
+      setStockOverrideConfirmed(false);
     }
-    if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+  }, [isInsufficientStock]);
+
+  // Sync canonical sale quantity into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
+  useEffect(() => {
+    const canonicalQty = saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '';
+    if (selectedTemplateId === 'profit_share_family') {
+      setAllocations(prev => {
+        if (prev.length === 0 || !prev[0].agreementId || prev[0].allocatedUsdt === canonicalQty) return prev;
+        return prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: canonicalQty } : a);
+      });
     }
-  }, [saleAmount]);
+    if (selectedTemplateId === 'sales_deal_family') {
+      setAllocations(prev => {
+        if (prev.length === 0 || prev[0].partnerSharePct !== 50 || prev[0].allocatedUsdt === canonicalQty) return prev;
+        return prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: canonicalQty } : a);
+      });
+    }
+  }, [saleDraft.quantityUsdt, selectedTemplateId]);
 
   const [editingDealId, setEditingDealId] = useState<string | null>(null);
   const [editDealTitle, setEditDealTitle] = useState('');
@@ -218,7 +259,7 @@ export default function OrdersPage() {
         family: 'profit_share' as const,
         agreementId: null,
         agreementLabel: '',
-        allocatedUsdt: saleAmount || '',
+        allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '',
         merchantCostPerUsdt: '',
         partnerSharePct: 0,
         merchantSharePct: 0,
@@ -240,7 +281,7 @@ export default function OrdersPage() {
     allocations,
     linkedCounterpartyName,
     linkedCounterpartyId,
-    saleAmount,
+    saleDraft.quantityUsdt,
   ]);
 
   const editApprovedAgreements = useMemo(
@@ -664,45 +705,48 @@ export default function OrdersPage() {
 
   // Sale preview computation
   const salePreview = useMemo(() => {
-    let sell: number, amountUSDT: number;
     const ts = new Date(saleDate).getTime();
-    const fee = parseFloat(saleFee) || 0;
-
-    if (saleEntryMode === 'qty_total') {
-      // USDT + QAR → auto-calc sell price
-      amountUSDT = Number(saleUsdtQty);
-      const totalQar = Number(saleAmount);
-      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
-    } else if (saleEntryMode === 'qty_price') {
-      // USDT + Price → auto-calc total QAR
-      amountUSDT = Number(saleUsdtQty);
-      sell = Number(saleSell);
-    } else {
-      // price_vol: original mode
-      sell = Number(saleSell);
-      const raw = Number(saleAmount);
-      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
-    }
+    const amountUSDT = saleDraft.quantityUsdt;
+    const sell = saleDraft.sellPriceQar;
+    const fee = saleDraft.feeQar;
 
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
     if (priceMode === 'manual') {
       const buyP = parseFloat(manualBuyPrice) || 0;
-      const rev = amountUSDT * sell;
+      const rev = saleDraft.revenueQar;
       const cost = amountUSDT * buyP;
       const net = rev - cost - fee;
-      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net };
+      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net, fifoComplete: true, coveredQty: amountUSDT, uncoveredQty: 0 };
     }
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
-    const rev = amountUSDT * sell;
+    const rev = saleDraft.revenueQar;
     const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
+    const coveredQty = calc?.slices.reduce((s, x) => s + x.qty, 0) || 0;
+    const uncoveredQty = Math.max(0, amountUSDT - coveredQty);
     const net = calc?.ok ? rev - cost - fee : NaN;
-    return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
-  }, [saleAmount, saleDate, saleEntryMode, saleMode, saleUsdtQty, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
+    return {
+      qty: amountUSDT,
+      revenue: rev,
+      avgBuy: calc?.ok ? calc.avgBuyQAR : NaN,
+      cost: calc?.ok ? cost : NaN,
+      net,
+      fifoComplete: !!calc?.ok,
+      coveredQty,
+      uncoveredQty,
+    };
+  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
     if (!selectedTemplateId || !salePreview) return null;
+    if (!Number.isFinite(salePreview.net)) {
+      return {
+        incomplete: true as const,
+        coveredQty: salePreview.coveredQty || 0,
+        uncoveredQty: salePreview.uncoveredQty || 0,
+      };
+    }
     const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId);
     if (!tmpl) return null;
     const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
@@ -872,18 +916,15 @@ export default function OrdersPage() {
     if (isCapitalTransfer) return;
 
     const ts = new Date(saleDate).getTime();
-    let sell: number, amountUSDT: number;
-    if (saleEntryMode === 'qty_total') {
-      amountUSDT = Number(saleUsdtQty);
-      const totalQar = Number(saleAmount);
-      sell = amountUSDT > 0 ? totalQar / amountUSDT : 0;
-    } else if (saleEntryMode === 'qty_price') {
-      amountUSDT = Number(saleUsdtQty);
-      sell = Number(saleSell);
-    } else {
-      sell = Number(saleSell);
-      const raw = Number(saleAmount);
-      amountUSDT = saleMode === 'USDT' ? raw : sell > 0 ? raw / sell : 0;
+    const sell = saleDraft.sellPriceQar;
+    const amountUSDT = saleDraft.quantityUsdt;
+    const feeQar = saleDraft.feeQar;
+    if (isInsufficientStock && !canSubmitSale) {
+      setSaleMessage(
+        t('insufficientStockShortBy')
+          .replace('{qty}', stockCoverage.stockShortfall.toFixed(2)),
+      );
+      return;
     }
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
@@ -908,7 +949,7 @@ export default function OrdersPage() {
         inputMode: 'USDT',
         amountUSDT,
         sellPriceQAR: sell,
-        feeQAR: parseFloat(saleFee) || 0,
+        feeQAR: feeQar,
         note: '',
         voided: false,
         usesStock: true,
@@ -966,7 +1007,11 @@ export default function OrdersPage() {
     const isNewAllocFlowActive = isNewAllocFlow && allocations.length > 0;
 
     const baseTrade: Trade = {
-      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: parseFloat(saleFee) || 0, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: feeQar,
+      note: isInsufficientStock && canSubmitSale
+        ? `manual_cost_basis: true | fifo_uncovered_qty: ${stockCoverage.stockShortfall} | stock_shortfall_override: true`
+        : '',
+      voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
@@ -983,7 +1028,7 @@ export default function OrdersPage() {
     if (merchantOrderEnabled && isNewAllocFlowActive) {
       try {
         const saleGroupId = crypto.randomUUID();
-        const fee = parseFloat(saleFee) || 0;
+        const fee = feeQar;
         const customerName = buyerName.trim() || t('buyer');
         const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
         const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
@@ -1008,6 +1053,13 @@ export default function OrdersPage() {
             `fifo_cost: ${fifoCost}`,
             `avg_buy: ${avgBuy}`,
             `fee: ${fee}`,
+            ...(isInsufficientStock && canSubmitSale
+              ? [
+                  'manual_cost_basis: true',
+                  `fifo_uncovered_qty: ${stockCoverage.stockShortfall}`,
+                  'stock_shortfall_override: true',
+                ]
+              : []),
             `merchant_cost: ${costPerUsdt}`,
             alloc.family === 'profit_share'
               ? `partner_ratio: ${alloc.partnerSharePct}, merchant_ratio: ${alloc.merchantSharePct}`
@@ -1034,6 +1086,9 @@ export default function OrdersPage() {
                 merchant_cost: costPerUsdt,
                 partner_ratio: alloc.partnerSharePct,
                 merchant_ratio: alloc.merchantSharePct,
+                manual_cost_basis: isInsufficientStock && canSubmitSale,
+                fifo_uncovered_qty: isInsufficientStock && canSubmitSale ? stockCoverage.stockShortfall : 0,
+                stock_shortfall_override: isInsufficientStock && canSubmitSale,
               };
               if (selAgreement?.agreement_type === 'operator_priority') {
                 base.agreement_type = 'operator_priority';
@@ -1152,9 +1207,8 @@ export default function OrdersPage() {
       try {
         const customerName = buyerName.trim() || t('buyer');
         const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
-        const amount = Number(saleAmount) || 0;
-        const sell = Number(saleSell) || 0;
-        const fee = parseFloat(saleFee) || 0;
+        const sell = saleDraft.sellPriceQar;
+        const fee = feeQar;
 
         const familyLabel = tmpl.family === 'profit_share' ? t('profitShareLabel') : t('salesDealLabel');
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
@@ -1174,6 +1228,13 @@ export default function OrdersPage() {
           `fifo_cost: ${fifoCost}`,
           `avg_buy: ${avgBuy}`,
           `fee: ${fee}`,
+          ...(isInsufficientStock && canSubmitSale
+            ? [
+                'manual_cost_basis: true',
+                `fifo_uncovered_qty: ${stockCoverage.stockShortfall}`,
+                'stock_shortfall_override: true',
+              ]
+            : []),
           tmpl.dealType === 'partnership'
             ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
             : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
@@ -1193,6 +1254,9 @@ export default function OrdersPage() {
             sell_price: sell,
             avg_buy: avgBuy,
             fee,
+            manual_cost_basis: isInsufficientStock && canSubmitSale,
+            fifo_uncovered_qty: isInsufficientStock && canSubmitSale ? stockCoverage.stockShortfall : 0,
+            stock_shortfall_override: isInsufficientStock && canSubmitSale,
             partner_ratio: tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? null,
             merchant_ratio: tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio ?? null,
           },
@@ -1287,6 +1351,8 @@ export default function OrdersPage() {
     setCashDepositMode('none');
     setCashDepositAmount('');
     setCashDepositAccountId('');
+    setStockOverrideEnabled(false);
+    setStockOverrideConfirmed(false);
   };
 
   const exportCsv = () => {
@@ -3056,7 +3122,19 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('buyPrice')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} style={mobileInputStyle} /></div>
+                      <div className={`inputBox ${needsManualBuyPrice ? 'manualPriceMissingBlink' : ''}`}>
+                        <input
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          value={manualBuyPrice}
+                          onChange={numericOnly(setManualBuyPrice)}
+                          style={{
+                            ...mobileInputStyle,
+                            color: needsManualBuyPrice ? 'var(--bad)' : undefined,
+                            fontWeight: needsManualBuyPrice ? 700 : undefined,
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
@@ -3188,7 +3266,7 @@ export default function OrdersPage() {
                                       family: val === 'profit_share_family' ? 'profit_share' : 'sales_deal',
                                       agreementId: null,
                                       agreementLabel: '',
-                                      allocatedUsdt: saleAmount || '',
+                                      allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '',
                                       merchantCostPerUsdt: '',
                                       partnerSharePct: 0,
                                       merchantSharePct: 0,
@@ -3240,7 +3318,7 @@ export default function OrdersPage() {
                                             setAllocations(prev => {
                                               const base = prev[0] || {
                                                 id: `alloc_${Date.now()}`, relationshipId: linkedRelId, merchantName: cpName, merchantId: cpId,
-                                                family: 'profit_share' as const, allocatedUsdt: saleAmount || '', merchantCostPerUsdt: '', note: '',
+                                                family: 'profit_share' as const, allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : '', merchantCostPerUsdt: '', note: '',
                                               };
                                               return [{
                                                 ...base,
@@ -3299,7 +3377,12 @@ export default function OrdersPage() {
                                 <div className="lbl" style={{ fontSize: 9, marginBottom: 4 }}>{t('quickTemplate')}</div>
                                 <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
                                    <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations[0]?.partnerSharePct === 50 ? '1.5px solid var(--brand)' : undefined }}
-                                     onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, partnerSharePct: 50, merchantSharePct: 50, allocatedUsdt: saleAmount || a.allocatedUsdt } : a))}>{t('equalSplit')}
+                                     onClick={() => setAllocations(prev => prev.map((a, i) => i === 0 ? {
+                                       ...a,
+                                       partnerSharePct: 50,
+                                       merchantSharePct: 50,
+                                       allocatedUsdt: saleDraft.quantityUsdt > 0 ? String(saleDraft.quantityUsdt) : a.allocatedUsdt,
+                                     } : a))}>{t('equalSplit')}
                                   </button>
                                   <button type="button" className="btn secondary" style={{ fontSize: 9, padding: '4px 10px', flex: 1, border: allocations.length > 1 ? '1.5px solid var(--brand)' : undefined }}
                                     onClick={() => {
@@ -3504,8 +3587,8 @@ export default function OrdersPage() {
                               const alloc = allocations[0];
                               const usdt = parseFloat(alloc.allocatedUsdt) || 0;
                               const costPerUsdt = parseFloat(alloc.merchantCostPerUsdt) || (salePreview?.avgBuy ?? 0);
-                              const sellP = Number(saleSell) || 0;
-                              const totalFee = parseFloat(saleFee) || 0;
+                              const sellP = saleDraft.sellPriceQar;
+                              const totalFee = saleDraft.feeQar;
 
                               if (!(usdt > 0) || !(sellP > 0)) return null;
 
@@ -3609,17 +3692,28 @@ export default function OrdersPage() {
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
                     <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
-                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.revenue)}</strong></div>
-                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.fifoCost)}</strong></div>}
-                    {allocationPreview.baseLabel === 'net_profit' && (
-                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtC(allocationPreview.base)}</strong></div>
+                    {'incomplete' in allocationPreview ? (
+                      <div style={{ fontSize: 10, color: 'var(--bad)', lineHeight: 1.5 }}>
+                        <div><strong>⚠️ {t('fifoCoverageIncomplete')}</strong></div>
+                        <div>{t('coveredQtyLabel')}: {fmtU(allocationPreview.coveredQty)} USDT</div>
+                        <div>{t('uncoveredQtyLabel')}: {fmtU(allocationPreview.uncoveredQty)} USDT</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('allocationNetWithheld')}</div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.revenue)}</strong></div>
+                        {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.fifoCost)}</strong></div>}
+                        {allocationPreview.baseLabel === 'net_profit' && (
+                          <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtC(allocationPreview.base)}</strong></div>
+                        )}
+                        {/* Iconic profit split summary */}
+                        <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
+                          <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtC(allocationPreview.merchantAmount)}</strong></div>
+                          <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtC(allocationPreview.partnerAmount)}</strong></div>
+                        </div>
+                        <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
+                      </>
                     )}
-                    {/* Iconic profit split summary */}
-                    <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtC(allocationPreview.merchantAmount)}</strong></div>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtC(allocationPreview.partnerAmount)}</strong></div>
-                    </div>
-                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
                   </div>
                 )}
 
@@ -3629,9 +3723,73 @@ export default function OrdersPage() {
                   <div className="pt">{t('livePreview')}</div>
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
                     <>
+                      {isInsufficientStock && (
+                        <div style={{
+                          marginBottom: 6,
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: '1px solid color-mix(in srgb, var(--bad) 45%, transparent)',
+                          background: 'color-mix(in srgb, var(--bad) 10%, transparent)',
+                          color: 'var(--bad)',
+                          fontSize: 10,
+                          lineHeight: 1.45,
+                        }}>
+                          <div style={{ fontWeight: 800, marginBottom: 2 }}>{t('insufficientStockTitle')}</div>
+                          <div>{t('orderExceedsStockBy').replace('{qty}', fmtU(stockCoverage.stockShortfall))} <strong>USDT</strong>.</div>
+                          <div>{t('fifoCannotFullyPrice')}</div>
+                          <div>{t('toContinueEither')}</div>
+                          <ul style={{ margin: '2px 0 0 14px', padding: 0 }}>
+                            <li>{t('addStockFirst')}</li>
+                            <li>{t('enableManualSellPriceOverride')}</li>
+                          </ul>
+                          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                            <button type="button" className="btn secondary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => navigate('/trading/stock')}>
+                              {t('addStockCta')}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn secondary"
+                              style={{ fontSize: 10, padding: '4px 10px', borderColor: stockOverrideEnabled ? 'var(--bad)' : undefined }}
+                              onClick={() => {
+                                setStockOverrideEnabled(true);
+                                setStockOverrideConfirmed(false);
+                              }}
+                            >
+                              {t('useManualSellPriceCta')}
+                            </button>
+                          </div>
+                          {stockOverrideEnabled && (
+                            <label style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', fontSize: 9, color: 'var(--t1)' }}>
+                              <input
+                                type="checkbox"
+                                checked={stockOverrideConfirmed}
+                                onChange={e => {
+                                  const checked = e.target.checked;
+                                  setStockOverrideConfirmed(checked);
+                                  if (checked) {
+                                    setPriceMode('manual');
+                                    setUseStock(false);
+                                  }
+                                }}
+                                style={{ accentColor: 'var(--bad)' }}
+                              />
+                              {t('stockOverrideConfirm')}
+                            </label>
+                          )}
+                        </div>
+                      )}
                       {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
                       <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
                       <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(salePreview.revenue)}</strong></div>
+                      {isInsufficientStock && (
+                        <>
+                          <div className="prev-row"><span className="muted">{t('coveredFifoQty')}</span><strong>{fmtU(salePreview.coveredQty || 0)} USDT</strong></div>
+                          <div className="prev-row"><span className="muted">{t('uncoveredQty')}</span><strong style={{ color: 'var(--bad)' }}>{fmtU(salePreview.uncoveredQty || 0)} USDT</strong></div>
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginBottom: 4 }}>
+                            {t('netIncompleteUncovered')}
+                          </div>
+                        </>
+                      )}
                       <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtC(salePreview.cost) : '—'}</strong></div>
                       <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
                         <span className="muted">{t('net')}</span>
@@ -3763,7 +3921,7 @@ export default function OrdersPage() {
                   className="formActions"
                   style={isMobile ? { position: 'sticky', bottom: 0, background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} style={isMobile ? { width: '100%', minHeight: 40, fontSize: 12 } : undefined}>
+                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale} style={isMobile ? { width: '100%', minHeight: 40, fontSize: 12 } : undefined}>
                     {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>
