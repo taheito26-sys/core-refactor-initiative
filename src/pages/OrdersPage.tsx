@@ -3750,7 +3750,14 @@ export default function OrdersPage() {
                               <input
                                 type="checkbox"
                                 checked={stockOverrideConfirmed}
-                                onChange={e => setStockOverrideConfirmed(e.target.checked)}
+                                onChange={e => {
+                                  const checked = e.target.checked;
+                                  setStockOverrideConfirmed(checked);
+                                  if (checked) {
+                                    setPriceMode('manual');
+                                    setUseStock(false);
+                                  }
+                                }}
                                 style={{ accentColor: 'var(--bad)' }}
                               />
                               {t('stockOverrideConfirm')}
