@@ -2258,7 +2258,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
+              {!isMobile && renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 8, gap: 6 }}>
                 <span className="pill">{rLabel}</span>
@@ -2491,7 +2491,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
+              {!isMobile && renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
@@ -2663,7 +2663,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
+              {!isMobile && renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
