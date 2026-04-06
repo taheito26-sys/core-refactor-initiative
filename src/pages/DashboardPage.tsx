@@ -273,9 +273,15 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const segmentedProfit = useMemo(() => {
     const computeForRange = (range: string) => {
       const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range));
-      let ownNet = 0;
-      for (const tr of ownTrades) { ownNet += tradeNet(tr); }
-      let inMyShare = 0, outMyShare = 0;
+      let ownNet = 0, ownRev = 0, ownQty = 0, ownCount = 0;
+      for (const tr of ownTrades) {
+        ownNet += tradeNet(tr);
+        ownRev += tr.amountUSDT * tr.sellPriceQAR;
+        ownQty += tr.amountUSDT;
+        ownCount++;
+      }
+      let inMyShare = 0, inVol = 0, inCount = 0;
+      let outMyShare = 0, outVol = 0, outCount = 0;
       if (merchantDealKpis?.dealDetails) {
         const seen = new Set<string>();
         for (const d of merchantDealKpis.dealDetails) {
@@ -283,11 +289,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           if (seen.has(d.id)) continue;
           seen.add(d.id);
           if (!Number.isFinite(d.myShare)) continue;
-          if (d.direction === 'incoming') { inMyShare += d.myShare; }
-          else if (d.direction === 'outgoing') { outMyShare += d.myShare; }
+          if (d.direction === 'incoming') { inMyShare += d.myShare; inVol += d.vol; inCount++; }
+          else if (d.direction === 'outgoing') { outMyShare += d.myShare; outVol += d.vol; outCount++; }
         }
       }
-      return { ownNet, inMyShare, outMyShare, total: ownNet + inMyShare + outMyShare };
+      const totalNet = ownNet + inMyShare + outMyShare;
+      const totalRev = ownRev + inVol + outVol;
+      return { ownNet, ownRev, ownQty, ownCount, inMyShare, inVol, inCount, outMyShare, outVol, outCount, total: totalNet, totalRev };
     };
     return {
       thisMonth: computeForRange('this_month'),
@@ -354,13 +362,43 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-band-cols">
             <div>
               <div className="kpi-period">{curMo}</div>
-              <div className="kpi-cell-val t1v">{fmtQWithUnit(dM.rev, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{dM.count} {t('trades')} · {fmtU(dM.qty, 0)} USDT</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev, sub: `${segmentedProfit.thisMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.thisMonth.ownQty, 0)} USDT` },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inVol, sub: `${segmentedProfit.thisMonth.inCount} ${t('deals') || 'deals'}` },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outVol, sub: `${segmentedProfit.thisMonth.outCount} ${t('deals') || 'deals'}` },
+              ].map(row => (
+                <div key={row.label} style={{ padding: '2px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtQWithUnit(row.val)}</span>
+                  </div>
+                  <div className="kpi-cell-sub" style={{ fontSize: 8, textAlign: 'end' }}>{row.sub}</div>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtQWithUnit(segmentedProfit.thisMonth.totalRev)}</span>
+              </div>
             </div>
             <div>
               <div className="kpi-period">{prevMo}</div>
-              <div className="kpi-cell-val t1v">{fmtQWithUnit(dL.rev, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{dL.count} {t('trades')} · {fmtU(dL.qty, 0)} USDT</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev, sub: `${segmentedProfit.lastMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.lastMonth.ownQty, 0)} USDT` },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inVol, sub: `${segmentedProfit.lastMonth.inCount} ${t('deals') || 'deals'}` },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outVol, sub: `${segmentedProfit.lastMonth.outCount} ${t('deals') || 'deals'}` },
+              ].map(row => (
+                <div key={row.label} style={{ padding: '2px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtQWithUnit(row.val)}</span>
+                  </div>
+                  <div className="kpi-cell-sub" style={{ fontSize: 8, textAlign: 'end' }}>{row.sub}</div>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtQWithUnit(segmentedProfit.lastMonth.totalRev)}</span>
+              </div>
             </div>
           </div>
         </div>
