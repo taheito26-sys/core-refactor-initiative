@@ -1917,11 +1917,11 @@ export default function OrdersPage() {
     const isExpanded = !!expandedCards[tr.id];
 
     return (
-      <div key={`mobile-trade-${tr.id}`} className="previewBox" style={{ padding: '8px 10px', marginBottom: 6 }}>
+      <div key={`mobile-trade-${tr.id}`} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
         {/* ── Compact summary row (always visible) ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 10px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1931,22 +1931,22 @@ export default function OrdersPage() {
                 {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
+                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtC(rev)}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-              <span className="mono" style={{ fontSize: 13, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
-              </span>
-            </div>
-            <span style={{ color: 'var(--muted)', fontSize: 14, flexShrink: 0, marginLeft: 2 }}>{isExpanded ? '▾' : '›'}</span>
+            <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', flexShrink: 0 }}>
+              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, background: isExpanded ? 'var(--brand)' : 'color-mix(in srgb, var(--brand) 14%, transparent)', color: isExpanded ? 'var(--bg)' : 'var(--brand)', fontSize: 13, border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)', flexShrink: 0, transition: 'all 0.15s' }}>
+              {isExpanded ? '▾' : '›'}
+            </span>
           </div>
         </button>
 
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+          <div style={{ padding: '0 10px 10px', borderTop: '1px solid var(--line2)' }}>
             <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
               {isMerchantLinked && linkedRel && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -2018,36 +2018,36 @@ export default function OrdersPage() {
       : (row.myNet ?? row.fullNet ?? null);
 
     return (
-      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} className="previewBox" style={{ padding: '8px 10px', marginBottom: 6 }}>
+      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
         {/* ── Compact summary row (always visible) ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 10px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{row.dateLabel}</span>
-                <span className="pill" style={{ fontSize: 8, background: sc.bg, color: sc.color, padding: '1px 5px' }}>{deal.status}</span>
+                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: sc.bg, color: sc.color }}>{deal.status}</span>
                 <span style={{ fontSize: 9, color: 'var(--brand)' }}>{row.familyIcon}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{merchantName}</span>
+                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{merchantName}</span>
                 <span className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtC(row.volume)}</span>
               </div>
             </div>
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-              <span className="mono" style={{ fontSize: 13, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
-                {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
-              </span>
-            </div>
-            <span style={{ color: 'var(--muted)', fontSize: 14, flexShrink: 0, marginLeft: 2 }}>{isExpanded ? '▾' : '›'}</span>
+            <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', flexShrink: 0 }}>
+              {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, background: isExpanded ? 'var(--brand)' : 'color-mix(in srgb, var(--brand) 14%, transparent)', color: isExpanded ? 'var(--bg)' : 'var(--brand)', fontSize: 13, border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)', flexShrink: 0, transition: 'all 0.15s' }}>
+              {isExpanded ? '▾' : '›'}
+            </span>
           </div>
         </button>
 
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+          <div style={{ padding: '0 10px 10px', borderTop: '1px solid var(--line2)' }}>
             <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span className="muted">{t('buyer')}</span>
@@ -2295,7 +2295,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('addBatchThenSale')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div style={{ margin: '0 -10px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
                   {/* Unlinked merchant deals (same logic as desktop) */}
                   {(() => {
@@ -2531,7 +2531,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('incomingTradesDesc')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div style={{ margin: '0 -10px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredInDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
                 </div>
               ) : (
@@ -2703,7 +2703,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('outgoingTradesDesc')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div style={{ margin: '0 -10px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredOutDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
@@ -2963,11 +2963,11 @@ export default function OrdersPage() {
         </div>
 
         {/* ═══════════ RIGHT PANEL ═══════════ */}
-        <div>
+        <div style={isMobile ? { margin: '0 -10px' } : undefined}>
 
           {/* ── MY ORDERS: New Sale Form ── */}
           {activeTab === 'my' && (
-            <div id="new-sale-form" className="formPanel salePanel">
+            <div id="new-sale-form" className="formPanel salePanel" style={isMobile ? { borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderBottom: 'none' } : undefined}>
               <div className="hdr">{t('newSale')}</div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
