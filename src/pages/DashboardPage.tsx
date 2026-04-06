@@ -362,13 +362,43 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-band-cols">
             <div>
               <div className="kpi-period">{curMo}</div>
-              <div className="kpi-cell-val t1v">{fmtQWithUnit(dM.rev, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{dM.count} {t('trades')} · {fmtU(dM.qty, 0)} USDT</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev, sub: `${segmentedProfit.thisMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.thisMonth.ownQty, 0)} USDT` },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inVol, sub: `${segmentedProfit.thisMonth.inCount} ${t('deals') || 'deals'}` },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outVol, sub: `${segmentedProfit.thisMonth.outCount} ${t('deals') || 'deals'}` },
+              ].map(row => (
+                <div key={row.label} style={{ padding: '2px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtQWithUnit(row.val)}</span>
+                  </div>
+                  <div className="kpi-cell-sub" style={{ fontSize: 8, textAlign: 'end' }}>{row.sub}</div>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtQWithUnit(segmentedProfit.thisMonth.totalRev)}</span>
+              </div>
             </div>
             <div>
               <div className="kpi-period">{prevMo}</div>
-              <div className="kpi-cell-val t1v">{fmtQWithUnit(dL.rev, settings.currency, wacop)}</div>
-              <div className="kpi-cell-sub">{dL.count} {t('trades')} · {fmtU(dL.qty, 0)} USDT</div>
+              {[
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev, sub: `${segmentedProfit.lastMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.lastMonth.ownQty, 0)} USDT` },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inVol, sub: `${segmentedProfit.lastMonth.inCount} ${t('deals') || 'deals'}` },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outVol, sub: `${segmentedProfit.lastMonth.outCount} ${t('deals') || 'deals'}` },
+              ].map(row => (
+                <div key={row.label} style={{ padding: '2px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                    <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtQWithUnit(row.val)}</span>
+                  </div>
+                  <div className="kpi-cell-sub" style={{ fontSize: 8, textAlign: 'end' }}>{row.sub}</div>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--t1)' }}>{fmtQWithUnit(segmentedProfit.lastMonth.totalRev)}</span>
+              </div>
             </div>
           </div>
         </div>
