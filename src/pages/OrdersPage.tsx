@@ -254,7 +254,7 @@ export default function OrdersPage() {
     allocations,
     linkedCounterpartyName,
     linkedCounterpartyId,
-    saleAmount,
+    canonicalSaleQtyUsdt,
   ]);
 
   const editApprovedAgreements = useMemo(
