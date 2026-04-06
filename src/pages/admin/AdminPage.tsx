@@ -1,7 +1,5 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState } from 'react';
 import { Loader2, Shield, LayoutDashboard, Users, FileText, CheckCircle, Bell, Cloud } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 import { AdminDashboard } from '@/features/admin/components/AdminDashboard';
 import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirectory';
@@ -11,95 +9,122 @@ import { AdminNotificationSender } from '@/features/admin/components/AdminNotifi
 import { AdminBackupManager } from '@/features/admin/components/AdminBackupManager';
 import AdminApprovalsPage from './AdminApprovalsPage';
 
+const TABS = [
+  { id: 'overview',       label: 'Overview',       Icon: LayoutDashboard },
+  { id: 'users',          label: 'Users',           Icon: Users           },
+  { id: 'approvals',      label: 'Approvals',       Icon: CheckCircle     },
+  { id: 'notifications',  label: 'Notifications',   Icon: Bell            },
+  { id: 'audit',          label: 'Audit Log',       Icon: FileText        },
+  { id: 'backups',        label: 'Backups',         Icon: Cloud           },
+] as const;
+
 export default function AdminPage() {
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState<typeof TABS[number]['id']>('overview');
 
   if (roleLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
+        <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', color: 'var(--muted)' }} />
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Card className="w-full max-w-sm text-center">
-          <CardHeader>
-            <Shield className="mx-auto h-10 w-10 text-destructive" />
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You do not have admin privileges.</CardDescription>
-          </CardHeader>
-        </Card>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+        <div style={{
+          textAlign: 'center', padding: '32px 40px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: 12,
+        }}>
+          <Shield style={{ width: 32, height: 32, color: 'var(--bad)', margin: '0 auto 12px' }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 6 }}>Access Denied</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>You don't have admin privileges.</div>
+        </div>
       </div>
     );
   }
 
-  // If workspace is open, show it full-screen
   if (workspaceUserId) {
     return (
-      <div className="p-4">
+      <div style={{ padding: '16px 20px' }}>
         <AdminUserWorkspace userId={workspaceUserId} onBack={() => setWorkspaceUserId(null)} />
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <Shield className="h-5 w-5 text-primary" />
-        <h1 className="text-xl font-bold text-foreground">Admin Control Center</h1>
+    <div style={{ minHeight: '100%', background: 'var(--bg, #0d0e14)' }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        padding: '18px 20px 0',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: 'rgba(99,102,241,0.12)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Shield style={{ width: 14, height: 14, color: '#818cf8' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+              Admin
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              Control Center
+            </div>
+          </div>
+        </div>
+
+        {/* ── Tab Nav ── */}
+        <div style={{ display: 'flex', gap: 0, overflowX: 'auto', scrollbarWidth: 'none' }}>
+          {TABS.map(({ id, label, Icon }) => {
+            const active = activeTab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px',
+                  fontSize: 12,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? 'var(--fg)' : 'var(--muted)',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: active ? '2px solid #818cf8' : '2px solid transparent',
+                  marginBottom: -1,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'color 0.15s ease, border-color 0.15s ease',
+                  flexShrink: 0,
+                }}
+              >
+                <Icon style={{ width: 13, height: 13, opacity: active ? 1 : 0.6 }} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full justify-start flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview" className="text-xs gap-1">
-            <LayoutDashboard className="h-3.5 w-3.5" /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="users" className="text-xs gap-1">
-            <Users className="h-3.5 w-3.5" /> Users
-          </TabsTrigger>
-          <TabsTrigger value="approvals" className="text-xs gap-1">
-            <CheckCircle className="h-3.5 w-3.5" /> Approvals
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="text-xs gap-1">
-            <Bell className="h-3.5 w-3.5" /> Notifications
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="text-xs gap-1">
-            <FileText className="h-3.5 w-3.5" /> Audit Log
-          </TabsTrigger>
-          <TabsTrigger value="backups" className="text-xs gap-1">
-            <Cloud className="h-3.5 w-3.5" /> Backups
-          </TabsTrigger>
-        </TabsList>
+      {/* ── Content ── */}
+      <div style={{ padding: '20px' }}>
+        {activeTab === 'overview'      && <AdminDashboard />}
+        {activeTab === 'users'         && <AdminUserDirectory onOpenWorkspace={uid => setWorkspaceUserId(uid)} />}
+        {activeTab === 'approvals'     && <AdminApprovalsPage />}
+        {activeTab === 'notifications' && <AdminNotificationSender />}
+        {activeTab === 'audit'         && <AdminAuditCenter />}
+        {activeTab === 'backups'       && <AdminBackupManager />}
+      </div>
 
-        <TabsContent value="overview" className="mt-4">
-          <AdminDashboard />
-        </TabsContent>
-
-        <TabsContent value="users" className="mt-4">
-          <AdminUserDirectory onOpenWorkspace={(uid) => setWorkspaceUserId(uid)} />
-        </TabsContent>
-
-        <TabsContent value="approvals" className="mt-4">
-          <AdminApprovalsPage />
-        </TabsContent>
-
-        <TabsContent value="notifications" className="mt-4">
-          <AdminNotificationSender />
-        </TabsContent>
-
-        <TabsContent value="audit" className="mt-4">
-          <AdminAuditCenter />
-        </TabsContent>
-
-        <TabsContent value="backups" className="mt-4">
-          <AdminBackupManager />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }
