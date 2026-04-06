@@ -118,6 +118,7 @@ export default function OrdersPage() {
   const [newBuyerTier, setNewBuyerTier] = useState('C');
 
   const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editQty, setEditQty] = useState('');
@@ -1913,81 +1914,89 @@ export default function OrdersPage() {
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
 
+    const isExpanded = !!expandedCards[tr.id];
+
     return (
-      <div key={`mobile-trade-${tr.id}`} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-          <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span className="mono">{fmtDate(tr.ts)}</span>
-            <span className="pill" style={{ fontSize: 9, color: isMerchantLinked ? 'var(--brand)' : 'var(--muted)' }}>
-              {isMerchantLinked ? '🤝 Linked' : '👤 Trade'}
-            </span>
-            {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
-          </div>
-        </div>
-        <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span className="muted">{t('buyer')}</span>
-            <strong style={{ fontSize: 11, textAlign: 'right' }}>{cn}</strong>
-          </div>
-          {isMerchantLinked && linkedRel && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <span className="muted">{t('merchant')}</span>
-              <strong style={{ fontSize: 11, textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
+      <div key={`mobile-trade-${tr.id}`} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
+        {/* ── Compact summary row (always visible) ── */}
+        <button
+          onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 10px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(tr.ts)}</span>
+                <span style={{ fontSize: 9, color: isMerchantLinked ? 'var(--brand)' : 'var(--muted)' }}>{isMerchantLinked ? '🤝' : '👤'}</span>
+                {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
+                <span className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtC(rev)}</span>
+              </div>
             </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)}</div>
-            </div>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</div>
-            </div>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(rev)}</div>
-            </div>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(linkedRow?.avgBuy ?? c?.avgBuyQAR ?? 0) : '—'}</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span className="muted">{t('net')}</span>
-            <span style={{ color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', fontWeight: 700, fontSize: 11 }}>
+            <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', flexShrink: 0 }}>
               {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
             </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, background: isExpanded ? 'var(--brand)' : 'color-mix(in srgb, var(--brand) 14%, transparent)', color: isExpanded ? 'var(--bg)' : 'var(--brand)', fontSize: 13, border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)', flexShrink: 0, transition: 'all 0.15s' }}>
+              {isExpanded ? '▾' : '›'}
+            </span>
           </div>
-        </div>
+        </button>
 
-        <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-          <button
-            className="rowBtn"
-            style={{ minHeight: 40 }}
-            onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          >
-            {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
-          </button>
-          {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
-            <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => openEdit(tr.id)}>{t('edit')}</button>
-          )}
-          {tr.approvalStatus === 'pending_approval' && (
-            <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
-          )}
-          {tr.approvalStatus === 'approved' && (
-            <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
-          )}
-        </div>
-
-        {detailsOpen[tr.id] && (
-          <div style={{ marginTop: 8 }}>
-            {renderDetail(tr, c)}
+        {/* ── Expanded detail ── */}
+        {isExpanded && (
+          <div style={{ padding: '0 10px 10px', borderTop: '1px solid var(--line2)' }}>
+            <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
+              {isMerchantLinked && linkedRel && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span className="muted">{t('merchant')}</span>
+                  <strong style={{ fontSize: 11, textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)}</div>
+                </div>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</div>
+                </div>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(rev)}</div>
+                </div>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(linkedRow?.avgBuy ?? c?.avgBuyQAR ?? 0) : '—'}</div>
+                </div>
+              </div>
+            </div>
+            <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+              <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
+                {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
+              </button>
+              {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
+                <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => openEdit(tr.id)}>{t('edit')}</button>
+              )}
+              {tr.approvalStatus === 'pending_approval' && (
+                <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
+              )}
+              {tr.approvalStatus === 'approved' && (
+                <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
+              )}
+            </div>
+            {detailsOpen[tr.id] && (
+              <div style={{ marginTop: 8 }}>
+                {renderDetail(tr, c)}
+              </div>
+            )}
           </div>
         )}
       </div>
     );
-  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, renderDetail, openEdit, handleCancelTrade]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, fmtC, fmtU, fmtP]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
@@ -2003,154 +2012,172 @@ export default function OrdersPage() {
     const sc = statusColors[deal.status] || statusColors.pending;
     const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—';
 
+    const cardKey = `deal-${deal.id}`;
+    const isExpanded = !!expandedCards[cardKey];
+    const netDisplay = !row.hasAvgBuy ? null
+      : (row.myNet ?? row.fullNet ?? null);
+
     return (
-      <div key={`mobile-${deal.id}`} id={`deal-${deal.id}`} data-deal-id={deal.id} className="previewBox" style={{ padding: 10, marginBottom: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-          <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span className="mono">{row.dateLabel}</span>
-            <span className="pill" style={{ fontSize: 9, background: sc.bg, color: sc.color, fontWeight: 700 }}>{deal.status}</span>
-            <span className="pill" style={{ fontSize: 9, color: 'var(--brand)' }}>{row.familyIcon} {row.familyLabel}</span>
-            {row.splitLabel && <span className="pill" style={{ fontSize: 9, color: 'var(--brand)' }}>{row.splitLabel}</span>}
-          </div>
-          {row.margin != null && <span className="pill" style={{ fontSize: 9 }}>{marginLabel}</span>}
-        </div>
-
-        <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span className="muted">{t('merchant')}</span>
-            <strong style={{ fontSize: 11, textAlign: 'right', maxWidth: '62%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{merchantName}</strong>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span className="muted">{t('buyer')}</span>
-            <strong style={{ fontSize: 11, textAlign: 'right', maxWidth: '62%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.buyer || '—'}</strong>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(row.quantity)}</div>
-            </div>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</div>
-            </div>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
-            </div>
-            <div className="panel" style={{ padding: 6 }}>
-              <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(row.volume)}</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-            <span className="muted">{t('net')}</span>
-            {!row.hasAvgBuy ? (
-              <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
-            ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, maxWidth: '64%' }}>
-                <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>
-                  {row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}
-                </span>
-                <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11, textAlign: 'right' }}>
-                  {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
-                </span>
-              </span>
-            ) : (
-              <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Toggle details */}
+      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
+        {/* ── Compact summary row (always visible) ── */}
         <button
-          className="rowBtn"
-          style={{ width: '100%', minHeight: 36, marginBottom: 6, fontSize: 11 }}
-          onClick={() => setDetailsOpen(prev => ({ ...prev, [`deal-${deal.id}`]: !prev[`deal-${deal.id}`] }))}
+          onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 10px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
         >
-          {detailsOpen[`deal-${deal.id}`] ? `▼ ${t('hideDetails')}` : `▶ ${t('details')}`}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{row.dateLabel}</span>
+                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: sc.bg, color: sc.color }}>{deal.status}</span>
+                <span style={{ fontSize: 9, color: 'var(--brand)' }}>{row.familyIcon}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{merchantName}</span>
+                <span className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtC(row.volume)}</span>
+              </div>
+            </div>
+            <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', flexShrink: 0 }}>
+              {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, background: isExpanded ? 'var(--brand)' : 'color-mix(in srgb, var(--brand) 14%, transparent)', color: isExpanded ? 'var(--bg)' : 'var(--brand)', fontSize: 13, border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)', flexShrink: 0, transition: 'all 0.15s' }}>
+              {isExpanded ? '▾' : '›'}
+            </span>
+          </div>
         </button>
 
-        {detailsOpen[`deal-${deal.id}`] && (
-          <div style={{ marginBottom: 8, padding: 8, background: 'color-mix(in srgb, var(--panel2) 60%, transparent)', borderRadius: 6 }}>
-            {/* Each party's cut */}
-            {row.hasAvgBuy && row.fullNet != null && (
-              <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
-            {(() => {
-              const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me');
-              return row.isOperatorPriority && row.operatorFee != null ? (
-              <>
-                <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 11 }}>
-                  ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(row.operatorFee)}</strong>
+        {/* ── Expanded detail ── */}
+        {isExpanded && (
+          <div style={{ padding: '0 10px 10px', borderTop: '1px solid var(--line2)' }}>
+            <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span className="muted">{t('buyer')}</span>
+                <strong style={{ fontSize: 11, textAlign: 'right', maxWidth: '62%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.buyer || '—'}</strong>
+              </div>
+              {row.margin != null && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span className="muted">{t('marginLabel')}</span>
+                  <span className="mono" style={{ fontSize: 11 }}>{marginLabel}</span>
                 </div>
-                <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
-                  📊 {names.operatorName} ({t('operatorGets')}): <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(row.operatorTotal ?? 0)}</strong>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(row.quantity)}</div>
                 </div>
-                <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
-                  🤝 {names.lenderName} ({t('lenderGets')}): <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(row.lenderTotal ?? 0)}</strong>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</div>
                 </div>
-              </>
-              ) : (
-              <>
-                <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
-                  📊 {perspective === 'outgoing' ? (merchantProfile?.display_name || 'Me') : merchantName} ({row.merchantPct}%):
-                  <strong style={{ color: 'var(--good)', marginLeft: 4 }}>
-                    {fmtC(row.fullNet * (row.merchantPct! / 100))}
-                  </strong>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
                 </div>
-                <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
-                  🤝 {perspective === 'outgoing' ? merchantName : (merchantProfile?.display_name || 'Me')} ({row.partnerPct}%):
-                  <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>
-                    {fmtC(row.fullNet * (row.partnerPct! / 100))}
-                  </strong>
+                <div className="panel" style={{ padding: 6 }}>
+                  <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(row.volume)}</div>
                 </div>
-              </>
-            );
-            })()}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <span className="muted">{t('net')}</span>
+                {!row.hasAvgBuy ? (
+                  <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
+                ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                    <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>{row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}</span>
+                    <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
+                      {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
+                    </span>
+                  </span>
+                ) : (
+                  <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
+                    {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <button
+              className="rowBtn"
+              style={{ width: '100%', minHeight: 36, marginBottom: 6, fontSize: 11 }}
+              onClick={() => setDetailsOpen(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
+            >
+              {detailsOpen[cardKey] ? `▼ ${t('hideDetails')}` : `▶ ${t('details')}`}
+            </button>
+
+            {detailsOpen[cardKey] && (
+              <div style={{ marginBottom: 8, padding: 8, background: 'color-mix(in srgb, var(--panel2) 60%, transparent)', borderRadius: 6 }}>
+                {row.hasAvgBuy && row.fullNet != null && (
+                  <div style={{ display: 'grid', gap: 6, marginBottom: 8 }}>
+                    {(() => {
+                      const names = resolveOpNames(row, rel, merchantProfile?.merchant_id, merchantProfileMap, merchantProfile?.display_name || 'Me');
+                      return row.isOperatorPriority && row.operatorFee != null ? (
+                        <>
+                          <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--warn) 10%, transparent)', fontSize: 11 }}>
+                            ⚙️ {t('simOperatorFee')}: <strong style={{ color: 'var(--warn)', marginLeft: 4 }}>{fmtC(row.operatorFee)}</strong>
+                          </div>
+                          <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
+                            📊 {names.operatorName} ({t('operatorGets')}): <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(row.operatorTotal ?? 0)}</strong>
+                          </div>
+                          <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
+                            🤝 {names.lenderName} ({t('lenderGets')}): <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(row.lenderTotal ?? 0)}</strong>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--good) 10%, transparent)', fontSize: 11 }}>
+                            📊 {perspective === 'outgoing' ? (merchantProfile?.display_name || 'Me') : merchantName} ({row.merchantPct}%):
+                            <strong style={{ color: 'var(--good)', marginLeft: 4 }}>{fmtC(row.fullNet * (row.merchantPct! / 100))}</strong>
+                          </div>
+                          <div style={{ padding: '6px 10px', borderRadius: 4, background: 'color-mix(in srgb, var(--brand) 10%, transparent)', fontSize: 11 }}>
+                            🤝 {perspective === 'outgoing' ? merchantName : (merchantProfile?.display_name || 'Me')} ({row.partnerPct}%):
+                            <strong style={{ color: 'var(--brand)', marginLeft: 4 }}>{fmtC(row.fullNet * (row.partnerPct! / 100))}</strong>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  <span className="pill">{row.dateLabel}</span>
+                  {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
+                  <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>
+                  {row.fee > 0 && <span className="pill">{t('fee')} {fmtC(row.fee)}</span>}
+                  {row.hasAvgBuy && row.cost > 0 && <span className="pill">{t('cost')} {fmtC(row.cost)}</span>}
+                  <span className={`pill ${row.fullNet != null ? (row.fullNet >= 0 ? 'good' : 'bad') : ''}`}>
+                    {t('net')} {row.fullNet != null ? `${row.fullNet >= 0 ? '+' : ''}${fmtC(row.fullNet)}` : '—'}
+                  </span>
+                </div>
               </div>
             )}
-            {/* Chips row */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              <span className="pill">{row.dateLabel}</span>
-              {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
-              <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>
-              {row.fee > 0 && <span className="pill">{t('fee')} {fmtC(row.fee)}</span>}
-              {row.hasAvgBuy && row.cost > 0 && <span className="pill">{t('cost')} {fmtC(row.cost)}</span>}
-              <span className={`pill ${row.fullNet != null ? (row.fullNet >= 0 ? 'good' : 'bad') : ''}`}>
-                {t('net')} {row.fullNet != null ? `${row.fullNet >= 0 ? '+' : ''}${fmtC(row.fullNet)}` : '—'}
-              </span>
+
+            <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+              {perspective === 'incoming' && deal.status === 'pending' && (
+                <>
+                  <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700, minHeight: 40 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
+                  <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
+                </>
+              )}
+              {perspective === 'incoming' && deal.status === 'approved' && (
+                <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>✅ {t('approvedStatus')}</span>
+              )}
+              {perspective === 'incoming' && deal.status === 'rejected' && (
+                <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>❌ {t('rejectedStatus')}</span>
+              )}
+              {perspective === 'outgoing' && deal.status === 'pending' && (
+                <>
+                  <button className="rowBtn" onClick={() => openDealEdit(deal)} style={{ minHeight: 40 }}>{t('edit')}</button>
+                  <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+                </>
+              )}
+              {perspective === 'outgoing' && deal.status === 'approved' && (
+                <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
+              )}
             </div>
           </div>
         )}
-
-        <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-          {perspective === 'incoming' && deal.status === 'pending' && (
-            <>
-              <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700, minHeight: 40 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
-              <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => rejectIncomingDeal(deal.id)}>{t('reject')}</button>
-            </>
-          )}
-          {perspective === 'incoming' && deal.status === 'approved' && (
-            <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>✅ {t('approvedStatus')}</span>
-          )}
-          {perspective === 'incoming' && deal.status === 'rejected' && (
-            <span className="pill" style={{ fontSize: 10, background: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)', fontWeight: 700, gridColumn: '1 / -1', textAlign: 'center' }}>❌ {t('rejectedStatus')}</span>
-          )}
-
-          {perspective === 'outgoing' && deal.status === 'pending' && (
-            <>
-              <button className="rowBtn" onClick={() => openDealEdit(deal)} style={{ minHeight: 40 }}>{t('edit')}</button>
-              <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40 }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
-            </>
-          )}
-          {perspective === 'outgoing' && deal.status === 'approved' && (
-            <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => setDeleteDealConfirm(deal.id)}>{t('cancel')}</button>
-          )}
-        </div>
       </div>
     );
-  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, detailsOpen, fmtC, merchantProfile, merchantProfileMap, allAgreements]);
+  }, [relationships, t, resolveDealAvgBuy, approveIncomingDeal, rejectIncomingDeal, openDealEdit, detailsOpen, expandedCards, fmtC, fmtP, fmtU, merchantProfile, merchantProfileMap, allAgreements]);
 
   const inKpi = useMemo(() => {
     let vol = 0, netVal = 0;
@@ -2162,17 +2189,39 @@ export default function OrdersPage() {
     return { count: filteredIncomingMerchantDeals.length, vol, net: netVal };
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
-  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => (
-    <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('count').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{kpi.count}</div></div>
-      {kpi.qty != null && <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>USDT {t('qty').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtU(kpi.qty)}</div></div>}
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('volume').toUpperCase()}</div><div className="mono" style={{ fontSize: 13, fontWeight: 700 }}>{fmtC(kpi.vol)}</div></div>
-      <div><div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.5px' }}>{t('net').toUpperCase()} P&L</div><div className="mono" style={{ fontSize: 13, fontWeight: 700, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{kpi.net >= 0 ? '+' : ''}{fmtC(kpi.net)}</div></div>
-    </div>
-  );
+  const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => {
+    const avgMargin = kpi.vol > 0 ? (kpi.net / kpi.vol) * 100 : 0;
+    const avgTrade = kpi.qty != null && kpi.count > 0 ? kpi.qty / kpi.count : null;
+    const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
+    const kpis = [
+      { label: 'COUNT', value: String(kpi.count) },
+      ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
+      { label: 'VOLUME', value: fmtC(kpi.vol) },
+      { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
+      { label: 'AVG MARGIN', value: `${avgMargin >= 0 ? '+' : ''}${avgMargin.toFixed(2)}%`, color: avgMargin >= 0 ? 'var(--good)' : 'var(--bad)' },
+      ...(avgTrade != null ? [{ label: 'AVG TRADE', value: `${fmtU(avgTrade)} USDT` }] : []),
+      ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
+    ];
+    return (
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{
+            flex: '1 1 60px', minWidth: 60,
+            padding: '5px 9px',
+            background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+            borderRadius: 8,
+          }}>
+            <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{k.label}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: k.color || 'var(--fg)', whiteSpace: 'nowrap' }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
@@ -2214,21 +2263,10 @@ export default function OrdersPage() {
           {/* ── MY ORDERS TAB ── */}
           {activeTab === 'my' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2239,8 +2277,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -2248,18 +2285,8 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
+              {!isMobile && renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800 }}>{t('trades')}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('fifoCostBasisMargin')}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <span className="pill">{rLabel}</span>
-                  <button className="btn secondary" onClick={exportCsv}>CSV</button>
-                </div>
-              </div>
 
               {filtered.length === 0 ? (
                 <div className="empty">
@@ -2268,7 +2295,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('addBatchThenSale')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
                   {/* Unlinked merchant deals (same logic as desktop) */}
                   {(() => {
@@ -2465,21 +2492,10 @@ export default function OrdersPage() {
           {/* ── INCOMING ORDERS TAB ── */}
           {activeTab === 'incoming' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2490,8 +2506,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -2499,7 +2514,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
+              {!isMobile && renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
@@ -2516,7 +2531,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('incomingTradesDesc')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredInDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
                 </div>
               ) : (
@@ -2649,21 +2664,10 @@ export default function OrdersPage() {
           {/* ── OUTGOING ORDERS TAB (Server-Only) ── */}
           {activeTab === 'outgoing' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2674,8 +2678,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -2683,7 +2686,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
+              {!isMobile && renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
@@ -2700,7 +2703,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('outgoingTradesDesc')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredOutDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
@@ -2824,21 +2827,10 @@ export default function OrdersPage() {
           {/* ── USDT TRANSFERS TAB ── */}
           {activeTab === 'transfers' && (
             <>
-              <div 
-                className="orders-tab-bar" 
-                style={{ 
-                  marginBottom: 8, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  padding: 0, 
-                  gap: 8,
-                  boxShadow: 'none'
-                }}
-              >
+              <div className="month-filter-row">
                 <button
                   onClick={selectAllMonths}
-                  className={`orders-tab-btn ${selectedMonth === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                  className={`month-pill ${selectedMonth === 'all' ? 'active' : ''}`}
                 >
                   {t('allMonths')}
                 </button>
@@ -2849,8 +2841,7 @@ export default function OrdersPage() {
                     <button
                       key={m}
                       onClick={() => setSelectedMonth(m)}
-                      className={`orders-tab-btn ${selectedMonth === m ? 'active' : ''}`}
-                      style={{ fontSize: 10, padding: '5px 12px', borderRadius: 8 }}
+                      className={`month-pill ${selectedMonth === m ? 'active' : ''}`}
                     >
                       {label}
                     </button>
@@ -2976,10 +2967,9 @@ export default function OrdersPage() {
 
           {/* ── MY ORDERS: New Sale Form ── */}
           {activeTab === 'my' && (
-            <div className="formPanel salePanel">
+            <div id="new-sale-form" className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
                 {!isCapitalTransfer && (<>
 
@@ -4547,6 +4537,28 @@ export default function OrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── FAB: scroll to New Sale form (mobile only) ── */}
+      {isMobile && activeTab === 'my' && (
+        <button
+          onClick={() => document.getElementById('new-sale-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          title="New Sale"
+          style={{
+            position: 'fixed', bottom: 'max(76px, calc(64px + env(safe-area-inset-bottom, 0px)))', right: 16,
+            zIndex: 40, width: 48, height: 48, borderRadius: '50%',
+            background: 'var(--brand)', color: 'var(--bg)',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 16px var(--glow), 0 2px 6px rgba(0,0,0,0.4)',
+            fontSize: 26, lineHeight: 1, fontWeight: 400,
+            transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+          onPointerDown={e => (e.currentTarget.style.transform = 'scale(0.92)')}
+          onPointerUp={e => (e.currentTarget.style.transform = '')}
+        >
+          +
+        </button>
+      )}
 
     </div>
   );

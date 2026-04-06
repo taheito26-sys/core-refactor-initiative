@@ -130,23 +130,14 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete }: {
   );
 }
 
-// ── Admin props interface ─────────────────────────────────────────────
-interface CRMPageProps {
-  adminUserId?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adminTrackerState?: any;
-  isAdminView?: boolean;
-}
-
 // ── Page ─────────────────────────────────────────────────────────────
-export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps = {}) {
+export default function CRMPage() {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
   const { state, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
-    preloadedState: adminTrackerState || undefined,
   });
 
   const [tab, setTab] = useState<'pipeline' | 'list' | 'suppliers'>('pipeline');
@@ -391,7 +382,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                 <div style={{ fontSize: 13, fontWeight: 800 }}>{t('customers')}</div>
                 <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('buyerManagement')}</div>
               </div>
-              {!isAdminView && <button className="btn" onClick={openAddCustomer}>{t('addCustomer')}</button>}
+              <button className="btn" onClick={openAddCustomer}>{t('addCustomer')}</button>
             </div>
 
             {filteredCustomers.length === 0 ? (
@@ -410,7 +401,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                       <th className="r">USDT Vol</th>
                       <th className="r">Net P&L</th>
                       <th>Last Trade</th>
-                      {!isAdminView && <th>{t('actions')}</th>}
+                      <th>{t('actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -436,14 +427,12 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                           <td className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
                             {s.lastTrade > 0 ? fmtDate(s.lastTrade) : '—'}
                           </td>
-                          {!isAdminView && (
                           <td>
                             <div style={{ display: 'flex', gap: 4 }}>
                               <button className="rowBtn" onClick={() => openEditCustomer(c)}>Edit</button>
                               <button className="rowBtn" style={{ color: 'var(--bad)', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: '2px 6px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
                             </div>
                           </td>
-                          )}
                         </tr>
                       );
                     })}
@@ -469,8 +458,8 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                   key={s.name}
                   supplier={s}
                   maxUSDT={maxSupplierUSDT}
-                  onEdit={isAdminView ? () => {} : () => openEditSupplier(s.name)}
-                  onDelete={isAdminView ? () => {} : () => deleteSupplier(s.name)}
+                  onEdit={() => openEditSupplier(s.name)}
+                  onDelete={() => deleteSupplier(s.name)}
                 />
               ))}
             </div>
@@ -486,7 +475,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
               <div style={{ fontSize: 13, fontWeight: 800 }}>{t('suppliers')}</div>
               <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('autoTrackedFromBatches')}</div>
             </div>
-            {!isAdminView && <button className="btn" onClick={openAddSupplier}>+ {t('addSupplier')}</button>}
+            <button className="btn" onClick={openAddSupplier}>+ {t('addSupplier')}</button>
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--warn) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--warn) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
@@ -505,8 +494,8 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                   key={s.name}
                   supplier={s}
                   maxUSDT={maxSupplierUSDT}
-                  onEdit={isAdminView ? () => {} : () => openEditSupplier(s.name)}
-                  onDelete={isAdminView ? () => {} : () => deleteSupplier(s.name)}
+                  onEdit={() => openEditSupplier(s.name)}
+                  onDelete={() => deleteSupplier(s.name)}
                 />
               ))}
             </div>
@@ -515,7 +504,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
       )}
 
       {/* ── Customer Add/Edit Modal ── */}
-      {showCustModal && !isAdminView && (
+      {showCustModal && (
         <CRMModal
           title={editingCust ? `Edit — ${editingCust.name}` : t('addCustomer')}
           onClose={() => setShowCustModal(false)}
@@ -577,7 +566,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
       )}
 
       {/* ── Supplier Rename Modal ── */}
-      {showSuppModal && !isAdminView && (
+      {showSuppModal && (
         <CRMModal
           title={`Rename Supplier — ${editingSupp}`}
           onClose={() => setShowSuppModal(false)}
@@ -601,7 +590,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
       )}
 
       {/* ── Add Supplier Modal ── */}
-      {showAddSuppModal && !isAdminView && (
+      {showAddSuppModal && (
         <CRMModal
           title="Add Supplier"
           onClose={() => setShowAddSuppModal(false)}

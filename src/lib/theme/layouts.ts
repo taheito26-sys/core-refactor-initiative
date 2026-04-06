@@ -501,4 +501,68 @@ const GLASS_MOBILE: LayoutDef = {
   },
 };
 
-export const LAYOUTS: LayoutDef[] = [TERMINAL_HC, QUANTUM_LEDGER, FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, GLASS_MOBILE];
+// ═══ MISTRAL WARM ═══ (Mistral AI-inspired — warm Mediterranean, amber-golden)
+const MISTRAL_WARM: LayoutDef = {
+  id: 'mistral_warm', name: 'Mistral', desc: 'Warm Mediterranean · amber-golden',
+  font: 'Outfit', fontMono: 'IBM Plex Mono',
+  radius: '2px', radiusSm: '0px', radiusLg: '4px',
+  shadow: '0 8px 32px rgba(245,158,11,0.06), 0 4px 12px rgba(245,158,11,0.04), 0 1px 4px rgba(0,0,0,0.50)',
+  fontWeightUi: '400', fontWeightVal: '400',
+  labelTracking: '.1em', valTracking: '-.02em',
+  cardOrnament: '0',
+  swatches: ['#0d0c0a','#f59e0b','#ea580c','#d97706','#fffaeb','#fef3c7','#78350f','#92400e'],
+  themes: {
+    t1: { // Dark — late afternoon
+      bg:'#0d0c0a', panel:'#161410', panel2:'#1e1b16', panel3:'#2a261e',
+      text:'#f5f0e8', muted:'rgba(245,240,228,0.42)', muted2:'rgba(245,240,228,0.25)',
+      line:'rgba(245,158,11,0.10)', line2:'rgba(245,158,11,0.05)',
+      brand:'#f59e0b', brand2:'#fbbf24', brand3:'rgba(245,158,11,0.08)',
+      good:'#84cc16', bad:'#ef4444', warn:'#ea580c',
+      sidebarBg:'#0a0906', topbarBg:'rgba(13,12,10,0.98)',
+      cardBg:'#161410', inputBg:'rgba(245,158,11,0.06)',
+      hoverCard:'rgba(245,158,11,0.04)', glow:'rgba(245,158,11,0.20)',
+    },
+    t2: { // Parchment — warm cream light
+      bg:'#fffaeb', panel:'#ffffff', panel2:'#fef3c7', panel3:'#fde68a',
+      text:'#1c1200', muted:'#78600a', muted2:'#a88c3e',
+      line:'rgba(28,18,0,0.10)', line2:'rgba(28,18,0,0.05)',
+      brand:'#d97706', brand2:'#b45309', brand3:'rgba(217,119,6,0.10)',
+      good:'#15803d', bad:'#b91c1c', warn:'#ea580c',
+      sidebarBg:'#1c1200', topbarBg:'rgba(255,250,235,0.96)',
+      cardBg:'#ffffff', inputBg:'rgba(217,119,6,0.05)',
+      hoverCard:'rgba(217,119,6,0.04)', glow:'rgba(217,119,6,0.12)',
+    },
+    t3: { // Sienna — burnt orange dark
+      bg:'#110e08', panel:'#1c1810', panel2:'#251f14', panel3:'#2e2818',
+      text:'#fde8c8', muted:'rgba(253,232,200,0.42)', muted2:'rgba(253,232,200,0.24)',
+      line:'rgba(234,88,12,0.12)', line2:'rgba(234,88,12,0.06)',
+      brand:'#ea580c', brand2:'#f97316', brand3:'rgba(234,88,12,0.08)',
+      good:'#84cc16', bad:'#ef4444', warn:'#f59e0b',
+      sidebarBg:'#0c0a04', topbarBg:'rgba(17,14,8,0.98)',
+      cardBg:'#1c1810', inputBg:'rgba(234,88,12,0.07)',
+      hoverCard:'rgba(234,88,12,0.05)', glow:'rgba(249,115,22,0.22)',
+    },
+    t4: { // Desert — deep gold dusk
+      bg:'#0f0c06', panel:'#1a1508', panel2:'#231e0c', panel3:'#2c2710',
+      text:'#f7ecd0', muted:'rgba(247,236,208,0.42)', muted2:'rgba(247,236,208,0.24)',
+      line:'rgba(180,83,9,0.12)', line2:'rgba(180,83,9,0.06)',
+      brand:'#d97706', brand2:'#f59e0b', brand3:'rgba(217,119,6,0.10)',
+      good:'#65a30d', bad:'#dc2626', warn:'#ea580c',
+      sidebarBg:'#0a0804', topbarBg:'rgba(15,12,6,0.98)',
+      cardBg:'#1a1508', inputBg:'rgba(217,119,6,0.08)',
+      hoverCard:'rgba(217,119,6,0.05)', glow:'rgba(245,158,11,0.18)',
+    },
+    t5: { // Smoked — velvet charcoal amber
+      bg:'#080704', panel:'#110f0a', panel2:'#181510', panel3:'#201d14',
+      text:'#efe4c8', muted:'rgba(239,228,200,0.38)', muted2:'rgba(239,228,200,0.22)',
+      line:'rgba(245,158,11,0.08)', line2:'rgba(245,158,11,0.04)',
+      brand:'#e6a817', brand2:'#f5c842', brand3:'rgba(230,168,23,0.08)',
+      good:'#84cc16', bad:'#ef4444', warn:'#f97316',
+      sidebarBg:'#050402', topbarBg:'rgba(8,7,4,0.98)',
+      cardBg:'#110f0a', inputBg:'rgba(230,168,23,0.06)',
+      hoverCard:'rgba(230,168,23,0.04)', glow:'rgba(245,158,11,0.18)',
+    },
+  },
+};
+
+export const LAYOUTS: LayoutDef[] = [TERMINAL_HC, QUANTUM_LEDGER, FLUX, CIPHER, DARK_LEDGER, OPERATIONS_DESK, ATLAS_GRID, VELVET_MONO, PAPERWIRE, SIGNAL_DECK, GLASS_MOBILE, MISTRAL_WARM];
