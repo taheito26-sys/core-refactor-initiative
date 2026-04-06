@@ -695,9 +695,19 @@ export default function OrdersPage() {
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = amountUSDT * sell;
-    const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
-    const net = calc?.ok ? rev - cost - fee : NaN;
-    return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
+    if (calc?.ok) {
+      const cost = calc.slices.reduce((s, x) => s + x.cost, 0);
+      const net = rev - cost - fee;
+      return { qty: amountUSDT, revenue: rev, avgBuy: calc.avgBuyQAR, cost, net };
+    }
+    // Fallback: use global WACOP when FIFO can't fully match (e.g. stock already consumed by prior trades)
+    const fallbackWacop = getWACOP(computeFIFO(state.batches, state.trades));
+    if (Number.isFinite(fallbackWacop) && fallbackWacop > 0) {
+      const cost = amountUSDT * fallbackWacop;
+      const net = rev - cost - fee;
+      return { qty: amountUSDT, revenue: rev, avgBuy: fallbackWacop, cost, net };
+    }
+    return { qty: amountUSDT, revenue: rev, avgBuy: NaN, cost: NaN, net: NaN };
   }, [saleAmount, saleDate, saleEntryMode, saleMode, saleUsdtQty, saleSell, saleFee, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
