@@ -149,6 +149,37 @@
 .tracker-root .btn.secondary { background: rgba(255,255,255,.05); border-color: var(--line); color: var(--text); box-shadow: none; }
 .tracker-root .btn.secondary:hover { background: var(--hover-card); border-color: var(--brand); color: var(--brand); }
 
+/* ── NATIVE SELECT / DROPDOWN DARK THEME FIX ──────────────────────────────────
+   CSS custom properties (var(--*)) do NOT resolve inside native <option>
+   dropdown popups — the OS renders that popup outside the CSS variable scope.
+   Fix: hardcoded dark hex values + color-scheme:dark so the browser/OS uses
+   a dark-mode chrome for the popup natively across all platforms.
+   These rules cover every <select> inside .tracker-root AND any floating modal
+   that is rendered inside .tracker-root's DOM subtree.
+   ──────────────────────────────────────────────────────────────────────────── */
+.tracker-root {
+  color-scheme: dark;
+}
+.tracker-root select {
+  background-color: #1a1d38 !important;
+  color: #e8eaff !important;
+  border-color: rgba(108, 113, 150, 0.25) !important;
+  color-scheme: dark;
+}
+.tracker-root select option {
+  background-color: #1a1d38;
+  color: #e8eaff;
+}
+.tracker-root select option:checked {
+  background-color: #6366f1;
+  color: #ffffff;
+}
+.tracker-root select:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.6) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
 /* ── FORMS ── */
 .tracker-root .formPanel { border: 1px solid var(--line); border-radius: var(--lt-radius); background: rgba(255,255,255,.02); overflow: hidden; transition: border-color var(--lt-tr); }
 .tracker-root .formPanel:hover { border-color: color-mix(in srgb,var(--brand) 30%,transparent); }
@@ -521,6 +552,46 @@
 }
 
 /* ── Orders Tab Bar (Redesigned) ── */
+/* ── Month filter pill row ─────────────────────────────────────────── */
+.month-filter-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0 4px;
+}
+.month-filter-row::-webkit-scrollbar { display: none; }
+
+.month-pill {
+  padding: 5px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  letter-spacing: 0.02em;
+}
+.month-pill:hover {
+  color: rgba(255,255,255,0.8);
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.07);
+}
+.month-pill.active {
+  color: #fff;
+  background: var(--brand);
+  border-color: var(--brand);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--brand) 45%, transparent);
+  font-weight: 700;
+}
+
+/* ── Orders main tab bar ─────────────────────────────────────────── */
 .orders-tab-bar {
   display: inline-flex;
   padding: 4px;
