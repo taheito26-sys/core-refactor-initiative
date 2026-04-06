@@ -365,27 +365,27 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           </div>
         </div>
         <div className="kpi-band">
-          <div className="kpi-band-title">My Net Profit</div>
+          <div className="kpi-band-title">{t('myNetProfit')}</div>
           <div className="kpi-band-cols">
             {/* Current Month */}
             <div>
               <div className="kpi-period">{curMo}</div>
               {[
-                { label: '🏠 Own Orders', val: segmentedProfit.thisMonth.ownNet },
-                { label: '📥 Incoming', val: segmentedProfit.thisMonth.inMyShare },
-                { label: '📤 Outgoing', val: segmentedProfit.thisMonth.outMyShare },
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownNet },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inMyShare },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outMyShare },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
                   <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
-                    {row.val >= 0 ? '+' : ''}{fmtQWithUnit(row.val)} QAR
+                    {row.val >= 0 ? '+' : ''}{fmtQWithUnit(row.val)}
                   </span>
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 Total</span>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
                 <span className={`mono ${segmentedProfit.thisMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {segmentedProfit.thisMonth.total >= 0 ? '+' : ''}{fmtQWithUnit(segmentedProfit.thisMonth.total)} QAR
+                  {segmentedProfit.thisMonth.total >= 0 ? '+' : ''}{fmtQWithUnit(segmentedProfit.thisMonth.total)}
                 </span>
               </div>
             </div>
@@ -393,21 +393,21 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div>
               <div className="kpi-period">{prevMo}</div>
               {[
-                { label: '🏠 Own Orders', val: segmentedProfit.lastMonth.ownNet },
-                { label: '📥 Incoming', val: segmentedProfit.lastMonth.inMyShare },
-                { label: '📤 Outgoing', val: segmentedProfit.lastMonth.outMyShare },
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownNet },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inMyShare },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outMyShare },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
                   <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
-                    {row.val >= 0 ? '+' : ''}{fmtQWithUnit(row.val)} QAR
+                    {row.val >= 0 ? '+' : ''}{fmtQWithUnit(row.val)}
                   </span>
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 Total</span>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('totalLabel')}</span>
                 <span className={`mono ${segmentedProfit.lastMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {segmentedProfit.lastMonth.total >= 0 ? '+' : ''}{fmtQWithUnit(segmentedProfit.lastMonth.total)} QAR
+                  {segmentedProfit.lastMonth.total >= 0 ? '+' : ''}{fmtQWithUnit(segmentedProfit.lastMonth.total)}
                 </span>
               </div>
             </div>
