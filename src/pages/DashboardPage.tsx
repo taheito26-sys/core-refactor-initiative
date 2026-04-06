@@ -269,6 +269,33 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     return fullNet;
   }, [derived.tradeCalc]);
 
+  // ── Segmented Net Profit KPI (Own / Incoming / Outgoing) ──────────────
+  const segmentedProfit = useMemo(() => {
+    const computeForRange = (range: string) => {
+      const ownTrades = allTrades.filter(tr => !tr.linkedDealId && !tr.linkedRelId && inRange(tr.ts, range));
+      let ownNet = 0;
+      for (const tr of ownTrades) { ownNet += tradeNet(tr); }
+      let inMyShare = 0, outMyShare = 0;
+      if (merchantDealKpis?.dealDetails) {
+        const seen = new Set<string>();
+        for (const d of merchantDealKpis.dealDetails) {
+          if (!inRange(d.ts, range)) continue;
+          if (seen.has(d.id)) continue;
+          seen.add(d.id);
+          if (!Number.isFinite(d.myShare)) continue;
+          if (d.direction === 'incoming') { inMyShare += d.myShare; }
+          else if (d.direction === 'outgoing') { outMyShare += d.myShare; }
+        }
+      }
+      return { ownNet, inMyShare, outMyShare, total: ownNet + inMyShare + outMyShare };
+    };
+    return {
+      thisMonth: computeForRange('this_month'),
+      lastMonth: computeForRange('last_month'),
+      range: computeForRange(settings.range),
+    };
+  }, [allTrades, merchantDealKpis, settings.range, tradeNet]);
+
   const trendData = useMemo(() => {
     const sorted = [...allTrades].sort((a, b) => a.ts - b.ts).slice(-14);
     return sorted.map((tr, i) => {
@@ -338,58 +365,64 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           </div>
         </div>
         <div className="kpi-band">
-          <div className="kpi-band-title">{t('netProfit')}</div>
+          <div className="kpi-band-title">My Net Profit</div>
           <div className="kpi-band-cols">
+            {/* Current Month */}
             <div>
               <div className="kpi-period">{curMo}</div>
-              <div className={`kpi-cell-val ${dM.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dM.net, settings.currency, wacop)}</div>
-              {dM.fee > 0 && <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dM.fee, settings.currency, wacop)}</div>}
-              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
+              {[
+                { label: '🏠 Own Orders', val: segmentedProfit.thisMonth.ownNet },
+                { label: '📥 Incoming', val: segmentedProfit.thisMonth.inMyShare },
+                { label: '📤 Outgoing', val: segmentedProfit.thisMonth.outMyShare },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
+                    {row.val >= 0 ? '+' : ''}{fmtQWithUnit(row.val)} QAR
+                  </span>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 Total</span>
+                <span className={`mono ${segmentedProfit.thisMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {segmentedProfit.thisMonth.total >= 0 ? '+' : ''}{fmtQWithUnit(segmentedProfit.thisMonth.total)} QAR
+                </span>
+              </div>
             </div>
+            {/* Previous Month */}
             <div>
               <div className="kpi-period">{prevMo}</div>
-              <div className={`kpi-cell-val ${dL.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dL.net, settings.currency, wacop)}</div>
-              {dL.fee > 0 && <div className="kpi-cell-sub">{t('fees')} {fmtQWithUnit(dL.fee, settings.currency, wacop)}</div>}
-              <div className="kpi-cell-sub" style={{ fontSize: 8, marginTop: 2 }}>📤 {t('myDealsLabel')}</div>
+              {[
+                { label: '🏠 Own Orders', val: segmentedProfit.lastMonth.ownNet },
+                { label: '📥 Incoming', val: segmentedProfit.lastMonth.inMyShare },
+                { label: '📤 Outgoing', val: segmentedProfit.lastMonth.outMyShare },
+              ].map(row => (
+                <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
+                  <span className={`mono ${row.val >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 11, fontWeight: 700 }}>
+                    {row.val >= 0 ? '+' : ''}{fmtQWithUnit(row.val)} QAR
+                  </span>
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 Total</span>
+                <span className={`mono ${segmentedProfit.lastMonth.total >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
+                  {segmentedProfit.lastMonth.total >= 0 ? '+' : ''}{fmtQWithUnit(segmentedProfit.lastMonth.total)} QAR
+                </span>
+              </div>
             </div>
           </div>
-          {rangeMerchantKpis && rangeMerchantKpis.inCount > 0 && (
-            <div style={{ marginTop: 6, padding: '5px 8px', borderRadius: 6, background: 'color-mix(in srgb, var(--good) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 15%, transparent)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>
-                  📥 {t('incomingDealsLabel')} ({rangeMerchantKpis.inCount}){isAdminView ? ` · ${t('myCutLabel')}` : ''}
-                </span>
-                <span className={`mono ${rangeMerchantKpis.inMyShare >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 12, fontWeight: 800 }}>
-                  {rangeMerchantKpis.inMyShare >= 0 ? '+' : ''}{fmtQWithUnit(rangeMerchantKpis.inMyShare)}
-                </span>
-              </div>
-              <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 2 }}>
-                {t('netProfitLabel')}: {fmtQWithUnit(rangeMerchantKpis.inNet)}
-              </div>
-            </div>
-          )}
-          {rangeMerchantKpis && rangeMerchantKpis.inCount > 0 && (
-            <>
-              <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderTop: '1px solid var(--line)' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.5px' }}>📊 {t('combinedTotal')}</span>
-                <span className={`mono ${(dR.net + rangeMerchantKpis.inMyShare) >= 0 ? 'good' : 'bad'}`} style={{ fontSize: 13, fontWeight: 800 }}>
-                  {(dR.net + rangeMerchantKpis.inMyShare) >= 0 ? '+' : ''}{fmtQWithUnit(dR.net + rangeMerchantKpis.inMyShare)}
-                </span>
-              </div>
-              <div className="kpi-cell-sub" style={{ marginTop: 2, fontSize: 8 }}>{rangeLabel(settings.range)} {t('total')}</div>
-            </>
-          )}
         </div>
       </div>
 
       <div className="kpis">
         <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge" style={badgeStyle(dR.net >= 0 ? 'good' : 'bad')}>{rLabel}</span>
+            <span className="kpi-badge" style={badgeStyle(segmentedProfit.range.total >= 0 ? 'good' : 'bad')}>{rLabel}</span>
           </div>
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
-          <div className={`kpi-val ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net, settings.currency, wacop)}</div>
-          <div className="kpi-sub">{dR.count} {t('trades')} · {fmtQ(dR.rev)} {t('revSuffix')}</div>
+          <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(segmentedProfit.range.total)}</div>
+          <div className="kpi-sub">Own {fmtQ(segmentedProfit.range.ownNet)} · In {fmtQ(segmentedProfit.range.inMyShare)} · Out {fmtQ(segmentedProfit.range.outMyShare)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
