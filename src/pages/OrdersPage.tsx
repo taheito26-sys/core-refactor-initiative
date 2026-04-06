@@ -2221,7 +2221,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
@@ -2295,7 +2295,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('addBatchThenSale')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ margin: '0 -10px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
                   {/* Unlinked merchant deals (same logic as desktop) */}
                   {(() => {
@@ -2531,7 +2531,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('incomingTradesDesc')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ margin: '0 -10px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredInDeals.map((deal) => renderOrdersMobileCard(deal, 'incoming'))}
                 </div>
               ) : (
@@ -2703,7 +2703,7 @@ export default function OrdersPage() {
                   <div className="empty-s">{t('outgoingTradesDesc')}</div>
                 </div>
               ) : isMobile ? (
-                <div style={{ margin: '0 -10px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
+                <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
                   {subFilteredOutDeals.map((deal) => renderOrdersMobileCard(deal, 'outgoing'))}
                 </div>
               ) : (
@@ -2963,11 +2963,11 @@ export default function OrdersPage() {
         </div>
 
         {/* ═══════════ RIGHT PANEL ═══════════ */}
-        <div style={isMobile ? { margin: '0 -10px' } : undefined}>
+        <div>
 
           {/* ── MY ORDERS: New Sale Form ── */}
           {activeTab === 'my' && (
-            <div id="new-sale-form" className="formPanel salePanel" style={isMobile ? { borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderBottom: 'none' } : undefined}>
+            <div id="new-sale-form" className="formPanel salePanel">
               <div className="hdr">{t('newSale')}</div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
                 {/* Normal sale form — hidden when Capital Transfer is selected */}

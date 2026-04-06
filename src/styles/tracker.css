@@ -683,9 +683,70 @@
 /* ── Orders two-col: on mobile, keep list first and form below ── */
 @media (max-width: 768px) {
   .tracker-root .orders-two-col {
-    display: flex; flex-direction: column; gap: 10px;
+    display: flex; flex-direction: column; gap: 0;
   }
   .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
+
+  /* ── Edge-to-edge orders layout ── */
+  .tracker-root.orders-mobile-root {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  /* Give back horizontal breathing room to the controls above the list */
+  .tracker-root.orders-mobile-root .orders-tab-bar,
+  .tracker-root.orders-mobile-root .month-filter-row {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  /* Lift the max-width clamp so negative-margin children can escape */
+  .tracker-root.orders-mobile-root .orders-two-col > * {
+    max-width: none;
+    overflow: visible;
+  }
+  /* Card list: bleed 10px on each side to counter app-page-shell padding */
+  .tracker-root.orders-mobile-root .orders-cards-list {
+    margin-left: -10px;
+    margin-right: -10px;
+    width: calc(100% + 20px);
+  }
+  /* Sale form: bleed edge-to-edge, no outer radius, compact */
+  .tracker-root.orders-mobile-root .formPanel.salePanel {
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    margin-top: 10px;
+    margin-left: -10px;
+    margin-right: -10px;
+    width: calc(100% + 20px);
+  }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .inner {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .hdr {
+    padding: 6px 10px;
+  }
+  /* Compact form fields: smaller inputs and labels */
+  .tracker-root.orders-mobile-root .formPanel.salePanel .field2 .lbl {
+    font-size: 9px;
+    margin-bottom: 3px;
+  }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox {
+    padding: 5px 10px;
+  }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox input {
+    font-size: 13px;
+  }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow {
+    padding: 5px 8px;
+  }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow .bVal {
+    font-size: 16px;
+  }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .modeToggle {
+    gap: 3px;
+  }
 }
 
 /* ── Extra small screens (≤ 400px) ── */
