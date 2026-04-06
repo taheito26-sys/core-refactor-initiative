@@ -183,15 +183,16 @@ export default function OrdersPage() {
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
 
-  // Sync saleAmount into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
+  // Sync canonical USDT quantity into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
+    const qtyStr = canonicalSaleQtyUsdt > 0 ? String(canonicalSaleQtyUsdt) : '';
     if (selectedTemplateId === 'profit_share_family' && allocations.length > 0 && allocations[0].agreementId) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: qtyStr } : a));
     }
     if (selectedTemplateId === 'sales_deal_family' && allocations.length > 0 && allocations[0].partnerSharePct === 50) {
-      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: saleAmount || '' } : a));
+      setAllocations(prev => prev.map((a, i) => i === 0 ? { ...a, allocatedUsdt: qtyStr } : a));
     }
-  }, [saleAmount]);
+  }, [canonicalSaleQtyUsdt]);
 
   const [editingDealId, setEditingDealId] = useState<string | null>(null);
   const [editDealTitle, setEditDealTitle] = useState('');
