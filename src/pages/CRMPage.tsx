@@ -131,13 +131,19 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete }: {
 }
 
 // ── Page ─────────────────────────────────────────────────────────────
-export default function CRMPage() {
+interface CRMPageProps {
+  adminTrackerState?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  isAdminView?: boolean;
+}
+
+export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps = {}) {
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
   const { state, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
+    preloadedState: adminTrackerState,
   });
 
   const [tab, setTab] = useState<'pipeline' | 'list' | 'suppliers'>('pipeline');
