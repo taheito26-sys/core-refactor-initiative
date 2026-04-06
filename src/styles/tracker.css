@@ -1638,6 +1638,25 @@
   min-width: 2px;
 }
 
+/* ── Manual price required pulse ───────────────────────────── */
+@keyframes manualPriceBlinkPulse {
+  0%, 100% {
+    border-color: color-mix(in srgb, var(--bad) 85%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--bad) 45%, transparent);
+    background: color-mix(in srgb, var(--bad) 7%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--warn) 90%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 15%, transparent);
+    background: color-mix(in srgb, var(--bad) 12%, transparent);
+  }
+}
+
+.tracker-root .manualPriceMissingBlink {
+  border: 1.5px solid color-mix(in srgb, var(--bad) 85%, transparent);
+  animation: manualPriceBlinkPulse 1.1s ease-in-out infinite;
+}
+
 /* ── Mobile responsive ─────────────────────────────────────── */
 @media (max-width: 600px) {
   .tracker-root .cash-summary-strip { gap: 2px; padding: 8px 10px; }

@@ -195,6 +195,7 @@ export default function OrdersPage() {
     stockOverrideEnabled,
     stockOverrideConfirmed,
   );
+  const needsManualBuyPrice = priceMode === 'manual' && !(parseFloat(manualBuyPrice) > 0);
 
   useEffect(() => {
     if (!isInsufficientStock) {
@@ -3121,7 +3122,19 @@ export default function OrdersPage() {
                   <div className="g2tight">
                     <div className="field2">
                       <div className="lbl">{t('buyPrice')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={manualBuyPrice} onChange={numericOnly(setManualBuyPrice)} style={mobileInputStyle} /></div>
+                      <div className={`inputBox ${needsManualBuyPrice ? 'manualPriceMissingBlink' : ''}`}>
+                        <input
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          value={manualBuyPrice}
+                          onChange={numericOnly(setManualBuyPrice)}
+                          style={{
+                            ...mobileInputStyle,
+                            color: needsManualBuyPrice ? 'var(--bad)' : undefined,
+                            fontWeight: needsManualBuyPrice ? 700 : undefined,
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
