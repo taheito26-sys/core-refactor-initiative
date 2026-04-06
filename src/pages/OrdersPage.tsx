@@ -232,7 +232,7 @@ export default function OrdersPage() {
         family: 'profit_share' as const,
         agreementId: null,
         agreementLabel: '',
-        allocatedUsdt: saleAmount || '',
+        allocatedUsdt: canonicalSaleQtyUsdt > 0 ? String(canonicalSaleQtyUsdt) : '',
         merchantCostPerUsdt: '',
         partnerSharePct: 0,
         merchantSharePct: 0,
