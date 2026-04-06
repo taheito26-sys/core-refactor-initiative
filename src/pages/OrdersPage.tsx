@@ -2260,12 +2260,6 @@ export default function OrdersPage() {
 
               {!isMobile && renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
 
-              {!isMobile && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 8, gap: 6 }}>
-                  <span className="pill">{rLabel}</span>
-                  <button className="btn secondary" onClick={exportCsv}>CSV</button>
-                </div>
-              )}
 
               {filtered.length === 0 ? (
                 <div className="empty">
