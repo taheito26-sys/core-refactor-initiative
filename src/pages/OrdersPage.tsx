@@ -919,7 +919,10 @@ export default function OrdersPage() {
     const amountUSDT = saleDraft.quantityUsdt;
     const feeQar = saleDraft.feeQar;
     if (isInsufficientStock && !canSubmitSale) {
-      setSaleMessage(`Insufficient stock: short by ${stockCoverage.stockShortfall.toFixed(2)} USDT`);
+      setSaleMessage(
+        t('insufficientStockShortBy')
+          .replace('{qty}', stockCoverage.stockShortfall.toFixed(2)),
+      );
       return;
     }
     const errs: string[] = [];
@@ -3678,10 +3681,10 @@ export default function OrdersPage() {
                     <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
                     {'incomplete' in allocationPreview ? (
                       <div style={{ fontSize: 10, color: 'var(--bad)', lineHeight: 1.5 }}>
-                        <div><strong>⚠️ FIFO coverage incomplete.</strong></div>
-                        <div>Covered: {fmtU(allocationPreview.coveredQty)} USDT</div>
-                        <div>Uncovered: {fmtU(allocationPreview.uncoveredQty)} USDT</div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Allocation net profit is withheld until stock is fully covered or override is confirmed.</div>
+                        <div><strong>⚠️ {t('fifoCoverageIncomplete')}</strong></div>
+                        <div>{t('coveredQtyLabel')}: {fmtU(allocationPreview.coveredQty)} USDT</div>
+                        <div>{t('uncoveredQtyLabel')}: {fmtU(allocationPreview.uncoveredQty)} USDT</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('allocationNetWithheld')}</div>
                       </div>
                     ) : (
                       <>
@@ -3718,17 +3721,17 @@ export default function OrdersPage() {
                           fontSize: 10,
                           lineHeight: 1.45,
                         }}>
-                          <div style={{ fontWeight: 800, marginBottom: 2 }}>Insufficient stock</div>
-                          <div>This order exceeds available stock by <strong>{fmtU(stockCoverage.stockShortfall)} USDT</strong>.</div>
-                          <div>FIFO cannot fully price this sale.</div>
-                          <div>To continue, either:</div>
+                          <div style={{ fontWeight: 800, marginBottom: 2 }}>{t('insufficientStockTitle')}</div>
+                          <div>{t('orderExceedsStockBy').replace('{qty}', fmtU(stockCoverage.stockShortfall))} <strong>USDT</strong>.</div>
+                          <div>{t('fifoCannotFullyPrice')}</div>
+                          <div>{t('toContinueEither')}</div>
                           <ul style={{ margin: '2px 0 0 14px', padding: 0 }}>
-                            <li>add stock first</li>
-                            <li>or enable Manual Sell Price override</li>
+                            <li>{t('addStockFirst')}</li>
+                            <li>{t('enableManualSellPriceOverride')}</li>
                           </ul>
                           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                             <button type="button" className="btn secondary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => navigate('/trading/stock')}>
-                              Add Stock
+                              {t('addStockCta')}
                             </button>
                             <button
                               type="button"
@@ -3739,7 +3742,7 @@ export default function OrdersPage() {
                                 setStockOverrideConfirmed(false);
                               }}
                             >
-                              Use Manual Sell Price
+                              {t('useManualSellPriceCta')}
                             </button>
                           </div>
                           {stockOverrideEnabled && (
@@ -3750,7 +3753,7 @@ export default function OrdersPage() {
                                 onChange={e => setStockOverrideConfirmed(e.target.checked)}
                                 style={{ accentColor: 'var(--bad)' }}
                               />
-                              I confirm this sale has uncovered FIFO quantity and will be saved with manual cost-basis override metadata.
+                              {t('stockOverrideConfirm')}
                             </label>
                           )}
                         </div>
@@ -3760,10 +3763,10 @@ export default function OrdersPage() {
                       <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(salePreview.revenue)}</strong></div>
                       {isInsufficientStock && (
                         <>
-                          <div className="prev-row"><span className="muted">Covered FIFO qty</span><strong>{fmtU(salePreview.coveredQty || 0)} USDT</strong></div>
-                          <div className="prev-row"><span className="muted">Uncovered qty</span><strong style={{ color: 'var(--bad)' }}>{fmtU(salePreview.uncoveredQty || 0)} USDT</strong></div>
+                          <div className="prev-row"><span className="muted">{t('coveredFifoQty')}</span><strong>{fmtU(salePreview.coveredQty || 0)} USDT</strong></div>
+                          <div className="prev-row"><span className="muted">{t('uncoveredQty')}</span><strong style={{ color: 'var(--bad)' }}>{fmtU(salePreview.uncoveredQty || 0)} USDT</strong></div>
                           <div style={{ fontSize: 9, color: 'var(--warn)', marginBottom: 4 }}>
-                            Net profit is incomplete for uncovered quantity and is not shown as authoritative FIFO.
+                            {t('netIncompleteUncovered')}
                           </div>
                         </>
                       )}
