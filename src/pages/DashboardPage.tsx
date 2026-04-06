@@ -365,7 +365,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           </div>
         </div>
         <div className="kpi-band">
-          <div className="kpi-band-title">{t('myNetProfit') || 'My Net Profit'}</div>
+          <div className="kpi-band-title">My Net Profit</div>
           <div className="kpi-band-cols">
             {/* Current Month */}
             <div>
