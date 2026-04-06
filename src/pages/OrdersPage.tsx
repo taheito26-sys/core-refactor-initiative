@@ -3551,63 +3551,43 @@ export default function OrdersPage() {
                                   background: 'color-mix(in srgb, var(--brand) 8%, transparent)',
                                   border: '1px solid color-mix(in srgb, var(--good) 30%, transparent)',
                                 }}>
-                                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 6 }}>
+                                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 4 }}>
                                     {t('allocSummary')}
                                   </div>
-                                  {/* Qty + Avg Buy metadata */}
-                                  <div style={{ display: 'flex', gap: 12, marginBottom: 6, paddingBottom: 5, borderBottom: '1px solid color-mix(in srgb, var(--line) 40%, transparent)', fontSize: 9 }}>
-                                    <span className="muted">{t('qty')}: <strong className="mono">{fmtU(usdt)} USDT</strong></span>
-                                    <span className="muted">Avg Buy: <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtP(costPerUsdt)} QAR</strong></span>
-                                  </div>
-                                  {/* Revenue (sale proceeds = qty × sell price) */}
+                                  {/* Row 1: Total revenue (sale proceeds = qty × sell price) */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                    <span className="muted">Revenue:</span>
+                                    <span className="muted">{t('allocRev')}:</span>
                                     <strong className="mono">{fmtC(calc.revenue)}</strong>
                                   </div>
-                                  {/* Acquisition cost (FIFO) */}
+                                  {/* Row 2: Actual acquisition cost (FIFO) */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
                                     <span className="muted">Cost (FIFO):</span>
-                                    <strong className="mono" style={{ color: 'var(--bad)' }}>−{fmtC(calc.cost)}</strong>
+                                    <strong className="mono" style={{ color: 'var(--bad)' }}>{fmtC(calc.cost)}</strong>
                                   </div>
-                                  {/* Net profit (after platform fee, before operator fee) */}
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2, borderTop: '1px solid color-mix(in srgb, var(--line) 40%, transparent)', paddingTop: 3, marginTop: 2 }}>
-                                    <span className="muted">{isOpPriority ? 'Net Before Fee' : t('allocNet')}:</span>
-                                    <strong className="mono" style={{ color: calc.net >= 0 ? 'var(--good)' : 'var(--bad)' }}>{calc.net >= 0 ? '+' : ''}{fmtC(calc.net)}</strong>
-                                  </div>
-                                  {/* Operator fee waterfall (operator priority only) */}
-                                  {isOpPriority && opCalc && (
-                                    <>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                        <span style={{ color: 'var(--warn)' }}>⚙️ Operator Fee ({(selAgr as any)?.operator_ratio ?? 0}%):</span>
-                                        <strong className="mono" style={{ color: 'var(--warn)' }}>−{fmtC(opCalc.operatorFee)}</strong>
-                                      </div>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2, borderTop: '1px solid color-mix(in srgb, var(--line) 40%, transparent)', paddingTop: 3, marginTop: 2 }}>
-                                        <span className="muted">Net After Fee:</span>
-                                        <strong className="mono" style={{ color: 'var(--good)' }}>{fmtC(Math.round((calc.net - opCalc.operatorFee) * 100) / 100)}</strong>
-                                      </div>
-                                    </>
-                                  )}
-                                  {/* Profit distribution */}
-                                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--muted)', marginTop: 6, marginBottom: 3 }}>
-                                    Profit Distribution
-                                  </div>
+                                  {/* Row 3: Your net profit share (capital split after op fee) */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-                                    <span style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({isOpPriority ? `${calc.merchantSharePct.toFixed(1)}%` : `${alloc.merchantSharePct}%`}):</span>
+                                    <span className="muted" style={{ color: 'var(--good)' }}>📊 {t('youShare')} ({isOpPriority ? `${calc.merchantSharePct.toFixed(1)}%` : `${alloc.merchantSharePct}%`}):</span>
                                     <strong className="mono" style={{ color: 'var(--good)' }}>
                                       {fmtC(isOpPriority && opCalc
                                         ? (isOpViewer ? opCalc.operatorCapitalShare : opCalc.lenderCapitalShare)
                                         : calc.merchantAmount)}
                                     </strong>
                                   </div>
+                                  {/* Row 4: Partner's net profit share (capital split after op fee) */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-                                    <span style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({isOpPriority ? `${calc.partnerSharePct.toFixed(1)}%` : `${alloc.partnerSharePct}%`}):</span>
+                                    <span className="muted" style={{ color: 'var(--bad)' }}>🛡️ {cpName} ({isOpPriority ? `${calc.partnerSharePct.toFixed(1)}%` : `${alloc.partnerSharePct}%`}):</span>
                                     <strong className="mono" style={{ color: 'var(--bad)' }}>
                                       {fmtC(isOpPriority && opCalc
                                         ? (isOpViewer ? opCalc.lenderCapitalShare : opCalc.operatorCapitalShare)
                                         : calc.partnerAmount)}
                                     </strong>
                                   </div>
+                                  {/* Footnote: operator fee + capital split breakdown */}
+                                  {isOpPriority && opCalc && (
+                                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 4, borderTop: '1px solid color-mix(in srgb, var(--line) 30%, transparent)', paddingTop: 4 }}>
+                                      ⚙️ Operator Fee: {fmtC(opCalc.operatorFee)} · Capital split: You {fmtC(isOpViewer ? opCalc.operatorCapitalShare : opCalc.lenderCapitalShare)} / {cpName} {fmtC(isOpViewer ? opCalc.lenderCapitalShare : opCalc.operatorCapitalShare)}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
