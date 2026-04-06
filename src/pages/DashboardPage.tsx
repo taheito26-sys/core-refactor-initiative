@@ -422,7 +422,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           </div>
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(segmentedProfit.range.total)}</div>
-          <div className="kpi-sub">Own {fmtQ(segmentedProfit.range.ownNet)} · In {fmtQ(segmentedProfit.range.inMyShare)} · Out {fmtQ(segmentedProfit.range.outMyShare)}</div>
+          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtQ(segmentedProfit.range.ownNet)} · {t('incomingOrders')} {fmtQ(segmentedProfit.range.inMyShare)} · {t('outgoingOrders')} {fmtQ(segmentedProfit.range.outMyShare)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
