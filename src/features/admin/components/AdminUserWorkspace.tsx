@@ -228,6 +228,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           <TabsTrigger value="merchants" className="text-xs">Merchants</TabsTrigger>
           <TabsTrigger value="orders" className="text-xs">Orders</TabsTrigger>
           <TabsTrigger value="stock" className="text-xs">Stock</TabsTrigger>
+          <TabsTrigger value="crm" className="text-xs">CRM</TabsTrigger>
           <TabsTrigger value="deals" className="text-xs">Deals ({deals?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="settlements" className="text-xs">Settlements ({settlements?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="profits" className="text-xs">Profits ({profits?.length ?? 0})</TabsTrigger>
