@@ -507,6 +507,9 @@ const MISTRAL_WARM: LayoutDef = {
   font: 'Outfit', fontMono: 'IBM Plex Mono',
   radius: '2px', radiusSm: '0px', radiusLg: '4px',
   shadow: '0 8px 32px rgba(245,158,11,0.06), 0 4px 12px rgba(245,158,11,0.04), 0 1px 4px rgba(0,0,0,0.50)',
+  fontWeightUi: '400', fontWeightVal: '400',
+  labelTracking: '.1em', valTracking: '-.02em',
+  cardOrnament: '0',
   swatches: ['#0d0c0a','#f59e0b','#ea580c','#d97706','#fffaeb','#fef3c7','#78350f','#92400e'],
   themes: {
     t1: { // Dark — late afternoon
