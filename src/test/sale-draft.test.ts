@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { deriveSaleDraft } from '@/features/orders/utils/sale-draft';
+import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
+import { computeFIFO, type Batch, type Trade } from '@/lib/tracker-helpers';
 
 describe('deriveSaleDraft', () => {
   it('supports price_vol mode with saleMode=USDT', () => {
@@ -64,5 +65,56 @@ describe('deriveSaleDraft', () => {
     expect(draft.sellPriceQar).toBe(3.65);
     expect(draft.revenueQar).toBe(365);
     expect(draft.feeQar).toBe(7);
+  });
+});
+
+describe('stock coverage + insufficient FIFO handling', () => {
+  it('sale exactly equal to available stock is covered', () => {
+    const coverage = computeStockCoverage(100, 100);
+    expect(coverage.stockShortfall).toBe(0);
+    expect(canSubmitWithStockCoverage(coverage, true, false, false)).toBe(true);
+  });
+
+  it('sale less than available stock is covered', () => {
+    const coverage = computeStockCoverage(100, 90);
+    expect(coverage.stockShortfall).toBe(0);
+    expect(canSubmitWithStockCoverage(coverage, true, false, false)).toBe(true);
+  });
+
+  it('sale greater than available stock is blocked when override is OFF', () => {
+    const coverage = computeStockCoverage(100, 120);
+    expect(coverage.stockShortfall).toBe(20);
+    expect(canSubmitWithStockCoverage(coverage, true, false, false)).toBe(false);
+  });
+
+  it('sale greater than available stock is allowed only when override is ON and confirmed', () => {
+    const coverage = computeStockCoverage(100, 120);
+    expect(canSubmitWithStockCoverage(coverage, true, true, false)).toBe(false);
+    expect(canSubmitWithStockCoverage(coverage, true, true, true)).toBe(true);
+  });
+
+  it('FIFO net/margin are not presented as fully derived when stock is insufficient', () => {
+    const batches: Batch[] = [
+      { id: 'b1', ts: 1, initialUSDT: 100, buyPriceQAR: 3.5, source: 'test', note: '', revisions: [] },
+    ];
+    const trades: Trade[] = [
+      {
+        id: 't1',
+        ts: 2,
+        inputMode: 'USDT',
+        amountUSDT: 120,
+        sellPriceQAR: 3.6,
+        feeQAR: 0,
+        note: '',
+        voided: false,
+        usesStock: true,
+        revisions: [],
+        customerId: '',
+      },
+    ];
+    const calc = computeFIFO(batches, trades).tradeCalc.get('t1');
+    expect(calc?.ok).toBe(false);
+    expect(calc?.netQAR).toBe(0);
+    expect(calc?.margin).toBe(0);
   });
 });

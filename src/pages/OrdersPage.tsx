@@ -25,7 +25,7 @@ import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority
 import { useIsMobile } from '@/hooks/use-mobile';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
-import { deriveSaleDraft } from '@/features/orders/utils/sale-draft';
+import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 
@@ -105,6 +105,8 @@ export default function OrdersPage() {
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
   const [cashDepositAccountId, setCashDepositAccountId] = useState('');
+  const [stockOverrideEnabled, setStockOverrideEnabled] = useState(false);
+  const [stockOverrideConfirmed, setStockOverrideConfirmed] = useState(false);
 
   // Numeric-only handler: allows digits, one dot, and leading minus
   const numericOnly = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,6 +180,28 @@ export default function OrdersPage() {
     saleSell,
     saleFee,
   }), [saleEntryMode, saleMode, saleUsdtQty, saleAmount, saleSell, saleFee]);
+  const availableFifoUsdt = useMemo(
+    () => derived.batches.reduce((sum, b) => sum + Math.max(0, b.remainingUSDT), 0),
+    [derived.batches],
+  );
+  const stockCoverage = useMemo(
+    () => computeStockCoverage(availableFifoUsdt, saleDraft.quantityUsdt),
+    [availableFifoUsdt, saleDraft.quantityUsdt],
+  );
+  const isInsufficientStock = useStock && stockCoverage.stockShortfall > 0;
+  const canSubmitSale = canSubmitWithStockCoverage(
+    stockCoverage,
+    useStock,
+    stockOverrideEnabled,
+    stockOverrideConfirmed,
+  );
+
+  useEffect(() => {
+    if (!isInsufficientStock) {
+      setStockOverrideEnabled(false);
+      setStockOverrideConfirmed(false);
+    }
+  }, [isInsufficientStock]);
 
   // Sync canonical sale quantity into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
@@ -691,19 +715,37 @@ export default function OrdersPage() {
       const rev = saleDraft.revenueQar;
       const cost = amountUSDT * buyP;
       const net = rev - cost - fee;
-      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net };
+      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net, fifoComplete: true, coveredQty: amountUSDT, uncoveredQty: 0 };
     }
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = saleDraft.revenueQar;
     const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
+    const coveredQty = calc?.slices.reduce((s, x) => s + x.qty, 0) || 0;
+    const uncoveredQty = Math.max(0, amountUSDT - coveredQty);
     const net = calc?.ok ? rev - cost - fee : NaN;
-    return { qty: amountUSDT, revenue: rev, avgBuy: calc?.ok ? calc.avgBuyQAR : NaN, cost: calc?.ok ? cost : NaN, net };
+    return {
+      qty: amountUSDT,
+      revenue: rev,
+      avgBuy: calc?.ok ? calc.avgBuyQAR : NaN,
+      cost: calc?.ok ? cost : NaN,
+      net,
+      fifoComplete: !!calc?.ok,
+      coveredQty,
+      uncoveredQty,
+    };
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
     if (!selectedTemplateId || !salePreview) return null;
+    if (!Number.isFinite(salePreview.net)) {
+      return {
+        incomplete: true as const,
+        coveredQty: salePreview.coveredQty || 0,
+        uncoveredQty: salePreview.uncoveredQty || 0,
+      };
+    }
     const tmpl = AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId);
     if (!tmpl) return null;
     const partnerPct = tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? 0;
@@ -876,6 +918,10 @@ export default function OrdersPage() {
     const sell = saleDraft.sellPriceQar;
     const amountUSDT = saleDraft.quantityUsdt;
     const feeQar = saleDraft.feeQar;
+    if (isInsufficientStock && !canSubmitSale) {
+      setSaleMessage(`Insufficient stock: short by ${stockCoverage.stockShortfall.toFixed(2)} USDT`);
+      return;
+    }
     const errs: string[] = [];
     if (!Number.isFinite(ts)) errs.push(t('date'));
     if (!(sell > 0)) errs.push(t('sellPriceLabel'));
@@ -957,7 +1003,11 @@ export default function OrdersPage() {
     const isNewAllocFlowActive = isNewAllocFlow && allocations.length > 0;
 
     const baseTrade: Trade = {
-      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: feeQar, note: '', voided: false, usesStock: useStock, revisions: [], customerId,
+      id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: feeQar,
+      note: isInsufficientStock && canSubmitSale
+        ? `manual_cost_basis: true | fifo_uncovered_qty: ${stockCoverage.stockShortfall} | stock_shortfall_override: true`
+        : '',
+      voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
@@ -999,6 +1049,13 @@ export default function OrdersPage() {
             `fifo_cost: ${fifoCost}`,
             `avg_buy: ${avgBuy}`,
             `fee: ${fee}`,
+            ...(isInsufficientStock && canSubmitSale
+              ? [
+                  'manual_cost_basis: true',
+                  `fifo_uncovered_qty: ${stockCoverage.stockShortfall}`,
+                  'stock_shortfall_override: true',
+                ]
+              : []),
             `merchant_cost: ${costPerUsdt}`,
             alloc.family === 'profit_share'
               ? `partner_ratio: ${alloc.partnerSharePct}, merchant_ratio: ${alloc.merchantSharePct}`
@@ -1025,6 +1082,9 @@ export default function OrdersPage() {
                 merchant_cost: costPerUsdt,
                 partner_ratio: alloc.partnerSharePct,
                 merchant_ratio: alloc.merchantSharePct,
+                manual_cost_basis: isInsufficientStock && canSubmitSale,
+                fifo_uncovered_qty: isInsufficientStock && canSubmitSale ? stockCoverage.stockShortfall : 0,
+                stock_shortfall_override: isInsufficientStock && canSubmitSale,
               };
               if (selAgreement?.agreement_type === 'operator_priority') {
                 base.agreement_type = 'operator_priority';
@@ -1164,6 +1224,13 @@ export default function OrdersPage() {
           `fifo_cost: ${fifoCost}`,
           `avg_buy: ${avgBuy}`,
           `fee: ${fee}`,
+          ...(isInsufficientStock && canSubmitSale
+            ? [
+                'manual_cost_basis: true',
+                `fifo_uncovered_qty: ${stockCoverage.stockShortfall}`,
+                'stock_shortfall_override: true',
+              ]
+            : []),
           tmpl.dealType === 'partnership'
             ? `partner_ratio: ${tmpl.defaults.partner_ratio}, merchant_ratio: ${tmpl.defaults.merchant_ratio}`
             : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
@@ -1183,6 +1250,9 @@ export default function OrdersPage() {
             sell_price: sell,
             avg_buy: avgBuy,
             fee,
+            manual_cost_basis: isInsufficientStock && canSubmitSale,
+            fifo_uncovered_qty: isInsufficientStock && canSubmitSale ? stockCoverage.stockShortfall : 0,
+            stock_shortfall_override: isInsufficientStock && canSubmitSale,
             partner_ratio: tmpl.defaults.counterparty_share_pct ?? tmpl.defaults.partner_ratio ?? null,
             merchant_ratio: tmpl.defaults.merchant_share_pct ?? tmpl.defaults.merchant_ratio ?? null,
           },
@@ -1277,6 +1347,8 @@ export default function OrdersPage() {
     setCashDepositMode('none');
     setCashDepositAmount('');
     setCashDepositAccountId('');
+    setStockOverrideEnabled(false);
+    setStockOverrideConfirmed(false);
   };
 
   const exportCsv = () => {
@@ -3604,17 +3676,28 @@ export default function OrdersPage() {
                 {allocationPreview && (
                   <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', borderRadius: 4, padding: '6px 8px', marginTop: 4 }}>
                     <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 3 }}>{t('estimatedAllocation')}</div>
-                    <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.revenue)}</strong></div>
-                    {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.fifoCost)}</strong></div>}
-                    {allocationPreview.baseLabel === 'net_profit' && (
-                      <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtC(allocationPreview.base)}</strong></div>
+                    {'incomplete' in allocationPreview ? (
+                      <div style={{ fontSize: 10, color: 'var(--bad)', lineHeight: 1.5 }}>
+                        <div><strong>⚠️ FIFO coverage incomplete.</strong></div>
+                        <div>Covered: {fmtU(allocationPreview.coveredQty)} USDT</div>
+                        <div>Uncovered: {fmtU(allocationPreview.uncoveredQty)} USDT</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Allocation net profit is withheld until stock is fully covered or override is confirmed.</div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="prev-row"><span className="muted">{t('estSaleAmount')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.revenue)}</strong></div>
+                        {allocationPreview.fifoCost != null && <div className="prev-row"><span className="muted">{t('estFifoCost')}</span><strong style={{ fontSize: 10 }}>{fmtC(allocationPreview.fifoCost)}</strong></div>}
+                        {allocationPreview.baseLabel === 'net_profit' && (
+                          <div className="prev-row"><span className="muted">{t('estNetProfit')}</span><strong style={{ fontSize: 10, color: allocationPreview.base >= 0 ? 'var(--good)' : 'var(--bad)' }}>{allocationPreview.base >= 0 ? '+' : ''}{fmtC(allocationPreview.base)}</strong></div>
+                        )}
+                        {/* Iconic profit split summary */}
+                        <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
+                          <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtC(allocationPreview.merchantAmount)}</strong></div>
+                          <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtC(allocationPreview.partnerAmount)}</strong></div>
+                        </div>
+                        <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
+                      </>
                     )}
-                    {/* Iconic profit split summary */}
-                    <div style={{ borderTop: '1px solid color-mix(in srgb, var(--brand) 15%, transparent)', paddingTop: 5, marginTop: 4 }}>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--good)', fontSize: 10 }}>📊 {t('merchantNetProfit')}</span><strong style={{ color: 'var(--good)', fontSize: 11 }}>{fmtC(allocationPreview.merchantAmount)}</strong></div>
-                      <div className="prev-row"><span style={{ fontWeight: 700, color: 'var(--bad)', fontSize: 10 }}>🛡️ {t('partnerNetProfit')} ({allocationPreview.counterpartyName})</span><strong style={{ color: 'var(--bad)', fontSize: 11 }}>{fmtC(allocationPreview.partnerAmount)}</strong></div>
-                    </div>
-                    <div style={{ fontSize: 8, color: 'var(--muted)', marginTop: 3 }}>{t('tradeWillBeSentForApproval')}</div>
                   </div>
                 )}
 
@@ -3624,9 +3707,66 @@ export default function OrdersPage() {
                   <div className="pt">{t('livePreview')}</div>
                   {!salePreview ? <div className="muted" style={{ fontSize: 11 }}>{t('enterDetails')}</div> : (
                     <>
+                      {isInsufficientStock && (
+                        <div style={{
+                          marginBottom: 6,
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: '1px solid color-mix(in srgb, var(--bad) 45%, transparent)',
+                          background: 'color-mix(in srgb, var(--bad) 10%, transparent)',
+                          color: 'var(--bad)',
+                          fontSize: 10,
+                          lineHeight: 1.45,
+                        }}>
+                          <div style={{ fontWeight: 800, marginBottom: 2 }}>Insufficient stock</div>
+                          <div>This order exceeds available stock by <strong>{fmtU(stockCoverage.stockShortfall)} USDT</strong>.</div>
+                          <div>FIFO cannot fully price this sale.</div>
+                          <div>To continue, either:</div>
+                          <ul style={{ margin: '2px 0 0 14px', padding: 0 }}>
+                            <li>add stock first</li>
+                            <li>or enable Manual Sell Price override</li>
+                          </ul>
+                          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                            <button type="button" className="btn secondary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => navigate('/trading/stock')}>
+                              Add Stock
+                            </button>
+                            <button
+                              type="button"
+                              className="btn secondary"
+                              style={{ fontSize: 10, padding: '4px 10px', borderColor: stockOverrideEnabled ? 'var(--bad)' : undefined }}
+                              onClick={() => {
+                                setStockOverrideEnabled(true);
+                                setStockOverrideConfirmed(false);
+                              }}
+                            >
+                              Use Manual Sell Price
+                            </button>
+                          </div>
+                          {stockOverrideEnabled && (
+                            <label style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', fontSize: 9, color: 'var(--t1)' }}>
+                              <input
+                                type="checkbox"
+                                checked={stockOverrideConfirmed}
+                                onChange={e => setStockOverrideConfirmed(e.target.checked)}
+                                style={{ accentColor: 'var(--bad)' }}
+                              />
+                              I confirm this sale has uncovered FIFO quantity and will be saved with manual cost-basis override metadata.
+                            </label>
+                          )}
+                        </div>
+                      )}
                       {Number.isFinite(salePreview.avgBuy) && <div className="prev-row"><span className="muted">{t('avgBuy')}</span><strong style={{ color: 'var(--bad)' }}>{fmtP(salePreview.avgBuy)} QAR</strong></div>}
                       <div className="prev-row"><span className="muted">{t('qty')}</span><strong>{fmtU(salePreview.qty)} USDT</strong></div>
                       <div className="prev-row"><span className="muted">{t('revenue')}</span><strong>{fmtC(salePreview.revenue)}</strong></div>
+                      {isInsufficientStock && (
+                        <>
+                          <div className="prev-row"><span className="muted">Covered FIFO qty</span><strong>{fmtU(salePreview.coveredQty || 0)} USDT</strong></div>
+                          <div className="prev-row"><span className="muted">Uncovered qty</span><strong style={{ color: 'var(--bad)' }}>{fmtU(salePreview.uncoveredQty || 0)} USDT</strong></div>
+                          <div style={{ fontSize: 9, color: 'var(--warn)', marginBottom: 4 }}>
+                            Net profit is incomplete for uncovered quantity and is not shown as authoritative FIFO.
+                          </div>
+                        </>
+                      )}
                       <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtC(salePreview.cost) : '—'}</strong></div>
                       <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
                         <span className="muted">{t('net')}</span>
@@ -3758,7 +3898,7 @@ export default function OrdersPage() {
                   className="formActions"
                   style={isMobile ? { position: 'sticky', bottom: 0, background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} style={isMobile ? { width: '100%', minHeight: 40, fontSize: 12 } : undefined}>
+                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale} style={isMobile ? { width: '100%', minHeight: 40, fontSize: 12 } : undefined}>
                     {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>

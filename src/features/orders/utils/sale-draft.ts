@@ -8,6 +8,12 @@ export interface SaleDraft {
   feeQar: number;
 }
 
+export interface StockCoverage {
+  availableFifoUsdt: number;
+  saleQty: number;
+  stockShortfall: number;
+}
+
 interface DeriveSaleDraftInput {
   saleEntryMode: SaleEntryMode;
   saleMode: SaleMode;
@@ -39,4 +45,25 @@ export function deriveSaleDraft(input: DeriveSaleDraftInput): SaleDraft {
   const feeQar = Number(saleFee) || 0;
   const revenueQar = quantityUsdt * sellPriceQar;
   return { quantityUsdt, sellPriceQar, revenueQar, feeQar };
+}
+
+export function computeStockCoverage(availableFifoUsdt: number, saleQty: number): StockCoverage {
+  const safeAvailable = Number.isFinite(availableFifoUsdt) ? Math.max(0, availableFifoUsdt) : 0;
+  const safeSaleQty = Number.isFinite(saleQty) ? Math.max(0, saleQty) : 0;
+  return {
+    availableFifoUsdt: safeAvailable,
+    saleQty: safeSaleQty,
+    stockShortfall: Math.max(0, safeSaleQty - safeAvailable),
+  };
+}
+
+export function canSubmitWithStockCoverage(
+  coverage: StockCoverage,
+  usesStock: boolean,
+  overrideEnabled: boolean,
+  overrideConfirmed: boolean,
+): boolean {
+  if (!usesStock) return true;
+  if (coverage.stockShortfall <= 0) return true;
+  return overrideEnabled && overrideConfirmed;
 }
