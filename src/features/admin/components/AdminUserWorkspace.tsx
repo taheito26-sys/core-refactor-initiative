@@ -260,6 +260,13 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           <AdminStockMirror trackerState={trackerState ?? null} />
         </TabsContent>
 
+        <TabsContent value="crm" className="mt-3">
+          <CRMPage
+            adminTrackerState={trackerState ?? undefined}
+            isAdminView
+          />
+        </TabsContent>
+
         <TabsContent value="deals" className="mt-3">
           <div className="flex justify-end mb-2">
             <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={exportDeals} disabled={!deals?.length}>
