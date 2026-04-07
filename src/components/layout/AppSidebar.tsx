@@ -104,9 +104,9 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
     location.pathname === path || location.pathname.startsWith(path + '/');
 
   const NavSection = ({ title, items }: { title: string; items: NavItem[] }) => (
-    <div className="mb-3">
+    <div className="mb-2">
       {!collapsed && (
-        <div className="px-4 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-sidebar-foreground/40">
+        <div className="px-4 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
           {title}
         </div>
       )}
@@ -119,15 +119,15 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
                 to={item.path}
                 onClick={isMobile ? onMobileClose : undefined}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] transition-all duration-200 group',
+                  'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] transition-all duration-200 group',
                   active
-                    ? 'bg-sidebar-accent text-sidebar-primary font-bold shadow-sm'
-                    : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                    ? 'bg-primary/10 text-primary font-bold shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 )}
               >
                 <item.icon className={cn(
-                  'h-4 w-4 shrink-0 transition-colors',
-                  active ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60'
+                  'h-3.5 w-3.5 shrink-0 transition-colors',
+                  active ? 'text-primary' : 'text-muted-foreground/40 group-hover:text-muted-foreground/70'
                 )} />
                 {!collapsed && <span className="truncate tracking-tight">{t(item.labelKey as any) || item.fallback}</span>}
               </Link>
@@ -141,28 +141,28 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
   const sidebarContent = (
     <aside
       className={cn(
-        'flex flex-col bg-sidebar border-sidebar-border h-full transition-all duration-300 ease-in-out overflow-hidden',
+        'flex flex-col bg-background border-border h-full transition-all duration-300 ease-in-out overflow-hidden',
         'ltr:border-r rtl:border-l',
-        collapsed ? 'w-[64px]' : 'w-[240px]'
+        collapsed ? 'w-[60px]' : 'w-[200px]'
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 shrink-0">
         {!collapsed && (
-          <span className="font-black text-[15px] text-sidebar-foreground tracking-tight">
-            P2P Tracker
+          <span className="font-black text-[14px] text-foreground tracking-tighter uppercase">
+            Tracker
           </span>
         )}
         {!isMobile && (
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1 rounded-lg hover:bg-sidebar-accent/50 text-sidebar-foreground/30 hover:text-sidebar-foreground transition-colors"
+            className="p-1 rounded-lg hover:bg-muted text-muted-foreground/40 hover:text-foreground transition-colors"
           >
             <ChevronLeft className={cn('h-3.5 w-3.5 transition-transform duration-300', collapsed && 'ltr:rotate-180 rtl:rotate-0', !collapsed && 'rtl:rotate-180')} />
           </button>
         )}
         {isMobile && (
-          <button onClick={onMobileClose} className="p-1 rounded-lg hover:bg-sidebar-accent/50 text-sidebar-foreground/30">
+          <button onClick={onMobileClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground/40">
             <X className="h-4 w-4" />
           </button>
         )}
@@ -170,11 +170,11 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
 
       {/* Merchant info */}
       {!collapsed && merchantProfile && (
-        <div className="px-4 py-2 mb-2 shrink-0">
-          <div className="text-[13px] font-black text-sidebar-foreground truncate tracking-tight uppercase">
+        <div className="px-4 py-1 mb-3 shrink-0">
+          <div className="text-[12px] font-black text-foreground truncate tracking-tight uppercase">
             {merchantProfile.display_name}
           </div>
-          <div className="text-[11px] text-sidebar-foreground/20 font-bold truncate">
+          <div className="text-[10px] text-muted-foreground/50 font-bold truncate">
             @{merchantProfile.nickname}
           </div>
         </div>
@@ -186,9 +186,9 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
         <NavSection title={t('network')} items={networkNav} />
         
         {isAdmin && (
-          <div className="mb-3">
+          <div className="mb-2">
             {!collapsed && (
-              <div className="px-4 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-sidebar-foreground/30">
+              <div className="px-4 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">
                 {t('admin')}
               </div>
             )}
@@ -198,15 +198,15 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
                   to="/admin"
                   onClick={isMobile ? onMobileClose : undefined}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] transition-all duration-200 group',
+                    'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] transition-all duration-200 group',
                     isActive('/admin')
-                      ? 'bg-sidebar-accent text-sidebar-primary font-bold shadow-sm'
-                      : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                      ? 'bg-primary/10 text-primary font-bold shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                   )}
                 >
                   <ShieldCheck className={cn(
-                    'h-4 w-4 shrink-0 transition-colors',
-                    isActive('/admin') ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60'
+                    'h-3.5 w-3.5 shrink-0 transition-colors',
+                    isActive('/admin') ? 'text-primary' : 'text-muted-foreground/40 group-hover:text-muted-foreground/70'
                   )} />
                   {!collapsed && <span className="truncate tracking-tight">{t('admin') || 'Admin Center'}</span>}
                 </Link>
@@ -217,28 +217,28 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       </div>
 
       {/* Footer */}
-      <div className="mt-auto border-t border-sidebar-border p-1.5 space-y-0.5 shrink-0">
+      <div className="mt-auto border-t border-border p-1.5 space-y-0.5 shrink-0">
         <Link
           to="/notifications"
           onClick={isMobile ? onMobileClose : undefined}
           className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] transition-all duration-200 group',
+            'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] transition-all duration-200 group',
             isActive('/notifications')
-              ? 'bg-sidebar-accent text-sidebar-primary font-bold'
-              : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+              ? 'bg-primary/10 text-primary font-bold'
+              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
           )}
         >
           <Bell className={cn(
-            'h-4 w-4 shrink-0 transition-colors',
-            isActive('/notifications') ? 'text-sidebar-primary' : 'text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60'
+            'h-3.5 w-3.5 shrink-0 transition-colors',
+            isActive('/notifications') ? 'text-primary' : 'text-muted-foreground/40 group-hover:text-muted-foreground/70'
           )} />
           {!collapsed && <span className="tracking-tight">{t('notifications')}</span>}
         </Link>
         <button
           onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-[13px] text-sidebar-foreground/60 hover:bg-destructive/10 hover:text-destructive transition-all duration-200 group"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-200 group"
         >
-          <LogOut className="h-4 w-4 shrink-0 text-sidebar-foreground/30 group-hover:text-destructive transition-colors" />
+          <LogOut className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 group-hover:text-destructive transition-colors" />
           {!collapsed && <span className="tracking-tight">{t('signOut')}</span>}
         </button>
       </div>
