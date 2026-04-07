@@ -228,16 +228,11 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
 
         {type === 'merchant_custody' && (
           <div className="field2" style={{ marginBottom: 10 }}>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <div className="lbl">{t('linkToMerchant' as any) || 'Link to Merchant'}</div>
+            <div className="lbl">{t('linkToMerchant')}</div>
             <select value={relationshipId} onChange={e => setRelationshipId(e.target.value)} style={selectStyle}>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <option value="" style={optionStyle}>{t('selectRelationship' as any) || 'Select Relationship...'}</option>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {(window as any)._allRels?.map((r: any) => (
-                <option key={r.id} value={r.id} style={optionStyle}>{r.counterparty_name || r.id}</option>
-              ))}
+              <option value="" style={optionStyle}>{t('selectRelationship')}</option>
             </select>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
           </div>
         )}
 
