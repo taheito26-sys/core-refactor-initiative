@@ -410,9 +410,9 @@ export default function OrdersPage() {
   }, [settings.range, update]);
 
   const wacop = getWACOP(derived);
+  const averageStockPrice = wacop;
   /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
-  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
-  useEffect(() => { if (!saleSell && wacop) setSaleSell(fmtP(wacop)); }, [wacop, saleSell]);
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, averageStockPrice), [settings.currency, averageStockPrice]);
 
   const rLabel = rangeLabel(state.range);
   const query = (settings.searchQuery || '').trim().toLowerCase();
@@ -755,6 +755,14 @@ export default function OrdersPage() {
       }),
     };
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
+  const saleFifoPreview = salePreview;
+  const manualSellPrice = saleSell;
+
+  const fifoDisplayUnitCost = useMemo(() => {
+    if (priceMode !== 'fifo' || !saleFifoPreview) return null;
+    if ((saleFifoPreview.coveredQty || 0) <= 0) return null;
+    return saleFifoPreview.cost / saleFifoPreview.coveredQty;
+  }, [priceMode, saleFifoPreview]);
 
   const fifoDisplayUnitCost = useMemo(() => {
     if (priceMode !== 'fifo' || !salePreview) return null;
@@ -3064,13 +3072,22 @@ export default function OrdersPage() {
 
                 {/* Price mode toggle: FIFO vs Manual */}
                 <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="bLbl">{t('avPrice')}</span>
-                    <span className="bVal">
-                      {priceMode === 'fifo' && Number.isFinite(fifoDisplayUnitCost)
-                        ? fmtP(fifoDisplayUnitCost as number)
-                        : '—'}
-                    </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="bLbl">{priceMode === 'fifo' ? 'FIFO Cost/USDT' : t('sellPriceLabel')}</span>
+                      <span className="bVal">
+                        {priceMode === 'fifo'
+                          ? (saleDraft.quantityUsdt > 0
+                            ? (Number.isFinite(fifoDisplayUnitCost) ? fmtP(fifoDisplayUnitCost as number) : '—')
+                            : 'Enter quantity to calculate FIFO')
+                          : (manualSellPrice ? fmtP(Number(manualSellPrice) || 0) : '—')}
+                      </span>
+                    </div>
+                    {priceMode === 'fifo' && saleDraft.quantityUsdt > 0 && stockCoverage.stockShortfall > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--bad)', fontWeight: 700 }}>
+                        Shortfall: {fmtU(stockCoverage.stockShortfall)} USDT
+                      </div>
+                    )}
                   </div>
                   <div className="modeToggle" style={{ fontSize: 9 }}>
                      <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
@@ -3104,7 +3121,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
@@ -3135,7 +3152,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
                           {t('autoCalcTotalQar')}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} QAR

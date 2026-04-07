@@ -48,7 +48,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const dR = kpiFor(state, derived, settings.range);
   const stk = totalStock(derived);
   const stCost = stockCostQAR(derived);
-  const wacop = getWACOP(derived);
+  const averageStockPrice = getWACOP(derived);
   const rLabel = rangeLabel(settings.range);
 
   const allTrades = state.trades.filter(t => !t.voided);
@@ -480,13 +480,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>{t('avPrice')}</span>
+            <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>Avg Stock Price</span>
           </div>
-          <div className="kpi-lbl">{t('avPriceSpread')}</div>
-          <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{wacop ? fmtP(wacop) + ' QAR' : t('noStock')}</div>
+          <div className="kpi-lbl">Average Stock Price + Spread</div>
+          <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtP(averageStockPrice) + ' QAR' : t('noStock')}</div>
           <div className="kpi-sub">
             {(() => {
-              const sp = wacop && p2pAvgs.avgSell ? fmtPrice((p2pAvgs.avgSell - wacop) / wacop * 100) : null;
+              const sp = averageStockPrice && p2pAvgs.avgSell ? fmtPrice((p2pAvgs.avgSell - averageStockPrice) / averageStockPrice * 100) : null;
               return sp !== null
                 ? <span className={Number(sp) >= 0 ? 'good' : 'bad'} style={{ fontWeight: 700 }}>{Number(sp) >= 0 ? '+' : ''}{sp}% vs P2P</span>
                 : t('sellAboveAvPrice');
@@ -510,7 +510,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 </span>
               </div>
               <div className="kpi-lbl">{t('cashAvailable')}</div>
-              <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(totalCash, settings.currency, wacop)}</div>
+              <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtQWithUnit(totalCash, settings.currency, averageStockPrice)}</div>
               <div className="kpi-sub">
                 {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>}
               </div>
@@ -519,13 +519,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         })()}
         <div className="kpi-card">
           <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>@{t('avPrice')}</span>
+            <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>@Avg Price</span>
           </div>
           <div className="kpi-lbl">{t('buyingPower')}</div>
           {(() => {
             const cash = num(state.cashQAR, 0);
-            const refPrice = wacop || p2pAvgs.avgBuy;
-            const isFallback = !wacop && !!p2pAvgs.avgBuy;
+            const refPrice = averageStockPrice || p2pAvgs.avgBuy;
+            const isFallback = !averageStockPrice && !!p2pAvgs.avgBuy;
             return (
               <>
                 <div className="kpi-val" style={{ color: 'var(--t5)' }}>
@@ -537,7 +537,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                 </div>
                 <div className="kpi-sub">
                   {refPrice
-                    ? `@ ${fmtP(refPrice)} QAR${isFallback ? ` ${t('mktAvg')}` : ''}`
+                    ? `@ Avg ${fmtP(refPrice)} QAR${isFallback ? ` ${t('mktAvg')}` : ''}`
                     : cash > 0
                       ? t('addBatchesFirst')
                       : t('addBatchesFirst')}
@@ -551,16 +551,16 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>{t('net')}</span>
           </div>
           <div className="kpi-lbl">{t('netPosition')}</div>
-          <div className="kpi-val good">{fmtQWithUnit(stCost + num(state.cashQAR, 0), settings.currency, wacop)}</div>
-          <div className="kpi-sub">{t('stock')} {fmtQWithUnit(stCost, settings.currency, wacop)} + {t('cash')} {fmtQWithUnit(num(state.cashQAR, 0), settings.currency, wacop)}</div>
+          <div className="kpi-val good">{fmtQWithUnit(stCost + num(state.cashQAR, 0), settings.currency, averageStockPrice)}</div>
+          <div className="kpi-sub">{t('stock')} {fmtQWithUnit(stCost, settings.currency, averageStockPrice)} + {t('cash')} {fmtQWithUnit(num(state.cashQAR, 0), settings.currency, averageStockPrice)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-badge" style={{ color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{state.batches.length} {t('batchSuffix')}</span>
           </div>
           <div className="kpi-lbl">{t('stockCostEst')}</div>
-          <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtQWithUnit(stCost, settings.currency, wacop)}</div>
-          <div className="kpi-sub">{t('avPrice')} {wacop ? fmtP(wacop) + ' QAR' : '—'}</div>
+          <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtQWithUnit(stCost, settings.currency, averageStockPrice)}</div>
+          <div className="kpi-sub">Avg stock price {averageStockPrice ? fmtP(averageStockPrice) + ' QAR' : '—'}</div>
         </div>
       </div>
 
@@ -714,10 +714,10 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         <div className="panel">
           <div className="panel-head"><h2>{t('periodStats')}</h2><span className="pill">{rLabel}</span></div>
           <div className="panel-body">
-            <div className="prev-row"><span className="muted">{t('volume')}</span><strong className="mono t1v">{fmtQWithUnit(dR.rev, settings.currency, wacop)}</strong></div>
-            <div className="prev-row"><span className="muted">{t('cost')}</span><strong className="mono">{fmtQWithUnit(dR.rev - dR.net - dR.fee, settings.currency, wacop)}</strong></div>
-            {dR.fee > 0 && <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtQWithUnit(dR.fee, settings.currency, wacop)}</strong></div>}
-            <div className="prev-row"><span className="muted">{t('netProfitLabel')}</span><strong className={`mono ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net, settings.currency, wacop)}</strong></div>
+            <div className="prev-row"><span className="muted">{t('volume')}</span><strong className="mono t1v">{fmtQWithUnit(dR.rev, settings.currency, averageStockPrice)}</strong></div>
+            <div className="prev-row"><span className="muted">{t('cost')}</span><strong className="mono">{fmtQWithUnit(dR.rev - dR.net - dR.fee, settings.currency, averageStockPrice)}</strong></div>
+            {dR.fee > 0 && <div className="prev-row"><span className="muted">{t('fees')}</span><strong className="mono">{fmtQWithUnit(dR.fee, settings.currency, averageStockPrice)}</strong></div>}
+            <div className="prev-row"><span className="muted">{t('netProfitLabel')}</span><strong className={`mono ${dR.net >= 0 ? 'good' : 'bad'}`}>{fmtQWithUnit(dR.net, settings.currency, averageStockPrice)}</strong></div>
             <div className="prev-row"><span className="muted">{t('avgMargin')}</span><strong className="mono" style={{ color: 'var(--t3)' }}>{fmtPct(avgM)}</strong></div>
             <div className="prev-row"><span className="muted">{t('trades')}</span><strong className="mono">{dR.count}</strong></div>
           </div>
