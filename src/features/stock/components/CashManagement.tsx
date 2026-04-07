@@ -1164,12 +1164,12 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
       {/* ── PENDING CUSTODY REQUESTS (accounts tab inline) ── */}
       {innerTab === 'accounts' && (pendingIncoming.length > 0 || pendingOutgoing.length > 0) && (
         <div className="panel" style={{ marginTop: 4 }}>
-          <div className="panel-head"><h2>🤝 Pending Custody Requests</h2></div>
+          <div className="panel-head"><h2>🤝 {t('pendingCustodyRequests')}</h2></div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingIncoming.map(req => (
               <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700 }}>Incoming: {req.requesterMerchantId}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700 }}>{t('custodyIncoming')}: {req.requesterMerchantId}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>
                     {fmtTotal(req.amount)} {req.currency}{req.note ? ` — ${req.note}` : ''}
                   </div>
@@ -1178,7 +1178,6 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                   <button className="btn" style={{ fontSize: 10, padding: '5px 10px', background: 'var(--good)', color: '#000' }}
                     onClick={() => {
                       respondRequest.mutate({ id: req.id, action: 'accept' });
-                      // Add local transfer_in entry to a merchant_custody account for the requester's funds
                       const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === req.requesterMerchantId);
                       const custodyAccId = existingCustodyAcc?.id ?? uid();
                       const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
@@ -1200,18 +1199,18 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                         direction: 'in',
                         amount: req.amount,
                         currency: req.currency as CashCurrency,
-                        note: `Custody accepted from ${req.requesterMerchantId}`,
+                        note: `${t('custodyAcceptedFrom')} ${req.requesterMerchantId}`,
                         merchantId: req.requesterMerchantId,
                         relationshipId: req.relationshipId,
                       };
                       const newLedger = [...ledger, inEntry];
                       applyState({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: deriveCashQAR(newAccounts, newLedger) });
                     }}>
-                    ✓ Accept
+                    ✓ {t('custodyAccept')}
                   </button>
                   <button className="rowBtn" style={{ fontSize: 10 }}
                     onClick={() => respondRequest.mutate({ id: req.id, action: 'reject' })}>
-                    ✕ Reject
+                    ✕ {t('custodyReject')}
                   </button>
                 </div>
               </div>
@@ -1219,14 +1218,14 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
             {pendingOutgoing.map(req => (
               <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--muted) 25%, transparent)', borderRadius: 8 }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700 }}>Outgoing to: {req.custodianMerchantId}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700 }}>{t('custodyOutgoingTo')}: {req.custodianMerchantId}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    {fmtTotal(req.amount)} {req.currency}{req.note ? ` — ${req.note}` : ''} · <span style={{ color: 'var(--warn)' }}>pending</span>
+                    {fmtTotal(req.amount)} {req.currency}{req.note ? ` — ${req.note}` : ''} · <span style={{ color: 'var(--warn)' }}>{t('custodyPending')}</span>
                   </div>
                 </div>
                 <button className="rowBtn" style={{ fontSize: 10, color: 'var(--bad)' }}
                   onClick={() => cancelRequest.mutate(req.id)}>
-                  Cancel
+                  {t('custodyCancel')}
                 </button>
               </div>
             ))}
