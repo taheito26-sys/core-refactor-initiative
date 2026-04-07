@@ -703,6 +703,20 @@ export default function OrdersPage() {
     return state.customers.filter(c => normalizeName(c.name).includes(q) || c.phone.includes(buyerName));
   }, [buyerName, state.customers]);
 
+  const assertPreviewQuantityInvariant = useCallback((qty: number) => {
+    let expectedQty = qty;
+    if (saleEntryMode === 'price_vol') {
+      const rawAmount = Number(saleAmount);
+      const sell = Number(saleSell);
+      expectedQty = saleMode === 'QAR' ? (sell > 0 ? rawAmount / sell : 0) : rawAmount;
+    } else {
+      expectedQty = Number(saleUsdtQty);
+    }
+    if (Number.isFinite(expectedQty) && Number.isFinite(qty) && Math.abs(expectedQty - qty) > 1e-6) {
+      throw new Error(`Quantity invariant violated: expected ${expectedQty}, got ${qty}`);
+    }
+  }, [saleEntryMode, saleMode, saleAmount, saleSell, saleUsdtQty]);
+
   // Sale preview computation
   const salePreview = useMemo(() => {
     const ts = new Date(saleDate).getTime();
@@ -711,6 +725,7 @@ export default function OrdersPage() {
     const fee = saleDraft.feeQar;
 
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
+    assertPreviewQuantityInvariant(amountUSDT);
     if (priceMode === 'manual') {
       const buyP = parseFloat(manualBuyPrice) || 0;
       const rev = saleDraft.revenueQar;
@@ -744,6 +759,7 @@ export default function OrdersPage() {
       linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
     };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
+    assertPreviewQuantityInvariant(amountUSDT);
     const rev = saleDraft.revenueQar;
     const cost = calc?.totalCost || 0;
     const coveredQty = calc?.coveredQty || 0;
@@ -768,7 +784,7 @@ export default function OrdersPage() {
         };
       }),
     };
-  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId]);
+  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId, assertPreviewQuantityInvariant]);
   const saleFifoPreview = salePreview;
   const manualSellPrice = saleSell;
 
@@ -960,6 +976,7 @@ export default function OrdersPage() {
     const sell = saleDraft.sellPriceQar;
     const amountUSDT = saleDraft.quantityUsdt;
     const feeQar = saleDraft.feeQar;
+    assertPreviewQuantityInvariant(amountUSDT);
     if (isInsufficientStock && !canSubmitSale) {
       setSaleMessage(
         t('insufficientStockShortBy')
