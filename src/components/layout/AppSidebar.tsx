@@ -141,13 +141,13 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
   const sidebarContent = (
     <aside
       className={cn(
-        'flex flex-col bg-[#0a0a0a] border-white/5 h-full transition-all duration-300 ease-in-out',
+        'flex flex-col bg-[#0a0a0a] border-white/5 h-full transition-all duration-300 ease-in-out overflow-hidden',
         'ltr:border-r rtl:border-l',
         collapsed ? 'w-[64px]' : 'w-[240px]'
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-6">
+      <div className="flex items-center justify-between px-4 py-6 shrink-0">
         {!collapsed && (
           <span className="font-black text-[16px] text-white tracking-tight">
             P2P Tracker
@@ -170,7 +170,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
 
       {/* Merchant info */}
       {!collapsed && merchantProfile && (
-        <div className="px-4 py-4 mb-4">
+        <div className="px-4 py-4 mb-4 shrink-0">
           <div className="text-[14px] font-black text-white truncate tracking-tight uppercase">
             {merchantProfile.display_name}
           </div>
@@ -181,7 +181,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       )}
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-2 custom-scrollbar">
+      <div className="flex-1 overflow-hidden py-2">
         <NavSection title={t('trading')} items={tradingNav} />
         <NavSection title={t('network')} items={networkNav} />
         
@@ -217,7 +217,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       </div>
 
       {/* Footer */}
-      <div className="mt-auto border-t border-white/5 p-2 space-y-1">
+      <div className="mt-auto border-t border-white/5 p-2 space-y-1 shrink-0">
         <Link
           to="/notifications"
           onClick={isMobile ? onMobileClose : undefined}
