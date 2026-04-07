@@ -697,7 +697,7 @@ export default function StockPage() {
         </div>
 
         <div>
-          <div className="formPanel salePanel" style={isMobile ? { padding: 8, borderRadius: 10 } : undefined}>
+          <div id="new-batch-form" className="formPanel salePanel" style={isMobile ? { padding: 8, borderRadius: 10 } : undefined}>
             <div className="hdr">{t('addBatchTitle')}</div>
             <div className="inner" style={isMobile ? { display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' } : undefined}>
               {wacop && (
