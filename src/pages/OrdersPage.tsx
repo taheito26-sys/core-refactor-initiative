@@ -4004,9 +4004,9 @@ export default function OrdersPage() {
 
                 <div
                   className="formActions"
-                  style={isMobile ? { position: 'sticky', bottom: 0, background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
+                  style={isMobile ? { position: 'static', background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale} style={isMobile ? { width: '100%', minHeight: 40, fontSize: 12 } : undefined}>
+                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
                     {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>
