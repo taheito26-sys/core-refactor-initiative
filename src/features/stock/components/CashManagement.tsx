@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { deleteCashAccountLedgerFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
+import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
 const IconHand = () => (
