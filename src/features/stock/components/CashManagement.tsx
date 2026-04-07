@@ -1515,18 +1515,22 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
       {showMerchantCustody && (
         <MerchantCustodyModal
-          relationships={relationships}
-          myMerchantId={merchantProfile?.merchant_id ?? user?.id ?? ''}
+          counterparties={counterparties}
+          myMerchantId={myMerchantId}
+          myUserId={myUserId}
           isMobile={isMobile}
           onClose={() => setShowMerchantCustody(false)}
           onSubmit={(input) => {
             createRequest.mutate(input);
+            // Find counterparty label for the account name
+            const cp = counterparties.find(c => c.counterpartyMerchantId === input.custodianMerchantId);
+            const cpLabel = cp?.counterpartyLabel ?? input.custodianMerchantId;
             // Add local merchant_custody account + merchant_funding_out ledger entry
             const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === input.custodianMerchantId);
             const custodyAccId = existingCustodyAcc?.id ?? uid();
             const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
               id: custodyAccId,
-              name: `Custody — ${input.custodianMerchantId}`,
+              name: `Custody — ${cpLabel}`,
               type: 'merchant_custody' as CashAccountType,
               currency: input.currency as CashCurrency,
               status: 'active' as const,
@@ -1543,7 +1547,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
               direction: 'out',
               amount: input.amount,
               currency: input.currency as CashCurrency,
-              note: input.note ?? `Custody request to ${input.custodianMerchantId}`,
+              note: input.note ?? `${t('custodyCustodyRequest')} ${cpLabel}`,
               merchantId: input.custodianMerchantId,
               relationshipId: input.relationshipId,
             };
