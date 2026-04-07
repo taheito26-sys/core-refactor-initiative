@@ -756,6 +756,12 @@ export default function OrdersPage() {
     };
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
 
+  const fifoDisplayUnitCost = useMemo(() => {
+    if (priceMode !== 'fifo' || !salePreview) return null;
+    if ((salePreview.coveredQty || 0) <= 0) return null;
+    return salePreview.cost / salePreview.coveredQty;
+  }, [priceMode, salePreview]);
+
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
     if (!selectedTemplateId || !salePreview) return null;
@@ -3060,7 +3066,11 @@ export default function OrdersPage() {
                 <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span className="bLbl">{t('avPrice')}</span>
-                    <span className="bVal">{priceMode === 'fifo' && wacop ? fmtP(wacop) : '—'}</span>
+                    <span className="bVal">
+                      {priceMode === 'fifo' && Number.isFinite(fifoDisplayUnitCost)
+                        ? fmtP(fifoDisplayUnitCost as number)
+                        : '—'}
+                    </span>
                   </div>
                   <div className="modeToggle" style={{ fontSize: 9 }}>
                      <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
