@@ -777,8 +777,6 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
       setCounterparties(normalized);
     });
   }, [myMerchantId, myUserId]);
-    });
-  }, [state]);
 
   const balances = useMemo(() => getAllAccountBalances(accounts, ledger), [accounts, ledger]);
 
