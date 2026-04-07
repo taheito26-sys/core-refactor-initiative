@@ -752,8 +752,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
   const [showMerchantCustody, setShowMerchantCustody] = useState(false);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [relationships, setRelationships] = useState<any[]>([]);
+  const [counterparties, setCounterparties] = useState<NormalizedCounterparty[]>([]);
 
   const {
     pendingIncoming,
@@ -763,21 +762,21 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
     cancelRequest,
   } = useCashCustodyRequests();
 
+  const myMerchantId = merchantProfile?.merchant_id ?? '';
+  const myUserId = user?.id ?? '';
+
   useEffect(() => {
-    supabase.from('merchant_relationships').select('*').then(({ data }) => {
-      if (data) {
-        // Enriched list for select box
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const myMerchantId = (state as any).merchantId; // fallback
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const enriched = data.map((r: any) => ({
-          ...r,
-          counterparty_name: r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id, // simplified
-        }));
-        setRelationships(enriched);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window as any)._allRels = enriched;
-      }
+    if (!myMerchantId || !myUserId) return;
+    Promise.all([
+      supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id, status'),
+      supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname'),
+    ]).then(([relRes, profRes]) => {
+      const rels = relRes.data ?? [];
+      const profs = profRes.data ?? [];
+      const normalized = normalizeCounterparties(myMerchantId, myUserId, rels, profs);
+      setCounterparties(normalized);
+    });
+  }, [myMerchantId, myUserId]);
     });
   }, [state]);
 
