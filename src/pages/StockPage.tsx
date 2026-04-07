@@ -1047,6 +1047,27 @@ export default function StockPage() {
           </Dialog>
         );
       })()}
+      {/* ── FAB: scroll to New Batch form (mobile only, batches tab) ── */}
+      {isMobile && stockTab === 'batches' && (
+        <button
+          onClick={() => document.getElementById('new-batch-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          title={t('addBatch')}
+          style={{
+            position: 'fixed', bottom: 'max(76px, calc(64px + env(safe-area-inset-bottom, 0px)))', right: 16,
+            zIndex: 40, width: 48, height: 48, borderRadius: '50%',
+            background: 'var(--brand)', color: 'var(--bg)',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 16px var(--glow), 0 2px 6px rgba(0,0,0,0.4)',
+            fontSize: 26, lineHeight: 1, fontWeight: 400,
+            transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+          onPointerDown={e => (e.currentTarget.style.transform = 'scale(0.92)')}
+          onPointerUp={e => (e.currentTarget.style.transform = '')}
+        >
+          +
+        </button>
+      )}
     </div>
   );
 }
