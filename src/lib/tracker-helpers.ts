@@ -330,9 +330,7 @@ export interface FifoResult {
 }
 
 export function consumeFifo(layers: StockLayer[], sellQty: number): FifoResult {
-  const ordered = [...layers]
-    .filter(l => l.remainingQty > 0)
-    .sort((a, b) => a.ts - b.ts);
+  const ordered = layers.filter(l => l.remainingQty > 0);
 
   let remainingToSell = Math.max(0, sellQty);
   let coveredQty = 0;

@@ -764,12 +764,6 @@ export default function OrdersPage() {
     return saleFifoPreview.cost / saleFifoPreview.coveredQty;
   }, [priceMode, saleFifoPreview]);
 
-  const fifoDisplayUnitCost = useMemo(() => {
-    if (priceMode !== 'fifo' || !salePreview) return null;
-    if ((salePreview.coveredQty || 0) <= 0) return null;
-    return salePreview.cost / salePreview.coveredQty;
-  }, [priceMode, salePreview]);
-
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
     if (!selectedTemplateId || !salePreview) return null;

@@ -35,6 +35,19 @@ describe('consumeFifo', () => {
     expect(result.shortfallQty).toBe(20);
     expect(result.totalCost).toBeCloseTo(884, 8);
   });
+
+  it('preserves incoming layer order exactly (no internal re-sorting)', () => {
+    const customOrder: StockLayer[] = [
+      { id: 'late-priority', ts: 999, remainingQty: 50, buyPrice: 4.1 },
+      { id: 'older-but-second', ts: 1, remainingQty: 50, buyPrice: 3.5 },
+    ];
+    const result = consumeFifo(customOrder, 60);
+    expect(result.consumed.map(r => r.layerId)).toEqual(['late-priority', 'older-but-second']);
+    expect(result.consumed[0]?.qty).toBe(50);
+    expect(result.consumed[0]?.cost).toBeCloseTo(205, 8);
+    expect(result.consumed[1]?.qty).toBe(10);
+    expect(result.consumed[1]?.cost).toBeCloseTo(35, 8);
+  });
 });
 
 describe('insufficient stock submit policy', () => {
@@ -48,4 +61,3 @@ describe('insufficient stock submit policy', () => {
     expect(canSubmitWithStockCoverage(coverage, true, true, true)).toBe(true);
   });
 });
-
