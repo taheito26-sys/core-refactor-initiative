@@ -170,6 +170,7 @@ export default function StockPage() {
   }, [state.batches]);
 
   const perf = useMemo(() => state.batches
+    .filter((b) => b.initialUSDT > 0 && b.buyPriceQAR > 0)
     .map((b) => {
       const db = derived.batches.find((x) => x.id === b.id);
       const rem = db ? Math.max(0, db.remainingUSDT) : b.initialUSDT;
@@ -229,8 +230,13 @@ export default function StockPage() {
       if (!(rawAmt > 0)) errs.push(t('volume'));
       if (!source) errs.push(t('supplier'));
       if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
-      volumeQAR = batchMode === 'QAR' ? rawAmt * px : rawAmt;
-      totalUSDT = volumeQAR / px;
+      if (batchMode === 'QAR') {
+        volumeQAR = rawAmt;
+        totalUSDT = rawAmt / px;
+      } else {
+        totalUSDT = rawAmt;
+        volumeQAR = rawAmt * px;
+      }
     } else if (batchEntryMode === 'qty_total') {
       totalUSDT = Number(batchUsdtQty);
       volumeQAR = Number(batchAmount);
