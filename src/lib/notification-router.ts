@@ -82,6 +82,7 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
       invite: 'focusInviteId',
       transfer: 'focusTransferId',
       capital_transfer: 'focusTransferId',
+      cash_custody: 'focusCustodyId',
     };
     const focusKey = focusKeyMap[target.targetEntityType];
     if (focusKey) {
