@@ -88,7 +88,7 @@
 .tracker-root .r { text-align: right; }
 
 /* ── PANELS ── */
-.tracker-root .panel { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius); box-shadow: var(--lt-shadow2); transition: all var(--lt-tr); }
+.tracker-root .panel { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius); box-shadow: var(--lt-shadow2); transition: all var(--lt-tr); overflow: visible; }
 .tracker-root .panel:hover { border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
 .tracker-root .panel-head { padding: 10px 12px 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg,rgba(255,255,255,.02),transparent); }
 .tracker-root .panel-head h2 { margin: 0; font-size: calc(11px * var(--ui-scale,1)); font-weight: var(--lt-fw-ui,700); letter-spacing: var(--lt-label-tracking,.3px); text-transform: uppercase; }
