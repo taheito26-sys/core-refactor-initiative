@@ -716,13 +716,23 @@ export default function OrdersPage() {
       const rev = saleDraft.revenueQar;
       const cost = amountUSDT * buyP;
       const net = rev - cost - fee;
-      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net, fifoComplete: true, coveredQty: amountUSDT, uncoveredQty: 0 };
+      return {
+        qty: amountUSDT,
+        revenue: rev,
+        avgBuy: buyP,
+        cost,
+        net,
+        fifoComplete: true,
+        coveredQty: amountUSDT,
+        uncoveredQty: 0,
+        consumed: [],
+      };
     }
     const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = saleDraft.revenueQar;
-    const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
-    const coveredQty = calc?.slices.reduce((s, x) => s + x.qty, 0) || 0;
+    const cost = calc?.totalCost || 0;
+    const coveredQty = calc?.coveredQty || 0;
     const uncoveredQty = Math.max(0, amountUSDT - coveredQty);
     const net = calc?.ok ? rev - cost - fee : NaN;
     return {
@@ -734,8 +744,23 @@ export default function OrdersPage() {
       fifoComplete: !!calc?.ok,
       coveredQty,
       uncoveredQty,
+      consumed: (calc?.slices || []).map((slice) => {
+        const batch = state.batches.find(b => b.id === slice.batchId);
+        return {
+          layerId: slice.batchId,
+          qty: slice.qty,
+          buyPrice: batch?.buyPriceQAR || 0,
+          cost: slice.cost,
+        };
+      }),
     };
   }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
+
+  const fifoDisplayUnitCost = useMemo(() => {
+    if (priceMode !== 'fifo' || !salePreview) return null;
+    if ((salePreview.coveredQty || 0) <= 0) return null;
+    return salePreview.cost / salePreview.coveredQty;
+  }, [priceMode, salePreview]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
@@ -1030,9 +1055,8 @@ export default function OrdersPage() {
         const saleGroupId = crypto.randomUUID();
         const fee = feeQar;
         const customerName = buyerName.trim() || t('buyer');
-        const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
-        const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
-        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
+        const fifoCost = Number.isFinite(salePreview?.cost) ? salePreview.cost : 0;
+        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (Number.isFinite(salePreview?.avgBuy) ? (salePreview?.avgBuy || 0) : 0);
 
         // Create a merchant_deals record for EACH allocation so it shows in partner's inbox
         const createdDealIds: string[] = [];
@@ -1214,9 +1238,8 @@ export default function OrdersPage() {
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
         // Store trade data in notes so partner can see qty/sell/cost
-        const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
-        const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
-        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
+        const fifoCost = Number.isFinite(salePreview?.cost) ? salePreview.cost : 0;
+        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (Number.isFinite(salePreview?.avgBuy) ? (salePreview?.avgBuy || 0) : 0);
 
         const noteLines = [
           `template: ${tmpl.id}`,
@@ -3043,7 +3066,11 @@ export default function OrdersPage() {
                 <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span className="bLbl">{t('avPrice')}</span>
-                    <span className="bVal">{priceMode === 'fifo' && wacop ? fmtP(wacop) : '—'}</span>
+                    <span className="bVal">
+                      {priceMode === 'fifo' && Number.isFinite(fifoDisplayUnitCost)
+                        ? fmtP(fifoDisplayUnitCost as number)
+                        : '—'}
+                    </span>
                   </div>
                   <div className="modeToggle" style={{ fontSize: 9 }}>
                      <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
@@ -3791,6 +3818,19 @@ export default function OrdersPage() {
                         </>
                       )}
                       <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtC(salePreview.cost) : '—'}</strong></div>
+                      {salePreview.consumed.length > 0 && (
+                        <div style={{ marginTop: 6, marginBottom: 4 }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>
+                            {t('fifoSlices')}
+                          </div>
+                          {salePreview.consumed.map((row, idx) => (
+                            <div key={`${row.layerId}-${idx}`} className="prev-row" style={{ fontSize: 10 }}>
+                              <span className="muted">#{idx + 1} · {row.layerId.slice(0, 8)}</span>
+                              <strong>{fmtU(row.qty)} @ {fmtP(row.buyPrice)} = {fmtC(row.cost)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
                         <span className="muted">{t('net')}</span>
                         <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>
