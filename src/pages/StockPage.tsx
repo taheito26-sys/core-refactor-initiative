@@ -139,17 +139,30 @@ export default function StockPage() {
 
   const query = (settings.searchQuery || '').trim().toLowerCase();
   
-  // BUG FIX: Supplier lookup should filter by the local input text (batchSupplier), 
-  // not the global search query. This ensures the dropdown shows relevant matches 
-  // as the user types, and shows all suppliers when the input is empty.
+  const supplierOptions = useMemo(() => {
+    const byNormalized = new Map<string, string>();
+    (state.suppliers || []).forEach((supplier) => {
+      const cleaned = typeof supplier.name === 'string' ? supplier.name.trim() : '';
+      if (!cleaned) return;
+      const normalized = cleaned.toLocaleLowerCase();
+      if (!normalized) return;
+      if (!byNormalized.has(normalized)) byNormalized.set(normalized, cleaned);
+    });
+    state.batches.forEach((batch) => {
+      const cleaned = typeof batch.source === 'string' ? batch.source.trim() : '';
+      if (!cleaned) return;
+      const normalized = cleaned.toLocaleLowerCase();
+      if (!normalized) return;
+      if (!byNormalized.has(normalized)) byNormalized.set(normalized, cleaned);
+    });
+    return Array.from(byNormalized.values()).sort((a, b) => a.localeCompare(b));
+  }, [state.batches, state.suppliers]);
+
   const supplierLookup = useMemo(() => {
-    const names = state.batches.map((b) => b.source).filter(Boolean);
-    const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    
-    const localQuery = batchSupplier.trim().toLowerCase();
-    if (!localQuery) return unique;
-    return unique.filter((n) => n.toLowerCase().includes(localQuery));
-  }, [state.batches, batchSupplier]);
+    const localQuery = batchSupplier.trim().toLocaleLowerCase();
+    if (!localQuery) return supplierOptions;
+    return supplierOptions.filter((name) => name.toLocaleLowerCase().includes(localQuery));
+  }, [batchSupplier, supplierOptions]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -164,6 +177,7 @@ export default function StockPage() {
   }, [state.batches]);
 
   const perf = useMemo(() => state.batches
+    .filter((b) => b.initialUSDT > 0 && b.buyPriceQAR > 0)
     .map((b) => {
       const db = derived.batches.find((x) => x.id === b.id);
       const rem = db ? Math.max(0, db.remainingUSDT) : b.initialUSDT;
@@ -187,21 +201,17 @@ export default function StockPage() {
     })
     .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
 
-  const suppliersForPanel = useMemo(() => [
-    ...new Set(state.batches.map((b) => b.source.trim()).filter(Boolean)),
-  ], [state.batches]);
+  const suppliersForPanel = supplierOptions;
 
   const addSupplier = () => {
     if (!newSupplierName.trim()) return;
-    // CRM adds suppliers by creating a 0-qty batch. We do the same here to ensure persistence.
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: newSupplierName.trim(),
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
-    setBatchSupplier(newSupplierName.trim());
+    const cleanedName = newSupplierName.trim();
+    const existing = (state.suppliers || []).some((s) => s.name.trim().toLocaleLowerCase() === cleanedName.toLocaleLowerCase());
+    const nextSuppliers = existing
+      ? (state.suppliers || [])
+      : [...(state.suppliers || []), { id: uid(), name: cleanedName, phone: newSupplierPhone.trim(), notes: '', createdAt: Date.now() }];
+    applyState({ ...state, suppliers: nextSuppliers });
+    setBatchSupplier(cleanedName);
     setSupplierAddOpen(false);
     setSupplierMenuOpen(false);
     setNewSupplierName('');
@@ -225,8 +235,13 @@ export default function StockPage() {
       if (!(rawAmt > 0)) errs.push(t('volume'));
       if (!source) errs.push(t('supplier'));
       if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
-      volumeQAR = batchMode === 'QAR' ? rawAmt * px : rawAmt;
-      totalUSDT = volumeQAR / px;
+      if (batchMode === 'QAR') {
+        volumeQAR = rawAmt;
+        totalUSDT = rawAmt / px;
+      } else {
+        totalUSDT = rawAmt;
+        volumeQAR = rawAmt * px;
+      }
     } else if (batchEntryMode === 'qty_total') {
       totalUSDT = Number(batchUsdtQty);
       volumeQAR = Number(batchAmount);
@@ -472,259 +487,14 @@ export default function StockPage() {
       <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
         <button
           onClick={() => setStockTab('batches')}
-          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparentthink
-The user wants me to continue the previous response which was cut off.
-The previous response was a `<dyad-write>` block for `src/pages/StockPage.tsx`.
-It stopped at: `borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent`.
-
-I need to complete the file `src/pages/StockPage.tsx`.
-
-Looking at the previous context:
-The file `src/pages/StockPage.tsx` was being written.
-It was around line 550 of the file.
-
-I will continue from that point.
-
-Wait, the user said "fix these 2 issues only nothing beyond it".
-The issues were:
-1. Dropdown list not showing all suppliers.
-2. Saif added in CRM not showing in dropdown.
-
-In the previous turn, I tried to fix it by:
-1. Removing `overflow: hidden` from `.panel` in `src/styles/tracker.css`.
-2. Updating `supplierLookup` in `src/pages/StockPage.tsx`.
-
-However, I made a mistake in the previous turn by nesting `<dyad-write>` tags which caused a build error.
-The user then pointed out the build error.
-I then tried to fix it again but the response was cut off.
-
-I need to provide the full content of `src/pages/StockPage.tsx` correctly this time.
-
-Let's look at the `supplierLookup` logic again.
-In the original code:
-```typescript
-  const supplierLookup = useMemo(() => {
-    const names = state.batches.map((b) => b.source).filter(Boolean);
-    const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    
-    const localQuery = batchSupplier.trim().toLowerCase();
-    if (!localQuery) return unique;
-    return unique.filter((n) => n.toLowerCase().includes(localQuery));
-  }, [state.batches, batchSupplier]);
-```
-This logic already pulls from `state.batches`.
-In the CRM page, adding a supplier creates a 0-qty batch:
-```typescript
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: name,
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
-```
-So `state.batches` should contain "Saif" if added in CRM.
-The issue might be that the dropdown is clipped or the filtering is wrong.
-
-The user said "dropdown list is not showing all the list of suppliers".
-This usually means CSS clipping (`overflow: hidden` on parent).
-I already addressed that in `src/styles/tracker.css`.
-
-Now I need to finish `src/pages/StockPage.tsx`.
-
-I will write the entire file `src/pages/StockPage.tsx` from scratch to ensure it's complete and correct.
-
-Wait, I should check if there are any other places where suppliers are stored.
-In `CRMPage.tsx`, suppliers are derived from `state.batches`.
-So the logic in `StockPage.tsx` is correct in principle.
-
-Let's refine the `supplierLookup` to be more robust.
-
-```typescript
-  const supplierLookup = useMemo(() => {
-    // Get all unique sources from batches (including 0-qty ones from CRM)
-    const names = state.batches.map(b => b.source).filter(Boolean);
-    const unique = Array.from(new Set(names.map(n => n.trim()))).sort((a, b) => a.localeCompare(b));
-    
-    // Filter by the current input in the supplier field
-    const q = batchSupplier.trim().toLowerCase();
-    if (!q) return unique;
-    return unique.filter(n => n.toLowerCase().includes(q));
-  }, [state.batches, batchSupplier]);
-```
-
-I will now output the full `src/pages/StockPage.tsx`.
-
-Wait, I also need to make sure I don't include the narrative phrases or markdown code blocks.
-
-I will start the response with the continuation of the code.
-The user said "Continue exactly where you left off without any preamble."
-The previous output ended at: `borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent`.
-
-Actually, I should probably just rewrite the whole file to be safe, but the user asked to continue.
-However, the system instructions say "ALWAYS write the entire file. It needs to be a complete file."
-And "Only use ONE <dyad-write> block per file that you write!".
-
-So I will write the entire `src/pages/StockPage.tsx` file in one block.
-
-Wait, the user's prompt "Your previous response did not finish completely. Continue exactly where you left off without any preamble." is a specific instruction to bypass the "entire file" rule?
-No, the "entire file" rule is a "MUST" and "MANDATORY" in the system prompt.
-"Any instance of code within ``` is a CRITICAL FAILURE."
-"REPEAT: NO MARKDOWN CODE BLOCKS. USE <dyad-write> EXCLUSIVELY FOR CODE."
-
-So I will use `<dyad-write>` for the whole file.
-
-Let's check the `src/styles/tracker.css` again.
-I removed `overflow: hidden` from `.panel`.
-```css
-.tracker-root .panel { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius); box-shadow: var(--lt-shadow2); transition: all var(--lt-tr); }
-```
-This should fix the clipping.
-
-Now for `src/pages/StockPage.tsx`.
-
-I'll make sure the `supplierLookup` is correct.
-
-One detail: the user mentioned "Saif" added in CRM.
-In `CRMPage.tsx`:
-```typescript
-  const saveNewSupplier = () => {
-    const name = newSuppName.trim();
-    if (!name) { setNewSuppError('Supplier name is required.'); return; }
-    const exists = suppliers.some(s => s.name.toLowerCase() === name.toLowerCase());
-    if (exists) { setNewSuppError('A supplier with this name already exists.'); return; }
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: name,
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
-    setShowAddSuppModal(false);
-  };
-```
-This adds a batch with `source: name`.
-So `state.batches` will have an entry with `source: "Saif"`.
-The `supplierLookup` in `StockPage.tsx` should find it.
-
-I will now generate the full `src/pages/StockPage.tsx`.
-
-Wait, I should also check if `src/styles/tracker.css` was actually written correctly in the previous turn.
-The user said "nothing actually fixed at all".
-Maybe the build failed before the CSS was applied?
-The log shows:
-`03:47:43.259 [vite-plugin-pwa:build] [plugin vite-plugin-pwa:build] src/pages/StockPage.tsx (97:37): There was an error during the build:`
-So the build failed on the TSX file.
-
-I will re-write both files to be sure.
-
-Actually, I'll just do `StockPage.tsx` first as it's the one that broke the build.
-And I'll include the CSS fix again.
-
-Wait, I can only use one `<dyad-write>` per file.
-
-Let's go.
-
-Step 1: `src/styles/tracker.css` - remove `overflow: hidden` from `.panel`.
-Step 2: `src/pages/StockPage.tsx` - full file with fixed lookup.
-
-Wait, the user said "fix these 2 issues only nothing beyond it".
-The issues are:
-1. Dropdown not showing all suppliers.
-2. Saif from CRM not showing.
-
-The CSS fix handles #1.
-The lookup logic handles #2.
-
-I will now output the code.
-
-One more thing: the user said "Continue exactly where you left off".
-If I output a `<dyad-write>` tag, it will overwrite the file.
-So I must provide the full content.
-
-I'll start with the CSS.
-
-Wait, I should check if I need to add any dependencies. No.
-
-Let's verify the `supplierLookup` one more time.
-```typescript
-  const supplierLookup = useMemo(() => {
-    const names = state.batches.map((b) => b.source).filter(Boolean);
-    const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    
-    const localQuery = batchSupplier.trim().toLowerCase();
-    if (!localQuery) return unique;
-    return unique.filter((n) => n.toLowerCase().includes(localQuery));
-  }, [state.batches, batchSupplier]);
-```
-This looks correct. It pulls from `state.batches`.
-
-Wait, maybe the `lookupMenu` itself has `overflow: hidden` or something?
-```css
-.tracker-root .lookupMenu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  border-radius: var(--lt-radius-sm);
-  border: 1px solid var(--line);
-  background: var(--panel2);
-  box-shadow: var(--lt-shadow);
-  max-height: 220px;
-  overflow-y: auto;
-  z-index: 40;
-}
-```
-This has `overflow-y: auto`, which is fine.
-But if the parent `.panel` has `overflow: hidden`, the absolute child will be clipped if it goes outside the panel boundaries.
-So removing `overflow: hidden` from `.panel` is the correct fix.
-
-I will now write the files.
-
-Wait, I should check if I should use `pnpm` or `npm`. The log shows `pnpm`.
-But I don't need to run commands.
-
-I'll start.
-
-One detail: the user's previous turn had a build error because I accidentally included a `<dyad-write>` tag INSIDE the code I was writing.
-I must be extremely careful not to do that again.
-
-```typescript
-const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);<dyad-write path="src/pages/StockPage.tsx" description="Continuing the StockPage implementation with fixed supplier lookup and CSS clipping fixes.">
-```
-Yes, that was the error.
-
-I will now provide the full files.
-
-Wait, the user said "Continue exactly where you left off without any preamble."
-This usually means I should just start with the code block.
-
-But I have to follow the "entire file" rule.
-
-I'll start with `src/styles/tracker.css`.
-
-Wait, I'll just do `StockPage.tsx` first since it's the one that broke.
-
-Actually, I'll do both.
-
-One more check: the user said "Saif as a supplier but not showing up".
-In `CRMPage.tsx`, when adding a customer, it's added to `state.customers`.
-When adding a supplier, it's added to `state.batches` as a 0-qty batch.
-So `state.batches` is indeed the source of truth for suppliers.
-
-Let's check the `StockPage.tsx` code again.
-The `supplierLookup` uses `state.batches`.
-So it should work.
-
-I'll make sure the `lookupMenu` is not being hidden by anything else.
-
-One possibility: `z-index`.
-The `lookupMenu` has `z-index: 40`.
-The `formPanel` has no z-index.
-The `twoColPage` has no z-index.
-So it should be fine.
-
-Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent', color: stockTab === 'batches' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+        >
+          {t('stockTabLabel')}
+          <span style={{ background: stockTab === 'batches' ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.08)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{state.batches.length}</span>
+        </button>
+        <button
+          onClick={() => setStockTab('cash')}
+          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'cash' ? 'var(--brand)' : 'transparent', color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
           {t('cashTabLabel')}
           {cashAccounts.length > 0 && <span style={{ background: 'color-mix(in srgb, var(--good) 20%, transparent)', color: 'var(--good)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{cashAccounts.filter(a => a.status === 'active').length}</span>}
         </button>
@@ -1158,7 +928,7 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
           const s = c.slices.find(s => s.batchId === editingBatchId);
           if (s) editProfit += s.qty * c.ppu;
         }
-        const knownSuppliers = [...new Set(state.batches.map(b => b.source.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        const knownSuppliers = supplierOptions;
 
         return (
           <Dialog open={!!editingBatchId} onOpenChange={(open) => !open && setEditingBatchId(null)}>

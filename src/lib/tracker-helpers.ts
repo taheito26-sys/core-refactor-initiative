@@ -315,12 +315,21 @@ export interface CashTransaction {
   note: string;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  notes: string;
+  createdAt: number;
+}
+
 export interface TrackerState {
   currency: 'QAR' | 'USDT';
   range: string;
   batches: Batch[];
   trades: Trade[];
   customers: Customer[];
+  suppliers: Supplier[];
   cashQAR: number;
   cashOwner: string;
   cashHistory: CashTransaction[];
