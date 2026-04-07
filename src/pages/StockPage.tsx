@@ -140,15 +140,22 @@ export default function StockPage() {
   const rLabel = rangeLabel(state.range);
 
   const query = (settings.searchQuery || '').trim().toLowerCase();
+  
+  // BUG FIX: Supplier lookup should filter by the local input text (batchSupplier), 
+  // not the global search query. This ensures the dropdown shows relevant matches 
+  // as the user types, and shows all suppliers when the input is empty.
+  // This also ensures suppliers added in CRM (which create a batch with 0 qty) are visible.
   const supplierLookup = useMemo(() => {
     const names = [
       ...manualSuppliers.map((s) => s.name),
       ...state.batches.map((b) => b.source),
     ].filter(Boolean);
     const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    if (!query) return unique;
-    return unique.filter((n) => n.toLowerCase().includes(query));
-  }, [manualSuppliers, query, state.batches]);
+    
+    const localQuery = batchSupplier.trim().toLowerCase();
+    if (!localQuery) return unique;
+    return unique.filter((n) => n.toLowerCase().includes(localQuery));
+  }, [manualSuppliers, state.batches, batchSupplier]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -220,7 +227,7 @@ export default function StockPage() {
       if (!(rawAmt > 0)) errs.push(t('volume'));
       if (!source) errs.push(t('supplier'));
       if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
-      volumeQAR = batchMode === 'USDT' ? rawAmt * px : rawAmt;
+      volumeQAR = batchMode === 'QAR' ? rawAmt * px : rawAmt;
       totalUSDT = volumeQAR / px;
     } else if (batchEntryMode === 'qty_total') {
       totalUSDT = Number(batchUsdtQty);
