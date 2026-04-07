@@ -600,9 +600,9 @@ function ReconcileEntryModal({ account, currentBalance, onSave, onClose, isMobil
 
 // ── MerchantCustodyModal ──────────────────────────────────────────
 interface MerchantCustodyModalProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  relationships: any[];
+  counterparties: NormalizedCounterparty[];
   myMerchantId: string;
+  myUserId: string;
   onSubmit: (input: {
     custodianMerchantId: string;
     custodianUserId: string;
@@ -615,30 +615,30 @@ interface MerchantCustodyModalProps {
   onClose: () => void;
   isMobile?: boolean;
 }
-function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, isMobile = false }: MerchantCustodyModalProps) {
-  const [relId, setRelId] = useState('');
+function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit, onClose, isMobile = false }: MerchantCustodyModalProps) {
+  const t = useT();
+  const [selectedIdx, setSelectedIdx] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<CashCurrency>('QAR');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const selectedRel = relationships.find((r: any) => r.id === relId);
+  const selected = selectedIdx !== '' ? counterparties[Number(selectedIdx)] : null;
 
   const handle = () => {
-    if (!relId) { setErr('Select a merchant relationship.'); return; }
-    if (!(num(amount, 0) > 0)) { setErr('Enter a valid amount.'); return; }
-    if (!selectedRel) { setErr('Invalid relationship.'); return; }
-    const custodianMerchantId: string = selectedRel.counterparty_name || selectedRel.merchant_b_id || '';
-    const custodianUserId: string = selectedRel.merchant_b_user_id || selectedRel.user_b_id || '';
+    if (!selected) { setErr(t('invalidRelationship')); return; }
+    if (!(num(amount, 0) > 0)) { setErr(t('enterValidAmount')); return; }
+    if (!selected.counterpartyUserId) { setErr(t('missingMerchantUserMapping')); return; }
+    if (selected.counterpartyMerchantId === myMerchantId) { setErr(t('cannotSendToYourself')); return; }
+    if (selected.counterpartyUserId === myUserId) { setErr(t('cannotSendToYourself')); return; }
     onSubmit({
-      custodianMerchantId,
-      custodianUserId,
+      custodianMerchantId: selected.counterpartyMerchantId,
+      custodianUserId: selected.counterpartyUserId,
       requesterMerchantId: myMerchantId,
       amount: num(amount, 0),
       currency,
       note: note.trim() || undefined,
-      relationshipId: relId,
+      relationshipId: selected.relationshipId,
     });
     onClose();
   };
@@ -648,32 +648,34 @@ function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, 
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🤝 Merchant Cash Custody</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🤝 {t('merchantCashCustody')}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-          Request a merchant to hold cash on your behalf. They will receive a notification to accept or counter-propose.
+          {t('custodyRequestDesc')}
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
-          <div className="lbl">Select Merchant (Custodian)</div>
-          <select value={relId} onChange={e => setRelId(e.target.value)}
+          <div className="lbl">{t('selectMerchantCustodian')}</div>
+          <select value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
             style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
-            <option value="">Select relationship...</option>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {relationships.map((r: any) => (
-              <option key={r.id} value={r.id}>{r.counterparty_name || r.merchant_b_id || r.id}</option>
+            <option value="">{t('selectRelationship')}</option>
+            {counterparties.map((cp, i) => (
+              <option key={cp.relationshipId} value={String(i)}>{cp.counterpartyLabel}</option>
             ))}
           </select>
+          {counterparties.length === 0 && (
+            <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
+          )}
         </div>
 
         <div className="g2tight" style={{ marginBottom: 10 }}>
           <div className="field2">
-            <div className="lbl">Amount</div>
+            <div className="lbl">{t('amount')}</div>
             <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
           </div>
           <div className="field2">
-            <div className="lbl">Currency</div>
+            <div className="lbl">{t('currency')}</div>
             <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
               style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
               <option value="QAR">QAR</option>
@@ -684,14 +686,14 @@ function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, 
         </div>
 
         <div className="field2" style={{ marginBottom: 16 }}>
-          <div className="lbl">Note (optional)</div>
-          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Daily float for operations..." /></div>
+          <div className="lbl">{t('custodyNoteOptional')}</div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="..." /></div>
         </div>
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
-          <button className="btn secondary" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={handle}>Send Custody Request</button>
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handle}>{t('sendCustodyRequest')}</button>
         </div>
       </div>
     </div>
