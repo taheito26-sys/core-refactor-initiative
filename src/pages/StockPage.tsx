@@ -141,6 +141,13 @@ export default function StockPage() {
   
   const supplierOptions = useMemo(() => {
     const byNormalized = new Map<string, string>();
+    (state.suppliers || []).forEach((supplier) => {
+      const cleaned = typeof supplier.name === 'string' ? supplier.name.trim() : '';
+      if (!cleaned) return;
+      const normalized = cleaned.toLocaleLowerCase();
+      if (!normalized) return;
+      if (!byNormalized.has(normalized)) byNormalized.set(normalized, cleaned);
+    });
     state.batches.forEach((batch) => {
       const cleaned = typeof batch.source === 'string' ? batch.source.trim() : '';
       if (!cleaned) return;
@@ -149,7 +156,7 @@ export default function StockPage() {
       if (!byNormalized.has(normalized)) byNormalized.set(normalized, cleaned);
     });
     return Array.from(byNormalized.values()).sort((a, b) => a.localeCompare(b));
-  }, [state.batches]);
+  }, [state.batches, state.suppliers]);
 
   const supplierLookup = useMemo(() => {
     const localQuery = batchSupplier.trim().toLocaleLowerCase();
@@ -198,15 +205,13 @@ export default function StockPage() {
 
   const addSupplier = () => {
     if (!newSupplierName.trim()) return;
-    // CRM adds suppliers by creating a 0-qty batch. We do the same here to ensure persistence.
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: newSupplierName.trim(),
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
-    setBatchSupplier(newSupplierName.trim());
+    const cleanedName = newSupplierName.trim();
+    const existing = (state.suppliers || []).some((s) => s.name.trim().toLocaleLowerCase() === cleanedName.toLocaleLowerCase());
+    const nextSuppliers = existing
+      ? (state.suppliers || [])
+      : [...(state.suppliers || []), { id: uid(), name: cleanedName, phone: newSupplierPhone.trim(), notes: '', createdAt: Date.now() }];
+    applyState({ ...state, suppliers: nextSuppliers });
+    setBatchSupplier(cleanedName);
     setSupplierAddOpen(false);
     setSupplierMenuOpen(false);
     setNewSupplierName('');
