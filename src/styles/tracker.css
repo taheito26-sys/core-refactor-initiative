@@ -181,7 +181,7 @@
 }
 
 /* ── FORMS ── */
-.tracker-root .formPanel { border: 1px solid var(--line); border-radius: var(--lt-radius); background: rgba(255,255,255,.02); overflow: hidden; transition: border-color var(--lt-tr); }
+.tracker-root .formPanel { border: 1px solid var(--line); border-radius: var(--lt-radius); background: rgba(255,255,255,.02); transition: border-color var(--lt-tr); }
 .tracker-root .formPanel:hover { border-color: color-mix(in srgb,var(--brand) 30%,transparent); }
 .tracker-root .formPanel .hdr { padding: 6px 10px; border-bottom: 1px solid var(--line); font-weight: 700; letter-spacing: .5px; text-transform: uppercase; font-size: calc(9px * var(--ui-scale,1)); color: var(--muted); background: linear-gradient(90deg, rgba(255,255,255,.02), transparent); }
 .tracker-root .formPanel .inner { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
@@ -397,16 +397,7 @@
 .tracker-sync { color: var(--tracker-good); font-size: 11px; font-weight: 700; white-space: nowrap; }
 .tracker-user { display: inline-flex; align-items: center; gap: 6px; }
 .tracker-user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--tracker-brand);
-  color: #fff;
-  font-weight: 800;
-  font-size: 11px;
+  width: 28px; height: 28px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--tracker-brand); color: #fff; font-weight: 800; font-size: 11px;
 }
 .tracker-user-meta { display: flex; flex-direction: column; line-height: 1.05; max-width: 165px; }
 .tracker-user-meta strong { font-size: 12px; color: var(--tracker-text); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

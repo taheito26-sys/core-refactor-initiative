@@ -78,8 +78,6 @@ export default function StockPage() {
   const [editPrice, setEditPrice] = useState('');
   const [editNote, setEditNote] = useState('');
 
-  const [manualSuppliers, setManualSuppliers] = useState<Array<{ name: string; phone?: string }>>([]);
-
   // ── Cash Management tab ──────────────────────────────────────────
   const [searchParams] = useSearchParams();
   const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
@@ -95,7 +93,7 @@ export default function StockPage() {
   // Derive account balances for funding source selector
   const cashAccounts = state.cashAccounts || [];
   const cashLedger = state.cashLedger || [];
-  const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);
+  const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);<dyad-write path="src/pages/StockPage.tsx" description="Continuing the StockPage implementation with fixed supplier lookup and CSS clipping fixes.">
   const activeAccounts = useMemo(() => cashAccounts.filter(a => a.status === 'active'), [cashAccounts]);
 
 
@@ -144,18 +142,14 @@ export default function StockPage() {
   // BUG FIX: Supplier lookup should filter by the local input text (batchSupplier), 
   // not the global search query. This ensures the dropdown shows relevant matches 
   // as the user types, and shows all suppliers when the input is empty.
-  // This also ensures suppliers added in CRM (which create a batch with 0 qty) are visible.
   const supplierLookup = useMemo(() => {
-    const names = [
-      ...manualSuppliers.map((s) => s.name),
-      ...state.batches.map((b) => b.source),
-    ].filter(Boolean);
+    const names = state.batches.map((b) => b.source).filter(Boolean);
     const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     
     const localQuery = batchSupplier.trim().toLowerCase();
     if (!localQuery) return unique;
     return unique.filter((n) => n.toLowerCase().includes(localQuery));
-  }, [manualSuppliers, state.batches, batchSupplier]);
+  }, [state.batches, batchSupplier]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -199,10 +193,14 @@ export default function StockPage() {
 
   const addSupplier = () => {
     if (!newSupplierName.trim()) return;
-    setManualSuppliers((prev) => {
-      if (prev.some((s) => norm(s.name) === norm(newSupplierName))) return prev;
-      return [...prev, { name: newSupplierName.trim(), phone: newSupplierPhone.trim() }];
-    });
+    // CRM adds suppliers by creating a 0-qty batch. We do the same here to ensure persistence.
+    const newBatch = {
+      id: uid(), ts: Date.now(), source: newSupplierName.trim(),
+      initialUSDT: 0, remainingUSDT: 0,
+      costPerUnit: 0, sold: 0, voided: false,
+      note: '', buyPriceQAR: 0, revisions: [],
+    };
+    applyState({ ...state, batches: [...state.batches, newBatch] });
     setBatchSupplier(newSupplierName.trim());
     setSupplierAddOpen(false);
     setSupplierMenuOpen(false);
@@ -808,7 +806,7 @@ export default function StockPage() {
                   </div>
 
                   {supplierMenuOpen && (
-                    <div className="lookupMenu">
+                    <div className="lookupMenu" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                       {supplierLookup.length ? supplierLookup.map((name) => (
                         <button
                           key={name}
