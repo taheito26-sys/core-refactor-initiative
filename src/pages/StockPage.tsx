@@ -917,7 +917,7 @@ export default function StockPage() {
           const s = c.slices.find(s => s.batchId === editingBatchId);
           if (s) editProfit += s.qty * c.ppu;
         }
-        const knownSuppliers = [...new Set(state.batches.map(b => b.source.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        const knownSuppliers = supplierOptions;
 
         return (
           <Dialog open={!!editingBatchId} onOpenChange={(open) => !open && setEditingBatchId(null)}>
