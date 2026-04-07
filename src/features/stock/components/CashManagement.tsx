@@ -998,7 +998,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           className="btn secondary"
           style={{ padding: isMobile ? '10px 14px' : '7px 14px', minHeight: isMobile ? 42 : undefined, fontSize: isMobile ? 12 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, gridColumn: isMobile ? 'span 1' : undefined, position: 'relative' }}
           onClick={() => setShowMerchantCustody(true)}>
-          🤝 Merchant Cash
+          🤝 {t('merchantCash')}
           {pendingIncoming.length > 0 && (
             <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--bad)', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
               {pendingIncoming.length}
