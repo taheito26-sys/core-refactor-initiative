@@ -728,7 +728,21 @@ export default function OrdersPage() {
         consumed: [],
       };
     }
-    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
+    const tmpTrade: Trade = {
+      id: '__preview__',
+      ts,
+      inputMode: 'USDT',
+      amountUSDT,
+      sellPriceQAR: sell,
+      feeQAR: fee,
+      note: '',
+      voided: false,
+      usesStock: true,
+      revisions: [],
+      customerId: '',
+      linkedRelId: merchantOrderEnabled && linkedRelId ? linkedRelId : undefined,
+      linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
+    };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
     const rev = saleDraft.revenueQar;
     const cost = calc?.totalCost || 0;
@@ -754,7 +768,7 @@ export default function OrdersPage() {
         };
       }),
     };
-  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
+  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId]);
   const saleFifoPreview = salePreview;
   const manualSellPrice = saleSell;
 
@@ -982,6 +996,8 @@ export default function OrdersPage() {
         usesStock: true,
         revisions: [],
         customerId: '',
+        linkedRelId: merchantOrderEnabled && linkedRelId ? linkedRelId : undefined,
+        linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
       };
       const calc = computeFIFO(state.batches, [...state.trades, previewTrade]).tradeCalc.get(previewTrade.id);
       const fifoAvg = calc?.ok ? calc.avgBuyQAR : NaN;
@@ -1041,6 +1057,7 @@ export default function OrdersPage() {
       voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
+      linkedMerchantId: merchantOrderEnabled ? (isNewAllocFlowActive ? (allocations[0]?.merchantId || linkedCounterpartyId) : linkedCounterpartyId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? (selectedTemplateId === 'profit_share_family' ? 'profit_share' : 'sales_deal') as any
