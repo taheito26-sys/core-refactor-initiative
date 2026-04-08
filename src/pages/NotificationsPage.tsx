@@ -632,6 +632,7 @@ export default function NotificationsPage() {
                         t={t as any}
                         onNavigate={handleNavigate}
                         onMarkRead={(id) => markRead.mutate(id)}
+                        onActionDone={(ids) => markBulkRead.mutate(ids)}
                         selectMode={selectMode}
                         selected={selectedIds.has(n.id)}
                         onToggleSelect={toggleSelect}
