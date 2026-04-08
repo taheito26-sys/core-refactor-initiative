@@ -37,6 +37,7 @@ export default defineConfig(({ mode }) => {
           registerType: "autoUpdate",
           includeAssets: ["favicon.svg", "robots.txt"],
           workbox: {
+            maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
             navigateFallbackDenylist: [
               /^\/auth\//,
               /^\/~oauth/,
