@@ -27,6 +27,7 @@ export default function AdminPage() {
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
+  const [workspaceType, setWorkspaceType] = useState<'merchant' | 'customer'>('merchant');
 
   if (roleLoading) {
     return (
