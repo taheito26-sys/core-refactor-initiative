@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Check, Save, RotateCcw, Download, Trash2 } from 'lucide-react';
+import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import {
