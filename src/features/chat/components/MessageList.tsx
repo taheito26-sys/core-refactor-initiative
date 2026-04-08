@@ -214,6 +214,11 @@ export function MessageList({ messages, meId, isLoading, roomType, onReact, onEd
                           <Eye className="h-3 w-3 inline opacity-70" />
                         </span>
                       )}
+
+                      {/* Disappearing countdown */}
+                      {m.expires_at && !isDeleted && (
+                        <DisappearingBadge expiresAt={m.expires_at} isMe={isMe} />
+                      )}
                     </div>
 
                     {/* Reactions */}
