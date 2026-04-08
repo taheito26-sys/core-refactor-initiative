@@ -20,6 +20,8 @@ interface Props {
     expiresAt?:   string;
     viewOnce?:    boolean;
     attachmentId?: string;
+    type?:        string;
+    metadata?:    Record<string, unknown>;
   }) => void;
   onTyping: () => void;
   meId:     string;
@@ -136,7 +138,19 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
     try {
       const att = await uploadAttachment(roomId, userId, file);
       const isImage = file.type.startsWith('image/');
-      onSend(isImage ? '🖼 Image' : `📎 ${file.name}`, { attachmentId: att.id, viewOnce });
+      onSend(
+        isImage ? '🖼 Image' : `📎 ${file.name}`,
+        {
+          attachmentId: att.id,
+          viewOnce,
+          type: isImage ? 'image' : 'file',
+          metadata: {
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+          },
+        },
+      );
     } catch (err) {
       toast.error('Upload failed: ' + (err as Error).message);
     } finally {
@@ -155,7 +169,13 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
         const att = await uploadAttachment(roomId, userId, file, {
           durationMs: voice.duration * 1000,
         });
-        onSend('🎙 Voice message', { attachmentId: att.id });
+        onSend('🎙 Voice message', {
+          attachmentId: att.id,
+          type: 'voice_note',
+          metadata: {
+            duration_ms: voice.duration * 1000,
+          },
+        });
       } catch (err) {
         toast.error('Voice upload failed');
       } finally {
