@@ -291,7 +291,7 @@ export default function NotificationsPage() {
                 onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
               >
                 <SquareCheck className="h-3.5 w-3.5" />
-                {selectMode ? t('cancel') || 'Cancel' : t('select') || 'Select'}
+                {selectMode ? (t('cancel') || 'Cancel') : 'Select'}
               </Button>
 
               {/* Bulk mark read */}
