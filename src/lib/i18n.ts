@@ -1662,7 +1662,7 @@ const translations = {
   customerRegion:               { en: 'Region',                                           ar: 'المنطقة' },
   customerChat:                 { en: 'Chat',                                             ar: 'الدردشة' },
   noMessages:                   { en: 'No conversations yet',                             ar: 'لا توجد محادثات بعد' },
-  typeMessage:                  { en: 'Type a message...',                                ar: 'اكتب رسالة...' },
+  customerTypeMessage:          { en: 'Type a message...',                                ar: 'اكتب رسالة...' },
   customerOrders:               { en: 'My Orders',                                        ar: 'طلباتي' },
   customerSettings:             { en: 'Settings',                                         ar: 'الإعدادات' },
   iAmMerchant:                  { en: 'Merchant',                                         ar: 'تاجر' },
