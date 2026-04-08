@@ -336,8 +336,21 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
   const overdueCount = settlementOverview?.overdueCount || 0;
   const activeAgreementCount = allAgreements.filter(a => isAgreementActive(a)).length;
+  // Fetch pending client connection count
+  const [pendingClientCount, setPendingClientCount] = useState(0);
+  useEffect(() => {
+    if (!merchantProfile?.merchant_id) return;
+    supabase
+      .from('customer_merchant_connections')
+      .select('id', { count: 'exact', head: true })
+      .eq('merchant_id', merchantProfile.merchant_id)
+      .eq('status', 'pending')
+      .then(({ count }) => setPendingClientCount(count || 0));
+  }, [merchantProfile?.merchant_id]);
+
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
+    { key: 'clients', label: 'Clients', icon: '👤', badge: pendingClientCount > 0 ? pendingClientCount : undefined },
     { key: 'liquidity', label: t('liquidityTab') || 'Liquidity', icon: '💧' },
     { key: 'agreements', label: t('profitShareAgreements'), icon: '🤝' },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
