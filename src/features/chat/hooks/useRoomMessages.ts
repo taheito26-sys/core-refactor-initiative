@@ -81,13 +81,15 @@ export function useRoomMessages(roomId: string | null) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'chat_message_receipts', filter: `room_id=eq.${roomId}` },
         (payload) => {
-          const receipt = payload.new as { message_id: string; status: string } | undefined;
+          const receipt = payload.new as { message_id: string; status: string; user_id: string } | undefined;
           if (!receipt?.message_id) return;
 
           qc.setQueryData<ChatMessage[]>(MESSAGES_KEY(roomId), (prev) => {
             if (!prev) return prev;
             return prev.map((m) => {
               if (m.id !== receipt.message_id) return m;
+              // Ignore the sender's own receipt — only other users' receipts matter
+              if (receipt.user_id === m.sender_id) return m;
               // Only upgrade status: sent → delivered → read
               const priority = { sent: 0, delivered: 1, read: 2 };
               const currentP = priority[m.receipt_status as keyof typeof priority] ?? -1;
