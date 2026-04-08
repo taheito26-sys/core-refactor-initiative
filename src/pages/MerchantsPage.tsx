@@ -9,6 +9,7 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { AgreementsGlobalTab } from '@/features/merchants/components/AgreementsGlobalTab';
+import MerchantClientsTab from '@/features/merchants/components/MerchantClientsTab';
 import { LiquidityTab } from '@/features/merchants/liquidity/LiquidityTab';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
