@@ -29,6 +29,8 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
+      // Store chosen role so onboarding can use it after email verification
+      localStorage.setItem('p2p_signup_role', role);
       await signup(email, password);
       toast.success('Account created! Please check your email to verify your account.');
       navigate('/verify-email');
