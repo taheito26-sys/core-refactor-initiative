@@ -12,6 +12,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState<'merchant' | 'customer'>('merchant');
   const [loading, setLoading] = useState(false);
   const { signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
