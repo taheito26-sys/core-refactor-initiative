@@ -83,11 +83,17 @@ function NotificationCard({
   onNavigate,
   onMarkRead,
   t,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   n: SmartNotification;
   onNavigate: (n: Notification) => void;
   onMarkRead: (id: string) => void;
   t: (key: string) => string;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
