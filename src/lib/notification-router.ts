@@ -71,7 +71,7 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
   const params = new URLSearchParams();
 
   // Add tab context
-  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers', 'cash'].includes(target.targetTab)) {
+  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers', 'cash', 'agreements', 'clients', 'capital', 'settlements', 'liquidity'].includes(target.targetTab)) {
     params.set('tab', target.targetTab);
   }
 
