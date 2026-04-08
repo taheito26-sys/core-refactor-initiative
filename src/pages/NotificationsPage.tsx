@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell, CheckCheck, Handshake, Mail, ShieldCheck, Package,
   Zap, Clock, ArrowRight, Sparkles, Search, Filter,
-  X, SquareCheck, Square,
+  X, Check, SquareCheck, Square,
 } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
   useNotifications,
@@ -19,7 +20,15 @@ import { handleNotificationClick } from '@/lib/notification-router';
 import { normalizeNotificationCategory } from '@/types/notifications';
 import { smartGroupNotifications, type SmartNotification } from '@/lib/notification-grouping';
 import { useT } from '@/lib/i18n';
-import { resolveNotificationActionKind } from '@/hooks/useNotificationActions';
+import {
+  resolveNotificationActionKind,
+  useInlineDealApprove, useInlineDealReject,
+  useInlineInviteAccept, useInlineInviteReject,
+  useInlineProfileApprove, useInlineProfileReject,
+  useInlineSettlementApprove, useInlineSettlementReject,
+} from '@/hooks/useNotificationActions';
+import { useUpdateAgreementStatus } from '@/hooks/useProfitShareAgreements';
+import { toast } from 'sonner';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
