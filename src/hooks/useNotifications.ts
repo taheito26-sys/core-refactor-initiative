@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { playNotificationSound, requestPushPermission, showBrowserNotification } from '@/lib/notification-sound';
+import { playCategoryChime, triggerHaptic } from '@/lib/notification-sounds';
 import { buildNotificationNavigationTarget } from '@/lib/notification-router';
 import { mapNotificationRowToModel, normalizeNotificationCategory, type AppNotification, type NotificationCategoryGroup, type NotificationRow } from '@/types/notifications';
 import { useChatStore, isViewingConversationMessage } from '@/lib/chat-store';
