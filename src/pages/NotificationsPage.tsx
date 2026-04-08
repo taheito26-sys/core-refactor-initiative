@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, CheckCheck, Handshake, Mail, ShieldCheck, Package,
-  Zap, Clock, ArrowRight, Sparkles, Search, Trash2, Filter,
-  ChevronDown, X,
+  Zap, Clock, ArrowRight, Sparkles, Search, Filter,
+  X, SquareCheck, Square,
 } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   useNotifications,
   useMarkNotificationRead,
+  useMarkNotificationsRead,
   useMarkAllRead,
   type Notification,
 } from '@/hooks/useNotifications';
@@ -18,6 +19,7 @@ import { handleNotificationClick } from '@/lib/notification-router';
 import { normalizeNotificationCategory } from '@/types/notifications';
 import { smartGroupNotifications, type SmartNotification } from '@/lib/notification-grouping';
 import { useT } from '@/lib/i18n';
+import { resolveNotificationActionKind } from '@/hooks/useNotificationActions';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
