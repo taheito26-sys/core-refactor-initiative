@@ -129,7 +129,9 @@ export default function OAuthCallbackPage() {
   useEffect(() => {
     if (isAuthenticated && !redirectedRef.current) {
       redirectedRef.current = true;
-      const finalRoute = sessionStorage.getItem('oauth:return-path') || '/dashboard';
+      const storedRole = localStorage.getItem('p2p_signup_role');
+      const defaultRoute = storedRole === 'customer' ? '/c/home' : '/dashboard';
+      const finalRoute = sessionStorage.getItem('oauth:return-path') || defaultRoute;
       sessionStorage.removeItem('oauth:return-path');
       sessionStorage.removeItem('oauth:started-at');
       console.info('[OAuthCallback] Navigating to authenticated route', { finalRoute });
