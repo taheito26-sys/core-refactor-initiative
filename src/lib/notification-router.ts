@@ -40,16 +40,23 @@ function legacyRoute(n: AppNotification): NotificationNavigationTarget {
   switch (n.category) {
     case 'deal':
     case 'order':
+    case 'customer_order':
       return { pathname: '/trading/orders' };
     case 'invite':
     case 'network':
+    case 'customer':
       return { pathname: '/merchants' };
     case 'approval':
       return { pathname: '/admin/approvals' };
     case 'message':
+    case 'chat':
       return { pathname: '/chat' };
     case 'stock':
       return { pathname: '/trading/stock' };
+    case 'agreement':
+      return { pathname: '/merchants', search: '?tab=agreements' };
+    case 'settlement':
+      return { pathname: '/trading/orders', search: '?tab=settlements' };
     default:
       return { pathname: '/dashboard' };
   }
