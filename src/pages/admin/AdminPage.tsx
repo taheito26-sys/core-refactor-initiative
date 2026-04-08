@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Loader2, LayoutDashboard, Users, CheckCircle, Bell, FileText, Cloud, Shield } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, CheckCircle, Bell, FileText, Cloud, Shield, UserCircle } from 'lucide-react';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 import { AdminDashboard } from '@/features/admin/components/AdminDashboard';
 import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirectory';
 import { AdminUserWorkspace } from '@/features/admin/components/AdminUserWorkspace';
+import { AdminCustomerDirectory } from '@/features/admin/components/AdminCustomerDirectory';
+import { AdminCustomerWorkspace } from '@/features/admin/components/AdminCustomerWorkspace';
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
 import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
 import { AdminBackupManager } from '@/features/admin/components/AdminBackupManager';
@@ -12,6 +14,7 @@ import AdminApprovalsPage from './AdminApprovalsPage';
 const TABS = [
   { id: 'overview',      label: 'Overview',      Icon: LayoutDashboard },
   { id: 'users',         label: 'Users',          Icon: Users           },
+  { id: 'customers',     label: 'Customers',      Icon: UserCircle      },
   { id: 'approvals',     label: 'Approvals',      Icon: CheckCircle     },
   { id: 'notifications', label: 'Notifications',  Icon: Bell            },
   { id: 'audit',         label: 'Audit Log',      Icon: FileText        },
