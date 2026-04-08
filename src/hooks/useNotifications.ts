@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { playNotificationSound, requestPushPermission, showBrowserNotification } from '@/lib/notification-sound';
+import { playCategoryChime, triggerHaptic } from '@/lib/notification-sounds';
 import { buildNotificationNavigationTarget } from '@/lib/notification-router';
 import { mapNotificationRowToModel, normalizeNotificationCategory, type AppNotification, type NotificationCategoryGroup, type NotificationRow } from '@/types/notifications';
 import { useChatStore, isViewingConversationMessage } from '@/lib/chat-store';
@@ -56,7 +57,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     const shouldSuppress = shouldSuppressViaStore || options.shouldSuppressRealtimeNotification?.(notification);
     if (shouldSuppress) return;
 
-    playNotificationSound();
+    playCategoryChime(notification.category);
+    triggerHaptic();
     const nav = buildNotificationNavigationTarget(notification);
     showBrowserNotification(notification.title ?? 'New notification', {
       body: notification.body ?? undefined,
@@ -105,6 +107,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       invite: 0,
       message: 0,
       order: 0,
+      settlement: 0,
       system: 0,
     };
     for (const n of (query.data ?? [])) {

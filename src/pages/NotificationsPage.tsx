@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, CheckCheck, Handshake, Mail, ShieldCheck, Package,
-  Zap, Clock, ArrowRight, Sparkles, Search, Trash2, Filter,
-  ChevronDown, X,
+  Zap, Clock, ArrowRight, Sparkles, Search, Filter,
+  X, SquareCheck, Square,
 } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   useNotifications,
   useMarkNotificationRead,
+  useMarkNotificationsRead,
   useMarkAllRead,
   type Notification,
 } from '@/hooks/useNotifications';
@@ -18,6 +19,7 @@ import { handleNotificationClick } from '@/lib/notification-router';
 import { normalizeNotificationCategory } from '@/types/notifications';
 import { smartGroupNotifications, type SmartNotification } from '@/lib/notification-grouping';
 import { useT } from '@/lib/i18n';
+import { resolveNotificationActionKind } from '@/hooks/useNotificationActions';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
@@ -58,6 +60,22 @@ function groupByDay(items: Notification[], t: any): { label: string; items: Noti
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
+// ─── Smart Priority Scoring ─────────────────────────────────────────
+function priorityScore(n: Notification): number {
+  let score = 0;
+  // Unread items float up
+  if (!n.read_at) score += 100;
+  // Actionable items get highest priority
+  const kind = resolveNotificationActionKind(n.category, n.target?.entityType);
+  if (kind && !n.read_at) score += 200;
+  // Approvals & invites are high-priority
+  if (n.category === 'approval' || n.category === 'invite') score += 50;
+  // Recent items score higher (decay over 24h)
+  const ageMs = Date.now() - new Date(n.created_at).getTime();
+  const ageHours = ageMs / 3_600_000;
+  score += Math.max(0, 48 - ageHours);
+  return score;
+}
 
 // ─── Notification Card ──────────────────────────────────────────────
 function NotificationCard({
@@ -65,11 +83,17 @@ function NotificationCard({
   onNavigate,
   onMarkRead,
   t,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   n: SmartNotification;
   onNavigate: (n: Notification) => void;
   onMarkRead: (id: string) => void;
   t: (key: string) => string;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
@@ -80,13 +104,14 @@ function NotificationCard({
     <div
       className={cn(
         'group relative flex items-start gap-4 p-4 rounded-xl transition-all cursor-pointer border',
+        selected && 'ring-2 ring-primary/40',
         isAdminPriority && isUnread
           ? 'bg-destructive/[0.04] border-destructive/20 shadow-sm shadow-destructive/5 hover:shadow-md hover:border-destructive/30'
           : isUnread
           ? 'bg-card border-primary/15 shadow-sm hover:shadow-md hover:border-primary/25'
           : 'bg-card/50 border-border/50 hover:bg-card hover:border-border'
       )}
-      onClick={() => onNavigate(n)}
+      onClick={() => selectMode ? onToggleSelect?.(n.id) : onNavigate(n)}
     >
       {/* Timeline connector dot */}
       {isUnread && (
@@ -99,6 +124,13 @@ function NotificationCard({
       )}
       {!isUnread && (
         <div className="absolute -left-[27px] top-6 hidden lg:flex h-2 w-2 rounded-full bg-border" />
+      )}
+
+      {/* Select checkbox */}
+      {selectMode && (
+        <button onClick={(e) => { e.stopPropagation(); onToggleSelect?.(n.id); }} className="shrink-0 mt-0.5">
+          {selected ? <SquareCheck className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5 text-muted-foreground/40" />}
+        </button>
       )}
 
       {/* Category icon */}
@@ -174,11 +206,29 @@ export default function NotificationsPage() {
   const t = useT();
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const markBulkRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllRead();
 
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleBulkMarkRead = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    markBulkRead.mutate(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, [selectedIds, markBulkRead]);
 
   const filtered = useMemo(() => {
     let items = notifications ?? [];
@@ -198,6 +248,9 @@ export default function NotificationsPage() {
         (n.body ?? '').toLowerCase().includes(q)
       );
     }
+
+    // Apply smart priority sorting — actionable unread items float to top within each day
+    items = [...items].sort((a, b) => priorityScore(b) - priorityScore(a));
 
     return items;
   }, [notifications, activeCategory, showUnreadOnly, searchQuery]);
@@ -243,18 +296,45 @@ export default function NotificationsPage() {
                 </p>
               </div>
             </div>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
+              {/* Select mode toggle */}
               <Button
-                variant="outline"
+                variant={selectMode ? 'default' : 'outline'}
                 size="sm"
                 className="gap-1.5 text-[11px] h-8 rounded-lg"
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
+                onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
               >
-                <CheckCheck className="h-3.5 w-3.5" />
-                {t('notifMarkAllRead')} ({unreadCount})
+                <SquareCheck className="h-3.5 w-3.5" />
+                {selectMode ? (t('cancel') || 'Cancel') : 'Select'}
               </Button>
-            )}
+
+              {/* Bulk mark read */}
+              {selectMode && selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-[11px] h-8 rounded-lg"
+                  onClick={handleBulkMarkRead}
+                  disabled={markBulkRead.isPending}
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  {t('markRead') || 'Mark Read'} ({selectedIds.size})
+                </Button>
+              )}
+
+              {unreadCount > 0 && !selectMode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-[11px] h-8 rounded-lg"
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  {t('notifMarkAllRead')} ({unreadCount})
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* ── Stats bar ── */}
@@ -417,6 +497,9 @@ export default function NotificationsPage() {
                         t={t as any}
                         onNavigate={handleNavigate}
                         onMarkRead={(id) => markRead.mutate(id)}
+                        selectMode={selectMode}
+                        selected={selectedIds.has(n.id)}
+                        onToggleSelect={toggleSelect}
                       />
                     ))}
                   </div>
