@@ -255,7 +255,7 @@ export async function uploadAttachment(
   if (uploadErr) throw rpcError('uploadAttachment:upload', uploadErr);
 
   const { data: att, error: insertErr } = await supabase
-    .from('chat_attachments' as never)
+    .from('chat_attachments')
     .insert({
       room_id:     roomId,
       uploader_id: uploaderId,
