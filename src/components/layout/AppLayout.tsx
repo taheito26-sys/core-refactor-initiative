@@ -9,6 +9,8 @@ import { RequiredFieldsModal } from '@/features/auth/components/RequiredFieldsMo
 import { useAuth } from '@/features/auth/auth-context';
 import { useWelcomeMessage } from '@/hooks/useWelcomeMessage';
 import { WelcomeOverlay } from '@/components/WelcomeOverlay';
+import { usePushRegistration } from '@/hooks/usePushRegistration';
+import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
 
 export function AppLayout() {
   const isMobile = useIsMobile();
