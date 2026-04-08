@@ -431,17 +431,56 @@ export type Database = {
           },
         ]
       }
+      customer_order_events: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          order_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          order_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_order_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "customer_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_orders: {
         Row: {
           amount: number
+          confirmed_at: string | null
           connection_id: string
           created_at: string
           currency: string
           customer_user_id: string
+          expires_at: string | null
           id: string
           merchant_id: string
           note: string | null
           order_type: string
+          payment_proof_uploaded_at: string | null
+          payment_proof_url: string | null
           rate: number | null
           status: string
           total: number | null
@@ -449,14 +488,18 @@ export type Database = {
         }
         Insert: {
           amount: number
+          confirmed_at?: string | null
           connection_id: string
           created_at?: string
           currency?: string
           customer_user_id: string
+          expires_at?: string | null
           id?: string
           merchant_id: string
           note?: string | null
           order_type?: string
+          payment_proof_uploaded_at?: string | null
+          payment_proof_url?: string | null
           rate?: number | null
           status?: string
           total?: number | null
@@ -464,14 +507,18 @@ export type Database = {
         }
         Update: {
           amount?: number
+          confirmed_at?: string | null
           connection_id?: string
           created_at?: string
           currency?: string
           customer_user_id?: string
+          expires_at?: string | null
           id?: string
           merchant_id?: string
           note?: string | null
           order_type?: string
+          payment_proof_uploaded_at?: string | null
+          payment_proof_url?: string | null
           rate?: number | null
           status?: string
           total?: number | null
