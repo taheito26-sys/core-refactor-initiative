@@ -697,19 +697,11 @@ export default function StockPage() {
         </div>
 
         <div>
-          <div id="new-batch-form" className="formPanel salePanel" style={isMobile ? { padding: 0, borderRadius: 10 } : undefined}>
-            <div
-              className="hdr"
-              onClick={isMobile ? () => setBatchFormCollapsed(prev => !prev) : undefined}
-              style={isMobile ? { cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' } : undefined}
-            >
+          <div id="new-batch-form" className="formPanel salePanel">
+            <div className="hdr">
               {t('addBatchTitle')}
-              {isMobile && (
-                <span style={{ fontSize: 14, transition: 'transform 0.2s', transform: batchFormCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}>▾</span>
-              )}
             </div>
-            {(!isMobile || !batchFormCollapsed) && (
-            <div className="inner" style={isMobile ? { display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' } : undefined}>
+            <div className="inner">
               {wacop && (
                 <div className="bannerRow">
                   <span className="bLbl">{t('currentAvPrice')}</span>
