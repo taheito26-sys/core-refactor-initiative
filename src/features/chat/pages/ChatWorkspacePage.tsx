@@ -51,6 +51,10 @@ export default function ChatWorkspacePage() {
   const [showSidebar,  setShowSidebar]  = useState(true);
 
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const pendingNav = useChatStore((s) => s.pendingNotificationNav);
+  const pendingNavVersion = useChatStore((s) => s.pendingNotificationNavVersion);
+  const setPendingNav = useChatStore((s) => s.setPendingNav);
+  const setAnchor = useChatStore((s) => s.setAnchor);
 
   // Auto-select first room if none chosen
   useEffect(() => {
@@ -62,6 +66,20 @@ export default function ChatWorkspacePage() {
   useEffect(() => {
     setActiveConversation(activeRoomId);
   }, [activeRoomId, setActiveConversation]);
+
+  // ── Deep-link from notification ──────────────────────────────────────────
+  useEffect(() => {
+    if (!pendingNav) return;
+    const roomId = pendingNav.conversationId;
+    if (roomId && roomId !== activeRoomId) {
+      setActiveRoomId(roomId);
+    }
+    if (pendingNav.messageId) {
+      setAnchor(pendingNav.messageId);
+    }
+    setPendingNav(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNavVersion]);
 
   // ── Messages ─────────────────────────────────────────────────────────────
 
