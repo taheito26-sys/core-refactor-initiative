@@ -289,8 +289,8 @@ export async function linkAttachmentToMessage(
   messageId: string,
 ): Promise<void> {
   const { error } = await supabase
-    .from('chat_attachments' as never)
-    .update({ message_id: messageId })
+    .from('chat_attachments')
+    .update({ message_id: messageId } as never)
     .eq('id', attachmentId);
   if (error) throw rpcError('linkAttachmentToMessage', error);
 }

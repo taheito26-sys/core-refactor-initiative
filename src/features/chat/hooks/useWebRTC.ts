@@ -128,14 +128,15 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
       // Store SDP offer for recipient to fetch
       await supabase
-        .from('chat_call_participants' as never)
-        .update({ sdp_offer: offer.sdp })
+        .from('chat_call_participants')
+        .update({ sdp_offer: offer.sdp } as never)
         .eq('call_id', callId)
         .eq('user_id', userId);
 
       // Ring timeout → fallback to missed
+      const currentState = callState;
       ringTimer.current = setTimeout(async () => {
-        if (callState === 'calling') {
+        if (currentState === 'calling') {
           setCallState('ended');
           await endCall(callId, 'no_answer').catch(() => {});
           cleanup();

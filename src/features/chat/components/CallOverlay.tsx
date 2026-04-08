@@ -3,10 +3,20 @@
 import { Phone, PhoneOff, Mic, MicOff, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import type { UseWebRTCReturn } from '../hooks/useWebRTC';
+import type { CallState } from '../hooks/useWebRTC';
+
+interface CallOverlayWebRTC {
+  callState: CallState;
+  incomingCall: unknown;
+  isMuted: boolean;
+  answerIncoming: () => void;
+  declineIncoming: () => void;
+  hangUp: () => void;
+  toggleMute: () => void;
+}
 
 interface Props {
-  webrtc: ReturnType<typeof import('../hooks/useWebRTC').useWebRTC>;
+  webrtc: CallOverlayWebRTC;
 }
 
 const STATE_LABELS: Record<string, string> = {

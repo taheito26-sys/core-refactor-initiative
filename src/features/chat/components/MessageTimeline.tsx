@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useChatStore } from '@/lib/chat-store';
-import type { ChatMessage } from '@/lib/chat-store';
+import type { ChatMessage } from '../types';
 import { groupMessagesByDate } from '../lib/message-codec';
 import { MessageItem } from './MessageItem';
 import { UnreadDivider } from './UnreadDivider';

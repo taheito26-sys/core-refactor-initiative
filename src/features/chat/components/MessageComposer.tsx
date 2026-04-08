@@ -61,8 +61,7 @@ function useVoiceRecorder() {
           resolve(blob);
         };
         mr.stop();
-        // @ts-expect-error
-        mr.stream?.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        (mr as unknown as { stream?: MediaStream }).stream?.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       } else {
         resolve(null);
       }
