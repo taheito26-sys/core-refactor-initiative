@@ -148,7 +148,8 @@ export default function AdminPage() {
       {/* ── Content ── */}
       <div style={{ flex: 1, padding: '24px' }}>
         {activeTab === 'overview'      && <AdminDashboard />}
-        {activeTab === 'users'         && <AdminUserDirectory onOpenWorkspace={uid => setWorkspaceUserId(uid)} />}
+        {activeTab === 'users'         && <AdminUserDirectory onOpenWorkspace={uid => { setWorkspaceType('merchant'); setWorkspaceUserId(uid); }} />}
+        {activeTab === 'customers'     && <AdminCustomerDirectory onOpenWorkspace={uid => { setWorkspaceType('customer'); setWorkspaceUserId(uid); }} />}
         {activeTab === 'approvals'     && <AdminApprovalsPage />}
         {activeTab === 'notifications' && <AdminNotificationSender />}
         {activeTab === 'audit'         && <AdminAuditCenter />}
