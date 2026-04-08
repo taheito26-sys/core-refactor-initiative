@@ -57,7 +57,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
   const [tab, setTab] = useState<MerchantTab>(() => {
     const qTab = searchParams.get('tab');
-    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements' || qTab === 'liquidity') return qTab as MerchantTab;
+    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements' || qTab === 'liquidity' || qTab === 'clients') return qTab as MerchantTab;
     return 'relationships';
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
