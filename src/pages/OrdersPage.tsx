@@ -3106,21 +3106,41 @@ export default function OrdersPage() {
                 {!isCapitalTransfer && (<>
 
                 {/* Price mode toggle: FIFO vs Manual */}
-                <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span className="bLbl">{priceMode === 'fifo' ? 'FIFO Cost/USDT' : t('sellPriceLabel')}</span>
-                      <span className="bVal">
-                        {priceMode === 'fifo'
-                          ? (saleDraft.quantityUsdt > 0
-                            ? (Number.isFinite(fifoDisplayUnitCost) ? fmtP(fifoDisplayUnitCost as number) : '—')
-                            : 'Enter quantity to calculate FIFO')
-                          : (manualSellPrice ? fmtP(Number(manualSellPrice) || 0) : '—')}
-                      </span>
-                    </div>
-                    {priceMode === 'fifo' && saleDraft.quantityUsdt > 0 && stockCoverage.stockShortfall > 0 && (
-                      <div style={{ fontSize: 10, color: 'var(--bad)', fontWeight: 700 }}>
-                        Shortfall: {fmtU(stockCoverage.stockShortfall)} USDT
+                <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                    {priceMode === 'fifo' ? (
+                      availableFifoUsdt > 0 ? (
+                        <>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                            <span className="bVal" style={{ fontSize: 16 }}>
+                              {saleDraft.quantityUsdt > 0 && Number.isFinite(fifoDisplayUnitCost)
+                                ? fmtP(fifoDisplayUnitCost as number)
+                                : '—'}
+                            </span>
+                            <span className="bLbl" style={{ fontSize: 9, opacity: 0.6 }}>FIFO</span>
+                          </div>
+                          {saleDraft.quantityUsdt > 0 && stockCoverage.stockShortfall > 0 && (
+                            <div style={{ fontSize: 10, color: 'var(--bad)', fontWeight: 700 }}>
+                              −{fmtU(stockCoverage.stockShortfall)} USDT
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => navigate('/trading/stock')}
+                          className="bVal"
+                          style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: '1px dashed var(--accent)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
+                        >
+                          + {t('addBatch') || 'Add Batches'}
+                        </button>
+                      )
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                        <span className="bVal" style={{ fontSize: 16 }}>
+                          {manualSellPrice ? fmtP(Number(manualSellPrice) || 0) : '—'}
+                        </span>
+                        <span className="bLbl" style={{ fontSize: 9, opacity: 0.6 }}>{t('sellPriceLabel')}</span>
                       </div>
                     )}
                   </div>
