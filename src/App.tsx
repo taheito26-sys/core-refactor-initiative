@@ -25,6 +25,13 @@ import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 
 // Onboarding
 import OnboardingPage from "./pages/merchant/OnboardingPage";
+import { CustomerLayout } from "@/components/layout/CustomerLayout";
+import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
+import CustomerHomePage from "./pages/customer/CustomerHomePage";
+import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
+import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
+import CustomerChatPage from "./pages/customer/CustomerChatPage";
+import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
