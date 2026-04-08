@@ -359,6 +359,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
     { key: 'clients', label: 'Clients', icon: '👤', badge: pendingClientCount > 0 ? pendingClientCount : undefined },
+    { key: 'client-orders', label: 'Customer Orders', icon: '🛒', badge: pendingOrderCount > 0 ? pendingOrderCount : undefined },
     { key: 'liquidity', label: t('liquidityTab') || 'Liquidity', icon: '💧' },
     { key: 'agreements', label: t('profitShareAgreements'), icon: '🤝' },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
