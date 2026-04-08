@@ -339,6 +339,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const activeAgreementCount = allAgreements.filter(a => isAgreementActive(a)).length;
   // Fetch pending client connection count
   const [pendingClientCount, setPendingClientCount] = useState(0);
+  const [pendingOrderCount, setPendingOrderCount] = useState(0);
   useEffect(() => {
     if (!merchantProfile?.merchant_id) return;
     supabase
@@ -347,6 +348,12 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
       .eq('merchant_id', merchantProfile.merchant_id)
       .eq('status', 'pending')
       .then(({ count }) => setPendingClientCount(count || 0));
+    supabase
+      .from('customer_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('merchant_id', merchantProfile.merchant_id)
+      .eq('status', 'pending')
+      .then(({ count }) => setPendingOrderCount(count || 0));
   }, [merchantProfile?.merchant_id]);
 
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
