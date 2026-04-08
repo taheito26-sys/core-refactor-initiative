@@ -51,11 +51,14 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     if (userId) requestPushPermission();
   }, [userId]);
 
+  const suppressRef = React.useRef(shouldSuppressRealtimeNotification);
+  suppressRef.current = shouldSuppressRealtimeNotification;
+
   const handleRealtimeInsert = useCallback((notification: Notification) => {
     const shouldSuppressViaStore = notification.target.kind === 'chat_message'
       && Boolean(notification.target.conversationId)
       && isViewingConversationMessage(useChatStore.getState(), notification.target.conversationId!);
-    const shouldSuppress = shouldSuppressViaStore || options.shouldSuppressRealtimeNotification?.(notification);
+    const shouldSuppress = shouldSuppressViaStore || suppressRef.current?.(notification);
     if (shouldSuppress) return;
 
     playCategoryChime(notification.category);
@@ -69,7 +72,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
         window.location.assign(`${nav.pathname}${nav.search ?? ''}`);
       },
     });
-  }, [options]);
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
