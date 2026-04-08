@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
 
   const loadUserProfiles = useCallback(async (currentUserId?: string | null) => {
     const resolvedUserId = currentUserId ?? (await supabase.auth.getUser()).data.user?.id ?? null;
