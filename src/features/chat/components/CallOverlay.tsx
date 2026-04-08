@@ -52,7 +52,7 @@ export function CallOverlay({ webrtc }: Props) {
       )}>
         {/* Status */}
         <div className="flex items-center gap-2">
-          {(isActive || callState === 'reconnecting') && (
+          {isActive && (
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
           )}
           <span className="text-sm font-semibold">
