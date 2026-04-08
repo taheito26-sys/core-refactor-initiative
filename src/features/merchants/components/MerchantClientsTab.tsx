@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/features/auth/auth-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -9,9 +10,12 @@ interface Props {
 }
 
 export default function MerchantClientsTab({ merchantId }: Props) {
+  const { userId } = useAuth();
   const qc = useQueryClient();
   const isMobile = useIsMobile();
   const [filter, setFilter] = useState<'all' | 'pending' | 'active' | 'blocked'>('all');
+  const [chatConnectionId, setChatConnectionId] = useState<string | null>(null);
+  const [chatCustomerName, setChatCustomerName] = useState('');
 
   const { data: connections = [], isLoading } = useQuery({
     queryKey: ['merchant-client-connections', merchantId],
@@ -24,7 +28,6 @@ export default function MerchantClientsTab({ merchantId }: Props) {
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
-      // Resolve customer display names
       const userIds = data.map((c) => c.customer_user_id);
       const { data: profiles } = await supabase
         .from('customer_profiles')
@@ -62,6 +65,25 @@ export default function MerchantClientsTab({ merchantId }: Props) {
     enabled: !!merchantId,
   });
 
+  // Unread counts per connection
+  const { data: unreadCounts = {} } = useQuery({
+    queryKey: ['merchant-client-unread', merchantId, userId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('customer_messages')
+        .select('connection_id')
+        .eq('sender_role', 'customer')
+        .is('read_at', null);
+      if (!data) return {};
+      const counts: Record<string, number> = {};
+      data.forEach((m: any) => {
+        counts[m.connection_id] = (counts[m.connection_id] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: !!userId,
+  });
+
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase
@@ -84,6 +106,18 @@ export default function MerchantClientsTab({ merchantId }: Props) {
     const cls = status === 'active' ? 'good' : status === 'pending' ? 'warn' : status === 'blocked' ? 'bad' : '';
     return <span className={`pill ${cls}`}>{status}</span>;
   };
+
+  // If chat is open, show the chat panel
+  if (chatConnectionId) {
+    return (
+      <MerchantCustomerChat
+        connectionId={chatConnectionId}
+        customerName={chatCustomerName}
+        userId={userId!}
+        onBack={() => setChatConnectionId(null)}
+      />
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -124,6 +158,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.map((conn: any) => {
             const counts = orderCounts[conn.id];
+            const unread = unreadCounts[conn.id] || 0;
             return (
               <div
                 key={conn.id}
@@ -181,6 +216,31 @@ export default function MerchantClientsTab({ merchantId }: Props) {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {conn.status === 'active' && (
+                    <button
+                      className="btn"
+                      style={{
+                        fontSize: 10, minHeight: 34, padding: '4px 12px',
+                        position: 'relative',
+                      }}
+                      onClick={() => {
+                        setChatConnectionId(conn.id);
+                        setChatCustomerName(conn.customer?.display_name ?? 'Customer');
+                      }}
+                    >
+                      💬 Chat
+                      {unread > 0 && (
+                        <span style={{
+                          position: 'absolute', top: -4, right: -4,
+                          fontSize: 9, fontWeight: 700, background: 'var(--bad)',
+                          color: '#fff', borderRadius: 10, padding: '1px 5px',
+                          minWidth: 14, textAlign: 'center',
+                        }}>
+                          {unread}
+                        </span>
+                      )}
+                    </button>
+                  )}
                   {conn.status === 'pending' && (
                     <>
                       <button
@@ -232,6 +292,193 @@ export default function MerchantClientsTab({ merchantId }: Props) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Inline merchant-side customer chat component ───────────────────────────
+function MerchantCustomerChat({
+  connectionId,
+  customerName,
+  userId,
+  onBack,
+}: {
+  connectionId: string;
+  customerName: string;
+  userId: string;
+  onBack: () => void;
+}) {
+  const qc = useQueryClient();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [message, setMessage] = useState('');
+
+  // Messages
+  const { data: messages = [] } = useQuery({
+    queryKey: ['merchant-customer-messages', connectionId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('customer_messages')
+        .select('*')
+        .eq('connection_id', connectionId)
+        .order('created_at', { ascending: true })
+        .limit(300);
+      return data ?? [];
+    },
+    enabled: !!connectionId,
+  });
+
+  // Mark messages as read
+  useEffect(() => {
+    if (!connectionId || messages.length === 0) return;
+    const unreadIds = messages
+      .filter((m: any) => m.sender_role === 'customer' && !m.read_at)
+      .map((m: any) => m.id);
+    if (unreadIds.length > 0) {
+      supabase
+        .from('customer_messages')
+        .update({ read_at: new Date().toISOString() })
+        .in('id', unreadIds)
+        .then(() => {
+          qc.invalidateQueries({ queryKey: ['merchant-client-unread'] });
+        });
+    }
+  }, [connectionId, messages, qc]);
+
+  // Realtime
+  useEffect(() => {
+    if (!connectionId) return;
+    const channel = supabase
+      .channel(`merchant-chat-${connectionId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'customer_messages',
+        filter: `connection_id=eq.${connectionId}`,
+      }, () => {
+        qc.invalidateQueries({ queryKey: ['merchant-customer-messages', connectionId] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [connectionId, qc]);
+
+  // Auto-scroll
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages]);
+
+  const sendMessage = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('customer_messages').insert({
+        connection_id: connectionId,
+        sender_user_id: userId,
+        sender_role: 'merchant',
+        content: message.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMessage('');
+      qc.invalidateQueries({ queryKey: ['merchant-customer-messages', connectionId] });
+    },
+    onError: (err: any) => toast.error(err?.message ?? 'Failed to send'),
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 14rem)' }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        paddingBottom: 10, borderBottom: '1px solid var(--line)', marginBottom: 8,
+      }}>
+        <button
+          className="btn"
+          onClick={onBack}
+          style={{ fontSize: 11, minHeight: 34, padding: '4px 10px' }}
+        >
+          ← Back
+        </button>
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%',
+          background: 'var(--brand)', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontWeight: 700, fontSize: 11,
+        }}>
+          {customerName[0]?.toUpperCase() ?? 'C'}
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 12 }}>{customerName}</div>
+          <div style={{ fontSize: 9, color: 'var(--muted)' }}>Customer chat</div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        style={{
+          flex: 1, overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 4,
+          paddingBottom: 8,
+        }}
+      >
+        {messages.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 11, padding: '40px 0' }}>
+            No messages yet. Start the conversation!
+          </div>
+        )}
+        {messages.map((msg: any) => {
+          const isMerchant = msg.sender_role === 'merchant';
+          return (
+            <div
+              key={msg.id}
+              style={{
+                maxWidth: '80%',
+                alignSelf: isMerchant ? 'flex-end' : 'flex-start',
+                padding: '8px 12px',
+                borderRadius: 12,
+                background: isMerchant ? 'var(--brand)' : 'var(--cardBg)',
+                color: isMerchant ? '#fff' : 'var(--t1)',
+                border: isMerchant ? 'none' : '1px solid var(--line)',
+                fontSize: 12,
+              }}
+            >
+              <div>{msg.content}</div>
+              <div style={{
+                fontSize: 9,
+                opacity: 0.6,
+                marginTop: 2,
+                textAlign: 'right',
+              }}>
+                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {isMerchant && msg.read_at && ' ✓✓'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Composer */}
+      <div style={{
+        display: 'flex', gap: 8, paddingTop: 8,
+        borderTop: '1px solid var(--line)',
+      }}>
+        <div className="inputBox" style={{ flex: 1, padding: '6px 10px' }}>
+          <input
+            placeholder="Type a message..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && message.trim() && sendMessage.mutate()}
+            style={{ width: '100%' }}
+          />
+        </div>
+        <button
+          className="btn"
+          onClick={() => message.trim() && sendMessage.mutate()}
+          disabled={sendMessage.isPending || !message.trim()}
+          style={{ minHeight: 38, padding: '4px 14px', fontSize: 11 }}
+        >
+          📨 Send
+        </button>
+      </div>
     </div>
   );
 }
