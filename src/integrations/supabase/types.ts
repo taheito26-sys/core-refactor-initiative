@@ -368,6 +368,7 @@ export type Database = {
           created_at: string
           customer_user_id: string
           id: string
+          is_preferred: boolean
           merchant_id: string
           nickname: string | null
           status: string
@@ -377,6 +378,7 @@ export type Database = {
           created_at?: string
           customer_user_id: string
           id?: string
+          is_preferred?: boolean
           merchant_id: string
           nickname?: string | null
           status?: string
@@ -386,6 +388,7 @@ export type Database = {
           created_at?: string
           customer_user_id?: string
           id?: string
+          is_preferred?: boolean
           merchant_id?: string
           nickname?: string | null
           status?: string
@@ -2604,6 +2607,10 @@ export type Database = {
       mark_conversation_read: {
         Args: { _relationship_id: string }
         Returns: undefined
+      }
+      merchant_trust_metrics: {
+        Args: { p_customer_user_id: string; p_merchant_id: string }
+        Returns: Json
       }
       os_capture_snapshot: {
         Args: { _target_business_object_id: string; _trigger_event: string }
