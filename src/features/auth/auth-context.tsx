@@ -12,9 +12,22 @@ export interface Profile {
   user_id: string;
   email: string;
   status: string;
+  role: string;
   approved_at: string | null;
   approved_by: string | null;
   rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerProfile {
+  id: string;
+  user_id: string;
+  display_name: string;
+  phone: string | null;
+  region: string | null;
+  preferred_currency: string;
+  status: string;
   created_at: string;
   updated_at: string;
 }
