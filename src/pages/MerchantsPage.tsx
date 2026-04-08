@@ -753,6 +753,10 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
             />
           )}
 
+          {/* ═══ CUSTOMER ORDERS TAB ═══ */}
+          {tab === 'client-orders' && (
+            <MerchantCustomerOrdersTab />
+          )}
 
           {/* ═══ AGREEMENTS TAB ═══ */}
           {tab === 'agreements' && (
