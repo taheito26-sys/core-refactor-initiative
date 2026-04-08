@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { playNotificationSound, requestPushPermission, showBrowserNotification } from '@/lib/notification-sound';
@@ -9,6 +9,135 @@ import { mapNotificationRowToModel, normalizeNotificationCategory, type AppNotif
 import { useChatStore, isViewingConversationMessage } from '@/lib/chat-store';
 
 export type Notification = AppNotification;
+
+interface SharedNotificationRealtimeState {
+  channel: ReturnType<typeof supabase.channel>;
+  queryClient: ReturnType<typeof useQueryClient>;
+  status: boolean;
+  teardownTimer: ReturnType<typeof setTimeout> | null;
+  statusListeners: Map<symbol, (isSubscribed: boolean) => void>;
+  suppressors: Map<symbol, (notification: Notification) => boolean>;
+}
+
+const notificationRealtimeRegistry = new Map<string, SharedNotificationRealtimeState>();
+const notificationRealtimeTopicVersion = new Map<string, number>();
+
+function nextNotificationRealtimeTopic(userId: string) {
+  const version = (notificationRealtimeTopicVersion.get(userId) ?? 0) + 1;
+  notificationRealtimeTopicVersion.set(userId, version);
+  return `notif-badge-rt-${userId}-${version}`;
+}
+
+function shouldSuppressSharedRealtimeNotification(
+  shared: SharedNotificationRealtimeState,
+  notification: Notification,
+) {
+  const shouldSuppressViaStore = notification.target.kind === 'chat_message'
+    && Boolean(notification.target.conversationId)
+    && isViewingConversationMessage(useChatStore.getState(), notification.target.conversationId!);
+
+  if (shouldSuppressViaStore) return true;
+
+  for (const suppress of shared.suppressors.values()) {
+    if (suppress(notification)) return true;
+  }
+
+  return false;
+}
+
+function notifySharedRealtimeStatus(userId: string, isSubscribed: boolean) {
+  const shared = notificationRealtimeRegistry.get(userId);
+  if (!shared) return;
+
+  shared.status = isSubscribed;
+  shared.statusListeners.forEach((listener) => listener(isSubscribed));
+}
+
+function ensureSharedNotificationRealtimeChannel(
+  userId: string,
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  const existing = notificationRealtimeRegistry.get(userId);
+  if (existing) {
+    existing.queryClient = queryClient;
+    if (existing.teardownTimer) {
+      clearTimeout(existing.teardownTimer);
+      existing.teardownTimer = null;
+    }
+    return existing;
+  }
+
+  const topic = nextNotificationRealtimeTopic(userId);
+  const channel = supabase.channel(topic);
+  let shared!: SharedNotificationRealtimeState;
+
+  channel.on(
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (payload: any) => {
+      shared.queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
+
+      if (payload?.eventType !== 'INSERT' || !payload?.new) return;
+
+      const row = payload.new as NotificationRow & { user_id?: string };
+      if (row.user_id !== userId) return;
+
+      const notification = mapNotificationRowToModel(row);
+      if (shouldSuppressSharedRealtimeNotification(shared, notification)) return;
+
+      playCategoryChime(notification.category);
+      triggerHaptic();
+
+      const nav = buildNotificationNavigationTarget(notification);
+      showBrowserNotification(notification.title ?? 'New notification', {
+        body: notification.body ?? undefined,
+        tag: `notif-${notification.id}-${notification.target.kind}-${notification.target.entityId ?? notification.target.conversationId ?? 'generic'}`,
+        onClick: () => {
+          if (nav.pendingChatNav) useChatStore.getState().setPendingNav(nav.pendingChatNav);
+          window.location.assign(`${nav.pathname}${nav.search ?? ''}`);
+        },
+      });
+    },
+  );
+
+  shared = {
+    channel,
+    queryClient,
+    status: false,
+    teardownTimer: null,
+    statusListeners: new Map(),
+    suppressors: new Map(),
+  };
+
+  notificationRealtimeRegistry.set(userId, shared);
+
+  channel.subscribe((status) => {
+    notifySharedRealtimeStatus(userId, status === 'SUBSCRIBED');
+  });
+
+  return shared;
+}
+
+function releaseSharedNotificationRealtimeChannel(userId: string, listenerId: symbol) {
+  const shared = notificationRealtimeRegistry.get(userId);
+  if (!shared) return;
+
+  shared.statusListeners.delete(listenerId);
+  shared.suppressors.delete(listenerId);
+
+  if (shared.statusListeners.size || shared.suppressors.size) return;
+
+  if (shared.teardownTimer) clearTimeout(shared.teardownTimer);
+
+  shared.teardownTimer = setTimeout(() => {
+    const latest = notificationRealtimeRegistry.get(userId);
+    if (!latest || latest.statusListeners.size || latest.suppressors.size) return;
+
+    notificationRealtimeRegistry.delete(userId);
+    void supabase.removeChannel(latest.channel);
+  }, 0);
+}
 
 function applyReadStateToCache(queryClient: ReturnType<typeof useQueryClient>, ids: string[], readAt: string) {
   queryClient.setQueriesData(
@@ -54,48 +183,24 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   const suppressRef = useRef(shouldSuppressRealtimeNotification);
   suppressRef.current = shouldSuppressRealtimeNotification;
 
-  const handleRealtimeInsert = useCallback((notification: Notification) => {
-    const shouldSuppressViaStore = notification.target.kind === 'chat_message'
-      && Boolean(notification.target.conversationId)
-      && isViewingConversationMessage(useChatStore.getState(), notification.target.conversationId!);
-    const shouldSuppress = shouldSuppressViaStore || suppressRef.current?.(notification);
-    if (shouldSuppress) return;
-
-    playCategoryChime(notification.category);
-    triggerHaptic();
-    const nav = buildNotificationNavigationTarget(notification);
-    showBrowserNotification(notification.title ?? 'New notification', {
-      body: notification.body ?? undefined,
-      tag: `notif-${notification.id}-${notification.target.kind}-${notification.target.entityId ?? notification.target.conversationId ?? 'generic'}`,
-      onClick: () => {
-        if (nav.pendingChatNav) useChatStore.getState().setPendingNav(nav.pendingChatNav);
-        window.location.assign(`${nav.pathname}${nav.search ?? ''}`);
-      },
-    });
-  }, []);
-
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      setHasLiveNotificationChannel(false);
+      return;
+    }
 
-    const channel = supabase
-      .channel(`notif-badge-rt-${userId}`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: any) => {
-        queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
-        if (payload?.eventType !== 'INSERT' || !payload?.new) return;
-        const row = payload.new as NotificationRow & { user_id?: string };
-        if (row.user_id !== userId) return;
-        handleRealtimeInsert(mapNotificationRowToModel(row));
-      })
-      .subscribe((status) => {
-        setHasLiveNotificationChannel(status === 'SUBSCRIBED');
-      });
+    const listenerId = Symbol('notifications-realtime-listener');
+    const shared = ensureSharedNotificationRealtimeChannel(userId, queryClient);
+
+    shared.statusListeners.set(listenerId, setHasLiveNotificationChannel);
+    shared.suppressors.set(listenerId, (notification) => Boolean(suppressRef.current?.(notification)));
+
+    setHasLiveNotificationChannel(shared.status);
 
     return () => {
-      setHasLiveNotificationChannel(false);
-      supabase.removeChannel(channel);
+      releaseSharedNotificationRealtimeChannel(userId, listenerId);
     };
-  }, [userId, queryClient, handleRealtimeInsert]);
+  }, [userId, queryClient]);
 
   const unreadNotificationCount = useMemo(
     () => (query.data ?? []).filter((n) => !n.read_at).length,
