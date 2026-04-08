@@ -57,7 +57,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     const shouldSuppress = shouldSuppressViaStore || options.shouldSuppressRealtimeNotification?.(notification);
     if (shouldSuppress) return;
 
-    playNotificationSound();
+    playCategoryChime(notification.category);
+    triggerHaptic();
     const nav = buildNotificationNavigationTarget(notification);
     showBrowserNotification(notification.title ?? 'New notification', {
       body: notification.body ?? undefined,
