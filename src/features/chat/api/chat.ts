@@ -148,6 +148,16 @@ export async function searchMessages(roomId: string, query: string): Promise<Cha
   return (data ?? []) as unknown as ChatMessage[];
 }
 
+export async function getMessageById(messageId: string): Promise<ChatMessage | null> {
+  const { data, error } = await supabase
+    .from('chat_messages' as never)
+    .select('*')
+    .eq('id', messageId)
+    .maybeSingle();
+  if (error) throw rpcError('getMessageById', error);
+  return (data ?? null) as ChatMessage | null;
+}
+
 // ── Reactions ──────────────────────────────────────────────────────────────
 export async function addReaction(messageId: string, emoji: string): Promise<void> {
   const { error } = await supabase.rpc('chat_add_reaction', {

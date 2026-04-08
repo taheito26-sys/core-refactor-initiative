@@ -13,6 +13,7 @@ import { useRoomMessages } from '../hooks/useRoomMessages';
 import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
+import { getMessageById } from '../api/chat';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ConversationHeader } from '../components/ConversationHeader';
 import { MessageList } from '../components/MessageList';
@@ -41,12 +42,36 @@ export default function ChatWorkspacePage() {
   const setAnchor      = useChatStore((s) => s.setAnchor);
   const setAttention   = useChatStore((s) => s.setAttention);
 
-  // URL → room  (runs whenever the URL changes OR rooms finish loading)
+  // URL → room/message (runs whenever the URL changes OR rooms finish loading)
   useEffect(() => {
     const urlRoom = searchParams.get('roomId');
+    const urlMessage = searchParams.get('messageId');
+
     if (urlRoom && urlRoom !== activeRoomId) {
       setActiveRoom(urlRoom);
-    } else if (!urlRoom && !activeRoomId && rooms.length > 0) {
+      return;
+    }
+
+    if (!urlRoom && urlMessage) {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const targetMessage = await getMessageById(urlMessage);
+          if (cancelled || !targetMessage?.room_id) return;
+          if (targetMessage.room_id !== activeRoomId) {
+            setActiveRoom(targetMessage.room_id);
+          }
+          setAnchor(urlMessage);
+        } catch (error) {
+          console.warn('[chat] failed to resolve message deep-link', error);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!urlRoom && !urlMessage && !activeRoomId && rooms.length > 0) {
       setActiveRoom(rooms[0].room_id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -57,7 +82,6 @@ export default function ChatWorkspacePage() {
     if (!pendingNav) return;
     const targetRoom = pendingNav.conversationId;
     if (targetRoom) {
-      // Always force-set even if same room — ensures anchor scroll fires
       setActiveRoom(targetRoom);
     }
     if (pendingNav.messageId) setAnchor(pendingNav.messageId);
