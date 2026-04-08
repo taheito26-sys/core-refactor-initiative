@@ -363,6 +363,166 @@ export type Database = {
           },
         ]
       }
+      customer_merchant_connections: {
+        Row: {
+          created_at: string
+          customer_user_id: string
+          id: string
+          merchant_id: string
+          nickname: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_user_id: string
+          id?: string
+          merchant_id: string
+          nickname?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_user_id?: string
+          id?: string
+          merchant_id?: string
+          nickname?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_messages: {
+        Row: {
+          connection_id: string
+          content: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_role: string
+          sender_user_id: string
+        }
+        Insert: {
+          connection_id: string
+          content: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role?: string
+          sender_user_id: string
+        }
+        Update: {
+          connection_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role?: string
+          sender_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_messages_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "customer_merchant_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_orders: {
+        Row: {
+          amount: number
+          connection_id: string
+          created_at: string
+          currency: string
+          customer_user_id: string
+          id: string
+          merchant_id: string
+          note: string | null
+          order_type: string
+          rate: number | null
+          status: string
+          total: number | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          connection_id: string
+          created_at?: string
+          currency?: string
+          customer_user_id: string
+          id?: string
+          merchant_id: string
+          note?: string | null
+          order_type?: string
+          rate?: number | null
+          status?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          connection_id?: string
+          created_at?: string
+          currency?: string
+          customer_user_id?: string
+          id?: string
+          merchant_id?: string
+          note?: string | null
+          order_type?: string
+          rate?: number | null
+          status?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_orders_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "customer_merchant_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          phone: string | null
+          preferred_currency: string
+          region: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          phone?: string | null
+          preferred_currency?: string
+          region?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          phone?: string | null
+          preferred_currency?: string
+          region?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_reference_rates: {
         Row: {
           created_at: string
@@ -1777,6 +1937,7 @@ export type Database = {
           email: string
           id: string
           rejection_reason: string | null
+          role: string
           status: string
           updated_at: string
           user_id: string
@@ -1788,6 +1949,7 @@ export type Database = {
           email: string
           id?: string
           rejection_reason?: string | null
+          role?: string
           status?: string
           updated_at?: string
           user_id: string
@@ -1799,6 +1961,7 @@ export type Database = {
           email?: string
           id?: string
           rejection_reason?: string | null
+          role?: string
           status?: string
           updated_at?: string
           user_id?: string
@@ -2379,6 +2542,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_customer_connection_member: {
+        Args: { _connection_id: string }
         Returns: boolean
       }
       is_os_room_member: { Args: { _room_id: string }; Returns: boolean }
