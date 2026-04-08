@@ -86,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!resolvedUserId) {
       setProfile(null);
       setMerchantProfile(null);
+      setCustomerProfile(null);
       return;
     }
 
