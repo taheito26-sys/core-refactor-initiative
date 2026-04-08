@@ -11,8 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
-import { useNotificationPreferences, type NotificationPref } from '@/hooks/useNotificationPreferences';
+import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { getDndSchedule, setDndSchedule, type DndSchedule } from '@/lib/notification-sounds';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const tx = (t: any, key: string, fallback: string) => { try { return t(key); } catch { return fallback; } };
 
 const CATEGORY_META: Record<string, { icon: React.ElementType; labelKey: string; color: string }> = {
   deal:       { icon: Handshake,    labelKey: 'notifDeals',      color: 'text-accent' },

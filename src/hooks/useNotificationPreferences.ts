@@ -76,7 +76,14 @@ export function useNotificationPreferences() {
         };
         const { error } = await supabase
           .from('notification_preferences')
-          .insert(row);
+          .insert([{
+            user_id: userId!,
+            category: pref.category,
+            in_app_enabled: true,
+            push_enabled: true,
+            sound_enabled: true,
+            [pref.field]: pref.value,
+          }]);
         if (error) throw error;
       }
     },
