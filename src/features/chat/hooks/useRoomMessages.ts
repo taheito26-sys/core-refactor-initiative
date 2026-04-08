@@ -87,7 +87,7 @@ export function useRoomMessages(roomId: string | null) {
       if (!roomId || !userId) return;
       const nonce = input.clientNonce ?? crypto.randomUUID();
       // Optimistic insert
-      const optimistic: ChatMessage = {
+      const optimistic = {
         id: `opt-${nonce}`,
         room_id: roomId,
         sender_id: userId,
@@ -109,11 +109,10 @@ export function useRoomMessages(roomId: string | null) {
         watermark_text: input.watermarkText ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        _optimistic: true as any,
-        _pending: true as any,
-        _failed: false as any,
-      };
+        _optimistic: true,
+        _pending: true,
+        _failed: false,
+      } as ChatMessage;
       qc.setQueryData<ChatMessage[]>(MESSAGES_KEY(roomId), (prev) =>
         prev ? [...prev, optimistic] : [optimistic],
       );

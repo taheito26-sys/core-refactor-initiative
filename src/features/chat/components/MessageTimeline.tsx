@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useChatStore } from '@/lib/chat-store';
-import type { ChatMessage } from '@/lib/chat-store';
+import type { ChatMessage } from '../types';
 import { groupMessagesByDate } from '../lib/message-codec';
 import { MessageItem } from './MessageItem';
 import { UnreadDivider } from './UnreadDivider';
@@ -41,14 +41,14 @@ export function MessageTimeline({
 
   const firstUnreadId = useMemo(() => {
     for (const m of messages) {
-      if (m.sender_id !== currentUserId && !m.read_at) return m.id;
+      if (m.sender_id !== currentUserId && !m.receipt_status) return m.id;
     }
     return null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConvId]);
 
   const unreadCount = useMemo(
-    () => messages.filter((m) => m.sender_id !== currentUserId && !m.read_at).length,
+    () => messages.filter((m) => m.sender_id !== currentUserId && m.receipt_status !== 'read').length,
     [messages, currentUserId]
   );
 

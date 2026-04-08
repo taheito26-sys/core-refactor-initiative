@@ -218,13 +218,13 @@ export const presenceOf = (userId: string) =>
 
 /** Used by notification-router to suppress in-view chat notifications */
 export function isViewingConversationMessage(
-  state: ChatState & ChatActions,
+  state: Pick<ChatState, 'attention' | 'activeRoomId' | 'activeConversationId'>,
   roomId: string,
 ): boolean {
   return (
     state.attention.appFocused &&
     state.attention.inChatModule &&
     state.attention.activeConversationVisible &&
-    state.activeRoomId === roomId
+    (state.activeRoomId === roomId || state.activeConversationId === roomId)
   );
 }

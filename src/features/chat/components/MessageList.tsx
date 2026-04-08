@@ -96,7 +96,7 @@ export function MessageList({ messages, meId, isLoading, roomType, onReact, onEd
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-6 relative">
-      {watermarkEnabled && <SecureWatermark />}
+      {watermarkEnabled && <SecureWatermark enabled={watermarkEnabled} />}
 
       {groups.map((group) => (
         <div key={group.label}>

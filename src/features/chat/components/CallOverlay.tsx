@@ -3,10 +3,20 @@
 import { Phone, PhoneOff, Mic, MicOff, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import type { UseWebRTCReturn } from '../hooks/useWebRTC';
+type CallState = 'idle' | 'calling' | 'ringing' | 'connected' | 'reconnecting' | 'ended' | 'failed';
+
+interface CallOverlayWebRTC {
+  callState: CallState;
+  incomingCall: unknown;
+  isMuted: boolean;
+  answerIncoming: () => void;
+  declineIncoming: () => void;
+  hangUp: () => void;
+  toggleMute: () => void;
+}
 
 interface Props {
-  webrtc: ReturnType<typeof import('../hooks/useWebRTC').useWebRTC>;
+  webrtc: CallOverlayWebRTC;
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -42,7 +52,7 @@ export function CallOverlay({ webrtc }: Props) {
       )}>
         {/* Status */}
         <div className="flex items-center gap-2">
-          {(isActive || callState === 'reconnecting') && (
+          {isActive && (
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
           )}
           <span className="text-sm font-semibold">
@@ -86,7 +96,7 @@ export function CallOverlay({ webrtc }: Props) {
             </Button>
           )}
 
-          {(isActive || isCalling || callState === 'reconnecting') && (
+          {(isActive || isCalling) && (
             <Button
               size="icon"
               variant="destructive"

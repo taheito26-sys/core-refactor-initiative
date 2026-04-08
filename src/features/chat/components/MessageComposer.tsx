@@ -54,16 +54,14 @@ function useVoiceRecorder() {
   const stop = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
       if (!recorderRef.current) { resolve(null); return; }
-      // @ts-expect-error MediaRecorder stored as stream
-      const mr: MediaRecorder = recorderRef.current;
+      const mr: MediaRecorder = recorderRef.current as unknown as MediaRecorder;
       if (mr.state !== 'inactive') {
         mr.onstop = () => {
           const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
           resolve(blob);
         };
         mr.stop();
-        // @ts-expect-error
-        mr.stream?.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        (mr as unknown as { stream?: MediaStream }).stream?.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       } else {
         resolve(null);
       }

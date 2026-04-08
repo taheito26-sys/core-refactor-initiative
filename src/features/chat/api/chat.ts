@@ -255,7 +255,7 @@ export async function uploadAttachment(
   if (uploadErr) throw rpcError('uploadAttachment:upload', uploadErr);
 
   const { data: att, error: insertErr } = await supabase
-    .from('chat_attachments' as never)
+    .from('chat_attachments')
     .insert({
       room_id:     roomId,
       uploader_id: uploaderId,
@@ -289,8 +289,8 @@ export async function linkAttachmentToMessage(
   messageId: string,
 ): Promise<void> {
   const { error } = await supabase
-    .from('chat_attachments' as never)
-    .update({ message_id: messageId })
+    .from('chat_attachments')
+    .update({ message_id: messageId } as never)
     .eq('id', attachmentId);
   if (error) throw rpcError('linkAttachmentToMessage', error);
 }
