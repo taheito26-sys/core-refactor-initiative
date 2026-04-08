@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { playNotificationSound, requestPushPermission, showBrowserNotification } from '@/lib/notification-sound';
@@ -26,6 +26,7 @@ interface UseNotificationsOptions {
 }
 
 export function useNotifications(options: UseNotificationsOptions = {}) {
+  const { shouldSuppressRealtimeNotification } = options;
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const [hasLiveNotificationChannel, setHasLiveNotificationChannel] = useState(false);
@@ -50,11 +51,14 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     if (userId) requestPushPermission();
   }, [userId]);
 
+  const suppressRef = useRef(shouldSuppressRealtimeNotification);
+  suppressRef.current = shouldSuppressRealtimeNotification;
+
   const handleRealtimeInsert = useCallback((notification: Notification) => {
     const shouldSuppressViaStore = notification.target.kind === 'chat_message'
       && Boolean(notification.target.conversationId)
       && isViewingConversationMessage(useChatStore.getState(), notification.target.conversationId!);
-    const shouldSuppress = shouldSuppressViaStore || options.shouldSuppressRealtimeNotification?.(notification);
+    const shouldSuppress = shouldSuppressViaStore || suppressRef.current?.(notification);
     if (shouldSuppress) return;
 
     playCategoryChime(notification.category);
@@ -68,7 +72,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
         window.location.assign(`${nav.pathname}${nav.search ?? ''}`);
       },
     });
-  }, [options]);
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
