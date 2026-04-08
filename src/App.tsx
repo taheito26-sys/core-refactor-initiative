@@ -32,6 +32,7 @@ import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
 import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
 import CustomerChatPage from "./pages/customer/CustomerChatPage";
 import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
+import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
@@ -235,6 +236,7 @@ const App = () => (
                   <Route path="/c/home" element={<CustomerHomePage />} />
                   <Route path="/c/merchants" element={<CustomerMerchantsPage />} />
                   <Route path="/c/orders" element={<CustomerOrdersPage />} />
+                  <Route path="/c/wallet" element={<CustomerWalletPage />} />
                   <Route path="/c/chat" element={<CustomerChatPage />} />
                   <Route path="/c/settings" element={<CustomerSettingsPage />} />
                 </Route>

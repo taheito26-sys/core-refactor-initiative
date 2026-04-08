@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Store, ShoppingCart, MessageCircle, Settings, LogOut } from 'lucide-react';
+import { Home, Store, ShoppingCart, MessageCircle, Settings, LogOut, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ const navItems = [
   { path: '/c/home', icon: Home, label: 'Home' },
   { path: '/c/merchants', icon: Store, label: 'Merchants' },
   { path: '/c/orders', icon: ShoppingCart, label: 'Orders' },
+  { path: '/c/wallet', icon: Wallet, label: 'Wallet' },
   { path: '/c/chat', icon: MessageCircle, label: 'Chat' },
   { path: '/c/settings', icon: Settings, label: 'Settings' },
 ];

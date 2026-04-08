@@ -2527,6 +2527,7 @@ export type Database = {
         Returns: undefined
       }
       current_merchant_id: { Args: never; Returns: string }
+      customer_wallet_summary: { Args: { p_user_id: string }; Returns: Json }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
       fn_chat_add_reaction: {
         Args: { _message_id: string; _reaction: string; _room_id: string }
