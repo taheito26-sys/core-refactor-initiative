@@ -680,8 +680,8 @@
 
   /* ── Edge-to-edge orders layout ── */
   .tracker-root.orders-mobile-root {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding-left: 1px !important;
+    padding-right: 1px !important;
   }
   /* Give back horizontal breathing room to the controls above the list */
   .tracker-root.orders-mobile-root .orders-tab-bar,
