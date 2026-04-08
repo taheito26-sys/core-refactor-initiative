@@ -32,6 +32,11 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/account-rejected" replace />;
   }
 
+  // If user is a customer, redirect to customer portal
+  if (profile && profile.role === 'customer') {
+    return <Navigate to="/c/home" replace />;
+  }
+
   // No merchant profile yet — needs onboarding
   if (!merchantProfile) {
     return <Navigate to="/onboarding" replace />;
