@@ -2346,7 +2346,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
@@ -4004,9 +4004,9 @@ export default function OrdersPage() {
 
                 <div
                   className="formActions"
-                  style={isMobile ? { position: 'sticky', bottom: 0, background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
+                  style={isMobile ? { position: 'static', background: 'var(--panel)', paddingTop: 8, paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))', zIndex: 20 } : undefined}
                 >
-                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale} style={isMobile ? { width: '100%', minHeight: 40, fontSize: 12 } : undefined}>
+                  <button className="btn" onClick={addTrade} disabled={!canSubmitSale} style={isMobile ? { width: '100%', minHeight: 44, fontSize: 13 } : undefined}>
                     {merchantOrderEnabled ? t('sendForApproval') : t('addTrade')}
                   </button>
                 </div>

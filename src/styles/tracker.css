@@ -694,11 +694,14 @@
     max-width: none;
     overflow: visible;
   }
-  /* Card list: bleed 10px on each side to counter app-page-shell padding */
+  /* Card list: full width, no gaps — lives inside zero-padded root */
   .tracker-root.orders-mobile-root .orders-cards-list {
-    margin-left: -10px;
-    margin-right: -10px;
-    width: calc(100% + 20px);
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    padding-left: 6px;
+    padding-right: 6px;
+    box-sizing: border-box;
   }
   /* Sale form: bleed edge-to-edge, no outer radius, compact */
   .tracker-root.orders-mobile-root .formPanel.salePanel {
@@ -707,9 +710,9 @@
     border-bottom: none;
     border-radius: 0;
     margin-top: 10px;
-    margin-left: -10px;
-    margin-right: -10px;
-    width: calc(100% + 20px);
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
   .tracker-root.orders-mobile-root .formPanel.salePanel .inner {
     padding: 6px 10px;
@@ -737,6 +740,41 @@
   }
   .tracker-root.orders-mobile-root .formPanel.salePanel .modeToggle {
     gap: 3px;
+  }
+
+  /* ── Edge-to-edge stock layout ── */
+  .tracker-root.stock-mobile-root {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  .tracker-root.stock-mobile-root > * {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .tracker-root.stock-mobile-root .stock-tab-switcher {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .tracker-root.stock-mobile-root .orders-tab-bar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  /* Stock form panel: edge-to-edge on mobile */
+  .tracker-root.stock-mobile-root .formPanel.salePanel {
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    margin-left: -6px;
+    margin-right: -6px;
+    width: calc(100% + 12px);
+  }
+  .tracker-root.stock-mobile-root .formPanel.salePanel .inner {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+  .tracker-root.stock-mobile-root .formPanel.salePanel .hdr {
+    padding: 6px 10px;
   }
 }
 
