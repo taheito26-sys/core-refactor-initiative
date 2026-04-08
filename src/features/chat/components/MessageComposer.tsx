@@ -138,7 +138,19 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
     try {
       const att = await uploadAttachment(roomId, userId, file);
       const isImage = file.type.startsWith('image/');
-      onSend(isImage ? '🖼 Image' : `📎 ${file.name}`, { attachmentId: att.id, viewOnce });
+      onSend(
+        isImage ? '🖼 Image' : `📎 ${file.name}`,
+        {
+          attachmentId: att.id,
+          viewOnce,
+          type: isImage ? 'image' : 'file',
+          metadata: {
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+          },
+        },
+      );
     } catch (err) {
       toast.error('Upload failed: ' + (err as Error).message);
     } finally {
