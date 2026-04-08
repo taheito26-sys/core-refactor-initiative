@@ -86,11 +86,131 @@ function priorityScore(n: Notification): number {
   return score;
 }
 
+// ─── Page-level Inline Action Area ──────────────────────────────────
+function PageInlineActions({
+  n,
+  onDone,
+  t,
+}: {
+  n: SmartNotification;
+  onDone: (ids: string[]) => void;
+  t: (key: string) => string;
+}) {
+  const kind = resolveNotificationActionKind(n.category, n.target?.entityType);
+  const isAgreement = n.category === 'agreement';
+  const updateAgreement = useUpdateAgreementStatus();
+  const dealApprove = useInlineDealApprove();
+  const dealReject = useInlineDealReject();
+  const inviteAccept = useInlineInviteAccept();
+  const inviteReject = useInlineInviteReject();
+  const profileApprove = useInlineProfileApprove();
+  const profileReject = useInlineProfileReject();
+  const settlApprove = useInlineSettlementApprove();
+  const settlReject = useInlineSettlementReject();
+  const [showRejectReason, setShowRejectReason] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const entityId = n.target?.entityId ?? n.target?.targetEntityId ?? null;
+  const ids = (n as any).groupIds?.length ? (n as any).groupIds : [n.id];
+  const busy =
+    dealApprove.isPending || dealReject.isPending ||
+    inviteAccept.isPending || inviteReject.isPending ||
+    profileApprove.isPending || profileReject.isPending ||
+    settlApprove.isPending || settlReject.isPending ||
+    updateAgreement.isPending;
+
+  if (!entityId && !isAgreement) return null;
+  if (!kind && !isAgreement) return null;
+
+  const approveBtn = (label: string, color: string, fn: () => Promise<void>) => (
+    <Button size="sm" variant="default" className={cn('h-7 text-[11px] px-3 gap-1.5', color)} disabled={busy}
+      onClick={async (e) => { e.stopPropagation(); try { await fn(); onDone(ids); toast.success(t('tradeApproved')); } catch (err: any) { toast.error(err.message); } }}>
+      <Check className="h-3.5 w-3.5" />{label}
+    </Button>
+  );
+  const rejectBtn = (label: string, fn: () => Promise<void>) => (
+    <Button size="sm" variant="destructive" className="h-7 text-[11px] px-3 gap-1.5" disabled={busy}
+      onClick={async (e) => { e.stopPropagation(); try { await fn(); onDone(ids); toast.success(t('tradeRejected')); } catch (err: any) { toast.error(err.message); } }}>
+      <X className="h-3.5 w-3.5" />{label}
+    </Button>
+  );
+
+  if (isAgreement) {
+    const agId = (n.target as any)?.targetEntityId ?? entityId;
+    if (!agId) return null;
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => updateAgreement.mutateAsync({ agreementId: agId, status: 'approved' }))}
+        {rejectBtn(t('reject'), () => updateAgreement.mutateAsync({ agreementId: agId, status: 'rejected' }))}
+        <span className="ml-auto text-[10px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
+  if (kind === 'deal_approval') {
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => dealApprove.mutateAsync(entityId!))}
+        {rejectBtn(t('reject'), () => dealReject.mutateAsync(entityId!))}
+        <span className="ml-auto text-[10px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
+  if (kind === 'invite_incoming') {
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('accept'), 'bg-violet-600 hover:bg-violet-700', () => inviteAccept.mutateAsync(entityId!))}
+        {rejectBtn(t('decline'), () => inviteReject.mutateAsync(entityId!))}
+      </div>
+    );
+  }
+
+  if (kind === 'profile_approval') {
+    if (showRejectReason) {
+      return (
+        <div className="mt-2.5 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <Textarea placeholder={t('rejectReasonPlaceholder') || 'Reason for rejection...'} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="text-xs min-h-[56px] resize-none" />
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" className="h-7 text-[11px] px-3" disabled={busy || !rejectReason.trim()}
+              onClick={async () => { try { await profileReject.mutateAsync({ profileUserId: entityId!, reason: rejectReason.trim() }); onDone(ids); toast.success(t('rejected')); } catch (err: any) { toast.error(err.message); } }}>
+              {t('confirmReject') || 'Confirm'}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => { setShowRejectReason(false); setRejectReason(''); }}>{t('cancel')}</Button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => profileApprove.mutateAsync(entityId!))}
+        <Button size="sm" variant="outline" className="h-7 text-[11px] px-3 gap-1.5 border-destructive text-destructive hover:bg-destructive/10" disabled={busy}
+          onClick={(e) => { e.stopPropagation(); setShowRejectReason(true); }}>
+          <X className="h-3.5 w-3.5" />{t('reject')}
+        </Button>
+      </div>
+    );
+  }
+
+  if (kind === 'settlement_approval') {
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => settlApprove.mutateAsync(entityId!))}
+        {rejectBtn(t('reject'), () => settlReject.mutateAsync(entityId!))}
+        <span className="ml-auto text-[10px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ─── Notification Card ──────────────────────────────────────────────
 function NotificationCard({
   n,
   onNavigate,
   onMarkRead,
+  onActionDone,
   t,
   selectMode,
   selected,
@@ -99,6 +219,7 @@ function NotificationCard({
   n: SmartNotification;
   onNavigate: (n: Notification) => void;
   onMarkRead: (id: string) => void;
+  onActionDone: (ids: string[]) => void;
   t: (key: string) => string;
   selectMode?: boolean;
   selected?: boolean;
