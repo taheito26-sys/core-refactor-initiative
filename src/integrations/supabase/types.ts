@@ -1290,6 +1290,39 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          in_app_enabled: boolean
+          push_enabled: boolean
+          sound_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          in_app_enabled?: boolean
+          push_enabled?: boolean
+          sound_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          in_app_enabled?: boolean
+          push_enabled?: boolean
+          sound_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           actor_id: string | null
@@ -2158,6 +2191,36 @@ export type Database = {
           },
         ]
       }
+      push_device_tokens: {
+        Row: {
+          created_at: string
+          device_id: string | null
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          platform?: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       settlement_decisions: {
         Row: {
           agreement_id: string
@@ -2493,6 +2556,17 @@ export type Database = {
       }
     }
     Functions: {
+      admin_analytics_overview: {
+        Args: { _months?: number }
+        Returns: {
+          deal_count: number
+          deal_volume: number
+          month: string
+          new_users: number
+          profit_amount: number
+          settlement_amount: number
+        }[]
+      }
       admin_broadcast_notification: {
         Args: { _body: string; _category?: string; _title: string }
         Returns: number
@@ -2510,6 +2584,30 @@ export type Database = {
           _updates: Json
         }
         Returns: undefined
+      }
+      admin_merchant_performance: {
+        Args: never
+        Returns: {
+          avg_deal_size: number
+          deal_count: number
+          display_name: string
+          merchant_id: string
+          nickname: string
+          settlement_count: number
+          status: string
+          total_profit: number
+          total_volume: number
+        }[]
+      }
+      admin_revenue_breakdown: {
+        Args: never
+        Returns: {
+          currency: string
+          deal_count: number
+          deal_type: string
+          total_profit: number
+          total_volume: number
+        }[]
       }
       admin_system_stats: { Args: never; Returns: Json }
       admin_void_deal: {
