@@ -597,7 +597,13 @@ export default function StockPage() {
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
                         <strong className="mono" style={{ fontSize: 12 }}>{fmtU(b.initialUSDT)} USDT</strong>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(b.buyPriceQAR)}</span>
                         <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                          {(b.profit || 0) !== 0 && (
+                            <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                              {(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}
+                            </span>
+                          )}
                           <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
                         </div>

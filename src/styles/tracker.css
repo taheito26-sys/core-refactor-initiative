@@ -694,10 +694,11 @@
     max-width: none;
     overflow: visible;
   }
-  /* Card list: true edge-to-edge, zero padding */
+  /* Card list: bleed past app-page-shell 10px padding — same technique as stock */
   .tracker-root.orders-mobile-root .orders-cards-list {
-    margin: 0;
-    width: 100%;
+    margin-left: -10px;
+    margin-right: -10px;
+    width: calc(100% + 20px);
     padding: 0;
   }
   /* New Sale form: hidden by default on mobile — shown as sheet via .sale-sheet-open */
