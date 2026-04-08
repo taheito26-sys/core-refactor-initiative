@@ -316,6 +316,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: user?.email ?? null,
     profile,
     merchantProfile,
+    customerProfile,
     login,
     loginWithGoogle,
     signup,
