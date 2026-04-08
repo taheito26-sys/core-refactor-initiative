@@ -85,6 +85,53 @@ export async function getMessages(
   const { data, error } = await query;
   if (error) throw rpcError('getMessages', error);
   const msgs = ((data ?? []) as unknown as ChatMessage[]).reverse();
+
+  // Enrich with receipt status — fetch receipts for these messages
+  if (msgs.length > 0) {
+    const msgIds = msgs.map((m) => m.id);
+    const { data: receipts } = await supabase
+      .from('chat_message_receipts' as never)
+      .select('message_id, status')
+      .in('message_id', msgIds);
+
+    if (receipts && Array.isArray(receipts)) {
+      // Build a map: message_id → highest status
+      const statusMap = new Map<string, string>();
+      for (const r of receipts as { message_id: string; status: string }[]) {
+        const current = statusMap.get(r.message_id);
+        // Priority: read > delivered > sent
+        if (!current || r.status === 'read' || (r.status === 'delivered' && current !== 'read')) {
+          statusMap.set(r.message_id, r.status);
+        }
+      }
+      for (const m of msgs) {
+        const s = statusMap.get(m.id);
+        if (s) m.receipt_status = s as ChatMessage['receipt_status'];
+        else m.receipt_status = 'sent';
+      }
+    }
+  }
+
+  // Enrich with attachments
+  const attachedMsgIds = msgs.filter((m) => m.type === 'image' || m.type === 'file' || m.type === 'voice_note').map((m) => m.id);
+  if (attachedMsgIds.length > 0) {
+    const { data: attachments } = await supabase
+      .from('chat_attachments' as never)
+      .select('*')
+      .in('message_id', attachedMsgIds);
+
+    if (attachments && Array.isArray(attachments)) {
+      const attMap = new Map<string, ChatAttachment>();
+      for (const a of attachments as unknown as ChatAttachment[]) {
+        if (a.message_id) attMap.set(a.message_id, a);
+      }
+      for (const m of msgs) {
+        const att = attMap.get(m.id);
+        if (att) m.attachment = att;
+      }
+    }
+  }
+
   return msgs;
 }
 

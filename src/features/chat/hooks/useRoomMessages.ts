@@ -32,12 +32,13 @@ export function useRoomMessages(roomId: string | null) {
     clearUnread(roomId);
   }, [roomId, userId, clearUnread]);
 
-  // ── realtime subscription ────────────────────────────────────────────────
+  // ── realtime subscription (messages + receipts) ───────────────────────────
   useEffect(() => {
     if (!roomId || !userId) return;
 
     const ch = supabase
-      .channel(`chat-messages-${roomId}`)
+      .channel(`chat-room-${roomId}`)
+      // Messages
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` },
@@ -48,22 +49,18 @@ export function useRoomMessages(roomId: string | null) {
           qc.setQueryData<ChatMessage[]>(MESSAGES_KEY(roomId), (prev) => {
             if (!prev) return prev;
             if (payload.eventType === 'INSERT') {
-              // Match by real id (exact duplicate) OR by client_nonce (optimistic → confirmed)
               const byId    = prev.findIndex((m) => m.id === msg.id);
               const byNonce = msg.client_nonce
                 ? prev.findIndex((m) => m.client_nonce === msg.client_nonce)
                 : -1;
 
               if (byId !== -1) {
-                // Already in list (e.g. onSuccess already placed it) — update in place
                 return prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m));
               }
               if (byNonce !== -1) {
-                // Replace optimistic placeholder with confirmed server message
                 return prev.map((m) => (m.client_nonce === msg.client_nonce ? { ...msg } : m));
               }
-              // Genuinely new message (from another user, or rare race)
-              return [...prev, msg];
+              return [...prev, { ...msg, receipt_status: 'sent' as const }];
             }
             if (payload.eventType === 'UPDATE') {
               return prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m));
@@ -74,10 +71,33 @@ export function useRoomMessages(roomId: string | null) {
             return prev;
           });
 
-          // auto-mark read if this room is active
           if (payload.eventType === 'INSERT' && msg.sender_id !== userId) {
             markRoomRead(roomId, msg.id).catch(() => {});
           }
+        },
+      )
+      // Receipts — update tick marks in real time (WhatsApp-style)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_message_receipts', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const receipt = payload.new as { message_id: string; status: string } | undefined;
+          if (!receipt?.message_id) return;
+
+          qc.setQueryData<ChatMessage[]>(MESSAGES_KEY(roomId), (prev) => {
+            if (!prev) return prev;
+            return prev.map((m) => {
+              if (m.id !== receipt.message_id) return m;
+              // Only upgrade status: sent → delivered → read
+              const priority = { sent: 0, delivered: 1, read: 2 };
+              const currentP = priority[m.receipt_status as keyof typeof priority] ?? -1;
+              const newP = priority[receipt.status as keyof typeof priority] ?? -1;
+              if (newP > currentP) {
+                return { ...m, receipt_status: receipt.status as ChatMessage['receipt_status'] };
+              }
+              return m;
+            });
+          });
         },
       )
       .subscribe();
