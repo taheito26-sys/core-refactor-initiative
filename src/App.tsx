@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
+import { CustomerGuard } from "@/features/auth/guards/CustomerGuard";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
