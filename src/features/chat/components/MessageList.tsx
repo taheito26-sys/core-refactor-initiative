@@ -270,9 +270,34 @@ export function MessageList({ messages, meId, isLoading, roomType, onReact, onEd
 
 function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolean }) {
   const [playing, setPlaying] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [loadingAudio, setLoadingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const waveform = message.metadata?.waveform as number[] | undefined;
   const durationMs = message.metadata?.duration_ms as number | undefined;
+
+  // Fetch attachment audio URL on mount
+  useEffect(() => {
+    let cancelled = false;
+    if (message.attachment?.storage_path) {
+      setLoadingAudio(true);
+      getSignedUrl(message.attachment.storage_path)
+        .then((url) => { if (!cancelled) setAudioUrl(url); })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoadingAudio(false); });
+    } else {
+      // Fetch attachment by message ID
+      setLoadingAudio(true);
+      getAttachment(message.id)
+        .then((att) => {
+          if (cancelled || !att) return;
+          setAudioUrl(att.signed_url ?? null);
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoadingAudio(false); });
+    }
+    return () => { cancelled = true; };
+  }, [message.id, message.attachment?.storage_path]);
 
   const toggle = useCallback(async () => {
     if (!audioRef.current) return;
@@ -284,12 +309,16 @@ function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolea
     <div className="flex items-center gap-2 min-w-[160px]">
       <button
         onClick={toggle}
+        disabled={loadingAudio || !audioUrl}
         className={cn(
           'h-8 w-8 rounded-full flex items-center justify-center shrink-0',
           isMe ? 'bg-primary-foreground/20' : 'bg-primary/20',
+          (loadingAudio || !audioUrl) && 'opacity-50',
         )}
       >
-        <span className="text-xs">{playing ? '⏸' : '▶'}</span>
+        {loadingAudio
+          ? <span className="h-3 w-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+          : <span className="text-xs">{playing ? '⏸' : '▶'}</span>}
       </button>
       {/* Waveform bars */}
       <div className="flex items-end gap-0.5 h-6 flex-1">
@@ -307,8 +336,51 @@ function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolea
       <span className={cn('text-[9px] shrink-0', isMe ? 'text-primary-foreground/60' : 'text-muted-foreground/60')}>
         {durationMs ? `${Math.round(durationMs / 1000)}s` : '—'}
       </span>
-      {/* Hidden audio element — URL set by AttachmentPreview/parent */}
+      {/* Audio element */}
+      {audioUrl && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="metadata"
+          onEnded={() => setPlaying(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function DisappearingBadge({ expiresAt, isMe }: { expiresAt: string; isMe: boolean }) {
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, differenceInSeconds(new Date(expiresAt), new Date())),
+  );
+
+  useEffect(() => {
+    if (remaining <= 0) return;
+    const interval = setInterval(() => {
+      const secs = Math.max(0, differenceInSeconds(new Date(expiresAt), new Date()));
+      setRemaining(secs);
+      if (secs <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt, remaining]);
+
+  if (remaining <= 0) return null;
+
+  const formatTime = (s: number) => {
+    if (s >= 86400) return `${Math.floor(s / 86400)}d`;
+    if (s >= 3600) return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+    if (s >= 60) return `${Math.floor(s / 60)}m ${s % 60}s`;
+    return `${s}s`;
+  };
+
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-0.5 ml-1.5 text-[9px]',
+      isMe ? 'text-primary-foreground/60' : 'text-amber-500',
+    )}>
+      <Clock className="h-2.5 w-2.5" />
+      {formatTime(remaining)}
+    </span>
   );
 }
 
