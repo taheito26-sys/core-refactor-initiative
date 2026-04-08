@@ -104,6 +104,7 @@ function NotificationCard({
     <div
       className={cn(
         'group relative flex items-start gap-4 p-4 rounded-xl transition-all cursor-pointer border',
+        selected && 'ring-2 ring-primary/40',
         isAdminPriority && isUnread
           ? 'bg-destructive/[0.04] border-destructive/20 shadow-sm shadow-destructive/5 hover:shadow-md hover:border-destructive/30'
           : isUnread
