@@ -219,6 +219,26 @@ const App = () => (
                   <AuthGuard><OnboardingPage /></AuthGuard>
                 } />
 
+                {/* Customer onboarding — requires auth */}
+                <Route path="/c/onboarding" element={
+                  <AuthGuard><CustomerOnboardingPage /></AuthGuard>
+                } />
+
+                {/* Customer Portal — requires auth + customer profile */}
+                <Route element={
+                  <AuthGuard>
+                    <CustomerGuard>
+                      <CustomerLayout />
+                    </CustomerGuard>
+                  </AuthGuard>
+                }>
+                  <Route path="/c/home" element={<CustomerHomePage />} />
+                  <Route path="/c/merchants" element={<CustomerMerchantsPage />} />
+                  <Route path="/c/orders" element={<CustomerOrdersPage />} />
+                  <Route path="/c/chat" element={<CustomerChatPage />} />
+                  <Route path="/c/settings" element={<CustomerSettingsPage />} />
+                </Route>
+
                 {/* App Shell — requires auth + approved profile + merchant profile */}
                 <Route element={
                   <AuthGuard>
