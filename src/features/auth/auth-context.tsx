@@ -60,6 +60,7 @@ interface AuthState {
   email: string | null;
   profile: Profile | null;
   merchantProfile: MerchantProfile | null;
+  customerProfile: CustomerProfile | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
