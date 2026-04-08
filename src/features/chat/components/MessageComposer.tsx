@@ -169,7 +169,13 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
         const att = await uploadAttachment(roomId, userId, file, {
           durationMs: voice.duration * 1000,
         });
-        onSend('🎙 Voice message', { attachmentId: att.id });
+        onSend('🎙 Voice message', {
+          attachmentId: att.id,
+          type: 'voice_note',
+          metadata: {
+            duration_ms: voice.duration * 1000,
+          },
+        });
       } catch (err) {
         toast.error('Voice upload failed');
       } finally {
