@@ -111,7 +111,7 @@ function NotificationCard({
           ? 'bg-card border-primary/15 shadow-sm hover:shadow-md hover:border-primary/25'
           : 'bg-card/50 border-border/50 hover:bg-card hover:border-border'
       )}
-      onClick={() => onNavigate(n)}
+      onClick={() => selectMode ? onToggleSelect?.(n.id) : onNavigate(n)}
     >
       {/* Timeline connector dot */}
       {isUnread && (
