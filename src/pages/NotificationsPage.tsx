@@ -140,8 +140,8 @@ function PageInlineActions({
     if (!agId) return null;
     return (
       <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
-        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => updateAgreement.mutateAsync({ agreementId: agId, status: 'approved' }))}
-        {rejectBtn(t('reject'), () => updateAgreement.mutateAsync({ agreementId: agId, status: 'rejected' }))}
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', async () => { await updateAgreement.mutateAsync({ agreementId: agId, status: 'approved' }); })}
+        {rejectBtn(t('reject'), async () => { await updateAgreement.mutateAsync({ agreementId: agId, status: 'rejected' }); })}
         <span className="ml-auto text-[10px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
       </div>
     );
