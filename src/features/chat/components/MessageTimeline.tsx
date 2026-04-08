@@ -41,7 +41,7 @@ export function MessageTimeline({
 
   const firstUnreadId = useMemo(() => {
     for (const m of messages) {
-      if (m.sender_id !== currentUserId && !m.read_at) return m.id;
+      if (m.sender_id !== currentUserId && !m.receipt_status) return m.id;
     }
     return null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
