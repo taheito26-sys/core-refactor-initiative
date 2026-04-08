@@ -1644,7 +1644,7 @@ const translations = {
   searchMerchant:               { en: 'Find a Merchant',                                 ar: 'ابحث عن تاجر' },
   connectToMerchant:            { en: 'Connect',                                         ar: 'اتصال' },
   enterMerchantCode:            { en: 'Enter Merchant ID or Code...',                    ar: 'أدخل رمز أو معرف التاجر...' },
-  merchantNotFound:             { en: 'Merchant not found',                               ar: 'لم يتم العثور على التاجر' },
+  customerMerchantNotFound:     { en: 'Merchant not found',                               ar: 'لم يتم العثور على التاجر' },
   connectionPending:            { en: 'Pending',                                          ar: 'معلق' },
   connectionActive:             { en: 'Active',                                           ar: 'نشط' },
   placeOrder:                   { en: 'Place Order',                                      ar: 'تقديم طلب' },
