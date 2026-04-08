@@ -60,6 +60,13 @@ export default function AdminPage() {
   }
 
   if (workspaceUserId) {
+    if (workspaceType === 'customer') {
+      return (
+        <div style={{ minHeight: '100%', padding: '18px 20px' }}>
+          <AdminCustomerWorkspace userId={workspaceUserId} onBack={() => setWorkspaceUserId(null)} />
+        </div>
+      );
+    }
     return (
       <div style={{ minHeight: '100%', padding: '18px 20px' }}>
         <AdminUserWorkspace userId={workspaceUserId} onBack={() => setWorkspaceUserId(null)} />
