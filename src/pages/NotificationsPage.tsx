@@ -126,6 +126,13 @@ function NotificationCard({
         <div className="absolute -left-[27px] top-6 hidden lg:flex h-2 w-2 rounded-full bg-border" />
       )}
 
+      {/* Select checkbox */}
+      {selectMode && (
+        <button onClick={(e) => { e.stopPropagation(); onToggleSelect?.(n.id); }} className="shrink-0 mt-0.5">
+          {selected ? <SquareCheck className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5 text-muted-foreground/40" />}
+        </button>
+      )}
+
       {/* Category icon */}
       <div className={cn(
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110',
