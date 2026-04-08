@@ -295,6 +295,9 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
+          {/* ── Notification Preferences ── */}
+          <NotificationPreferencesPanel />
+
           {/* ── Logs ── */}
           <Card className="glass">
             <CardHeader className="pb-2">
