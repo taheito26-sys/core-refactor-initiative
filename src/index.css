@@ -287,6 +287,13 @@ select:focus {
     padding: 10px;
   }
 
+  /* Zero-out shell padding when page uses its own edge-to-edge mobile root */
+  .app-page-shell:has(.orders-mobile-root),
+  .app-page-shell:has(.stock-mobile-root) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
   .app-page-content {
     max-width: none;
   }
