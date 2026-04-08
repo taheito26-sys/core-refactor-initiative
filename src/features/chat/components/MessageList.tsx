@@ -302,102 +302,122 @@ export function MessageList({ messages, meId, isLoading, roomType, onReact, onEd
 }
 
 // ── VoiceNotePlayer — WhatsApp style ───────────────────────────────────────
+// CRITICAL: Audio object is created synchronously in the click handler to
+// preserve the user-gesture context. Async fetches break autoplay on mobile.
 function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolean }) {
   const [playing, setPlaying] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
+  const [currentSec, setCurrentSec] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const durationMs = message.metadata?.duration_ms as number | undefined;
+  const totalSec = durationMs ? Math.round(durationMs / 1000) : 0;
 
+  // Cleanup on unmount
   useEffect(() => {
-    let cancelled = false;
-    const fetchUrl = async () => {
-      setLoadingAudio(true);
-      try {
-        if (message.attachment?.storage_path) {
-          const url = await getSignedUrl(message.attachment.storage_path);
-          if (!cancelled) setAudioUrl(url);
-        } else {
-          const att = await getAttachment(message.id);
-          if (!cancelled && att?.signed_url) setAudioUrl(att.signed_url);
-        }
-      } catch { /* silent */ }
-      if (!cancelled) setLoadingAudio(false);
-    };
-    fetchUrl();
-    return () => { cancelled = true; };
-  }, [message.id, message.attachment?.storage_path]);
-
-  const toggle = useCallback(async () => {
-    if (!audioRef.current) return;
-    if (playing) { audioRef.current.pause(); setPlaying(false); }
-    else { await audioRef.current.play(); setPlaying(true); }
-  }, [playing]);
-
-  const handleTimeUpdate = useCallback(() => {
-    if (!audioRef.current) return;
-    const pct = audioRef.current.duration
-      ? (audioRef.current.currentTime / audioRef.current.duration) * 100
-      : 0;
-    setProgress(pct);
+    return () => { audioRef.current?.pause(); audioRef.current = null; };
   }, []);
 
-  const totalSec = durationMs ? Math.round(durationMs / 1000) : 0;
-  const currentSec = audioRef.current?.currentTime
-    ? Math.round(audioRef.current.currentTime)
-    : 0;
+  const toggle = useCallback(async () => {
+    // If already playing, just pause
+    if (playing && audioRef.current) {
+      audioRef.current.pause();
+      setPlaying(false);
+      return;
+    }
+
+    // If we already have an audio element with a src, resume it
+    if (audioRef.current?.src) {
+      try { await audioRef.current.play(); setPlaying(true); } catch { /* */ }
+      return;
+    }
+
+    // Fetch signed URL, then create Audio synchronously in this gesture
+    setLoadingId(message.id);
+    try {
+      let url: string | null = null;
+      if (message.attachment?.storage_path) {
+        url = await getSignedUrl(message.attachment.storage_path);
+      } else {
+        const att = await getAttachment(message.id);
+        url = att?.signed_url ?? null;
+      }
+      if (!url) { setLoadingId(null); return; }
+
+      // Create Audio object and play immediately
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      audio.addEventListener('canplaythrough', () => {
+        setLoadingId(null);
+        setPlaying(true);
+      }, { once: true });
+
+      audio.addEventListener('error', () => {
+        setLoadingId(null);
+        audioRef.current = null;
+      });
+
+      audio.ontimeupdate = () => {
+        if (!audio.duration) return;
+        setProgress((audio.currentTime / audio.duration) * 100);
+        setCurrentSec(Math.round(audio.currentTime));
+      };
+
+      audio.onended = () => {
+        setPlaying(false);
+        setProgress(0);
+        setCurrentSec(0);
+      };
+
+      audio.play().catch(() => {
+        setLoadingId(null);
+      });
+    } catch {
+      setLoadingId(null);
+    }
+  }, [playing, message.id, message.attachment?.storage_path]);
+
+  const isLoading = loadingId === message.id;
 
   return (
     <div className="flex items-center gap-2.5 min-w-[200px] py-1">
-      {/* Play button */}
       <button
         onClick={toggle}
-        disabled={loadingAudio || !audioUrl}
+        disabled={isLoading}
         className={cn(
           'h-9 w-9 rounded-full flex items-center justify-center shrink-0 transition-colors',
           isMe ? 'bg-primary/20 text-primary' : 'bg-primary/15 text-primary',
-          (loadingAudio || !audioUrl) && 'opacity-40',
+          isLoading && 'opacity-40',
         )}
       >
-        {loadingAudio
+        {isLoading
           ? <span className="h-3.5 w-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
           : <span className="text-sm ml-0.5">{playing ? '⏸' : '▶'}</span>}
       </button>
 
       <div className="flex-1 flex flex-col gap-0.5">
-        {/* Progress bar */}
         <div className="h-1 rounded-full bg-muted-foreground/15 relative overflow-hidden">
           <div
             className="h-full rounded-full bg-primary/60 transition-all duration-200"
             style={{ width: `${progress}%` }}
           />
         </div>
-        {/* Duration */}
         <div className="flex justify-between">
           <span className="text-[10px] text-muted-foreground/50">
-            {playing ? `${Math.floor(currentSec / 60)}:${(currentSec % 60).toString().padStart(2, '0')}` : `${Math.floor(totalSec / 60)}:${(totalSec % 60).toString().padStart(2, '0')}`}
+            {playing
+              ? `${Math.floor(currentSec / 60)}:${(currentSec % 60).toString().padStart(2, '0')}`
+              : `${Math.floor(totalSec / 60)}:${(totalSec % 60).toString().padStart(2, '0')}`}
           </span>
         </div>
       </div>
 
-      {/* Mic icon */}
       <div className={cn(
         'h-6 w-6 rounded-full flex items-center justify-center text-[10px] shrink-0',
         isMe ? 'bg-primary/15' : 'bg-muted',
       )}>
         🎙
       </div>
-
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          preload="metadata"
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={() => { setPlaying(false); setProgress(0); }}
-        />
-      )}
     </div>
   );
 }

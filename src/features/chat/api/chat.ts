@@ -87,19 +87,27 @@ export async function getMessages(
   const msgs = ((data ?? []) as unknown as ChatMessage[]).reverse();
 
   // Enrich with receipt status — fetch receipts for these messages
+  // IMPORTANT: Only consider receipts from OTHER users (not the sender).
+  // The sender's own receipt should never mark a message as "read".
   if (msgs.length > 0) {
     const msgIds = msgs.map((m) => m.id);
     const { data: receipts } = await supabase
       .from('chat_message_receipts' as never)
-      .select('message_id, status')
+      .select('message_id, status, user_id')
       .in('message_id', msgIds);
 
     if (receipts && Array.isArray(receipts)) {
-      // Build a map: message_id → highest status
+      // Build sender map so we can skip self-receipts
+      const senderMap = new Map<string, string>();
+      for (const m of msgs) senderMap.set(m.id, m.sender_id);
+
+      // Build a map: message_id → highest status from non-sender users
       const statusMap = new Map<string, string>();
-      for (const r of receipts as { message_id: string; status: string }[]) {
+      for (const r of receipts as { message_id: string; status: string; user_id: string }[]) {
+        // Skip the sender's own receipt
+        if (r.user_id === senderMap.get(r.message_id)) continue;
+
         const current = statusMap.get(r.message_id);
-        // Priority: read > delivered > sent
         if (!current || r.status === 'read' || (r.status === 'delivered' && current !== 'read')) {
           statusMap.set(r.message_id, r.status);
         }
