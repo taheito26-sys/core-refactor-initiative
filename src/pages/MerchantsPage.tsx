@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { AgreementsGlobalTab } from '@/features/merchants/components/AgreementsGlobalTab';
 import MerchantClientsTab from '@/features/merchants/components/MerchantClientsTab';
+import MerchantCustomerOrdersTab from '@/features/merchants/components/MerchantCustomerOrdersTab';
 import { LiquidityTab } from '@/features/merchants/liquidity/LiquidityTab';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
