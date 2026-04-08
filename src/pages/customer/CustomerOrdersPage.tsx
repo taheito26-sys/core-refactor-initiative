@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, ShoppingCart } from 'lucide-react';
+import { Loader2, Plus, ShoppingCart, ArrowDownLeft, ArrowUpRight, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export default function CustomerOrdersPage() {
   const { userId } = useAuth();
@@ -22,7 +23,29 @@ export default function CustomerOrdersPage() {
   const [rate, setRate] = useState('');
   const [note, setNote] = useState('');
 
-  // Active connections for the merchant selector
+  // Quick action from Home page
+  useEffect(() => {
+    const quickOrder = localStorage.getItem('customer_quick_order');
+    if (quickOrder) {
+      localStorage.removeItem('customer_quick_order');
+      setOrderType(quickOrder);
+      setShowForm(true);
+    }
+    const repeatOrder = localStorage.getItem('customer_repeat_order');
+    if (repeatOrder) {
+      localStorage.removeItem('customer_repeat_order');
+      try {
+        const data = JSON.parse(repeatOrder);
+        setOrderType(data.order_type ?? 'buy');
+        setMerchantId(data.merchant_id ?? '');
+        setAmount(String(data.amount ?? ''));
+        setRate(data.rate ? String(data.rate) : '');
+        setCurrency(data.currency ?? 'USDT');
+        setShowForm(true);
+      } catch {}
+    }
+  }, []);
+
   const { data: connections = [] } = useQuery({
     queryKey: ['customer-active-connections', userId],
     queryFn: async () => {
@@ -43,7 +66,6 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
   });
 
-  // Orders
   const { data: orders = [] } = useQuery({
     queryKey: ['customer-orders', userId],
     queryFn: async () => {
@@ -58,8 +80,16 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
   });
 
+  const parsedAmount = parseFloat(amount);
+  const parsedRate = parseFloat(rate);
+  const calculatedTotal = !isNaN(parsedAmount) && !isNaN(parsedRate) && parsedRate > 0
+    ? parsedAmount * parsedRate
+    : null;
+
   const placeOrder = useMutation({
     mutationFn: async () => {
+      if (!merchantId) throw new Error('Select a merchant');
+      if (isNaN(parsedAmount) || parsedAmount <= 0) throw new Error('Enter a valid amount');
       const conn = connections.find((c: any) => c.merchant_id === merchantId);
       if (!conn) throw new Error('Select a connected merchant');
       const { error } = await supabase.from('customer_orders').insert({
@@ -67,10 +97,10 @@ export default function CustomerOrdersPage() {
         merchant_id: merchantId,
         connection_id: conn.id,
         order_type: orderType,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         currency,
-        rate: rate ? parseFloat(rate) : null,
-        total: rate ? parseFloat(amount) * parseFloat(rate) : null,
+        rate: !isNaN(parsedRate) && parsedRate > 0 ? parsedRate : null,
+        total: calculatedTotal,
         note: note.trim() || null,
       });
       if (error) throw error;
@@ -81,60 +111,86 @@ export default function CustomerOrdersPage() {
       setAmount('');
       setRate('');
       setNote('');
+      setMerchantId('');
       queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-home-stats'] });
     },
     onError: (err: any) => toast.error(err?.message || 'Failed to place order'),
   });
 
-  const statusColor = (s: string) => {
+  const statusColor = (s: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     if (s === 'completed') return 'default';
     if (s === 'confirmed') return 'secondary';
     if (s === 'cancelled') return 'destructive';
     return 'outline';
   };
 
+  // Resolve merchant names for order list
+  const merchantNames = new Map(connections.map((c: any) => [c.merchant_id, c.merchantName]));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">My Orders</h1>
         <Button size="sm" onClick={() => setShowForm(!showForm)}>
-          <Plus className="h-4 w-4 mr-1" /> New Order
+          {showForm ? <X className="h-4 w-4 mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+          {showForm ? 'Cancel' : 'New Order'}
         </Button>
       </div>
 
       {showForm && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Place an Order</CardTitle></CardHeader>
+        <Card className="border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Place an Order</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select value={orderType} onValueChange={setOrderType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="buy">Buy</SelectItem>
-                    <SelectItem value="sell">Sell</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Merchant</Label>
-                <Select value={merchantId} onValueChange={setMerchantId}>
-                  <SelectTrigger><SelectValue placeholder="Select merchant" /></SelectTrigger>
-                  <SelectContent>
-                    {connections.map((c: any) => (
-                      <SelectItem key={c.merchant_id} value={c.merchant_id}>
-                        {c.merchantName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Type toggle */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={orderType === 'buy' ? 'default' : 'outline'}
+                className="gap-2"
+                onClick={() => setOrderType('buy')}
+              >
+                <ArrowDownLeft className="h-4 w-4" /> Buy
+              </Button>
+              <Button
+                type="button"
+                variant={orderType === 'sell' ? 'default' : 'outline'}
+                className="gap-2"
+                onClick={() => setOrderType('sell')}
+              >
+                <ArrowUpRight className="h-4 w-4" /> Sell
+              </Button>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+
+            <div className="space-y-2">
+              <Label>Merchant</Label>
+              <Select value={merchantId} onValueChange={setMerchantId}>
+                <SelectTrigger><SelectValue placeholder="Select merchant" /></SelectTrigger>
+                <SelectContent>
+                  {connections.map((c: any) => (
+                    <SelectItem key={c.merchant_id} value={c.merchant_id}>
+                      {c.merchantName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {connections.length === 0 && (
+                <p className="text-xs text-muted-foreground">No connected merchants. <span className="text-primary cursor-pointer" onClick={() => window.location.href = '/c/merchants'}>Add one first</span>.</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Amount</Label>
-                <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Currency</Label>
@@ -146,15 +202,37 @@ export default function CustomerOrdersPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Rate (optional)</Label>
-                <Input type="number" placeholder="3.65" value={rate} onChange={(e) => setRate(e.target.value)} />
-              </div>
             </div>
+
             <div className="space-y-2">
-              <Label>Note</Label>
-              <Input placeholder="Optional note..." value={note} onChange={(e) => setNote(e.target.value)} />
+              <Label>Rate (optional)</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="e.g. 3.65"
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+              />
             </div>
+
+            {/* Total preview */}
+            {calculatedTotal !== null && (
+              <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <p className="text-xs text-muted-foreground mb-1">Estimated Total</p>
+                <p className="text-lg font-bold">
+                  {calculatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">
+                    {currency === 'USDT' ? 'QAR' : 'USDT'}
+                  </span>
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Note (optional)</Label>
+              <Input placeholder="Add a note..." value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+
             <Button
               onClick={() => placeOrder.mutate()}
               disabled={!amount || !merchantId || placeOrder.isPending}
@@ -179,20 +257,39 @@ export default function CustomerOrdersPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {orders.map((order: any) => (
             <Card key={order.id}>
-              <CardContent className="flex items-center justify-between py-4">
-                <div>
-                  <p className="font-medium capitalize">
-                    {order.order_type} · {order.amount} {order.currency}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {order.rate ? `Rate: ${order.rate}` : 'Market rate'} · {new Date(order.created_at).toLocaleDateString()}
-                  </p>
-                  {order.note && <p className="text-xs text-muted-foreground mt-1">{order.note}</p>}
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-full shrink-0',
+                      order.order_type === 'buy' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'
+                    )}>
+                      {order.order_type === 'buy' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium capitalize truncate">
+                        {order.order_type} · {order.amount} {order.currency}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {merchantNames.get(order.merchant_id) ?? order.merchant_id}
+                        {order.rate ? ` · @ ${order.rate}` : ' · Market'}
+                        {order.total ? ` · Total: ${order.total.toLocaleString()}` : ''}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(order.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={statusColor(order.status)} className="shrink-0 text-xs">
+                    {order.status}
+                  </Badge>
                 </div>
-                <Badge variant={statusColor(order.status)}>{order.status}</Badge>
+                {order.note && (
+                  <p className="text-xs text-muted-foreground mt-2 pl-12 italic">"{order.note}"</p>
+                )}
               </CardContent>
             </Card>
           ))}
