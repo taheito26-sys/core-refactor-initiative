@@ -3458,6 +3458,25 @@ export type Database = {
         Args: { _other_user_id: string; _room_name?: string }
         Returns: string
       }
+      chat_get_rooms: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          is_archived: boolean
+          is_direct: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          last_message_at: string
+          last_message_preview: string
+          member_count: number
+          name: string
+          other_user_id: string
+          other_user_metadata: Json
+          room_id: string
+          room_type: Database["public"]["Enums"]["chat_room_type"]
+          unread_count: number
+        }[]
+      }
       chat_initiate_call: { Args: { _room_id: string }; Returns: string }
       chat_mark_room_read: {
         Args: { _room_id: string; _up_to_message_id?: string }
