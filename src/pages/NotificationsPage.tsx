@@ -192,11 +192,29 @@ export default function NotificationsPage() {
   const t = useT();
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const markBulkRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllRead();
 
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleBulkMarkRead = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    markBulkRead.mutate(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, [selectedIds, markBulkRead]);
 
   const filtered = useMemo(() => {
     let items = notifications ?? [];
@@ -216,6 +234,9 @@ export default function NotificationsPage() {
         (n.body ?? '').toLowerCase().includes(q)
       );
     }
+
+    // Apply smart priority sorting — actionable unread items float to top within each day
+    items = [...items].sort((a, b) => priorityScore(b) - priorityScore(a));
 
     return items;
   }, [notifications, activeCategory, showUnreadOnly, searchQuery]);
