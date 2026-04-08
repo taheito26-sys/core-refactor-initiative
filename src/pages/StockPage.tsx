@@ -84,6 +84,11 @@ export default function StockPage() {
     searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
   );
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
+  // ── Mobile Add Batch Sheet ────────────────────────────────────────
+  const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
+  const [batchConfirmDetails, setBatchConfirmDetails] = useState<{
+    qty: number; price: number; source: string; total: number; fundingAccName?: string;
+  } | null>(null);
 
   // Clear shared search query on mount to prevent cross-page filter leak
   useEffect(() => {
@@ -342,10 +347,19 @@ export default function StockPage() {
     setBatchSupplier('');
     setBatchNote('');
     const fundingAccName = activeAccounts.find(a => a.id === fundingAccountId)?.name;
-    const deductMsg = fundingAccName
-       ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
-       : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
-    setBatchMsg(t('batchAdded') + deductMsg);
+    if (isMobile) {
+      setBatchMsg('');
+      setBatchConfirmDetails({ qty: totalUSDT, price: px, source, total: batchCostQAR, fundingAccName });
+      setTimeout(() => {
+        setBatchConfirmDetails(null);
+        setAddBatchSheetOpen(false);
+      }, 2500);
+    } else {
+      const deductMsg = fundingAccName
+         ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
+         : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
+      setBatchMsg(t('batchAdded') + deductMsg);
+    }
   };
 
   const openEdit = (id: string) => {
@@ -696,10 +710,10 @@ export default function StockPage() {
           )}
         </div>
 
-        <div>
-          <div className="formPanel salePanel" style={isMobile ? { padding: 8, borderRadius: 10 } : undefined}>
+        {!isMobile && (<div>
+          <div className="formPanel salePanel">
             <div className="hdr">{t('addBatchTitle')}</div>
-            <div className="inner" style={isMobile ? { display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' } : undefined}>
+            <div className="inner">
               {wacop && (
                 <div className="bannerRow">
                   <span className="bLbl">{t('currentAvPrice')}</span>
@@ -905,13 +919,32 @@ export default function StockPage() {
                 </div>
               )}
 
-              <div className="formActions"><button className="btn" style={{ minHeight: isMobile ? 40 : undefined, width: isMobile ? '100%' : undefined, fontSize: isMobile ? 12 : undefined }} onClick={addBatch}>{t('addBatchTitle')}</button></div>
+              <div className="formActions"><button className="btn" onClick={addBatch}>{t('addBatchTitle')}</button></div>
               <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
             </div>
           </div>
-        </div>
+        </div>)}{/* end desktop form column */}
       </div>
       )} {/* end batches tab */}
+
+      {/* ── Mobile FAB: Add Batch ───────────────────────────────────── */}
+      {isMobile && stockTab === 'batches' && (
+        <button
+          aria-label={t('addBatchTitle')}
+          onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}
+          style={{
+            position: 'fixed',
+            bottom: 'max(76px, calc(64px + env(safe-area-inset-bottom, 0px)))',
+            right: 16, zIndex: 40,
+            width: 52, height: 52, borderRadius: '50%',
+            background: 'var(--brand)', color: '#fff',
+            border: 'none', cursor: 'pointer', fontSize: 28, fontWeight: 300,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.40)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            lineHeight: 1,
+          }}
+        >+</button>
+      )}
 
       {/* ─── EDIT BATCH DIALOG ─── */}
       {(() => {
