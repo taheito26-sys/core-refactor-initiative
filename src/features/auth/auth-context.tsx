@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const [{ data: profileData }, { data: merchantData }] = await Promise.all([
+    const [{ data: profileData }, { data: merchantData }, { data: customerData }] = await Promise.all([
       supabase
         .from('profiles')
         .select('*')
@@ -101,10 +101,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('user_id', resolvedUserId)
         .maybeSingle(),
+      supabase
+        .from('customer_profiles')
+        .select('*')
+        .eq('user_id', resolvedUserId)
+        .maybeSingle(),
     ]);
 
     setProfile(profileData as Profile | null);
     setMerchantProfile(merchantData as MerchantProfile | null);
+    setCustomerProfile(customerData as CustomerProfile | null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
