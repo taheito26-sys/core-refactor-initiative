@@ -495,7 +495,7 @@ export default function StockPage() {
   };
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
       {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
       <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
@@ -575,7 +575,7 @@ export default function StockPage() {
               <div className="empty-s">{t('addFirstPurchase')}</div>
             </div>
           ) : isMobile ? (
-            <div style={{ display: 'grid', gap: 6 }}>
+            <div className="orders-cards-list">
               {perf.map((b) => {
                 const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
                 const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
@@ -583,39 +583,48 @@ export default function StockPage() {
                 const ct = batchCycleTime(state, derived, b.id);
                 const st = rem <= 1e-9 ? t('depleted') : rem < b.initialUSDT ? t('partial') : t('fresh');
                 const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
+                const isOpen = !!detailsOpen[b.id];
                 return (
-                  <div key={b.id} className="panel" style={{ padding: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
-                      <div>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(b.ts)}</div>
+                  <div key={b.id} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
+                    {/* ── Compact header row: tap to expand ── */}
+                    <button
+                      onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}
+                      style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+                    >
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>{b.source || '—'}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{fmtDate(b.ts)}</div>
                       </div>
-                      <span className={`pill ${stCls}`} style={{ alignSelf: 'flex-start' }}>{st}</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 10, marginBottom: 6 }}>
-                      <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
-                      <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
-                      <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
-                      <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
-                      <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: detailsOpen[b.id] ? 6 : 0 }}>
-                      {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
-                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
-                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => openEdit(b.id)}>{t('edit')}</button>
-                    </div>
-                    {detailsOpen[b.id] && (
-                      <div style={{ background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))', border: '1px solid color-mix(in srgb, var(--line) 80%, transparent)', borderRadius: 8, padding: 7, display: 'grid', gap: 4, fontSize: 10 }}>
-                        <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
-                        <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
-                        <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
-                        <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
-                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
-                        {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
-                        {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+                        <strong className="mono" style={{ fontSize: 12 }}>{fmtU(b.initialUSDT)} USDT</strong>
+                        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                          <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+                        </div>
+                      </div>
+                    </button>
+                    {/* ── Expanded detail ── */}
+                    {isOpen && (
+                      <div style={{ padding: '0 12px 12px', borderTop: '1px solid var(--line2)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, fontSize: 10, marginTop: 8, marginBottom: 8 }}>
+                          <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
+                          <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
+                          <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
+                          <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
+                          <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                          {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
+                          <button className="rowBtn" style={{ minHeight: 30, padding: '0 10px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); openEdit(b.id); }}>{t('edit')}</button>
+                        </div>
+                        <div style={{ display: 'grid', gap: 3, fontSize: 10 }}>
+                          <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
+                          <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
+                          {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
+                        </div>
                       </div>
                     )}
                   </div>

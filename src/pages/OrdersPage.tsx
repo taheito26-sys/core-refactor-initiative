@@ -102,6 +102,7 @@ export default function OrdersPage() {
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
+  const [newSaleSheetOpen, setNewSaleSheetOpen] = useState(false);
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
   const [cashDepositAccountId, setCashDepositAccountId] = useState('');
@@ -1252,6 +1253,7 @@ export default function OrdersPage() {
         setLinkedRelId('');
         setSelectedTemplateId(null);
         setAllocations([]);
+        if (isMobile) setNewSaleSheetOpen(false);
         return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
@@ -1412,6 +1414,8 @@ export default function OrdersPage() {
     setCashDepositAccountId('');
     setStockOverrideEnabled(false);
     setStockOverrideConfirmed(false);
+    // Close mobile sheet after successful submission
+    if (isMobile) setNewSaleSheetOpen(false);
   };
 
   const exportCsv = () => {
@@ -2346,7 +2350,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
@@ -3093,7 +3097,10 @@ export default function OrdersPage() {
           {/* ── MY ORDERS: New Sale Form ── */}
           {activeTab === 'my' && (
             <div id="new-sale-form" className="formPanel salePanel">
-              <div className="hdr">{t('newSale')}</div>
+              <div className="hdr" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{t('newSale')}</span>
+                {isMobile && <button onClick={() => setNewSaleSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>×</button>}
+              </div>
               <div className="inner" style={isMobile ? { paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))' } : undefined}>
                 {/* Normal sale form — hidden when Capital Transfer is selected */}
                 {!isCapitalTransfer && (<>
@@ -4781,10 +4788,15 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── FAB: scroll to New Sale form (mobile only) ── */}
+      {/* ── Sale Sheet Backdrop ── */}
+      {isMobile && newSaleSheetOpen && (
+        <div className="sale-sheet-backdrop" onClick={() => setNewSaleSheetOpen(false)} />
+      )}
+
+      {/* ── FAB: open New Sale sheet (mobile only) ── */}
       {isMobile && activeTab === 'my' && (
         <button
-          onClick={() => document.getElementById('new-sale-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onClick={() => setNewSaleSheetOpen(true)}
           title="New Sale"
           style={{
             position: 'fixed', bottom: 'max(76px, calc(64px + env(safe-area-inset-bottom, 0px)))', right: 16,
