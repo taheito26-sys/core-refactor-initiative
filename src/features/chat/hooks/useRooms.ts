@@ -1,44 +1,54 @@
+// ─── useRooms ──────────────────────────────────────────────────────────────
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { getRooms } from '@/features/chat/api/rooms';
+import { useAuth } from '@/features/auth/auth-context';
+import { getRooms } from '../api/chat';
+import { useChatStore } from '@/lib/chat-store';
 
-/**
- * ISSUE 2 FIX: The hook previously had no real-time subscription of its own.
- * The only invalidation came from useRoomMessages, which only runs while a
- * specific room is open.  When the inbox is first opened (no room selected),
- * or when a brand-new message arrives in a background room while the user is
- * reading a different room, the sidebar unread counts and last-message previews
- * would never update until the 5-second staleTime expired.
- *
- * Fix: subscribe to os_messages INSERT events here so the sidebar always stays
- * live regardless of which room (if any) the user currently has open.
- */
+export const ROOMS_KEY = ['chat', 'rooms'];
+
 export function useRooms() {
+  const { userId } = useAuth();
   const qc = useQueryClient();
+  const setRooms   = useChatStore((s) => s.setRooms);
+  const bumpRoom   = useChatStore((s) => s.bumpRoom);
+  const incUnread  = useChatStore((s) => s.incrementUnread);
+  const activeRoom = useChatStore((s) => s.activeRoomId);
+
+  const query = useQuery({
+    queryKey: ROOMS_KEY,
+    queryFn:  getRooms,
+    enabled:  !!userId,
+    staleTime: 20_000,
+  });
 
   useEffect(() => {
-    const channel = supabase
-      .channel('rooms-list-rt')
+    if (query.data) setRooms(query.data);
+  }, [query.data, setRooms]);
+
+  // Realtime: new messages bump sidebar + unread badge
+  useEffect(() => {
+    if (!userId) return;
+    const ch = supabase
+      .channel(`chat-rooms-rt-${userId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'os_messages' },
-        () => {
-          qc.invalidateQueries({ queryKey: ['chat', 'rooms'] });
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const msg = payload.new as any;
+          if (!msg?.room_id) return;
+          bumpRoom(msg.room_id, (msg.content ?? '').slice(0, 80), msg.created_at);
+          if (msg.sender_id !== userId && msg.room_id !== activeRoom) {
+            incUnread(msg.room_id);
+          }
+          qc.invalidateQueries({ queryKey: ROOMS_KEY });
         },
       )
       .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userId, qc, bumpRoom, incUnread, activeRoom]);
 
-    return () => { supabase.removeChannel(channel); };
-  }, [qc]);
-
-  return useQuery({
-    queryKey: ['chat', 'rooms'],
-    queryFn: async () => {
-      const res = await getRooms();
-      if (!res.ok) throw new Error(res.error ?? 'Fetch failed');
-      return res.data || [];
-    },
-    staleTime: 5000,
-  });
+  return query;
 }
