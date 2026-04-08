@@ -41,19 +41,24 @@ export default function ChatWorkspacePage() {
   const setAnchor      = useChatStore((s) => s.setAnchor);
   const setAttention   = useChatStore((s) => s.setAttention);
 
-  // URL → room
+  // URL → room  (runs whenever the URL changes OR rooms finish loading)
   useEffect(() => {
     const urlRoom = searchParams.get('roomId');
-    if (urlRoom && urlRoom !== activeRoomId) setActiveRoom(urlRoom);
-    else if (!activeRoomId && rooms.length > 0) setActiveRoom(rooms[0].room_id);
+    if (urlRoom && urlRoom !== activeRoomId) {
+      setActiveRoom(urlRoom);
+    } else if (!urlRoom && !activeRoomId && rooms.length > 0) {
+      setActiveRoom(rooms[0].room_id);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rooms.length]);
+  }, [searchParams, rooms.length]);
 
-  // notification deep-link
+  // notification deep-link  (runs whenever pendingNav is set)
   useEffect(() => {
     if (!pendingNav) return;
-    if (pendingNav.conversationId && pendingNav.conversationId !== activeRoomId) {
-      setActiveRoom(pendingNav.conversationId);
+    const targetRoom = pendingNav.conversationId;
+    if (targetRoom) {
+      // Always force-set even if same room — ensures anchor scroll fires
+      setActiveRoom(targetRoom);
     }
     if (pendingNav.messageId) setAnchor(pendingNav.messageId);
     setPendingNav(null);
