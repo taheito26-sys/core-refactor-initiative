@@ -26,6 +26,7 @@ interface UseNotificationsOptions {
 }
 
 export function useNotifications(options: UseNotificationsOptions = {}) {
+  const { shouldSuppressRealtimeNotification } = options;
   const { userId } = useAuth();
   const queryClient = useQueryClient();
   const [hasLiveNotificationChannel, setHasLiveNotificationChannel] = useState(false);
