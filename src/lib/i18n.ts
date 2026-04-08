@@ -1672,7 +1672,7 @@ const translations = {
   completeSetup:                { en: 'Complete Setup',                                   ar: 'إكمال الإعداد' },
   newOrder:                     { en: 'New Order',                                        ar: 'طلب جديد' },
   marketRate:                   { en: 'Market rate',                                      ar: 'سعر السوق' },
-  selectMerchant:               { en: 'Select merchant',                                  ar: 'اختر تاجر' },
+  customerSelectMerchant:       { en: 'Select merchant',                                  ar: 'اختر تاجر' },
   tapToChat:                    { en: 'Tap to chat',                                      ar: 'اضغط للدردشة' },
   profileUpdated:               { en: 'Profile updated',                                  ar: 'تم تحديث الملف الشخصي' },
   welcomeCustomer:              { en: 'Find merchants, check rates, and manage your orders.', ar: 'ابحث عن التجار، تحقق من الأسعار، وأدر طلباتك.' },
