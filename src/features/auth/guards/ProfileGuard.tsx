@@ -37,8 +37,13 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
     return <Navigate to="/c/home" replace />;
   }
 
-  // No merchant profile yet — needs onboarding
+  // No merchant profile yet — check if user signed up as customer
   if (!merchantProfile) {
+    const signupRole = typeof window !== 'undefined' ? localStorage.getItem('p2p_signup_role') : null;
+    if (signupRole === 'customer') {
+      localStorage.removeItem('p2p_signup_role');
+      return <Navigate to="/c/onboarding" replace />;
+    }
     return <Navigate to="/onboarding" replace />;
   }
 
