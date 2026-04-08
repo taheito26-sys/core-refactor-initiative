@@ -480,8 +480,6 @@ export default function StockPage() {
     setEditingBatchId(null);
   };
 
-  const [batchFormCollapsed, setBatchFormCollapsed] = useState(true);
-
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
@@ -699,19 +697,11 @@ export default function StockPage() {
         </div>
 
         <div>
-          <div id="new-batch-form" className="formPanel salePanel" style={isMobile ? { padding: 0, borderRadius: 10 } : undefined}>
-            <div
-              className="hdr"
-              onClick={isMobile ? () => setBatchFormCollapsed(prev => !prev) : undefined}
-              style={isMobile ? { cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' } : undefined}
-            >
+          <div id="new-batch-form" className="formPanel salePanel">
+            <div className="hdr">
               {t('addBatchTitle')}
-              {isMobile && (
-                <span style={{ fontSize: 14, transition: 'transform 0.2s', transform: batchFormCollapsed ? 'rotate(0deg)' : 'rotate(180deg)' }}>▾</span>
-              )}
             </div>
-            {(!isMobile || !batchFormCollapsed) && (
-            <div className="inner" style={isMobile ? { display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' } : undefined}>
+            <div className="inner">
               {wacop && (
                 <div className="bannerRow">
                   <span className="bLbl">{t('currentAvPrice')}</span>
@@ -920,7 +910,6 @@ export default function StockPage() {
               <div className="formActions"><button className="btn" style={{ minHeight: isMobile ? 40 : undefined, width: isMobile ? '100%' : undefined, fontSize: isMobile ? 12 : undefined }} onClick={addBatch}>{t('addBatchTitle')}</button></div>
               <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
             </div>
-            )}
           </div>
         </div>
       </div>
