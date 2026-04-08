@@ -20,6 +20,8 @@ interface Props {
     expiresAt?:   string;
     viewOnce?:    boolean;
     attachmentId?: string;
+    type?:        string;
+    metadata?:    Record<string, unknown>;
   }) => void;
   onTyping: () => void;
   meId:     string;
