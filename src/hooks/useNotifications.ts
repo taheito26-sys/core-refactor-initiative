@@ -107,6 +107,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       invite: 0,
       message: 0,
       order: 0,
+      settlement: 0,
       system: 0,
     };
     for (const n of (query.data ?? [])) {
