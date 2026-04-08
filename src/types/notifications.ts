@@ -64,6 +64,7 @@ export type NotificationCategoryGroup =
   | 'approval'
   | 'agreement'
   | 'message'
+  | 'settlement'
   | 'system';
 
 export function normalizeNotificationCategory(category: string): NotificationCategoryGroup {
@@ -73,6 +74,7 @@ export function normalizeNotificationCategory(category: string): NotificationCat
   if (category === 'order') return 'order';
   if (category === 'approval') return 'approval';
   if (category === 'agreement') return 'agreement';
+  if (category === 'settlement') return 'settlement';
   return 'system';
 }
 
