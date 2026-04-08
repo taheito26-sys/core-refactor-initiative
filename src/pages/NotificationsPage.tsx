@@ -29,6 +29,7 @@ import {
 } from '@/hooks/useNotificationActions';
 import { useUpdateAgreementStatus } from '@/hooks/useProfitShareAgreements';
 import { toast } from 'sonner';
+import { NotificationDigest } from '@/components/notifications/NotificationDigest';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
