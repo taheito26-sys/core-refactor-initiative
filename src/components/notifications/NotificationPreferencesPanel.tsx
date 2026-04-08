@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Bell, BellOff, Volume2, VolumeX, Smartphone,
+  Bell, BellOff,
   Handshake, Package, Mail, ShieldCheck, FileText,
   MessageSquare, Zap, Settings2, Clock,
 } from 'lucide-react';
@@ -10,26 +10,21 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useT } from '@/lib/i18n';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { getDndSchedule, setDndSchedule, type DndSchedule } from '@/lib/notification-sounds';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const tx = (t: any, key: string, fallback: string) => { try { return t(key); } catch { return fallback; } };
-
-const CATEGORY_META: Record<string, { icon: React.ElementType; labelKey: string; color: string }> = {
-  deal:       { icon: Handshake,    labelKey: 'notifDeals',      color: 'text-accent' },
-  order:      { icon: Package,      labelKey: 'orders',          color: 'text-warning' },
-  invite:     { icon: Mail,         labelKey: 'notifInvites',    color: 'text-primary' },
-  approval:   { icon: ShieldCheck,  labelKey: 'notifApprovals',  color: 'text-success' },
-  agreement:  { icon: FileText,     labelKey: 'agreements',      color: 'text-blue-500' },
-  settlement: { icon: Settings2,    labelKey: 'settlements',     color: 'text-orange-500' },
-  message:    { icon: MessageSquare,labelKey: 'messages',        color: 'text-sky-500' },
-  system:     { icon: Zap,          labelKey: 'notifSystem',     color: 'text-muted-foreground' },
+const CATEGORY_META: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+  deal:       { icon: Handshake,    label: 'Deals',        color: 'text-accent' },
+  order:      { icon: Package,      label: 'Orders',       color: 'text-warning' },
+  invite:     { icon: Mail,         label: 'Invites',      color: 'text-primary' },
+  approval:   { icon: ShieldCheck,  label: 'Approvals',    color: 'text-success' },
+  agreement:  { icon: FileText,     label: 'Agreements',   color: 'text-primary' },
+  settlement: { icon: Settings2,    label: 'Settlements',  color: 'text-accent' },
+  message:    { icon: MessageSquare,label: 'Messages',     color: 'text-primary' },
+  system:     { icon: Zap,          label: 'System',       color: 'text-muted-foreground' },
 };
 
 export function NotificationPreferencesPanel() {
-  const t = useT();
   const { data: prefs, isLoading, upsert } = useNotificationPreferences();
   const [dnd, setLocalDnd] = useState<DndSchedule>(getDndSchedule);
 
@@ -63,20 +58,20 @@ export function NotificationPreferencesPanel() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-display flex items-center gap-2">
               <Bell className="h-4 w-4 text-primary" />
-              {t('notificationPreferences') || 'Notification Preferences'}
+              Notification Preferences
             </CardTitle>
             <Badge variant="outline" className="text-[10px]">
-              {(prefs ?? []).length} {t('categories') || 'categories'}
+              {(prefs ?? []).length} categories
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-1">
           {/* Header */}
           <div className="grid grid-cols-[1fr_60px_60px_60px] gap-2 px-3 py-1.5">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t('category') || 'Category'}</span>
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">{t('inApp') || 'In-App'}</span>
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">{t('push') || 'Push'}</span>
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">{t('sound') || 'Sound'}</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Category</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">In-App</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Push</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Sound</span>
           </div>
 
           {(prefs ?? []).map((pref) => {
@@ -89,7 +84,7 @@ export function NotificationPreferencesPanel() {
               >
                 <div className="flex items-center gap-2">
                   <Icon className={cn('h-4 w-4', meta.color)} />
-                  <span className="text-xs font-medium capitalize">{t(meta.labelKey) || pref.category}</span>
+                  <span className="text-xs font-medium">{meta.label}</span>
                 </div>
                 <div className="flex justify-center">
                   <Switch
@@ -123,12 +118,12 @@ export function NotificationPreferencesPanel() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-display flex items-center gap-2">
             <BellOff className="h-4 w-4 text-muted-foreground" />
-            {t('doNotDisturb') || 'Do Not Disturb'}
+            Do Not Disturb
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <Label className="text-xs">{t('enableDnd') || 'Enable DND schedule'}</Label>
+            <Label className="text-xs">Enable DND schedule</Label>
             <Switch checked={dnd.enabled} onCheckedChange={(v) => handleDndChange({ enabled: v })} />
           </div>
 
@@ -136,7 +131,7 @@ export function NotificationPreferencesPanel() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-3 w-3" /> {t('startTime') || 'Start'}
+                  <Clock className="h-3 w-3" /> Start
                 </Label>
                 <Input
                   type="time"
@@ -147,7 +142,7 @@ export function NotificationPreferencesPanel() {
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-3 w-3" /> {t('endTime') || 'End'}
+                  <Clock className="h-3 w-3" /> End
                 </Label>
                 <Input
                   type="time"
@@ -160,7 +155,7 @@ export function NotificationPreferencesPanel() {
           )}
 
           <p className="text-[10px] text-muted-foreground">
-            {t('dndDescription') || 'During DND hours, all notification sounds and haptics are suppressed. In-app alerts still appear.'}
+            During DND hours, all notification sounds and haptics are suppressed. In-app alerts still appear.
           </p>
         </CardContent>
       </Card>
