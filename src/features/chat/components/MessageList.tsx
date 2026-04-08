@@ -93,7 +93,13 @@ export function MessageList({ messages, meId, isLoading, roomType, onReact, onEd
     );
   }
 
-  const groups = groupByDay(messages.filter((m) => !m.deleted_for_sender || m.sender_id !== meId));
+  const groups = groupByDay(
+    messages.filter((m) => {
+      if (m.deleted_for_sender && m.sender_id === meId) return false;
+      if (m.expires_at && new Date(m.expires_at) < new Date()) return false;
+      return true;
+    }),
+  );
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-6 relative">
