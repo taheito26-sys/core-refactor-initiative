@@ -123,8 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const syncAuthState = async (newSession: Session | null) => {
       if (!isMounted) return;
 
-      // Handle Dev Mode Bypass
-      if (localStorage.getItem('p2p_dev_mode') === 'true' || import.meta.env.DEV) {
+      // Handle Dev Mode Bypass — only when there is NO real session
+      if (!newSession && (localStorage.getItem('p2p_dev_mode') === 'true' || import.meta.env.DEV)) {
         const mockUser: User = {
           id: '00000000-0000-0000-0000-000000000000',
           email: 'dev@local.test',
