@@ -1051,6 +1051,7 @@ export type Database = {
       }
       merchant_profiles: {
         Row: {
+          avatar_url: string | null
           bio: string | null
           created_at: string
           default_currency: string
@@ -1066,6 +1067,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           bio?: string | null
           created_at?: string
           default_currency?: string
@@ -1081,6 +1083,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           bio?: string | null
           created_at?: string
           default_currency?: string
@@ -1331,6 +1334,7 @@ export type Database = {
           category: string
           conversation_id: string | null
           created_at: string
+          dedupe_key: string | null
           entity_id: string | null
           entity_type: string | null
           id: string
@@ -1351,6 +1355,7 @@ export type Database = {
           category?: string
           conversation_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           entity_id?: string | null
           entity_type?: string | null
           id?: string
@@ -1371,6 +1376,7 @@ export type Database = {
           category?: string
           conversation_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
           entity_id?: string | null
           entity_type?: string | null
           id?: string
@@ -1384,22 +1390,7 @@ export type Database = {
           title?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "notifications_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_relationships"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "notifications_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
-            referencedRelation: "merchant_messages"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       order_allocations: {
         Row: {
@@ -2016,38 +2007,47 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          avatar_url: string | null
           created_at: string
           email: string
+          full_name: string | null
           id: string
           rejection_reason: string | null
           role: string
           status: string
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          avatar_url?: string | null
           created_at?: string
           email: string
+          full_name?: string | null
           id?: string
           rejection_reason?: string | null
           role?: string
           status?: string
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          avatar_url?: string | null
           created_at?: string
           email?: string
+          full_name?: string | null
           id?: string
           rejection_reason?: string | null
           role?: string
           status?: string
           updated_at?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: []
       }
