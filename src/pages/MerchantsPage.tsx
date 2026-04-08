@@ -9,6 +9,7 @@ import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
 import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
 import { AgreementsGlobalTab } from '@/features/merchants/components/AgreementsGlobalTab';
+import MerchantClientsTab from '@/features/merchants/components/MerchantClientsTab';
 import { LiquidityTab } from '@/features/merchants/liquidity/LiquidityTab';
 import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
@@ -17,7 +18,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 
-type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat' | 'liquidity';
+type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat' | 'liquidity' | 'clients';
 
 interface AgreementRow {
   id: string;
@@ -56,7 +57,7 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
   const [tab, setTab] = useState<MerchantTab>(() => {
     const qTab = searchParams.get('tab');
-    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements' || qTab === 'liquidity') return qTab as MerchantTab;
+    if (qTab === 'chat' || qTab === 'settlements' || qTab === 'relationships' || qTab === 'agreements' || qTab === 'liquidity' || qTab === 'clients') return qTab as MerchantTab;
     return 'relationships';
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -335,8 +336,21 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
   const overdueCount = settlementOverview?.overdueCount || 0;
   const activeAgreementCount = allAgreements.filter(a => isAgreementActive(a)).length;
+  // Fetch pending client connection count
+  const [pendingClientCount, setPendingClientCount] = useState(0);
+  useEffect(() => {
+    if (!merchantProfile?.merchant_id) return;
+    supabase
+      .from('customer_merchant_connections')
+      .select('id', { count: 'exact', head: true })
+      .eq('merchant_id', merchantProfile.merchant_id)
+      .eq('status', 'pending')
+      .then(({ count }) => setPendingClientCount(count || 0));
+  }, [merchantProfile?.merchant_id]);
+
   const tabs: { key: MerchantTab; label: string; icon: string; badge?: number }[] = [
     { key: 'relationships', label: t('relationships') || 'Relationships', icon: '👥' },
+    { key: 'clients', label: 'Clients', icon: '👤', badge: pendingClientCount > 0 ? pendingClientCount : undefined },
     { key: 'liquidity', label: t('liquidityTab') || 'Liquidity', icon: '💧' },
     { key: 'agreements', label: t('profitShareAgreements'), icon: '🤝' },
     { key: 'settlements', label: t('settlementTracker'), icon: '💰', badge: overdueCount > 0 ? overdueCount : undefined },
@@ -882,6 +896,11 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
                 ))
               )}
             </>
+          )}
+
+          {/* ═══ CLIENTS TAB ═══ */}
+          {tab === 'clients' && merchantProfile?.merchant_id && (
+            <MerchantClientsTab merchantId={merchantProfile.merchant_id} />
           )}
 
           {/* ═══ CHAT TAB ═══ */}
