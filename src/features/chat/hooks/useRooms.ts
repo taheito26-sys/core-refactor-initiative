@@ -1,5 +1,5 @@
 // ─── useRooms ──────────────────────────────────────────────────────────────
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -52,7 +52,14 @@ export function useRooms() {
     if (query.data) setRooms(query.data);
   }, [query.data, setRooms]);
 
+  // Keep activeRoom in a ref so the realtime callback can read the latest
+  // value without being in the dependency array (avoids re-subscribing on
+  // every room click, which briefly creates two listeners and doubles events).
+  const activeRoomRef = useRef<string | null>(activeRoom);
+  useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
+
   // Realtime: new messages bump sidebar + unread badge
+  // Only depends on userId — stable for the lifetime of the session.
   useEffect(() => {
     if (!userId) return;
     const ch = supabase
@@ -65,7 +72,7 @@ export function useRooms() {
           const msg = payload.new as any;
           if (!msg?.room_id) return;
           bumpRoom(msg.room_id, (msg.content ?? '').slice(0, 80), msg.created_at);
-          if (msg.sender_id !== userId && msg.room_id !== activeRoom) {
+          if (msg.sender_id !== userId && msg.room_id !== activeRoomRef.current) {
             incUnread(msg.room_id);
           }
           // Re-fetch rooms list so preview text & last_message_at stay fresh
@@ -74,7 +81,8 @@ export function useRooms() {
       )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [userId, qc, bumpRoom, incUnread, activeRoom]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]); // intentionally omit activeRoom — use ref above
 
   return query;
 }

@@ -88,17 +88,20 @@ export default function ChatWorkspacePage() {
   const [showSidebar, setShowSidebar] = useState(!isMobile);
   const activeRoom = rooms.find((r) => r.room_id === activeRoomId) ?? null;
 
-  // send handler
+  // send handler — clientNonce is generated here so both onMutate and
+  // mutationFn share the same value, preventing realtime dedup failures.
   const handleSend = useCallback(
     (content: string, opts?: { replyToId?: string; expiresAt?: string; viewOnce?: boolean; attachmentId?: string }) => {
       if (!activeRoomId || !content.trim()) return;
       send.mutate({
-        roomId: activeRoomId,
-        content: content.trim(),
-        type: 'text',
-        replyToId: opts?.replyToId ?? null,
-        expiresAt: opts?.expiresAt ?? null,
-        viewOnce: opts?.viewOnce ?? false,
+        roomId:       activeRoomId,
+        content:      content.trim(),
+        type:         'text',
+        clientNonce:  crypto.randomUUID(),   // ← always set; prevents duplicates
+        replyToId:    opts?.replyToId   ?? null,
+        expiresAt:    opts?.expiresAt   ?? null,
+        viewOnce:     opts?.viewOnce    ?? false,
+        attachmentId: opts?.attachmentId ?? null,
       });
       stopTyping();
     },

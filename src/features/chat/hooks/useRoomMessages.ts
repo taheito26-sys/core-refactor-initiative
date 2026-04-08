@@ -48,16 +48,21 @@ export function useRoomMessages(roomId: string | null) {
           qc.setQueryData<ChatMessage[]>(MESSAGES_KEY(roomId), (prev) => {
             if (!prev) return prev;
             if (payload.eventType === 'INSERT') {
-              // dedupe (optimistic might already be there by client_nonce)
-              const exists = prev.some(
-                (m) => m.id === msg.id || (msg.client_nonce && m.client_nonce === msg.client_nonce),
-              );
-              if (exists) {
-                // replace optimistic with confirmed
-                return prev.map((m) =>
-                  m.client_nonce === msg.client_nonce ? { ...msg } : m,
-                );
+              // Match by real id (exact duplicate) OR by client_nonce (optimistic → confirmed)
+              const byId    = prev.findIndex((m) => m.id === msg.id);
+              const byNonce = msg.client_nonce
+                ? prev.findIndex((m) => m.client_nonce === msg.client_nonce)
+                : -1;
+
+              if (byId !== -1) {
+                // Already in list (e.g. onSuccess already placed it) — update in place
+                return prev.map((m) => (m.id === msg.id ? { ...m, ...msg } : m));
               }
+              if (byNonce !== -1) {
+                // Replace optimistic placeholder with confirmed server message
+                return prev.map((m) => (m.client_nonce === msg.client_nonce ? { ...msg } : m));
+              }
+              // Genuinely new message (from another user, or rare race)
               return [...prev, msg];
             }
             if (payload.eventType === 'UPDATE') {
@@ -82,10 +87,21 @@ export function useRoomMessages(roomId: string | null) {
 
   // ── send ─────────────────────────────────────────────────────────────────
   const send = useMutation({
-    mutationFn: (input: SendMessageInput) => sendMessage(input),
+    // IMPORTANT: mutationFn receives the same `input` object as onMutate.
+    // clientNonce must already be set on input so the RPC stores it and
+    // realtime dedup can match by nonce. Callers MUST include clientNonce.
+    mutationFn: (input: SendMessageInput) => sendMessage({
+      ...input,
+      clientNonce: input.clientNonce!, // guaranteed by onMutate / callers
+    }),
     onMutate: async (input) => {
       if (!roomId || !userId) return;
-      const nonce = input.clientNonce ?? crypto.randomUUID();
+      // nonce must come from caller — do not generate here so mutationFn
+      // and onMutate always share the same value.
+      const nonce = input.clientNonce!;
+      if (!nonce) {
+        console.error('[useRoomMessages] send.mutate called without clientNonce — will cause duplicates');
+      }
       // Optimistic insert
       const optimistic = {
         id: `opt-${nonce}`,
