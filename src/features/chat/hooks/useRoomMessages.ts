@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
   getMessages, sendMessage, editMessage, deleteMessage,
-  markRoomRead, addReaction, removeReaction,
+  markRoomRead, addReaction, removeReaction, linkAttachmentToMessage,
 } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
 import type { ChatMessage, SendMessageInput } from '../types';
