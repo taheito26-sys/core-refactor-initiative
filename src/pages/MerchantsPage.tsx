@@ -18,7 +18,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 
-type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat' | 'liquidity' | 'clients';
+type MerchantTab = 'relationships' | 'agreements' | 'settlements' | 'chat' | 'liquidity' | 'clients' | 'client-orders';
 
 interface AgreementRow {
   id: string;
