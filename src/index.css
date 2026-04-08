@@ -12,6 +12,11 @@
     --font-display: 'JetBrains Mono', monospace;
     --font-body: 'Inter', sans-serif;
 
+    /* WhatsApp bubble colors */
+    --wa-out-bubble: 120 25% 95%;
+    --wa-out-bubble-dark: 163 55% 15%;
+    --wa-green: 142 70% 45%;
+
     --background: 220 20% 97%;
     --foreground: 220 30% 10%;
 
