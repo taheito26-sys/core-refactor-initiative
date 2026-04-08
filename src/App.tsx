@@ -32,6 +32,7 @@ import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
 import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
 import CustomerChatPage from "./pages/customer/CustomerChatPage";
 import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
+import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
