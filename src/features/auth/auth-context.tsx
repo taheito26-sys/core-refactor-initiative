@@ -165,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(mockUser);
         setProfile(mockProfile);
         setMerchantProfile(mockMerchant);
+        setCustomerProfile(null);
         setIsLoading(false);
         return;
       }
