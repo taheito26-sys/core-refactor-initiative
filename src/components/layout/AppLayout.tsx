@@ -19,6 +19,10 @@ export function AppLayout() {
   const { merchantProfile } = useAuth();
   const isRTL = settings.language === 'ar';
 
+  // App-level hooks: push registration + cross-device read sync
+  usePushRegistration();
+  useReadReceiptSync();
+
   const { msg: welcomeMsg, dismiss: dismissWelcome } = useWelcomeMessage(
     merchantProfile?.display_name,
     settings.language as 'en' | 'ar',
