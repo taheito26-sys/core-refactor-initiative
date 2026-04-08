@@ -1,12 +1,13 @@
 // ─── MessageList ──────────────────────────────────────────────────────────
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
-import { MoreHorizontal, Reply, Edit2, Trash2, Eye, Check, CheckCheck } from 'lucide-react';
+import { formatDistanceToNow, format, isToday, isYesterday, differenceInSeconds } from 'date-fns';
+import { MoreHorizontal, Reply, Edit2, Trash2, Eye, Check, CheckCheck, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/lib/chat-store';
 import type { ChatMessage, ChatRoomType, ReactionSummary } from '../types';
 import { SecureWatermark } from './SecureWatermark';
 import { AttachmentPreview } from './AttachmentPreview';
+import { getAttachment, getSignedUrl } from '../api/chat';
 
 interface Props {
   messages:  ChatMessage[];
