@@ -1,105 +1,176 @@
+// ─── ConversationHeader — Unified Chat Platform ───────────────────────────
+import { useMemo } from 'react';
 import {
-  Phone,
-  Video,
-  Search,
-  ShieldCheck,
-  Zap,
-  MoreHorizontal,
-  ArrowLeft
+  Phone, Search, ShieldCheck, Lock, Users,
+  PanelLeftClose, PanelLeftOpen, MoreHorizontal,
 } from 'lucide-react';
+import { useChatStore } from '@/lib/chat-store';
+import { presenceOf } from '@/lib/chat-store';
+import type { ChatRoomListItem, ChatRoomType } from '../types';
 
-interface Props {
-  title?: string;
-  name?: string;
-  nickname?: string;
-  onSummarize?: () => void;
-  onSearchToggle?: () => void;
-  onDashboardToggle?: () => void;
-  onCallVoice?: () => void;
-  onCallVideo?: () => void;
-  onBack?: () => void;
-  showDashboard?: boolean;
+// ── helpers ────────────────────────────────────────────────────────────────
+function roomTypeIcon(type: ChatRoomType) {
+  switch (type) {
+    case 'merchant_private': return <Lock size={11} className="text-primary/70 shrink-0" />;
+    case 'merchant_client':  return <ShieldCheck size={11} className="text-emerald-500/80 shrink-0" />;
+    case 'merchant_collab':  return <Users size={11} className="text-amber-500/80 shrink-0" />;
+  }
 }
 
+function roomTypeLabel(type: ChatRoomType): string {
+  switch (type) {
+    case 'merchant_private': return 'End-to-end encrypted';
+    case 'merchant_client':  return 'Secure business chat';
+    case 'merchant_collab':  return 'Merchants Hub';
+  }
+}
+
+function presenceDot(status: 'online' | 'away' | 'offline') {
+  const colour =
+    status === 'online' ? 'bg-emerald-500' :
+    status === 'away'   ? 'bg-amber-400'   :
+                          'bg-muted-foreground/40';
+  return (
+    <span
+      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${colour} border-2 border-background rounded-full shadow-sm`}
+    />
+  );
+}
+
+function initials(name: string | null | undefined): string {
+  if (!name) return '?';
+  const words = name.trim().split(/\s+/);
+  return words.length >= 2
+    ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+}
+
+// ── Props ──────────────────────────────────────────────────────────────────
+interface Props {
+  room: ChatRoomListItem;
+  meId: string;
+  onToggleSidebar?: () => void;
+  sidebarOpen?: boolean;
+  onStartCall?: () => void;
+  onSearchToggle?: () => void;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────
 export function ConversationHeader({
-  title,
-  name,
-  nickname,
-  onSummarize,
+  room,
+  meId,
+  onToggleSidebar,
+  sidebarOpen = true,
+  onStartCall,
   onSearchToggle,
-  onDashboardToggle,
-  onCallVoice,
-  onCallVideo,
-  onBack,
-  showDashboard,
 }: Props) {
-  const displayTitle = title || name || 'Conversation';
+  const otherUserId = room.other_user_id ?? '';
+  const presence    = useChatStore(presenceOf(otherUserId));
+
+  const displayName = useMemo(
+    () => room.display_name ?? room.name ?? (room.is_direct ? 'Direct Message' : 'Room'),
+    [room.display_name, room.name, room.is_direct],
+  );
+
+  const avatarUrl = room.display_avatar ?? room.avatar_url;
 
   return (
-    <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-6 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
-      <div className="flex items-center gap-2 md:gap-3.5 min-w-0 flex-1">
-        {onBack && (
+    <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
+
+      {/* ── Left: toggle + avatar + name ─────────────────────────────────── */}
+      <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+
+        {onToggleSidebar && (
           <button
-            onClick={onBack}
-            className="w-10 h-10 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 inline-flex items-center justify-center rounded-lg hover:bg-accent"
+            onClick={onToggleSidebar}
+            className="w-9 h-9 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 inline-flex items-center justify-center rounded-lg hover:bg-accent"
+            title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
-            <ArrowLeft size={20} />
+            {sidebarOpen
+              ? <PanelLeftClose size={18} />
+              : <PanelLeftOpen  size={18} />
+            }
           </button>
         )}
+
+        {/* Avatar */}
         <div className="relative shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-[13px] font-black shadow-lg shadow-primary/20">
-            {displayTitle.charAt(0).toUpperCase()}
-          </div>
-          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-background rounded-full shadow-sm" />
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              className="w-9 h-9 rounded-xl object-cover"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-[11px] font-black shadow-lg shadow-primary/20 select-none">
+              {initials(displayName)}
+            </div>
+          )}
+          {room.is_direct && presenceDot(presence)}
         </div>
+
+        {/* Name + subtitle */}
         <div className="flex flex-col min-w-0">
-          <h2 className="text-[14px] font-black text-foreground truncate tracking-tight flex items-center gap-2">
-            {displayTitle}
-            <ShieldCheck size={12} className="text-primary/70 shrink-0" />
+          <h2 className="text-[13px] font-black text-foreground truncate tracking-tight flex items-center gap-1.5">
+            {displayName}
+            {roomTypeIcon(room.room_type)}
           </h2>
-          <div className="flex items-center gap-2 overflow-hidden">
-            <span className="text-[9px] text-emerald-500 font-black uppercase tracking-widest whitespace-nowrap">Active</span>
-            <span className="text-[10px] text-border hidden sm:inline">•</span>
-            <span className="text-[9px] text-muted-foreground font-bold truncate hidden sm:inline">{nickname || 'Falcon Integrated Protocol'}</span>
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            {room.is_direct ? (
+              <span className={`text-[10px] font-semibold whitespace-nowrap ${
+                presence === 'online' ? 'text-emerald-500' :
+                presence === 'away'   ? 'text-amber-400'   :
+                                        'text-muted-foreground'
+              }`}>
+                {presence === 'online' ? 'Active now' :
+                 presence === 'away'   ? 'Away'        :
+                                        'Offline'}
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground font-medium truncate">
+                {room.member_count} member{room.member_count !== 1 ? 's' : ''}
+              </span>
+            )}
+            <span className="text-[9px] text-border hidden sm:inline">•</span>
+            <span className="text-[9px] text-muted-foreground font-medium truncate hidden sm:inline">
+              {roomTypeLabel(room.room_type)}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-0.5 md:gap-1.5 md:bg-accent/50 md:p-1 rounded-xl md:border md:border-border shrink-0">
-        <button onClick={onCallVoice} className="w-10 h-10 md:w-auto md:h-auto md:p-2 text-muted-foreground hover:text-primary hover:bg-background rounded-lg transition-all inline-flex items-center justify-center">
-          <Phone size={15} />
-        </button>
-        <button onClick={onCallVideo} className="w-10 h-10 md:w-auto md:h-auto md:p-2 text-muted-foreground hover:text-primary hover:bg-background rounded-lg transition-all inline-flex items-center justify-center">
-          <Video size={16} />
-        </button>
+      {/* ── Right: actions ───────────────────────────────────────────────── */}
+      <div className="flex items-center gap-0.5 shrink-0">
 
-        <button onClick={onSearchToggle} className="w-10 h-10 md:w-auto md:h-auto md:p-2 text-muted-foreground hover:text-foreground hover:bg-background rounded-lg transition-all inline-flex items-center justify-center">
-          <Search size={16} />
-        </button>
-
-        {onSummarize && (
+        {/* Voice call — only for merchant_private rooms */}
+        {onStartCall && (
           <button
-            onClick={onSummarize}
-            className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg transition-all flex items-center gap-2 hover:bg-primary/90 shadow-md shadow-primary/10"
+            onClick={onStartCall}
+            className="w-9 h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            title="Voice call"
           >
-            <Zap size={11} className="fill-current" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Pivots</span>
+            <Phone size={16} />
           </button>
         )}
 
-        {onDashboardToggle && (
-          <>
-            <div className="w-px h-4 bg-border mx-1" />
-            <button
-              onClick={onDashboardToggle}
-              className={`p-2 rounded-lg transition-all ${
-                showDashboard ? 'text-primary bg-background shadow-sm' : 'text-muted-foreground hover:bg-background'
-              }`}
-            >
-              <MoreHorizontal size={18} />
-            </button>
-          </>
+        {/* Search */}
+        {onSearchToggle && (
+          <button
+            onClick={onSearchToggle}
+            className="w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            title="Search messages"
+          >
+            <Search size={16} />
+          </button>
         )}
+
+        {/* More */}
+        <button
+          className="w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+          title="More options"
+        >
+          <MoreHorizontal size={18} />
+        </button>
       </div>
     </header>
   );

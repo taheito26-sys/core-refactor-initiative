@@ -1,304 +1,179 @@
 /**
- * ChatWorkspacePage
- *
- * BUG 3 FIX: Wire real reaction mutations (addReaction/removeReaction RPCs exist)
- *            and real deleteForMe (local cache removal). Previously all callbacks
- *            were () => {} stubs so every interaction was silently dropped.
- *
- * BUG 9 FIX: /pnl command reads actual tracker KPIs instead of sending the
- *            hardcoded "+2.4% | Volume: 45k USDT" string.
+ * ChatWorkspacePage — Unified chat platform
+ * One inbox · one room list · merchant_private / merchant_client / merchant_collab
  */
-
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useRooms } from '@/features/chat/hooks/useRooms';
-import { useRoomMessages } from '@/features/chat/hooks/useRoomMessages';
-import { useUnreadState } from '@/features/chat/hooks/useUnreadState';
-import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar';
-import { ConversationHeader } from '@/features/chat/components/ConversationHeader';
-import { MessageComposer } from '@/features/chat/components/MessageComposer';
-import { MessageList } from '@/features/chat/components/MessageList';
-import { CallOrchestrator } from '@/features/chat/components/CallOrchestrator';
-import { ContextPanel } from '@/features/chat/components/ContextPanel';
-import { SecureWatermark } from '@/features/chat/components/SecureWatermark';
-import { useWebRTC } from '@/features/chat/hooks/useWebRTC';
-import { useChatStore } from '@/lib/chat-store';
-import { addReaction, removeReaction } from '@/features/chat/api/reactions';
-import { useTrackerState } from '@/lib/useTrackerState';
-import { kpiFor, fmtU, fmtPct } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
-import { Shield } from 'lucide-react';
-import { toast } from 'sonner';
+import { useChatStore } from '@/lib/chat-store';
+import { useRooms } from '../hooks/useRooms';
+import { useRoomMessages } from '../hooks/useRoomMessages';
+import { usePresence } from '../hooks/usePresence';
+import { useTyping } from '../hooks/useTyping';
+import { useWebRTC } from '../hooks/useWebRTC';
+import { ConversationSidebar } from '../components/ConversationSidebar';
+import { ConversationHeader } from '../components/ConversationHeader';
+import { MessageList } from '../components/MessageList';
+import { MessageComposer } from '../components/MessageComposer';
+import { CallOverlay } from '../components/CallOverlay';
+import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
   const [searchParams] = useSearchParams();
-  const navigate       = useNavigate();
-  const qc             = useQueryClient();
-  const { userId: authUserId, merchantProfile } = useAuth();
-  const userId  = merchantProfile?.merchant_id || authUserId || '';
-  const isMobile = useIsMobile();
+  const { userId, merchantProfile } = useAuth();
   const { settings } = useTheme();
+  const isMobile = useIsMobile();
 
+  const meId = userId ?? '';
+
+  // ── rooms ────────────────────────────────────────────────────────────────
   const roomsQuery = useRooms();
   const rooms = roomsQuery.data ?? [];
 
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(searchParams.get('roomId'));
-  const [showContext,  setShowContext]  = useState(!isMobile);
-  const [showSidebar,  setShowSidebar]  = useState(true);
+  // ── active room ───────────────────────────────────────────────────────────
+  const activeRoomId   = useChatStore((s) => s.activeRoomId);
+  const setActiveRoom  = useChatStore((s) => s.setActiveRoom);
+  const pendingNav     = useChatStore((s) => s.pendingNotificationNav);
+  const pendingVer     = useChatStore((s) => s.pendingNotificationNavVersion);
+  const setPendingNav  = useChatStore((s) => s.setPendingNav);
+  const setAnchor      = useChatStore((s) => s.setAnchor);
+  const setAttention   = useChatStore((s) => s.setAttention);
 
-  const setActiveConversation = useChatStore((s) => s.setActiveConversation);
-  const pendingNav = useChatStore((s) => s.pendingNotificationNav);
-  const pendingNavVersion = useChatStore((s) => s.pendingNotificationNavVersion);
-  const setPendingNav = useChatStore((s) => s.setPendingNav);
-  const setAnchor = useChatStore((s) => s.setAnchor);
-
-  // Auto-select first room if none chosen
+  // URL → room
   useEffect(() => {
-    if (!activeRoomId && rooms.length > 0) {
-      setActiveRoomId(String(rooms[0].room_id));
-    }
-  }, [rooms, activeRoomId]);
+    const urlRoom = searchParams.get('roomId');
+    if (urlRoom && urlRoom !== activeRoomId) setActiveRoom(urlRoom);
+    else if (!activeRoomId && rooms.length > 0) setActiveRoom(rooms[0].room_id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rooms.length]);
 
-  useEffect(() => {
-    setActiveConversation(activeRoomId);
-  }, [activeRoomId, setActiveConversation]);
-
-  // ── Deep-link from notification ──────────────────────────────────────────
+  // notification deep-link
   useEffect(() => {
     if (!pendingNav) return;
-    const roomId = pendingNav.conversationId;
-    if (roomId && roomId !== activeRoomId) {
-      setActiveRoomId(roomId);
+    if (pendingNav.conversationId && pendingNav.conversationId !== activeRoomId) {
+      setActiveRoom(pendingNav.conversationId);
     }
-    if (pendingNav.messageId) {
-      setAnchor(pendingNav.messageId);
-    }
+    if (pendingNav.messageId) setAnchor(pendingNav.messageId);
     setPendingNav(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingNavVersion]);
+  }, [pendingVer]);
 
-  // ── Messages ─────────────────────────────────────────────────────────────
-
-  const messages = useRoomMessages(activeRoomId);
-  const { firstUnreadMessageId: firstUnread } = useUnreadState(activeRoomId);
-
-  // ── BUG 9 FIX: real P&L for /pnl command ─────────────────────────────────
-
-  const { state: trackerState, derived } = useTrackerState({
-    lowStockThreshold:   settings.lowStockThreshold,
-    priceAlertThreshold: settings.priceAlertThreshold,
-    range:               settings.range,
-    currency:            settings.currency,
-  });
-
-  const pnlSummary = useMemo(() => {
-    const d = kpiFor(trackerState, derived, settings.range);
-    const stock = fmtU(derived.batches.reduce((s, b) => s + Math.max(0, b.remainingUSDT), 0));
-    const net   = `${d.net >= 0 ? '+' : ''}${fmtU(d.net)} USDT`;
-    const margin = fmtPct(d.count > 0 ? d.net / Math.max(d.rev, 1) : 0);
-    const trades = d.count;
-    return `Net P&L: ${net} · Margin: ${margin} · Trades: ${trades} · Stock: ${stock} USDT`;
-  }, [trackerState, derived, settings.range]);
-
-  // ── BUG 3 FIX: reaction mutations ────────────────────────────────────────
-
-  // Track reactions per message in local state (loaded per room)
-  const [reactionsByMessage, setReactionsByMessage] = useState<Record<string, Record<string, string[]>>>({});
-
-  // Load reactions when room changes
+  // attention tracking
   useEffect(() => {
-    if (!activeRoomId) return;
-    (async () => {
-      const { addReaction: _a, removeReaction: _r, getMessageReactions } = await import('@/features/chat/api/reactions');
-      const res = await getMessageReactions(activeRoomId);
-      if (!res.ok) return;
-      const grouped: Record<string, Record<string, string[]>> = {};
-      for (const r of res.data) {
-        if (!grouped[r.message_id]) grouped[r.message_id] = {};
-        if (!grouped[r.message_id][r.reaction]) grouped[r.message_id][r.reaction] = [];
-        grouped[r.message_id][r.reaction].push(r.user_id);
-      }
-      setReactionsByMessage(grouped);
-    })();
-  }, [activeRoomId]);
+    setAttention({ inChatModule: true });
+    return () => setAttention({ inChatModule: false, activeConversationVisible: false });
+  }, [setAttention]);
 
-  const handleReact = useCallback(async (messageId: string, emoji: string) => {
-    if (!activeRoomId) return;
-    const existing = reactionsByMessage[messageId]?.[emoji] ?? [];
-    const alreadyReacted = existing.includes(userId);
+  useEffect(() => {
+    setAttention({ activeConversationVisible: !!activeRoomId });
+  }, [activeRoomId, setAttention]);
 
-    // Optimistic update
-    setReactionsByMessage((prev) => {
-      const msgReactions = { ...(prev[messageId] ?? {}) };
-      if (alreadyReacted) {
-        msgReactions[emoji] = (msgReactions[emoji] ?? []).filter((u) => u !== userId);
-      } else {
-        msgReactions[emoji] = [...(msgReactions[emoji] ?? []), userId];
-      }
-      return { ...prev, [messageId]: msgReactions };
-    });
-
-    // Persist
-    const res = alreadyReacted
-      ? await removeReaction(activeRoomId, messageId, emoji)
-      : await addReaction(activeRoomId, messageId, emoji);
-
-    if (!res.ok) {
-      toast.error('Reaction failed');
-      // Rollback optimistic update
-      setReactionsByMessage((prev) => {
-        const msgReactions = { ...(prev[messageId] ?? {}) };
-        if (alreadyReacted) {
-          msgReactions[emoji] = [...(msgReactions[emoji] ?? []), userId];
-        } else {
-          msgReactions[emoji] = (msgReactions[emoji] ?? []).filter((u) => u !== userId);
-        }
-        return { ...prev, [messageId]: msgReactions };
-      });
-    }
-  }, [activeRoomId, userId, reactionsByMessage]);
-
-  // ── BUG 3 FIX: delete for me (local cache removal, exported from hook) ───
-
-  const handleDeleteForMe = useCallback((messageId: string) => {
-    messages.deleteForMe(messageId);
-  }, [messages]);
-
-  // ── WebRTC ────────────────────────────────────────────────────────────────
-
+  // ── messages ──────────────────────────────────────────────────────────────
   const {
-    callState, isIncoming, callerId, remoteStream,
-    initiateCall, acceptCall, endCall, toggleMute,
-  } = useWebRTC({
-    roomId: activeRoomId,
-    userId,
-    onTimelineEvent: (type) => messages.send.mutate({
-      content: `||SYS_CALL||${type}||/SYS_CALL||`,
-      type: 'system',
-    }),
-  });
+    messages, isLoading: msgsLoading, send, edit, delete: del, react,
+  } = useRoomMessages(activeRoomId);
 
-  // ── Active room + relationship metadata ──────────────────────────────────
-  // ROOT CAUSE FIX: previously queried merchant_relationships.eq('id', activeRoomId)
-  // but activeRoomId is an os_rooms UUID — not a relationship UUID — so the query
-  // always returned null and the header always showed "Conversation".
-  // Fix: get the room title directly from the rooms list (already loaded), and use
-  // room.relationship_id to fetch merchant_relationships when needed for ContextPanel.
+  // ── typing ────────────────────────────────────────────────────────────────
+  const { startTyping, stopTyping } = useTyping(activeRoomId);
 
-  const activeRoom = useMemo(
-    () => rooms.find((r) => r.room_id === activeRoomId) ?? null,
-    [rooms, activeRoomId],
+  // ── presence ─────────────────────────────────────────────────────────────
+  usePresence();
+
+  // ── calls ─────────────────────────────────────────────────────────────────
+  const webrtc = useWebRTC(activeRoomId);
+
+  // ── layout state ─────────────────────────────────────────────────────────
+  const [showSidebar, setShowSidebar] = useState(!isMobile);
+  const activeRoom = rooms.find((r) => r.room_id === activeRoomId) ?? null;
+
+  // send handler
+  const handleSend = useCallback(
+    (content: string, opts?: { replyToId?: string; expiresAt?: string; viewOnce?: boolean; attachmentId?: string }) => {
+      if (!activeRoomId || !content.trim()) return;
+      send.mutate({
+        roomId: activeRoomId,
+        content: content.trim(),
+        type: 'text',
+        replyToId: opts?.replyToId ?? null,
+        expiresAt: opts?.expiresAt ?? null,
+        viewOnce: opts?.viewOnce ?? false,
+      });
+      stopTyping();
+    },
+    [activeRoomId, send, stopTyping],
   );
 
-  const { data: relationship } = useQuery({
-    queryKey: ['chat-relationship', activeRoom?.relationship_id],
-    queryFn: async () => {
-      const relId = activeRoom?.relationship_id;
-      if (!relId) return null;
-      const { data: rel } = await supabase
-        .from('merchant_relationships')
-        .select('*')
-        .eq('id', relId)
-        .maybeSingle();
-      if (!rel) return null;
-      const cpId = rel.merchant_a_id === merchantProfile?.merchant_id
-        ? rel.merchant_b_id
-        : rel.merchant_a_id;
-      const { data: cp } = await supabase
-        .from('merchant_profiles')
-        .select('display_name, nickname')
-        .eq('merchant_id', cpId)
-        .maybeSingle();
-      return {
-        ...rel,
-        counterparty_name:     cp?.display_name || cpId,
-        counterparty_nickname: cp?.nickname     || cpId,
-      };
-    },
-    enabled: !!activeRoom?.relationship_id && !!merchantProfile,
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
+  const isRTL = settings.language === 'ar';
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background select-none">
-      <CallOrchestrator
-        callState={callState} isIncoming={isIncoming} callerId={callerId}
-        remoteStream={remoteStream} acceptCall={acceptCall} rejectCall={endCall}
-        toggleMute={toggleMute} endCall={endCall}
-      />
+    <div
+      className={cn(
+        'flex h-full bg-background overflow-hidden',
+        isRTL && 'flex-row-reverse',
+      )}
+    >
+      {/* ── Call overlay (Phase 4) ────────────────────────────────────────── */}
+      <CallOverlay webrtc={webrtc} />
 
-      {/* Col 1: Inbox */}
-      {(!isMobile || showSidebar) && (
+      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+      {(showSidebar || !isMobile) && (
         <ConversationSidebar
           rooms={rooms}
           activeRoomId={activeRoomId}
-          onSelectRoom={(id) => { setActiveRoomId(id); if (isMobile) setShowSidebar(false); }}
-          currentUserId={userId}
-          isMobile={isMobile}
+          onSelectRoom={(id) => {
+            setActiveRoom(id);
+            if (isMobile) setShowSidebar(false);
+          }}
+          isLoading={roomsQuery.isLoading}
+          meId={meId}
         />
       )}
 
-      {/* Col 2: Timeline */}
-      {(!isMobile || !showSidebar) && (
-        <main className="flex-1 flex flex-col min-w-0 bg-background border-l border-border relative">
-          {activeRoomId ? (
-            <>
-              <ConversationHeader
-                title={relationship?.counterparty_name ?? activeRoom?.title ?? 'Conversation'}
-                nickname={relationship?.counterparty_nickname}
-                onDashboardToggle={() => setShowContext(!showContext)}
-                onCallVoice={() => initiateCall(false)}
-                onCallVideo={() => initiateCall(true)}
-                onBack={isMobile ? () => setShowSidebar(true) : undefined}
-                showDashboard={showContext}
-              />
-              <div className="flex-1 overflow-hidden relative flex flex-col">
-                <SecureWatermark enabled={true} />
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                  <MessageList
-                    messages={messages.data ?? []}
-                    currentUserId={userId}
-                    unreadMessageId={firstUnread}
-                    // ROOT CAUSE FIX: was reactionsByMessage[activeRoomId] which indexed
-                    // by room ID but the map is keyed by message ID → always undefined.
-                    // Pass the full map; MessageList does the per-message lookup itself.
-                    reactionsByMessage={reactionsByMessage}
-                    pinnedSet={new Set()}
-                    onReact={handleReact}                  // BUG 3 FIX: wired
-                    onPinToggle={() => {}}                 // needs backend: fn_chat_pin_message RPC
-                    onMarkRead={(id) => messages.read.mutate(id)}
-                    onDeleteForMe={handleDeleteForMe}      // BUG 3 FIX: wired
-                    onDeleteForEveryone={() => {}}         // needs backend: fn_chat_delete_message RPC
-                    onCreateOrder={() => navigate('/trading/orders?new=true')}
-                    onCreateTask={() => navigate('/trading/orders')}
-                  />
-                </div>
-                <MessageComposer
-                  sending={messages.send.isPending}
-                  onTyping={() => {}}
-                  onSend={(p) => messages.send.mutate(p)}
-                  pnlSummary={pnlSummary}                 // BUG 9 FIX: real data
-                />
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-4 opacity-40">
-              <Shield size={48} className="text-muted-foreground" />
-              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Secure Environment Ready</p>
-            </div>
-          )}
-        </main>
-      )}
-
-      {/* Col 3: Context panel */}
-      {!isMobile && showContext && activeRoomId && (
-        <ContextPanel relationship={relationship ?? null} />
-      )}
+      {/* ── Main pane ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 h-full">
+        {activeRoom ? (
+          <>
+            <ConversationHeader
+              room={activeRoom}
+              meId={meId}
+              onToggleSidebar={() => setShowSidebar((v) => !v)}
+              onStartCall={
+                activeRoom.room_type === 'merchant_private'
+                  ? webrtc.startCall
+                  : undefined
+              }
+            />
+            <MessageList
+              messages={messages}
+              meId={meId}
+              isLoading={msgsLoading}
+              roomType={activeRoom.room_type}
+              onReact={(msgId, emoji, remove) =>
+                react.mutate({ messageId: msgId, emoji, remove })
+              }
+              onEdit={(msgId, content) => edit.mutate({ messageId: msgId, content })}
+              onDelete={(msgId, forEveryone) =>
+                del.mutate({ messageId: msgId, forEveryone })
+              }
+            />
+            <MessageComposer
+              roomId={activeRoomId!}
+              roomType={activeRoom.room_type}
+              onSend={handleSend}
+              onTyping={startTyping}
+              meId={meId}
+            />
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center flex-1 gap-3 text-muted-foreground">
+            <p className="text-sm font-medium">
+              {rooms.length === 0 ? 'No conversations yet' : 'Select a conversation'}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
