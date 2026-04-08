@@ -40,16 +40,23 @@ function legacyRoute(n: AppNotification): NotificationNavigationTarget {
   switch (n.category) {
     case 'deal':
     case 'order':
+    case 'customer_order':
       return { pathname: '/trading/orders' };
     case 'invite':
     case 'network':
+    case 'customer':
       return { pathname: '/merchants' };
     case 'approval':
       return { pathname: '/admin/approvals' };
     case 'message':
+    case 'chat':
       return { pathname: '/chat' };
     case 'stock':
       return { pathname: '/trading/stock' };
+    case 'agreement':
+      return { pathname: '/merchants', search: '?tab=agreements' };
+    case 'settlement':
+      return { pathname: '/trading/orders', search: '?tab=settlements' };
     default:
       return { pathname: '/dashboard' };
   }
@@ -64,7 +71,7 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
   const params = new URLSearchParams();
 
   // Add tab context
-  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers', 'cash'].includes(target.targetTab)) {
+  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers', 'cash', 'agreements', 'clients', 'capital', 'settlements', 'liquidity'].includes(target.targetTab)) {
     params.set('tab', target.targetTab);
   }
 
@@ -83,6 +90,13 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
       transfer: 'focusTransferId',
       capital_transfer: 'focusTransferId',
       cash_custody: 'focusCustodyId',
+      agreement: 'focusAgreementId',
+      customer_order: 'focusOrderId',
+      customer_connection: 'focusConnectionId',
+      customer_message: 'focusMessageId',
+      capital_ledger: 'focusLedgerId',
+      os_room: 'roomId',
+      message: 'focusMessageId',
     };
     const focusKey = focusKeyMap[target.targetEntityType];
     if (focusKey) {
