@@ -96,7 +96,7 @@ export function CallOverlay({ webrtc }: Props) {
             </Button>
           )}
 
-          {(isActive || isCalling || callState === 'reconnecting') && (
+          {(isActive || isCalling) && (
             <Button
               size="icon"
               variant="destructive"
