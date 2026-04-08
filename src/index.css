@@ -70,6 +70,9 @@
   }
 
   .dark {
+    --wa-out-bubble: 163 55% 15%;
+    --wa-out-bubble-dark: 163 55% 15%;
+
     --background: 222 47% 6%;
     --foreground: 210 40% 92%;
 
