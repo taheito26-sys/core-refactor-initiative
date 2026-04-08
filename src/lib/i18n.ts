@@ -1700,12 +1700,10 @@ const translations = {
   quickBuy:                     { en: 'Quick Buy',                                        ar: 'شراء سريع' },
   quickSell:                    { en: 'Quick Sell',                                       ar: 'بيع سريع' },
   repeatOrder:                  { en: 'Repeat',                                           ar: 'تكرار' },
-  recentActivity:               { en: 'Recent Activity',                                  ar: 'النشاط الأخير' },
   noRecentOrders:               { en: 'No recent orders',                                 ar: 'لا توجد طلبات حديثة' },
   pendingOrdersAlert:           { en: 'orders awaiting action',                           ar: 'طلبات تنتظر إجراء' },
   startConversation:            { en: 'Start the conversation!',                          ar: 'ابدأ المحادثة!' },
   customerChatLabel:            { en: 'Customer chat',                                    ar: 'دردشة العميل' },
-  saveChanges:                  { en: 'Save Changes',                                     ar: 'حفظ التغييرات' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
