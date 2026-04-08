@@ -97,9 +97,21 @@ describe('notification router', () => {
     expect(target.pendingChatNav?.messageId).toBe('msg-55');
   });
 
+  it('routes chat notifications with only a message id to chat message deep-link', () => {
+    const notification = mapNotificationRowToModel({
+      id: 'n8', title: 'New message', body: null, category: 'message',
+      read_at: null, created_at: new Date().toISOString(),
+      target_path: '/chat', target_entity_type: 'chat_message', target_entity_id: 'msg-77',
+    });
+    const target = buildNotificationNavigationTarget(notification);
+    expect(target.pathname).toBe('/chat');
+    expect(target.search).toBe('?messageId=msg-77');
+    expect(isNotificationDeepLinkable(notification)).toBe(true);
+  });
+
   it('routes customer connection to merchants clients tab', () => {
     const notification = mapNotificationRowToModel({
-      id: 'n8', title: 'New client', body: null, category: 'customer',
+      id: 'n9', title: 'New client', body: null, category: 'customer',
       read_at: null, created_at: new Date().toISOString(),
       target_path: '/merchants', target_tab: 'clients', target_focus: 'focusConnectionId',
       target_entity_type: 'customer_connection', target_entity_id: 'conn-1',
