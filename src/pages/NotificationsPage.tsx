@@ -60,6 +60,22 @@ function groupByDay(items: Notification[], t: any): { label: string; items: Noti
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
+// ─── Smart Priority Scoring ─────────────────────────────────────────
+function priorityScore(n: Notification): number {
+  let score = 0;
+  // Unread items float up
+  if (!n.read_at) score += 100;
+  // Actionable items get highest priority
+  const kind = resolveNotificationActionKind(n.category, n.target?.entityType);
+  if (kind && !n.read_at) score += 200;
+  // Approvals & invites are high-priority
+  if (n.category === 'approval' || n.category === 'invite') score += 50;
+  // Recent items score higher (decay over 24h)
+  const ageMs = Date.now() - new Date(n.created_at).getTime();
+  const ageHours = ageMs / 3_600_000;
+  score += Math.max(0, 48 - ageHours);
+  return score;
+}
 
 // ─── Notification Card ──────────────────────────────────────────────
 function NotificationCard({
