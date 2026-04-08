@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getOrCreateDirectRoom } from '@/features/chat/api/chat';
 
 interface Props {
   merchantId: string;
@@ -12,10 +14,24 @@ interface Props {
 export default function MerchantClientsTab({ merchantId }: Props) {
   const { userId } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [filter, setFilter] = useState<'all' | 'pending' | 'active' | 'blocked'>('all');
-  const [chatConnectionId, setChatConnectionId] = useState<string | null>(null);
-  const [chatCustomerName, setChatCustomerName] = useState('');
+  const [openingChat, setOpeningChat] = useState<string | null>(null);
+
+  const handleOpenClientChat = async (customerUserId: string, customerName: string) => {
+    if (!customerUserId) return;
+    setOpeningChat(customerUserId);
+    try {
+      const roomId = await getOrCreateDirectRoom(customerUserId, `Chat with ${customerName}`);
+      navigate(`/chat?roomId=${encodeURIComponent(roomId)}`);
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? 'Failed to open chat';
+      toast.error(msg);
+    } finally {
+      setOpeningChat(null);
+    }
+  };
 
   const { data: connections = [], isLoading } = useQuery({
     queryKey: ['merchant-client-connections', merchantId],
@@ -107,17 +123,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
     return <span className={`pill ${cls}`}>{status}</span>;
   };
 
-  // If chat is open, show the chat panel
-  if (chatConnectionId) {
-    return (
-      <MerchantCustomerChat
-        connectionId={chatConnectionId}
-        customerName={chatCustomerName}
-        userId={userId!}
-        onBack={() => setChatConnectionId(null)}
-      />
-    );
-  }
+  // Chat now lives in the unified /chat route — no inline panel needed
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -223,10 +229,11 @@ export default function MerchantClientsTab({ merchantId }: Props) {
                         fontSize: 10, minHeight: 34, padding: '4px 12px',
                         position: 'relative',
                       }}
-                      onClick={() => {
-                        setChatConnectionId(conn.id);
-                        setChatCustomerName(conn.customer?.display_name ?? 'Customer');
-                      }}
+                      disabled={openingChat === conn.customer_user_id}
+                      onClick={() => handleOpenClientChat(
+                        conn.customer_user_id,
+                        conn.customer?.display_name ?? 'Customer',
+                      )}
                     >
                       💬 Chat
                       {unread > 0 && (
@@ -296,8 +303,11 @@ export default function MerchantClientsTab({ merchantId }: Props) {
   );
 }
 
-// ─── Inline merchant-side customer chat component ───────────────────────────
-function MerchantCustomerChat({
+// ─── MerchantCustomerChat removed ──────────────────────────────────────────
+// Chat is now handled by the unified platform at /chat.
+// Use handleOpenClientChat() → getOrCreateDirectRoom() → navigate('/chat?roomId=...')
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _MerchantCustomerChat_REMOVED({
   connectionId,
   customerName,
   userId,

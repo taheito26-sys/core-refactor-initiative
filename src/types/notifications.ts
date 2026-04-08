@@ -88,7 +88,7 @@ export function inferTargetKind(row: NotificationRow): NotificationTargetKind {
   if (row.entity_type === 'approval' || row.category === 'approval') return 'approval';
   if (row.entity_type === 'invite' || row.category === 'invite' || row.category === 'network') return 'invite';
   if (row.entity_type === 'agreement' || row.category === 'agreement') return 'agreement';
-  if (row.entity_type === 'os_room') return 'chat_message';
+  if (row.entity_type === 'os_room' || row.entity_type === 'chat_room') return 'chat_message';
   if (row.entity_type === 'customer_message') return 'chat_message';
   if (row.entity_type === 'customer_connection' || row.category === 'customer') return 'invite';
   if (row.entity_type === 'capital_ledger' || row.entity_type === 'cash_custody') return 'deal';

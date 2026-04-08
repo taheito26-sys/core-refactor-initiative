@@ -5,8 +5,32 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { getRooms } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
+import type { ChatRoomListItem } from '../types';
 
 export const ROOMS_KEY = ['chat', 'rooms'];
+
+/** Client-side enrichment: populate display_name / display_avatar from
+ *  what the RPC returns so the sidebar always has names to show. */
+function enrichRooms(rooms: ChatRoomListItem[]): ChatRoomListItem[] {
+  return rooms.map((r) => {
+    // For direct rooms the SQL now sets `name` to the other user's display name.
+    // Also carry through other_user_metadata as a fallback.
+    const meta = (r.other_user_metadata ?? {}) as Record<string, string>;
+    return {
+      ...r,
+      display_name:
+        r.display_name ??
+        meta.display_name ??
+        r.name ??
+        (r.is_direct ? 'Direct Message' : 'Room'),
+      display_avatar:
+        r.display_avatar ??
+        meta.avatar_url ??
+        r.avatar_url ??
+        null,
+    };
+  });
+}
 
 export function useRooms() {
   const { userId } = useAuth();
@@ -18,11 +42,12 @@ export function useRooms() {
 
   const query = useQuery({
     queryKey: ROOMS_KEY,
-    queryFn:  getRooms,
+    queryFn:  async () => enrichRooms(await getRooms()),
     enabled:  !!userId,
     staleTime: 20_000,
   });
 
+  // Keep the Zustand store in sync so the sidebar re-renders on data change
   useEffect(() => {
     if (query.data) setRooms(query.data);
   }, [query.data, setRooms]);
@@ -43,6 +68,7 @@ export function useRooms() {
           if (msg.sender_id !== userId && msg.room_id !== activeRoom) {
             incUnread(msg.room_id);
           }
+          // Re-fetch rooms list so preview text & last_message_at stay fresh
           qc.invalidateQueries({ queryKey: ROOMS_KEY });
         },
       )

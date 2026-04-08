@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { fmtU } from '@/lib/tracker-helpers';
 import { DEAL_TYPE_CONFIGS } from '@/lib/deal-engine';
 import { toast } from 'sonner';
-import { UnifiedChatInbox } from '@/features/merchants/components/UnifiedChatInbox';
+import ChatWorkspacePage from '@/features/chat/pages/ChatWorkspacePage';
 import { AgreementsGlobalTab } from '@/features/merchants/components/AgreementsGlobalTab';
 import MerchantClientsTab from '@/features/merchants/components/MerchantClientsTab';
 import MerchantCustomerOrdersTab from '@/features/merchants/components/MerchantCustomerOrdersTab';
@@ -121,8 +121,8 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
     navigate(`/trading/orders?relationship=${relationshipId}`);
   }, [navigate]);
 
-  const handleOpenRelationshipChat = useCallback((relationshipId: string) => {
-    navigate(`/trading/merchants?tab=chat&relationship=${relationshipId}`);
+  const handleOpenRelationshipChat = useCallback((_relationshipId: string) => {
+    navigate('/chat');
   }, [navigate]);
 
   const loadData = async () => {
@@ -916,9 +916,11 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
             <MerchantClientsTab merchantId={merchantProfile.merchant_id} />
           )}
 
-          {/* ═══ CHAT TAB ═══ */}
+          {/* ═══ CHAT TAB ═══ — Unified chat platform */}
           {tab === 'chat' && (
-            <UnifiedChatInbox relationships={relationships} />
+            <div className="h-[calc(100dvh-8rem)] -mx-4 -mb-4">
+              <ChatWorkspacePage />
+            </div>
           )}
 
         </>

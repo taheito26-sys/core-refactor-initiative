@@ -167,7 +167,7 @@ export function buildLiquidityActions(relationshipId: string | null) {
 
   return {
     workspacePath: `/merchants/${relationshipId}`,
-    chatPath: `/trading/merchants?tab=chat&relationship=${relationshipId}`,
+    chatPath: `/chat`,   // unified chat — rooms are pre-populated from migration
     dealPath: `/trading/orders?relationship=${relationshipId}`,
   };
 }

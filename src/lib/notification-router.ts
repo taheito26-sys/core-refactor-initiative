@@ -95,7 +95,7 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
       customer_connection: 'focusConnectionId',
       customer_message: 'focusMessageId',
       capital_ledger: 'focusLedgerId',
-      os_room: 'roomId',
+      os_room: 'roomId',   // legacy — os_rooms migrated to chat_rooms, same UUIDs
       message: 'focusMessageId',
     };
     const focusKey = focusKeyMap[target.targetEntityType];
