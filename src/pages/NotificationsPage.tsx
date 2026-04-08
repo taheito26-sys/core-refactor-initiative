@@ -282,18 +282,45 @@ export default function NotificationsPage() {
                 </p>
               </div>
             </div>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
+              {/* Select mode toggle */}
               <Button
-                variant="outline"
+                variant={selectMode ? 'default' : 'outline'}
                 size="sm"
                 className="gap-1.5 text-[11px] h-8 rounded-lg"
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
+                onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
               >
-                <CheckCheck className="h-3.5 w-3.5" />
-                {t('notifMarkAllRead')} ({unreadCount})
+                <SquareCheck className="h-3.5 w-3.5" />
+                {selectMode ? t('cancel') || 'Cancel' : t('select') || 'Select'}
               </Button>
-            )}
+
+              {/* Bulk mark read */}
+              {selectMode && selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-[11px] h-8 rounded-lg"
+                  onClick={handleBulkMarkRead}
+                  disabled={markBulkRead.isPending}
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  {t('markRead') || 'Mark Read'} ({selectedIds.size})
+                </Button>
+              )}
+
+              {unreadCount > 0 && !selectMode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-[11px] h-8 rounded-lg"
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  {t('notifMarkAllRead')} ({unreadCount})
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* ── Stats bar ── */}
