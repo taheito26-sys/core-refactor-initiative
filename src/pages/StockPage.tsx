@@ -946,6 +946,183 @@ export default function StockPage() {
         >+</button>
       )}
 
+      {/* ── Mobile Add Batch Bottom Sheet ──────────────────────────── */}
+      {isMobile && addBatchSheetOpen && (
+        <div
+          className="batch-sheet-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget && !batchConfirmDetails) setAddBatchSheetOpen(false); }}
+        >
+          <div className="batch-sheet tracker-root">
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--muted)', margin: '0 auto 14px', opacity: 0.35 }} />
+
+            {batchConfirmDetails ? (
+              <div style={{ textAlign: 'center', padding: '16px 8px 24px' }}>
+                <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 10 }}>✅</div>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: 'var(--good)' }}>{t('batchAdded')}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
+                  {fmtU(batchConfirmDetails.qty)} USDT @ {fmtP(batchConfirmDetails.price)} QAR
+                </div>
+                <div style={{ fontSize: 12, textAlign: 'left', background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 10, padding: '12px 14px', display: 'grid', gap: 8, marginBottom: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('supplier')}</span><strong>{batchConfirmDetails.source}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('total')} USDT</span><strong className="mono">{fmtU(batchConfirmDetails.qty)} USDT</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('buyPriceQar')}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} QAR</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} QAR</strong></div>
+                  {batchConfirmDetails.fundingAccName && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('fundingSourceLbl')}</span><strong style={{ maxWidth: '60%', textAlign: 'right' }}>{batchConfirmDetails.fundingAccName}</strong></div>
+                  )}
+                </div>
+                <div className="muted" style={{ fontSize: 10 }}>Closing automatically…</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800 }}>{t('addBatchTitle')}</div>
+                  <button onClick={() => setAddBatchSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+                  {wacop && (
+                    <div className="bannerRow">
+                      <span className="bLbl">{t('currentAvPrice')}</span>
+                      <span className="bVal">{fmtP(wacop)}</span>
+                      <span className="bSpacer" />
+                      <span className="bPill">{t('avg')}</span>
+                    </div>
+                  )}
+                  <div className="field2">
+                    <div className="lbl">{t('dateTime')}</div>
+                    <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
+                  </div>
+                  <div className="field2">
+                    <div className="lbl">{t('entryModeLabel')}</div>
+                    <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+                      <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModePriceVol')}</button>
+                      <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtQar')}</button>
+                      <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtPrice')}</button>
+                    </div>
+                  </div>
+                  {batchEntryMode === 'price_vol' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('currencyMode')}</div>
+                      <div className="modeToggle">
+                        <button className={batchMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setBatchMode('QAR')}>📦 QAR</button>
+                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
+                      </div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{batchMode === 'QAR' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                  </>)}
+                  {batchEntryMode === 'qty_total' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('usdtBought')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('totalQarPaid')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                    {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                        <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} QAR/USDT</span>
+                      </div>
+                    )}
+                  </>)}
+                  {batchEntryMode === 'qty_price' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('usdtBought')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                    {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                        <span style={{ color: 'var(--t2)' }}>{t('totalQarCalc')} </span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} QAR</span>
+                      </div>
+                    )}
+                  </>)}
+                  <div className="field2">
+                    <div className="lbl">{t('supplier')}</div>
+                    <div className="lookupShell">
+                      <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input placeholder={t('searchOrTypeSupplier')} autoComplete="off" value={batchSupplier}
+                          onChange={(e) => { setBatchSupplier(e.target.value); setSupplierMenuOpen(true); }}
+                          onFocus={() => setSupplierMenuOpen(true)} />
+                        <button className="sideAction" type="button" onClick={() => setSupplierMenuOpen((v) => !v)}>⌄</button>
+                        <button className="sideAction" type="button" onClick={() => { setNewSupplierName(batchSupplier); setSupplierAddOpen((v) => !v); }}>+</button>
+                      </div>
+                      {supplierMenuOpen && (
+                        <div className="lookupMenu" style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                          {supplierLookup.length ? supplierLookup.map((name) => (
+                            <button key={name} className="lookupItem" type="button" onClick={() => { setBatchSupplier(name); setSupplierMenuOpen(false); }}>
+                              <span>{name}</span><span className="lookupMeta">{t('supplier')}</span>
+                            </button>
+                          )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noSuppliersYet')}</span></div>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="lookupHint">{t('supplierHint')}</div>
+                  </div>
+                  {supplierAddOpen && (
+                    <div className="previewBox">
+                      <div className="pt">{t('addSupplierTitle')}</div>
+                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} placeholder={t('supplierName')} /></div></div>
+                      <div className="field2" style={{ marginTop: 6 }}><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newSupplierPhone} onChange={(e) => setNewSupplierPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                      <div className="formActions" style={{ marginTop: 8 }}>
+                        <button className="btn secondary" onClick={() => setSupplierAddOpen(false)}>{t('cancel')}</button>
+                        <button className="btn" onClick={addSupplier}>{t('addSupplierTitle')}</button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="field2">
+                    <div className="lbl">{t('note')}</div>
+                    <div className="inputBox"><input placeholder={t('optionalNote')} value={batchNote} onChange={(e) => setBatchNote(e.target.value)} /></div>
+                  </div>
+                  {activeAccounts.length > 0 && (
+                    <div className="field2">
+                      <div className="lbl">{t('fundingSourceLbl')}</div>
+                      <select value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        style={{ color: 'hsl(var(--foreground))', minHeight: 40 }}>
+                        <option value="none">🚫 {t('noFundingSource')}</option>
+                        {activeAccounts.map(a => {
+                          const bal = accountBalances.get(a.id) || 0;
+                          return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                        })}
+                      </select>
+                      {fundingAccountId && fundingAccountId !== 'none' && (() => {
+                        const acc = activeAccounts.find(a => a.id === fundingAccountId);
+                        const bal = accountBalances.get(fundingAccountId) || 0;
+                        return <div style={{ fontSize: 11, marginTop: 4, color: 'var(--muted)' }}>{t('availableLbl')}: <strong style={{ color: bal < 10000 ? 'var(--warn)' : 'var(--good)' }}>{fmtTotal(bal)} {acc?.currency}</strong></div>;
+                      })()}
+                    </div>
+                  )}
+                  {activeAccounts.length === 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
+                      💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => { setAddBatchSheetOpen(false); setStockTab('cash'); }} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
+                    </div>
+                  )}
+                  <div className="formActions">
+                    <button className="btn" style={{ minHeight: 44, width: '100%', fontSize: 13 }} onClick={addBatch}>{t('addBatchTitle')}</button>
+                  </div>
+                  {batchMsg && (
+                    <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ─── EDIT BATCH DIALOG ─── */}
       {(() => {
         const editBatch = editingBatchId ? state.batches.find(b => b.id === editingBatchId) : null;
