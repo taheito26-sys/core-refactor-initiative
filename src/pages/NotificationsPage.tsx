@@ -493,6 +493,11 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {/* ── Smart Digest ── */}
+      <div className="px-4 sm:px-6 pt-4">
+        <NotificationDigest />
+      </div>
+
       {/* ── Controls ── */}
       <div className="px-4 sm:px-6 py-4">
         <div className="flex flex-col sm:flex-row gap-3">
