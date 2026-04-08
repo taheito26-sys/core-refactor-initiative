@@ -3,7 +3,7 @@
 import { Phone, PhoneOff, Mic, MicOff, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import type { CallState } from '../hooks/useWebRTC';
+export type { CallState };
 
 interface CallOverlayWebRTC {
   callState: CallState;

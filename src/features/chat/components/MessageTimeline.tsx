@@ -48,7 +48,7 @@ export function MessageTimeline({
   }, [activeConvId]);
 
   const unreadCount = useMemo(
-    () => messages.filter((m) => m.sender_id !== currentUserId && !m.read_at).length,
+    () => messages.filter((m) => m.sender_id !== currentUserId && m.receipt_status !== 'read').length,
     [messages, currentUserId]
   );
 
