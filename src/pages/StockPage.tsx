@@ -480,11 +480,13 @@ export default function StockPage() {
     setEditingBatchId(null);
   };
 
+  const [batchFormCollapsed, setBatchFormCollapsed] = useState(true);
+
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
       {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
+      <div className="stock-tab-switcher" style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
         <button
           onClick={() => setStockTab('batches')}
           style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent', color: stockTab === 'batches' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
@@ -507,7 +509,7 @@ export default function StockPage() {
 
       {/* ── BATCHES TAB ────────────────────────────────────────── */}
       {stockTab === 'batches' && (
-      <div className="twoColPage" style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined}>
+      <div className="twoColPage" style={isMobile ? { display: 'flex', flexDirection: 'column-reverse', gap: 10 } : undefined}>
         <div>
           <div 
             className="orders-tab-bar" 
