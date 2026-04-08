@@ -51,7 +51,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     if (userId) requestPushPermission();
   }, [userId]);
 
-  const suppressRef = React.useRef(shouldSuppressRealtimeNotification);
+  const suppressRef = useRef(shouldSuppressRealtimeNotification);
   suppressRef.current = shouldSuppressRealtimeNotification;
 
   const handleRealtimeInsert = useCallback((notification: Notification) => {
