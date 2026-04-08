@@ -898,6 +898,11 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
             </>
           )}
 
+          {/* ═══ CLIENTS TAB ═══ */}
+          {tab === 'clients' && merchantProfile?.merchant_id && (
+            <MerchantClientsTab merchantId={merchantProfile.merchant_id} />
+          )}
+
           {/* ═══ CHAT TAB ═══ */}
           {tab === 'chat' && (
             <UnifiedChatInbox relationships={relationships} />
