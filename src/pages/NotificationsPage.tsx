@@ -29,6 +29,7 @@ import {
 } from '@/hooks/useNotificationActions';
 import { useUpdateAgreementStatus } from '@/hooks/useProfitShareAgreements';
 import { toast } from 'sonner';
+import { NotificationDigest } from '@/components/notifications/NotificationDigest';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
@@ -490,6 +491,11 @@ export default function NotificationsPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── Smart Digest ── */}
+      <div className="px-4 sm:px-6 pt-4">
+        <NotificationDigest />
       </div>
 
       {/* ── Controls ── */}
