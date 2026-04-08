@@ -319,6 +319,776 @@ export type Database = {
           },
         ]
       }
+      chat_attachments: {
+        Row: {
+          auth_tag: string | null
+          cdn_url: string | null
+          checksum_sha256: string | null
+          created_at: string
+          duration_ms: number | null
+          file_name: string
+          file_size: number
+          height: number | null
+          id: string
+          is_encrypted: boolean
+          is_validated: boolean
+          iv: string | null
+          message_id: string | null
+          mime_type: string
+          room_id: string
+          storage_path: string
+          thumbnail_path: string | null
+          uploader_id: string
+          waveform: Json | null
+          width: number | null
+        }
+        Insert: {
+          auth_tag?: string | null
+          cdn_url?: string | null
+          checksum_sha256?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          file_name: string
+          file_size: number
+          height?: number | null
+          id?: string
+          is_encrypted?: boolean
+          is_validated?: boolean
+          iv?: string | null
+          message_id?: string | null
+          mime_type: string
+          room_id: string
+          storage_path: string
+          thumbnail_path?: string | null
+          uploader_id: string
+          waveform?: Json | null
+          width?: number | null
+        }
+        Update: {
+          auth_tag?: string | null
+          cdn_url?: string | null
+          checksum_sha256?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          file_name?: string
+          file_size?: number
+          height?: number | null
+          id?: string
+          is_encrypted?: boolean
+          is_validated?: boolean
+          iv?: string | null
+          message_id?: string | null
+          mime_type?: string
+          room_id?: string
+          storage_path?: string
+          thumbnail_path?: string | null
+          uploader_id?: string
+          waveform?: Json | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_attachments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_audit_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          ip_address: unknown
+          metadata: Json
+          room_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_audit_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_call_participants: {
+        Row: {
+          call_id: string
+          ice_candidates: Json
+          id: string
+          joined_at: string | null
+          left_at: string | null
+          sdp_answer: string | null
+          sdp_offer: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          ice_candidates?: Json
+          id?: string
+          joined_at?: string | null
+          left_at?: string | null
+          sdp_answer?: string | null
+          sdp_offer?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          ice_candidates?: Json
+          id?: string
+          joined_at?: string | null
+          left_at?: string | null
+          sdp_answer?: string | null
+          sdp_offer?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "chat_calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_calls: {
+        Row: {
+          connected_at: string | null
+          created_at: string
+          duration_seconds: number | null
+          end_reason: string | null
+          ended_at: string | null
+          ice_config: Json | null
+          id: string
+          initiated_by: string
+          quality_stats: Json | null
+          room_id: string
+          started_at: string
+          status: Database["public"]["Enums"]["chat_call_status"]
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ice_config?: Json | null
+          id?: string
+          initiated_by: string
+          quality_stats?: Json | null
+          room_id: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["chat_call_status"]
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ice_config?: Json | null
+          id?: string
+          initiated_by?: string
+          quality_stats?: Json | null
+          room_id?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["chat_call_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_calls_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_device_keys: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          is_active: boolean
+          key_id: number | null
+          key_type: string
+          public_key: string
+          signature: string | null
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          is_active?: boolean
+          key_id?: number | null
+          key_type?: string
+          public_key: string
+          signature?: string | null
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          is_active?: boolean
+          key_id?: number | null
+          key_type?: string
+          public_key?: string
+          signature?: string | null
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_direct_rooms: {
+        Row: {
+          created_at: string
+          room_id: string
+          user_a_id: string
+          user_b_id: string
+        }
+        Insert: {
+          created_at?: string
+          room_id: string
+          user_a_id: string
+          user_b_id: string
+        }
+        Update: {
+          created_at?: string
+          room_id?: string
+          user_a_id?: string
+          user_b_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_direct_rooms_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_e2ee_sessions: {
+        Row: {
+          created_at: string
+          encrypted_session_key: string
+          id: string
+          recipient_device_id: string
+          recipient_id: string
+          room_id: string
+          rotated_at: string | null
+          sender_device_id: string
+          sender_id: string
+          session_version: number
+        }
+        Insert: {
+          created_at?: string
+          encrypted_session_key: string
+          id?: string
+          recipient_device_id: string
+          recipient_id: string
+          room_id: string
+          rotated_at?: string | null
+          sender_device_id: string
+          sender_id: string
+          session_version?: number
+        }
+        Update: {
+          created_at?: string
+          encrypted_session_key?: string
+          id?: string
+          recipient_device_id?: string
+          recipient_id?: string
+          room_id?: string
+          rotated_at?: string | null
+          sender_device_id?: string
+          sender_id?: string
+          session_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_e2ee_sessions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_message_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          message_id: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          message_id: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          message_id?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_message_reactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_message_receipts: {
+        Row: {
+          id: string
+          message_id: string
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_message_receipts_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_message_receipts_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }
+        Insert: {
+          client_nonce?: string | null
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_for_sender?: boolean
+          edited_at?: string | null
+          expires_at?: string | null
+          forwarded_from_id?: string | null
+          id?: string
+          is_deleted?: boolean
+          is_edited?: boolean
+          metadata?: Json
+          reply_to_id?: string | null
+          room_id: string
+          search_vector?: unknown
+          sender_id: string
+          type?: Database["public"]["Enums"]["chat_message_type"]
+          updated_at?: string
+          view_once?: boolean
+          viewed_by?: string[]
+          watermark_text?: string | null
+        }
+        Update: {
+          client_nonce?: string | null
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_for_sender?: boolean
+          edited_at?: string | null
+          expires_at?: string | null
+          forwarded_from_id?: string | null
+          id?: string
+          is_deleted?: boolean
+          is_edited?: boolean
+          metadata?: Json
+          reply_to_id?: string | null
+          room_id?: string
+          search_vector?: unknown
+          sender_id?: string
+          type?: Database["public"]["Enums"]["chat_message_type"]
+          updated_at?: string
+          view_once?: boolean
+          viewed_by?: string[]
+          watermark_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_forwarded_from_id_fkey"
+            columns: ["forwarded_from_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_presence: {
+        Row: {
+          device_info: Json
+          last_seen_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          device_info?: Json
+          last_seen_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          device_info?: Json
+          last_seen_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_room_members: {
+        Row: {
+          display_name_override: string | null
+          id: string
+          invited_by: string | null
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          joined_at: string
+          last_read_at: string | null
+          last_read_message_id: string | null
+          muted_until: string | null
+          notification_level: string
+          removed_at: string | null
+          removed_by: string | null
+          role: Database["public"]["Enums"]["chat_member_role"]
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          display_name_override?: string | null
+          id?: string
+          invited_by?: string | null
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          joined_at?: string
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          muted_until?: string | null
+          notification_level?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          role?: Database["public"]["Enums"]["chat_member_role"]
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          display_name_override?: string | null
+          id?: string
+          invited_by?: string | null
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          joined_at?: string
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          muted_until?: string | null
+          notification_level?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          role?: Database["public"]["Enums"]["chat_member_role"]
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_room_policies: {
+        Row: {
+          allow_calls: boolean
+          allow_files: boolean
+          allow_group_calls: boolean
+          allow_images: boolean
+          allow_voice_notes: boolean
+          allowed_mime_types: string[] | null
+          created_at: string
+          disappearing_default_hours: number | null
+          encryption_mode: Database["public"]["Enums"]["chat_encryption_mode"]
+          history_searchable: boolean
+          id: string
+          link_preview_enabled: boolean
+          max_file_size_mb: number
+          moderation_level: string
+          retention_hours: number | null
+          room_type: Database["public"]["Enums"]["chat_room_type"]
+          screenshot_protection: boolean
+          updated_at: string
+          watermark_enabled: boolean
+        }
+        Insert: {
+          allow_calls?: boolean
+          allow_files?: boolean
+          allow_group_calls?: boolean
+          allow_images?: boolean
+          allow_voice_notes?: boolean
+          allowed_mime_types?: string[] | null
+          created_at?: string
+          disappearing_default_hours?: number | null
+          encryption_mode?: Database["public"]["Enums"]["chat_encryption_mode"]
+          history_searchable?: boolean
+          id?: string
+          link_preview_enabled?: boolean
+          max_file_size_mb?: number
+          moderation_level?: string
+          retention_hours?: number | null
+          room_type: Database["public"]["Enums"]["chat_room_type"]
+          screenshot_protection?: boolean
+          updated_at?: string
+          watermark_enabled?: boolean
+        }
+        Update: {
+          allow_calls?: boolean
+          allow_files?: boolean
+          allow_group_calls?: boolean
+          allow_images?: boolean
+          allow_voice_notes?: boolean
+          allowed_mime_types?: string[] | null
+          created_at?: string
+          disappearing_default_hours?: number | null
+          encryption_mode?: Database["public"]["Enums"]["chat_encryption_mode"]
+          history_searchable?: boolean
+          id?: string
+          link_preview_enabled?: boolean
+          max_file_size_mb?: number
+          moderation_level?: string
+          retention_hours?: number | null
+          room_type?: Database["public"]["Enums"]["chat_room_type"]
+          screenshot_protection?: boolean
+          updated_at?: string
+          watermark_enabled?: boolean
+        }
+        Relationships: []
+      }
+      chat_rooms: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_announcement_only: boolean
+          is_direct: boolean
+          last_message_at: string | null
+          last_message_id: string | null
+          last_message_preview: string | null
+          metadata: Json
+          migrated_from: string | null
+          migrated_source_id: string | null
+          name: string | null
+          policy_id: string | null
+          type: Database["public"]["Enums"]["chat_room_type"]
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_announcement_only?: boolean
+          is_direct?: boolean
+          last_message_at?: string | null
+          last_message_id?: string | null
+          last_message_preview?: string | null
+          metadata?: Json
+          migrated_from?: string | null
+          migrated_source_id?: string | null
+          name?: string | null
+          policy_id?: string | null
+          type: Database["public"]["Enums"]["chat_room_type"]
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_announcement_only?: boolean
+          is_direct?: boolean
+          last_message_at?: string | null
+          last_message_id?: string | null
+          last_message_preview?: string | null
+          metadata?: Json
+          migrated_from?: string | null
+          migrated_source_id?: string | null
+          name?: string | null
+          policy_id?: string | null
+          type?: Database["public"]["Enums"]["chat_room_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_rooms_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_typing_state: {
+        Row: {
+          expires_at: string
+          is_typing: boolean
+          room_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          expires_at?: string
+          is_typing?: boolean
+          room_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          expires_at?: string
+          is_typing?: boolean
+          room_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_typing_state_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_settings: {
         Row: {
           created_at: string
@@ -2627,6 +3397,165 @@ export type Database = {
         Args: { _settlement_id: string }
         Returns: undefined
       }
+      chat_add_reaction: {
+        Args: { _emoji: string; _message_id: string }
+        Returns: undefined
+      }
+      chat_answer_call: {
+        Args: { _call_id: string; _sdp_answer: string }
+        Returns: undefined
+      }
+      chat_create_merchant_client_room: {
+        Args: { _customer_user_id: string; _room_name?: string }
+        Returns: string
+      }
+      chat_delete_message: {
+        Args: { _for_everyone?: boolean; _message_id: string }
+        Returns: undefined
+      }
+      chat_edit_message: {
+        Args: { _message_id: string; _new_content: string }
+        Returns: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "chat_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      chat_end_call: {
+        Args: { _call_id: string; _end_reason?: string }
+        Returns: undefined
+      }
+      chat_get_or_create_collab_room: {
+        Args: { _name?: string }
+        Returns: string
+      }
+      chat_get_or_create_direct_room: {
+        Args: { _other_user_id: string; _room_name?: string }
+        Returns: string
+      }
+      chat_initiate_call: { Args: { _room_id: string }; Returns: string }
+      chat_mark_room_read: {
+        Args: { _room_id: string; _up_to_message_id?: string }
+        Returns: undefined
+      }
+      chat_mark_viewed: { Args: { _message_id: string }; Returns: undefined }
+      chat_push_ice_candidate: {
+        Args: { _call_id: string; _candidate: Json }
+        Returns: undefined
+      }
+      chat_remove_reaction: {
+        Args: { _emoji: string; _message_id: string }
+        Returns: undefined
+      }
+      chat_search_messages: {
+        Args: { _limit?: number; _query: string; _room_id: string }
+        Returns: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "chat_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      chat_send_message: {
+        Args: {
+          _client_nonce?: string
+          _content: string
+          _expires_at?: string
+          _metadata?: Json
+          _reply_to_id?: string
+          _room_id: string
+          _type?: string
+          _view_once?: boolean
+          _watermark_text?: string
+        }
+        Returns: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "chat_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      chat_set_presence: {
+        Args: { _device_info?: Json; _status?: string }
+        Returns: undefined
+      }
+      chat_set_typing: {
+        Args: { _is_typing: boolean; _room_id: string }
+        Returns: undefined
+      }
       current_merchant_id: { Args: never; Returns: string }
       customer_wallet_summary: { Args: { p_user_id: string }; Returns: Json }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
@@ -2641,6 +3570,10 @@ export type Database = {
       fn_chat_mark_read: {
         Args: { _message_id: string; _room_id: string }
         Returns: boolean
+      }
+      fn_chat_member_role: {
+        Args: { p_room_id: string; p_user_id: string }
+        Returns: Database["public"]["Enums"]["chat_member_role"]
       }
       fn_chat_pin_message: {
         Args: { p_message_id: string; p_room_id: string }
@@ -2675,6 +3608,10 @@ export type Database = {
         Returns: undefined
       }
       fn_get_dashboard_stats: { Args: { p_merchant_id: string }; Returns: Json }
+      fn_is_chat_member: {
+        Args: { p_room_id: string; p_user_id: string }
+        Returns: boolean
+      }
       get_unread_counts: {
         Args: { _user_id?: string }
         Returns: {
@@ -2753,9 +3690,32 @@ export type Database = {
         Args: { _deal_id: string; _status: string }
         Returns: undefined
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      chat_call_status:
+        | "ringing"
+        | "active"
+        | "ended"
+        | "missed"
+        | "declined"
+        | "failed"
+        | "no_answer"
+      chat_encryption_mode: "none" | "tls_only" | "server_e2ee" | "client_e2ee"
+      chat_member_role: "owner" | "admin" | "member" | "guest"
+      chat_message_type:
+        | "text"
+        | "voice_note"
+        | "image"
+        | "file"
+        | "system"
+        | "call_summary"
+        | "order_card"
+        | "payment_card"
+        | "reaction_burst"
+      chat_room_type: "merchant_private" | "merchant_client" | "merchant_collab"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2884,6 +3844,33 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      chat_call_status: [
+        "ringing",
+        "active",
+        "ended",
+        "missed",
+        "declined",
+        "failed",
+        "no_answer",
+      ],
+      chat_encryption_mode: ["none", "tls_only", "server_e2ee", "client_e2ee"],
+      chat_member_role: ["owner", "admin", "member", "guest"],
+      chat_message_type: [
+        "text",
+        "voice_note",
+        "image",
+        "file",
+        "system",
+        "call_summary",
+        "order_card",
+        "payment_card",
+        "reaction_burst",
+      ],
+      chat_room_type: [
+        "merchant_private",
+        "merchant_client",
+        "merchant_collab",
+      ],
     },
   },
 } as const
