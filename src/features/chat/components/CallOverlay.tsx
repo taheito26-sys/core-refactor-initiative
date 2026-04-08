@@ -3,7 +3,7 @@
 import { Phone, PhoneOff, Mic, MicOff, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-export type { CallState };
+type CallState = 'idle' | 'calling' | 'ringing' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
 interface CallOverlayWebRTC {
   callState: CallState;

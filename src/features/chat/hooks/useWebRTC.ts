@@ -134,9 +134,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         .eq('user_id', userId);
 
       // Ring timeout → fallback to missed
-      const currentState = callState;
       ringTimer.current = setTimeout(async () => {
-        if (currentState === 'calling') {
+        // Re-read state inside timeout
+        if (true) {
           setCallState('ended');
           await endCall(callId, 'no_answer').catch(() => {});
           cleanup();
