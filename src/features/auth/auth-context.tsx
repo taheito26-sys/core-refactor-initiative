@@ -290,6 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
     setProfile(null);
     setMerchantProfile(null);
+    setCustomerProfile(null);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
