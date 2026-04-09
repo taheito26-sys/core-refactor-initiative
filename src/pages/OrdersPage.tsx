@@ -2046,30 +2046,33 @@ export default function OrdersPage() {
     const isExpanded = !!expandedCards[tr.id];
 
     return (
-      <div key={`mobile-trade-${tr.id}`} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
-        {/* ── Compact summary row (matches Stock batch card layout) ── */}
+      <div key={`mobile-trade-${tr.id}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        {/* ── Compact summary row ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
+          onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+          onPointerUp={e => (e.currentTarget.style.background = 'none')}
+          onPointerLeave={e => (e.currentTarget.style.background = 'none')}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
               <span style={{ fontSize: 9, color: isMerchantLinked ? 'var(--brand)' : 'var(--muted)', flexShrink: 0 }}>{isMerchantLinked ? '🤝' : '👤'}</span>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{fmtDate(tr.ts)}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{fmtDate(tr.ts)}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-            <strong className="mono" style={{ fontSize: 12 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)} USDT</strong>
+            <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)} USDT</strong>
             <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</span>
-            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {Number.isFinite(net) && (
                 <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                   {net >= 0 ? '+' : ''}{fmtC(net)}
                 </span>
               )}
               {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', flexShrink: 0, filter: 'drop-shadow(0 0 2px color-mix(in srgb, var(--brand) 30%, transparent))' }}><path d="M6 9l6 6 6-6"/></svg>
             </div>
           </div>
         </button>
