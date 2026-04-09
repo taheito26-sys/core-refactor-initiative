@@ -255,6 +255,41 @@ export default function ChatWorkspacePage() {
 
   const isRTL = settings.language === 'ar';
 
+  // ── Mute state (derived from room list) ─────────────────────────────────
+  const isRoomMuted = activeRoom?.is_muted ?? false;
+
+  // ── Clear chat handler ──────────────────────────────────────────────────
+  const handleClearChat = useCallback(async () => {
+    if (!activeRoomId) return;
+    const confirmed = window.confirm('Clear this chat? Messages will be hidden for you.');
+    if (!confirmed) return;
+    try {
+      await clearChatForMe(activeRoomId);
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', activeRoomId] });
+      toast.success('Chat cleared');
+    } catch {
+      toast.error('Failed to clear chat');
+    }
+  }, [activeRoomId, qc]);
+
+  // ── Mute toggle handler ─────────────────────────────────────────────────
+  const handleMuteToggle = useCallback(async () => {
+    if (!activeRoomId) return;
+    try {
+      await toggleMuteRoom(activeRoomId, !isRoomMuted);
+      qc.invalidateQueries({ queryKey: ROOMS_KEY });
+      toast.success(isRoomMuted ? 'Unmuted' : 'Muted');
+    } catch {
+      toast.error('Failed to update mute');
+    }
+  }, [activeRoomId, isRoomMuted, qc]);
+
+  // ── Trading Room auto-join ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!userId || !merchantProfile?.merchant_id) return;
+    getOrCreateCollabRoom('Trading Room').catch(() => {});
+  }, [userId, merchantProfile?.merchant_id]);
+
   // ── Shared header props builder ─────────────────────────────────────────
   const headerCallProps = isPrivateRoom ? {
     onStartCall: () => webrtc.startCall(false),
