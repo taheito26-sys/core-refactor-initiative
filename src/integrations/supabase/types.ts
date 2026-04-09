@@ -968,6 +968,8 @@ export type Database = {
           allow_voice_notes: boolean
           allowed_mime_types: string[] | null
           created_at: string
+          disable_export: boolean
+          disable_forwarding: boolean
           disappearing_default_hours: number | null
           encryption_mode: Database["public"]["Enums"]["chat_encryption_mode"]
           history_searchable: boolean
@@ -978,6 +980,7 @@ export type Database = {
           retention_hours: number | null
           room_type: Database["public"]["Enums"]["chat_room_type"]
           screenshot_protection: boolean
+          strip_forward_sender_identity: boolean
           updated_at: string
           watermark_enabled: boolean
         }
@@ -989,6 +992,8 @@ export type Database = {
           allow_voice_notes?: boolean
           allowed_mime_types?: string[] | null
           created_at?: string
+          disable_export?: boolean
+          disable_forwarding?: boolean
           disappearing_default_hours?: number | null
           encryption_mode?: Database["public"]["Enums"]["chat_encryption_mode"]
           history_searchable?: boolean
@@ -999,6 +1004,7 @@ export type Database = {
           retention_hours?: number | null
           room_type: Database["public"]["Enums"]["chat_room_type"]
           screenshot_protection?: boolean
+          strip_forward_sender_identity?: boolean
           updated_at?: string
           watermark_enabled?: boolean
         }
@@ -1010,6 +1016,8 @@ export type Database = {
           allow_voice_notes?: boolean
           allowed_mime_types?: string[] | null
           created_at?: string
+          disable_export?: boolean
+          disable_forwarding?: boolean
           disappearing_default_hours?: number | null
           encryption_mode?: Database["public"]["Enums"]["chat_encryption_mode"]
           history_searchable?: boolean
@@ -1020,6 +1028,7 @@ export type Database = {
           retention_hours?: number | null
           room_type?: Database["public"]["Enums"]["chat_room_type"]
           screenshot_protection?: boolean
+          strip_forward_sender_identity?: boolean
           updated_at?: string
           watermark_enabled?: boolean
         }
@@ -3561,6 +3570,22 @@ export type Database = {
         Args: { _call_id: string; _end_reason?: string }
         Returns: undefined
       }
+      chat_export_room_transcript: {
+        Args: { _room_id: string }
+        Returns: {
+          content: string
+          sender_name: string
+          sent_at: string
+        }[]
+      }
+      chat_forward_message: {
+        Args: {
+          _client_nonce?: string
+          _message_id: string
+          _target_room_id: string
+        }
+        Returns: string
+      }
       chat_get_or_create_collab_room: {
         Args: { _name?: string }
         Returns: string
@@ -3602,6 +3627,7 @@ export type Database = {
           my_role: string
           room_id: string
           room_name: string
+          room_policy: Json
           room_type: string
           unread_count: number
         }[]
@@ -3620,6 +3646,7 @@ export type Database = {
         Args: { _emoji: string; _message_id: string }
         Returns: undefined
       }
+      chat_run_expiry_cleanup: { Args: never; Returns: Json }
       chat_search_messages: {
         Args: { _limit?: number; _query: string; _room_id: string }
         Returns: {
@@ -3725,6 +3752,7 @@ export type Database = {
         Args: { p_message_id: string; p_room_id: string }
         Returns: undefined
       }
+      fn_chat_expire_messages: { Args: never; Returns: Json }
       fn_chat_mark_read: {
         Args: { _message_id: string; _room_id: string }
         Returns: boolean
