@@ -39,6 +39,7 @@ export default function ChatWorkspacePage() {
   const { userId, merchantProfile } = useAuth();
   const { settings } = useTheme();
   const isMobile = useIsMobile();
+  const qc = useQueryClient();
 
   const meId = userId ?? '';
 
