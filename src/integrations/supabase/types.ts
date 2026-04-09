@@ -858,6 +858,39 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_privacy_settings: {
+        Row: {
+          created_at: string
+          hide_last_seen: boolean
+          hide_read_receipts: boolean
+          hide_typing: boolean
+          invisible_mode: boolean
+          online_visibility: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          hide_last_seen?: boolean
+          hide_read_receipts?: boolean
+          hide_typing?: boolean
+          invisible_mode?: boolean
+          online_visibility?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          hide_last_seen?: boolean
+          hide_read_receipts?: boolean
+          hide_typing?: boolean
+          invisible_mode?: boolean
+          online_visibility?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_room_members: {
         Row: {
           display_name_override: string | null
@@ -1518,6 +1551,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      market_offers: {
+        Row: {
+          created_at: string
+          currency_pair: string
+          expires_at: string | null
+          id: string
+          max_amount: number
+          merchant_id: string
+          min_amount: number
+          note: string | null
+          offer_type: string
+          rate: number
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency_pair?: string
+          expires_at?: string | null
+          id?: string
+          max_amount?: number
+          merchant_id: string
+          min_amount?: number
+          note?: string | null
+          offer_type: string
+          rate: number
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency_pair?: string
+          expires_at?: string | null
+          id?: string
+          max_amount?: number
+          merchant_id?: string
+          min_amount?: number
+          note?: string | null
+          offer_type?: string
+          rate?: number
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_offers_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       merchant_approvals: {
         Row: {
@@ -3408,6 +3500,22 @@ export type Database = {
         Args: { _call_id: string; _sdp_answer: string }
         Returns: undefined
       }
+      chat_cancel_market_offer: {
+        Args: { _offer_id: string }
+        Returns: undefined
+      }
+      chat_create_market_offer: {
+        Args: {
+          _currency_pair?: string
+          _expires_at?: string
+          _max_amount?: number
+          _min_amount?: number
+          _note?: string
+          _offer_type: string
+          _rate: number
+        }
+        Returns: string
+      }
       chat_create_merchant_client_room: {
         Args: { _customer_user_id: string; _room_name?: string }
         Returns: string
@@ -3461,6 +3569,8 @@ export type Database = {
         Args: { _other_user_id: string; _room_name?: string }
         Returns: string
       }
+      chat_get_privacy_settings: { Args: never; Returns: Json }
+      chat_get_qatar_market_room: { Args: never; Returns: string }
       chat_get_rooms: {
         Args: never
         Returns: {
@@ -3477,6 +3587,22 @@ export type Database = {
           other_user_metadata: Json
           room_id: string
           room_type: Database["public"]["Enums"]["chat_room_type"]
+          unread_count: number
+        }[]
+      }
+      chat_get_rooms_v2: {
+        Args: never
+        Returns: {
+          is_archived: boolean
+          is_direct: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          last_message_at: string
+          last_message_preview: string
+          my_role: string
+          room_id: string
+          room_name: string
+          room_type: string
           unread_count: number
         }[]
       }
@@ -3578,6 +3704,16 @@ export type Database = {
         Args: { _is_typing: boolean; _room_id: string }
         Returns: undefined
       }
+      chat_update_privacy_settings: {
+        Args: {
+          _hide_last_seen?: boolean
+          _hide_read_receipts?: boolean
+          _hide_typing?: boolean
+          _invisible_mode?: boolean
+          _online_visibility?: string
+        }
+        Returns: Json
+      }
       current_merchant_id: { Args: never; Returns: string }
       customer_wallet_summary: { Args: { p_user_id: string }; Returns: Json }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
@@ -3630,8 +3766,31 @@ export type Database = {
         Returns: undefined
       }
       fn_get_dashboard_stats: { Args: { p_merchant_id: string }; Returns: Json }
+      fn_get_user_privacy: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          hide_last_seen: boolean
+          hide_read_receipts: boolean
+          hide_typing: boolean
+          invisible_mode: boolean
+          online_visibility: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "chat_privacy_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       fn_is_chat_member: {
         Args: { p_room_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      fn_is_presence_visible: {
+        Args: { _target_user_id: string; _viewer_id: string }
         Returns: boolean
       }
       get_unread_counts: {
