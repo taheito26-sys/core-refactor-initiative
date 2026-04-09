@@ -35,6 +35,7 @@ import { ForwardMessageModal } from '../components/ForwardMessageModal';
 import { NewChatModal } from '../components/NewChatModal';
 import { ScreenshotProtectionOverlay } from '../components/ScreenshotProtectionOverlay';
 import { PrivacyDashboard } from '../components/PrivacyDashboard';
+import { TradingRoomPrivacyBanner } from '../components/TradingRoomPrivacyBanner';
 import { usePrivacyGuard } from '../hooks/usePrivacyGuard';
 import { cn } from '@/lib/utils';
 
