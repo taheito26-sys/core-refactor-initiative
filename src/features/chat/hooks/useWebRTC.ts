@@ -56,12 +56,16 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   const pc              = useRef<RTCPeerConnection | null>(null);
   const callIdRef       = useRef<string | null>(null);
+  const localStreamRef  = useRef<MediaStream | null>(null);
   const reconnectTries  = useRef(0);
   const ringTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const durationTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const lingerTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectedAtRef  = useRef<number | null>(null);
   const cleaningUp      = useRef(false);
+
+  // Keep ref in sync with state
+  useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
 
   const setActiveCallId   = useChatStore((s) => s.setActiveCallId);
   const storeActiveCallId = useChatStore((s) => s.activeCallId);
