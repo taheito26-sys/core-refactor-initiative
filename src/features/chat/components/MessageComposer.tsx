@@ -148,6 +148,7 @@ function formatDuration(seconds: number) {
 export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Props) {
   const [content, setContent]       = useState('');
   const [viewOnce, setViewOnce]     = useState(false);
+  const [watermark, setWatermark]   = useState(false);
   const [expiresSec, setExpiresSec] = useState<number | null>(null);
   const [uploading, setUploading]   = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
