@@ -79,6 +79,7 @@ export function ConversationHeader({
   onViewInfo,
   onMuteToggle,
   onClearChat,
+  onPrivacyDashboard,
   isMuted = false,
 }: Props) {
   const otherUserId = room.other_user_id ?? '';
