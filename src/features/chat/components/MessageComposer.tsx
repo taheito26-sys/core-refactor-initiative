@@ -470,6 +470,11 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
 
           {/* Inline action buttons */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+            <button onClick={() => setWatermark((v) => !v)} title={watermark ? 'Watermark: ON' : 'Watermark: OFF'}
+              className={cn('h-7 w-7 rounded-full flex items-center justify-center transition-all',
+                watermark ? 'bg-cyan-500/20 text-cyan-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
+              <Droplets className="h-3.5 w-3.5" />
+            </button>
             <button onClick={() => setViewOnce((v) => !v)} title={viewOnce ? 'View once: ON' : 'View once: OFF'}
               className={cn('h-7 w-7 rounded-full flex items-center justify-center transition-all',
                 viewOnce ? 'bg-violet-500/20 text-violet-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
