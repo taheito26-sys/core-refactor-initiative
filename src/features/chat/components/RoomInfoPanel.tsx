@@ -70,9 +70,7 @@ export function RoomInfoPanel({ room, onClose }: Props) {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Created</span>
-                <span className="text-xs font-semibold text-foreground">
-                  {room.created_at ? new Date(room.created_at).toLocaleDateString() : '—'}
-                </span>
+                <span className="text-xs font-semibold text-foreground">—</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Encryption</span>
