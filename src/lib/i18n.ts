@@ -291,7 +291,9 @@ const translations = {
   avg: { en: 'Avg', ar: 'متوسط' },
   currencyMode: { en: 'Currency Mode', ar: 'وضع العملة' },
   buyPriceQar: { en: 'Buy Price (QAR)', ar: 'سعر الشراء (ر.ق)' },
+  buyPriceEgp: { en: 'Buy Price (EGP)', ar: 'سعر الشراء (ج.م)' },
   volumeQar: { en: 'Volume (QAR)', ar: 'الحجم (ر.ق)' },
+  volumeEgp: { en: 'Volume (EGP)', ar: 'الحجم (ج.م)' },
   searchOrTypeSupplier: { en: 'Search or type supplier name', ar: 'ابحث أو اكتب اسم المورد' },
   showSuppliers: { en: 'Show suppliers', ar: 'عرض الموردين' },
   addSupplierTitle: { en: 'Add Supplier', ar: 'إضافة مورد' },
@@ -304,14 +306,22 @@ const translations = {
   qtyUsdt: { en: 'Qty USDT', ar: 'الكمية USDT' },
   usdtBought: { en: 'USDT Bought', ar: 'USDT المشتراة' },
   totalQarPaid: { en: 'Total QAR Paid', ar: 'إجمالي ر.ق المدفوع' },
+  totalEgpPaid: { en: 'Total EGP Paid', ar: 'إجمالي ج.م المدفوع' },
   avgPriceCalc: { en: 'Avg Price:', ar: 'متوسط السعر:' },
   totalQarCalc: { en: 'Total QAR:', ar: 'إجمالي ر.ق:' },
+  totalEgpCalc: { en: 'Total EGP:', ar: 'إجمالي ج.م:' },
   minAlreadyUsed: { en: 'Min {qty} (already used)', ar: 'الحد الأدنى {qty} (مستخدم بالفعل)' },
   profitLabel: { en: 'Profit', ar: 'الربح' },
   entryModeLabel: { en: 'Entry Mode', ar: 'وضع الإدخال' },
   fifoLabel: { en: 'FIFO', ar: 'FIFO' },
   manualLabel: { en: 'Manual', ar: 'يدوي' },
   myCut: { en: 'my cut', ar: 'حصتي' },
+  sellPriceEgp: { en: 'Sell Price (EGP)', ar: 'سعر البيع (ج.م)' },
+  amountEgp: { en: 'Amount (EGP)', ar: 'المبلغ (ج.م)' },
+  totalEgpReceived: { en: 'Total EGP Received', ar: 'إجمالي ج.م المستلم' },
+  feeEgpLabel: { en: 'Fee EGP', ar: 'الرسوم ج.م' },
+  totalEgp: { en: 'Total EGP', ar: 'إجمالي ج.م' },
+  capitalInEgp: { en: 'EGP', ar: 'ج.م' },
   quickTemplate: { en: 'Quick Template', ar: 'قالب سريع' },
   equalSplit: { en: '🤝 50/50 Equal', ar: '🤝 50/50 بالتساوي' },
   customMultiMerchant: { en: '👥 Custom Multi-Merchant', ar: '👥 تاجر متعدد مخصص' },
@@ -1730,4 +1740,30 @@ export function getT(lang: Lang) {
     const entry = translations[key];
     return entry ? entry[lang] || entry.en : key;
   };
+}
+
+/**
+ * Get a currency-specific translation key based on base label name and currency.
+ * Example: getCurrencyLabel('volume', 'EGP') → 'volumeEgp'
+ * Falls back to base key if currency-specific key doesn't exist.
+ */
+export function getCurrencyLabel(
+  baseName: string,
+  currency: 'QAR' | 'EGP' | 'USDT',
+): TranslationKey {
+  if (currency === 'USDT') {
+    // USDT typically uses generic names like 'quantity' instead of 'amountUsdt'
+    return baseName as TranslationKey;
+  }
+
+  const suffix = currency === 'EGP' ? 'Egp' : 'Qar';
+  const key = `${baseName}${suffix}` as TranslationKey;
+
+  // Check if the key exists in translations
+  if (key in translations) {
+    return key;
+  }
+
+  // Fallback to base name if currency-specific key doesn't exist
+  return baseName as TranslationKey;
 }
