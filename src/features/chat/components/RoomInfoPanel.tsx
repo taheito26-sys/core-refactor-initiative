@@ -5,14 +5,16 @@
 // Phase 13: Forwarding controls display
 // Phase 19: Export controls display
 
-import { X, Lock, ShieldCheck, Users, Image as ImageIcon, FileText, Mic2, BellOff, Archive, LogOut, Shield, Forward, Copy, Download, Eye, Timer } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, Lock, ShieldCheck, Users, Image as ImageIcon, FileText, Mic2, BellOff, Archive, LogOut, Shield, Forward, Copy, Download, Eye, Timer, Phone, Link2, Droplets } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ChatRoomListItem, ChatRoomType } from '../types';
+import type { ChatRoomListItem, ChatRoomType, ChatRoomPolicy } from '../types';
 import { EncryptionBanner } from './EncryptionIndicator';
 import { RetentionSection } from './RetentionIndicator';
 import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
-import { useQuery } from '@tanstack/react-query';
-import { exportRoomTranscript, getRoomMembers } from '../api/chat';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { exportRoomTranscript, getRoomMembers, updateRoomPolicy, getRoomOnlineCount } from '../api/chat';
+import { ROOMS_KEY } from '../hooks/useRooms';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { logPrivacyEvent } from '../lib/privacy-engine';
@@ -36,18 +38,23 @@ function initials(name: string | null | undefined): string {
   return words.length >= 2 ? (words[0][0] + words[words.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
-function PolicyBadge({ icon: Icon, label, enabled }: { icon: React.ElementType; label: string; enabled: boolean }) {
+function PolicyBadge({ icon: Icon, label, enabled, onToggle }: { icon: React.ElementType; label: string; enabled: boolean; onToggle?: () => void }) {
   return (
-    <div className={cn(
-      'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold',
-      enabled ? 'bg-primary/10 text-primary' : 'bg-muted/50 text-muted-foreground/50',
-    )}>
+    <button
+      onClick={onToggle}
+      disabled={!onToggle}
+      className={cn(
+        'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold w-full transition-colors',
+        enabled ? 'bg-primary/10 text-primary' : 'bg-muted/50 text-muted-foreground/50',
+        onToggle && 'hover:bg-accent cursor-pointer',
+        !onToggle && 'cursor-default',
+      )}>
       <Icon className="h-3 w-3" />
       {label}
       <span className={cn('ml-auto text-[9px]', enabled ? 'text-emerald-500' : 'text-muted-foreground/30')}>
         {enabled ? 'ON' : 'OFF'}
       </span>
-    </div>
+    </button>
   );
 }
 
