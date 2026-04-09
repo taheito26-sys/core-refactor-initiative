@@ -1,9 +1,9 @@
 // ─── ConversationHeader — Unified Chat Platform ───────────────────────────
 import { useMemo } from 'react';
 import {
-  Phone, Search, ShieldCheck, Lock, Users,
+  Phone, Video, Search, ShieldCheck, Lock, Users,
   PanelLeftClose, PanelLeftOpen, MoreHorizontal,
-  ArrowLeft,
+  ArrowLeft, History,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useChatStore } from '@/lib/chat-store';
