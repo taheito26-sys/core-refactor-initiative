@@ -74,7 +74,7 @@ export function RoomInfoPanel({ room, onClose }: Props) {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Encryption</span>
-                <span className="text-xs font-semibold text-emerald-500">
+                <span className="text-xs font-semibold text-primary">
                   {room.room_type === 'merchant_private' ? 'End-to-end' : 'TLS'}
                 </span>
               </div>
