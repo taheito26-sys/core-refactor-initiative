@@ -34,7 +34,7 @@ export function usePrivacyGuard({
     if (!screenshotProtection) return;
     return detectScreenshotKeys(() => {
       setScreenshotDetected(true);
-      logPrivacyEvent(userId, roomId, 'screenshot_detected', {
+      logPrivacyEvent(userId, 'screenshot_detected', roomId, {
         user_agent: navigator.userAgent,
       });
       // Auto-dismiss after 3s
@@ -56,7 +56,7 @@ export function usePrivacyGuard({
     return detectWindowBlur(
       () => {
         setIsBlurred(true);
-        logPrivacyEvent(userId, roomId, 'window_blur_protection', { action: 'blur' });
+        logPrivacyEvent(userId, 'window_blur_protection', roomId, { action: 'blur' });
       },
       () => setIsBlurred(false),
     );
@@ -70,7 +70,7 @@ export function usePrivacyGuard({
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault();
-        logPrivacyEvent(userId, roomId, 'copy_blocked');
+        logPrivacyEvent(userId, 'copy_blocked', roomId);
       }
     };
     el.addEventListener('keydown', handler);
@@ -97,7 +97,7 @@ export function useViewOnceGuard(messageId: string | null, viewOnce: boolean, us
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(interval);
-          logPrivacyEvent(userId, undefined, 'view_once_expired', { messageId });
+          logPrivacyEvent(userId, 'view_once_expired', undefined, { messageId });
           return 0;
         }
         return t - 1;

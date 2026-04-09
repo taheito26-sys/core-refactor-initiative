@@ -33,6 +33,9 @@ import { RoomInfoPanel } from '../components/RoomInfoPanel';
 import { ImageLightbox } from '../components/ImageLightbox';
 import { ForwardMessageModal } from '../components/ForwardMessageModal';
 import { NewChatModal } from '../components/NewChatModal';
+import { ScreenshotProtectionOverlay } from '../components/ScreenshotProtectionOverlay';
+import { PrivacyDashboard } from '../components/PrivacyDashboard';
+import { usePrivacyGuard } from '../hooks/usePrivacyGuard';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
@@ -78,6 +81,7 @@ export default function ChatWorkspacePage() {
   // ── Forward state (Phase 12) ──────────────────────────────────────────
   const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showPrivacyDashboard, setShowPrivacyDashboard] = useState(false);
 
   // URL → room/message
   useEffect(() => {
@@ -152,7 +156,20 @@ export default function ChatWorkspacePage() {
   // ── calls ─────────────────────────────────────────────────────────────────
   const webrtc = useWebRTC(activeRoomId);
 
-  // Close panels when room changes
+  // ── privacy guard (Phases 6, 8, 9, 14) ─────────────────────────────────
+  const privacySettings = (() => {
+    try {
+      const saved = localStorage.getItem('privacy_settings');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  })();
+  const { containerRef: privacyContainerRef, isBlurred, screenshotDetected } = usePrivacyGuard({
+    userId: meId,
+    roomId: activeRoomId,
+    screenshotProtection: privacySettings.screenshotProtection ?? false,
+    copyProtection: privacySettings.copyDisabled ?? false,
+    blurOnLoseFocus: privacySettings.screenshotProtection ?? false,
+  });
   useEffect(() => {
     setShowCallHistory(false);
     setShowSearch(false);
@@ -315,7 +332,13 @@ export default function ChatWorkspacePage() {
     }
 
     return (
-      <>
+      <div ref={privacyContainerRef} className="flex flex-col flex-1 min-h-0 relative">
+        {/* Phases 6, 8, 9: Screenshot/blur overlays */}
+        <ScreenshotProtectionOverlay
+          screenshotDetected={screenshotDetected}
+          isBlurred={isBlurred}
+        />
+
         <ConversationHeader
           room={activeRoom}
           meId={meId}
@@ -324,6 +347,7 @@ export default function ChatWorkspacePage() {
           onViewInfo={() => setShowRoomInfo((v) => !v)}
           onMuteToggle={handleMuteToggle}
           onClearChat={handleClearChat}
+          onPrivacyDashboard={() => setShowPrivacyDashboard(true)}
           isMuted={isRoomMuted}
           {...headerCallProps}
         />
@@ -383,7 +407,7 @@ export default function ChatWorkspacePage() {
             />
           </>
         )}
-      </>
+      </div>
     );
   };
 
@@ -420,6 +444,11 @@ export default function ChatWorkspacePage() {
     />
   ) : null;
 
+  // ── Privacy dashboard overlay (Phase 25) ────────────────────────────────
+  const privacyPanel = showPrivacyDashboard ? (
+    <PrivacyDashboard onClose={() => setShowPrivacyDashboard(false)} />
+  ) : null;
+
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
@@ -429,6 +458,7 @@ export default function ChatWorkspacePage() {
         {roomInfo}
         {forwardModal}
         {newChatModal}
+        {privacyPanel}
         {mobilePane === 'list' ? (
           <div className="flex flex-col flex-1 min-w-0 h-full chat-pane-enter-left">
             <ConversationSidebar
@@ -462,6 +492,7 @@ export default function ChatWorkspacePage() {
       {roomInfo}
       {forwardModal}
       {newChatModal}
+      {privacyPanel}
 
       {(showSidebar || !isMobile) && (
         <ConversationSidebar

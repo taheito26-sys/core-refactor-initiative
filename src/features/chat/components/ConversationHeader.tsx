@@ -4,6 +4,7 @@ import {
   Phone, Video, Search, ShieldCheck, Lock, Users,
   PanelLeftClose, PanelLeftOpen, MoreVertical,
   ArrowLeft, History, Info, BellOff, Trash2, Ban, Image as ImageIcon,
+  Shield,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useChatStore } from '@/lib/chat-store';
@@ -61,6 +62,7 @@ interface Props {
   onViewInfo?: () => void;
   onMuteToggle?: () => void;
   onClearChat?: () => void;
+  onPrivacyDashboard?: () => void;
   isMuted?: boolean;
 }
 
@@ -77,6 +79,7 @@ export function ConversationHeader({
   onViewInfo,
   onMuteToggle,
   onClearChat,
+  onPrivacyDashboard,
   isMuted = false,
 }: Props) {
   const otherUserId = room.other_user_id ?? '';
@@ -257,6 +260,15 @@ export function ConversationHeader({
                   <ImageIcon size={15} className="text-muted-foreground" />
                   <span>Media & files</span>
                 </button>
+                {onPrivacyDashboard && (
+                  <button
+                    onClick={() => { closeMenu(); onPrivacyDashboard(); }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
+                  >
+                    <Shield size={15} className="text-muted-foreground" />
+                    <span>Privacy & Security</span>
+                  </button>
+                )}
                 {onClearChat && (
                   <>
                     <div className="my-1 border-t border-border" />
