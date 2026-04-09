@@ -281,6 +281,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
   const expiresAt = expiresSec
     ? new Date(Date.now() + expiresSec * 1000).toISOString()
     : undefined;
+  const watermarkText = watermark ? `${meId.slice(0, 8)} · ${new Date().toISOString().split('T')[0]}` : null;
 
   // Phase 36: Send animation
   const [sendPulse, setSendPulse] = useState(false);
@@ -326,14 +327,13 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
 
   const handleSend = useCallback(() => {
     if (!content.trim()) return;
-    const wmText = watermark ? `${meId.slice(0, 8)} · ${new Date().toISOString().split('T')[0]}` : null;
-    onSend(content, { expiresAt, viewOnce, watermarkText: wmText });
+    onSend(content, { expiresAt, viewOnce, watermarkText });
     setContent('');
     setSendPulse(true);
     setTimeout(() => setSendPulse(false), 300);
     textareaRef.current?.focus();
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-  }, [content, onSend, expiresAt, viewOnce, watermark, meId]);
+  }, [content, onSend, expiresAt, viewOnce, watermarkText]);
 
   const handleKey = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -375,6 +375,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
           onSend('🖼 Image', {
             attachmentId: att.id,
             viewOnce,
+            watermarkText,
             type: 'image',
             metadata: {
               file_name: file.name,
@@ -392,7 +393,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
         return;
       }
     }
-  }, [beginUpload, canSendImages, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
+  }, [beginUpload, canSendImages, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce, watermarkText]);
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -412,7 +413,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
         {
-          attachmentId: att.id, viewOnce,
+          attachmentId: att.id, viewOnce, watermarkText,
           type: isImage ? 'image' : 'file',
           metadata: {
             file_name: file.name,
@@ -431,7 +432,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (imageInputRef.current) imageInputRef.current.value = '';
     }
-  }, [beginUpload, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
+  }, [beginUpload, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce, watermarkText]);
 
   // Phase 21: Drag-and-drop file upload
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -458,7 +459,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
         {
-          attachmentId: att.id, viewOnce,
+          attachmentId: att.id, viewOnce, watermarkText,
           type: isImage ? 'image' : 'file',
           metadata: {
             file_name: file.name,
@@ -475,7 +476,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     } finally {
       await finishUpload();
     }
-  }, [beginUpload, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
+  }, [beginUpload, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce, watermarkText]);
 
   const handleVoiceSend = useCallback(async () => {
     const blob = await voice.stop();
@@ -490,7 +491,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
       });
       setUploadProgress(94);
       onSend('🎙 Voice message', {
-        attachmentId: att.id, type: 'voice_note',
+        attachmentId: att.id, type: 'voice_note', watermarkText,
         metadata: { duration_ms: durMs },
       });
     } catch {
@@ -498,7 +499,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     } finally {
       await finishUpload();
     }
-  }, [beginUpload, finishUpload, voice, userId, roomId, onSend]);
+  }, [beginUpload, finishUpload, voice, userId, roomId, onSend, watermarkText]);
 
   const closeMenus = useCallback(() => {
     setShowAttachMenu(false);

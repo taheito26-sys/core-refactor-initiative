@@ -571,6 +571,8 @@ export function MessageList({ messages, meId, isLoading, roomType, watermarkEnab
                   status?: 'active' | 'filled' | 'cancelled' | 'expired';
                 } | undefined;
                 const isOfferMessage = m.type === 'market_offer' && !!marketOffer;
+                const shouldShowWatermark = watermarkEnabled || !!m.watermark_text;
+                const watermarkStamp = (m.watermark_text ?? meId.slice(0, 8)).split('·')[0].trim();
                 const senderLabel = resolveMessageSenderLabel(
                   m.sender_id,
                   m.sender_name,
@@ -645,12 +647,13 @@ export function MessageList({ messages, meId, isLoading, roomType, watermarkEnab
                               : cn('rounded-tr-lg rounded-br-lg',
                                   isFirstInGroup ? 'rounded-tl-[4px]' : 'rounded-tl-lg',
                                   isLastInGroup ? 'rounded-bl-lg' : 'rounded-bl-lg'),
+                            shouldShowWatermark && !isOfferMessage && 'pb-5',
                             isDeleted && 'opacity-50 italic',
                             isFailed && 'opacity-60 ring-1 ring-destructive/30',
                             isHighlighted && 'ring-2 ring-primary/40',
                             isOfferMessage && 'bg-transparent shadow-none px-0 py-0',
                           )}>
-                            {(watermarkEnabled || m.watermark_text) && (
+                            {shouldShowWatermark && (
                               <SecureWatermark
                                 enabled
                                 customText={m.watermark_text ?? undefined}
@@ -658,6 +661,17 @@ export function MessageList({ messages, meId, isLoading, roomType, watermarkEnab
                                 overlay
                                 surface={isMe ? 'outgoing-bubble' : 'incoming-bubble'}
                               />
+                            )}
+
+                            {shouldShowWatermark && !isOfferMessage && !isDeleted && (
+                              <span
+                                className={cn(
+                                  'absolute bottom-1.5 left-2 z-10 rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-wide',
+                                  isMe ? 'bg-black/15 text-white/75' : 'bg-black/10 text-foreground/65',
+                                )}
+                              >
+                                {watermarkStamp}
+                              </span>
                             )}
 
                             {/* Sender name for group chats */}

@@ -30,6 +30,7 @@ interface Props {
   overlay?: boolean;
   roomId?: string;
   surface?: WatermarkSurface;
+  showStamp?: boolean;
   /** When true, logs render events to audit trail */
   auditLog?: boolean;
 }
@@ -105,6 +106,7 @@ export function SecureWatermark({
   overlay = false,
   roomId,
   surface = 'background',
+  showStamp = surface !== 'background',
   auditLog = false,
 }: Props) {
   const { merchantProfile, userId } = useAuth();
@@ -178,6 +180,19 @@ export function SecureWatermark({
         </defs>
         <rect width="100%" height="100%" fill={`url(#${patternId})`} />
       </svg>
+      {showStamp && (
+        <div
+          className="absolute bottom-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-semibold tracking-wide shadow-sm"
+          style={{
+            color: fill,
+            backgroundColor: surface === 'media' ? 'rgba(0, 0, 0, 0.28)' : 'rgba(0, 0, 0, 0.14)',
+            opacity: Math.min(opacity + 0.28, 0.62),
+            mixBlendMode: 'normal',
+          }}
+        >
+          {identifier}
+        </div>
+      )}
     </div>
   );
 }
