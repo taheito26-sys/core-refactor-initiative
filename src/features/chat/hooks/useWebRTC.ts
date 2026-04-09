@@ -56,12 +56,16 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   const pc              = useRef<RTCPeerConnection | null>(null);
   const callIdRef       = useRef<string | null>(null);
+  const localStreamRef  = useRef<MediaStream | null>(null);
   const reconnectTries  = useRef(0);
   const ringTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const durationTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const lingerTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectedAtRef  = useRef<number | null>(null);
   const cleaningUp      = useRef(false);
+
+  // Keep ref in sync with state
+  useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
 
   const setActiveCallId   = useChatStore((s) => s.setActiveCallId);
   const storeActiveCallId = useChatStore((s) => s.activeCallId);
@@ -82,8 +86,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     if (cleaningUp.current) return;
     cleaningUp.current = true;
 
-    // Stop all local media tracks
-    localStream?.getTracks().forEach((t) => t.stop());
+    // Stop all local media tracks via ref (avoids stale closure)
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
 
     // Close peer connection
     if (pc.current) {
@@ -99,6 +103,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setRemoteStream(null);
     setActiveCallId(null);
     callIdRef.current = null;
+    localStreamRef.current = null;
     setIsMuted(false);
     connectedAtRef.current = null;
     setCallDuration(0);
@@ -108,7 +113,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     reconnectTries.current = 0;
 
     cleaningUp.current = false;
-  }, [localStream, setActiveCallId]);
+  }, [setActiveCallId]);
 
   // ── start duration timer ──────────────────────────────────────────────
   const startDurationTimer = useCallback(() => {
