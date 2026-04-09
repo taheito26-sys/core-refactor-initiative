@@ -54,6 +54,8 @@ interface Props {
   onToggleSidebar?: () => void;
   sidebarOpen?: boolean;
   onStartCall?: () => void;
+  onStartVideoCall?: () => void;
+  onToggleCallHistory?: () => void;
   onSearchToggle?: () => void;
 }
 
