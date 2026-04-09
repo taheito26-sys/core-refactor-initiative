@@ -68,6 +68,7 @@ export function ConversationHeader({
 }: Props) {
   const otherUserId = room.other_user_id ?? '';
   const presence    = useChatStore(presenceOf(otherUserId));
+  const isMobile    = useIsMobile();
 
   const displayName = useMemo(
     () => room.display_name ?? room.name ?? (room.is_direct ? 'Direct Message' : 'Room'),
@@ -79,18 +80,20 @@ export function ConversationHeader({
   return (
     <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
 
-      {/* ── Left: toggle + avatar + name ─────────────────────────────────── */}
+      {/* ── Left: toggle/back + avatar + name ────────────────────────────── */}
       <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
 
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
             className="w-9 h-9 -ml-1 text-muted-foreground hover:text-foreground transition-colors shrink-0 inline-flex items-center justify-center rounded-lg hover:bg-accent"
-            title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            title={isMobile ? 'Back' : sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
           >
-            {sidebarOpen
-              ? <PanelLeftClose size={18} />
-              : <PanelLeftOpen  size={18} />
+            {isMobile
+              ? <ArrowLeft size={20} />
+              : sidebarOpen
+                ? <PanelLeftClose size={18} />
+                : <PanelLeftOpen  size={18} />
             }
           </button>
         )}
