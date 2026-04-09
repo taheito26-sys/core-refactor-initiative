@@ -11,6 +11,8 @@ import type { ChatRoomListItem, ChatRoomType } from '../types';
 import { EncryptionBanner } from './EncryptionIndicator';
 import { RetentionSection } from './RetentionIndicator';
 import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
+import { useQuery } from '@tanstack/react-query';
+import { getRoomMembers } from '../api/chat';
 
 interface Props {
   room: ChatRoomListItem;
@@ -52,6 +54,12 @@ export function RoomInfoPanel({ room, onClose }: Props) {
   const displayName = resolveRoomDisplayName(room);
   const avatarUrl = resolveRoomAvatar(room);
   const policy = room.policy;
+  const membersQuery = useQuery({
+    queryKey: ['chat', 'room-members', room.room_id],
+    queryFn: () => getRoomMembers(room.room_id),
+    staleTime: 30_000,
+  });
+  const members = membersQuery.data ?? [];
 
   const encryptionMode = room.room_type === 'merchant_private' ? 'client_e2ee' as const
     : room.room_type === 'merchant_client' ? 'server_e2ee' as const
@@ -92,8 +100,42 @@ export function RoomInfoPanel({ room, onClose }: Props) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Members</span>
-                <span className="text-xs font-semibold text-foreground">{room.member_count ?? 2}</span>
+                <span className="text-xs font-semibold text-foreground">{members.length || room.member_count || 0}</span>
               </div>
+            </div>
+          </div>
+
+          <div className="px-4 py-3 border-b border-border/50">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Members</p>
+              {membersQuery.isLoading && (
+                <span className="text-[10px] text-muted-foreground">Loading...</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {members.length === 0 && !membersQuery.isLoading ? (
+                <p className="text-xs text-muted-foreground">No visible members</p>
+              ) : (
+                members.slice(0, 8).map((member) => (
+                  <div key={member.id} className="flex items-center gap-3">
+                    {member.avatar_url ? (
+                      <img src={member.avatar_url} alt={member.display_name ?? member.user_id} className="h-9 w-9 rounded-full object-cover" />
+                    ) : (
+                      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-foreground">
+                        {initials(member.display_name ?? member.user_id)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {member.display_name ?? member.user_id}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground capitalize">
+                        {member.role.replace('_', ' ')}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

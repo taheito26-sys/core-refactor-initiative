@@ -61,11 +61,9 @@ export async function getOrCreateCollabRoom(name?: string): Promise<string> {
 }
 
 export async function getRoomMembers(roomId: string): Promise<ChatRoomMember[]> {
-  const { data, error } = await supabase
-    .from('chat_room_members' as never)
-    .select('*')
-    .eq('room_id', roomId)
-    .is('removed_at', null);
+  const { data, error } = await supabase.rpc('chat_get_room_members' as never, {
+    _room_id: roomId,
+  } as never);
   if (error) throw rpcError('getRoomMembers', error);
   return (data ?? []) as unknown as ChatRoomMember[];
 }
