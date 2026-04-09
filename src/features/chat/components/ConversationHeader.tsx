@@ -66,6 +66,8 @@ export function ConversationHeader({
   onToggleSidebar,
   sidebarOpen = true,
   onStartCall,
+  onStartVideoCall,
+  onToggleCallHistory,
   onSearchToggle,
 }: Props) {
   const otherUserId = room.other_user_id ?? '';
