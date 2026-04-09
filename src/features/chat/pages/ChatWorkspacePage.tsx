@@ -440,6 +440,7 @@ export default function ChatWorkspacePage() {
             <MessageComposer
               roomId={activeRoomId!}
               roomType={activeRoom.room_type}
+              roomPolicy={activeRoom.policy}
               onSend={handleSend}
               onTyping={startTyping}
               meId={meId}

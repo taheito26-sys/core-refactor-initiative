@@ -91,6 +91,7 @@ export function ConversationHeader({
 
   const displayName = useMemo(() => resolveRoomDisplayName(room), [room]);
   const avatarUrl = useMemo(() => resolveRoomAvatar(room), [room]);
+  const canStartCalls = room.policy?.allow_calls ?? true;
 
   return (
     <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
@@ -163,7 +164,7 @@ export function ConversationHeader({
       <div className="flex items-center gap-0.5 shrink-0">
 
         {/* Voice call */}
-        {onStartCall && (
+        {onStartCall && canStartCalls && (
           <button
             onClick={onStartCall}
             className="w-9 h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
@@ -174,7 +175,7 @@ export function ConversationHeader({
         )}
 
         {/* Video call */}
-        {onStartVideoCall && (
+        {onStartVideoCall && canStartCalls && (
           <button
             onClick={onStartVideoCall}
             className="w-9 h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"

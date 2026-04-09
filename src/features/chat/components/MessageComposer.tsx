@@ -7,12 +7,14 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { uploadAttachment, validateAttachment } from '../api/chat';
-import type { ChatRoomType } from '../types';
+import type { ChatRoomPolicy, ChatRoomType } from '../types';
+import { validateFileUpload } from '../lib/privacy-engine';
 import { toast } from 'sonner';
 
 interface Props {
   roomId:   string;
   roomType: ChatRoomType;
+  roomPolicy?: ChatRoomPolicy | null;
   onSend:   (content: string, opts?: {
     replyToId?:   string;
     expiresAt?:   string;
@@ -146,7 +148,7 @@ function formatDuration(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Props) {
+export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping, meId }: Props) {
   const [content, setContent]       = useState('');
   const [viewOnce, setViewOnce]     = useState(false);
   const [watermark, setWatermark]   = useState(false);
@@ -161,6 +163,10 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
   const imageInputRef = useRef<HTMLInputElement>(null);
   const { userId } = useAuth();
   const voice = useVoiceRecorder();
+  const canSendImages = roomPolicy?.allow_images ?? true;
+  const canSendFiles = roomPolicy?.allow_files ?? true;
+  const canSendVoiceNotes = roomPolicy?.allow_voice_notes ?? true;
+  const canOpenAttachMenu = canSendImages || canSendFiles;
 
   const expiresAt = expiresSec
     ? new Date(Date.now() + expiresSec * 1000).toISOString()
@@ -168,6 +174,21 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
 
   // Phase 36: Send animation
   const [sendPulse, setSendPulse] = useState(false);
+
+  const validateUploadForRoom = useCallback((file: File, kind: 'image' | 'file') => {
+    if (kind === 'image' && !canSendImages) {
+      return { ok: false, error: 'Images and videos are disabled in this room' };
+    }
+    if (kind === 'file' && !canSendFiles) {
+      return { ok: false, error: 'Document uploads are disabled in this room' };
+    }
+    const baseValidation = validateAttachment(file);
+    if (!baseValidation.ok) return baseValidation;
+    return validateFileUpload(file, {
+      allowed_mime_types: roomPolicy?.allowed_mime_types ?? null,
+      max_file_size_mb: roomPolicy?.max_file_size_mb ?? undefined,
+    });
+  }, [canSendFiles, canSendImages, roomPolicy?.allowed_mime_types, roomPolicy?.max_file_size_mb]);
 
   const handleSend = useCallback(() => {
     if (!content.trim()) return;
@@ -200,11 +221,17 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
   const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items || !userId) return;
+    if (!canSendImages) return;
     for (const item of Array.from(items)) {
       if (item.type.startsWith('image/')) {
         e.preventDefault();
         const file = item.getAsFile();
         if (!file) return;
+        const validation = validateUploadForRoom(file, 'image');
+        if (!validation.ok) {
+          toast.error(validation.error);
+          return;
+        }
         setUploading(true);
         try {
           const att = await uploadAttachment(roomId, userId, file, { width: 0, height: 0 });
@@ -222,17 +249,17 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
         return;
       }
     }
-  }, [roomId, userId, onSend, viewOnce]);
+  }, [canSendImages, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !userId) return;
-    const v = validateAttachment(file);
+    const isImage = file.type.startsWith('image/') || file.type.startsWith('video/');
+    const v = validateUploadForRoom(file, isImage ? 'image' : 'file');
     if (!v.ok) { toast.error(v.error); return; }
     setUploading(true);
     setShowAttachMenu(false);
     try {
-      const isImage = file.type.startsWith('image/');
       const att = await uploadAttachment(roomId, userId, file, isImage ? { width: 0, height: 0 } : undefined);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
@@ -249,7 +276,7 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (imageInputRef.current) imageInputRef.current.value = '';
     }
-  }, [roomId, userId, onSend, viewOnce]);
+  }, [roomId, userId, onSend, validateUploadForRoom, viewOnce]);
 
   // Phase 21: Drag-and-drop file upload
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -262,11 +289,11 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (!file || !userId) return;
-    const v = validateAttachment(file);
+    const isImage = file.type.startsWith('image/') || file.type.startsWith('video/');
+    const v = validateUploadForRoom(file, isImage ? 'image' : 'file');
     if (!v.ok) { toast.error(v.error); return; }
     setUploading(true);
     try {
-      const isImage = file.type.startsWith('image/');
       const att = await uploadAttachment(roomId, userId, file, isImage ? { width: 0, height: 0 } : undefined);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
@@ -281,7 +308,7 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
     } finally {
       setUploading(false);
     }
-  }, [roomId, userId, onSend, viewOnce]);
+  }, [roomId, userId, onSend, validateUploadForRoom, viewOnce]);
 
   const handleVoiceSend = useCallback(async () => {
     const blob = await voice.stop();
@@ -348,7 +375,7 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
       onDrop={handleDrop}
     >
       {/* Phase 21: Drag overlay */}
-      {isDragOver && (
+      {isDragOver && canOpenAttachMenu && (
         <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-xl flex items-center justify-center backdrop-blur-sm">
           <div className="text-sm font-semibold text-primary flex items-center gap-2">
             <Paperclip className="h-5 w-5" />
@@ -380,6 +407,14 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
               <X className="h-2.5 w-2.5 opacity-60" />
             </button>
           )}
+        </div>
+      )}
+
+      {!canOpenAttachMenu && !canSendVoiceNotes && (
+        <div className="px-4 pt-2">
+          <span className="text-[10px] font-medium text-muted-foreground">
+            This room is text-only by policy.
+          </span>
         </div>
       )}
 
@@ -421,9 +456,19 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
           <input ref={imageInputRef} type="file" className="hidden" onChange={handleFileSelect}
             accept="image/*,video/*" />
           <button
-            onClick={() => { setShowAttachMenu((v) => !v); setShowTimerPicker(false); setShowEmojiPicker(false); }}
+            onClick={() => {
+              if (!canOpenAttachMenu) {
+                toast.error('Attachments are disabled in this room');
+                return;
+              }
+              setShowAttachMenu((v) => !v);
+              setShowTimerPicker(false);
+              setShowEmojiPicker(false);
+            }}
+            disabled={!canOpenAttachMenu}
             className={cn(
               'h-10 w-10 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all',
+              !canOpenAttachMenu && 'opacity-40 cursor-not-allowed hover:text-muted-foreground hover:bg-transparent',
               showAttachMenu && 'text-primary bg-primary/10',
             )}
           >
@@ -434,16 +479,24 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
               <div className="fixed inset-0 z-40" onClick={closeMenus} />
               <div className="absolute bottom-full mb-2 left-0 bg-popover border border-border rounded-2xl shadow-xl p-1.5 min-w-[180px] z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-150">
                 <button
+                  disabled={!canSendImages}
                   onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                  className={cn(
+                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm transition-colors',
+                    canSendImages ? 'hover:bg-muted' : 'opacity-40 cursor-not-allowed',
+                  )}>
                   <div className="h-9 w-9 rounded-full bg-violet-500/15 flex items-center justify-center">
                     <Camera className="h-4.5 w-4.5 text-violet-500" />
                   </div>
                   <span className="font-medium">Photo & Video</span>
                 </button>
                 <button
+                  disabled={!canSendFiles}
                   onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors">
+                  className={cn(
+                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm transition-colors',
+                    canSendFiles ? 'hover:bg-muted' : 'opacity-40 cursor-not-allowed',
+                  )}>
                   <div className="h-9 w-9 rounded-full bg-blue-500/15 flex items-center justify-center">
                     <Paperclip className="h-4.5 w-4.5 text-blue-500" />
                   </div>
@@ -520,8 +573,19 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
               : <Send className="h-4.5 w-4.5" />}
           </button>
         ) : (
-          <button onClick={() => voice.start()} disabled={uploading}
-            className="h-10 w-10 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0">
+          <button
+            onClick={() => {
+              if (!canSendVoiceNotes) {
+                toast.error('Voice notes are disabled in this room');
+                return;
+              }
+              void voice.start();
+            }}
+            disabled={uploading || !canSendVoiceNotes}
+            className={cn(
+              'h-10 w-10 rounded-full flex items-center justify-center text-muted-foreground transition-colors shrink-0',
+              canSendVoiceNotes ? 'hover:text-foreground hover:bg-muted/50' : 'opacity-40 cursor-not-allowed',
+            )}>
             <Mic className="h-5 w-5" />
           </button>
         )}
