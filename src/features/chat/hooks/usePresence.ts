@@ -4,27 +4,29 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { setPresence } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
+import { usePrivacySettings } from './usePrivacySettings';
 
 const HEARTBEAT_MS = 30_000;
 
 export function usePresence() {
   const { userId } = useAuth();
   const setPresenceStore = useChatStore((s) => s.setPresence);
+  const { settings } = usePrivacySettings();
 
   // Announce own presence and keep alive
   useEffect(() => {
     if (!userId) return;
-    setPresence('online').catch(() => {});
+    setPresence(settings.invisible_mode ? 'offline' : 'online').catch(() => {});
 
     const hb = setInterval(() => {
-      setPresence('online').catch(() => {});
+      setPresence(settings.invisible_mode ? 'offline' : 'online').catch(() => {});
     }, HEARTBEAT_MS);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         setPresence('away').catch(() => {});
       } else {
-        setPresence('online').catch(() => {});
+        setPresence(settings.invisible_mode ? 'offline' : 'online').catch(() => {});
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -38,7 +40,7 @@ export function usePresence() {
       window.removeEventListener('beforeunload', handleUnload);
       setPresence('offline').catch(() => {});
     };
-  }, [userId]);
+  }, [userId, settings.invisible_mode]);
 
   // Subscribe to presence updates
   useEffect(() => {

@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { setTyping } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
+import { usePrivacySettings } from './usePrivacySettings';
 
 const STOP_DELAY_MS = 2_500;
 
@@ -12,9 +13,11 @@ export function useTyping(roomId: string | null) {
   const setTypingUsers = useChatStore((s) => s.setTypingUsers);
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+  const { settings } = usePrivacySettings();
 
   const startTyping = useCallback(() => {
     if (!roomId || !userId) return;
+    if (settings.hide_typing) return;
     if (!isTypingRef.current) {
       isTypingRef.current = true;
       setTyping(roomId, true).catch(() => {});
@@ -24,7 +27,7 @@ export function useTyping(roomId: string | null) {
       isTypingRef.current = false;
       setTyping(roomId, false).catch(() => {});
     }, STOP_DELAY_MS);
-  }, [roomId, userId]);
+  }, [roomId, userId, settings.hide_typing]);
 
   const stopTyping = useCallback(() => {
     if (!roomId || !userId) return;

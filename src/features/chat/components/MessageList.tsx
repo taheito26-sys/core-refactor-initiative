@@ -14,6 +14,7 @@ import type { ChatMessage, ChatRoomType, ReactionSummary } from '../types';
 import { SecureWatermark } from './SecureWatermark';
 import { AttachmentPreview } from './AttachmentPreview';
 import { ProtectedMessageContent } from './ProtectedMessageContent';
+import { OfferCard } from './OfferCard';
 import { getAttachment, getSignedUrl } from '../api/chat';
 import { toast } from 'sonner';
 
@@ -557,6 +558,17 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                 const isSameSenderNext = nextMsg?.sender_id === m.sender_id && nextMsg?.type !== 'system';
                 const isFirstInGroup = !isSameSenderPrev;
                 const isLastInGroup = !isSameSenderNext;
+                const marketOffer = m.metadata?.market_offer as {
+                  merchant_id?: string;
+                  offer_type?: 'buy' | 'sell';
+                  amount?: number;
+                  price?: number;
+                  fiat_currency?: string;
+                  payment_methods?: string[];
+                  expires_at?: string | null;
+                  status?: 'active' | 'filled' | 'cancelled' | 'expired';
+                } | undefined;
+                const isOfferMessage = m.type === 'market_offer' && !!marketOffer;
 
                 // Phase 3: Emoji-only big render
                 const emojiOnly = !isDeleted && m.type === 'text' && isEmojiOnly(m.content);
@@ -629,6 +641,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             isDeleted && 'opacity-50 italic',
                             isFailed && 'opacity-60 ring-1 ring-destructive/30',
                             isHighlighted && 'ring-2 ring-primary/40',
+                            isOfferMessage && 'bg-transparent shadow-none px-0 py-0',
                           )}>
                             {m.watermark_text && (
                               <SecureWatermark
@@ -675,6 +688,18 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                                   <button onClick={() => setEditingId(null)} className="text-muted-foreground">Cancel</button>
                                 </div>
                               </div>
+                            ) : isOfferMessage && marketOffer ? (
+                              <OfferCard
+                                merchantName={m.sender_name ?? marketOffer.merchant_id ?? m.sender_id.slice(0, 8)}
+                                merchantId={marketOffer.merchant_id ?? null}
+                                type={marketOffer.offer_type ?? 'buy'}
+                                amount={`${(marketOffer.amount ?? 0).toLocaleString()} USDT`}
+                                rate={(marketOffer.price ?? 0).toFixed(3)}
+                                currency={marketOffer.fiat_currency ?? 'QAR'}
+                                paymentMethod={(marketOffer.payment_methods ?? []).join(', ') || 'Flexible'}
+                                availability={marketOffer.expires_at ? `Until ${format(new Date(marketOffer.expires_at), 'MMM d, HH:mm')}` : 'No expiry'}
+                                status={marketOffer.status ?? 'active'}
+                              />
                             ) : m.type === 'voice_note' ? (
                               <VoiceNotePlayer message={m} isMe={isMe} />
                             ) : (m.type === 'image' || m.type === 'file') ? (

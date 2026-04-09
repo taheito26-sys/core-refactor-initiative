@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type {
   ChatMessage, ChatRoomListItem, ChatRoomMember, ChatAttachment,
   ChatCall, ChatCallParticipant, ChatReaction, SendMessageInput,
-  ChatPresence, IceConfig,
+  ChatPresence, IceConfig, ChatMarketOffer, CreateMarketOfferInput,
 } from '../types';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -17,9 +17,15 @@ function rpcError(name: string, error: unknown): Error {
 
 // ── Rooms ──────────────────────────────────────────────────────────────────
 export async function getRooms(): Promise<ChatRoomListItem[]> {
-  const { data, error } = await supabase.rpc('chat_get_rooms' as never);
+  const { data, error } = await supabase.rpc('chat_get_rooms_v2' as never);
   if (error) throw rpcError('getRooms', error);
   return (data ?? []) as ChatRoomListItem[];
+}
+
+export async function getQatarMarketRoom(): Promise<string> {
+  const { data, error } = await supabase.rpc('chat_get_qatar_market_room' as never);
+  if (error) throw rpcError('getQatarMarketRoom', error);
+  return data as string;
 }
 
 export async function getOrCreateDirectRoom(
@@ -62,6 +68,40 @@ export async function getRoomMembers(roomId: string): Promise<ChatRoomMember[]> 
     .is('removed_at', null);
   if (error) throw rpcError('getRoomMembers', error);
   return (data ?? []) as unknown as ChatRoomMember[];
+}
+
+export async function getMarketOffers(roomId: string): Promise<ChatMarketOffer[]> {
+  const { data, error } = await supabase
+    .from('market_offers' as never)
+    .select('*')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: false });
+  if (error) throw rpcError('getMarketOffers', error);
+  return (data ?? []) as unknown as ChatMarketOffer[];
+}
+
+export async function createMarketOffer(input: CreateMarketOfferInput): Promise<ChatMarketOffer> {
+  const { data, error } = await supabase.rpc('chat_create_market_offer' as never, {
+    _room_id: input.roomId,
+    _offer_type: input.offerType,
+    _amount: input.amount,
+    _price: input.price,
+    _payment_methods: input.paymentMethods ?? [],
+    _notes: input.notes ?? null,
+    _min_amount: input.minAmount ?? null,
+    _max_amount: input.maxAmount ?? null,
+    _expires_at: input.expiresAt ?? null,
+  } as never);
+  if (error) throw rpcError('createMarketOffer', error);
+  return data as unknown as ChatMarketOffer;
+}
+
+export async function cancelMarketOffer(offerId: string): Promise<ChatMarketOffer> {
+  const { data, error } = await supabase.rpc('chat_cancel_market_offer' as never, {
+    _offer_id: offerId,
+  } as never);
+  if (error) throw rpcError('cancelMarketOffer', error);
+  return data as unknown as ChatMarketOffer;
 }
 
 // ── Messages ───────────────────────────────────────────────────────────────

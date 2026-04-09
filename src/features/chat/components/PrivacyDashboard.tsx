@@ -1,7 +1,7 @@
 // ─── PrivacyDashboard — Phase 25: Centralized privacy settings ──────────
 // Phases 15, 21, 22, 23, 24, 25
 
-import { useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import {
   X, Shield, ShieldCheck, ShieldAlert, Eye, EyeOff, Bell, BellOff,
   Lock, Unlock, MessageCircle, Timer, Forward, Copy, Download,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { calculatePrivacyScore, type NotificationPreview } from '../lib/privacy-engine';
+import { usePrivacySettings } from '../hooks/usePrivacySettings';
 
 interface Props {
   onClose: () => void;
@@ -51,15 +52,6 @@ const DEFAULT_STATE: PrivacyState = {
   exportDisabled: false,
 };
 
-function loadState(): PrivacyState {
-  try {
-    const saved = localStorage.getItem('privacy_settings');
-    return saved ? { ...DEFAULT_STATE, ...JSON.parse(saved) } : DEFAULT_STATE;
-  } catch {
-    return DEFAULT_STATE;
-  }
-}
-
 function ToggleRow({ label, description, icon: Icon, enabled, onChange, danger }: {
   label: string; description: string; icon: React.ElementType;
   enabled: boolean; onChange: () => void; danger?: boolean;
@@ -100,18 +92,49 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export function PrivacyDashboard({ onClose }: Props) {
-  const [state, setState] = useState<PrivacyState>(loadState);
+  const { settings, update, isUpdating } = usePrivacySettings();
+  const [state, setState] = useState<PrivacyState>(DEFAULT_STATE);
 
-  const toggle = useCallback((key: keyof PrivacyState) => {
-    setState((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try { localStorage.setItem('privacy_settings', JSON.stringify(next)); } catch { /* */ }
-      return next;
+  useEffect(() => {
+    setState({
+      hideReadReceipts: settings.hide_read_receipts,
+      hideLastSeen: settings.hide_last_seen,
+      hideTyping: settings.hide_typing,
+      invisibleMode: settings.invisible_mode,
+      onlineVisibility: settings.online_visibility,
+      notificationPreview: settings.notification_preview,
+      showSenderInNotification: settings.show_sender_in_notification,
+      anonymousMode: settings.anonymous_mode,
+      screenshotProtection: settings.screenshot_protection,
+      watermarkEnabled: settings.watermark_enabled,
+      forwardingDisabled: settings.forwarding_disabled,
+      copyDisabled: settings.copy_disabled,
+      exportDisabled: settings.export_disabled,
     });
-  }, []);
+  }, [settings]);
+
+  const patchState = async (patch: Partial<PrivacyState>) => {
+    const next = { ...state, ...patch };
+    setState(next);
+    await update({
+      hide_read_receipts: next.hideReadReceipts,
+      hide_last_seen: next.hideLastSeen,
+      hide_typing: next.hideTyping,
+      invisible_mode: next.invisibleMode,
+      online_visibility: next.onlineVisibility,
+      notification_preview: next.notificationPreview,
+      show_sender_in_notification: next.showSenderInNotification,
+      anonymous_mode: next.anonymousMode,
+      screenshot_protection: next.screenshotProtection,
+      watermark_enabled: next.watermarkEnabled,
+      forwarding_disabled: next.forwardingDisabled,
+      copy_disabled: next.copyDisabled,
+      export_disabled: next.exportDisabled,
+    });
+  };
 
   // Phase 25: Maximum privacy preset
-  const applyMaxPrivacy = useCallback(() => {
+  const applyMaxPrivacy = async () => {
     const maxState: PrivacyState = {
       hideReadReceipts: true,
       hideLastSeen: true,
@@ -128,8 +151,22 @@ export function PrivacyDashboard({ onClose }: Props) {
       exportDisabled: true,
     };
     setState(maxState);
-    try { localStorage.setItem('privacy_settings', JSON.stringify(maxState)); } catch { /* */ }
-  }, []);
+    await update({
+      hide_read_receipts: true,
+      hide_last_seen: true,
+      hide_typing: true,
+      invisible_mode: true,
+      online_visibility: 'nobody',
+      notification_preview: 'none',
+      show_sender_in_notification: false,
+      anonymous_mode: false,
+      screenshot_protection: true,
+      watermark_enabled: true,
+      forwarding_disabled: true,
+      copy_disabled: true,
+      export_disabled: true,
+    });
+  };
 
   const score = calculatePrivacyScore({
     watermarkEnabled: state.watermarkEnabled,
@@ -183,7 +220,8 @@ export function PrivacyDashboard({ onClose }: Props) {
                 style={{ width: `${score.percentage}%` }}
               />
             </div>
-            <button onClick={applyMaxPrivacy}
+            <button onClick={() => void applyMaxPrivacy()}
+              disabled={isUpdating}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
               <Zap className="h-3.5 w-3.5" />
               Enable Maximum Privacy
@@ -195,13 +233,13 @@ export function PrivacyDashboard({ onClose }: Props) {
           <div className="px-1">
             <ToggleRow icon={CheckCircle2} label="Hide read receipts"
               description="Others won't see when you've read their messages"
-              enabled={state.hideReadReceipts} onChange={() => toggle('hideReadReceipts')} />
+              enabled={state.hideReadReceipts} onChange={() => void patchState({ hideReadReceipts: !state.hideReadReceipts })} />
             <ToggleRow icon={Timer} label="Hide last seen"
               description="Your last active time won't be visible to others"
-              enabled={state.hideLastSeen} onChange={() => toggle('hideLastSeen')} />
+              enabled={state.hideLastSeen} onChange={() => void patchState({ hideLastSeen: !state.hideLastSeen })} />
             <ToggleRow icon={MessageCircle} label="Hide typing indicator"
               description="Others won't see when you're typing a message"
-              enabled={state.hideTyping} onChange={() => toggle('hideTyping')} />
+              enabled={state.hideTyping} onChange={() => void patchState({ hideTyping: !state.hideTyping })} />
           </div>
 
           {/* Phase 22: Presence */}
@@ -209,7 +247,7 @@ export function PrivacyDashboard({ onClose }: Props) {
           <div className="px-1">
             <ToggleRow icon={EyeOff} label="Invisible mode"
               description="Appear offline while still receiving messages"
-              enabled={state.invisibleMode} onChange={() => toggle('invisibleMode')} />
+              enabled={state.invisibleMode} onChange={() => void patchState({ invisibleMode: !state.invisibleMode })} />
           </div>
 
           {/* Phase 23: Notifications */}
@@ -218,20 +256,13 @@ export function PrivacyDashboard({ onClose }: Props) {
             <ToggleRow icon={BellOff} label="Hide notification content"
               description="Show 'New message' instead of message preview"
               enabled={state.notificationPreview === 'none'}
-              onChange={() => {
-                setState((prev) => {
-                  const next = {
-                    ...prev,
-                    notificationPreview: (prev.notificationPreview === 'none' ? 'full' : 'none') as NotificationPreview,
-                  };
-                  try { localStorage.setItem('privacy_settings', JSON.stringify(next)); } catch { /* */ }
-                  return next;
-                });
-              }} />
+              onChange={() => void patchState({
+                notificationPreview: (state.notificationPreview === 'none' ? 'full' : 'none') as NotificationPreview,
+              })} />
             <ToggleRow icon={User} label="Hide sender name"
               description="Don't show who sent the message in notifications"
               enabled={!state.showSenderInNotification}
-              onChange={() => toggle('showSenderInNotification')} />
+              onChange={() => void patchState({ showSenderInNotification: !state.showSenderInNotification })} />
           </div>
 
           {/* Phase 24: Encryption & Protection */}
@@ -239,19 +270,19 @@ export function PrivacyDashboard({ onClose }: Props) {
           <div className="px-1">
             <ToggleRow icon={Lock} label="Screenshot protection"
               description="Detect screenshots and blur content when window loses focus"
-              enabled={state.screenshotProtection} onChange={() => toggle('screenshotProtection')} />
+              enabled={state.screenshotProtection} onChange={() => void patchState({ screenshotProtection: !state.screenshotProtection })} />
             <ToggleRow icon={Fingerprint} label="Watermark overlay"
               description="Add invisible watermark to sensitive message areas"
-              enabled={state.watermarkEnabled} onChange={() => toggle('watermarkEnabled')} />
+              enabled={state.watermarkEnabled} onChange={() => void patchState({ watermarkEnabled: !state.watermarkEnabled })} />
             <ToggleRow icon={Forward} label="Disable forwarding"
               description="Prevent messages from being forwarded to other rooms"
-              enabled={state.forwardingDisabled} onChange={() => toggle('forwardingDisabled')} danger />
+              enabled={state.forwardingDisabled} onChange={() => void patchState({ forwardingDisabled: !state.forwardingDisabled })} danger />
             <ToggleRow icon={Copy} label="Disable copy"
               description="Block text copying from messages in protected rooms"
-              enabled={state.copyDisabled} onChange={() => toggle('copyDisabled')} danger />
+              enabled={state.copyDisabled} onChange={() => void patchState({ copyDisabled: !state.copyDisabled })} danger />
             <ToggleRow icon={Download} label="Disable export"
               description="Prevent chat export and transcript downloads"
-              enabled={state.exportDisabled} onChange={() => toggle('exportDisabled')} danger />
+              enabled={state.exportDisabled} onChange={() => void patchState({ exportDisabled: !state.exportDisabled })} danger />
           </div>
 
           {/* Phase 21: Anonymous mode */}
@@ -259,7 +290,7 @@ export function PrivacyDashboard({ onClose }: Props) {
           <div className="px-1 pb-6">
             <ToggleRow icon={User} label="Anonymous mode"
               description="Use a pseudonymous name in new rooms you join"
-              enabled={state.anonymousMode} onChange={() => toggle('anonymousMode')} />
+              enabled={state.anonymousMode} onChange={() => void patchState({ anonymousMode: !state.anonymousMode })} />
           </div>
         </div>
       </div>

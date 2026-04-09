@@ -1,27 +1,35 @@
-import { DollarSign, ArrowRight, ShoppingCart, Clock } from 'lucide-react';
+import { DollarSign, ArrowRight, Clock } from 'lucide-react';
 
 interface Props {
   merchantName: string;
+  merchantId?: string | null;
   type: 'buy' | 'sell';
   amount: string;
   rate: string;
   currency: string;
   paymentMethod: string;
   availability: string;
+  status?: 'active' | 'filled' | 'cancelled' | 'expired';
+  actionLabel?: string;
   onAction?: () => void;
 }
 
 export function OfferCard({
   merchantName,
+  merchantId,
   type,
   amount,
   rate,
   currency,
   paymentMethod,
   availability,
+  status = 'active',
+  actionLabel,
   onAction
 }: Props) {
   const isBuy = type === 'buy';
+  const isActive = status === 'active';
+  const defaultActionLabel = actionLabel ?? (isBuy ? 'Post Buy Offer' : 'Post Sell Offer');
   
   return (
     <div className="relative my-3 p-4 bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-shadow max-w-[340px] space-y-3 overflow-hidden">
@@ -44,6 +52,9 @@ export function OfferCard({
           </div>
           <div>
             <h4 className="text-sm font-black text-foreground">{merchantName}</h4>
+            {merchantId && (
+              <p className="text-[10px] font-mono text-muted-foreground/70">{merchantId}</p>
+            )}
             <span className={`text-[10px] font-bold uppercase tracking-widest ${isBuy ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>
               {type} Offer
             </span>
@@ -68,16 +79,20 @@ export function OfferCard({
 
       <div className="relative z-10 flex items-center justify-between text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
         <span className="flex items-center gap-1"><Clock size={12} /> {availability}</span>
-        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><DollarSign size={12} /> Active</span>
+        <span className={`flex items-center gap-1 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+          <DollarSign size={12} />
+          {status}
+        </span>
       </div>
 
       <button
         onClick={onAction}
+        disabled={!onAction}
         className={`relative z-10 w-full py-2.5 rounded-xl text-white text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
           isBuy ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700'
         }`}
       >
-        {isBuy ? 'Send Payment' : 'Create Order'}
+        {defaultActionLabel}
         <ArrowRight size={14} />
       </button>
     </div>

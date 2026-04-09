@@ -52,9 +52,10 @@ export function fmtU(n: number, dp = 2): string {
   return fmtPrice(n);
 }
 
-export function fmtQ(v: number): string {
+/** Format fiat amount with currency code. Defaults to QAR for backward compat. */
+export function fmtQ(v: number, fiatCurrency: 'QAR' | 'EGP' = 'QAR'): string {
   const x = num(v, 0);
-  return fmtTotal(x) + ' QAR';
+  return fmtTotal(x) + ' ' + fiatCurrency;
 }
 
 export function fmtQRaw(v: number): string {
@@ -88,13 +89,26 @@ export function fmtDate(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function fmtQWithUnit(qarAmount: number, currency = 'QAR', wacop: number | null = null): string {
-  const q = num(qarAmount);
+/**
+ * Format a fiat amount with display currency awareness.
+ * @param fiatAmount - The amount in whatever fiat currency the record uses
+ * @param displayCurrency - What the user wants to see ('QAR', 'EGP', or 'USDT')
+ * @param wacop - Weighted average cost of purchase (for USDT conversion)
+ * @param recordFiat - The actual fiat currency of this record (defaults to 'QAR' for backward compat)
+ */
+export function fmtQWithUnit(
+  fiatAmount: number,
+  displayCurrency: string = 'QAR',
+  wacop: number | null = null,
+  recordFiat: 'QAR' | 'EGP' = 'QAR',
+): string {
+  const q = num(fiatAmount);
   if (!Number.isFinite(q)) return '—';
-  if (currency === 'USDT' && wacop && wacop > 0) {
+  if (displayCurrency === 'USDT' && wacop && wacop > 0) {
     return fmtPrice(q / wacop) + ' USDT';
   }
-  return fmtTotal(q) + ' QAR';
+  // Show in the record's actual fiat currency
+  return fmtTotal(q) + ' ' + recordFiat;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,7 +130,7 @@ export function uid(): string {
 
 // ── Cash Management System Types ──────────────────────────────
 export type CashAccountType = 'hand' | 'bank' | 'vault' | 'merchant_custody';
-export type CashCurrency = 'QAR' | 'USDT' | 'USD';
+export type CashCurrency = 'QAR' | 'EGP' | 'USDT' | 'USD';
 export type LedgerEntryType =
   | 'opening'
   | 'deposit'

@@ -153,9 +153,27 @@ export default function SettingsPage() {
               </div>
             </div>
             <div>
+              <Label className="text-xs mb-2 block">Base Fiat Currency</Label>
+              <div className="flex gap-1.5">
+                {(['QAR', 'EGP'] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => update({ baseFiatCurrency: c, currency: c })}
+                    className={cn(
+                      'px-3 py-1.5 rounded text-xs border transition-all',
+                      draft.baseFiatCurrency === c ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
+                    )}
+                  >
+                    {c === 'QAR' ? '🇶🇦 QAR' : '🇪🇬 EGP'}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">New orders and stock will default to this fiat currency</p>
+            </div>
+            <div>
               <Label className="text-xs mb-2 block">{t('currency')}</Label>
               <div className="flex gap-1.5">
-                {(['QAR', 'USDT'] as const).map(c => (
+                {(['QAR', 'EGP', 'USDT'] as const).map(c => (
                   <button
                     key={c}
                     onClick={() => update({ currency: c })}

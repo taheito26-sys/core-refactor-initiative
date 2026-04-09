@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { getMessageById, clearChatForMe, toggleMuteRoom, getOrCreateCollabRoom } from '../api/chat';
+import { getMessageById, clearChatForMe, toggleMuteRoom, getQatarMarketRoom } from '../api/chat';
 import type { ChatMessage, ChatMessageType, SendMessageInput } from '../types';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ConversationHeader } from '../components/ConversationHeader';
@@ -36,7 +36,11 @@ import { NewChatModal } from '../components/NewChatModal';
 import { ScreenshotProtectionOverlay } from '../components/ScreenshotProtectionOverlay';
 import { PrivacyDashboard } from '../components/PrivacyDashboard';
 import { TradingRoomPrivacyBanner } from '../components/TradingRoomPrivacyBanner';
+import { MarketOfferComposer } from '../components/MarketOfferComposer';
+import { MarketOffersPanel } from '../components/MarketOffersPanel';
 import { usePrivacyGuard } from '../hooks/usePrivacyGuard';
+import { useMarketOffers } from '../hooks/useMarketOffers';
+import { usePrivacySettings } from '../hooks/usePrivacySettings';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
@@ -45,6 +49,7 @@ export default function ChatWorkspacePage() {
   const { settings } = useTheme();
   const isMobile = useIsMobile();
   const qc = useQueryClient();
+  const { settings: privacySettings } = usePrivacySettings();
 
   const meId = userId ?? '';
 
@@ -158,18 +163,12 @@ export default function ChatWorkspacePage() {
   const webrtc = useWebRTC(activeRoomId);
 
   // ── privacy guard (Phases 6, 8, 9, 14) ─────────────────────────────────
-  const privacySettings = (() => {
-    try {
-      const saved = localStorage.getItem('privacy_settings');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  })();
   const { containerRef: privacyContainerRef, isBlurred, screenshotDetected } = usePrivacyGuard({
     userId: meId,
     roomId: activeRoomId,
-    screenshotProtection: privacySettings.screenshotProtection ?? false,
-    copyProtection: privacySettings.copyDisabled ?? false,
-    blurOnLoseFocus: privacySettings.screenshotProtection ?? false,
+    screenshotProtection: privacySettings.screenshot_protection ?? false,
+    copyProtection: privacySettings.copy_disabled ?? false,
+    blurOnLoseFocus: privacySettings.screenshot_protection ?? false,
   });
   useEffect(() => {
     setShowCallHistory(false);
@@ -182,6 +181,9 @@ export default function ChatWorkspacePage() {
   const [showSidebar, setShowSidebar] = useState(!isMobile);
   const activeRoom = rooms.find((r) => r.room_id === activeRoomId) ?? null;
   const isPrivateRoom = activeRoom?.room_type === 'merchant_private';
+  const isQatarMarketRoom = activeRoom?.room_type === 'merchant_collab'
+    && (activeRoom.name ?? '').toLowerCase() === 'qatar p2p market';
+  const marketOffers = useMarketOffers(activeRoomId, !!isQatarMarketRoom);
 
   // Mobile: select a room → switch to thread pane
   const handleSelectRoom = useCallback((id: string) => {
@@ -310,7 +312,7 @@ export default function ChatWorkspacePage() {
   // ── Trading Room auto-join ──────────────────────────────────────────────
   useEffect(() => {
     if (!userId || !merchantProfile?.merchant_id) return;
-    getOrCreateCollabRoom('Qatar P2P Market').catch(() => {});
+    getQatarMarketRoom().catch(() => {});
   }, [userId, merchantProfile?.merchant_id]);
 
   // ── Shared header props builder ─────────────────────────────────────────
@@ -365,6 +367,29 @@ export default function ChatWorkspacePage() {
         {/* Privacy watermark banner for trading/collab rooms */}
         {activeRoom.room_type === 'merchant_collab' && (
           <TradingRoomPrivacyBanner roomName={activeRoom.name} />
+        )}
+
+        {isQatarMarketRoom && activeRoomId && (
+          <>
+            <MarketOffersPanel
+              offers={marketOffers.offers}
+              myUserId={meId}
+              onCancelOffer={(offerId) => {
+                marketOffers.cancel.mutate(offerId, {
+                  onSuccess: () => toast.success('Offer cancelled'),
+                  onError: () => toast.error('Failed to cancel offer'),
+                });
+              }}
+            />
+            <MarketOfferComposer
+              roomId={activeRoomId}
+              isSubmitting={marketOffers.create.isPending}
+              onSubmit={async (input) => {
+                await marketOffers.create.mutateAsync(input);
+                toast.success('Offer posted to Qatar P2P Market');
+              }}
+            />
+          </>
         )}
 
         {showCallHistory && activeRoomId ? (

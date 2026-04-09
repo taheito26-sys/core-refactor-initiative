@@ -4,11 +4,13 @@ export type ChatRoomType = 'merchant_private' | 'merchant_client' | 'merchant_co
 export type ChatMemberRole = 'owner' | 'admin' | 'member' | 'guest';
 export type ChatMessageType =
   | 'text' | 'voice_note' | 'image' | 'file' | 'system'
-  | 'call_summary' | 'order_card' | 'payment_card' | 'reaction_burst';
+  | 'call_summary' | 'order_card' | 'payment_card' | 'reaction_burst' | 'market_offer';
 export type ChatCallStatus =
   | 'ringing' | 'active' | 'ended' | 'missed' | 'declined' | 'failed' | 'no_answer';
 export type ChatEncryptionMode = 'none' | 'tls_only' | 'server_e2ee' | 'client_e2ee';
 export type PresenceStatus = 'online' | 'away' | 'offline';
+export type MarketOfferType = 'buy' | 'sell';
+export type MarketOfferStatus = 'active' | 'filled' | 'cancelled' | 'expired';
 
 // ── Policy ─────────────────────────────────────────────────────────────────
 export interface ChatRoomPolicy {
@@ -141,6 +143,7 @@ export interface ChatMessageMetadata {
   duration_seconds?: number;
   order_id?: string;
   payment_id?: string;
+  market_offer?: ChatMarketOffer;
   // voice note
   waveform?: number[];
   duration_ms?: number;
@@ -154,6 +157,27 @@ export interface ChatMessageMetadata {
   // system event
   event?: string;
   [key: string]: unknown;
+}
+
+export interface ChatMarketOffer {
+  id: string;
+  room_id?: string;
+  message_id?: string | null;
+  created_by?: string;
+  merchant_id: string;
+  offer_type: MarketOfferType;
+  asset: 'USDT';
+  fiat_currency: 'QAR';
+  amount: number;
+  price: number;
+  min_amount?: number | null;
+  max_amount?: number | null;
+  payment_methods: string[];
+  notes?: string | null;
+  status: MarketOfferStatus;
+  expires_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // ── Receipt ────────────────────────────────────────────────────────────────
@@ -298,6 +322,18 @@ export interface SendMessageInput {
   viewOnce?: boolean;
   watermarkText?: string | null;
   attachmentId?: string | null;
+}
+
+export interface CreateMarketOfferInput {
+  roomId: string;
+  offerType: MarketOfferType;
+  amount: number;
+  price: number;
+  paymentMethods?: string[];
+  notes?: string | null;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  expiresAt?: string | null;
 }
 
 // ── Optimistic message ─────────────────────────────────────────────────────
