@@ -229,7 +229,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         if (callIdRef.current === callId) {
           await endCall(callId, 'no_answer').catch(() => {});
           cleanup();
-          sendCallSummary('missed', 0, callId);
           transitionToEnd('missed', 'no_answer');
         }
       }, RING_TIMEOUT_MS);
