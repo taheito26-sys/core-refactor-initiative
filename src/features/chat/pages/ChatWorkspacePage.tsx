@@ -71,6 +71,9 @@ export default function ChatWorkspacePage() {
   // ── Reply-to state ────────────────────────────────────────────────────
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
 
+  // ── Forward state (Phase 12) ──────────────────────────────────────────
+  const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
+
   // URL → room/message
   useEffect(() => {
     const urlRoom = searchParams.get('roomId');
