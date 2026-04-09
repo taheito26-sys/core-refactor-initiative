@@ -3,26 +3,32 @@
  * One inbox · one room list · merchant_private / merchant_client / merchant_collab
  * Mobile: WhatsApp-style single-pane (list OR thread, never both)
  * Calling: voice + video, call history panel, call summary messages
+ * Phases wired: 1-24, 34, 41-50, 59, 69, 9 (search), 18 (lightbox),
+ *               reply-to flow, typing indicator, room info panel
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
-import { useChatStore } from '@/lib/chat-store';
+import { useChatStore, typingUsersInRoom } from '@/lib/chat-store';
 import { useRooms } from '../hooks/useRooms';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { getMessageById } from '../api/chat';
-import type { ChatMessageType, SendMessageInput } from '../types';
+import type { ChatMessage, ChatMessageType, SendMessageInput } from '../types';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ConversationHeader } from '../components/ConversationHeader';
 import { MessageList } from '../components/MessageList';
 import { MessageComposer } from '../components/MessageComposer';
 import { CallOverlay } from '../components/CallOverlay';
 import { CallHistoryPanel } from '../components/CallHistoryPanel';
+import { MessageSearch } from '../components/MessageSearch';
+import { ReplyPreview } from '../components/ReplyPreview';
+import { RoomInfoPanel } from '../components/RoomInfoPanel';
+import { ImageLightbox } from '../components/ImageLightbox';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
@@ -51,6 +57,18 @@ export default function ChatWorkspacePage() {
 
   // ── call history panel toggle ──────────────────────────────────────────
   const [showCallHistory, setShowCallHistory] = useState(false);
+
+  // ── Phase 9: message search toggle ────────────────────────────────────
+  const [showSearch, setShowSearch] = useState(false);
+
+  // ── Phase 74: room info panel ─────────────────────────────────────────
+  const [showRoomInfo, setShowRoomInfo] = useState(false);
+
+  // ── Phase 18: image lightbox ──────────────────────────────────────────
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  // ── Reply-to state ────────────────────────────────────────────────────
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
 
   // URL → room/message
   useEffect(() => {
@@ -117,6 +135,7 @@ export default function ChatWorkspacePage() {
 
   // ── typing ────────────────────────────────────────────────────────────────
   const { startTyping, stopTyping } = useTyping(activeRoomId);
+  const typingUsers = useChatStore(typingUsersInRoom(activeRoomId ?? ''));
 
   // ── presence ─────────────────────────────────────────────────────────────
   usePresence();
@@ -124,8 +143,13 @@ export default function ChatWorkspacePage() {
   // ── calls ─────────────────────────────────────────────────────────────────
   const webrtc = useWebRTC(activeRoomId);
 
-  // Close call history when room changes
-  useEffect(() => { setShowCallHistory(false); }, [activeRoomId]);
+  // Close panels when room changes
+  useEffect(() => {
+    setShowCallHistory(false);
+    setShowSearch(false);
+    setShowRoomInfo(false);
+    setReplyTo(null);
+  }, [activeRoomId]);
 
   // ── layout state ─────────────────────────────────────────────────────────
   const [showSidebar, setShowSidebar] = useState(!isMobile);
@@ -143,6 +167,23 @@ export default function ChatWorkspacePage() {
     setMobilePane('list');
   }, []);
 
+  // Reply handler
+  const handleReply = useCallback((msg: ChatMessage) => {
+    setReplyTo(msg);
+  }, []);
+
+  // Image lightbox handler
+  const handleImageOpen = useCallback((src: string) => {
+    setLightboxSrc(src);
+  }, []);
+
+  // Search jump handler
+  const handleSearchJump = useCallback((messageId: string) => {
+    setAnchor(messageId);
+    const el = document.getElementById(`msg-${messageId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [setAnchor]);
+
   // send handler
   const handleSend = useCallback(
     (content: string, opts?: {
@@ -155,20 +196,32 @@ export default function ChatWorkspacePage() {
     }) => {
       if (!activeRoomId || !content.trim()) return;
       const messageType = opts?.type ?? 'text';
+      const replyId = opts?.replyToId ?? replyTo?.id ?? null;
+
+      // Build reply metadata
+      const metadata = { ...opts?.metadata } as SendMessageInput['metadata'];
+      if (replyTo && !opts?.replyToId) {
+        (metadata as Record<string, unknown>).reply_preview = {
+          sender_name: replyTo.sender_name ?? replyTo.sender_id.slice(0, 8),
+          content: replyTo.content.slice(0, 100),
+        };
+      }
+
       send.mutate({
         roomId:       activeRoomId,
         content:      content.trim(),
         type:         messageType,
-        metadata:     opts?.metadata as SendMessageInput['metadata'],
+        metadata,
         clientNonce:  crypto.randomUUID(),
-        replyToId:    opts?.replyToId   ?? null,
+        replyToId:    replyId,
         expiresAt:    opts?.expiresAt   ?? null,
         viewOnce:     opts?.viewOnce    ?? false,
         attachmentId: opts?.attachmentId ?? null,
       });
       stopTyping();
+      setReplyTo(null);
     },
-    [activeRoomId, send, stopTyping],
+    [activeRoomId, send, stopTyping, replyTo],
   );
 
   const isRTL = settings.language === 'ar';
@@ -198,8 +251,18 @@ export default function ChatWorkspacePage() {
           room={activeRoom}
           meId={meId}
           onToggleSidebar={onBack ?? (() => setShowSidebar((v) => !v))}
+          onSearchToggle={() => setShowSearch((v) => !v)}
           {...headerCallProps}
         />
+
+        {/* Phase 9: Message search bar */}
+        {showSearch && (
+          <MessageSearch
+            messages={messages}
+            onJumpTo={handleSearchJump}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
 
         {showCallHistory && activeRoomId ? (
           <div className="flex-1 overflow-y-auto bg-background">
@@ -222,6 +285,7 @@ export default function ChatWorkspacePage() {
               meId={meId}
               isLoading={msgsLoading}
               roomType={activeRoom.room_type}
+              typingUserIds={typingUsers}
               onReact={(msgId, emoji, remove) =>
                 react.mutate({ messageId: msgId, emoji, remove })
               }
@@ -229,7 +293,13 @@ export default function ChatWorkspacePage() {
               onDelete={(msgId, forEveryone) =>
                 del.mutate({ messageId: msgId, forEveryone })
               }
+              onReply={handleReply}
+              onImageOpen={handleImageOpen}
             />
+            {/* Reply preview above composer */}
+            {replyTo && (
+              <ReplyPreview message={replyTo} onClear={() => setReplyTo(null)} />
+            )}
             <MessageComposer
               roomId={activeRoomId!}
               roomType={activeRoom.room_type}
@@ -243,11 +313,23 @@ export default function ChatWorkspacePage() {
     );
   };
 
+  // ── Image lightbox overlay ──────────────────────────────────────────────
+  const lightbox = lightboxSrc ? (
+    <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+  ) : null;
+
+  // ── Room info panel overlay ─────────────────────────────────────────────
+  const roomInfo = showRoomInfo && activeRoom ? (
+    <RoomInfoPanel room={activeRoom} onClose={() => setShowRoomInfo(false)} />
+  ) : null;
+
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
       <div className="flex flex-col h-full bg-background overflow-hidden">
         <CallOverlay webrtc={webrtc} />
+        {lightbox}
+        {roomInfo}
         {mobilePane === 'list' ? (
           <ConversationSidebar
             rooms={rooms}
@@ -274,6 +356,8 @@ export default function ChatWorkspacePage() {
       )}
     >
       <CallOverlay webrtc={webrtc} />
+      {lightbox}
+      {roomInfo}
 
       {(showSidebar || !isMobile) && (
         <ConversationSidebar
