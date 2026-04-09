@@ -87,7 +87,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
             )}
             {isLoading && <RefreshCw className="h-3 w-3 text-muted-foreground animate-spin" />}
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-accent">
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-accent" onClick={onNewChat}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
