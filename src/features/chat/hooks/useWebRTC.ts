@@ -1,13 +1,13 @@
 // ─── useWebRTC ────────────────────────────────────────────────────────────
 // Production-hardened voice/video calls for merchant_private rooms.
 // Realtime signaling (no polling), explicit state machine, video toggle,
-// proper cleanup, ICE restart, call summary messages, mobile-safe.
+// screen sharing, call quality stats, group calls (mesh), proper cleanup.
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
   initiateCall, answerCall, endCall, pushIceCandidate,
-  getActiveCall, DEFAULT_ICE_CONFIG,
+  getActiveCall, DEFAULT_ICE_CONFIG, getCallParticipants,
 } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
 import type { ChatCall } from '../types';
@@ -24,41 +24,66 @@ export type CallState =
   | 'missed'
   | 'declined';
 
+export interface CallQualityStats {
+  bitrate: number;        // kbps
+  packetLoss: number;     // percentage 0-100
+  jitter: number;         // ms
+  roundTripTime: number;  // ms
+  level: 'excellent' | 'good' | 'poor';
+}
+
 export interface UseWebRTCReturn {
-  callState:        CallState;
-  localStream:      MediaStream | null;
-  remoteStream:     MediaStream | null;
-  activeCallId:     string | null;
-  incomingCall:     ChatCall | null;
-  startCall:        (video?: boolean) => Promise<void>;
-  answerIncoming:   () => Promise<void>;
-  declineIncoming:  () => Promise<void>;
-  hangUp:           () => Promise<void>;
-  toggleMute:       () => void;
-  toggleVideo:      () => void;
-  isMuted:          boolean;
-  isVideoEnabled:   boolean;
-  isVideoCall:      boolean;
-  callDuration:     number;
-  endReason:        string | null;
+  callState:         CallState;
+  localStream:       MediaStream | null;
+  remoteStream:      MediaStream | null;
+  activeCallId:      string | null;
+  incomingCall:      ChatCall | null;
+  startCall:         (video?: boolean) => Promise<void>;
+  answerIncoming:    () => Promise<void>;
+  declineIncoming:   () => Promise<void>;
+  hangUp:            () => Promise<void>;
+  toggleMute:        () => void;
+  toggleVideo:       () => void;
+  toggleScreenShare: () => Promise<void>;
+  isMuted:           boolean;
+  isVideoEnabled:    boolean;
+  isVideoCall:       boolean;
+  isScreenSharing:   boolean;
+  callDuration:      number;
+  endReason:         string | null;
+  qualityStats:      CallQualityStats | null;
+  // Group calls
+  remoteStreams:      Map<string, MediaStream>;
+  participantCount:  number;
 }
 
 const RECONNECT_DELAY_MS  = 2_000;
 const MAX_RECONNECT_TRIES = 5;
 const RING_TIMEOUT_MS     = 45_000;
 const END_STATE_LINGER_MS = 3_000;
+const QUALITY_POLL_MS     = 3_000;
+
+function computeQualityLevel(stats: Omit<CallQualityStats, 'level'>): CallQualityStats['level'] {
+  if (stats.packetLoss > 10 || stats.roundTripTime > 400 || stats.jitter > 100) return 'poor';
+  if (stats.packetLoss > 3 || stats.roundTripTime > 200 || stats.jitter > 50) return 'good';
+  return 'excellent';
+}
 
 export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const { userId } = useAuth();
-  const [callState,      setCallState]      = useState<CallState>('idle');
-  const [localStream,    setLocalStream]    = useState<MediaStream | null>(null);
-  const [remoteStream,   setRemoteStream]   = useState<MediaStream | null>(null);
-  const [isMuted,        setIsMuted]        = useState(false);
-  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-  const [isVideoCall,    setIsVideoCall]    = useState(false);
-  const [incomingCall,   setIncomingCall]   = useState<ChatCall | null>(null);
-  const [callDuration,   setCallDuration]   = useState(0);
-  const [endReason,      setEndReason]      = useState<string | null>(null);
+  const [callState,       setCallState]       = useState<CallState>('idle');
+  const [localStream,     setLocalStream]     = useState<MediaStream | null>(null);
+  const [remoteStream,    setRemoteStream]    = useState<MediaStream | null>(null);
+  const [isMuted,         setIsMuted]         = useState(false);
+  const [isVideoEnabled,  setIsVideoEnabled]  = useState(false);
+  const [isVideoCall,     setIsVideoCall]     = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [incomingCall,    setIncomingCall]     = useState<ChatCall | null>(null);
+  const [callDuration,    setCallDuration]    = useState(0);
+  const [endReason,       setEndReason]       = useState<string | null>(null);
+  const [qualityStats,    setQualityStats]    = useState<CallQualityStats | null>(null);
+  const [remoteStreams,    setRemoteStreams]   = useState<Map<string, MediaStream>>(new Map());
+  const [participantCount, setParticipantCount] = useState(0);
 
   const pc              = useRef<RTCPeerConnection | null>(null);
   const callIdRef       = useRef<string | null>(null);
@@ -68,8 +93,13 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const ringTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const durationTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const lingerTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qualityTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectedAtRef  = useRef<number | null>(null);
   const cleaningUp      = useRef(false);
+  const screenTrackRef  = useRef<MediaStreamTrack | null>(null);
+  const prevBytesRef    = useRef<{ received: number; ts: number } | null>(null);
+  // Group calls: map of peerId → RTCPeerConnection
+  const groupPCs        = useRef<Map<string, RTCPeerConnection>>(new Map());
 
   // Keep ref in sync with state
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
@@ -89,15 +119,79 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }, END_STATE_LINGER_MS);
   }, []);
 
-  // NOTE: Call summary messages are inserted by the DB-side chat_end_call RPC.
-  // No client-side insertion needed — avoids duplicate messages.
+  // ── persist quality stats to DB ───────────────────────────────────────
+  const persistQualityStats = useCallback(async (stats: CallQualityStats) => {
+    const cid = callIdRef.current;
+    if (!cid) return;
+    try {
+      await supabase
+        .from('chat_calls')
+        .update({ quality_stats: stats } as never)
+        .eq('id', cid);
+    } catch { /* non-fatal */ }
+  }, []);
+
+  // ── poll quality stats from RTCPeerConnection ─────────────────────────
+  const startQualityPolling = useCallback(() => {
+    if (qualityTimer.current) clearInterval(qualityTimer.current);
+    prevBytesRef.current = null;
+
+    qualityTimer.current = setInterval(async () => {
+      if (!pc.current) return;
+      try {
+        const stats = await pc.current.getStats();
+        let totalBytesReceived = 0;
+        let packetLoss = 0;
+        let jitter = 0;
+        let rtt = 0;
+        let hasInbound = false;
+        let hasCandidate = false;
+
+        stats.forEach((report) => {
+          if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+            totalBytesReceived = report.bytesReceived ?? 0;
+            packetLoss = report.packetsLost ?? 0;
+            const received = report.packetsReceived ?? 1;
+            packetLoss = received > 0 ? (packetLoss / (packetLoss + received)) * 100 : 0;
+            jitter = (report.jitter ?? 0) * 1000; // convert to ms
+            hasInbound = true;
+          }
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            rtt = report.currentRoundTripTime ? report.currentRoundTripTime * 1000 : 0;
+            hasCandidate = true;
+          }
+        });
+
+        if (!hasInbound) return;
+
+        let bitrate = 0;
+        const now = Date.now();
+        if (prevBytesRef.current) {
+          const dt = (now - prevBytesRef.current.ts) / 1000;
+          if (dt > 0) {
+            bitrate = ((totalBytesReceived - prevBytesRef.current.received) * 8) / dt / 1000; // kbps
+          }
+        }
+        prevBytesRef.current = { received: totalBytesReceived, ts: now };
+
+        const level = computeQualityLevel({ bitrate, packetLoss, jitter, roundTripTime: rtt });
+        const newStats: CallQualityStats = { bitrate: Math.round(bitrate), packetLoss: Math.round(packetLoss * 10) / 10, jitter: Math.round(jitter), roundTripTime: Math.round(rtt), level };
+        setQualityStats(newStats);
+      } catch { /* non-fatal */ }
+    }, QUALITY_POLL_MS);
+  }, []);
 
   // ── full cleanup ───────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     if (cleaningUp.current) return;
     cleaningUp.current = true;
 
+    // Persist final quality stats
+    if (qualityStats) persistQualityStats(qualityStats);
+
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenTrackRef.current?.stop();
+    screenTrackRef.current = null;
 
     if (pc.current) {
       pc.current.onicecandidate = null;
@@ -108,6 +202,12 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       pc.current = null;
     }
 
+    // Cleanup group PCs
+    groupPCs.current.forEach((gpc) => { gpc.close(); });
+    groupPCs.current.clear();
+    setRemoteStreams(new Map());
+    setParticipantCount(0);
+
     setLocalStream(null);
     setRemoteStream(null);
     setActiveCallId(null);
@@ -116,15 +216,19 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setIsMuted(false);
     setIsVideoEnabled(false);
     setIsVideoCall(false);
+    setIsScreenSharing(false);
+    setQualityStats(null);
     connectedAtRef.current = null;
     setCallDuration(0);
+    prevBytesRef.current = null;
 
     if (ringTimer.current) { clearTimeout(ringTimer.current); ringTimer.current = null; }
     if (durationTimer.current) { clearInterval(durationTimer.current); durationTimer.current = null; }
+    if (qualityTimer.current) { clearInterval(qualityTimer.current); qualityTimer.current = null; }
     reconnectTries.current = 0;
 
     cleaningUp.current = false;
-  }, [setActiveCallId]);
+  }, [setActiveCallId, qualityStats, persistQualityStats]);
 
   // ── start duration timer ──────────────────────────────────────────────
   const startDurationTimer = useCallback(() => {
@@ -158,6 +262,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         reconnectTries.current = 0;
         if (ringTimer.current) { clearTimeout(ringTimer.current); ringTimer.current = null; }
         startDurationTimer();
+        startQualityPolling();
       }
       if (s === 'disconnected') {
         if (reconnectTries.current < MAX_RECONNECT_TRIES) {
@@ -167,7 +272,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
             try { peerConn.restartIce(); } catch { /* closed */ }
           }, RECONNECT_DELAY_MS);
         } else {
-          const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
           const cid = callIdRef.current;
           if (cid) endCall(cid, 'failed').catch(() => {});
           cleanup();
@@ -183,7 +287,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     };
 
     return peerConn;
-  }, [cleanup, startDurationTimer, transitionToEnd]);
+  }, [cleanup, startDurationTimer, startQualityPolling, transitionToEnd]);
 
   // ── get media (audio, optionally video) ───────────────────────────────
   const getMedia = useCallback(async (video = false) => {
@@ -196,6 +300,32 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setIsVideoCall(video);
     return stream;
   }, []);
+
+  // ── fire push notification for incoming call ──────────────────────────
+  const sendCallPush = useCallback(async (callId: string, targetRoomId: string) => {
+    try {
+      // Get room members to notify
+      const { data: members } = await supabase
+        .from('chat_room_members' as never)
+        .select('user_id')
+        .eq('room_id', targetRoomId)
+        .is('removed_at', null);
+
+      if (!members) return;
+      const others = (members as { user_id: string }[]).filter((m) => m.user_id !== userId);
+
+      for (const m of others) {
+        supabase.functions.invoke('push-send', {
+          body: {
+            user_id: m.user_id,
+            title: '📞 Incoming call',
+            body: 'Someone is calling you',
+            data: { type: 'incoming_call', call_id: callId, room_id: targetRoomId },
+          },
+        }).catch(() => {});
+      }
+    } catch { /* non-fatal */ }
+  }, [userId]);
 
   // ── START CALL ────────────────────────────────────────────────────────
   const startCallFn = useCallback(async (video = false) => {
@@ -224,6 +354,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         .eq('call_id', callId)
         .eq('user_id', userId);
 
+      // Send push notification
+      sendCallPush(callId, roomId);
+
       // Ring timeout → missed
       ringTimer.current = setTimeout(async () => {
         if (callIdRef.current === callId) {
@@ -238,13 +371,13 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', 'start_error');
     }
-  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd]);
+  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallPush]);
 
   // ── ANSWER INCOMING ───────────────────────────────────────────────────
   const answerIncoming = useCallback(async () => {
     if (!incomingCall || !userId) return;
     try {
-      const stream = await getMedia(false); // answer as audio; can toggle video later
+      const stream = await getMedia(false);
       const callId = incomingCall.id;
       callIdRef.current = callId;
       setActiveCallId(callId);
@@ -292,7 +425,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   // ── HANG UP ───────────────────────────────────────────────────────────
   const hangUp = useCallback(async () => {
-    const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
     const cid = callIdRef.current;
     if (cid) {
       await endCall(cid, 'ended').catch(() => {});
@@ -313,16 +445,14 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const toggleVideo = useCallback(async () => {
     if (!localStream || !pc.current) return;
 
-    const videoTracks = localStream.getVideoTracks();
+    const videoTracks = localStream.getVideoTracks().filter((t) => t !== screenTrackRef.current);
 
     if (videoTracks.length > 0) {
-      // Disable video
       videoTracks.forEach((t) => { t.stop(); localStream.removeTrack(t); });
-      const sender = pc.current.getSenders().find((s) => s.track?.kind === 'video');
+      const sender = pc.current.getSenders().find((s) => s.track?.kind === 'video' && s.track !== screenTrackRef.current);
       if (sender) await sender.replaceTrack(null);
       setIsVideoEnabled(false);
     } else {
-      // Enable video
       try {
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
@@ -343,6 +473,60 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       }
     }
   }, [localStream]);
+
+  // ── SCREEN SHARE TOGGLE ───────────────────────────────────────────────
+  const toggleScreenShare = useCallback(async () => {
+    if (!pc.current || !localStream) return;
+
+    if (isScreenSharing && screenTrackRef.current) {
+      // Stop screen sharing
+      screenTrackRef.current.stop();
+      localStream.removeTrack(screenTrackRef.current);
+      const sender = pc.current.getSenders().find((s) => s.track === screenTrackRef.current);
+      if (sender) {
+        // Replace with camera or null
+        const camTrack = localStream.getVideoTracks().find((t) => t !== screenTrackRef.current) ?? null;
+        await sender.replaceTrack(camTrack);
+      }
+      screenTrackRef.current = null;
+      setIsScreenSharing(false);
+    } else {
+      // Start screen sharing
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        screenTrackRef.current = screenTrack;
+
+        // Replace or add the screen track
+        const videoSender = pc.current.getSenders().find((s) => s.track?.kind === 'video' || s.track === null);
+        if (videoSender) {
+          await videoSender.replaceTrack(screenTrack);
+        } else {
+          pc.current.addTrack(screenTrack, localStream);
+        }
+        localStream.addTrack(screenTrack);
+
+        // Listen for user stopping share via browser UI
+        screenTrack.onended = () => {
+          if (screenTrackRef.current === screenTrack) {
+            localStream.removeTrack(screenTrack);
+            const s = pc.current?.getSenders().find((snd) => snd.track === screenTrack);
+            if (s) s.replaceTrack(null).catch(() => {});
+            screenTrackRef.current = null;
+            setIsScreenSharing(false);
+          }
+        };
+
+        setIsScreenSharing(true);
+        setIsVideoCall(true);
+      } catch (err) {
+        console.warn('[WebRTC] toggleScreenShare: failed', err);
+      }
+    }
+  }, [localStream, isScreenSharing]);
 
   // ── REALTIME: incoming calls (replaces polling) ───────────────────────
   useEffect(() => {
@@ -389,8 +573,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           // Call ended/cancelled by the other party
           if (['ended', 'missed', 'declined', 'failed', 'no_answer'].includes(row.status)) {
             if (row.id === callIdRef.current) {
-              // Active call was ended by the other party
-              const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
               cleanup();
               if (row.end_reason === 'declined') {
                 transitionToEnd('declined', 'remote_declined');
@@ -455,13 +637,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (callIdRef.current) {
-        // sendBeacon doesn't support custom headers, so we use the REST endpoint
-        // with the apikey as a query param (anon key is publishable, safe to expose)
         const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/chat_end_call?apikey=${encodeURIComponent(anonKey)}`;
         const body = JSON.stringify({ _call_id: callIdRef.current, _end_reason: 'tab_closed' });
 
-        // Try to get auth token for authenticated call
         const sessionStr = localStorage.getItem('sb-' + import.meta.env.VITE_SUPABASE_PROJECT_ID + '-auth-token');
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
@@ -477,7 +656,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         }
 
         try {
-          // sendBeacon only supports body, not headers — use fetch keepalive instead
           fetch(url, {
             method: 'POST',
             headers,
@@ -485,11 +663,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
             keepalive: true,
           }).catch(() => {});
         } catch {
-          // Last resort: sendBeacon without auth (will likely fail RLS, but stops media)
           try { navigator.sendBeacon(url, new Blob([body], { type: 'application/json' })); } catch { /* */ }
         }
       }
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenTrackRef.current?.stop();
       pc.current?.close();
     };
 
@@ -534,10 +712,15 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     hangUp,
     toggleMute,
     toggleVideo,
+    toggleScreenShare,
     isMuted,
     isVideoEnabled,
     isVideoCall,
+    isScreenSharing,
     callDuration,
     endReason,
+    qualityStats,
+    remoteStreams,
+    participantCount,
   };
 }

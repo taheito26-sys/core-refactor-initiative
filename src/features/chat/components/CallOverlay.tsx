@@ -1,13 +1,14 @@
 // ─── CallOverlay — Production in-call UI ────────────────────────────────
-// Mobile-safe, video support, duration timer, proper state feedback
+// Mobile-safe, video support, screen sharing, quality indicator, duration timer
 import {
   Phone, PhoneOff, PhoneIncoming, PhoneMissed,
-  Mic, MicOff, Video, VideoOff, X,
+  Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, X,
+  Wifi, WifiOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRef, useEffect } from 'react';
-import type { UseWebRTCReturn } from '../hooks/useWebRTC';
+import type { UseWebRTCReturn, CallQualityStats } from '../hooks/useWebRTC';
 
 interface Props {
   webrtc: UseWebRTCReturn;
@@ -32,18 +33,33 @@ const STATE_LABELS: Record<string, string> = {
   declined:     'Call declined',
 };
 
+function QualityBadge({ stats }: { stats: CallQualityStats | null }) {
+  if (!stats) return null;
+  const colors = {
+    excellent: 'text-emerald-400',
+    good: 'text-amber-400',
+    poor: 'text-red-400',
+  };
+  const Icon = stats.level === 'poor' ? WifiOff : Wifi;
+  return (
+    <div className={cn('flex items-center gap-1 text-xs', colors[stats.level])} title={`${stats.bitrate}kbps · ${stats.packetLoss}% loss · ${stats.roundTripTime}ms RTT`}>
+      <Icon className="h-3 w-3" />
+      <span className="capitalize">{stats.level}</span>
+    </div>
+  );
+}
+
 export function CallOverlay({ webrtc }: Props) {
   const {
-    callState, isMuted, isVideoEnabled, isVideoCall, callDuration, endReason,
-    localStream, remoteStream,
-    answerIncoming, declineIncoming, hangUp, toggleMute, toggleVideo,
+    callState, isMuted, isVideoEnabled, isVideoCall, isScreenSharing, callDuration, endReason,
+    localStream, remoteStream, qualityStats,
+    answerIncoming, declineIncoming, hangUp, toggleMute, toggleVideo, toggleScreenShare,
   } = webrtc;
   const isMobile = useIsMobile();
 
   const localVideoRef  = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Bind streams to video elements
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
@@ -64,7 +80,7 @@ export function CallOverlay({ webrtc }: Props) {
   const isConnecting = callState === 'connecting';
   const isTerminal   = ['ended', 'failed', 'missed', 'declined'].includes(callState);
 
-  const showVideo = isVideoCall && (isActive || isConnecting);
+  const showVideo = (isVideoCall || isScreenSharing) && (isActive || isConnecting);
 
   // Full-screen video call layout
   if (showVideo) {
@@ -85,7 +101,7 @@ export function CallOverlay({ webrtc }: Props) {
           )}
 
           {/* Local video (picture-in-picture) */}
-          {localStream && isVideoEnabled && (
+          {localStream && (isVideoEnabled || isScreenSharing) && (
             <div className={cn(
               'absolute rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl',
               isMobile ? 'bottom-24 right-3 w-24 h-32' : 'bottom-20 right-4 w-32 h-44',
@@ -93,8 +109,8 @@ export function CallOverlay({ webrtc }: Props) {
               <video
                 ref={localVideoRef}
                 autoPlay playsInline muted
-                className="w-full h-full object-cover mirror"
-                style={{ transform: 'scaleX(-1)' }}
+                className="w-full h-full object-cover"
+                style={{ transform: isScreenSharing ? 'none' : 'scaleX(-1)' }}
               />
             </div>
           )}
@@ -107,12 +123,18 @@ export function CallOverlay({ webrtc }: Props) {
                 <span className="text-white text-sm font-bold">
                   {STATE_LABELS[callState]}
                 </span>
+                {isScreenSharing && (
+                  <span className="text-xs bg-blue-600/60 text-blue-200 px-2 py-0.5 rounded-full">Sharing screen</span>
+                )}
               </div>
-              {isActive && (
-                <span className="text-white/80 text-sm font-mono">
-                  {formatDuration(callDuration)}
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                <QualityBadge stats={qualityStats} />
+                {isActive && (
+                  <span className="text-white/80 text-sm font-mono">
+                    {formatDuration(callDuration)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -138,6 +160,19 @@ export function CallOverlay({ webrtc }: Props) {
           >
             {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
           </button>
+
+          {!isMobile && (
+            <button
+              onClick={toggleScreenShare}
+              className={cn(
+                'h-12 w-12 rounded-full flex items-center justify-center transition-colors active:scale-95',
+                isScreenSharing ? 'bg-blue-500/30 text-blue-300' : 'bg-white/10 text-white',
+              )}
+              title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
+            >
+              {isScreenSharing ? <MonitorOff className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}
+            </button>
+          )}
 
           <button
             onClick={hangUp}
@@ -183,9 +218,12 @@ export function CallOverlay({ webrtc }: Props) {
             {STATE_LABELS[callState] || callState}
           </span>
           {isActive && (
-            <span className="text-xs font-mono opacity-80">
-              {formatDuration(callDuration)}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono opacity-80">
+                {formatDuration(callDuration)}
+              </span>
+              <QualityBadge stats={qualityStats} />
+            </div>
           )}
           {isTerminal && endReason && endReason !== callState && (
             <span className="text-[10px] opacity-60 truncate">{endReason.replace(/_/g, ' ')}</span>
@@ -237,6 +275,20 @@ export function CallOverlay({ webrtc }: Props) {
               >
                 {isVideoEnabled ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
               </button>
+              {!isMobile && (
+                <button
+                  onClick={toggleScreenShare}
+                  className={cn(
+                    'h-9 w-9 rounded-full flex items-center justify-center transition-colors active:scale-95',
+                    isScreenSharing
+                      ? 'bg-blue-600/30 text-blue-300 hover:bg-blue-600/50'
+                      : 'bg-emerald-800/50 text-emerald-300 hover:bg-emerald-800/80',
+                  )}
+                  title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
+                >
+                  {isScreenSharing ? <MonitorOff className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
+                </button>
+              )}
             </>
           )}
 
