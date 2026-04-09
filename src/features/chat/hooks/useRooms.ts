@@ -6,30 +6,18 @@ import { useAuth } from '@/features/auth/auth-context';
 import { getRooms } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
 import type { ChatRoomListItem } from '../types';
+import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
 
 export const ROOMS_KEY = ['chat', 'rooms'];
 
 /** Client-side enrichment: populate display_name / display_avatar from
  *  what the RPC returns so the sidebar always has names to show. */
 function enrichRooms(rooms: ChatRoomListItem[]): ChatRoomListItem[] {
-  return rooms.map((r) => {
-    // For direct rooms the SQL now sets `name` to the other user's display name.
-    // Also carry through other_user_metadata as a fallback.
-    const meta = (r.other_user_metadata ?? {}) as Record<string, string>;
-    return {
-      ...r,
-      display_name:
-        r.display_name ??
-        meta.display_name ??
-        r.name ??
-        (r.is_direct ? 'Direct Message' : 'Room'),
-      display_avatar:
-        r.display_avatar ??
-        meta.avatar_url ??
-        r.avatar_url ??
-        null,
-    };
-  });
+  return rooms.map((r) => ({
+    ...r,
+    display_name: resolveRoomDisplayName(r),
+    display_avatar: resolveRoomAvatar(r),
+  }));
 }
 
 export function useRooms() {

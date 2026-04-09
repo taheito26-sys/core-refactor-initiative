@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 import { X, Send, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage, ChatRoomListItem } from '../types';
+import { resolveRoomDisplayName } from '../lib/identity';
 
 interface Props {
   message: ChatMessage;
@@ -18,9 +19,11 @@ export function ForwardMessageModal({ message, rooms, onForward, onClose }: Prop
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return rooms.filter((r) =>
-      (r.display_name ?? r.name ?? '').toLowerCase().includes(q),
+      resolveRoomDisplayName(r).toLowerCase().includes(q),
     );
   }, [rooms, search]);
+
+  const roomName = (room: ChatRoomListItem) => resolveRoomDisplayName(room);
 
   const preview = message.content.length > 80 ? message.content.slice(0, 80) + '…' : message.content;
 
@@ -75,10 +78,10 @@ export function ForwardMessageModal({ message, rooms, onForward, onClose }: Prop
                   'h-8 w-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
                   selected === room.room_id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                 )}>
-                  {(room.display_name ?? room.name ?? '?').slice(0, 2).toUpperCase()}
+                  {roomName(room).slice(0, 2).toUpperCase()}
                 </div>
                 <span className="text-xs font-medium text-foreground truncate">
-                  {room.display_name ?? room.name ?? 'Room'}
+                  {roomName(room)}
                 </span>
               </button>
             ))

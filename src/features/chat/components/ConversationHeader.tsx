@@ -11,6 +11,7 @@ import { useChatStore } from '@/lib/chat-store';
 import { presenceOf } from '@/lib/chat-store';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
 import { cn } from '@/lib/utils';
+import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function roomTypeIcon(type: ChatRoomType) {
@@ -88,12 +89,8 @@ export function ConversationHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
-  const displayName = useMemo(
-    () => room.display_name ?? room.name ?? (room.is_direct ? 'Direct Message' : 'Room'),
-    [room.display_name, room.name, room.is_direct],
-  );
-
-  const avatarUrl = room.display_avatar ?? room.avatar_url;
+  const displayName = useMemo(() => resolveRoomDisplayName(room), [room]);
+  const avatarUrl = useMemo(() => resolveRoomAvatar(room), [room]);
 
   return (
     <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">

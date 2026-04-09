@@ -31,6 +31,9 @@ export interface ChatRoomPolicy {
   allowed_mime_types: string[] | null;
   screenshot_protection: boolean;
   link_preview_enabled: boolean;
+  disable_forwarding: boolean;
+  disable_export: boolean;
+  strip_forward_sender_identity: boolean;
 }
 
 // ── Room ───────────────────────────────────────────────────────────────────
@@ -138,6 +141,7 @@ export interface ChatMessageMetadata {
     sender_name: string;
     room_name?: string;
   };
+  forward_hop_count?: number;
   call_id?: string;
   call_event?: string;
   duration_seconds?: number;
@@ -334,6 +338,12 @@ export interface CreateMarketOfferInput {
   minAmount?: number | null;
   maxAmount?: number | null;
   expiresAt?: string | null;
+}
+
+export interface ChatExpiryCleanupResult {
+  expired_messages: number;
+  expired_offers: number;
+  ran_at: string;
 }
 
 // ── Optimistic message ─────────────────────────────────────────────────────

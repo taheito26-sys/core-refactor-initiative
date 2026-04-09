@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { getMessageById, clearChatForMe, toggleMuteRoom, getQatarMarketRoom } from '../api/chat';
+import { getMessageById, clearChatForMe, toggleMuteRoom, getQatarMarketRoom, forwardMessage, runExpiryCleanup } from '../api/chat';
 import type { ChatMessage, ChatMessageType, SendMessageInput } from '../types';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ConversationHeader } from '../components/ConversationHeader';
@@ -183,6 +183,7 @@ export default function ChatWorkspacePage() {
   const isPrivateRoom = activeRoom?.room_type === 'merchant_private';
   const isQatarMarketRoom = activeRoom?.room_type === 'merchant_collab'
     && (activeRoom.name ?? '').toLowerCase() === 'qatar p2p market';
+  const canForwardFromActiveRoom = !(activeRoom?.policy?.disable_forwarding ?? false);
   const marketOffers = useMarketOffers(activeRoomId, !!isQatarMarketRoom);
 
   // Mobile: select a room → switch to thread pane
@@ -208,27 +209,24 @@ export default function ChatWorkspacePage() {
 
   // Forward handler (Phase 12)
   const handleForward = useCallback((msg: ChatMessage) => {
+    if (!canForwardFromActiveRoom) {
+      toast.error('Forwarding is disabled for this room');
+      return;
+    }
     setForwardMsg(msg);
-  }, []);
+  }, [canForwardFromActiveRoom]);
 
-  const handleForwardSend = useCallback((messageId: string, targetRoomId: string) => {
-    // Forward as a new message with forwarded metadata
-    const msg = messages.find((m) => m.id === messageId);
-    if (!msg || !targetRoomId) return;
-    // We'll send to target room — but we only have send for activeRoom
-    // For now, copy content approach
-    send.mutate({
-      roomId:       targetRoomId,
-      content:      msg.content,
-      type:         msg.type,
-      metadata:     { forwarded_from: { sender_name: msg.sender_name ?? msg.sender_id.slice(0, 8), room_name: undefined } } as SendMessageInput['metadata'],
-      clientNonce:  crypto.randomUUID(),
-      replyToId:    null,
-      expiresAt:    null,
-      viewOnce:     false,
-      attachmentId: null,
-    });
-  }, [messages, send]);
+  const handleForwardSend = useCallback(async (messageId: string, targetRoomId: string) => {
+    try {
+      await forwardMessage(messageId, targetRoomId);
+      toast.success('Message forwarded');
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', targetRoomId] });
+      qc.invalidateQueries({ queryKey: ROOMS_KEY });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to forward message';
+      toast.error(message);
+    }
+  }, [qc]);
 
   // Search jump handler
   const handleSearchJump = useCallback((messageId: string) => {
@@ -314,6 +312,14 @@ export default function ChatWorkspacePage() {
     if (!userId || !merchantProfile?.merchant_id) return;
     getQatarMarketRoom().catch(() => {});
   }, [userId, merchantProfile?.merchant_id]);
+
+  useEffect(() => {
+    void runExpiryCleanup().catch(() => {});
+    const timer = window.setInterval(() => {
+      void runExpiryCleanup().catch(() => {});
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // ── Shared header props builder ─────────────────────────────────────────
   const headerCallProps = isPrivateRoom ? {
@@ -422,7 +428,7 @@ export default function ChatWorkspacePage() {
                 del.mutate({ messageId: msgId, forEveryone })
               }
               onReply={handleReply}
-              onForward={handleForward}
+              onForward={canForwardFromActiveRoom ? handleForward : undefined}
               onImageOpen={handleImageOpen}
             />
             {/* Reply preview above composer */}

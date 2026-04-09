@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
 import { EncryptionBanner } from './EncryptionIndicator';
 import { RetentionSection } from './RetentionIndicator';
+import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
 
 interface Props {
   room: ChatRoomListItem;
@@ -48,8 +49,8 @@ function PolicyBadge({ icon: Icon, label, enabled }: { icon: React.ElementType; 
 export function RoomInfoPanel({ room, onClose }: Props) {
   const config = roomTypeConfig(room.room_type);
   const Icon = config.icon;
-  const displayName = room.display_name ?? room.name ?? 'Room';
-  const avatarUrl = room.display_avatar ?? room.avatar_url;
+  const displayName = resolveRoomDisplayName(room);
+  const avatarUrl = resolveRoomAvatar(room);
   const policy = room.policy;
 
   const encryptionMode = room.room_type === 'merchant_private' ? 'client_e2ee' as const
@@ -108,8 +109,9 @@ export function RoomInfoPanel({ room, onClose }: Props) {
             <div className="space-y-1.5">
               <PolicyBadge icon={Eye} label="Watermark" enabled={policy?.watermark_enabled ?? false} />
               <PolicyBadge icon={Shield} label="Screenshot protection" enabled={policy?.screenshot_protection ?? false} />
-              <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={true} />
+              <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={!(policy?.disable_forwarding ?? false)} />
               <PolicyBadge icon={Copy} label="History searchable" enabled={policy?.history_searchable ?? false} />
+              <PolicyBadge icon={Download} label="Export allowed" enabled={!(policy?.disable_export ?? false)} />
               <PolicyBadge icon={Timer} label="Disappearing default" enabled={!!policy?.disappearing_default_hours} />
             </div>
           </div>
