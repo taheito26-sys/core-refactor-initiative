@@ -207,6 +207,7 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
             <div className="lbl">{t('accountCurrencyLbl')}</div>
             <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)} style={selectStyle}>
               <option value="QAR" style={optionStyle}>🇶🇦 QAR</option>
+              <option value="EGP" style={optionStyle}>🇪🇬 EGP</option>
               <option value="USDT" style={optionStyle}>💲 USDT</option>
               <option value="USD" style={optionStyle}>🇺🇸 USD</option>
             </select>
@@ -673,9 +674,10 @@ function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit
             <div className="lbl">{t('currency')}</div>
             <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
               style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
-              <option value="QAR">QAR</option>
-              <option value="USDT">USDT</option>
-              <option value="USD">USD</option>
+              <option value="QAR">🇶🇦 QAR</option>
+              <option value="EGP">🇪🇬 EGP</option>
+              <option value="USDT">💲 USDT</option>
+              <option value="USD">🇺🇸 USD</option>
             </select>
           </div>
         </div>

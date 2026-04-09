@@ -913,6 +913,7 @@ export default function OrdersPage() {
       cashDepositAccountId,
       sell,
       amountUSDT,
+      baseFiatCurrency: baseFiat,
       note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     });
   };
@@ -1656,6 +1657,7 @@ export default function OrdersPage() {
       cashDepositAccountId: editCashDepositAccountId,
       sell,
       amountUSDT: qty,
+      baseFiatCurrency: baseFiat,
       note: `${t('saleProceeds')}: ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
     });
     applyState(stateWithEditDeposit);
