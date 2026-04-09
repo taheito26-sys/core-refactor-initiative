@@ -60,22 +60,55 @@ function PolicyBadge({ icon: Icon, label, enabled, onToggle }: { icon: React.Ele
 
 export function RoomInfoPanel({ room, onClose }: Props) {
   const { userId, merchantProfile } = useAuth();
+  const qc = useQueryClient();
   const config = roomTypeConfig(room.room_type);
   const Icon = config.icon;
   const displayName = resolveRoomDisplayName(room);
   const avatarUrl = resolveRoomAvatar(room);
-  const policy = room.policy;
+  const [localPolicy, setLocalPolicy] = useState<Partial<ChatRoomPolicy>>(room.policy ?? {});
+  const policy = { ...room.policy, ...localPolicy } as ChatRoomPolicy | undefined;
+  const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+
   const membersQuery = useQuery({
     queryKey: ['chat', 'room-members', room.room_id],
     queryFn: () => getRoomMembers(room.room_id),
     staleTime: 30_000,
   });
   const members = membersQuery.data ?? [];
+
+  // Online count
+  const onlineQuery = useQuery({
+    queryKey: ['chat', 'online-count', room.room_id],
+    queryFn: () => getRoomOnlineCount(room.room_id),
+    enabled: !room.is_direct,
+    staleTime: 30_000,
+  });
+  const onlineCount = onlineQuery.data ?? 0;
+
+  // Check if current user is owner or admin
+  const myMembership = members.find(m => m.user_id === userId);
+  const isRoomAdmin = myMembership?.role === 'owner' || myMembership?.role === 'admin';
+
   const exportAllowed = !(policy?.disable_export ?? false);
 
   const encryptionMode = room.room_type === 'merchant_private' ? 'client_e2ee' as const
     : room.room_type === 'merchant_client' ? 'server_e2ee' as const
     : 'tls_only' as const;
+
+  const handleTogglePolicy = useCallback(async (key: string, currentValue: boolean) => {
+    if (!isRoomAdmin) return;
+    setUpdatingKey(key);
+    try {
+      await updateRoomPolicy(room.room_id, { [key]: !currentValue });
+      setLocalPolicy(prev => ({ ...prev, [key]: !currentValue }));
+      qc.invalidateQueries({ queryKey: ROOMS_KEY });
+      toast.success(`${key.replace(/_/g, ' ')} ${!currentValue ? 'enabled' : 'disabled'}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update policy');
+    } finally {
+      setUpdatingKey(null);
+    }
+  }, [isRoomAdmin, room.room_id, qc]);
 
   const handleExportTranscript = async () => {
     if (!exportAllowed) {
