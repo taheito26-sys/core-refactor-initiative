@@ -17,7 +17,7 @@ import { useRoomMessages } from '../hooks/useRoomMessages';
 import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { getMessageById } from '../api/chat';
+import { getMessageById, clearChatForMe, toggleMuteRoom, getOrCreateCollabRoom } from '../api/chat';
 import type { ChatMessage, ChatMessageType, SendMessageInput } from '../types';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ConversationHeader } from '../components/ConversationHeader';
