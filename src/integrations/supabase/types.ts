@@ -3729,49 +3729,94 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      chat_send_message: {
-        Args: {
-          _client_nonce?: string
-          _content: string
-          _expires_at?: string
-          _metadata?: Json
-          _reply_to_id?: string
-          _room_id: string
-          _type?: string
-          _view_once?: boolean
-          _watermark_text?: string
-        }
-        Returns: {
-          client_nonce: string | null
-          content: string
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          deleted_for_sender: boolean
-          edited_at: string | null
-          expires_at: string | null
-          forwarded_from_id: string | null
-          id: string
-          is_deleted: boolean
-          is_edited: boolean
-          metadata: Json
-          reply_to_id: string | null
-          room_id: string
-          search_vector: unknown
-          sender_id: string
-          type: Database["public"]["Enums"]["chat_message_type"]
-          updated_at: string
-          view_once: boolean
-          viewed_by: string[]
-          watermark_text: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "chat_messages"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
+      chat_send_message:
+        | {
+            Args: {
+              _client_nonce?: string
+              _content: string
+              _expires_at?: string
+              _metadata?: Json
+              _reply_to_id?: string
+              _room_id: string
+              _type?: string
+              _view_once?: boolean
+              _watermark_text?: string
+            }
+            Returns: {
+              client_nonce: string | null
+              content: string
+              created_at: string
+              deleted_at: string | null
+              deleted_by: string | null
+              deleted_for_sender: boolean
+              edited_at: string | null
+              expires_at: string | null
+              forwarded_from_id: string | null
+              id: string
+              is_deleted: boolean
+              is_edited: boolean
+              metadata: Json
+              reply_to_id: string | null
+              room_id: string
+              search_vector: unknown
+              sender_id: string
+              type: Database["public"]["Enums"]["chat_message_type"]
+              updated_at: string
+              view_once: boolean
+              viewed_by: string[]
+              watermark_text: string | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "chat_messages"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
+        | {
+            Args: {
+              _attachment_id?: string
+              _client_nonce?: string
+              _content: string
+              _expires_at?: string
+              _metadata?: Json
+              _reply_to_id?: string
+              _room_id: string
+              _type?: string
+              _view_once?: boolean
+              _watermark_text?: string
+            }
+            Returns: {
+              client_nonce: string | null
+              content: string
+              created_at: string
+              deleted_at: string | null
+              deleted_by: string | null
+              deleted_for_sender: boolean
+              edited_at: string | null
+              expires_at: string | null
+              forwarded_from_id: string | null
+              id: string
+              is_deleted: boolean
+              is_edited: boolean
+              metadata: Json
+              reply_to_id: string | null
+              room_id: string
+              search_vector: unknown
+              sender_id: string
+              type: Database["public"]["Enums"]["chat_message_type"]
+              updated_at: string
+              view_once: boolean
+              viewed_by: string[]
+              watermark_text: string | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "chat_messages"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
       chat_set_presence: {
         Args: { _device_info?: Json; _status?: string }
         Returns: undefined
