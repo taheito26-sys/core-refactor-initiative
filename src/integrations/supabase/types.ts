@@ -3791,6 +3791,10 @@ export type Database = {
         }
         Returns: Json
       }
+      chat_update_room_policy: {
+        Args: { _room_id: string; _updates: Json }
+        Returns: Json
+      }
       current_merchant_id: { Args: never; Returns: string }
       customer_wallet_summary: { Args: { p_user_id: string }; Returns: Json }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
