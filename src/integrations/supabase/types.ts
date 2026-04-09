@@ -3678,6 +3678,10 @@ export type Database = {
         Args: { _allowed_mime_types: string[]; _mime_type: string }
         Returns: boolean
       }
+      chat_link_attachment_to_message: {
+        Args: { _attachment_id: string; _message_id: string }
+        Returns: undefined
+      }
       chat_mark_room_read: {
         Args: { _room_id: string; _up_to_message_id?: string }
         Returns: undefined
