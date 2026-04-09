@@ -38,17 +38,14 @@ function accountToRow(a: CashAccount, userId: string) {
     id:              a.id,
     user_id:         userId,
     name:            a.name,
-    type:            a.type,
+    type:            normalizeLegacyAccountType(a.type),
     currency:        a.currency,
     status:          a.status,
     bank_name:       a.bankName  ?? null,
     branch:          a.branch    ?? null,
     notes:           a.notes     ?? null,
     last_reconciled: a.lastReconciled ?? null,
-    merchant_id:     a.merchantId ?? null,
-    relationship_id: a.relationshipId ?? null,
-    purpose:         a.purpose ?? 'custody',
-    is_merchant_account: a.isMerchantAccount ?? false,
+    is_merchant_account: a.isMerchantAccount ?? a.type === 'merchant_custody',
     created_at:      a.createdAt,
     updated_at:      new Date().toISOString(),
   };
@@ -96,25 +93,24 @@ function rowToAccount(row: Record<string, unknown>): CashAccount {
 }
 
 function entryToRow(e: CashLedgerEntry, userId: string) {
+  const normalizedType = LEGACY_LEDGER_TYPE_MAP[e.type] ?? e.type;
+  const linkedEntityType = e.linkedEntityType === 'batch' || e.linkedEntityType === 'trade'
+    ? e.linkedEntityType
+    : null;
   return {
     id:                 e.id,
     user_id:            userId,
     account_id:         e.accountId,
     contra_account_id:  e.contraAccountId  ?? null,
     ts:                 e.ts,
-    type:               e.type,
+    type:               normalizedType,
     direction:          e.direction,
     amount:             e.amount,
     currency:           e.currency,
     note:               e.note              ?? null,
-    linked_entity_id:   e.linkedEntityId    ?? null,
-    linked_entity_type: e.linkedEntityType  ?? null,
-    merchant_id:        e.merchantId        ?? null,
-    relationship_id:    e.relationshipId    ?? null,
-    trade_id:           e.tradeId           ?? null,
-    order_id:           e.orderId           ?? null,
+    linked_entity_id:   linkedEntityType ? e.linkedEntityId ?? null : null,
+    linked_entity_type: linkedEntityType,
     batch_id:           e.batchId           ?? null,
-    settlement_id:      e.settlementId      ?? null,
   };
 }
 
