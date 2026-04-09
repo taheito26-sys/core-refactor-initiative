@@ -351,3 +351,33 @@ select:focus {
     padding-right: env(safe-area-inset-right, 0px);
   }
 }
+
+/* ─── Phase 39: Focus ring accessibility ─── */
+@layer base {
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary/50 rounded-sm;
+  }
+  button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    @apply ring-2 ring-primary/40 ring-offset-1 ring-offset-background;
+  }
+}
+
+/* ─── Phase 31: Chat pane transitions ─── */
+@layer utilities {
+  .chat-pane-enter-left {
+    animation: pane-slide-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .chat-pane-enter-right {
+    animation: pane-slide-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@keyframes pane-slide-left {
+  from { transform: translateX(-30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes pane-slide-right {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
