@@ -39,6 +39,7 @@ interface Props {
   meId:      string;
   isLoading: boolean;
   roomType:  ChatRoomType;
+  typingUserIds?: string[];
   onReact:   (msgId: string, emoji: string, remove?: boolean) => void;
   onEdit:    (msgId: string, content: string) => void;
   onDelete:  (msgId: string, forEveryone?: boolean) => void;
@@ -46,6 +47,7 @@ interface Props {
   onForward?:(msg: ChatMessage) => void;
   onPin?:    (msgId: string) => void;
   onBookmark?:(msgId: string) => void;
+  onImageOpen?:(src: string) => void;
 }
 
 const EMOJI_QUICK = ['👍','❤️','😂','😮','😢','🙏'];
