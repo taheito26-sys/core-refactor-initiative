@@ -251,7 +251,7 @@ export type SettlementMode =
 export interface Trade {
   id: string;
   ts: number;
-  inputMode: 'USDT' | 'QAR';
+  inputMode: 'USDT' | 'QAR' | 'EGP';
   amountUSDT: number;
   sellPriceQAR: number;
   feeQAR: number;
