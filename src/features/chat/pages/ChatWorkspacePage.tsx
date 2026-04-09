@@ -196,7 +196,7 @@ export default function ChatWorkspacePage() {
       roomId:       targetRoomId,
       content:      msg.content,
       type:         msg.type,
-      metadata:     { forwarded_from: messageId, forwarded_sender: msg.sender_name ?? msg.sender_id } as SendMessageInput['metadata'],
+      metadata:     { forwarded_from: { sender_name: msg.sender_name ?? msg.sender_id.slice(0, 8), room_name: undefined } } as SendMessageInput['metadata'],
       clientNonce:  crypto.randomUUID(),
       replyToId:    null,
       expiresAt:    null,
