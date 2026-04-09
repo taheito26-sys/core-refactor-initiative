@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
 
-const LEGACY_SUPPORTED_CURRENCIES = new Set(['QAR', 'USDT', 'USD']);
+
 
 const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   opening: 'opening',
@@ -23,9 +23,6 @@ const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   merchant_adjustment: 'reconcile',
 };
 
-function isLegacySupportedCurrency(currency: string): boolean {
-  return LEGACY_SUPPORTED_CURRENCIES.has(currency);
-}
 
 function normalizeLegacyAccountType(type: CashAccount['type']): 'hand' | 'bank' | 'vault' {
   return type === 'merchant_custody' ? 'vault' : type;
@@ -51,25 +48,6 @@ function accountToRow(a: CashAccount, userId: string) {
   };
 }
 
-function accountToRowLegacy(a: CashAccount, userId: string): Record<string, unknown> | null {
-  if (!isLegacySupportedCurrency(a.currency)) return null;
-
-  return {
-    id:              a.id,
-    user_id:         userId,
-    name:            a.name,
-    type:            normalizeLegacyAccountType(a.type),
-    currency:        a.currency,
-    status:          a.status,
-    bank_name:       a.bankName  ?? null,
-    branch:          a.branch    ?? null,
-    notes:           a.notes     ?? null,
-    last_reconciled: a.lastReconciled ?? null,
-    is_merchant_account: a.isMerchantAccount ?? a.type === 'merchant_custody',
-    created_at:      a.createdAt,
-    updated_at:      new Date().toISOString(),
-  };
-}
 
 function rowToAccount(row: Record<string, unknown>): CashAccount {
   const isMerchantAccount = (row.is_merchant_account as boolean | null) ?? false;
@@ -114,30 +92,6 @@ function entryToRow(e: CashLedgerEntry, userId: string) {
   };
 }
 
-function entryToRowLegacy(e: CashLedgerEntry, userId: string): Record<string, unknown> | null {
-  const normalizedType = LEGACY_LEDGER_TYPE_MAP[e.type];
-  if (!normalizedType || !isLegacySupportedCurrency(e.currency)) return null;
-
-  const linkedEntityType = e.linkedEntityType === 'batch' || e.linkedEntityType === 'trade'
-    ? e.linkedEntityType
-    : null;
-
-  return {
-    id:                 e.id,
-    user_id:            userId,
-    account_id:         e.accountId,
-    contra_account_id:  e.contraAccountId  ?? null,
-    ts:                 e.ts,
-    type:               normalizedType,
-    direction:          e.direction,
-    amount:             e.amount,
-    currency:           e.currency,
-    note:               e.note              ?? null,
-    linked_entity_id:   linkedEntityType ? e.linkedEntityId ?? null : null,
-    linked_entity_type: linkedEntityType,
-    batch_id:           e.batchId           ?? null,
-  };
-}
 
 function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
   return {
