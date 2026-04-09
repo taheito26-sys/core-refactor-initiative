@@ -9,7 +9,7 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
-import { useT } from '@/lib/i18n';
+import { useT, getCurrencyLabel } from '@/lib/i18n';
 import * as api from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { DEAL_TYPE_CONFIGS, calculateAllocation, calculateAgreementAllocation, isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
@@ -3178,7 +3178,7 @@ export default function OrdersPage() {
                 {saleEntryMode === 'price_vol' && (
                   <div className="g2tight">
                     <div className="field2">
-                      <div className="lbl">{saleMode === 'USDT' ? t('quantity') : t('amountQar')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('amount', saleMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
                         <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>USDT</button>

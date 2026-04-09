@@ -21,7 +21,7 @@ import {
   type CashLedgerEntry,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
-import { useT } from '@/lib/i18n';
+import { useT, getCurrencyLabel } from '@/lib/i18n';
 import {
   Dialog,
   DialogContent,
@@ -774,11 +774,11 @@ export default function StockPage() {
                   </div>
                   <div className="g2tight" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : undefined}>
                     <div className="field2">
-                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('buyPrice', batchMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{batchMode !== 'USDT' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('volume', batchMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                   </div>
@@ -816,7 +816,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('buyPrice', batchMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                   </div>
@@ -987,7 +987,7 @@ export default function StockPage() {
                 <div style={{ fontSize: 12, textAlign: 'left', background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 10, padding: '12px 14px', display: 'grid', gap: 8, marginBottom: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('supplier')}</span><strong>{batchConfirmDetails.source}</strong></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('total')} USDT</span><strong className="mono">{fmtU(batchConfirmDetails.qty)} USDT</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('buyPriceQar')}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} QAR</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t(getCurrencyLabel('buyPrice', batchMode as any))}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} QAR</strong></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} QAR</strong></div>
                   {batchConfirmDetails.fundingAccName && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('fundingSourceLbl')}</span><strong style={{ maxWidth: '60%', textAlign: 'right' }}>{batchConfirmDetails.fundingAccName}</strong></div>
@@ -1031,11 +1031,11 @@ export default function StockPage() {
                       </div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('buyPrice', batchMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{batchMode !== 'USDT' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('volume', batchMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                   </>)}
@@ -1061,7 +1061,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('buyPrice', batchMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                     {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
@@ -1216,7 +1216,7 @@ export default function StockPage() {
                   <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
                 </div>
                 <div className="field2">
-                  <div className="lbl">{t('buyPriceQar')}</div>
+                  <div className="lbl">{t(getCurrencyLabel('buyPrice', batchMode as any))}</div>
                   <div className="inputBox"><input inputMode="decimal" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
                 </div>
               </div>
