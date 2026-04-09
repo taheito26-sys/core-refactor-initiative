@@ -680,36 +680,36 @@
 
   /* ── Edge-to-edge orders layout ── */
   .tracker-root.orders-mobile-root {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding-left: max(10px, env(safe-area-inset-left, 0px)) !important;
+    padding-right: max(10px, env(safe-area-inset-right, 0px)) !important;
   }
-  /* Give back horizontal breathing room to the controls above the list */
+  /* Keep controls aligned with Stock page gutters */
   .tracker-root.orders-mobile-root .orders-tab-bar,
   .tracker-root.orders-mobile-root .month-filter-row {
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: 0;
+    padding-right: 0;
   }
   /* Lift the max-width clamp so negative-margin children can escape */
   .tracker-root.orders-mobile-root .orders-two-col > * {
     max-width: none;
     overflow: visible;
   }
-  /* Card list: bleed 10px on each side to counter app-page-shell padding */
+  /* Keep list in the same width rail as Stock page */
   .tracker-root.orders-mobile-root .orders-cards-list {
-    margin-left: -10px;
-    margin-right: -10px;
-    width: calc(100% + 20px);
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
-  /* Sale form: bleed edge-to-edge, no outer radius, compact */
+  /* Sale form follows same mobile gutter rail */
   .tracker-root.orders-mobile-root .formPanel.salePanel {
     border-left: none;
     border-right: none;
     border-bottom: none;
     border-radius: 0;
     margin-top: 10px;
-    margin-left: -10px;
-    margin-right: -10px;
-    width: calc(100% + 20px);
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
   .tracker-root.orders-mobile-root .formPanel.salePanel .inner {
     padding: 6px 10px;

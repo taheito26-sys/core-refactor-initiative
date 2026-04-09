@@ -410,9 +410,9 @@ export default function OrdersPage() {
   }, [settings.range, update]);
 
   const wacop = getWACOP(derived);
+  const averageStockPrice = wacop;
   /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
-  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
-  useEffect(() => { if (!saleSell && wacop) setSaleSell(fmtP(wacop)); }, [wacop, saleSell]);
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, averageStockPrice), [settings.currency, averageStockPrice]);
 
   const rLabel = rangeLabel(state.range);
   const query = (settings.searchQuery || '').trim().toLowerCase();
@@ -703,6 +703,20 @@ export default function OrdersPage() {
     return state.customers.filter(c => normalizeName(c.name).includes(q) || c.phone.includes(buyerName));
   }, [buyerName, state.customers]);
 
+  const assertPreviewQuantityInvariant = useCallback((qty: number) => {
+    let expectedQty = qty;
+    if (saleEntryMode === 'price_vol') {
+      const rawAmount = Number(saleAmount);
+      const sell = Number(saleSell);
+      expectedQty = saleMode === 'QAR' ? (sell > 0 ? rawAmount / sell : 0) : rawAmount;
+    } else {
+      expectedQty = Number(saleUsdtQty);
+    }
+    if (Number.isFinite(expectedQty) && Number.isFinite(qty) && Math.abs(expectedQty - qty) > 1e-6) {
+      throw new Error(`Quantity invariant violated: expected ${expectedQty}, got ${qty}`);
+    }
+  }, [saleEntryMode, saleMode, saleAmount, saleSell, saleUsdtQty]);
+
   // Sale preview computation
   const salePreview = useMemo(() => {
     const ts = new Date(saleDate).getTime();
@@ -711,18 +725,44 @@ export default function OrdersPage() {
     const fee = saleDraft.feeQar;
 
     if (!(amountUSDT > 0) || !(sell > 0) || !Number.isFinite(ts)) return null;
+    assertPreviewQuantityInvariant(amountUSDT);
     if (priceMode === 'manual') {
       const buyP = parseFloat(manualBuyPrice) || 0;
       const rev = saleDraft.revenueQar;
       const cost = amountUSDT * buyP;
       const net = rev - cost - fee;
-      return { qty: amountUSDT, revenue: rev, avgBuy: buyP, cost, net, fifoComplete: true, coveredQty: amountUSDT, uncoveredQty: 0 };
+      return {
+        qty: amountUSDT,
+        revenue: rev,
+        avgBuy: buyP,
+        cost,
+        net,
+        fifoComplete: true,
+        coveredQty: amountUSDT,
+        uncoveredQty: 0,
+        consumed: [],
+      };
     }
-    const tmpTrade: Trade = { id: '__preview__', ts, inputMode: 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: fee, note: '', voided: false, usesStock: true, revisions: [], customerId: '' };
+    const tmpTrade: Trade = {
+      id: '__preview__',
+      ts,
+      inputMode: 'USDT',
+      amountUSDT,
+      sellPriceQAR: sell,
+      feeQAR: fee,
+      note: '',
+      voided: false,
+      usesStock: true,
+      revisions: [],
+      customerId: '',
+      linkedRelId: merchantOrderEnabled && linkedRelId ? linkedRelId : undefined,
+      linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
+    };
     const calc = computeFIFO(state.batches, [...state.trades, tmpTrade]).tradeCalc.get('__preview__');
+    assertPreviewQuantityInvariant(amountUSDT);
     const rev = saleDraft.revenueQar;
-    const cost = calc?.slices.reduce((s, x) => s + x.cost, 0) || 0;
-    const coveredQty = calc?.slices.reduce((s, x) => s + x.qty, 0) || 0;
+    const cost = calc?.totalCost || 0;
+    const coveredQty = calc?.coveredQty || 0;
     const uncoveredQty = Math.max(0, amountUSDT - coveredQty);
     const net = calc?.ok ? rev - cost - fee : NaN;
     return {
@@ -734,8 +774,25 @@ export default function OrdersPage() {
       fifoComplete: !!calc?.ok,
       coveredQty,
       uncoveredQty,
+      consumed: (calc?.slices || []).map((slice) => {
+        const batch = state.batches.find(b => b.id === slice.batchId);
+        return {
+          layerId: slice.batchId,
+          qty: slice.qty,
+          buyPrice: batch?.buyPriceQAR || 0,
+          cost: slice.cost,
+        };
+      }),
     };
-  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades]);
+  }, [saleDate, saleDraft, priceMode, manualBuyPrice, state.batches, state.trades, merchantOrderEnabled, linkedRelId, linkedCounterpartyId, assertPreviewQuantityInvariant]);
+  const saleFifoPreview = salePreview;
+  const manualSellPrice = saleSell;
+
+  const fifoDisplayUnitCost = useMemo(() => {
+    if (priceMode !== 'fifo' || !saleFifoPreview) return null;
+    if ((saleFifoPreview.coveredQty || 0) <= 0) return null;
+    return saleFifoPreview.cost / saleFifoPreview.coveredQty;
+  }, [priceMode, saleFifoPreview]);
 
   // Allocation preview for selected template
   const allocationPreview = useMemo(() => {
@@ -919,6 +976,7 @@ export default function OrdersPage() {
     const sell = saleDraft.sellPriceQar;
     const amountUSDT = saleDraft.quantityUsdt;
     const feeQar = saleDraft.feeQar;
+    assertPreviewQuantityInvariant(amountUSDT);
     if (isInsufficientStock && !canSubmitSale) {
       setSaleMessage(
         t('insufficientStockShortBy')
@@ -955,6 +1013,8 @@ export default function OrdersPage() {
         usesStock: true,
         revisions: [],
         customerId: '',
+        linkedRelId: merchantOrderEnabled && linkedRelId ? linkedRelId : undefined,
+        linkedMerchantId: merchantOrderEnabled && linkedCounterpartyId ? linkedCounterpartyId : undefined,
       };
       const calc = computeFIFO(state.batches, [...state.trades, previewTrade]).tradeCalc.get(previewTrade.id);
       const fifoAvg = calc?.ok ? calc.avgBuyQAR : NaN;
@@ -1014,6 +1074,7 @@ export default function OrdersPage() {
       voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
+      linkedMerchantId: merchantOrderEnabled ? (isNewAllocFlowActive ? (allocations[0]?.merchantId || linkedCounterpartyId) : linkedCounterpartyId) || undefined : undefined,
       agreementFamily: isNewAllocFlowActive
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ? (selectedTemplateId === 'profit_share_family' ? 'profit_share' : 'sales_deal') as any
@@ -1030,9 +1091,8 @@ export default function OrdersPage() {
         const saleGroupId = crypto.randomUUID();
         const fee = feeQar;
         const customerName = buyerName.trim() || t('buyer');
-        const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
-        const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
-        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
+        const fifoCost = Number.isFinite(salePreview?.cost) ? salePreview.cost : 0;
+        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (Number.isFinite(salePreview?.avgBuy) ? (salePreview?.avgBuy || 0) : 0);
 
         // Create a merchant_deals record for EACH allocation so it shows in partner's inbox
         const createdDealIds: string[] = [];
@@ -1214,9 +1274,8 @@ export default function OrdersPage() {
         const title = `${familyLabel} · ${customerName} · ${tmpl.ratioDisplay}`;
 
         // Store trade data in notes so partner can see qty/sell/cost
-        const c = computeFIFO(state.batches, [...state.trades, baseTrade]).tradeCalc.get(baseTrade.id);
-        const fifoCost = c?.ok ? c.slices.reduce((s, x) => s + x.cost, 0) : 0;
-        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (c?.ok ? c.avgBuyQAR : 0);
+        const fifoCost = Number.isFinite(salePreview?.cost) ? salePreview.cost : 0;
+        const avgBuy = priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : (Number.isFinite(salePreview?.avgBuy) ? (salePreview?.avgBuy || 0) : 0);
 
         const noteLines = [
           `template: ${tmpl.id}`,
@@ -2287,7 +2346,19 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+    <div
+      className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}`}
+      dir={t.isRTL ? 'rtl' : 'ltr'}
+      style={{
+        padding: isMobile
+          ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))'
+          : '6px 10px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%',
+      }}
+    >
 
       {/* ─── TAB BAR ─── */}
       <div className="orders-tab-bar">
@@ -3041,9 +3112,22 @@ export default function OrdersPage() {
 
                 {/* Price mode toggle: FIFO vs Manual */}
                 <div className="bannerRow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="bLbl">{t('avPrice')}</span>
-                    <span className="bVal">{priceMode === 'fifo' && wacop ? fmtP(wacop) : '—'}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className="bLbl">{priceMode === 'fifo' ? 'FIFO Cost/USDT' : t('sellPriceLabel')}</span>
+                      <span className="bVal">
+                        {priceMode === 'fifo'
+                          ? (saleDraft.quantityUsdt > 0
+                            ? (Number.isFinite(fifoDisplayUnitCost) ? fmtP(fifoDisplayUnitCost as number) : '—')
+                            : 'Enter quantity to calculate FIFO')
+                          : (manualSellPrice ? fmtP(Number(manualSellPrice) || 0) : '—')}
+                      </span>
+                    </div>
+                    {priceMode === 'fifo' && saleDraft.quantityUsdt > 0 && stockCoverage.stockShortfall > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--bad)', fontWeight: 700 }}>
+                        Shortfall: {fmtU(stockCoverage.stockShortfall)} USDT
+                      </div>
+                    )}
                   </div>
                   <div className="modeToggle" style={{ fontSize: 9 }}>
                      <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
@@ -3077,7 +3161,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
                 )}
@@ -3108,7 +3192,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="field2">
                       <div className="lbl">{t('sellPriceLabel')}</div>
-                      <div className="inputBox"><input inputMode="decimal" placeholder={wacop ? fmtP(wacop) : '0.00'} value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
                           {t('autoCalcTotalQar')}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} QAR
@@ -3791,6 +3875,19 @@ export default function OrdersPage() {
                         </>
                       )}
                       <div className="prev-row"><span className="muted">{t('costFifo')}</span><strong>{Number.isFinite(salePreview.cost) ? fmtC(salePreview.cost) : '—'}</strong></div>
+                      {salePreview.consumed.length > 0 && (
+                        <div style={{ marginTop: 6, marginBottom: 4 }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>
+                            {t('fifoSlices')}
+                          </div>
+                          {salePreview.consumed.map((row, idx) => (
+                            <div key={`${row.layerId}-${idx}`} className="prev-row" style={{ fontSize: 10 }}>
+                              <span className="muted">#{idx + 1} · {row.layerId.slice(0, 8)}</span>
+                              <strong>{fmtU(row.qty)} @ {fmtP(row.buyPrice)} = {fmtC(row.cost)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <div className="prev-row" style={{ borderTop: '1px solid color-mix(in srgb,var(--brand) 20%,transparent)', paddingTop: 5 }}>
                         <span className="muted">{t('net')}</span>
                         <strong style={{ color: Number.isFinite(salePreview.net) ? (salePreview.net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)' }}>

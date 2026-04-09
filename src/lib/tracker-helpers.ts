@@ -302,6 +302,64 @@ export interface TradeCalcResult {
   margin: number;
   ppu: number;
   slices: { batchId: string; qty: number; cost: number }[];
+  coveredQty: number;
+  shortfallQty: number;
+  totalCost: number;
+}
+
+export interface StockLayer {
+  id: string;
+  ts: number;
+  remainingQty: number;
+  buyPrice: number;
+}
+
+export interface FifoConsumeRow {
+  layerId: string;
+  qty: number;
+  buyPrice: number;
+  cost: number;
+}
+
+export interface FifoResult {
+  coveredQty: number;
+  shortfallQty: number;
+  totalCost: number;
+  unitCost: number | null;
+  consumed: FifoConsumeRow[];
+}
+
+export function consumeFifo(layers: StockLayer[], sellQty: number): FifoResult {
+  const ordered = layers.filter(l => l.remainingQty > 0);
+
+  let remainingToSell = Math.max(0, sellQty);
+  let coveredQty = 0;
+  let totalCost = 0;
+  const consumed: FifoConsumeRow[] = [];
+
+  for (const layer of ordered) {
+    if (remainingToSell <= 0) break;
+
+    const takeQty = Math.min(layer.remainingQty, remainingToSell);
+    const cost = takeQty * layer.buyPrice;
+    consumed.push({
+      layerId: layer.id,
+      qty: takeQty,
+      buyPrice: layer.buyPrice,
+      cost,
+    });
+    coveredQty += takeQty;
+    totalCost += cost;
+    remainingToSell -= takeQty;
+  }
+
+  return {
+    coveredQty,
+    shortfallQty: remainingToSell,
+    totalCost,
+    unitCost: coveredQty > 0 ? totalCost / coveredQty : null,
+    consumed,
+  };
 }
 
 export interface CashTransaction {
@@ -400,28 +458,26 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
   const sortedTrades = [...trades].filter(t => !isTradeInactive(t) && t.usesStock).sort((a, b) => a.ts - b.ts);
 
   for (const t of sortedTrades) {
-    let qtyLeft = t.amountUSDT;
-    const slices: { batchId: string; qty: number; cost: number }[] = [];
-    let totalCost = 0;
-
     // Use merchant-aware batch selection
     const eligibleBatches = selectEligibleBatches(t, sortedBatches, remaining);
+    const layers: StockLayer[] = eligibleBatches.map(b => ({
+      id: b.id,
+      ts: b.ts,
+      remainingQty: Math.max(0, remaining.get(b.id) || 0),
+      buyPrice: b.buyPriceQAR,
+    }));
+    const fifo = consumeFifo(layers, t.amountUSDT);
+    const slices = fifo.consumed.map(row => ({ batchId: row.layerId, qty: row.qty, cost: row.cost }));
 
-    for (const b of eligibleBatches) {
-      if (qtyLeft <= 0) break;
-      const rem = remaining.get(b.id) || 0;
-      if (rem <= 0) continue;
-      const allocated = Math.min(rem, qtyLeft);
-      slices.push({ batchId: b.id, qty: allocated, cost: allocated * b.buyPriceQAR });
-      totalCost += allocated * b.buyPriceQAR;
-      remaining.set(b.id, rem - allocated);
-      qtyLeft -= allocated;
+    for (const row of fifo.consumed) {
+      const rem = remaining.get(row.layerId) || 0;
+      remaining.set(row.layerId, Math.max(0, rem - row.qty));
     }
 
-    const fullyMatched = qtyLeft <= 0;
+    const fullyMatched = fifo.shortfallQty <= 0;
     const rev = t.amountUSDT * t.sellPriceQAR;
-    const netQAR = fullyMatched ? rev - totalCost - t.feeQAR : 0;
-    const avgBuyQAR = fullyMatched && t.amountUSDT > 0 ? totalCost / t.amountUSDT : 0;
+    const netQAR = fullyMatched ? rev - fifo.totalCost - t.feeQAR : 0;
+    const avgBuyQAR = fullyMatched && t.amountUSDT > 0 ? fifo.totalCost / t.amountUSDT : 0;
     const margin = fullyMatched && rev > 0 ? (netQAR / rev) * 100 : 0;
 
     tradeCalc.set(t.id, {
@@ -431,6 +487,9 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
       margin,
       ppu: rev > 0 ? netQAR / t.amountUSDT : 0,
       slices,
+      coveredQty: fifo.coveredQty,
+      shortfallQty: fifo.shortfallQty,
+      totalCost: fifo.totalCost,
     });
   }
 
@@ -449,6 +508,9 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
       margin,
       ppu: rev > 0 ? netQAR / t.amountUSDT : 0,
       slices: [],
+      coveredQty: t.amountUSDT,
+      shortfallQty: 0,
+      totalCost: cost,
     });
   }
 
