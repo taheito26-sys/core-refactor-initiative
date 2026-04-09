@@ -461,6 +461,7 @@ export default function ChatWorkspacePage() {
       {lightbox}
       {roomInfo}
       {forwardModal}
+      {newChatModal}
 
       {(showSidebar || !isMobile) && (
         <ConversationSidebar
