@@ -62,6 +62,7 @@ interface Props {
   onViewInfo?: () => void;
   onMuteToggle?: () => void;
   onClearChat?: () => void;
+  onPrivacyDashboard?: () => void;
   isMuted?: boolean;
 }
 
