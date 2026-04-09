@@ -209,6 +209,16 @@ export async function getMessages(
   return msgs;
 }
 
+export async function getAttachmentsForMessages(messageIds: string[]): Promise<ChatAttachment[]> {
+  if (messageIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('chat_attachments' as never)
+    .select('*')
+    .in('message_id', messageIds);
+  if (error) throw rpcError('getAttachmentsForMessages', error);
+  return (data ?? []) as unknown as ChatAttachment[];
+}
+
 export async function sendMessage(input: SendMessageInput): Promise<ChatMessage> {
   const { data, error } = await supabase.rpc('chat_send_message', {
     _room_id:        input.roomId,

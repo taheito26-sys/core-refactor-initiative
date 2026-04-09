@@ -5,10 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
   getMessages, sendMessage, editMessage, deleteMessage,
-  markRoomRead, addReaction, removeReaction, getRoomClearedAt,
+  markRoomRead, addReaction, removeReaction, getRoomClearedAt, getAttachmentsForMessages,
 } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
-import type { ChatMessage, SendMessageInput } from '../types';
+import type { ChatAttachment, ChatMessage, SendMessageInput } from '../types';
 
 export const MESSAGES_KEY = (roomId: string) => ['chat', 'messages', roomId];
 
@@ -16,6 +16,22 @@ export function useRoomMessages(roomId: string | null) {
   const { userId } = useAuth();
   const qc = useQueryClient();
   const clearUnread = useChatStore((s) => s.clearUnread);
+
+  const mergeAttachments = useCallback((attachments: ChatAttachment[]) => {
+    if (!roomId || attachments.length === 0) return;
+    qc.setQueryData<ChatMessage[]>(MESSAGES_KEY(roomId), (prev) => {
+      if (!prev) return prev;
+      const attachmentMap = new Map<string, ChatAttachment>();
+      for (const attachment of attachments) {
+        if (attachment.message_id) attachmentMap.set(attachment.message_id, attachment);
+      }
+      if (attachmentMap.size === 0) return prev;
+      return prev.map((message) => {
+        const attachment = attachmentMap.get(message.id);
+        return attachment ? { ...message, attachment } : message;
+      });
+    });
+  }, [qc, roomId]);
 
   // ── fetch ────────────────────────────────────────────────────────────────
   const query = useQuery({
@@ -80,6 +96,15 @@ export function useRoomMessages(roomId: string | null) {
             return prev;
           });
 
+          if (
+            payload.eventType === 'INSERT'
+            && (msg.type === 'image' || msg.type === 'file' || msg.type === 'voice_note')
+          ) {
+            void getAttachmentsForMessages([msg.id])
+              .then((attachments) => mergeAttachments(attachments))
+              .catch(() => {});
+          }
+
           if (payload.eventType === 'INSERT' && msg.sender_id !== userId) {
             markRoomRead(roomId, msg.id).catch(() => {});
           }
@@ -111,10 +136,20 @@ export function useRoomMessages(roomId: string | null) {
           });
         },
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_attachments', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          if (payload.eventType === 'DELETE') return;
+          const attachment = payload.new as ChatAttachment | undefined;
+          if (!attachment?.message_id) return;
+          mergeAttachments([attachment]);
+        },
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(ch); };
-  }, [roomId, userId, qc]);
+  }, [mergeAttachments, roomId, userId, qc]);
 
   // ── send ─────────────────────────────────────────────────────────────────
   const send = useMutation({

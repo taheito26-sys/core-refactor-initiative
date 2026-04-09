@@ -148,6 +148,54 @@ function formatDuration(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+async function extractMediaMetadata(file: File): Promise<{
+  width?: number;
+  height?: number;
+  durationMs?: number;
+}> {
+  if (file.type.startsWith('image/')) {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+        image.onerror = () => reject(new Error('Image metadata unavailable'));
+        image.src = objectUrl;
+      });
+      return dimensions;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  if (file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const metadata = await new Promise<{ width?: number; height?: number; durationMs?: number }>((resolve, reject) => {
+        const media = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
+        media.preload = 'metadata';
+        media.onloadedmetadata = () => {
+          const next: { width?: number; height?: number; durationMs?: number } = {
+            durationMs: Number.isFinite(media.duration) ? Math.round(media.duration * 1000) : undefined,
+          };
+          if (media instanceof HTMLVideoElement) {
+            next.width = media.videoWidth || undefined;
+            next.height = media.videoHeight || undefined;
+          }
+          resolve(next);
+        };
+        media.onerror = () => reject(new Error('Media metadata unavailable'));
+        media.src = objectUrl;
+      });
+      return metadata;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  return {};
+}
+
 export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping, meId }: Props) {
   const [content, setContent]       = useState('');
   const [viewOnce, setViewOnce]     = useState(false);
@@ -260,13 +308,20 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
         }
         beginUpload('Uploading pasted image');
         try {
-          const att = await uploadAttachment(roomId, userId, file, { width: 0, height: 0 });
+          const mediaMetadata = await extractMediaMetadata(file);
+          const att = await uploadAttachment(roomId, userId, file, mediaMetadata);
           setUploadProgress(94);
           onSend('🖼 Image', {
             attachmentId: att.id,
             viewOnce,
             type: 'image',
-            metadata: { file_name: file.name, file_size: file.size, mime_type: file.type },
+            metadata: {
+              file_name: file.name,
+              file_size: file.size,
+              mime_type: file.type,
+              width: mediaMetadata.width,
+              height: mediaMetadata.height,
+            },
           });
         } catch (err) {
           toast.error('Paste upload failed');
@@ -287,14 +342,24 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     beginUpload(isImage ? 'Uploading media' : 'Uploading document');
     setShowAttachMenu(false);
     try {
-      const att = await uploadAttachment(roomId, userId, file, isImage ? { width: 0, height: 0 } : undefined);
+      const mediaMetadata = isImage || file.type.startsWith('audio/')
+        ? await extractMediaMetadata(file)
+        : undefined;
+      const att = await uploadAttachment(roomId, userId, file, mediaMetadata);
       setUploadProgress(94);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
         {
           attachmentId: att.id, viewOnce,
           type: isImage ? 'image' : 'file',
-          metadata: { file_name: file.name, file_size: file.size, mime_type: file.type },
+          metadata: {
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+            width: mediaMetadata?.width,
+            height: mediaMetadata?.height,
+            duration_ms: mediaMetadata?.durationMs,
+          },
         },
       );
     } catch (err) {
@@ -322,14 +387,24 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     if (!v.ok) { toast.error(v.error); return; }
     beginUpload(isImage ? 'Uploading dropped media' : 'Uploading dropped file');
     try {
-      const att = await uploadAttachment(roomId, userId, file, isImage ? { width: 0, height: 0 } : undefined);
+      const mediaMetadata = isImage || file.type.startsWith('audio/')
+        ? await extractMediaMetadata(file)
+        : undefined;
+      const att = await uploadAttachment(roomId, userId, file, mediaMetadata);
       setUploadProgress(94);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
         {
           attachmentId: att.id, viewOnce,
           type: isImage ? 'image' : 'file',
-          metadata: { file_name: file.name, file_size: file.size, mime_type: file.type },
+          metadata: {
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+            width: mediaMetadata?.width,
+            height: mediaMetadata?.height,
+            duration_ms: mediaMetadata?.durationMs,
+          },
         },
       );
     } catch {
@@ -345,11 +420,14 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     beginUpload('Sending voice note');
     try {
       const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-      const att = await uploadAttachment(roomId, userId, file, { durationMs: voice.duration * 1000 });
+      const mediaMetadata = await extractMediaMetadata(file).catch(() => ({}));
+      const att = await uploadAttachment(roomId, userId, file, {
+        durationMs: mediaMetadata.durationMs ?? voice.duration * 1000,
+      });
       setUploadProgress(94);
       onSend('🎙 Voice message', {
         attachmentId: att.id, type: 'voice_note',
-        metadata: { duration_ms: voice.duration * 1000 },
+        metadata: { duration_ms: mediaMetadata.durationMs ?? voice.duration * 1000 },
       });
     } catch {
       toast.error('Voice upload failed');
