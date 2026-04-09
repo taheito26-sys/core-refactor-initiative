@@ -678,9 +678,9 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             ) : m.type === 'voice_note' ? (
                               <VoiceNotePlayer message={m} isMe={isMe} />
                             ) : (m.type === 'image' || m.type === 'file') ? (
-                              <AttachmentPreview message={m} isMe={isMe} onImageOpen={onImageOpen} />
+                              <AttachmentPreview message={m} isMe={isMe} viewerId={meId} onImageOpen={onImageOpen} />
                             ) : (
-                              <LinkifiedText text={m.content} />
+                              <ProtectedMessageContent message={m} isMe={isMe} viewerId={meId} />
                             )}
 
                             {/* Phase 2: Inline timestamp + ticks inside bubble */}
