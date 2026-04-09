@@ -6,7 +6,7 @@ interface StateOverrides {
   lowStockThreshold?: number;
   priceAlertThreshold?: number;
   range?: string;
-  currency?: 'QAR' | 'USDT';
+  currency?: 'QAR' | 'EGP' | 'USDT';
 }
 
 function asNumber(value: unknown, fallback: number): number {

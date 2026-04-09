@@ -17,7 +17,7 @@ export interface GlobalWACOP {
   /** Current WACOP (QAR per 1 USDT), or null if no stock */
   wacop: number | null;
   /** Active currency from settings ('QAR' | 'USDT') */
-  currency: 'QAR' | 'USDT';
+  currency: 'QAR' | 'EGP' | 'USDT';
   /** Format a QAR amount according to the active currency + WACOP */
   fmt: (qarAmount: number) => string;
   /** Format a raw number as price with the active currency suffix */
