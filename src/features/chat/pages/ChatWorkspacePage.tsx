@@ -156,7 +156,20 @@ export default function ChatWorkspacePage() {
   // ── calls ─────────────────────────────────────────────────────────────────
   const webrtc = useWebRTC(activeRoomId);
 
-  // Close panels when room changes
+  // ── privacy guard (Phases 6, 8, 9, 14) ─────────────────────────────────
+  const privacySettings = (() => {
+    try {
+      const saved = localStorage.getItem('privacy_settings');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  })();
+  const { containerRef: privacyContainerRef, isBlurred, screenshotDetected } = usePrivacyGuard({
+    userId: meId,
+    roomId: activeRoomId,
+    screenshotProtection: privacySettings.screenshotProtection ?? false,
+    copyProtection: privacySettings.copyDisabled ?? false,
+    blurOnLoseFocus: privacySettings.screenshotProtection ?? false,
+  });
   useEffect(() => {
     setShowCallHistory(false);
     setShowSearch(false);
