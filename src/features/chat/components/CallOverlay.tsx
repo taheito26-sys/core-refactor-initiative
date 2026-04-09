@@ -1,8 +1,12 @@
 // ─── CallOverlay — Production in-call UI ────────────────────────────────
-// Mobile-safe, clear states, duration timer, proper controls
-import { Phone, PhoneOff, PhoneIncoming, PhoneMissed, Mic, MicOff, X } from 'lucide-react';
+// Mobile-safe, video support, duration timer, proper state feedback
+import {
+  Phone, PhoneOff, PhoneIncoming, PhoneMissed,
+  Mic, MicOff, Video, VideoOff, X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useRef, useEffect } from 'react';
 import type { UseWebRTCReturn } from '../hooks/useWebRTC';
 
 interface Props {
@@ -30,10 +34,27 @@ const STATE_LABELS: Record<string, string> = {
 
 export function CallOverlay({ webrtc }: Props) {
   const {
-    callState, incomingCall, isMuted, callDuration, endReason,
-    answerIncoming, declineIncoming, hangUp, toggleMute,
+    callState, isMuted, isVideoEnabled, isVideoCall, callDuration, endReason,
+    localStream, remoteStream,
+    answerIncoming, declineIncoming, hangUp, toggleMute, toggleVideo,
   } = webrtc;
   const isMobile = useIsMobile();
+
+  const localVideoRef  = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Bind streams to video elements
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
 
   if (callState === 'idle') return null;
 
@@ -41,8 +62,95 @@ export function CallOverlay({ webrtc }: Props) {
   const isCalling    = callState === 'calling';
   const isRinging    = callState === 'ringing';
   const isConnecting = callState === 'connecting';
-  const isTerminal   = callState === 'ended' || callState === 'failed' || callState === 'missed' || callState === 'declined';
+  const isTerminal   = ['ended', 'failed', 'missed', 'declined'].includes(callState);
 
+  const showVideo = isVideoCall && (isActive || isConnecting);
+
+  // Full-screen video call layout
+  if (showVideo) {
+    return (
+      <div className="absolute inset-0 z-50 bg-black flex flex-col">
+        {/* Remote video (full) */}
+        <div className="flex-1 relative">
+          {remoteStream ? (
+            <video
+              ref={remoteVideoRef}
+              autoPlay playsInline
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted/20">
+              <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
+          {/* Local video (picture-in-picture) */}
+          {localStream && isVideoEnabled && (
+            <div className={cn(
+              'absolute rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl',
+              isMobile ? 'bottom-24 right-3 w-24 h-32' : 'bottom-20 right-4 w-32 h-44',
+            )}>
+              <video
+                ref={localVideoRef}
+                autoPlay playsInline muted
+                className="w-full h-full object-cover mirror"
+                style={{ transform: 'scaleX(-1)' }}
+              />
+            </div>
+          )}
+
+          {/* Status bar */}
+          <div className="absolute top-0 inset-x-0 p-4 bg-gradient-to-b from-black/60 to-transparent">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {isActive && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
+                <span className="text-white text-sm font-bold">
+                  {STATE_LABELS[callState]}
+                </span>
+              </div>
+              {isActive && (
+                <span className="text-white/80 text-sm font-mono">
+                  {formatDuration(callDuration)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Controls bar */}
+        <div className="bg-black/90 backdrop-blur-md px-6 py-4 flex items-center justify-center gap-4 safe-area-bottom">
+          <button
+            onClick={toggleMute}
+            className={cn(
+              'h-12 w-12 rounded-full flex items-center justify-center transition-colors active:scale-95',
+              isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white',
+            )}
+          >
+            {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          </button>
+
+          <button
+            onClick={toggleVideo}
+            className={cn(
+              'h-12 w-12 rounded-full flex items-center justify-center transition-colors active:scale-95',
+              !isVideoEnabled ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white',
+            )}
+          >
+            {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+          </button>
+
+          <button
+            onClick={hangUp}
+            className="h-14 w-14 rounded-full bg-destructive text-white flex items-center justify-center shadow-lg shadow-red-500/30 active:scale-95 transition-transform"
+          >
+            <PhoneOff className="h-6 w-6" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Audio-only overlay bar
   return (
     <div className={cn(
       'absolute inset-x-0 top-0 flex justify-center z-50 pointer-events-none',
@@ -63,7 +171,7 @@ export function CallOverlay({ webrtc }: Props) {
         <div className="shrink-0">
           {isActive && <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />}
           {isRinging && <PhoneIncoming className="h-5 w-5 text-violet-400" />}
-          {(callState === 'missed') && <PhoneMissed className="h-5 w-5 text-amber-400" />}
+          {callState === 'missed' && <PhoneMissed className="h-5 w-5 text-amber-400" />}
           {(isCalling || isConnecting) && (
             <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           )}
@@ -86,7 +194,6 @@ export function CallOverlay({ webrtc }: Props) {
 
         {/* Controls */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Incoming: answer + decline */}
           {isRinging && (
             <>
               <button
@@ -106,23 +213,33 @@ export function CallOverlay({ webrtc }: Props) {
             </>
           )}
 
-          {/* Active: mute + hangup */}
           {isActive && (
-            <button
-              onClick={toggleMute}
-              className={cn(
-                'h-9 w-9 rounded-full flex items-center justify-center transition-colors active:scale-95',
-                isMuted
-                  ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-                  : 'bg-emerald-800/50 text-emerald-300 hover:bg-emerald-800/80',
-              )}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </button>
+            <>
+              <button
+                onClick={toggleMute}
+                className={cn(
+                  'h-9 w-9 rounded-full flex items-center justify-center transition-colors active:scale-95',
+                  isMuted
+                    ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
+                    : 'bg-emerald-800/50 text-emerald-300 hover:bg-emerald-800/80',
+                )}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={toggleVideo}
+                className={cn(
+                  'h-9 w-9 rounded-full flex items-center justify-center transition-colors active:scale-95',
+                  'bg-emerald-800/50 text-emerald-300 hover:bg-emerald-800/80',
+                )}
+                title="Toggle video"
+              >
+                {isVideoEnabled ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+              </button>
+            </>
           )}
 
-          {/* Hangup — for calling, connecting, active, reconnecting */}
           {(isCalling || isConnecting || isActive) && (
             <button
               onClick={hangUp}
@@ -133,13 +250,9 @@ export function CallOverlay({ webrtc }: Props) {
             </button>
           )}
 
-          {/* Terminal: dismiss */}
           {isTerminal && (
             <button
-              onClick={() => {
-                // Force back to idle
-                webrtc.hangUp();
-              }}
+              onClick={() => hangUp()}
               className="h-8 w-8 rounded-full bg-muted hover:bg-accent text-muted-foreground flex items-center justify-center transition-colors active:scale-95"
               title="Dismiss"
             >
