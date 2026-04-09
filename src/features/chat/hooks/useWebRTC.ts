@@ -86,8 +86,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     if (cleaningUp.current) return;
     cleaningUp.current = true;
 
-    // Stop all local media tracks
-    localStream?.getTracks().forEach((t) => t.stop());
+    // Stop all local media tracks via ref (avoids stale closure)
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
 
     // Close peer connection
     if (pc.current) {
@@ -103,6 +103,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setRemoteStream(null);
     setActiveCallId(null);
     callIdRef.current = null;
+    localStreamRef.current = null;
     setIsMuted(false);
     connectedAtRef.current = null;
     setCallDuration(0);
@@ -112,7 +113,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     reconnectTries.current = 0;
 
     cleaningUp.current = false;
-  }, [localStream, setActiveCallId]);
+  }, [setActiveCallId]);
 
   // ── start duration timer ──────────────────────────────────────────────
   const startDurationTimer = useCallback(() => {
