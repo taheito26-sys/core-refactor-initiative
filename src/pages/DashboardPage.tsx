@@ -56,10 +56,10 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const { data: egyptP2PRate } = useP2PRates('egypt');
 
   const dashboardQarPerUsdt = useMemo(() => {
-    const stockRate = num(averageStockPrice, 0);
-    if (stockRate > 0) return stockRate;
     const qatarBuyRate = num(qatarP2PRate?.buyRate, 0);
-    return qatarBuyRate > 0 ? qatarBuyRate : null;
+    if (qatarBuyRate > 0) return qatarBuyRate;
+    const stockRate = num(averageStockPrice, 0);
+    return stockRate > 0 ? stockRate : null;
   }, [averageStockPrice, qatarP2PRate?.buyRate]);
 
   const egyptBuyRate = useMemo(() => {
