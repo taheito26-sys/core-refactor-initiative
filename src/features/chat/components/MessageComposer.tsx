@@ -17,6 +17,7 @@ interface Props {
     replyToId?:   string;
     expiresAt?:   string;
     viewOnce?:    boolean;
+    watermarkText?: string | null;
     attachmentId?: string;
     type?:        string;
     metadata?:    Record<string, unknown>;
