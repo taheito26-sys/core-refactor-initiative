@@ -95,6 +95,17 @@ export function ConversationHeader({
   const avatarUrl = useMemo(() => resolveRoomAvatar(room), [room]);
   const canStartCalls = room.policy?.allow_calls ?? true;
 
+  // Online member count for group rooms
+  const isGroupRoom = !room.is_direct;
+  const onlineQuery = useQuery({
+    queryKey: ['chat', 'online-count', room.room_id],
+    queryFn: () => getRoomOnlineCount(room.room_id),
+    enabled: isGroupRoom,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+  const onlineCount = onlineQuery.data ?? 0;
+
   return (
     <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
 
