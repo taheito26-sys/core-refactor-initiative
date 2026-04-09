@@ -397,8 +397,8 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
     return messages.filter((m) => m.sender_id !== meId && m.receipt_status !== 'read').length;
   }, [isAtBottom, messages, meId]);
 
-  // Typing users — placeholder; actual typing state is managed by useTyping hook
-  const showTyping = false;
+  // Typing users from props
+  const showTyping = (typingUserIds ?? []).length > 0;
 
   // Scroll tracking
   const handleScroll = useCallback(() => {
