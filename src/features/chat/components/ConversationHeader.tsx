@@ -12,6 +12,8 @@ import { presenceOf } from '@/lib/chat-store';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
 import { cn } from '@/lib/utils';
 import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
+import { useQuery } from '@tanstack/react-query';
+import { getRoomOnlineCount } from '../api/chat';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function roomTypeIcon(type: ChatRoomType) {
