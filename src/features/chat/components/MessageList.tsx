@@ -31,6 +31,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import type { ChatMessage, ChatRoomType, ReactionSummary } from '../types';
 import { SecureWatermark } from './SecureWatermark';
 import { AttachmentPreview } from './AttachmentPreview';
+import { LinkifiedText } from './LinkifiedText';
 import { getAttachment, getSignedUrl } from '../api/chat';
 import { toast } from 'sonner';
 
