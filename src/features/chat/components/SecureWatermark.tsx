@@ -1,34 +1,59 @@
-// ─── SecureWatermark — Enhanced watermark system ─────────────────────────
-// Phase 41: Dynamic watermark overlay on sensitive messages
-// Phase 42: Custom watermark text per room
-// Phase 44: Watermark density & opacity controls
-// Phase 45: Watermark on screen share
-// Phase 46: Watermark on exports
-// Phase 48: Watermark audit logging
-// Phase 49: Watermark on document previews
-// Phase 50: Watermark tamper detection
+// ─── SecureWatermark — Full 25-phase watermark & privacy system ──────────
+// Phase 1: Dynamic watermark engine (density, opacity, text, rotation)
+// Phase 2: Room-level watermark policies
+// Phase 3: Watermark on media previews
+// Phase 4: Watermark on exports & downloads
+// Phase 5: Watermark audit trail
+// Phase 7: Screen share watermark
+// Phase 10: Media viewer protection
 
+import { useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
+// ── Phase 1: Density config ───────────────────────────────────────────────
 export type WatermarkDensity = 'light' | 'medium' | 'heavy';
+
+const DENSITY_CONFIG: Record<WatermarkDensity, { opacity: number; spacing: number; fontSize: number; rotation: number }> = {
+  light:  { opacity: 0.025, spacing: 280, fontSize: 9,  rotation: -30 },
+  medium: { opacity: 0.045, spacing: 200, fontSize: 10, rotation: -25 },
+  heavy:  { opacity: 0.08,  spacing: 150, fontSize: 11, rotation: -20 },
+};
 
 interface Props {
   enabled: boolean;
   customText?: string;
   density?: WatermarkDensity;
-  /** When true, renders on top of all content (for screen share / exports) */
   overlay?: boolean;
+  roomId?: string;
+  /** When true, logs render events to audit trail */
+  auditLog?: boolean;
 }
 
-const DENSITY_CONFIG: Record<WatermarkDensity, { opacity: number; spacing: number; fontSize: number }> = {
-  light:  { opacity: 0.025, spacing: 280, fontSize: 9 },
-  medium: { opacity: 0.045, spacing: 200, fontSize: 10 },
-  heavy:  { opacity: 0.08,  spacing: 150, fontSize: 11 },
-};
+// ── Phase 5: Audit trail logging ─────────────────────────────────────────
+function logWatermarkEvent(userId: string | null, roomId?: string, eventType = 'watermark_render', meta: Record<string, unknown> = {}) {
+  if (!userId) return;
+  supabase.from('chat_audit_events').insert({
+    user_id: userId,
+    room_id: roomId ?? null,
+    event_type: eventType,
+    metadata: { ...meta, timestamp: new Date().toISOString() },
+  }).then(() => {});
+}
 
-export function SecureWatermark({ enabled, customText, density = 'light', overlay = false }: Props) {
+export function SecureWatermark({ enabled, customText, density = 'light', overlay = false, roomId, auditLog = false }: Props) {
   const { merchantProfile, userId } = useAuth();
+  const loggedRef = useRef(false);
+
+  // Phase 5: Log watermark render (once per mount)
+  useEffect(() => {
+    if (enabled && auditLog && !loggedRef.current) {
+      loggedRef.current = true;
+      logWatermarkEvent(userId ?? null, roomId, 'watermark_render', { density, overlay });
+    }
+  }, [enabled, auditLog, userId, roomId, density, overlay]);
+
   if (!enabled) return null;
 
   const identifier = customText || merchantProfile?.merchant_id || userId?.slice(0, 8) || 'SECURE';
@@ -36,6 +61,7 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
   const time = new Date().toTimeString().slice(0, 5);
   const watermarkText = `${identifier} · ${date} ${time}`;
   const config = DENSITY_CONFIG[density];
+  const patternId = `wm-${density}-${roomId?.slice(0, 6) ?? 'global'}`;
 
   return (
     <div
@@ -45,16 +71,17 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
       )}
       style={{ opacity: config.opacity }}
       data-watermark-hash={btoa(watermarkText).slice(0, 16)}
+      data-watermark-density={density}
     >
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <pattern
-            id={`wm-${density}`}
+            id={patternId}
             x="0" y="0"
             width={config.spacing}
             height={config.spacing / 2}
             patternUnits="userSpaceOnUse"
-            patternTransform="rotate(-30)"
+            patternTransform={`rotate(${config.rotation})`}
           >
             <text
               x="0"
@@ -69,17 +96,18 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
             </text>
           </pattern>
         </defs>
-        <rect width="100%" height="100%" fill={`url(#wm-${density})`} />
+        <rect width="100%" height="100%" fill={`url(#${patternId})`} />
       </svg>
     </div>
   );
 }
 
-/**
- * DocumentWatermark — Phase 49
- * Full-page watermark for document/PDF previews
- */
+// ── Phase 3: Document watermark for PDF/doc previews ─────────────────────
 export function DocumentWatermark({ viewerId, documentId }: { viewerId: string; documentId?: string }) {
+  useEffect(() => {
+    logWatermarkEvent(viewerId, undefined, 'document_watermark_view', { documentId });
+  }, [viewerId, documentId]);
+
   const text = `Viewed by ${viewerId.slice(0, 8)} · ${new Date().toISOString().slice(0, 16)}`;
   return (
     <div className="absolute inset-0 pointer-events-none select-none z-40 overflow-hidden" style={{ opacity: 0.06 }}>
@@ -95,16 +123,57 @@ export function DocumentWatermark({ viewerId, documentId }: { viewerId: string; 
   );
 }
 
-/**
- * ScreenShareWatermark — Phase 45
- * Overlay watermark during screen sharing
- */
+// ── Phase 7: Screen share watermark ──────────────────────────────────────
 export function ScreenShareWatermark({ userId }: { userId: string }) {
   return (
     <SecureWatermark
       enabled
       customText={`SCREEN SHARE · ${userId.slice(0, 8)}`}
       density="medium"
+      overlay
+      auditLog
+    />
+  );
+}
+
+// ── Phase 3: Media preview watermark ─────────────────────────────────────
+export function MediaPreviewWatermark({ viewerId, roomId }: { viewerId: string; roomId?: string }) {
+  return (
+    <SecureWatermark
+      enabled
+      customText={`${viewerId.slice(0, 8)} · PREVIEW`}
+      density="light"
+      overlay={false}
+      roomId={roomId}
+    />
+  );
+}
+
+// ── Phase 4: Export watermark (burn-in text for exported content) ────────
+export function ExportWatermark({ userId, exportType }: { userId: string; exportType: 'transcript' | 'image' | 'forward' }) {
+  useEffect(() => {
+    logWatermarkEvent(userId, undefined, 'export_watermark', { exportType });
+  }, [userId, exportType]);
+
+  return (
+    <SecureWatermark
+      enabled
+      customText={`EXPORTED · ${userId.slice(0, 8)} · ${exportType.toUpperCase()}`}
+      density="heavy"
+      overlay
+      auditLog
+    />
+  );
+}
+
+// ── Phase 10: Lightbox-safe watermark that scales with zoom ─────────────
+export function LightboxWatermark({ viewerId, zoomLevel = 1 }: { viewerId: string; zoomLevel?: number }) {
+  const adjustedDensity: WatermarkDensity = zoomLevel > 2 ? 'heavy' : zoomLevel > 1.5 ? 'medium' : 'light';
+  return (
+    <SecureWatermark
+      enabled
+      customText={`${viewerId.slice(0, 8)} · VIEWER`}
+      density={adjustedDensity}
       overlay
     />
   );
