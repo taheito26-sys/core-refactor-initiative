@@ -341,6 +341,7 @@ export default function ChatWorkspacePage() {
           onViewInfo={() => setShowRoomInfo((v) => !v)}
           onMuteToggle={handleMuteToggle}
           onClearChat={handleClearChat}
+          onPrivacyDashboard={() => setShowPrivacyDashboard(true)}
           isMuted={isRoomMuted}
           {...headerCallProps}
         />
