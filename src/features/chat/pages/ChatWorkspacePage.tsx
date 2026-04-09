@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { getMessageById, clearChatForMe, toggleMuteRoom, getQatarMarketRoom, forwardMessage, runExpiryCleanup } from '../api/chat';
+import { getMessageById, clearChatForMe, toggleMuteRoom, getQatarMarketRoom, forwardMessage } from '../api/chat';
 import type { ChatMessage, ChatMessageType, SendMessageInput } from '../types';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ConversationHeader } from '../components/ConversationHeader';
@@ -313,14 +313,6 @@ export default function ChatWorkspacePage() {
     if (!userId || !merchantProfile?.merchant_id) return;
     getQatarMarketRoom().catch(() => {});
   }, [userId, merchantProfile?.merchant_id]);
-
-  useEffect(() => {
-    void runExpiryCleanup().catch(() => {});
-    const timer = window.setInterval(() => {
-      void runExpiryCleanup().catch(() => {});
-    }, 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   // ── Shared header props builder ─────────────────────────────────────────
   const headerCallProps = isPrivateRoom ? {
