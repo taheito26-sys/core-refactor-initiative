@@ -455,11 +455,39 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (callIdRef.current) {
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/chat_end_call`;
+        // sendBeacon doesn't support custom headers, so we use the REST endpoint
+        // with the apikey as a query param (anon key is publishable, safe to expose)
+        const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/chat_end_call?apikey=${encodeURIComponent(anonKey)}`;
         const body = JSON.stringify({ _call_id: callIdRef.current, _end_reason: 'tab_closed' });
+
+        // Try to get auth token for authenticated call
+        const sessionStr = localStorage.getItem('sb-' + import.meta.env.VITE_SUPABASE_PROJECT_ID + '-auth-token');
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
+        };
+        if (sessionStr) {
+          try {
+            const session = JSON.parse(sessionStr);
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+          } catch { /* ignore */ }
+        }
+
         try {
-          navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-        } catch { /* best effort */ }
+          // sendBeacon only supports body, not headers — use fetch keepalive instead
+          fetch(url, {
+            method: 'POST',
+            headers,
+            body,
+            keepalive: true,
+          }).catch(() => {});
+        } catch {
+          // Last resort: sendBeacon without auth (will likely fail RLS, but stops media)
+          try { navigator.sendBeacon(url, new Blob([body], { type: 'application/json' })); } catch { /* */ }
+        }
       }
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pc.current?.close();
