@@ -322,6 +322,7 @@ export default function ChatWorkspacePage() {
                 del.mutate({ messageId: msgId, forEveryone })
               }
               onReply={handleReply}
+              onForward={handleForward}
               onImageOpen={handleImageOpen}
             />
             {/* Reply preview above composer */}
