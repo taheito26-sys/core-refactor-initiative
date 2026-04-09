@@ -3,7 +3,9 @@ import { useMemo } from 'react';
 import {
   Phone, Search, ShieldCheck, Lock, Users,
   PanelLeftClose, PanelLeftOpen, MoreHorizontal,
+  ArrowLeft,
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useChatStore } from '@/lib/chat-store';
 import { presenceOf } from '@/lib/chat-store';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
