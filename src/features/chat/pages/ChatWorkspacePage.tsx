@@ -6,7 +6,7 @@
  * Phases wired: 1-24, 34, 41-50, 59, 69, 9 (search), 18 (lightbox),
  *               reply-to flow, typing indicator, room info panel
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
