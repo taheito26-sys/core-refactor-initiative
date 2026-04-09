@@ -3625,6 +3625,8 @@ export type Database = {
           last_message_at: string
           last_message_preview: string
           my_role: string
+          other_user_metadata: Json
+          room_avatar: string
           room_id: string
           room_name: string
           room_policy: Json
