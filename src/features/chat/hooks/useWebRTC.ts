@@ -89,40 +89,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }, END_STATE_LINGER_MS);
   }, []);
 
-  // ── send call summary message to chat ─────────────────────────────────
-  const sendCallSummary = useCallback(async (
-    endState: string,
-    durationSec: number,
-    callId: string | null,
-  ) => {
-    if (!roomIdRef.current || !userId) return;
-    const eventLabel =
-      endState === 'missed' || endState === 'no_answer' ? 'missed_call' :
-      endState === 'declined' ? 'declined_call' :
-      endState === 'failed' ? 'failed_call' :
-      'call_ended';
-
-    try {
-      await supabase
-        .from('chat_messages')
-        .insert({
-          room_id: roomIdRef.current,
-          sender_id: userId,
-          type: 'call_summary' as never,
-          content: eventLabel === 'call_ended'
-            ? `Voice call · ${Math.floor(durationSec / 60)}:${(durationSec % 60).toString().padStart(2, '0')}`
-            : eventLabel === 'missed_call' ? 'Missed voice call'
-            : eventLabel === 'declined_call' ? 'Declined voice call'
-            : 'Call failed',
-          metadata: {
-            call_id: callId,
-            call_event: eventLabel,
-            duration_seconds: durationSec,
-          },
-          client_nonce: crypto.randomUUID(),
-        } as never);
-    } catch { /* non-critical */ }
-  }, [userId]);
+  // NOTE: Call summary messages are inserted by the DB-side chat_end_call RPC.
+  // No client-side insertion needed — avoids duplicate messages.
 
   // ── full cleanup ───────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
@@ -203,22 +171,19 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           const cid = callIdRef.current;
           if (cid) endCall(cid, 'failed').catch(() => {});
           cleanup();
-          sendCallSummary('failed', dur, cid);
           transitionToEnd('failed', 'connection_lost');
         }
       }
       if (s === 'failed') {
-        const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
         const cid = callIdRef.current;
         if (cid) endCall(cid, 'failed').catch(() => {});
         cleanup();
-        sendCallSummary('failed', dur, cid);
         transitionToEnd('failed', 'ice_failed');
       }
     };
 
     return peerConn;
-  }, [cleanup, startDurationTimer, transitionToEnd, sendCallSummary]);
+  }, [cleanup, startDurationTimer, transitionToEnd]);
 
   // ── get media (audio, optionally video) ───────────────────────────────
   const getMedia = useCallback(async (video = false) => {
@@ -264,7 +229,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         if (callIdRef.current === callId) {
           await endCall(callId, 'no_answer').catch(() => {});
           cleanup();
-          sendCallSummary('missed', 0, callId);
           transitionToEnd('missed', 'no_answer');
         }
       }, RING_TIMEOUT_MS);
@@ -274,7 +238,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', 'start_error');
     }
-  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallSummary]);
+  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd]);
 
   // ── ANSWER INCOMING ───────────────────────────────────────────────────
   const answerIncoming = useCallback(async () => {
@@ -334,9 +298,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       await endCall(cid, 'ended').catch(() => {});
     }
     cleanup();
-    if (dur > 0 && cid) sendCallSummary('ended', dur, cid);
     transitionToEnd('ended', 'ended');
-  }, [cleanup, transitionToEnd, sendCallSummary]);
+  }, [cleanup, transitionToEnd]);
 
   // ── MUTE ──────────────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
@@ -432,7 +395,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
               if (row.end_reason === 'declined') {
                 transitionToEnd('declined', 'remote_declined');
               } else {
-                if (dur > 0) sendCallSummary('ended', dur, row.id);
                 transitionToEnd('ended', 'remote_ended');
               }
             }
@@ -493,11 +455,39 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (callIdRef.current) {
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/chat_end_call`;
+        // sendBeacon doesn't support custom headers, so we use the REST endpoint
+        // with the apikey as a query param (anon key is publishable, safe to expose)
+        const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/chat_end_call?apikey=${encodeURIComponent(anonKey)}`;
         const body = JSON.stringify({ _call_id: callIdRef.current, _end_reason: 'tab_closed' });
+
+        // Try to get auth token for authenticated call
+        const sessionStr = localStorage.getItem('sb-' + import.meta.env.VITE_SUPABASE_PROJECT_ID + '-auth-token');
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
+        };
+        if (sessionStr) {
+          try {
+            const session = JSON.parse(sessionStr);
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+          } catch { /* ignore */ }
+        }
+
         try {
-          navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-        } catch { /* best effort */ }
+          // sendBeacon only supports body, not headers — use fetch keepalive instead
+          fetch(url, {
+            method: 'POST',
+            headers,
+            body,
+            keepalive: true,
+          }).catch(() => {});
+        } catch {
+          // Last resort: sendBeacon without auth (will likely fail RLS, but stops media)
+          try { navigator.sendBeacon(url, new Blob([body], { type: 'application/json' })); } catch { /* */ }
+        }
       }
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pc.current?.close();
