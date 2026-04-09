@@ -2149,29 +2149,30 @@ export default function OrdersPage() {
 
     return (
       <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
-        {/* ── Compact summary row (always visible) ── */}
+        {/* ── Compact summary row (matches Stock batch card layout) ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 10px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{row.dateLabel}</span>
-                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: sc.bg, color: sc.color }}>{deal.status}</span>
-                <span style={{ fontSize: 9, color: 'var(--brand)' }}>{row.familyIcon}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{merchantName}</span>
-                <span className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtC(row.volume)}</span>
-              </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{merchantName}</span>
+              <span style={{ fontSize: 9, color: 'var(--brand)', flexShrink: 0 }}>{row.familyIcon}</span>
             </div>
-            <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted)', flexShrink: 0 }}>
-              {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 4, background: isExpanded ? 'var(--brand)' : 'color-mix(in srgb, var(--brand) 14%, transparent)', color: isExpanded ? 'var(--bg)' : 'var(--brand)', fontSize: 13, border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)', flexShrink: 0, transition: 'all 0.15s' }}>
-              {isExpanded ? '▾' : '›'}
-            </span>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{row.dateLabel}</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+            <strong className="mono" style={{ fontSize: 12 }}>{fmtU(row.quantity)} USDT</strong>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</span>
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+              {netDisplay != null && (
+                <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                  {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)}
+                </span>
+              )}
+              <span className={`pill ${deal.status === 'approved' ? 'good' : deal.status === 'rejected' ? 'bad' : 'warn'}`} style={{ fontSize: 9 }}>{deal.status}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+            </div>
           </div>
         </button>
 
