@@ -171,18 +171,6 @@ export async function saveCashToCloud(
   if (!user) return;
 
   const uid = user.id;
-  const legacyAccountRows = accounts
-    .map((account) => accountToRowLegacy(account, uid))
-    .filter((row): row is Record<string, unknown> => row !== null);
-  const legacyAccountIds = new Set(legacyAccountRows.map((row) => row.id as string));
-  const legacyLedgerRows = ledger
-    .map((entry) => entryToRowLegacy(entry, uid))
-    .filter((row): row is Record<string, unknown> => row !== null)
-    .filter((row) => {
-      const accountId = row.account_id as string;
-      const contraAccountId = row.contra_account_id as string | null;
-      return legacyAccountIds.has(accountId) && (!contraAccountId || legacyAccountIds.has(contraAccountId));
-    });
 
   // Upsert accounts
   if (accounts.length > 0) {
@@ -191,17 +179,7 @@ export async function saveCashToCloud(
       .from('cash_accounts') as any)
       .upsert(accounts.map(a => accountToRow(a, uid)), { onConflict: 'id' });
     if (accErr) {
-      if (accErr.message?.includes("Could not find the 'merchant_id' column")) {
-        if (legacyAccountRows.length > 0) {
-          const { error: legacyAccErr } = await (supabase
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .from('cash_accounts') as any)
-            .upsert(legacyAccountRows, { onConflict: 'id' });
-          if (legacyAccErr) console.warn('[cash-sync] accounts upsert failed (legacy retry):', legacyAccErr.message);
-        }
-      } else {
-        console.warn('[cash-sync] accounts upsert failed:', accErr.message);
-      }
+      console.warn('[cash-sync] accounts upsert failed:', accErr.message);
     }
   }
 
@@ -212,17 +190,7 @@ export async function saveCashToCloud(
       .from('cash_ledger') as any)
       .upsert(ledger.map(e => entryToRow(e, uid)), { onConflict: 'id' });
     if (ledErr) {
-      if (ledErr.message?.includes("Could not find the 'merchant_id' column")) {
-        if (legacyLedgerRows.length > 0) {
-          const { error: legacyLedErr } = await (supabase
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .from('cash_ledger') as any)
-            .upsert(legacyLedgerRows, { onConflict: 'id' });
-          if (legacyLedErr) console.warn('[cash-sync] ledger upsert failed (legacy retry):', legacyLedErr.message);
-        }
-      } else {
-        console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
-      }
+      console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
     }
   }
 }
