@@ -1,6 +1,7 @@
 /**
  * ChatWorkspacePage — Unified chat platform
  * One inbox · one room list · merchant_private / merchant_client / merchant_collab
+ * Mobile: WhatsApp-style single-pane (list OR thread, never both)
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -43,6 +44,10 @@ export default function ChatWorkspacePage() {
   const setAnchor      = useChatStore((s) => s.setAnchor);
   const setAttention   = useChatStore((s) => s.setAttention);
 
+  // ── mobile single-pane state ────────────────────────────────────────────
+  // On mobile: 'list' = show sidebar, 'thread' = show active chat
+  const [mobilePane, setMobilePane] = useState<'list' | 'thread'>('list');
+
   // URL → room/message (runs whenever the URL changes OR rooms finish loading)
   useEffect(() => {
     const urlRoom = searchParams.get('roomId');
@@ -50,6 +55,7 @@ export default function ChatWorkspacePage() {
 
     if (urlRoom && urlRoom !== activeRoomId) {
       setActiveRoom(urlRoom);
+      if (isMobile) setMobilePane('thread');
       return;
     }
 
@@ -63,6 +69,7 @@ export default function ChatWorkspacePage() {
             setActiveRoom(targetMessage.room_id);
           }
           setAnchor(urlMessage);
+          if (isMobile) setMobilePane('thread');
         } catch (error) {
           console.warn('[chat] failed to resolve message deep-link', error);
         }
@@ -74,6 +81,7 @@ export default function ChatWorkspacePage() {
 
     if (!urlRoom && !urlMessage && !activeRoomId && rooms.length > 0) {
       setActiveRoom(rooms[0].room_id);
+      // On mobile, stay on list until user taps
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, rooms.length]);
@@ -84,6 +92,7 @@ export default function ChatWorkspacePage() {
     const targetRoom = pendingNav.conversationId;
     if (targetRoom) {
       setActiveRoom(targetRoom);
+      if (isMobile) setMobilePane('thread');
     }
     if (pendingNav.messageId) setAnchor(pendingNav.messageId);
     setPendingNav(null);
@@ -118,8 +127,18 @@ export default function ChatWorkspacePage() {
   const [showSidebar, setShowSidebar] = useState(!isMobile);
   const activeRoom = rooms.find((r) => r.room_id === activeRoomId) ?? null;
 
-  // send handler — clientNonce is generated here so both onMutate and
-  // mutationFn share the same value, preventing realtime dedup failures.
+  // Mobile: select a room → switch to thread pane
+  const handleSelectRoom = useCallback((id: string) => {
+    setActiveRoom(id);
+    if (isMobile) setMobilePane('thread');
+  }, [isMobile, setActiveRoom]);
+
+  // Mobile: back button → return to list
+  const handleMobileBack = useCallback(() => {
+    setMobilePane('list');
+  }, []);
+
+  // send handler
   const handleSend = useCallback(
     (content: string, opts?: {
       replyToId?: string;
@@ -151,6 +170,69 @@ export default function ChatWorkspacePage() {
 
   const isRTL = settings.language === 'ar';
 
+  // ── Mobile: single-pane rendering ────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full bg-background overflow-hidden">
+        <CallOverlay webrtc={webrtc} />
+
+        {mobilePane === 'list' ? (
+          /* ── Conversation list: full width ── */
+          <ConversationSidebar
+            rooms={rooms}
+            activeRoomId={activeRoomId}
+            onSelectRoom={handleSelectRoom}
+            isLoading={roomsQuery.isLoading}
+            meId={meId}
+          />
+        ) : (
+          /* ── Chat thread: full width ── */
+          <div className="flex flex-col flex-1 min-w-0 h-full">
+            {activeRoom ? (
+              <>
+                <ConversationHeader
+                  room={activeRoom}
+                  meId={meId}
+                  onToggleSidebar={handleMobileBack}
+                  onStartCall={
+                    activeRoom.room_type === 'merchant_private'
+                      ? webrtc.startCall
+                      : undefined
+                  }
+                />
+                <MessageList
+                  messages={messages}
+                  meId={meId}
+                  isLoading={msgsLoading}
+                  roomType={activeRoom.room_type}
+                  onReact={(msgId, emoji, remove) =>
+                    react.mutate({ messageId: msgId, emoji, remove })
+                  }
+                  onEdit={(msgId, content) => edit.mutate({ messageId: msgId, content })}
+                  onDelete={(msgId, forEveryone) =>
+                    del.mutate({ messageId: msgId, forEveryone })
+                  }
+                />
+                <MessageComposer
+                  roomId={activeRoomId!}
+                  roomType={activeRoom.room_type}
+                  onSend={handleSend}
+                  onTyping={startTyping}
+                  meId={meId}
+                />
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center flex-1 gap-3 text-muted-foreground">
+                <p className="text-sm font-medium">Select a conversation</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Desktop/tablet: split layout ──────────────────────────────────────────
   return (
     <div
       className={cn(
@@ -158,24 +240,20 @@ export default function ChatWorkspacePage() {
         isRTL && 'flex-row-reverse',
       )}
     >
-      {/* ── Call overlay (Phase 4) ────────────────────────────────────────── */}
       <CallOverlay webrtc={webrtc} />
 
-      {/* ── Sidebar ────────────────────────────────────────────────────────── */}
       {(showSidebar || !isMobile) && (
         <ConversationSidebar
           rooms={rooms}
           activeRoomId={activeRoomId}
           onSelectRoom={(id) => {
             setActiveRoom(id);
-            if (isMobile) setShowSidebar(false);
           }}
           isLoading={roomsQuery.isLoading}
           meId={meId}
         />
       )}
 
-      {/* ── Main pane ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 h-full">
         {activeRoom ? (
           <>

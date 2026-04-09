@@ -495,7 +495,7 @@ export default function StockPage() {
   };
 
   return (
-    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
       {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
       <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
