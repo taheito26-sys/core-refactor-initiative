@@ -183,7 +183,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     };
 
     return peerConn;
-  }, [cleanup, startDurationTimer, transitionToEnd, sendCallSummary]);
+  }, [cleanup, startDurationTimer, transitionToEnd]);
 
   // ── get media (audio, optionally video) ───────────────────────────────
   const getMedia = useCallback(async (video = false) => {
