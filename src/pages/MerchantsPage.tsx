@@ -16,6 +16,7 @@ import { useSettlementOverview } from '@/hooks/useSettlementOverview';
 import { useProfitShareAgreements } from '@/hooks/useProfitShareAgreements';
 import { isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getRooms } from '@/features/chat/api/chat';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 
@@ -98,20 +99,19 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   // Fetch unread message count (scoped to this merchant's relationships only)
   useEffect(() => {
     if (!userId) return;
-    const relationshipIds = relationships.map((r) => r.id).filter(Boolean);
-    if (!relationshipIds.length) {
-      setUnreadChatCount(0);
-      return;
-    }
-
-    supabase
-      .from('merchant_messages')
-      .select('id', { count: 'exact', head: true })
-      .in('relationship_id', relationshipIds)
-      .neq('sender_id', userId)
-      .is('read_at', null)
-      .then(({ count }) => setUnreadChatCount(count || 0));
-  }, [userId, relationships]);
+    let cancelled = false;
+    void getRooms()
+      .then((rooms) => {
+        if (cancelled) return;
+        setUnreadChatCount(rooms.reduce((sum, room) => sum + (room.unread_count ?? 0), 0));
+      })
+      .catch(() => {
+        if (!cancelled) setUnreadChatCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const handleOpenRelationship = useCallback((relationshipId: string) => {
     navigate(`/merchants/${relationshipId}`);

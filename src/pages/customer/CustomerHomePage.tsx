@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { getRooms } from '@/features/chat/api/chat';
 
 export default function CustomerHomePage() {
   const { customerProfile, userId } = useAuth();
@@ -22,7 +23,7 @@ export default function CustomerHomePage() {
         { count: connectionCount },
         { count: pendingOrderCount },
         { count: completedOrderCount },
-        { count: unreadCount },
+        unreadCount,
       ] = await Promise.all([
         supabase
           .from('customer_merchant_connections')
@@ -39,11 +40,9 @@ export default function CustomerHomePage() {
           .select('*', { count: 'exact', head: true })
           .eq('customer_user_id', userId!)
           .eq('status', 'completed'),
-        supabase
-          .from('customer_messages')
-          .select('*', { count: 'exact', head: true })
-          .neq('sender_role', 'customer')
-          .is('read_at', null),
+        getRooms().then((rooms) =>
+          rooms.reduce((sum, room) => sum + (room.unread_count ?? 0), 0),
+        ),
       ]);
       return {
         connections: connectionCount ?? 0,
