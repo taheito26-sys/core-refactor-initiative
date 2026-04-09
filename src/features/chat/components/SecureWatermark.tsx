@@ -18,9 +18,9 @@ export type WatermarkDensity = 'light' | 'medium' | 'heavy';
 export type WatermarkSurface = 'background' | 'incoming-bubble' | 'outgoing-bubble' | 'media';
 
 const DENSITY_CONFIG: Record<WatermarkDensity, { opacity: number; spacing: number; fontSize: number; rotation: number }> = {
-  light:  { opacity: 0.035, spacing: 280, fontSize: 9,  rotation: -30 },
-  medium: { opacity: 0.055, spacing: 200, fontSize: 10, rotation: -25 },
-  heavy:  { opacity: 0.085, spacing: 150, fontSize: 11, rotation: -20 },
+  light:  { opacity: 0.06, spacing: 280, fontSize: 9,  rotation: -30 },
+  medium: { opacity: 0.09, spacing: 200, fontSize: 10, rotation: -25 },
+  heavy:  { opacity: 0.13, spacing: 150, fontSize: 11, rotation: -20 },
 };
 
 interface Props {
@@ -81,7 +81,12 @@ function getContrastFill(surface: WatermarkSurface): string {
   if (typeof window === 'undefined') return 'hsl(var(--foreground))';
   if (surface === 'media') return 'hsl(0 0% 100%)';
 
+  // Use the foreground color directly — it's already the opposite of the background
   const styles = window.getComputedStyle(document.documentElement);
+  const fgValue = styles.getPropertyValue('--foreground').trim();
+  if (fgValue) return `hsl(${fgValue})`;
+
+  // Fallback: detect from surface variable
   const surfaceValue = styles.getPropertyValue(getSurfaceVariable(surface)).trim();
   const parsed = parseHslTriplet(surfaceValue);
 
