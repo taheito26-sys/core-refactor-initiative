@@ -181,6 +181,30 @@ export default function ChatWorkspacePage() {
     setLightboxSrc(src);
   }, []);
 
+  // Forward handler (Phase 12)
+  const handleForward = useCallback((msg: ChatMessage) => {
+    setForwardMsg(msg);
+  }, []);
+
+  const handleForwardSend = useCallback((messageId: string, targetRoomId: string) => {
+    // Forward as a new message with forwarded metadata
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg || !targetRoomId) return;
+    // We'll send to target room — but we only have send for activeRoom
+    // For now, copy content approach
+    send.mutate({
+      roomId:       targetRoomId,
+      content:      msg.content,
+      type:         msg.type,
+      metadata:     { forwarded_from: messageId, forwarded_sender: msg.sender_name ?? msg.sender_id } as SendMessageInput['metadata'],
+      clientNonce:  crypto.randomUUID(),
+      replyToId:    null,
+      expiresAt:    null,
+      viewOnce:     false,
+      attachmentId: null,
+    });
+  }, [messages, send]);
+
   // Search jump handler
   const handleSearchJump = useCallback((messageId: string) => {
     setAnchor(messageId);
