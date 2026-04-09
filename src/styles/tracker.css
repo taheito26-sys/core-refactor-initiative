@@ -678,27 +678,38 @@
   }
   .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
 
-  /* ── Edge-to-edge orders layout ── */
-  .tracker-root.orders-mobile-root {
-    padding-left: 1px !important;
-    padding-right: 1px !important;
+  /* ── Edge-to-edge layout (shared: orders + stock) ── */
+  .tracker-root.orders-mobile-root,
+  .tracker-root.stock-mobile-root {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
   /* Give back horizontal breathing room to the controls above the list */
   .tracker-root.orders-mobile-root .orders-tab-bar,
-  .tracker-root.orders-mobile-root .month-filter-row {
+  .tracker-root.orders-mobile-root .month-filter-row,
+  .tracker-root.stock-mobile-root .orders-tab-bar,
+  .tracker-root.stock-mobile-root .month-filter-row {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  /* Headings inside stock batches tab */
+  .tracker-root.stock-mobile-root > div:first-child,
+  .tracker-root.stock-mobile-root .twoColPage > div > div:not(.orders-cards-list):not(.tableWrap) {
     padding-left: 10px;
     padding-right: 10px;
   }
   /* Lift the max-width clamp so negative-margin children can escape */
-  .tracker-root.orders-mobile-root .orders-two-col > * {
+  .tracker-root.orders-mobile-root .orders-two-col > *,
+  .tracker-root.stock-mobile-root .twoColPage > * {
     max-width: none;
     overflow: visible;
   }
-  /* Card list: bleed past tracker-root 1px padding to go truly edge-to-edge */
-  .tracker-root.orders-mobile-root .orders-cards-list {
-    margin-left: -1px;
-    margin-right: -1px;
-    width: calc(100% + 2px);
+  /* Card list: truly edge-to-edge */
+  .tracker-root.orders-mobile-root .orders-cards-list,
+  .tracker-root.stock-mobile-root .orders-cards-list {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
     padding: 0;
   }
   /* New Sale form: hidden by default on mobile — shown as sheet via .sale-sheet-open */
@@ -737,29 +748,6 @@
   .tracker-root.orders-mobile-root .formPanel.salePanel .inner {
     padding: 6px 10px;
     gap: 6px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .hdr {
-    padding: 6px 10px;
-  }
-  /* Compact form fields */
-  .tracker-root.orders-mobile-root .formPanel.salePanel .field2 .lbl { font-size: 9px; margin-bottom: 3px; }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox { padding: 5px 10px; }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox input { font-size: 13px; }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow { padding: 5px 8px; }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow .bVal { font-size: 16px; }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .modeToggle { gap: 3px; }
-
-  /* ── Edge-to-edge stock layout (root keeps 10px side padding for controls) ── */
-  .tracker-root.stock-mobile-root .twoColPage > * {
-    max-width: none;
-    overflow: visible;
-  }
-  /* Batch card list bleeds edge-to-edge by escaping the 10px root padding */
-  .tracker-root.stock-mobile-root .orders-cards-list {
-    margin-left: -10px;
-    margin-right: -10px;
-    width: calc(100% + 20px);
-    padding: 0;
   }
 }
 
