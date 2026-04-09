@@ -492,6 +492,7 @@ export default function ChatWorkspacePage() {
       {roomInfo}
       {forwardModal}
       {newChatModal}
+      {privacyPanel}
 
       {(showSidebar || !isMobile) && (
         <ConversationSidebar
