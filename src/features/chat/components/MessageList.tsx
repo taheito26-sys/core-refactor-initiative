@@ -395,14 +395,8 @@ export function MessageList({ messages, meId, isLoading, roomType, onReact, onEd
     return messages.filter((m) => m.sender_id !== meId && m.receipt_status !== 'read').length;
   }, [isAtBottom, messages, meId]);
 
-  // Typing users from store
-  const typingUsers = useChatStore((s) => {
-    const roomId = s.activeRoomId;
-    if (!roomId) return [];
-    // Pull typing state if available
-    return (s as Record<string, unknown>).typingUsers as string[] ?? [];
-  });
-  const showTyping = Array.isArray(typingUsers) && typingUsers.length > 0;
+  // Typing users — placeholder; actual typing state is managed by useTyping hook
+  const showTyping = false;
 
   // Scroll tracking
   const handleScroll = useCallback(() => {
