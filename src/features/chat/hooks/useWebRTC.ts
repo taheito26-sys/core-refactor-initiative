@@ -97,6 +97,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const connectedAtRef  = useRef<number | null>(null);
   const cleaningUp      = useRef(false);
   const screenTrackRef  = useRef<MediaStreamTrack | null>(null);
+  const prevBytesRef    = useRef<{ received: number; ts: number } | null>(null);
   // Group calls: map of peerId → RTCPeerConnection
   const groupPCs        = useRef<Map<string, RTCPeerConnection>>(new Map());
 
