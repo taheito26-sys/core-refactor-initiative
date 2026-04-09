@@ -1,31 +1,54 @@
 // ─── AttachmentPreview ────────────────────────────────────────────────────
-import { useState, useEffect } from 'react';
-import { FileText, Download, Eye, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Download, Eye, EyeOff, FileText, Loader2, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAttachment, getSignedUrl, markMessageViewed } from '../api/chat';
-import type { ChatMessage, ChatAttachment } from '../types';
+import type { ChatAttachment, ChatMessage } from '../types';
+import { SecureWatermark } from './SecureWatermark';
+
+const VIEW_ONCE_WINDOW_SECONDS = 8;
 
 interface Props {
   message: ChatMessage;
-  isMe:    boolean;
+  isMe: boolean;
+  viewerId: string;
   onImageOpen?: (src: string) => void;
 }
 
-export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
+export function AttachmentPreview({ message, isMe, viewerId, onImageOpen }: Props) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<ChatAttachment | null>(message.attachment ?? null);
-  const [viewed,    setViewed]    = useState(false);
-  const [loading,   setLoading]   = useState(true);
+  const [revealed, setRevealed] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(VIEW_ONCE_WINDOW_SECONDS);
+  const [loading, setLoading] = useState(true);
+
+  const isViewOnce = message.view_once;
+  const viewedByMe = message.viewed_by.includes(viewerId);
+  const openedByAnyone = message.viewed_by.length > 0;
+  const consumed = isMe ? openedByAnyone : viewedByMe;
+  const canResolveAttachment = !isViewOnce || (isMe && !consumed) || revealed;
+
+  useEffect(() => {
+    setRevealed(false);
+    setSecondsLeft(VIEW_ONCE_WINDOW_SECONDS);
+  }, [message.id]);
 
   useEffect(() => {
     let cancelled = false;
 
+    if (!canResolveAttachment) {
+      setLoading(false);
+      setSignedUrl(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     async function resolve() {
+      setLoading(true);
       try {
-        // If attachment is already enriched on the message, use it directly
         let att = message.attachment ?? null;
 
-        // If no attachment enriched, fetch it by message ID
         if (!att) {
           att = await getAttachment(message.id);
           if (cancelled) return;
@@ -37,14 +60,12 @@ export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
           return;
         }
 
-        // If the attachment already has a signed_url (from getAttachment), use it
         if (att.signed_url) {
           setSignedUrl(att.signed_url);
           setLoading(false);
           return;
         }
 
-        // Otherwise generate a signed URL
         const url = await getSignedUrl(att.storage_path);
         if (!cancelled) {
           setSignedUrl(url);
@@ -56,8 +77,62 @@ export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
     }
 
     resolve();
-    return () => { cancelled = true; };
-  }, [message.id, message.attachment]);
+    return () => {
+      cancelled = true;
+    };
+  }, [message.id, message.attachment, canResolveAttachment]);
+
+  useEffect(() => {
+    if (!revealed || !isViewOnce || isMe) return;
+
+    const interval = window.setInterval(() => {
+      setSecondsLeft((current) => {
+        if (current <= 1) {
+          window.clearInterval(interval);
+          setRevealed(false);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [revealed, isViewOnce, isMe]);
+
+  const handleReveal = async () => {
+    if (isMe || revealed || viewedByMe) return;
+
+    setSecondsLeft(VIEW_ONCE_WINDOW_SECONDS);
+    setRevealed(true);
+    await markMessageViewed(message.id).catch(() => {});
+  };
+
+  if (isViewOnce && consumed && !revealed) {
+    return (
+      <div className="flex items-center gap-2 py-2 text-xs italic text-muted-foreground/70">
+        <EyeOff className="h-4 w-4 shrink-0" />
+        <span>{isMe ? 'Opened once' : 'Opened once · attachment removed'}</span>
+      </div>
+    );
+  }
+
+  if (isViewOnce && !isMe && !revealed) {
+    return (
+      <button
+        type="button"
+        onClick={handleReveal}
+        className="flex items-center gap-2.5 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-left text-primary transition-colors hover:bg-primary/15 active:scale-[0.98]"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15">
+          <Shield className="h-4 w-4" />
+        </span>
+        <span>
+          <span className="block text-xs font-semibold">View once</span>
+          <span className="block text-[10px] text-muted-foreground">Tap once to reveal</span>
+        </span>
+      </button>
+    );
+  }
 
   if (loading) {
     return (
@@ -70,64 +145,47 @@ export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
 
   if (!signedUrl) {
     return (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground/70 italic py-1">
-        <FileText className="h-4 w-4 opacity-50" /> Attachment unavailable
+      <div className="flex items-center gap-2 py-1 text-xs italic text-muted-foreground/70">
+        <FileText className="h-4 w-4 opacity-50" />
+        <span>Attachment unavailable</span>
       </div>
     );
   }
 
   const effectiveAtt = attachment ?? message.attachment;
-  const isImage  = effectiveAtt?.mime_type?.startsWith('image/');
-  const isViewOnce = message.view_once;
+  const isImage = effectiveAtt?.mime_type?.startsWith('image/');
 
-  // View-once: tap to reveal
-  if (isViewOnce && !viewed && !isMe) {
-    return (
-      <button
-        onClick={async () => {
-          setViewed(true);
-          await markMessageViewed(message.id).catch(() => {});
-        }}
-        className={cn(
-          'flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-semibold transition-all active:scale-95',
-          'bg-gradient-to-r from-violet-500/15 to-purple-500/10',
-          'border border-violet-400/30 text-violet-600 dark:text-violet-400',
-          'hover:from-violet-500/25 hover:to-purple-500/20',
-          'shadow-sm',
-        )}
-      >
-        <div className="h-8 w-8 rounded-full bg-violet-500/20 flex items-center justify-center">
-          <Eye className="h-4 w-4" />
-        </div>
-        <div className="text-left">
-          <span className="block text-xs font-bold">View once</span>
-          <span className="block text-[10px] opacity-60">Tap to reveal</span>
-        </div>
-      </button>
-    );
-  }
-
-  // Image preview
   if (isImage) {
     return (
-      <div className="relative group/img">
+      <div className="relative overflow-hidden rounded-xl group/img">
         <img
           src={signedUrl}
           alt={effectiveAtt?.file_name ?? 'image'}
-          className="max-w-[260px] max-h-[320px] rounded-xl object-cover cursor-pointer shadow-sm hover:shadow-md transition-shadow"
+          className="max-w-[260px] max-h-[320px] cursor-pointer rounded-xl object-cover shadow-sm transition-shadow hover:shadow-md"
           onClick={() => onImageOpen ? onImageOpen(signedUrl) : window.open(signedUrl, '_blank')}
           loading="lazy"
         />
+
+        {message.watermark_text && (
+          <SecureWatermark
+            enabled
+            customText={message.watermark_text}
+            density="medium"
+            overlay
+            surface="media"
+          />
+        )}
+
         {isViewOnce && (
-          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold flex items-center gap-1">
-            <Eye className="h-2.5 w-2.5" /> 1
+          <div className="absolute left-2 top-2 z-[60] inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+            <Eye className="h-2.5 w-2.5" />
+            {isMe ? '1 view' : `${secondsLeft}s`}
           </div>
         )}
       </div>
     );
   }
 
-  // File preview
   return (
     <a
       href={signedUrl}
@@ -135,29 +193,46 @@ export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
       target="_blank"
       rel="noreferrer"
       className={cn(
-        'flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs transition-all hover:shadow-sm',
+        'relative flex items-center gap-3 overflow-hidden rounded-2xl px-3.5 py-2.5 text-xs transition-all hover:shadow-sm',
         isMe
           ? 'bg-primary-foreground/15 hover:bg-primary-foreground/25'
-          : 'bg-muted/80 border border-border/30 hover:bg-muted',
+          : 'border border-border/30 bg-muted/80 hover:bg-muted',
       )}
     >
-      <div className={cn(
-        'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
-        isMe ? 'bg-primary-foreground/20' : 'bg-primary/10',
-      )}>
+      {message.watermark_text && (
+        <SecureWatermark
+          enabled
+          customText={message.watermark_text}
+          density="medium"
+          overlay
+          surface="media"
+        />
+      )}
+
+      <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
         <FileText className="h-4 w-4" />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-[13px] leading-tight">
+
+      <div className="relative z-10 min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium leading-tight">
           {effectiveAtt?.file_name ?? 'File'}
         </p>
         {effectiveAtt?.file_size && (
-          <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+          <p className="mt-0.5 text-[10px] text-muted-foreground/60">
             {(effectiveAtt.file_size / 1024).toFixed(0)} KB
           </p>
         )}
       </div>
-      <Download className="h-4 w-4 shrink-0 opacity-40" />
+
+      <div className="relative z-10 flex items-center gap-2">
+        {isViewOnce && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+            <Eye className="h-2.5 w-2.5" />
+            {isMe ? '1 view' : `${secondsLeft}s`}
+          </span>
+        )}
+        <Download className="h-4 w-4 shrink-0 opacity-40" />
+      </div>
     </a>
   );
 }

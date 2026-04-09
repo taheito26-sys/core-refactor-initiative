@@ -13,7 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import type { ChatMessage, ChatRoomType, ReactionSummary } from '../types';
 import { SecureWatermark } from './SecureWatermark';
 import { AttachmentPreview } from './AttachmentPreview';
-import { LinkifiedText } from './LinkifiedText';
+import { ProtectedMessageContent } from './ProtectedMessageContent';
 import { getAttachment, getSignedUrl } from '../api/chat';
 import { toast } from 'sonner';
 
@@ -533,7 +533,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
           backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'200\' height=\'200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cdefs%3E%3Cpattern id=\'p\' width=\'40\' height=\'40\' patternUnits=\'userSpaceOnUse\'%3E%3Ccircle cx=\'20\' cy=\'20\' r=\'0.5\' fill=\'%23888\' opacity=\'0.08\'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=\'100%25\' height=\'100%25\' fill=\'url(%23p)\'/%3E%3C/svg%3E")',
         }}
       >
-        {watermarkEnabled && <SecureWatermark enabled={watermarkEnabled} />}
+        {watermarkEnabled && <SecureWatermark enabled={watermarkEnabled} surface="background" />}
 
         {groups.map((group) => (
           <div key={group.label} className="mb-4">
@@ -630,6 +630,16 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             isFailed && 'opacity-60 ring-1 ring-destructive/30',
                             isHighlighted && 'ring-2 ring-primary/40',
                           )}>
+                            {m.watermark_text && (
+                              <SecureWatermark
+                                enabled
+                                customText={m.watermark_text}
+                                density={isMe ? 'light' : 'medium'}
+                                overlay
+                                surface={isMe ? 'outgoing-bubble' : 'incoming-bubble'}
+                              />
+                            )}
+
                             {/* Sender name for group chats */}
                             {!isMe && isFirstInGroup && (
                               <p className="text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">

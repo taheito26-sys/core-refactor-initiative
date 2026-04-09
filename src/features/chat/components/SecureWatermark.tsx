@@ -7,18 +7,20 @@
 // Phase 7: Screen share watermark
 // Phase 10: Media viewer protection
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
 // ── Phase 1: Density config ───────────────────────────────────────────────
 export type WatermarkDensity = 'light' | 'medium' | 'heavy';
+export type WatermarkSurface = 'background' | 'incoming-bubble' | 'outgoing-bubble' | 'media';
 
 const DENSITY_CONFIG: Record<WatermarkDensity, { opacity: number; spacing: number; fontSize: number; rotation: number }> = {
-  light:  { opacity: 0.025, spacing: 280, fontSize: 9,  rotation: -30 },
-  medium: { opacity: 0.045, spacing: 200, fontSize: 10, rotation: -25 },
-  heavy:  { opacity: 0.08,  spacing: 150, fontSize: 11, rotation: -20 },
+  light:  { opacity: 0.035, spacing: 280, fontSize: 9,  rotation: -30 },
+  medium: { opacity: 0.055, spacing: 200, fontSize: 10, rotation: -25 },
+  heavy:  { opacity: 0.085, spacing: 150, fontSize: 11, rotation: -20 },
 };
 
 interface Props {
@@ -27,6 +29,7 @@ interface Props {
   density?: WatermarkDensity;
   overlay?: boolean;
   roomId?: string;
+  surface?: WatermarkSurface;
   /** When true, logs render events to audit trail */
   auditLog?: boolean;
 }
@@ -42,26 +45,91 @@ function logWatermarkEvent(userId: string | null, roomId?: string, eventType = '
   }).then(() => {});
 }
 
-export function SecureWatermark({ enabled, customText, density = 'light', overlay = false, roomId, auditLog = false }: Props) {
+function hashText(text: string): string {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36).slice(0, 16);
+}
+
+function parseHslTriplet(raw: string): [number, number, number] | null {
+  const parts = raw.match(/-?\d+(?:\.\d+)?/g);
+  if (!parts || parts.length < 3) return null;
+
+  const triplet = parts.slice(0, 3).map(Number);
+  if (triplet.some((value) => Number.isNaN(value))) return null;
+
+  return triplet as [number, number, number];
+}
+
+function getSurfaceVariable(surface: WatermarkSurface): string {
+  switch (surface) {
+    case 'incoming-bubble':
+      return '--card';
+    case 'outgoing-bubble':
+      return '--wa-out-bubble';
+    case 'media':
+      return '--background';
+    case 'background':
+    default:
+      return '--background';
+  }
+}
+
+function getContrastFill(surface: WatermarkSurface): string {
+  if (typeof window === 'undefined') return 'hsl(var(--foreground))';
+  if (surface === 'media') return 'hsl(0 0% 100%)';
+
+  const styles = window.getComputedStyle(document.documentElement);
+  const surfaceValue = styles.getPropertyValue(getSurfaceVariable(surface)).trim();
+  const parsed = parseHslTriplet(surfaceValue);
+
+  if (!parsed) return 'hsl(var(--foreground))';
+
+  const [, saturation, lightness] = parsed;
+  const adjustedLightness = lightness + saturation * 0.04;
+
+  return adjustedLightness >= 50 ? 'hsl(0 0% 8%)' : 'hsl(0 0% 96%)';
+}
+
+export function SecureWatermark({
+  enabled,
+  customText,
+  density = 'light',
+  overlay = false,
+  roomId,
+  surface = 'background',
+  auditLog = false,
+}: Props) {
   const { merchantProfile, userId } = useAuth();
+  const { settings } = useTheme();
   const loggedRef = useRef(false);
+  const instanceId = useId().replace(/[:]/g, '');
 
   // Phase 5: Log watermark render (once per mount)
   useEffect(() => {
     if (enabled && auditLog && !loggedRef.current) {
       loggedRef.current = true;
-      logWatermarkEvent(userId ?? null, roomId, 'watermark_render', { density, overlay });
+      logWatermarkEvent(userId ?? null, roomId, 'watermark_render', { density, overlay, surface });
     }
-  }, [enabled, auditLog, userId, roomId, density, overlay]);
-
-  if (!enabled) return null;
+  }, [enabled, auditLog, userId, roomId, density, overlay, surface]);
 
   const identifier = customText || merchantProfile?.merchant_id || userId?.slice(0, 8) || 'SECURE';
   const date = new Date().toISOString().split('T')[0];
   const time = new Date().toTimeString().slice(0, 5);
   const watermarkText = `${identifier} · ${date} ${time}`;
+
+  const fill = useMemo(
+    () => getContrastFill(surface),
+    [surface, settings.layout, settings.theme],
+  );
+
+  if (!enabled) return null;
+
   const config = DENSITY_CONFIG[density];
-  const patternId = `wm-${density}-${roomId?.slice(0, 6) ?? 'global'}`;
+  const patternId = `wm-${density}-${roomId?.slice(0, 6) ?? 'global'}-${instanceId}`;
+  const opacity = surface === 'media' ? Math.min(config.opacity * 1.45, 0.14) : config.opacity;
 
   return (
     <div
@@ -69,16 +137,21 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
         'absolute inset-0 pointer-events-none select-none overflow-hidden',
         overlay ? 'z-50' : 'z-0',
       )}
-      style={{ opacity: config.opacity }}
-      data-watermark-hash={btoa(watermarkText).slice(0, 16)}
+      style={{
+        opacity,
+        mixBlendMode: surface === 'media' ? 'difference' : 'normal',
+      }}
+      data-watermark-hash={hashText(watermarkText)}
       data-watermark-density={density}
+      data-watermark-surface={surface}
       data-watermark="true"
     >
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <pattern
             id={patternId}
-            x="0" y="0"
+            x="0"
+            y="0"
             width={config.spacing}
             height={config.spacing / 2}
             patternUnits="userSpaceOnUse"
@@ -90,7 +163,7 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
               fontFamily="monospace"
               fontSize={config.fontSize}
               fontWeight="bold"
-              fill="hsl(var(--foreground))"
+              fill={fill}
               letterSpacing="0.5"
             >
               {watermarkText}
@@ -132,6 +205,7 @@ export function ScreenShareWatermark({ userId }: { userId: string }) {
       customText={`SCREEN SHARE · ${userId.slice(0, 8)}`}
       density="medium"
       overlay
+      surface="media"
       auditLog
     />
   );
@@ -144,7 +218,8 @@ export function MediaPreviewWatermark({ viewerId, roomId }: { viewerId: string; 
       enabled
       customText={`${viewerId.slice(0, 8)} · PREVIEW`}
       density="light"
-      overlay={false}
+      overlay
+      surface="media"
       roomId={roomId}
     />
   );
@@ -162,6 +237,7 @@ export function ExportWatermark({ userId, exportType }: { userId: string; export
       customText={`EXPORTED · ${userId.slice(0, 8)} · ${exportType.toUpperCase()}`}
       density="heavy"
       overlay
+      surface="media"
       auditLog
     />
   );
@@ -176,6 +252,7 @@ export function LightboxWatermark({ viewerId, zoomLevel = 1 }: { viewerId: strin
       customText={`${viewerId.slice(0, 8)} · VIEWER`}
       density={adjustedDensity}
       overlay
+      surface="media"
     />
   );
 }
