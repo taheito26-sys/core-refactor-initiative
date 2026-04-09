@@ -49,7 +49,7 @@ function smartPreview(preview: string, type?: string): string {
 
 type Filter = 'all' | ChatRoomType;
 
-export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isLoading, meId }: Props) {
+export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewChat, isLoading, meId }: Props) {
   const t = useT();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
