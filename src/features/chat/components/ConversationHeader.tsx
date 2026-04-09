@@ -1,14 +1,15 @@
 // ─── ConversationHeader — Unified Chat Platform ───────────────────────────
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   Phone, Video, Search, ShieldCheck, Lock, Users,
-  PanelLeftClose, PanelLeftOpen, MoreHorizontal,
-  ArrowLeft, History,
+  PanelLeftClose, PanelLeftOpen, MoreVertical,
+  ArrowLeft, History, Info, BellOff, Trash2, Ban, Image as ImageIcon,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useChatStore } from '@/lib/chat-store';
 import { presenceOf } from '@/lib/chat-store';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
+import { cn } from '@/lib/utils';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function roomTypeIcon(type: ChatRoomType) {
@@ -57,6 +58,10 @@ interface Props {
   onStartVideoCall?: () => void;
   onToggleCallHistory?: () => void;
   onSearchToggle?: () => void;
+  onViewInfo?: () => void;
+  onMuteToggle?: () => void;
+  onClearChat?: () => void;
+  isMuted?: boolean;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -69,10 +74,16 @@ export function ConversationHeader({
   onStartVideoCall,
   onToggleCallHistory,
   onSearchToggle,
+  onViewInfo,
+  onMuteToggle,
+  onClearChat,
+  isMuted = false,
 }: Props) {
   const otherUserId = room.other_user_id ?? '';
   const presence    = useChatStore(presenceOf(otherUserId));
   const isMobile    = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const displayName = useMemo(
     () => room.display_name ?? room.name ?? (room.is_direct ? 'Direct Message' : 'Room'),
@@ -195,13 +206,73 @@ export function ConversationHeader({
           </button>
         )}
 
-        {/* More */}
-        <button
-          className="w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
-          title="More options"
-        >
-          <MoreHorizontal size={18} />
-        </button>
+        {/* More menu */}
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className={cn(
+              'w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center',
+              menuOpen && 'text-foreground bg-accent',
+            )}
+            title="More options"
+          >
+            <MoreVertical size={18} />
+          </button>
+
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={closeMenu} />
+              <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-xl shadow-xl p-1 min-w-[180px] z-50 animate-in fade-in-0 slide-in-from-top-2 duration-150">
+                {onViewInfo && (
+                  <button
+                    onClick={() => { closeMenu(); onViewInfo(); }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
+                  >
+                    <Info size={15} className="text-muted-foreground" />
+                    <span>Room info</span>
+                  </button>
+                )}
+                {onSearchToggle && (
+                  <button
+                    onClick={() => { closeMenu(); onSearchToggle(); }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
+                  >
+                    <Search size={15} className="text-muted-foreground" />
+                    <span>Search messages</span>
+                  </button>
+                )}
+                {onMuteToggle && (
+                  <button
+                    onClick={() => { closeMenu(); onMuteToggle(); }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
+                  >
+                    <BellOff size={15} className="text-muted-foreground" />
+                    <span>{isMuted ? 'Unmute' : 'Mute notifications'}</span>
+                  </button>
+                )}
+                <button
+                  onClick={closeMenu}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-accent transition-colors text-foreground"
+                >
+                  <ImageIcon size={15} className="text-muted-foreground" />
+                  <span>Media & files</span>
+                </button>
+                {onClearChat && (
+                  <>
+                    <div className="my-1 border-t border-border" />
+                    <button
+                      onClick={() => { closeMenu(); onClearChat(); }}
+                      className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm hover:bg-destructive/10 transition-colors text-destructive"
+                    >
+                      <Trash2 size={15} />
+                      <span>Clear chat</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );
