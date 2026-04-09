@@ -280,6 +280,9 @@ export default function ChatWorkspacePage() {
           meId={meId}
           onToggleSidebar={onBack ?? (() => setShowSidebar((v) => !v))}
           onSearchToggle={() => setShowSearch((v) => !v)}
+          onViewInfo={() => setShowRoomInfo((v) => !v)}
+          onMuteToggle={() => { /* TODO: mute/unmute room */ }}
+          onClearChat={() => { /* TODO: clear chat */ }}
           {...headerCallProps}
         />
 
