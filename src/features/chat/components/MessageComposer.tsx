@@ -483,14 +483,15 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     beginUpload('Sending voice note');
     try {
       const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-      const mediaMetadata = await extractMediaMetadata(file).catch(() => ({}));
+      const mediaMetadata = await extractMediaMetadata(file).catch(() => ({} as Record<string, unknown>));
+      const durMs = ('durationMs' in mediaMetadata ? (mediaMetadata as { durationMs?: number }).durationMs : undefined) ?? voice.duration * 1000;
       const att = await uploadAttachment(roomId, userId, file, {
-        durationMs: mediaMetadata.durationMs ?? voice.duration * 1000,
+        durationMs: durMs,
       });
       setUploadProgress(94);
       onSend('🎙 Voice message', {
         attachmentId: att.id, type: 'voice_note',
-        metadata: { duration_ms: mediaMetadata.durationMs ?? voice.duration * 1000 },
+        metadata: { duration_ms: durMs },
       });
     } catch {
       toast.error('Voice upload failed');
