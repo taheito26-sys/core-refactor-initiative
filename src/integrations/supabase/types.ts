@@ -875,6 +875,7 @@ export type Database = {
           removed_by: string | null
           role: Database["public"]["Enums"]["chat_member_role"]
           room_id: string
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -893,6 +894,7 @@ export type Database = {
           removed_by?: string | null
           role?: Database["public"]["Enums"]["chat_member_role"]
           room_id: string
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -911,6 +913,7 @@ export type Database = {
           removed_by?: string | null
           role?: Database["public"]["Enums"]["chat_member_role"]
           room_id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
