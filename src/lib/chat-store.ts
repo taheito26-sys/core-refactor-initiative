@@ -209,8 +209,9 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 export const totalUnread = (state: ChatState & ChatActions) =>
   Object.values(state.unreadCounts).reduce((sum, n) => sum + n, 0);
 
+const EMPTY_TYPING: string[] = [];
 export const typingUsersInRoom = (roomId: string) =>
-  (state: ChatState & ChatActions) => state.typingByRoom[roomId] ?? [];
+  (state: ChatState & ChatActions) => state.typingByRoom[roomId] ?? EMPTY_TYPING;
 
 export const presenceOf = (userId: string) =>
   (state: ChatState & ChatActions): PresenceStatus =>
