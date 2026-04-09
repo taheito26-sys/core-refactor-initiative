@@ -97,7 +97,7 @@ export function useViewOnceGuard(messageId: string | null, viewOnce: boolean, us
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(interval);
-          logPrivacyEvent(userId, undefined, 'view_once_expired', { messageId });
+          logPrivacyEvent(userId, 'view_once_expired', undefined, { messageId });
           return 0;
         }
         return t - 1;
