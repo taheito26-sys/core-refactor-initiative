@@ -10,25 +10,21 @@ import {
 import { cn } from '@/lib/utils';
 import { calculatePrivacyScore, type NotificationPreview } from '../lib/privacy-engine';
 import { usePrivacySettings } from '../hooks/usePrivacySettings';
+import { useT } from '@/lib/i18n';
 
 interface Props {
   onClose: () => void;
 }
 
 interface PrivacyState {
-  // Phase 15: Read receipt privacy
   hideReadReceipts: boolean;
   hideLastSeen: boolean;
   hideTyping: boolean;
-  // Phase 22: Presence privacy
   invisibleMode: boolean;
   onlineVisibility: 'everyone' | 'room_members' | 'nobody';
-  // Phase 23: Notification privacy
   notificationPreview: NotificationPreview;
   showSenderInNotification: boolean;
-  // Phase 21: Anonymous mode
   anonymousMode: boolean;
-  // General
   screenshotProtection: boolean;
   watermarkEnabled: boolean;
   forwardingDisabled: boolean;
@@ -92,6 +88,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export function PrivacyDashboard({ onClose }: Props) {
+  const t = useT();
   const { settings, update, isUpdating } = usePrivacySettings();
   const [state, setState] = useState<PrivacyState>(DEFAULT_STATE);
 
@@ -133,7 +130,6 @@ export function PrivacyDashboard({ onClose }: Props) {
     });
   };
 
-  // Phase 25: Maximum privacy preset
   const applyMaxPrivacy = async () => {
     const maxState: PrivacyState = {
       hideReadReceipts: true,
@@ -181,6 +177,7 @@ export function PrivacyDashboard({ onClose }: Props) {
     exportDisabled: state.exportDisabled,
   });
 
+  const scoreLabel = score.percentage >= 80 ? t('maximumPrivacy') : score.percentage >= 50 ? t('strongPrivacy') : score.percentage >= 25 ? t('moderatePrivacy') : t('basicPrivacy');
   const ScoreIcon = score.percentage >= 80 ? ShieldCheck : score.percentage >= 50 ? Shield : ShieldAlert;
   const scoreColor = score.percentage >= 80 ? 'text-emerald-500' : score.percentage >= 50 ? 'text-amber-500' : 'text-destructive';
 
@@ -192,7 +189,7 @@ export function PrivacyDashboard({ onClose }: Props) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-bold text-foreground">Privacy & Security</h3>
+            <h3 className="text-sm font-bold text-foreground">{t('privacySecurity')}</h3>
           </div>
           <button onClick={onClose} className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors">
             <X className="h-4 w-4" />
@@ -200,7 +197,7 @@ export function PrivacyDashboard({ onClose }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {/* Phase 25: Privacy score */}
+          {/* Privacy score */}
           <div className="px-4 py-4 border-b border-border/50">
             <div className="flex items-center gap-3 mb-3">
               <div className={cn('h-12 w-12 rounded-2xl flex items-center justify-center', scoreColor, 'bg-current/10')}>
@@ -208,10 +205,9 @@ export function PrivacyDashboard({ onClose }: Props) {
               </div>
               <div>
                 <p className="text-lg font-black text-foreground">{score.percentage}%</p>
-                <p className={cn('text-xs font-semibold', scoreColor)}>{score.label} Privacy</p>
+                <p className={cn('text-xs font-semibold', scoreColor)}>{scoreLabel}</p>
               </div>
             </div>
-            {/* Progress bar */}
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
                 className={cn('h-full rounded-full transition-all duration-500',
@@ -224,72 +220,72 @@ export function PrivacyDashboard({ onClose }: Props) {
               disabled={isUpdating}
               className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
               <Zap className="h-3.5 w-3.5" />
-              Enable Maximum Privacy
+              {t('enableMaxPrivacy')}
             </button>
           </div>
 
-          {/* Phase 15: Read receipts & activity */}
-          <SectionHeader title="Activity & Receipts" />
+          {/* Activity & Receipts */}
+          <SectionHeader title={t('activityReceipts')} />
           <div className="px-1">
-            <ToggleRow icon={CheckCircle2} label="Hide read receipts"
-              description="Others won't see when you've read their messages"
+            <ToggleRow icon={CheckCircle2} label={t('hideReadReceipts')}
+              description={t('hideReadReceiptsDesc')}
               enabled={state.hideReadReceipts} onChange={() => void patchState({ hideReadReceipts: !state.hideReadReceipts })} />
-            <ToggleRow icon={Timer} label="Hide last seen"
-              description="Your last active time won't be visible to others"
+            <ToggleRow icon={Timer} label={t('hideLastSeen')}
+              description={t('hideLastSeenDesc')}
               enabled={state.hideLastSeen} onChange={() => void patchState({ hideLastSeen: !state.hideLastSeen })} />
-            <ToggleRow icon={MessageCircle} label="Hide typing indicator"
-              description="Others won't see when you're typing a message"
+            <ToggleRow icon={MessageCircle} label={t('hideTypingIndicator')}
+              description={t('hideTypingIndicatorDesc')}
               enabled={state.hideTyping} onChange={() => void patchState({ hideTyping: !state.hideTyping })} />
           </div>
 
-          {/* Phase 22: Presence */}
-          <SectionHeader title="Online Presence" />
+          {/* Presence */}
+          <SectionHeader title={t('onlinePresence')} />
           <div className="px-1">
-            <ToggleRow icon={EyeOff} label="Invisible mode"
-              description="Appear offline while still receiving messages"
+            <ToggleRow icon={EyeOff} label={t('invisibleMode')}
+              description={t('invisibleModeDesc')}
               enabled={state.invisibleMode} onChange={() => void patchState({ invisibleMode: !state.invisibleMode })} />
           </div>
 
-          {/* Phase 23: Notifications */}
-          <SectionHeader title="Notification Privacy" />
+          {/* Notifications */}
+          <SectionHeader title={t('notificationPrivacy')} />
           <div className="px-1">
-            <ToggleRow icon={BellOff} label="Hide notification content"
-              description="Show 'New message' instead of message preview"
+            <ToggleRow icon={BellOff} label={t('hideNotificationContent')}
+              description={t('hideNotificationContentDesc')}
               enabled={state.notificationPreview === 'none'}
               onChange={() => void patchState({
                 notificationPreview: (state.notificationPreview === 'none' ? 'full' : 'none') as NotificationPreview,
               })} />
-            <ToggleRow icon={User} label="Hide sender name"
-              description="Don't show who sent the message in notifications"
+            <ToggleRow icon={User} label={t('hideSenderName')}
+              description={t('hideSenderNameDesc')}
               enabled={!state.showSenderInNotification}
               onChange={() => void patchState({ showSenderInNotification: !state.showSenderInNotification })} />
           </div>
 
-          {/* Phase 24: Encryption & Protection */}
-          <SectionHeader title="Content Protection" />
+          {/* Content Protection */}
+          <SectionHeader title={t('contentProtection')} />
           <div className="px-1">
-            <ToggleRow icon={Lock} label="Screenshot protection"
-              description="Detect screenshots and blur content when window loses focus"
+            <ToggleRow icon={Lock} label={t('screenshotProtection')}
+              description={t('screenshotProtectionDesc')}
               enabled={state.screenshotProtection} onChange={() => void patchState({ screenshotProtection: !state.screenshotProtection })} />
-            <ToggleRow icon={Fingerprint} label="Watermark overlay"
-              description="Add invisible watermark to sensitive message areas"
+            <ToggleRow icon={Fingerprint} label={t('watermarkOverlay')}
+              description={t('watermarkOverlayDesc')}
               enabled={state.watermarkEnabled} onChange={() => void patchState({ watermarkEnabled: !state.watermarkEnabled })} />
-            <ToggleRow icon={Forward} label="Disable forwarding"
-              description="Prevent messages from being forwarded to other rooms"
+            <ToggleRow icon={Forward} label={t('disableForwarding')}
+              description={t('disableForwardingDesc')}
               enabled={state.forwardingDisabled} onChange={() => void patchState({ forwardingDisabled: !state.forwardingDisabled })} danger />
-            <ToggleRow icon={Copy} label="Disable copy"
-              description="Block text copying from messages in protected rooms"
+            <ToggleRow icon={Copy} label={t('disableCopy')}
+              description={t('disableCopyDesc')}
               enabled={state.copyDisabled} onChange={() => void patchState({ copyDisabled: !state.copyDisabled })} danger />
-            <ToggleRow icon={Download} label="Disable export"
-              description="Prevent chat export and transcript downloads"
+            <ToggleRow icon={Download} label={t('disableExport')}
+              description={t('disableExportDesc')}
               enabled={state.exportDisabled} onChange={() => void patchState({ exportDisabled: !state.exportDisabled })} danger />
           </div>
 
-          {/* Phase 21: Anonymous mode */}
-          <SectionHeader title="Identity" />
+          {/* Identity */}
+          <SectionHeader title={t('identity')} />
           <div className="px-1 pb-6">
-            <ToggleRow icon={User} label="Anonymous mode"
-              description="Use a pseudonymous name in new rooms you join"
+            <ToggleRow icon={User} label={t('anonymousMode')}
+              description={t('anonymousModeDesc')}
               enabled={state.anonymousMode} onChange={() => void patchState({ anonymousMode: !state.anonymousMode })} />
           </div>
         </div>
