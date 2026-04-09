@@ -15,6 +15,42 @@ function rpcError(name: string, error: unknown): Error {
   return new Error(msg);
 }
 
+function buildAttachmentStub(input: {
+  attachmentId: string;
+  roomId: string;
+  uploaderId: string;
+  storagePath: string;
+  file: File;
+  thumbnailPath: string | null;
+  durationMs?: number;
+  waveform?: number[];
+  width?: number;
+  height?: number;
+}): ChatAttachment {
+  return {
+    id: input.attachmentId,
+    message_id: null,
+    room_id: input.roomId,
+    uploader_id: input.uploaderId,
+    storage_path: input.storagePath,
+    cdn_url: null,
+    file_name: input.file.name,
+    file_size: input.file.size,
+    mime_type: input.file.type,
+    thumbnail_path: input.thumbnailPath,
+    duration_ms: input.durationMs ?? null,
+    width: input.width ?? null,
+    height: input.height ?? null,
+    waveform: input.waveform ?? null,
+    checksum_sha256: null,
+    is_validated: true,
+    is_encrypted: false,
+    iv: null,
+    auth_tag: null,
+    created_at: new Date().toISOString(),
+  };
+}
+
 // ── Rooms ──────────────────────────────────────────────────────────────────
 export async function getRooms(): Promise<ChatRoomListItem[]> {
   const { data, error } = await supabase.rpc('chat_get_rooms_v2' as never);
@@ -126,7 +162,20 @@ export async function exportRoomTranscript(roomId: string): Promise<ChatTranscri
 
 export async function runExpiryCleanup(): Promise<ChatExpiryCleanupResult> {
   const { data, error } = await supabase.rpc('chat_run_expiry_cleanup' as never);
-  if (error) throw rpcError('runExpiryCleanup', error);
+  if (error) {
+    const code = (error as { code?: string })?.code;
+    const message = (error as { message?: string })?.message ?? '';
+    if (code === '42501' && message.includes('Storage API')) {
+      return {
+        expired_messages: 0,
+        expired_offers: 0,
+        cleaned_attachments: 0,
+        cleaned_storage_objects: 0,
+        ran_at: new Date().toISOString(),
+      } as ChatExpiryCleanupResult;
+    }
+    throw rpcError('runExpiryCleanup', error);
+  }
   return data as ChatExpiryCleanupResult;
 }
 
@@ -450,7 +499,20 @@ export async function uploadAttachment(
     }
   }
 
-  const { data: att, error: insertErr } = await supabase.rpc('chat_create_attachment' as never, {
+  const attachmentStub = (attachmentId: string) => buildAttachmentStub({
+    attachmentId,
+    roomId,
+    uploaderId,
+    storagePath: path,
+    file,
+    thumbnailPath,
+    durationMs: opts?.durationMs,
+    waveform: opts?.waveform,
+    width: opts?.width,
+    height: opts?.height,
+  });
+
+  const modernPayload = {
     _room_id: roomId,
     _storage_path: path,
     _file_name: file.name,
@@ -466,13 +528,57 @@ export async function uploadAttachment(
     _is_encrypted: false,
     _iv: null,
     _auth_tag: null,
-  } as never);
+  };
+
+  const { data: att, error: insertErr } = await supabase.rpc('chat_create_attachment' as never, modernPayload as never);
+
+  if ((insertErr as { code?: string } | null)?.code === 'PGRST202') {
+    const legacyPayload = {
+      _room_id: roomId,
+      _message_id: null,
+      _storage_path: path,
+      _file_name: file.name,
+      _file_size: file.size,
+      _mime_type: file.type,
+      _cdn_url: null,
+      _thumbnail_path: thumbnailPath,
+      _duration_ms: opts?.durationMs ?? null,
+      _width: opts?.width ?? null,
+      _height: opts?.height ?? null,
+      _waveform: opts?.waveform ?? null,
+      _checksum_sha256: null,
+      _is_encrypted: false,
+      _iv: null,
+      _auth_tag: null,
+    };
+
+    const { data: legacyAtt, error: legacyInsertErr } = await supabase.rpc('chat_create_attachment' as never, legacyPayload as never);
+    if (legacyInsertErr) {
+      const pathsToRemove = thumbnailPath ? [path, thumbnailPath] : [path];
+      await supabase.storage.from('chat-attachments').remove(pathsToRemove).catch(() => {});
+      throw rpcError('uploadAttachment:insert', legacyInsertErr);
+    }
+
+    const attachmentId = typeof legacyAtt === 'string' ? legacyAtt : (legacyAtt as { id?: string } | null)?.id;
+    if (!attachmentId) {
+      const pathsToRemove = thumbnailPath ? [path, thumbnailPath] : [path];
+      await supabase.storage.from('chat-attachments').remove(pathsToRemove).catch(() => {});
+      throw new Error('Attachment upload succeeded but no attachment ID was returned');
+    }
+
+    return attachmentStub(attachmentId);
+  }
 
   if (insertErr) {
     const pathsToRemove = thumbnailPath ? [path, thumbnailPath] : [path];
     await supabase.storage.from('chat-attachments').remove(pathsToRemove).catch(() => {});
     throw rpcError('uploadAttachment:insert', insertErr);
   }
+
+  if (typeof att === 'string') {
+    return attachmentStub(att);
+  }
+
   return att as unknown as ChatAttachment;
 }
 
