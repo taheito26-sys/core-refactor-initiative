@@ -444,6 +444,11 @@ export default function ChatWorkspacePage() {
     />
   ) : null;
 
+  // ── Privacy dashboard overlay (Phase 25) ────────────────────────────────
+  const privacyPanel = showPrivacyDashboard ? (
+    <PrivacyDashboard onClose={() => setShowPrivacyDashboard(false)} />
+  ) : null;
+
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
