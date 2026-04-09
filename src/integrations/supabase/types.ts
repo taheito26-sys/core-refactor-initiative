@@ -3596,6 +3596,24 @@ export type Database = {
       }
       chat_get_privacy_settings: { Args: never; Returns: Json }
       chat_get_qatar_market_room: { Args: never; Returns: string }
+      chat_get_room_members: {
+        Args: { _room_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          joined_at: string
+          last_read_at: string
+          last_read_message_id: string
+          notification_level: string
+          role: Database["public"]["Enums"]["chat_member_role"]
+          room_id: string
+          user_id: string
+        }[]
+      }
       chat_get_rooms: {
         Args: never
         Returns: {
