@@ -32,6 +32,7 @@ import { ReplyPreview } from '../components/ReplyPreview';
 import { RoomInfoPanel } from '../components/RoomInfoPanel';
 import { ImageLightbox } from '../components/ImageLightbox';
 import { ForwardMessageModal } from '../components/ForwardMessageModal';
+import { NewChatModal } from '../components/NewChatModal';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
@@ -76,6 +77,7 @@ export default function ChatWorkspacePage() {
 
   // ── Forward state (Phase 12) ──────────────────────────────────────────
   const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
+  const [showNewChat, setShowNewChat] = useState(false);
 
   // URL → room/message
   useEffect(() => {
@@ -405,6 +407,19 @@ export default function ChatWorkspacePage() {
     />
   ) : null;
 
+  // ── New chat modal ──────────────────────────────────────────────────────
+  const newChatModal = showNewChat ? (
+    <NewChatModal
+      meId={meId}
+      onSelectRoom={(roomId) => {
+        setActiveRoom(roomId);
+        if (isMobile) setMobilePane('thread');
+        qc.invalidateQueries({ queryKey: ROOMS_KEY });
+      }}
+      onClose={() => setShowNewChat(false)}
+    />
+  ) : null;
+
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
@@ -413,12 +428,14 @@ export default function ChatWorkspacePage() {
         {lightbox}
         {roomInfo}
         {forwardModal}
+        {newChatModal}
         {mobilePane === 'list' ? (
           <div className="flex flex-col flex-1 min-w-0 h-full chat-pane-enter-left">
             <ConversationSidebar
               rooms={rooms}
               activeRoomId={activeRoomId}
               onSelectRoom={handleSelectRoom}
+              onNewChat={() => setShowNewChat(true)}
               isLoading={roomsQuery.isLoading}
               meId={meId}
             />
@@ -444,12 +461,14 @@ export default function ChatWorkspacePage() {
       {lightbox}
       {roomInfo}
       {forwardModal}
+      {newChatModal}
 
       {(showSidebar || !isMobile) && (
         <ConversationSidebar
           rooms={rooms}
           activeRoomId={activeRoomId}
           onSelectRoom={(id) => setActiveRoom(id)}
+          onNewChat={() => setShowNewChat(true)}
           isLoading={roomsQuery.isLoading}
           meId={meId}
         />

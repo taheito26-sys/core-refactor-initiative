@@ -11,6 +11,7 @@ interface Props {
   rooms:        ChatRoomListItem[];
   activeRoomId: string | null;
   onSelectRoom: (id: string) => void;
+  onNewChat:    () => void;
   isLoading:    boolean;
   meId:         string;
 }
@@ -48,7 +49,7 @@ function smartPreview(preview: string, type?: string): string {
 
 type Filter = 'all' | ChatRoomType;
 
-export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isLoading, meId }: Props) {
+export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewChat, isLoading, meId }: Props) {
   const t = useT();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -86,7 +87,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isLoadi
             )}
             {isLoading && <RefreshCw className="h-3 w-3 text-muted-foreground animate-spin" />}
           </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-accent">
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-accent" onClick={onNewChat}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
