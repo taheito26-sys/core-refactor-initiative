@@ -193,7 +193,12 @@ export function RoomInfoPanel({ room, onClose }: Props) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Members</span>
-                <span className="text-xs font-semibold text-foreground">{members.length || room.member_count || 0}</span>
+                <span className="text-xs font-semibold text-foreground">
+                  {members.length || room.member_count || 0}
+                  {!room.is_direct && onlineCount > 0 && (
+                    <span className="text-emerald-500 ml-1">({onlineCount} online)</span>
+                  )}
+                </span>
               </div>
             </div>
           </div>
