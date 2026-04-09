@@ -72,6 +72,7 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
       style={{ opacity: config.opacity }}
       data-watermark-hash={btoa(watermarkText).slice(0, 16)}
       data-watermark-density={density}
+      data-watermark="true"
     >
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <defs>
