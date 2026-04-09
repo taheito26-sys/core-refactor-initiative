@@ -369,6 +369,7 @@ export default function ChatWorkspacePage() {
         <CallOverlay webrtc={webrtc} />
         {lightbox}
         {roomInfo}
+        {forwardModal}
         {mobilePane === 'list' ? (
           <ConversationSidebar
             rooms={rooms}
