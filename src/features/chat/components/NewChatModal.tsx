@@ -36,10 +36,9 @@ export function NewChatModal({ meId, onSelectRoom, onClose }: Props) {
     (async () => {
       setLoading(true);
       const { data, error } = await supabase
-        .from('profiles')
+        .from('merchant_profiles')
         .select('user_id, display_name, merchant_id, avatar_url')
         .neq('user_id', meId)
-        .not('merchant_id', 'is', null)
         .order('display_name');
       if (!error && data) {
         setMerchants(data as MerchantEntry[]);
