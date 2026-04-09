@@ -81,6 +81,7 @@ export default function ChatWorkspacePage() {
   // ── Forward state (Phase 12) ──────────────────────────────────────────
   const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showPrivacyDashboard, setShowPrivacyDashboard] = useState(false);
 
   // URL → room/message
   useEffect(() => {
