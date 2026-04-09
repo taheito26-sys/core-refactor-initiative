@@ -346,6 +346,17 @@ export interface ChatExpiryCleanupResult {
   ran_at: string;
 }
 
+export interface ChatTranscriptEntry {
+  message_id: string;
+  room_id: string;
+  sender_id: string;
+  sender_name: string;
+  type: ChatMessageType;
+  content: string;
+  metadata: ChatMessageMetadata;
+  created_at: string;
+}
+
 // ── Optimistic message ─────────────────────────────────────────────────────
 export interface OptimisticMessage extends ChatMessage {
   _optimistic: true;

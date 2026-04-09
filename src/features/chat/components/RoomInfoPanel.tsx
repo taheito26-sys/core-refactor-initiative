@@ -12,7 +12,8 @@ import { EncryptionBanner } from './EncryptionIndicator';
 import { RetentionSection } from './RetentionIndicator';
 import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
 import { useQuery } from '@tanstack/react-query';
-import { getRoomMembers } from '../api/chat';
+import { exportRoomTranscript, getRoomMembers } from '../api/chat';
+import { toast } from 'sonner';
 
 interface Props {
   room: ChatRoomListItem;
@@ -60,10 +61,50 @@ export function RoomInfoPanel({ room, onClose }: Props) {
     staleTime: 30_000,
   });
   const members = membersQuery.data ?? [];
+  const exportAllowed = !(policy?.disable_export ?? false);
 
   const encryptionMode = room.room_type === 'merchant_private' ? 'client_e2ee' as const
     : room.room_type === 'merchant_client' ? 'server_e2ee' as const
     : 'tls_only' as const;
+
+  const handleExportTranscript = async () => {
+    if (!exportAllowed) {
+      toast.error('Export is disabled for this room');
+      return;
+    }
+
+    try {
+      const transcript = await exportRoomTranscript(room.room_id);
+      const lines = transcript.map((entry) => {
+        const ts = new Date(entry.created_at).toISOString();
+        const sender = entry.sender_name || entry.sender_id.slice(0, 8);
+        const body = entry.content?.trim() || `[${entry.type}]`;
+        return `[${ts}] ${sender}: ${body}`;
+      });
+
+      const header = [
+        `Room: ${displayName}`,
+        `Exported: ${new Date().toISOString()}`,
+        `Messages: ${transcript.length}`,
+        '',
+      ].join('\n');
+
+      const blob = new Blob([`${header}${lines.join('\n')}\n`], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = displayName.replace(/[^a-z0-9-_]+/gi, '_').replace(/^_+|_+$/g, '') || 'chat_room';
+      a.href = url;
+      a.download = `${safeName}_transcript.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Transcript exported');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to export transcript';
+      toast.error(message);
+    }
+  };
 
   return (
     <>
@@ -181,6 +222,19 @@ export function RoomInfoPanel({ room, onClose }: Props) {
             <button className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground">
               <BellOff className="h-4 w-4 text-muted-foreground" />
               Mute notifications
+            </button>
+            <button
+              onClick={() => { void handleExportTranscript(); }}
+              disabled={!exportAllowed}
+              className={cn(
+                'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm transition-colors',
+                exportAllowed
+                  ? 'hover:bg-muted text-foreground'
+                  : 'text-muted-foreground/50 cursor-not-allowed',
+              )}
+            >
+              <Download className="h-4 w-4 text-muted-foreground" />
+              Export transcript
             </button>
             <button className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground">
               <Archive className="h-4 w-4 text-muted-foreground" />

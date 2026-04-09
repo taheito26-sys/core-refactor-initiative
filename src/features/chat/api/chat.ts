@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type {
   ChatMessage, ChatRoomListItem, ChatRoomMember, ChatAttachment,
   ChatCall, ChatCallParticipant, ChatReaction, SendMessageInput,
-  ChatPresence, IceConfig, ChatMarketOffer, CreateMarketOfferInput, ChatExpiryCleanupResult,
+  ChatPresence, IceConfig, ChatMarketOffer, CreateMarketOfferInput, ChatExpiryCleanupResult, ChatTranscriptEntry,
 } from '../types';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -116,12 +116,12 @@ export async function forwardMessage(
   return data as unknown as ChatMessage;
 }
 
-export async function exportRoomTranscript(roomId: string): Promise<ChatMessage[]> {
+export async function exportRoomTranscript(roomId: string): Promise<ChatTranscriptEntry[]> {
   const { data, error } = await supabase.rpc('chat_export_room_transcript' as never, {
     _room_id: roomId,
   } as never);
   if (error) throw rpcError('exportRoomTranscript', error);
-  return (data ?? []) as unknown as ChatMessage[];
+  return (data ?? []) as unknown as ChatTranscriptEntry[];
 }
 
 export async function runExpiryCleanup(): Promise<ChatExpiryCleanupResult> {
