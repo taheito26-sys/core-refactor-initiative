@@ -298,9 +298,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       await endCall(cid, 'ended').catch(() => {});
     }
     cleanup();
-    if (dur > 0 && cid) sendCallSummary('ended', dur, cid);
     transitionToEnd('ended', 'ended');
-  }, [cleanup, transitionToEnd, sendCallSummary]);
+  }, [cleanup, transitionToEnd]);
 
   // ── MUTE ──────────────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
