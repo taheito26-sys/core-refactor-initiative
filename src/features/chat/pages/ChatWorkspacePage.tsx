@@ -320,8 +320,9 @@ export default function ChatWorkspacePage() {
           onToggleSidebar={onBack ?? (() => setShowSidebar((v) => !v))}
           onSearchToggle={() => setShowSearch((v) => !v)}
           onViewInfo={() => setShowRoomInfo((v) => !v)}
-          onMuteToggle={() => { /* TODO: mute/unmute room */ }}
-          onClearChat={() => { /* TODO: clear chat */ }}
+          onMuteToggle={handleMuteToggle}
+          onClearChat={handleClearChat}
+          isMuted={isRoomMuted}
           {...headerCallProps}
         />
 
