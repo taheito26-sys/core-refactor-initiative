@@ -171,7 +171,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           const cid = callIdRef.current;
           if (cid) endCall(cid, 'failed').catch(() => {});
           cleanup();
-          sendCallSummary('failed', dur, cid);
           transitionToEnd('failed', 'connection_lost');
         }
       }
