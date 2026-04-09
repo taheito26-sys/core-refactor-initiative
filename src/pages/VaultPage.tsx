@@ -432,9 +432,17 @@ export default function VaultPage() {
     const state = getCurrentState() as any;
     const trades = state.trades || [];
     if (!trades.length) { toast.error(t.lang === 'ar' ? 'لا توجد صفقات للتصدير' : 'No trades to export'); return; }
-    const headers = ['id', 'ts', 'amountUSDT', 'sellPriceQAR', 'feeQAR', 'note', 'voided'];
+    const headers = ['id', 'ts', 'amountUSDT', `sellPrice${baseFiat}`, `fee${baseFiat}`, 'note', 'voided'];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = trades.map((t: any) => headers.map(h => JSON.stringify(t[h] ?? '')).join(','));
+    const rows = trades.map((trade: any) => ([
+      trade.id ?? '',
+      trade.ts ?? trade.created_at ?? '',
+      trade.amountUSDT ?? trade.quantity ?? '',
+      trade.sellPriceQAR ?? trade.unit_price ?? '',
+      trade.feeQAR ?? trade.fee ?? '',
+      trade.note ?? trade.notes ?? '',
+      trade.voided ?? trade.status ?? '',
+    ]).map((cell) => JSON.stringify(cell ?? '')).join(','));
     downloadBlob([headers.join(','), ...rows].join('\n'), `trades-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
     setExportStatus('success');
     toast.success(t.lang === 'ar' ? 'تم تصدير CSV' : 'CSV exported');
@@ -457,12 +465,12 @@ export default function VaultPage() {
       tr.amountUSDT ?? tr.quantity ?? '', tr.sellPriceQAR ?? tr.unit_price ?? '',
       tr.feeQAR ?? tr.fee ?? '', tr.note ?? tr.notes ?? '', tr.voided ?? tr.status ?? ''
     ].join('\t'));
-    const batchHeaders = ['ID', 'Date', 'Quantity', 'Price', 'Source', 'Note'];
+    const batchHeaders = ['ID', 'Date', 'Quantity USDT', `Buy Price ${baseFiat}`, 'Source', 'Note'];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchRows = batches.map((b: any) => [
       b.id || '', new Date(b.ts || b.acquired_at || b.created_at || 0).toLocaleString(),
-      b.qty ?? b.quantity ?? '', b.priceQAR ?? b.unit_cost ?? '',
-      b.source ?? b.notes ?? '', b.note ?? ''
+      b.initialUSDT ?? b.qty ?? b.quantity ?? '', b.buyPriceQAR ?? b.priceQAR ?? b.price ?? b.unit_cost ?? '',
+      b.source ?? b.supplier ?? b.notes ?? '', b.note ?? ''
     ].join('\t'));
     const content = `TRADES\n${tradeHeaders.join('\t')}\n${tradeRows.join('\n')}\n\nBATCHES\n${batchHeaders.join('\t')}\n${batchRows.join('\n')}`;
     downloadBlob(content, `p2p-tracker-${new Date().toISOString().slice(0, 10)}.tsv`, 'text/tab-separated-values');

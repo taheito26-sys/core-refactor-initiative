@@ -3,7 +3,7 @@ import type { FiatCurrency } from './currency';
 
 export interface P2PPrices {
   egpToQar: number; // 1 EGP = X QAR
-  qareToEgp: number; // 1 QAR = X EGP
+  qarToEgp: number; // 1 QAR = X EGP
   timestamp: number;
 }
 
@@ -32,7 +32,7 @@ export const useP2PRatesStore = create<P2PRatesStore>((set, get) => ({
 
 /**
  * Fetch latest P2P EGP/QAR rates from market data.
- * Calculates egpToQar (1 EGP = X QAR) and qareToEgp (1 QAR = X EGP) inverse.
+ * Calculates egpToQar (1 EGP = X QAR) and qarToEgp (1 QAR = X EGP) inverse.
  * Falls back to last known rate on error.
  */
 export async function fetchP2PPrices(): Promise<P2PPrices> {
@@ -58,7 +58,7 @@ export async function fetchP2PPrices(): Promise<P2PPrices> {
 
     const rates: P2PPrices = {
       egpToQar,
-      qareToEgp: 1 / egpToQar,
+      qarToEgp: 1 / egpToQar,
       timestamp: Date.now(),
     };
 
@@ -75,7 +75,7 @@ export async function fetchP2PPrices(): Promise<P2PPrices> {
     // Ultimate fallback: 1 EGP ≈ 0.06 QAR (approximate historical rate)
     return {
       egpToQar: 0.06,
-      qareToEgp: 16.67,
+      qarToEgp: 16.67,
       timestamp: Date.now(),
     };
   }
@@ -115,7 +115,7 @@ export async function convertCurrency(
 
   // QAR ↔ EGP conversions
   if (from === 'QAR' && to === 'EGP') {
-    return amount * rates.qareToEgp;
+    return amount * rates.qarToEgp;
   }
   if (from === 'EGP' && to === 'QAR') {
     return amount * rates.egpToQar;

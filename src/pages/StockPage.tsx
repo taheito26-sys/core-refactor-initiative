@@ -56,6 +56,10 @@ export default function StockPage() {
   const [batchDate, setBatchDate] = useState(nowInput());
   const baseFiat = settings.baseFiatCurrency || 'QAR';
   const [batchMode, setBatchMode] = useState<'QAR' | 'EGP' | 'USDT'>(baseFiat);
+  const activeBatchFiat = batchMode === 'USDT' ? baseFiat : batchMode;
+  const batchEntryModeLabel = baseFiat === 'EGP' ? t('entryModeUsdtEgp') : t('entryModeUsdtQar');
+  const totalPaidLabel = baseFiat === 'EGP' ? t('totalEgpPaid') : t('totalQarPaid');
+  const totalCalcLabel = activeBatchFiat === 'EGP' ? t('totalEgpCalc') : t('totalQarCalc');
   const [batchEntryMode, setBatchEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
   const [batchUsdtQty, setBatchUsdtQty] = useState('');
   const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
@@ -95,6 +99,10 @@ export default function StockPage() {
   useEffect(() => {
     if (settings.searchQuery) update({ searchQuery: '' });
   }, []); // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setBatchMode((current) => (current === 'USDT' ? current : baseFiat));
+  }, [baseFiat]);
 
   // Derive account balances for funding source selector
   const cashAccounts = state.cashAccounts || [];
@@ -358,8 +366,8 @@ export default function StockPage() {
       }, 2500);
     } else {
       const deductMsg = fundingAccName
-         ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
-         : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
+         ? ` · ${fmtTotal(batchCostQAR)} ${activeBatchFiat} ${t('deductedFromAccount')} "${fundingAccName}"`
+         : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} ${activeBatchFiat} ${t('deductedFromCash')}` : '';
       setBatchMsg(t('batchAdded') + deductMsg);
     }
   };
@@ -755,7 +763,7 @@ export default function StockPage() {
                     {t('entryModePriceVol')}
                   </button>
                   <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined }}>
-                    {t('entryModeUsdtQar')}
+                    {batchEntryModeLabel}
                   </button>
                   <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined }}>
                     {t('entryModeUsdtPrice')}
@@ -793,7 +801,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('totalQarPaid')}</div>
+                      <div className="lbl">{totalPaidLabel}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                   </div>
@@ -822,9 +830,9 @@ export default function StockPage() {
                   </div>
                   {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
                     <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
-                      <span style={{ color: 'var(--t2)' }}>{t('totalQarCalc')} </span>
+                      <span style={{ color: 'var(--t2)' }}>{totalCalcLabel} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
-                        {fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} QAR
+                        {fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} {activeBatchFiat}
                       </span>
                     </div>
                   )}
@@ -982,13 +990,13 @@ export default function StockPage() {
                 <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 10 }}>✅</div>
                 <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: 'var(--good)' }}>{t('batchAdded')}</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
-                  {fmtU(batchConfirmDetails.qty)} USDT @ {fmtP(batchConfirmDetails.price)} QAR
+                  {fmtU(batchConfirmDetails.qty)} USDT @ {fmtP(batchConfirmDetails.price)} {activeBatchFiat}
                 </div>
                 <div style={{ fontSize: 12, textAlign: 'left', background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 10, padding: '12px 14px', display: 'grid', gap: 8, marginBottom: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('supplier')}</span><strong>{batchConfirmDetails.source}</strong></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('total')} USDT</span><strong className="mono">{fmtU(batchConfirmDetails.qty)} USDT</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t(getCurrencyLabel('buyPrice', batchMode as any))}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} QAR</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} QAR</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t(getCurrencyLabel('buyPrice', batchMode as any))}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} {activeBatchFiat}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} {activeBatchFiat}</strong></div>
                   {batchConfirmDetails.fundingAccName && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('fundingSourceLbl')}</span><strong style={{ maxWidth: '60%', textAlign: 'right' }}>{batchConfirmDetails.fundingAccName}</strong></div>
                   )}
@@ -1018,7 +1026,7 @@ export default function StockPage() {
                     <div className="lbl">{t('entryModeLabel')}</div>
                     <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
                       <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModePriceVol')}</button>
-                      <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtQar')}</button>
+                      <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{batchEntryModeLabel}</button>
                       <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtPrice')}</button>
                     </div>
                   </div>
@@ -1045,7 +1053,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('totalQarPaid')}</div>
+                      <div className="lbl">{totalPaidLabel}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                     {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
@@ -1066,8 +1074,8 @@ export default function StockPage() {
                     </div>
                     {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
                       <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
-                        <span style={{ color: 'var(--t2)' }}>{t('totalQarCalc')} </span>
-                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} QAR</span>
+                        <span style={{ color: 'var(--t2)' }}>{totalCalcLabel} </span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} {activeBatchFiat}</span>
                       </div>
                     )}
                   </>)}

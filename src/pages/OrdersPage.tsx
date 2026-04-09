@@ -93,6 +93,11 @@ export default function OrdersPage() {
   const [saleEntryMode, setSaleEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
   const baseFiat = settings.baseFiatCurrency || 'QAR';
   const [saleMode, setSaleMode] = useState<'USDT' | 'QAR' | 'EGP'>('USDT');
+  const activeSaleFiat = saleMode === 'USDT' ? baseFiat : saleMode;
+  const saleEntryModeLabel = baseFiat === 'EGP' ? t('entryModeUsdtEgp') : t('entryModeUsdtQar');
+  const totalReceivedLabel = activeSaleFiat === 'EGP' ? t('totalEgpReceived') : t('totalQarReceived');
+  const feeLabel = activeSaleFiat === 'EGP' ? t('feeEgpLabel') : t('feeQarLabel');
+  const autoCalcTotalLabel = activeSaleFiat === 'EGP' ? t('autoCalcTotalEgp') : t('autoCalcTotalQar');
   const [saleUsdtQty, setSaleUsdtQty] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [saleSell, setSaleSell] = useState('');
@@ -205,6 +210,10 @@ export default function OrdersPage() {
       setStockOverrideConfirmed(false);
     }
   }, [isInsufficientStock]);
+
+  useEffect(() => {
+    setSaleMode((current) => (current === 'USDT' ? current : baseFiat));
+  }, [baseFiat]);
 
   // Sync canonical sale quantity into first allocation's allocatedUsdt for profit_share and sales_deal 50/50
   useEffect(() => {
@@ -3170,7 +3179,7 @@ export default function OrdersPage() {
                   <div className="lbl">{t('inputMode')}</div>
                   <div className="modeToggle">
                     <button className={saleEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('price_vol')} style={mobileActionStyle}>{t('entryModePriceVol')}</button>
-                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')} style={mobileActionStyle}>{t('entryModeUsdtQar')}</button>
+                    <button className={saleEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_total')} style={mobileActionStyle}>{saleEntryModeLabel}</button>
                     <button className={saleEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => setSaleEntryMode('qty_price')} style={mobileActionStyle}>{t('entryModeUsdtPrice')}</button>
                   </div>
                 </div>
@@ -3199,7 +3208,7 @@ export default function OrdersPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('totalQarReceived')}</div>
+                      <div className="lbl">{totalReceivedLabel}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleAmount) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
@@ -3221,7 +3230,7 @@ export default function OrdersPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
-                          {t('autoCalcTotalQar')}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} QAR
+                          {autoCalcTotalLabel}: {fmtTotal(Number(saleUsdtQty) * Number(saleSell))} {activeSaleFiat}
                         </div>
                       )}
                     </div>
@@ -3247,7 +3256,7 @@ export default function OrdersPage() {
                       </div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
+                      <div className="lbl">{feeLabel}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
@@ -3255,7 +3264,7 @@ export default function OrdersPage() {
 
                 {priceMode === 'fifo' && (
                   <div className="field2">
-                    <div className="lbl">{t('feeQarLabel') || 'Fee (QAR)'}</div>
+                    <div className="lbl">{feeLabel}</div>
                     <div className="inputBox"><input inputMode="decimal" placeholder="0" value={saleFee} onChange={numericOnly(setSaleFee)} style={mobileInputStyle} /></div>
                   </div>
                 )}
@@ -4304,14 +4313,14 @@ export default function OrdersPage() {
                   <div className="inputBox"><input inputMode="decimal" value={editQty} onChange={numericOnly(setEditQty)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
                 <div className="field2">
-                  <div className="lbl">{t('sellPriceQar')}</div>
+                  <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
                   <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={numericOnly(setEditSell)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
               </div>
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
-                  <div className="lbl">{t('feeQarLabel')}</div>
+                  <div className="lbl">{feeLabel}</div>
                   <div className="inputBox"><input inputMode="decimal" value={editFee} onChange={numericOnly(setEditFee)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6, gap: 10 }}>
@@ -4754,13 +4763,13 @@ export default function OrdersPage() {
                   <div className="inputBox"><input inputMode="decimal" value={editDealQty} onChange={numericOnly(setEditDealQty)} style={mobileInputStyle} /></div>
                 </div>
                 <div className="field2">
-                  <div className="lbl">{t('sellPriceQar')}</div>
+                  <div className="lbl">{t(getCurrencyLabel('sellPrice', baseFiat as any))}</div>
                   <div className="inputBox"><input inputMode="decimal" value={editDealSell} onChange={numericOnly(setEditDealSell)} style={mobileInputStyle} /></div>
                 </div>
               </div>
 
               <div className="field2" style={{ marginBottom: 10 }}>
-                <div className="lbl">{t('feeQarLabel')}</div>
+                <div className="lbl">{baseFiat === 'EGP' ? t('feeEgpLabel') : t('feeQarLabel')}</div>
                 <div className="inputBox"><input inputMode="decimal" value={editDealFee} onChange={numericOnly(setEditDealFee)} style={mobileInputStyle} /></div>
               </div>
 

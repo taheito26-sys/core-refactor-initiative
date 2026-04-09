@@ -2,6 +2,16 @@
 
 ## Overview
 
+## Audit Addendum
+
+- Audited on April 9, 2026 against the current codebase.
+- Follow-up fixes were required after the original implementation:
+  - corrected the inverse P2P rate property name to `qarToEgp`
+  - removed remaining hardcoded `QAR` labels from stock and orders flows that should follow `baseFiatCurrency`
+  - fixed vault and admin tracker exports to read actual tracker batch fields (`initialUSDT`, `buyPriceQAR`, `source`)
+  - fixed admin tracker corrections to write canonical batch fields instead of stale `qty` / `price` aliases
+- Remaining limitations still apply where legacy data models keep canonical `QAR` field names internally.
+
 This document details the complete implementation of EGP (Egyptian Pound) as a first-class fiat currency in the P2P trading platform. Previously, QAR (Qatari Riyal) was the only supported fiat currency. The EGP implementation enables users to select their preferred base fiat currency and have all monetary displays, calculations, and transactions reflect that choice dynamically.
 
 **Status:** ✅ Complete and merged to main  
