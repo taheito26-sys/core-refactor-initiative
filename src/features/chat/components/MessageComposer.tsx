@@ -1,7 +1,7 @@
 // ─── MessageComposer — Modern WhatsApp-style — All 40 phases ─────────────
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Send, Paperclip, Mic, X, Clock, Eye,
+  Send, Paperclip, Mic, X, Clock, Eye, Shield,
   Camera, Plus, Timer, EyeOff, Smile, Droplets,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,7 @@ interface Props {
   }) => void;
   onTyping: () => void;
   meId:     string;
+  onPrivacyDashboard?: () => void;
 }
 
 // ── Voice recorder ─────────────────────────────────────────────────────────
@@ -256,7 +257,7 @@ async function createMediaThumbnail(file: File): Promise<Blob | null> {
   return null;
 }
 
-export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping, meId }: Props) {
+export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping, meId, onPrivacyDashboard }: Props) {
   const [content, setContent]       = useState('');
   const [viewOnce, setViewOnce]     = useState(false);
   const [watermark, setWatermark]   = useState(false);
@@ -709,6 +710,17 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
             </>
           )}
         </div>
+
+        {/* Privacy & Security button */}
+        {onPrivacyDashboard && (
+          <button
+            onClick={onPrivacyDashboard}
+            className="h-10 w-10 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
+            title="Privacy & Security"
+          >
+            <Shield className="h-5 w-5" />
+          </button>
+        )}
 
         {/* Text input */}
         <div className="flex-1 relative">
