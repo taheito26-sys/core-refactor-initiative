@@ -337,7 +337,7 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
     );
   }
 
-  const hasActiveMode = viewOnce || expiresSec;
+  const hasActiveMode = viewOnce || expiresSec || watermark;
 
   // ── Main composer ────────────────────────────────────────────────────────
   return (
