@@ -11,7 +11,7 @@ interface Props {
   onImageOpen?: (src: string) => void;
 }
 
-export function AttachmentPreview({ message, isMe }: Props) {
+export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<ChatAttachment | null>(message.attachment ?? null);
   const [viewed,    setViewed]    = useState(false);
