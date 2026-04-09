@@ -679,6 +679,22 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                               </div>
                             )}
 
+                            {m.metadata?.forwarded_from && (
+                              <div className={cn(
+                                'mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                isMe ? 'bg-background/30 text-muted-foreground' : 'bg-muted/60 text-muted-foreground',
+                              )}>
+                                <Forward className="h-2.5 w-2.5" />
+                                <span>
+                                  Forwarded
+                                  {m.metadata.forwarded_from.sender_name ? ` from ${m.metadata.forwarded_from.sender_name}` : ''}
+                                </span>
+                                {typeof m.metadata.forward_hop_count === 'number' && m.metadata.forward_hop_count > 1 && (
+                                  <span className="opacity-70">· hop {m.metadata.forward_hop_count}</span>
+                                )}
+                              </div>
+                            )}
+
                             {/* Message content */}
                             {isDeleted ? (
                               <span className="text-[13px] text-muted-foreground italic flex items-center gap-1">

@@ -7,13 +7,14 @@ import { ShieldAlert, Camera, EyeOff } from 'lucide-react';
 interface Props {
   /** Phase 6: Screenshot was detected */
   screenshotDetected?: boolean;
+  screenshotNotice?: string | null;
   /** Phase 9: Content blurred because window lost focus */
   isBlurred?: boolean;
   /** Phase 9: "CONFIDENTIAL" flash overlay for protected rooms */
   confidentialFlash?: boolean;
 }
 
-export function ScreenshotProtectionOverlay({ screenshotDetected, isBlurred, confidentialFlash }: Props) {
+export function ScreenshotProtectionOverlay({ screenshotDetected, screenshotNotice, isBlurred, confidentialFlash }: Props) {
   return (
     <>
       {/* Phase 6: Screenshot detection alert */}
@@ -23,7 +24,9 @@ export function ScreenshotProtectionOverlay({ screenshotDetected, isBlurred, con
             <Camera className="h-6 w-6 animate-pulse" />
             <div>
               <p className="text-sm font-bold">Screenshot Detected</p>
-              <p className="text-xs opacity-80">This action has been logged</p>
+              <p className="text-xs opacity-80">
+                {screenshotNotice ? `Source: ${screenshotNotice}` : 'This action has been logged'}
+              </p>
             </div>
           </div>
         </div>

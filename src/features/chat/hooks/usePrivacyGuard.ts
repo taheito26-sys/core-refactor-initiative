@@ -9,6 +9,20 @@ import {
   removeScreenshotProtection,
   logPrivacyEvent,
 } from '../lib/privacy-engine';
+import { getNativePlugin, isNativeApp } from '@/platform/runtime';
+
+type ListenerHandle = { remove?: () => Promise<void> | void };
+
+type AppPlugin = {
+  addListener?: (
+    eventName: 'pause' | 'resume' | 'appStateChange',
+    listener: (payload?: { isActive?: boolean }) => void,
+  ) => Promise<ListenerHandle> | ListenerHandle;
+};
+
+type PrivacySignalDetail = {
+  source?: string;
+};
 
 interface UsePrivacyGuardOptions {
   userId: string;
@@ -28,19 +42,44 @@ export function usePrivacyGuard({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isBlurred, setIsBlurred] = useState(false);
   const [screenshotDetected, setScreenshotDetected] = useState(false);
+  const [screenshotNotice, setScreenshotNotice] = useState<string | null>(null);
+
+  const raiseScreenshotAlert = useCallback((source: string) => {
+    setScreenshotDetected(true);
+    setScreenshotNotice(source);
+    void logPrivacyEvent(userId, 'screenshot_detected', roomId, {
+      source,
+      user_agent: navigator.userAgent,
+      runtime: isNativeApp() ? 'native' : 'web',
+    });
+    window.setTimeout(() => {
+      setScreenshotDetected(false);
+      setScreenshotNotice(null);
+    }, 3000);
+  }, [roomId, userId]);
 
   // Phase 6: Screenshot key detection
   useEffect(() => {
     if (!screenshotProtection) return;
     return detectScreenshotKeys(() => {
-      setScreenshotDetected(true);
-      logPrivacyEvent(userId, 'screenshot_detected', roomId, {
-        user_agent: navigator.userAgent,
-      });
-      // Auto-dismiss after 3s
-      setTimeout(() => setScreenshotDetected(false), 3000);
+      raiseScreenshotAlert('keyboard-shortcut');
     });
-  }, [screenshotProtection, userId, roomId]);
+  }, [raiseScreenshotAlert, screenshotProtection]);
+
+  // Native/web custom privacy bridge signals
+  useEffect(() => {
+    if (!screenshotProtection) return;
+
+    const handleCustomSignal = (event: Event) => {
+      const detail = (event as CustomEvent<PrivacySignalDetail>).detail;
+      raiseScreenshotAlert(detail?.source ?? 'runtime-signal');
+    };
+
+    window.addEventListener('chat-privacy-signal', handleCustomSignal as EventListener);
+    return () => {
+      window.removeEventListener('chat-privacy-signal', handleCustomSignal as EventListener);
+    };
+  }, [raiseScreenshotAlert, screenshotProtection]);
 
   // Phase 8: CSS protection on container
   useEffect(() => {
@@ -62,6 +101,37 @@ export function usePrivacyGuard({
     );
   }, [blurOnLoseFocus, userId, roomId]);
 
+  // Native app lifecycle blur protection
+  useEffect(() => {
+    if (!blurOnLoseFocus || !isNativeApp()) return;
+
+    const appPlugin = getNativePlugin<AppPlugin>('App');
+    if (!appPlugin?.addListener) return;
+
+    const handles: ListenerHandle[] = [];
+    const attach = async () => {
+      handles.push(await appPlugin.addListener?.('pause', () => {
+        setIsBlurred(true);
+        void logPrivacyEvent(userId, 'native_pause_blur', roomId, { source: 'pause' });
+      }) ?? {});
+      handles.push(await appPlugin.addListener?.('resume', () => {
+        setIsBlurred(false);
+      }) ?? {});
+      handles.push(await appPlugin.addListener?.('appStateChange', (payload) => {
+        const active = payload?.isActive ?? true;
+        setIsBlurred(!active);
+        if (!active) {
+          void logPrivacyEvent(userId, 'native_pause_blur', roomId, { source: 'appStateChange' });
+        }
+      }) ?? {});
+    };
+
+    void attach();
+    return () => {
+      void Promise.all(handles.map((handle) => handle.remove?.()));
+    };
+  }, [blurOnLoseFocus, roomId, userId]);
+
   // Phase 14: Block copy shortcuts
   useEffect(() => {
     if (!copyProtection) return;
@@ -81,6 +151,7 @@ export function usePrivacyGuard({
     containerRef,
     isBlurred,
     screenshotDetected,
+    screenshotNotice,
   };
 }
 

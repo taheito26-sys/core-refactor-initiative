@@ -43,6 +43,9 @@ export function ForwardMessageModal({ message, rooms, onForward, onClose }: Prop
         <div className="px-4 py-2 border-b border-border/50">
           <div className="px-3 py-2 rounded-lg bg-muted/50 border-l-[3px] border-primary/50">
             <p className="text-[11px] text-muted-foreground/70 truncate">{preview}</p>
+            {message.view_once && (
+              <p className="mt-1 text-[10px] font-semibold text-destructive">View-once messages cannot be forwarded</p>
+            )}
           </div>
         </div>
 
@@ -83,6 +86,9 @@ export function ForwardMessageModal({ message, rooms, onForward, onClose }: Prop
                 <span className="text-xs font-medium text-foreground truncate">
                   {roomName(room)}
                 </span>
+                {room.policy?.disable_export && (
+                  <span className="ml-auto text-[9px] font-semibold text-muted-foreground/60">No export</span>
+                )}
               </button>
             ))
           )}
@@ -97,10 +103,10 @@ export function ForwardMessageModal({ message, rooms, onForward, onClose }: Prop
                 onClose();
               }
             }}
-            disabled={!selected}
+            disabled={!selected || message.view_once}
             className={cn(
               'w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all',
-              selected
+              selected && !message.view_once
                 ? 'bg-primary text-primary-foreground hover:opacity-90'
                 : 'bg-muted text-muted-foreground cursor-not-allowed',
             )}

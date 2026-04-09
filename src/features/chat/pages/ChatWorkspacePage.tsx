@@ -164,7 +164,7 @@ export default function ChatWorkspacePage() {
   const webrtc = useWebRTC(activeRoomId);
 
   // ── privacy guard (Phases 6, 8, 9, 14) ─────────────────────────────────
-  const { containerRef: privacyContainerRef, isBlurred, screenshotDetected } = usePrivacyGuard({
+  const { containerRef: privacyContainerRef, isBlurred, screenshotDetected, screenshotNotice } = usePrivacyGuard({
     userId: meId,
     roomId: activeRoomId,
     screenshotProtection: privacySettings.screenshot_protection ?? false,
@@ -346,6 +346,7 @@ export default function ChatWorkspacePage() {
         {/* Phases 6, 8, 9: Screenshot/blur overlays */}
         <ScreenshotProtectionOverlay
           screenshotDetected={screenshotDetected}
+          screenshotNotice={screenshotNotice}
           isBlurred={isBlurred}
         />
 

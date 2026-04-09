@@ -14,6 +14,8 @@ import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
 import { useQuery } from '@tanstack/react-query';
 import { exportRoomTranscript, getRoomMembers } from '../api/chat';
 import { toast } from 'sonner';
+import { useAuth } from '@/features/auth/auth-context';
+import { logPrivacyEvent } from '../lib/privacy-engine';
 
 interface Props {
   room: ChatRoomListItem;
@@ -50,6 +52,7 @@ function PolicyBadge({ icon: Icon, label, enabled }: { icon: React.ElementType; 
 }
 
 export function RoomInfoPanel({ room, onClose }: Props) {
+  const { userId, merchantProfile } = useAuth();
   const config = roomTypeConfig(room.room_type);
   const Icon = config.icon;
   const displayName = resolveRoomDisplayName(room);
@@ -85,7 +88,12 @@ export function RoomInfoPanel({ room, onClose }: Props) {
       const header = [
         `Room: ${displayName}`,
         `Exported: ${new Date().toISOString()}`,
+        `Exported By: ${merchantProfile?.merchant_id || userId?.slice(0, 8) || 'unknown'}`,
         `Messages: ${transcript.length}`,
+        `Forwarding Allowed: ${policy?.disable_forwarding ? 'no' : 'yes'}`,
+        `Export Allowed: ${exportAllowed ? 'yes' : 'no'}`,
+        `Strip Sender On Forward: ${policy?.strip_forward_sender_identity ? 'yes' : 'no'}`,
+        `Retention Hours: ${policy?.retention_hours ?? 'indefinite'}`,
         '',
       ].join('\n');
 
@@ -99,6 +107,10 @@ export function RoomInfoPanel({ room, onClose }: Props) {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      void logPrivacyEvent(userId ?? '', 'room_transcript_exported', room.room_id, {
+        room_name: displayName,
+        message_count: transcript.length,
+      });
       toast.success('Transcript exported');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to export transcript';
@@ -193,6 +205,7 @@ export function RoomInfoPanel({ room, onClose }: Props) {
               <PolicyBadge icon={Eye} label="Watermark" enabled={policy?.watermark_enabled ?? false} />
               <PolicyBadge icon={Shield} label="Screenshot protection" enabled={policy?.screenshot_protection ?? false} />
               <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={!(policy?.disable_forwarding ?? false)} />
+              <PolicyBadge icon={Shield} label="Strip sender on forward" enabled={policy?.strip_forward_sender_identity ?? false} />
               <PolicyBadge icon={Copy} label="History searchable" enabled={policy?.history_searchable ?? false} />
               <PolicyBadge icon={Download} label="Export allowed" enabled={!(policy?.disable_export ?? false)} />
               <PolicyBadge icon={Timer} label="Disappearing default" enabled={!!policy?.disappearing_default_hours} />
