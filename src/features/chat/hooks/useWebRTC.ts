@@ -1,6 +1,7 @@
 // ─── useWebRTC ────────────────────────────────────────────────────────────
-// Production-hardened one-to-one voice calls for merchant_private rooms.
-// Explicit state machine, proper cleanup, ICE restart, mobile-safe.
+// Production-hardened voice/video calls for merchant_private rooms.
+// Realtime signaling (no polling), explicit state machine, video toggle,
+// proper cleanup, ICE restart, call summary messages, mobile-safe.
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
@@ -13,10 +14,10 @@ import type { ChatCall } from '../types';
 
 export type CallState =
   | 'idle'
-  | 'calling'     // outbound ring
-  | 'ringing'     // inbound ring
-  | 'connecting'  // SDP exchanged, waiting ICE
-  | 'connected'   // media flowing
+  | 'calling'      // outbound ring
+  | 'ringing'      // inbound ring
+  | 'connecting'   // SDP exchanged, waiting ICE
+  | 'connected'    // media flowing
   | 'reconnecting'
   | 'ended'
   | 'failed'
@@ -29,34 +30,40 @@ export interface UseWebRTCReturn {
   remoteStream:     MediaStream | null;
   activeCallId:     string | null;
   incomingCall:     ChatCall | null;
-  startCall:        () => Promise<void>;
+  startCall:        (video?: boolean) => Promise<void>;
   answerIncoming:   () => Promise<void>;
   declineIncoming:  () => Promise<void>;
   hangUp:           () => Promise<void>;
   toggleMute:       () => void;
+  toggleVideo:      () => void;
   isMuted:          boolean;
-  callDuration:     number;          // seconds since connected
+  isVideoEnabled:   boolean;
+  isVideoCall:      boolean;
+  callDuration:     number;
   endReason:        string | null;
 }
 
 const RECONNECT_DELAY_MS  = 2_000;
 const MAX_RECONNECT_TRIES = 5;
 const RING_TIMEOUT_MS     = 45_000;
-const END_STATE_LINGER_MS = 3_000; // show ended/failed/missed briefly
+const END_STATE_LINGER_MS = 3_000;
 
 export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const { userId } = useAuth();
-  const [callState,    setCallState]    = useState<CallState>('idle');
-  const [localStream,  setLocalStream]  = useState<MediaStream | null>(null);
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [isMuted,      setIsMuted]      = useState(false);
-  const [incomingCall, setIncomingCall]  = useState<ChatCall | null>(null);
-  const [callDuration, setCallDuration] = useState(0);
-  const [endReason,    setEndReason]    = useState<string | null>(null);
+  const [callState,      setCallState]      = useState<CallState>('idle');
+  const [localStream,    setLocalStream]    = useState<MediaStream | null>(null);
+  const [remoteStream,   setRemoteStream]   = useState<MediaStream | null>(null);
+  const [isMuted,        setIsMuted]        = useState(false);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
+  const [isVideoCall,    setIsVideoCall]    = useState(false);
+  const [incomingCall,   setIncomingCall]   = useState<ChatCall | null>(null);
+  const [callDuration,   setCallDuration]   = useState(0);
+  const [endReason,      setEndReason]      = useState<string | null>(null);
 
   const pc              = useRef<RTCPeerConnection | null>(null);
   const callIdRef       = useRef<string | null>(null);
   const localStreamRef  = useRef<MediaStream | null>(null);
+  const roomIdRef       = useRef<string | null>(roomId);
   const reconnectTries  = useRef(0);
   const ringTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const durationTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -66,6 +73,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   // Keep ref in sync with state
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
+  useEffect(() => { roomIdRef.current = roomId; }, [roomId]);
 
   const setActiveCallId   = useChatStore((s) => s.setActiveCallId);
   const storeActiveCallId = useChatStore((s) => s.activeCallId);
@@ -81,15 +89,48 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }, END_STATE_LINGER_MS);
   }, []);
 
+  // ── send call summary message to chat ─────────────────────────────────
+  const sendCallSummary = useCallback(async (
+    endState: string,
+    durationSec: number,
+    callId: string | null,
+  ) => {
+    if (!roomIdRef.current || !userId) return;
+    const eventLabel =
+      endState === 'missed' || endState === 'no_answer' ? 'missed_call' :
+      endState === 'declined' ? 'declined_call' :
+      endState === 'failed' ? 'failed_call' :
+      'call_ended';
+
+    try {
+      await supabase
+        .from('chat_messages')
+        .insert({
+          room_id: roomIdRef.current,
+          sender_id: userId,
+          type: 'call_summary' as never,
+          content: eventLabel === 'call_ended'
+            ? `Voice call · ${Math.floor(durationSec / 60)}:${(durationSec % 60).toString().padStart(2, '0')}`
+            : eventLabel === 'missed_call' ? 'Missed voice call'
+            : eventLabel === 'declined_call' ? 'Declined voice call'
+            : 'Call failed',
+          metadata: {
+            call_id: callId,
+            call_event: eventLabel,
+            duration_seconds: durationSec,
+          },
+          client_nonce: crypto.randomUUID(),
+        } as never);
+    } catch { /* non-critical */ }
+  }, [userId]);
+
   // ── full cleanup ───────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     if (cleaningUp.current) return;
     cleaningUp.current = true;
 
-    // Stop all local media tracks via ref (avoids stale closure)
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
 
-    // Close peer connection
     if (pc.current) {
       pc.current.onicecandidate = null;
       pc.current.ontrack = null;
@@ -105,6 +146,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     callIdRef.current = null;
     localStreamRef.current = null;
     setIsMuted(false);
+    setIsVideoEnabled(false);
+    setIsVideoCall(false);
     connectedAtRef.current = null;
     setCallDuration(0);
 
@@ -153,36 +196,47 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           reconnectTries.current++;
           setCallState('reconnecting');
           setTimeout(() => {
-            try { peerConn.restartIce(); } catch { /* already closed */ }
+            try { peerConn.restartIce(); } catch { /* closed */ }
           }, RECONNECT_DELAY_MS);
         } else {
-          if (callIdRef.current) endCall(callIdRef.current, 'failed').catch(() => {});
+          const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
+          const cid = callIdRef.current;
+          if (cid) endCall(cid, 'failed').catch(() => {});
           cleanup();
+          sendCallSummary('failed', dur, cid);
           transitionToEnd('failed', 'connection_lost');
         }
       }
       if (s === 'failed') {
-        if (callIdRef.current) endCall(callIdRef.current, 'failed').catch(() => {});
+        const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
+        const cid = callIdRef.current;
+        if (cid) endCall(cid, 'failed').catch(() => {});
         cleanup();
+        sendCallSummary('failed', dur, cid);
         transitionToEnd('failed', 'ice_failed');
       }
     };
 
     return peerConn;
-  }, [cleanup, startDurationTimer, transitionToEnd]);
+  }, [cleanup, startDurationTimer, transitionToEnd, sendCallSummary]);
 
-  // ── get microphone ────────────────────────────────────────────────────
-  const getMedia = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  // ── get media (audio, optionally video) ───────────────────────────────
+  const getMedia = useCallback(async (video = false) => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: video ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false,
+    });
     setLocalStream(stream);
+    setIsVideoEnabled(video);
+    setIsVideoCall(video);
     return stream;
   }, []);
 
-  // ── START CALL (initiator) ────────────────────────────────────────────
-  const startCallFn = useCallback(async () => {
+  // ── START CALL ────────────────────────────────────────────────────────
+  const startCallFn = useCallback(async (video = false) => {
     if (!roomId || !userId || callState !== 'idle') return;
     try {
-      const stream = await getMedia();
+      const stream = await getMedia(video);
       const callId = await initiateCall(roomId);
       callIdRef.current = callId;
       setActiveCallId(callId);
@@ -193,10 +247,12 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       pc.current = peerConn;
       stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
 
-      const offer = await peerConn.createOffer({ offerToReceiveAudio: true });
+      const offer = await peerConn.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: video,
+      });
       await peerConn.setLocalDescription(offer);
 
-      // Store SDP offer for recipient
       await supabase
         .from('chat_call_participants')
         .update({ sdp_offer: offer.sdp } as never)
@@ -205,10 +261,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
       // Ring timeout → missed
       ringTimer.current = setTimeout(async () => {
-        const currentState = callIdRef.current;
-        if (currentState === callId) {
+        if (callIdRef.current === callId) {
           await endCall(callId, 'no_answer').catch(() => {});
           cleanup();
+          sendCallSummary('missed', 0, callId);
           transitionToEnd('missed', 'no_answer');
         }
       }, RING_TIMEOUT_MS);
@@ -218,13 +274,13 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', 'start_error');
     }
-  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd]);
+  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallSummary]);
 
   // ── ANSWER INCOMING ───────────────────────────────────────────────────
   const answerIncoming = useCallback(async () => {
     if (!incomingCall || !userId) return;
     try {
-      const stream = await getMedia();
+      const stream = await getMedia(false); // answer as audio; can toggle video later
       const callId = incomingCall.id;
       callIdRef.current = callId;
       setActiveCallId(callId);
@@ -235,7 +291,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       pc.current = peerConn;
       stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
 
-      // Fetch initiator's SDP offer
       const { data } = await supabase
         .from('chat_call_participants' as never)
         .select('sdp_offer')
@@ -273,12 +328,15 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   // ── HANG UP ───────────────────────────────────────────────────────────
   const hangUp = useCallback(async () => {
-    if (callIdRef.current) {
-      await endCall(callIdRef.current, 'ended').catch(() => {});
+    const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
+    const cid = callIdRef.current;
+    if (cid) {
+      await endCall(cid, 'ended').catch(() => {});
     }
     cleanup();
+    if (dur > 0 && cid) sendCallSummary('ended', dur, cid);
     transitionToEnd('ended', 'ended');
-  }, [cleanup, transitionToEnd]);
+  }, [cleanup, transitionToEnd, sendCallSummary]);
 
   // ── MUTE ──────────────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
@@ -288,35 +346,106 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setIsMuted(newMuted);
   }, [localStream, isMuted]);
 
-  // ── Listen for incoming calls + ICE/SDP exchange ──────────────────────
+  // ── VIDEO TOGGLE ──────────────────────────────────────────────────────
+  const toggleVideo = useCallback(async () => {
+    if (!localStream || !pc.current) return;
+
+    const videoTracks = localStream.getVideoTracks();
+
+    if (videoTracks.length > 0) {
+      // Disable video
+      videoTracks.forEach((t) => { t.stop(); localStream.removeTrack(t); });
+      const sender = pc.current.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender) await sender.replaceTrack(null);
+      setIsVideoEnabled(false);
+    } else {
+      // Enable video
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        });
+        const videoTrack = videoStream.getVideoTracks()[0];
+        localStream.addTrack(videoTrack);
+
+        const sender = pc.current.getSenders().find((s) => s.track === null || s.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(videoTrack);
+        } else {
+          pc.current.addTrack(videoTrack, localStream);
+        }
+        setIsVideoEnabled(true);
+        setIsVideoCall(true);
+      } catch (err) {
+        console.warn('[WebRTC] toggleVideo: camera access failed', err);
+      }
+    }
+  }, [localStream]);
+
+  // ── REALTIME: incoming calls (replaces polling) ───────────────────────
   useEffect(() => {
     if (!roomId || !userId) return;
 
-    let pollTimer: ReturnType<typeof setTimeout>;
+    // Initial check for any active ringing call
     let cancelled = false;
-
-    const pollIncoming = async () => {
-      if (cancelled) return;
+    (async () => {
       try {
         const call = await getActiveCall(roomId);
         if (cancelled) return;
-
         if (call && call.status === 'ringing' && call.initiated_by !== userId && !callIdRef.current) {
           setIncomingCall(call);
           setCallState('ringing');
           useChatStore.getState().setIncomingCall(call.id, roomId);
-        } else if (!call && incomingCall) {
-          // Call was cancelled/ended by initiator
-          setIncomingCall(null);
-          useChatStore.getState().setIncomingCall(null, null);
-          if (callState === 'ringing') {
-            transitionToEnd('missed', 'caller_cancelled');
-          }
         }
-      } catch { /* network hiccup */ }
-      if (!cancelled) pollTimer = setTimeout(pollIncoming, 3_000);
-    };
-    pollIncoming();
+      } catch { /* ignore */ }
+    })();
+
+    // Realtime subscription on chat_calls for this room
+    const callsCh = supabase
+      .channel(`chat-calls-rt-${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_calls',
+          filter: `room_id=eq.${roomId}`,
+        },
+        (payload) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const row = payload.new as any;
+          if (!row) return;
+
+          // New or updated call
+          if (row.status === 'ringing' && row.initiated_by !== userId && !callIdRef.current) {
+            const incoming: ChatCall = row as ChatCall;
+            setIncomingCall(incoming);
+            setCallState('ringing');
+            useChatStore.getState().setIncomingCall(incoming.id, roomId);
+          }
+
+          // Call ended/cancelled by the other party
+          if (['ended', 'missed', 'declined', 'failed', 'no_answer'].includes(row.status)) {
+            if (row.id === callIdRef.current) {
+              // Active call was ended by the other party
+              const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
+              cleanup();
+              if (row.end_reason === 'declined') {
+                transitionToEnd('declined', 'remote_declined');
+              } else {
+                if (dur > 0) sendCallSummary('ended', dur, row.id);
+                transitionToEnd('ended', 'remote_ended');
+              }
+            }
+            // Incoming call was cancelled
+            if (incomingCall?.id === row.id) {
+              setIncomingCall(null);
+              useChatStore.getState().setIncomingCall(null, null);
+              transitionToEnd('missed', 'caller_cancelled');
+            }
+          }
+        },
+      )
+      .subscribe();
 
     // ICE + SDP answer channel
     const iceCh = supabase
@@ -334,16 +463,14 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           const row = payload.new as any;
           if (!pc.current || !row) return;
 
-          // Process ICE candidates
           if (row.ice_candidates?.length) {
             for (const c of row.ice_candidates) {
               try {
                 await pc.current.addIceCandidate(new RTCIceCandidate(c));
-              } catch { /* stale candidate */ }
+              } catch { /* stale */ }
             }
           }
 
-          // SDP answer arrived (if we're initiator)
           if (row.sdp_answer && pc.current.signalingState === 'have-local-offer') {
             try {
               await pc.current.setRemoteDescription({ type: 'answer', sdp: row.sdp_answer });
@@ -356,7 +483,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     return () => {
       cancelled = true;
-      clearTimeout(pollTimer);
+      supabase.removeChannel(callsCh);
       supabase.removeChannel(iceCh);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -366,20 +493,19 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (callIdRef.current) {
-        // Use sendBeacon for reliability
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/chat_end_call`;
         const body = JSON.stringify({ _call_id: callIdRef.current, _end_reason: 'tab_closed' });
         try {
           navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
         } catch { /* best effort */ }
       }
-      localStream?.getTracks().forEach((t) => t.stop());
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
       pc.current?.close();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [localStream]);
+  }, []);
 
   // ── cleanup on unmount ────────────────────────────────────────────────
   useEffect(() => {
@@ -417,7 +543,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     declineIncoming,
     hangUp,
     toggleMute,
+    toggleVideo,
     isMuted,
+    isVideoEnabled,
+    isVideoCall,
     callDuration,
     endReason,
   };
