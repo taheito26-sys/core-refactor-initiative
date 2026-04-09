@@ -218,6 +218,7 @@ export default function ChatWorkspacePage() {
       replyToId?: string;
       expiresAt?: string;
       viewOnce?: boolean;
+      watermarkText?: string | null;
       attachmentId?: string;
       type?: ChatMessageType;
       metadata?: Record<string, unknown>;
@@ -226,7 +227,6 @@ export default function ChatWorkspacePage() {
       const messageType = opts?.type ?? 'text';
       const replyId = opts?.replyToId ?? replyTo?.id ?? null;
 
-      // Build reply metadata
       const metadata = { ...opts?.metadata } as SendMessageInput['metadata'];
       if (replyTo && !opts?.replyToId) {
         (metadata as Record<string, unknown>).reply_preview = {
@@ -236,15 +236,16 @@ export default function ChatWorkspacePage() {
       }
 
       send.mutate({
-        roomId:       activeRoomId,
-        content:      content.trim(),
-        type:         messageType,
+        roomId:        activeRoomId,
+        content:       content.trim(),
+        type:          messageType,
         metadata,
-        clientNonce:  crypto.randomUUID(),
-        replyToId:    replyId,
-        expiresAt:    opts?.expiresAt   ?? null,
-        viewOnce:     opts?.viewOnce    ?? false,
-        attachmentId: opts?.attachmentId ?? null,
+        clientNonce:   crypto.randomUUID(),
+        replyToId:     replyId,
+        expiresAt:     opts?.expiresAt   ?? null,
+        viewOnce:      opts?.viewOnce    ?? false,
+        watermarkText: opts?.watermarkText ?? null,
+        attachmentId:  opts?.attachmentId ?? null,
       });
       stopTyping();
       setReplyTo(null);
