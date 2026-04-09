@@ -134,7 +134,7 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
     if (!content.trim()) return;
     onSend(content, { expiresAt, viewOnce });
     setContent('');
-    setViewOnce(false);
+    // viewOnce and expiresSec stay active until user explicitly removes them
     textareaRef.current?.focus();
   }, [content, onSend, expiresAt, viewOnce]);
 
