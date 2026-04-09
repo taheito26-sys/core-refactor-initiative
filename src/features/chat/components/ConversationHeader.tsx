@@ -4,6 +4,7 @@ import {
   Phone, Video, Search, ShieldCheck, Lock, Users,
   PanelLeftClose, PanelLeftOpen, MoreVertical,
   ArrowLeft, History, Info, BellOff, Trash2, Ban, Image as ImageIcon,
+  Shield,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useChatStore } from '@/lib/chat-store';
