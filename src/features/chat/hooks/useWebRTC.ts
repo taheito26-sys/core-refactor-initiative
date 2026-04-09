@@ -395,7 +395,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
               if (row.end_reason === 'declined') {
                 transitionToEnd('declined', 'remote_declined');
               } else {
-                if (dur > 0) sendCallSummary('ended', dur, row.id);
                 transitionToEnd('ended', 'remote_ended');
               }
             }
