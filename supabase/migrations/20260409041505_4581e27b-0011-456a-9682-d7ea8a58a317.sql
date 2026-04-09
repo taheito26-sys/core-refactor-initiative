@@ -1,0 +1,2 @@
+ALTER TABLE public.chat_room_members
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now();

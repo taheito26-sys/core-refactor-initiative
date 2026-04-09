@@ -72,6 +72,7 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
       style={{ opacity: config.opacity }}
       data-watermark-hash={btoa(watermarkText).slice(0, 16)}
       data-watermark-density={density}
+      data-watermark="true"
     >
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -89,7 +90,7 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
               fontFamily="monospace"
               fontSize={config.fontSize}
               fontWeight="bold"
-              fill="currentColor"
+              fill="hsl(var(--foreground))"
               letterSpacing="0.5"
             >
               {watermarkText}
@@ -114,7 +115,7 @@ export function DocumentWatermark({ viewerId, documentId }: { viewerId: string; 
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <pattern id="doc-wm" x="0" y="0" width="300" height="120" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
-            <text x="0" y="60" fontFamily="monospace" fontSize="12" fontWeight="bold" fill="currentColor">{text}</text>
+            <text x="0" y="60" fontFamily="monospace" fontSize="12" fontWeight="bold" fill="hsl(var(--foreground))">{text}</text>
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#doc-wm)" />
