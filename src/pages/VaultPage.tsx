@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Camera, Download, Upload, Trash2, RefreshCw, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud, Search, LogOut } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT, getCurrencyLabel } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme-context';
 import {
   clearTrackerStorage,
   findTrackerStorageKey,
@@ -148,6 +149,8 @@ export default function VaultPage() {
   const t = useT();
   const navigate = useNavigate();
   const { email, userId, merchantProfile } = useAuth();
+  const { settings } = useTheme();
+  const baseFiat = settings.baseFiatCurrency || 'QAR';
 
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [snapDesc, setSnapDesc] = useState('');
@@ -447,7 +450,7 @@ export default function VaultPage() {
       toast.error(t.lang === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
       return;
     }
-    const tradeHeaders = ['ID', 'Date', 'Amount USDT', 'Sell Price QAR', 'Fee QAR', 'Note', 'Voided'];
+    const tradeHeaders = ['ID', 'Date', 'Amount USDT', `Sell Price ${baseFiat}`, `Fee ${baseFiat}`, 'Note', 'Voided'];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tradeRows = trades.map((tr: any) => [
       tr.id || '', new Date(tr.ts || tr.created_at || 0).toLocaleString(),

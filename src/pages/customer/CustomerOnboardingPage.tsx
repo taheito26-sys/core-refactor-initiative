@@ -105,6 +105,7 @@ export default function CustomerOnboardingPage() {
                 <SelectContent>
                   <SelectItem value="USDT">USDT</SelectItem>
                   <SelectItem value="QAR">QAR</SelectItem>
+                  <SelectItem value="EGP">EGP</SelectItem>
                   <SelectItem value="USD">USD</SelectItem>
                 </SelectContent>
               </Select>

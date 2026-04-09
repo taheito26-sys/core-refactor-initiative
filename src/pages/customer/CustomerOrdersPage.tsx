@@ -225,6 +225,7 @@ export default function CustomerOrdersPage() {
                   <SelectContent>
                     <SelectItem value="USDT">USDT</SelectItem>
                     <SelectItem value="QAR">QAR</SelectItem>
+                    <SelectItem value="EGP">EGP</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
