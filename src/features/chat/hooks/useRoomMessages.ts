@@ -1,11 +1,11 @@
 // ─── useRoomMessages ─────────────────────────────────────────────────────
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
   getMessages, sendMessage, editMessage, deleteMessage,
-  markRoomRead, addReaction, removeReaction, linkAttachmentToMessage,
+  markRoomRead, addReaction, removeReaction, linkAttachmentToMessage, getRoomClearedAt,
 } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
 import type { ChatMessage, SendMessageInput } from '../types';
@@ -24,6 +24,15 @@ export function useRoomMessages(roomId: string | null) {
     enabled:  !!roomId && !!userId,
     staleTime: 10_000,
   });
+
+  const messages = useMemo(() => {
+    const data = query.data ?? [];
+    if (!roomId) return data;
+    const clearedAt = getRoomClearedAt(roomId);
+    if (!clearedAt) return data;
+    const cutoff = new Date(clearedAt).getTime();
+    return data.filter((m) => new Date(m.created_at).getTime() > cutoff);
+  }, [query.data, roomId]);
 
   // mark read when room becomes active
   useEffect(() => {
