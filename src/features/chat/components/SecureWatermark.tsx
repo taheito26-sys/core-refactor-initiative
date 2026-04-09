@@ -18,9 +18,9 @@ export type WatermarkDensity = 'light' | 'medium' | 'heavy';
 export type WatermarkSurface = 'background' | 'incoming-bubble' | 'outgoing-bubble' | 'media';
 
 const DENSITY_CONFIG: Record<WatermarkDensity, { opacity: number; spacing: number; fontSize: number; rotation: number }> = {
-  light:  { opacity: 0.06, spacing: 280, fontSize: 9,  rotation: -30 },
-  medium: { opacity: 0.09, spacing: 200, fontSize: 10, rotation: -25 },
-  heavy:  { opacity: 0.13, spacing: 150, fontSize: 11, rotation: -20 },
+  light:  { opacity: 0.1, spacing: 280, fontSize: 9,  rotation: -30 },
+  medium: { opacity: 0.14, spacing: 200, fontSize: 10, rotation: -25 },
+  heavy:  { opacity: 0.18, spacing: 150, fontSize: 11, rotation: -20 },
 };
 
 interface Props {
@@ -134,13 +134,13 @@ export function SecureWatermark({
 
   const config = DENSITY_CONFIG[density];
   const patternId = `wm-${density}-${roomId?.slice(0, 6) ?? 'global'}-${instanceId}`;
-  const opacity = surface === 'media' ? Math.min(config.opacity * 1.45, 0.14) : config.opacity;
+  const opacity = surface === 'media' ? Math.min(config.opacity * 1.2, 0.22) : config.opacity;
 
   return (
     <div
       className={cn(
         'absolute inset-0 pointer-events-none select-none overflow-hidden',
-        overlay ? 'z-50' : 'z-0',
+        'z-[1]',
       )}
       style={{
         opacity,
@@ -150,6 +150,7 @@ export function SecureWatermark({
       data-watermark-density={density}
       data-watermark-surface={surface}
       data-watermark="true"
+      aria-hidden="true"
     >
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <defs>

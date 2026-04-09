@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { markMessageViewed } from '../api/chat';
 import type { ChatMessage } from '../types';
 import { LinkifiedText } from './LinkifiedText';
+import { SecureWatermark } from './SecureWatermark';
 
 const VIEW_ONCE_WINDOW_SECONDS = 8;
 
@@ -11,9 +12,10 @@ interface Props {
   message: ChatMessage;
   isMe: boolean;
   viewerId: string;
+  watermarkEnabled?: boolean;
 }
 
-export function ProtectedMessageContent({ message, isMe, viewerId }: Props) {
+export function ProtectedMessageContent({ message, isMe, viewerId, watermarkEnabled = false }: Props) {
   const [revealed, setRevealed] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(VIEW_ONCE_WINDOW_SECONDS);
 
@@ -79,7 +81,17 @@ export function ProtectedMessageContent({ message, isMe, viewerId }: Props) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative overflow-hidden rounded-[inherit]">
+      {(watermarkEnabled || message.watermark_text) && (
+        <SecureWatermark
+          enabled
+          customText={message.watermark_text ?? undefined}
+          density={isMe ? 'light' : 'medium'}
+          overlay
+          surface={isMe ? 'outgoing-bubble' : 'incoming-bubble'}
+        />
+      )}
+
       {message.view_once && (
         <span className="absolute right-1 top-1 z-10 inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-foreground shadow-sm backdrop-blur-sm">
           <Eye className="h-2.5 w-2.5" />
@@ -87,7 +99,7 @@ export function ProtectedMessageContent({ message, isMe, viewerId }: Props) {
         </span>
       )}
 
-      <div className={cn(message.view_once && 'pr-14')}>
+      <div className={cn('relative z-10', message.view_once && 'pr-14')}>
         <LinkifiedText text={message.content} />
       </div>
     </div>

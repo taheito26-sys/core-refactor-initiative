@@ -13,9 +13,10 @@ interface Props {
   isMe: boolean;
   viewerId: string;
   onImageOpen?: (src: string) => void;
+  watermarkEnabled?: boolean;
 }
 
-export function AttachmentPreview({ message, isMe, viewerId, onImageOpen }: Props) {
+export function AttachmentPreview({ message, isMe, viewerId, onImageOpen, watermarkEnabled = false }: Props) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<ChatAttachment | null>(message.attachment ?? null);
   const [revealed, setRevealed] = useState(false);
@@ -167,10 +168,10 @@ export function AttachmentPreview({ message, isMe, viewerId, onImageOpen }: Prop
           loading="lazy"
         />
 
-        {message.watermark_text && (
+        {(watermarkEnabled || message.watermark_text) && (
           <SecureWatermark
             enabled
-            customText={message.watermark_text}
+            customText={message.watermark_text ?? undefined}
             density="medium"
             overlay
             surface="media"
@@ -200,10 +201,10 @@ export function AttachmentPreview({ message, isMe, viewerId, onImageOpen }: Prop
           : 'border border-border/30 bg-muted/80 hover:bg-muted',
       )}
     >
-      {message.watermark_text && (
+      {(watermarkEnabled || message.watermark_text) && (
         <SecureWatermark
           enabled
-          customText={message.watermark_text}
+          customText={message.watermark_text ?? undefined}
           density="medium"
           overlay
           surface="media"

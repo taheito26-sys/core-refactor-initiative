@@ -24,6 +24,7 @@ interface Props {
   meId:      string;
   isLoading: boolean;
   roomType:  ChatRoomType;
+  watermarkEnabled?: boolean;
   typingUserIds?: string[];
   onReact:   (msgId: string, emoji: string, remove?: boolean) => void;
   onEdit:    (msgId: string, content: string) => void;
@@ -441,7 +442,7 @@ function ScrollProgress({ progress }: { progress: number }) {
   );
 }
 
-export function MessageList({ messages, meId, isLoading, roomType, typingUserIds, onReact, onEdit, onDelete, onReply, onForward, onPin, onBookmark, onImageOpen }: Props) {
+export function MessageList({ messages, meId, isLoading, roomType, watermarkEnabled: roomWatermarkEnabled, typingUserIds, onReact, onEdit, onDelete, onReply, onForward, onPin, onBookmark, onImageOpen }: Props) {
   const bottomRef        = useRef<HTMLDivElement>(null);
   const containerRef     = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -453,7 +454,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollPct, setScrollPct] = useState(100);
   const isMobile = useIsMobile();
-  const watermarkEnabled = roomType === 'merchant_private' || roomType === 'merchant_client';
+  const watermarkEnabled = roomWatermarkEnabled ?? roomType === 'merchant_private' || roomType === 'merchant_client';
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const unreadBelow = useMemo(() => {
@@ -649,10 +650,10 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             isHighlighted && 'ring-2 ring-primary/40',
                             isOfferMessage && 'bg-transparent shadow-none px-0 py-0',
                           )}>
-                            {m.watermark_text && (
+                            {(watermarkEnabled || m.watermark_text) && (
                               <SecureWatermark
                                 enabled
-                                customText={m.watermark_text}
+                                customText={m.watermark_text ?? undefined}
                                 density={isMe ? 'light' : 'medium'}
                                 overlay
                                 surface={isMe ? 'outgoing-bubble' : 'incoming-bubble'}
@@ -661,7 +662,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
 
                             {/* Sender name for group chats */}
                             {!isMe && isFirstInGroup && (
-                              <p className="text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">
+                              <p className="relative z-10 text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">
                                 {senderLabel}
                               </p>
                             )}
@@ -669,7 +670,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             {/* Reply preview */}
                             {m.metadata?.reply_preview && (
                               <div className={cn(
-                                'flex items-start gap-2 px-2.5 py-1.5 rounded-md mb-1 border-l-[3px] text-xs',
+                                'relative z-10 flex items-start gap-2 px-2.5 py-1.5 rounded-md mb-1 border-l-[3px] text-xs',
                                 isMe ? 'bg-background/30 border-primary/50' : 'bg-muted/50 border-muted-foreground/40',
                               )}>
                                 <div className="min-w-0">
@@ -681,7 +682,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
 
                             {m.metadata?.forwarded_from && (
                               <div className={cn(
-                                'mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                'relative z-10 mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
                                 isMe ? 'bg-background/30 text-muted-foreground' : 'bg-muted/60 text-muted-foreground',
                               )}>
                                 <Forward className="h-2.5 w-2.5" />
@@ -725,13 +726,13 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             ) : m.type === 'voice_note' ? (
                               <VoiceNotePlayer message={m} isMe={isMe} />
                             ) : (m.type === 'image' || m.type === 'file') ? (
-                              <AttachmentPreview message={m} isMe={isMe} viewerId={meId} onImageOpen={onImageOpen} />
+                              <AttachmentPreview message={m} isMe={isMe} viewerId={meId} onImageOpen={onImageOpen} watermarkEnabled={watermarkEnabled} />
                             ) : (
-                              <ProtectedMessageContent message={m} isMe={isMe} viewerId={meId} />
+                              <ProtectedMessageContent message={m} isMe={isMe} viewerId={meId} watermarkEnabled={watermarkEnabled} />
                             )}
 
                             {/* Phase 2: Inline timestamp + ticks inside bubble */}
-                            <div className={cn('flex items-center gap-1 mt-0.5 float-right ml-3 -mb-0.5', isDeleted && 'hidden')}>
+                            <div className={cn('relative z-10 flex items-center gap-1 mt-0.5 float-right ml-3 -mb-0.5', isDeleted && 'hidden')}>
                               {/* Phase 9: Edit indicator */}
                               {m.is_edited && (
                                 <span className="text-[10px] text-muted-foreground/50 italic cursor-default" title={m.metadata?.edited_at ? `Edited at ${format(new Date(m.metadata.edited_at as string), 'HH:mm')}` : 'Edited'}>

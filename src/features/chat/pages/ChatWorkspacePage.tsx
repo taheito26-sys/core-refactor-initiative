@@ -421,6 +421,7 @@ export default function ChatWorkspacePage() {
               meId={meId}
               isLoading={msgsLoading}
               roomType={activeRoom.room_type}
+              watermarkEnabled={activeRoom.policy?.watermark_enabled ?? false}
               typingUserIds={typingUsers}
               onReact={(msgId, emoji, remove) =>
                 react.mutate({ messageId: msgId, emoji, remove })
