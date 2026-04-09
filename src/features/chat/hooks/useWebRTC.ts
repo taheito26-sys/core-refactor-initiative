@@ -125,8 +125,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     if (!cid) return;
     try {
       await supabase
-        .from('chat_calls' as never)
-        .update({ quality_stats: stats as never })
+        .from('chat_calls')
+        .update({ quality_stats: stats } as never)
         .eq('id', cid);
     } catch { /* non-fatal */ }
   }, []);
