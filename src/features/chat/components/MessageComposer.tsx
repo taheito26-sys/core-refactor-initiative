@@ -171,15 +171,14 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
 
   const handleSend = useCallback(() => {
     if (!content.trim()) return;
-    onSend(content, { expiresAt, viewOnce });
+    const wmText = watermark ? `${meId.slice(0, 8)} · ${new Date().toISOString().split('T')[0]}` : null;
+    onSend(content, { expiresAt, viewOnce, watermarkText: wmText });
     setContent('');
-    // Phase 36: Micro-interaction
     setSendPulse(true);
     setTimeout(() => setSendPulse(false), 300);
     textareaRef.current?.focus();
-    // Reset textarea height
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-  }, [content, onSend, expiresAt, viewOnce]);
+  }, [content, onSend, expiresAt, viewOnce, watermark, meId]);
 
   const handleKey = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
