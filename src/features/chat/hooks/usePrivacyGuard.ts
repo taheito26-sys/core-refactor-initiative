@@ -70,7 +70,7 @@ export function usePrivacyGuard({
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault();
-        logPrivacyEvent(userId, roomId, 'copy_blocked');
+        logPrivacyEvent(userId, 'copy_blocked', roomId);
       }
     };
     el.addEventListener('keydown', handler);
