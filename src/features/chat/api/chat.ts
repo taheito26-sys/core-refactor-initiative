@@ -216,7 +216,13 @@ export async function getAttachmentsForMessages(messageIds: string[]): Promise<C
     .select('*')
     .in('message_id', messageIds);
   if (error) throw rpcError('getAttachmentsForMessages', error);
-  return (data ?? []) as unknown as ChatAttachment[];
+  const attachments = (data ?? []) as unknown as ChatAttachment[];
+  await Promise.all(attachments.map(async (attachment) => {
+    if (attachment.thumbnail_path) {
+      attachment.thumbnail_signed_url = await getSignedUrl(attachment.thumbnail_path);
+    }
+  }));
+  return attachments;
 }
 
 export async function sendMessage(input: SendMessageInput): Promise<ChatMessage> {
@@ -382,6 +388,7 @@ export async function uploadAttachment(
     waveform?: number[];
     width?: number;
     height?: number;
+    thumbnailBlob?: Blob | null;
   },
 ): Promise<ChatAttachment> {
   const validation = validateAttachment(file);
@@ -389,6 +396,9 @@ export async function uploadAttachment(
 
   const ext   = file.name.split('.').pop() ?? 'bin';
   const path  = `${uploaderId}/${roomId}/${Date.now()}_${crypto.randomUUID()}.${ext}`;
+  const thumbnailPath = opts?.thumbnailBlob
+    ? `${uploaderId}/${roomId}/thumb_${Date.now()}_${crypto.randomUUID()}.jpg`
+    : null;
 
   const { error: uploadErr } = await supabase.storage
     .from('chat-attachments')
@@ -396,13 +406,24 @@ export async function uploadAttachment(
 
   if (uploadErr) throw rpcError('uploadAttachment:upload', uploadErr);
 
+  if (thumbnailPath && opts?.thumbnailBlob) {
+    const { error: thumbnailUploadErr } = await supabase.storage
+      .from('chat-attachments')
+      .upload(thumbnailPath, opts.thumbnailBlob, { contentType: 'image/jpeg', upsert: false });
+
+    if (thumbnailUploadErr) {
+      await supabase.storage.from('chat-attachments').remove([path]).catch(() => {});
+      throw rpcError('uploadAttachment:thumbnailUpload', thumbnailUploadErr);
+    }
+  }
+
   const { data: att, error: insertErr } = await supabase.rpc('chat_create_attachment' as never, {
     _room_id: roomId,
     _storage_path: path,
     _file_name: file.name,
     _file_size: file.size,
     _mime_type: file.type,
-    _thumbnail_path: null,
+    _thumbnail_path: thumbnailPath,
     _duration_ms: opts?.durationMs ?? null,
     _width: opts?.width ?? null,
     _height: opts?.height ?? null,
@@ -415,7 +436,8 @@ export async function uploadAttachment(
   } as never);
 
   if (insertErr) {
-    await supabase.storage.from('chat-attachments').remove([path]).catch(() => {});
+    const pathsToRemove = thumbnailPath ? [path, thumbnailPath] : [path];
+    await supabase.storage.from('chat-attachments').remove(pathsToRemove).catch(() => {});
     throw rpcError('uploadAttachment:insert', insertErr);
   }
   return att as unknown as ChatAttachment;
@@ -439,6 +461,9 @@ export async function getAttachment(messageId: string): Promise<ChatAttachment |
   if (!data) return null;
   const att = data as unknown as ChatAttachment;
   att.signed_url = await getSignedUrl(att.storage_path);
+  if (att.thumbnail_path) {
+    att.thumbnail_signed_url = await getSignedUrl(att.thumbnail_path);
+  }
   return att;
 }
 

@@ -196,6 +196,66 @@ async function extractMediaMetadata(file: File): Promise<{
   return {};
 }
 
+async function createMediaThumbnail(file: File): Promise<Blob | null> {
+  if (file.type.startsWith('image/')) {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      return await new Promise<Blob | null>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+          const maxWidth = 480;
+          const scale = Math.min(1, maxWidth / image.naturalWidth);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext('2d');
+          if (!context) {
+            reject(new Error('Canvas unavailable'));
+            return;
+          }
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.78);
+        };
+        image.onerror = () => reject(new Error('Thumbnail generation failed'));
+        image.src = objectUrl;
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  if (file.type.startsWith('video/')) {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      return await new Promise<Blob | null>((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.onloadeddata = () => {
+          const maxWidth = 480;
+          const scale = Math.min(1, maxWidth / (video.videoWidth || maxWidth));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((video.videoWidth || maxWidth) * scale));
+          canvas.height = Math.max(1, Math.round((video.videoHeight || maxWidth * 0.56) * scale));
+          const context = canvas.getContext('2d');
+          if (!context) {
+            reject(new Error('Canvas unavailable'));
+            return;
+          }
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.72);
+        };
+        video.onerror = () => reject(new Error('Video thumbnail generation failed'));
+        video.src = objectUrl;
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  return null;
+}
+
 export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping, meId }: Props) {
   const [content, setContent]       = useState('');
   const [viewOnce, setViewOnce]     = useState(false);
@@ -309,7 +369,8 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
         beginUpload('Uploading pasted image');
         try {
           const mediaMetadata = await extractMediaMetadata(file);
-          const att = await uploadAttachment(roomId, userId, file, mediaMetadata);
+          const thumbnailBlob = await createMediaThumbnail(file).catch(() => null);
+          const att = await uploadAttachment(roomId, userId, file, { ...mediaMetadata, thumbnailBlob });
           setUploadProgress(94);
           onSend('🖼 Image', {
             attachmentId: att.id,
@@ -345,7 +406,8 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
       const mediaMetadata = isImage || file.type.startsWith('audio/')
         ? await extractMediaMetadata(file)
         : undefined;
-      const att = await uploadAttachment(roomId, userId, file, mediaMetadata);
+      const thumbnailBlob = isImage ? await createMediaThumbnail(file).catch(() => null) : null;
+      const att = await uploadAttachment(roomId, userId, file, { ...mediaMetadata, thumbnailBlob });
       setUploadProgress(94);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
@@ -390,7 +452,8 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
       const mediaMetadata = isImage || file.type.startsWith('audio/')
         ? await extractMediaMetadata(file)
         : undefined;
-      const att = await uploadAttachment(roomId, userId, file, mediaMetadata);
+      const thumbnailBlob = isImage ? await createMediaThumbnail(file).catch(() => null) : null;
+      const att = await uploadAttachment(roomId, userId, file, { ...mediaMetadata, thumbnailBlob });
       setUploadProgress(94);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,

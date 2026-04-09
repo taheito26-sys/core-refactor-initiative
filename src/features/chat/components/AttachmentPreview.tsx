@@ -154,12 +154,13 @@ export function AttachmentPreview({ message, isMe, viewerId, onImageOpen }: Prop
 
   const effectiveAtt = attachment ?? message.attachment;
   const isImage = effectiveAtt?.mime_type?.startsWith('image/');
+  const previewUrl = effectiveAtt?.thumbnail_signed_url ?? signedUrl;
 
   if (isImage) {
     return (
       <div className="relative overflow-hidden rounded-xl group/img">
         <img
-          src={signedUrl}
+          src={previewUrl}
           alt={effectiveAtt?.file_name ?? 'image'}
           className="max-w-[260px] max-h-[320px] cursor-pointer rounded-xl object-cover shadow-sm transition-shadow hover:shadow-md"
           onClick={() => onImageOpen ? onImageOpen(signedUrl) : window.open(signedUrl, '_blank')}
