@@ -34,7 +34,7 @@ export function usePrivacyGuard({
     if (!screenshotProtection) return;
     return detectScreenshotKeys(() => {
       setScreenshotDetected(true);
-      logPrivacyEvent(userId, roomId, 'screenshot_detected', {
+      logPrivacyEvent(userId, 'screenshot_detected', roomId, {
         user_agent: navigator.userAgent,
       });
       // Auto-dismiss after 3s
