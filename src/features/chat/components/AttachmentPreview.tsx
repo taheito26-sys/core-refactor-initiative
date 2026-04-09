@@ -8,6 +8,7 @@ import type { ChatMessage, ChatAttachment } from '../types';
 interface Props {
   message: ChatMessage;
   isMe:    boolean;
+  onImageOpen?: (src: string) => void;
 }
 
 export function AttachmentPreview({ message, isMe }: Props) {
