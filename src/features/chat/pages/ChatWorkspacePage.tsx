@@ -352,6 +352,16 @@ export default function ChatWorkspacePage() {
     <RoomInfoPanel room={activeRoom} onClose={() => setShowRoomInfo(false)} />
   ) : null;
 
+  // ── Forward modal (Phase 12) ─────────────────────────────────────────────
+  const forwardModal = forwardMsg ? (
+    <ForwardMessageModal
+      message={forwardMsg}
+      rooms={rooms}
+      onForward={handleForwardSend}
+      onClose={() => setForwardMsg(null)}
+    />
+  ) : null;
+
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
