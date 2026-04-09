@@ -1,14 +1,15 @@
 // ─── ConversationHeader — Unified Chat Platform ───────────────────────────
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   Phone, Video, Search, ShieldCheck, Lock, Users,
-  PanelLeftClose, PanelLeftOpen, MoreHorizontal,
-  ArrowLeft, History,
+  PanelLeftClose, PanelLeftOpen, MoreVertical,
+  ArrowLeft, History, Info, BellOff, Trash2, Ban, Image as ImageIcon,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useChatStore } from '@/lib/chat-store';
 import { presenceOf } from '@/lib/chat-store';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
+import { cn } from '@/lib/utils';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function roomTypeIcon(type: ChatRoomType) {
