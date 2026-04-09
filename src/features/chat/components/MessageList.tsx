@@ -31,6 +31,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import type { ChatMessage, ChatRoomType, ReactionSummary } from '../types';
 import { SecureWatermark } from './SecureWatermark';
 import { AttachmentPreview } from './AttachmentPreview';
+import { LinkifiedText } from './LinkifiedText';
 import { getAttachment, getSignedUrl } from '../api/chat';
 import { toast } from 'sonner';
 
@@ -575,9 +576,9 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                         ) : m.type === 'voice_note' ? (
                           <VoiceNotePlayer message={m} isMe={isMe} />
                         ) : (m.type === 'image' || m.type === 'file') ? (
-                          <AttachmentPreview message={m} isMe={isMe} />
+                          <AttachmentPreview message={m} isMe={isMe} onImageOpen={onImageOpen} />
                         ) : (
-                          <span className="whitespace-pre-wrap break-words">{m.content}</span>
+                          <LinkifiedText text={m.content} />
                         )}
 
                         {/* Phase 2: Inline timestamp + ticks inside bubble */}

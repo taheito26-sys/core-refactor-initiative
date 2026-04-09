@@ -8,9 +8,10 @@ import type { ChatMessage, ChatAttachment } from '../types';
 interface Props {
   message: ChatMessage;
   isMe:    boolean;
+  onImageOpen?: (src: string) => void;
 }
 
-export function AttachmentPreview({ message, isMe }: Props) {
+export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<ChatAttachment | null>(message.attachment ?? null);
   const [viewed,    setViewed]    = useState(false);
@@ -114,7 +115,7 @@ export function AttachmentPreview({ message, isMe }: Props) {
           src={signedUrl}
           alt={effectiveAtt?.file_name ?? 'image'}
           className="max-w-[260px] max-h-[320px] rounded-xl object-cover cursor-pointer shadow-sm hover:shadow-md transition-shadow"
-          onClick={() => window.open(signedUrl, '_blank')}
+          onClick={() => onImageOpen ? onImageOpen(signedUrl) : window.open(signedUrl, '_blank')}
           loading="lazy"
         />
         {isViewOnce && (

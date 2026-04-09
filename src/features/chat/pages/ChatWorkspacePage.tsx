@@ -29,6 +29,7 @@ import { MessageSearch } from '../components/MessageSearch';
 import { ReplyPreview } from '../components/ReplyPreview';
 import { RoomInfoPanel } from '../components/RoomInfoPanel';
 import { ImageLightbox } from '../components/ImageLightbox';
+import { ForwardMessageModal } from '../components/ForwardMessageModal';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
@@ -69,6 +70,9 @@ export default function ChatWorkspacePage() {
 
   // ── Reply-to state ────────────────────────────────────────────────────
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+
+  // ── Forward state (Phase 12) ──────────────────────────────────────────
+  const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null);
 
   // URL → room/message
   useEffect(() => {
@@ -176,6 +180,30 @@ export default function ChatWorkspacePage() {
   const handleImageOpen = useCallback((src: string) => {
     setLightboxSrc(src);
   }, []);
+
+  // Forward handler (Phase 12)
+  const handleForward = useCallback((msg: ChatMessage) => {
+    setForwardMsg(msg);
+  }, []);
+
+  const handleForwardSend = useCallback((messageId: string, targetRoomId: string) => {
+    // Forward as a new message with forwarded metadata
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg || !targetRoomId) return;
+    // We'll send to target room — but we only have send for activeRoom
+    // For now, copy content approach
+    send.mutate({
+      roomId:       targetRoomId,
+      content:      msg.content,
+      type:         msg.type,
+      metadata:     { forwarded_from: { sender_name: msg.sender_name ?? msg.sender_id.slice(0, 8), room_name: undefined } } as SendMessageInput['metadata'],
+      clientNonce:  crypto.randomUUID(),
+      replyToId:    null,
+      expiresAt:    null,
+      viewOnce:     false,
+      attachmentId: null,
+    });
+  }, [messages, send]);
 
   // Search jump handler
   const handleSearchJump = useCallback((messageId: string) => {
@@ -294,6 +322,7 @@ export default function ChatWorkspacePage() {
                 del.mutate({ messageId: msgId, forEveryone })
               }
               onReply={handleReply}
+              onForward={handleForward}
               onImageOpen={handleImageOpen}
             />
             {/* Reply preview above composer */}
@@ -323,6 +352,16 @@ export default function ChatWorkspacePage() {
     <RoomInfoPanel room={activeRoom} onClose={() => setShowRoomInfo(false)} />
   ) : null;
 
+  // ── Forward modal (Phase 12) ─────────────────────────────────────────────
+  const forwardModal = forwardMsg ? (
+    <ForwardMessageModal
+      message={forwardMsg}
+      rooms={rooms}
+      onForward={handleForwardSend}
+      onClose={() => setForwardMsg(null)}
+    />
+  ) : null;
+
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
@@ -330,6 +369,7 @@ export default function ChatWorkspacePage() {
         <CallOverlay webrtc={webrtc} />
         {lightbox}
         {roomInfo}
+        {forwardModal}
         {mobilePane === 'list' ? (
           <ConversationSidebar
             rooms={rooms}
@@ -358,6 +398,7 @@ export default function ChatWorkspacePage() {
       <CallOverlay webrtc={webrtc} />
       {lightbox}
       {roomInfo}
+      {forwardModal}
 
       {(showSidebar || !isMobile) && (
         <ConversationSidebar
