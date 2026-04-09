@@ -1,171 +1,52 @@
 
+# 40 Phases — Chat UX/UI/Design/Layout Enhancement Roadmap
 
-# Customer Portal — End-to-End Implementation Plan
+## A. Message Experience (1–10)
+1. **Swipe-to-reply gesture** — Swipe right on a message bubble to trigger reply (mobile)
+2. **Message bubble tail shapes** — Add WhatsApp-style SVG tails on first-in-group bubbles
+3. **Emoji-only big render** — Messages with 1–3 emoji only render at 2× size, no bubble
+4. **Staggered entrance animation** — New messages slide up with spring physics (framer-motion)
+5. **Long-press haptic feedback** — Trigger device haptics on mobile long-press actions
+6. **Inline link previews** — Auto-fetch OG metadata and render card previews below links
+7. **Voice note waveform playback** — Animated waveform bar that tracks playback progress
+8. **Read receipt tooltips** — Hover on double-tick to see "Read at 3:42 PM" tooltip
+9. **Message edit indicator** — Show "(edited)" label with hover tooltip of edit timestamp
+10. **Smooth scroll-to-bottom FAB** — Floating button with unread count badge, spring animation
 
-## Overview
+## B. Conversation List (11–18)
+11. **Swipe actions on rows** — Swipe left → archive/delete, swipe right → pin/mute
+12. **Pinned conversations section** — Visual separator + pin icon for pinned rooms
+13. **Conversation avatar status ring** — Online = green ring, away = amber ring around avatar
+14. **Last message preview truncation** — Smart truncate with "📎 Photo" / "🎙 Voice" labels
+15. **Typing preview in list** — Replace last message with "typing..." when contact is typing
+16. **Unread count pill redesign** — Gradient pill with muted-style for muted conversations
+17. **Search-as-you-type filtering** — Instant fuzzy search over room names in sidebar
+18. **Empty state illustration** — Branded illustration when no conversations exist yet
 
-Build a separate "Customer" user role and portal that lets end-customers sign up, discover merchants, view their published liquidity (USDT/Cash availability), chat with them, and manage their own transaction history — all within the existing app shell, fully localized (AR/EN).
+## C. Composer & Input (19–24)
+19. **Mention autocomplete** — @mention members with popup picker in group rooms
+20. **Emoji picker popover** — Grid-based emoji picker with categories + recent
+21. **Drag-and-drop file upload** — Drop zone overlay on the message area
+22. **Paste-image support** — Clipboard paste → instant image attachment preview
+23. **Character count for long messages** — Subtle count near limit (e.g., 4096 chars)
+24. **Composer height transition** — Smooth CSS transition when textarea auto-grows
 
----
+## D. Layout & Navigation (25–32)
+25. **Resizable sidebar width** — Drag-handle between sidebar and thread (desktop)
+26. **Keyboard shortcuts overlay** — ⌘K command palette for power users (search, navigate)
+27. **Breadcrumb room path** — Show "Inbox > Team > Room Name" for nested navigation
+28. **Split-view context panel** — Slide-out right panel for room info / shared media
+29. **Compact density mode** — Toggle between comfortable and compact message spacing
+30. **Full-screen thread mode** — F11 / button to expand thread to fill viewport
+31. **Transition animations between panes** — Slide left/right on mobile pane switches
+32. **Sticky date headers** — Date separators stick to top while scrolling through messages
 
-## Architecture
-
-```text
-                   ┌──────────────┐
-                   │  Signup Page  │
-                   │ (role picker) │
-                   └──────┬───────┘
-                          │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-     Customer Onboarding      Merchant Onboarding
-     (name, phone, region)    (existing flow)
-              │                       │
-              ▼                       ▼
-     CustomerLayout             AppLayout
-     (customer routes)         (merchant routes)
-```
-
-The `profiles` table gains a `role` column (`merchant` | `customer`), and `ProfileGuard` routes users to the correct layout based on role.
-
----
-
-## Database Changes (Single Migration)
-
-### 1. Add `role` column to `profiles`
-- `ALTER TABLE profiles ADD COLUMN role text NOT NULL DEFAULT 'merchant'` — backwards compatible; all existing users stay as merchants.
-
-### 2. Create `customer_profiles` table
-- `id`, `user_id` (ref auth.users), `display_name`, `phone`, `region`, `preferred_currency`, `status` (active/suspended), `created_at`, `updated_at`
-- RLS: users can only read/update their own row.
-
-### 3. Create `customer_merchant_connections` table
-- `id`, `customer_user_id`, `merchant_id` (text, matches merchant_profiles.merchant_id), `status` (pending/active/blocked), `created_at`
-- RLS: customer can see/insert own rows; merchant can see connections to them.
-- This is the "add merchant by ID/code" relationship.
-
-### 4. Create `customer_orders` table
-- `id`, `customer_user_id`, `merchant_id`, `connection_id`, `type` (buy/sell), `amount`, `currency`, `rate`, `status` (pending/confirmed/completed/cancelled), `note`, `created_at`, `updated_at`
-- RLS: customer sees own; merchant sees orders to them.
-
-### 5. Create `customer_messages` table
-- `id`, `connection_id`, `sender_user_id`, `sender_role` (customer/merchant), `content`, `read_at`, `created_at`
-- RLS: both sides of the connection can read/insert.
-- Add to `supabase_realtime` publication.
-
-### 6. Notification trigger
-- On new `customer_orders` INSERT → notify the merchant.
-- On new `customer_messages` INSERT → notify the counterparty.
-
----
-
-## Frontend — New Files
-
-### A. Customer Onboarding (`src/pages/customer/CustomerOnboardingPage.tsx`)
-- Simple form: display name, phone, region, preferred currency.
-- Inserts into `customer_profiles` + sets `profiles.role = 'customer'`.
-
-### B. Customer Layout (`src/components/layout/CustomerLayout.tsx`)
-- Simplified sidebar/bottom nav: Home, My Merchants, Orders, Chat, Settings.
-- Uses `<Outlet />` like `AppLayout`.
-
-### C. Customer Guard (`src/features/auth/guards/CustomerGuard.tsx`)
-- Checks `profile.role === 'customer'` and `customer_profiles` exists, otherwise redirects.
-
-### D. Customer Pages
-
-| Page | Path | Purpose |
-|------|------|---------|
-| `CustomerHomePage` | `/c/home` | Welcome, quick stats (pending orders, connected merchants) |
-| `CustomerMerchantsPage` | `/c/merchants` | Search/add merchants by ID or code; see connected merchants with their published liquidity (USDT/Cash status from `merchant_liquidity_profiles`) |
-| `CustomerOrdersPage` | `/c/orders` | Place buy/sell requests to connected merchants; view order history |
-| `CustomerChatPage` | `/c/chat` | Real-time messaging with connected merchants |
-| `CustomerSettingsPage` | `/c/settings` | Profile edit, language, theme |
-
-### E. Merchant Search & Connect (`src/features/customer/components/MerchantSearch.tsx`)
-- Search by `merchant_code` or `merchant_id` (respects `discoverability` column).
-- Shows merchant display name, region, and published liquidity status.
-- "Connect" button creates a `customer_merchant_connections` row.
-- Merchant receives a notification.
-
-### F. Liquidity Viewer (`src/features/customer/components/MerchantLiquidityCard.tsx`)
-- Read-only view of `merchant_liquidity_profiles` for connected merchants.
-- Shows Cash and USDT availability (status/range/exact based on publish mode).
-
-### G. Customer Chat (`src/features/customer/components/CustomerChat.tsx`)
-- Reuses the bubble UI pattern from existing chat.
-- Backed by `customer_messages` table with realtime subscription.
-- Merchant side: new tab or inbox integration in existing Chat page showing customer conversations.
-
----
-
-## Modified Files
-
-| File | Change |
-|------|--------|
-| `src/App.tsx` | Add `/c/*` routes under `AuthGuard` + `CustomerGuard` + `CustomerLayout` |
-| `src/features/auth/guards/ProfileGuard.tsx` | If `role === 'customer'`, redirect to `/c/home` instead of merchant routes |
-| `src/pages/auth/SignupPage.tsx` | Add role picker toggle (Merchant / Customer) before signup |
-| `src/pages/merchant/OnboardingPage.tsx` | No change (merchant-only) |
-| `src/lib/i18n.ts` | Add ~60 customer-related keys (AR/EN) |
-| `src/components/layout/AppSidebar.tsx` | No change (merchant-only sidebar stays) |
-| `src/features/chat/pages/ChatWorkspacePage.tsx` | Add "Customers" tab showing `customer_messages` for merchant users |
-
----
-
-## Merchant-Side Integration
-
-- **Merchant receives customer connection requests** as notifications and can accept/block.
-- **Merchant sees customer orders** in a new "Customer Orders" section (or tab on existing Orders page).
-- **Merchant chats with customers** via existing Chat workspace with a "Customers" lane/tab.
-- **Merchant liquidity** published via existing `merchant_liquidity_profiles` is visible to connected customers (RLS policy addition).
-
----
-
-## Localization Keys (subset)
-
-- `customerPortal`, `customerHome`, `myMerchants`, `searchMerchant`, `connectToMerchant`, `enterMerchantCode`, `merchantNotFound`, `connectionPending`, `connectionActive`, `placeOrder`, `buyUsdt`, `sellUsdt`, `orderPlaced`, `orderHistory`, `noConnectedMerchants`, `addMerchantByCode`, `availableLiquidity`, `customerOnboardTitle`, `customerOnboardDesc`, `customerDisplayName`, `customerPhone`, `customerRegion`, `customerChat`, `noMessages`, `typeMessage`
-
-All with EN + AR values.
-
----
-
-## RLS Policy Updates
-
-- `merchant_liquidity_profiles`: Add SELECT policy for customers connected to that merchant.
-- `merchant_profiles`: Add SELECT policy for customers searching public/merchant_id_only profiles (already partially covered by existing `discoverability` policy for authenticated users).
-
----
-
-## Realtime
-
-- `customer_messages` added to `supabase_realtime` publication.
-- `customer_orders` added to `supabase_realtime` publication.
-- `customer_merchant_connections` added to `supabase_realtime` publication.
-
----
-
-## Implementation Order
-
-1. Database migration (tables, RLS, triggers, realtime)
-2. Auth flow changes (role picker on signup, ProfileGuard routing, CustomerGuard)
-3. Customer onboarding page
-4. Customer layout + routing in App.tsx
-5. Merchant search & connect feature
-6. Liquidity viewer for customers
-7. Customer orders page
-8. Customer chat (both sides)
-9. Merchant-side customer inbox integration
-10. Localization (all keys)
-11. Notifications integration
-
----
-
-## Technical Notes
-
-- The `profiles.role` column determines routing at the guard level — no separate auth system needed.
-- Customer routes are prefixed `/c/` to avoid collisions with merchant routes.
-- The existing merchant app is completely unaffected unless you're viewing customer connections/orders.
-- Customer chat is a separate table from `os_messages` to keep merchant-to-merchant messaging isolated.
-- All customer tables use `user_id = auth.uid()` patterns for RLS consistency.
-
+## E. Visual Polish & Theming (33–40)
+33. **Chat wallpaper selector** — Choose from preset subtle patterns or solid colors
+34. **Bubble color customization** — Let users pick outgoing bubble accent color
+35. **Dark mode contrast audit** — Ensure all elements pass WCAG AA in dark mode
+36. **Micro-interaction on send** — Send button pulse + bubble "pop-in" on message send
+37. **Skeleton loading shimmer** — Replace spinner with message-shaped skeleton placeholders
+38. **Avatar fallback gradient** — Unique gradient per user based on ID hash (not plain color)
+39. **Focus ring accessibility** — Visible keyboard focus rings on all interactive elements
+40. **Scroll progress indicator** — Thin progress bar at top of message area showing scroll position
