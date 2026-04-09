@@ -454,7 +454,7 @@ export function MessageList({ messages, meId, isLoading, roomType, watermarkEnab
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollPct, setScrollPct] = useState(100);
   const isMobile = useIsMobile();
-  const watermarkEnabled = roomWatermarkEnabled ?? roomType === 'merchant_private' || roomType === 'merchant_client';
+  const watermarkEnabled = roomWatermarkEnabled ?? (roomType === 'merchant_private' || roomType === 'merchant_client');
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const unreadBelow = useMemo(() => {
