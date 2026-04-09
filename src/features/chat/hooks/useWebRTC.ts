@@ -175,11 +175,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         }
       }
       if (s === 'failed') {
-        const dur = connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0;
         const cid = callIdRef.current;
         if (cid) endCall(cid, 'failed').catch(() => {});
         cleanup();
-        sendCallSummary('failed', dur, cid);
         transitionToEnd('failed', 'ice_failed');
       }
     };
