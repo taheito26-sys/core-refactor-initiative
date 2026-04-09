@@ -61,7 +61,7 @@ export function applyOrderCashDeposit({
     id: autoAccountId,
     name: 'Cash Wallet',
     type: 'hand' as const,
-    currency: baseFiatCurrency as const,
+    currency: baseFiatCurrency ?? 'QAR',
     status: 'active' as const,
     notes: 'Auto-created from order sale deposit',
     createdAt: now,
@@ -73,7 +73,7 @@ export function applyOrderCashDeposit({
     accountId: autoAccountId,
     direction: 'in' as const,
     amount: depositAmt,
-    currency: baseFiatCurrency as const,
+    currency: baseFiatCurrency ?? 'QAR',
     note,
   };
   const nextAccounts = [...(nextState.cashAccounts || []), autoAccount];

@@ -1,5 +1,5 @@
 export type SaleEntryMode = 'price_vol' | 'qty_total' | 'qty_price';
-export type SaleMode = 'USDT' | 'QAR';
+export type SaleMode = 'USDT' | 'QAR' | 'EGP';
 
 export interface SaleDraft {
   quantityUsdt: number;
