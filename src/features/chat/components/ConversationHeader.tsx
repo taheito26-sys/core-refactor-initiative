@@ -12,6 +12,8 @@ import { presenceOf } from '@/lib/chat-store';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
 import { cn } from '@/lib/utils';
 import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
+import { useQuery } from '@tanstack/react-query';
+import { getRoomOnlineCount } from '../api/chat';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function roomTypeIcon(type: ChatRoomType) {
@@ -93,6 +95,17 @@ export function ConversationHeader({
   const avatarUrl = useMemo(() => resolveRoomAvatar(room), [room]);
   const canStartCalls = room.policy?.allow_calls ?? true;
 
+  // Online member count for group rooms
+  const isGroupRoom = !room.is_direct;
+  const onlineQuery = useQuery({
+    queryKey: ['chat', 'online-count', room.room_id],
+    queryFn: () => getRoomOnlineCount(room.room_id),
+    enabled: isGroupRoom,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+  const onlineCount = onlineQuery.data ?? 0;
+
   return (
     <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
 
@@ -150,6 +163,9 @@ export function ConversationHeader({
             ) : (
               <span className="text-[10px] text-muted-foreground font-medium truncate">
                 {room.member_count} member{room.member_count !== 1 ? 's' : ''}
+                {onlineCount > 0 && (
+                  <span className="text-emerald-500"> · {onlineCount} online</span>
+                )}
               </span>
             )}
             <span className="text-[9px] text-border hidden sm:inline">•</span>

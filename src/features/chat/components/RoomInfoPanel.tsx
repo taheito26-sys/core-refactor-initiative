@@ -5,14 +5,16 @@
 // Phase 13: Forwarding controls display
 // Phase 19: Export controls display
 
-import { X, Lock, ShieldCheck, Users, Image as ImageIcon, FileText, Mic2, BellOff, Archive, LogOut, Shield, Forward, Copy, Download, Eye, Timer } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, Lock, ShieldCheck, Users, Image as ImageIcon, FileText, Mic2, BellOff, Archive, LogOut, Shield, Forward, Copy, Download, Eye, Timer, Phone, Link2, Droplets } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ChatRoomListItem, ChatRoomType } from '../types';
+import type { ChatRoomListItem, ChatRoomType, ChatRoomPolicy } from '../types';
 import { EncryptionBanner } from './EncryptionIndicator';
 import { RetentionSection } from './RetentionIndicator';
 import { resolveRoomAvatar, resolveRoomDisplayName } from '../lib/identity';
-import { useQuery } from '@tanstack/react-query';
-import { exportRoomTranscript, getRoomMembers } from '../api/chat';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { exportRoomTranscript, getRoomMembers, updateRoomPolicy, getRoomOnlineCount } from '../api/chat';
+import { ROOMS_KEY } from '../hooks/useRooms';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { logPrivacyEvent } from '../lib/privacy-engine';
@@ -36,39 +38,77 @@ function initials(name: string | null | undefined): string {
   return words.length >= 2 ? (words[0][0] + words[words.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
-function PolicyBadge({ icon: Icon, label, enabled }: { icon: React.ElementType; label: string; enabled: boolean }) {
+function PolicyBadge({ icon: Icon, label, enabled, onToggle }: { icon: React.ElementType; label: string; enabled: boolean; onToggle?: () => void }) {
   return (
-    <div className={cn(
-      'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold',
-      enabled ? 'bg-primary/10 text-primary' : 'bg-muted/50 text-muted-foreground/50',
-    )}>
+    <button
+      onClick={onToggle}
+      disabled={!onToggle}
+      className={cn(
+        'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold w-full transition-colors',
+        enabled ? 'bg-primary/10 text-primary' : 'bg-muted/50 text-muted-foreground/50',
+        onToggle && 'hover:bg-accent cursor-pointer',
+        !onToggle && 'cursor-default',
+      )}>
       <Icon className="h-3 w-3" />
       {label}
       <span className={cn('ml-auto text-[9px]', enabled ? 'text-emerald-500' : 'text-muted-foreground/30')}>
         {enabled ? 'ON' : 'OFF'}
       </span>
-    </div>
+    </button>
   );
 }
 
 export function RoomInfoPanel({ room, onClose }: Props) {
   const { userId, merchantProfile } = useAuth();
+  const qc = useQueryClient();
   const config = roomTypeConfig(room.room_type);
   const Icon = config.icon;
   const displayName = resolveRoomDisplayName(room);
   const avatarUrl = resolveRoomAvatar(room);
-  const policy = room.policy;
+  const [localPolicy, setLocalPolicy] = useState<Partial<ChatRoomPolicy>>(room.policy ?? {});
+  const policy = { ...room.policy, ...localPolicy } as ChatRoomPolicy | undefined;
+  const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+
   const membersQuery = useQuery({
     queryKey: ['chat', 'room-members', room.room_id],
     queryFn: () => getRoomMembers(room.room_id),
     staleTime: 30_000,
   });
   const members = membersQuery.data ?? [];
+
+  // Online count
+  const onlineQuery = useQuery({
+    queryKey: ['chat', 'online-count', room.room_id],
+    queryFn: () => getRoomOnlineCount(room.room_id),
+    enabled: !room.is_direct,
+    staleTime: 30_000,
+  });
+  const onlineCount = onlineQuery.data ?? 0;
+
+  // Check if current user is owner or admin
+  const myMembership = members.find(m => m.user_id === userId);
+  const isRoomAdmin = myMembership?.role === 'owner' || myMembership?.role === 'admin';
+
   const exportAllowed = !(policy?.disable_export ?? false);
 
   const encryptionMode = room.room_type === 'merchant_private' ? 'client_e2ee' as const
     : room.room_type === 'merchant_client' ? 'server_e2ee' as const
     : 'tls_only' as const;
+
+  const handleTogglePolicy = useCallback(async (key: string, currentValue: boolean) => {
+    if (!isRoomAdmin) return;
+    setUpdatingKey(key);
+    try {
+      await updateRoomPolicy(room.room_id, { [key]: !currentValue });
+      setLocalPolicy(prev => ({ ...prev, [key]: !currentValue }));
+      qc.invalidateQueries({ queryKey: ROOMS_KEY });
+      toast.success(`${key.replace(/_/g, ' ')} ${!currentValue ? 'enabled' : 'disabled'}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update policy');
+    } finally {
+      setUpdatingKey(null);
+    }
+  }, [isRoomAdmin, room.room_id, qc]);
 
   const handleExportTranscript = async () => {
     if (!exportAllowed) {
@@ -153,7 +193,12 @@ export function RoomInfoPanel({ room, onClose }: Props) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Members</span>
-                <span className="text-xs font-semibold text-foreground">{members.length || room.member_count || 0}</span>
+                <span className="text-xs font-semibold text-foreground">
+                  {members.length || room.member_count || 0}
+                  {!room.is_direct && onlineCount > 0 && (
+                    <span className="text-emerald-500 ml-1">({onlineCount} online)</span>
+                  )}
+                </span>
               </div>
             </div>
           </div>
@@ -200,14 +245,35 @@ export function RoomInfoPanel({ room, onClose }: Props) {
 
           {/* Phase 2, 13, 14, 19: Security policies */}
           <div className="px-4 py-3 border-b border-border/50">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">Security Policies</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Security Policies</p>
+              {isRoomAdmin && (
+                <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">Admin</span>
+              )}
+            </div>
             <div className="space-y-1.5">
-              <PolicyBadge icon={Eye} label="Watermark" enabled={policy?.watermark_enabled ?? false} />
-              <PolicyBadge icon={Shield} label="Screenshot protection" enabled={policy?.screenshot_protection ?? false} />
-              <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={!(policy?.disable_forwarding ?? false)} />
-              <PolicyBadge icon={Shield} label="Strip sender on forward" enabled={policy?.strip_forward_sender_identity ?? false} />
-              <PolicyBadge icon={Copy} label="History searchable" enabled={policy?.history_searchable ?? false} />
-              <PolicyBadge icon={Download} label="Export allowed" enabled={!(policy?.disable_export ?? false)} />
+              <PolicyBadge icon={Droplets} label="Watermark" enabled={policy?.watermark_enabled ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('watermark_enabled', policy?.watermark_enabled ?? false) : undefined} />
+              <PolicyBadge icon={Shield} label="Screenshot protection" enabled={policy?.screenshot_protection ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('screenshot_protection', policy?.screenshot_protection ?? false) : undefined} />
+              <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={!(policy?.disable_forwarding ?? false)}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('disable_forwarding', !(policy?.disable_forwarding ?? false)) : undefined} />
+              <PolicyBadge icon={Shield} label="Strip sender on forward" enabled={policy?.strip_forward_sender_identity ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('strip_forward_sender_identity', policy?.strip_forward_sender_identity ?? false) : undefined} />
+              <PolicyBadge icon={Copy} label="History searchable" enabled={policy?.history_searchable ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('history_searchable', policy?.history_searchable ?? false) : undefined} />
+              <PolicyBadge icon={Download} label="Export allowed" enabled={!(policy?.disable_export ?? false)}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('disable_export', !(policy?.disable_export ?? false)) : undefined} />
+              <PolicyBadge icon={Phone} label="Calls" enabled={policy?.allow_calls ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_calls', policy?.allow_calls ?? false) : undefined} />
+              <PolicyBadge icon={ImageIcon} label="Images" enabled={policy?.allow_images ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_images', policy?.allow_images ?? true) : undefined} />
+              <PolicyBadge icon={FileText} label="Files" enabled={policy?.allow_files ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_files', policy?.allow_files ?? true) : undefined} />
+              <PolicyBadge icon={Mic2} label="Voice notes" enabled={policy?.allow_voice_notes ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_voice_notes', policy?.allow_voice_notes ?? true) : undefined} />
+              <PolicyBadge icon={Link2} label="Link previews" enabled={policy?.link_preview_enabled ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('link_preview_enabled', policy?.link_preview_enabled ?? true) : undefined} />
               <PolicyBadge icon={Timer} label="Disappearing default" enabled={!!policy?.disappearing_default_hours} />
             </div>
           </div>

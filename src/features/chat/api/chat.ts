@@ -130,6 +130,39 @@ export async function runExpiryCleanup(): Promise<ChatExpiryCleanupResult> {
   return data as ChatExpiryCleanupResult;
 }
 
+export async function updateRoomPolicy(
+  roomId: string,
+  updates: Partial<Record<string, boolean>>,
+): Promise<unknown> {
+  const { data, error } = await supabase.rpc('chat_update_room_policy' as never, {
+    _room_id: roomId,
+    _updates: updates,
+  } as never);
+  if (error) throw rpcError('updateRoomPolicy', error);
+  return data;
+}
+
+// ── Presence for room members ─────────────────────────────────────────────
+export async function getRoomOnlineCount(roomId: string): Promise<number> {
+  const { data: members } = await supabase
+    .from('chat_room_members' as never)
+    .select('user_id')
+    .eq('room_id', roomId)
+    .is('removed_at', null);
+  if (!members || !Array.isArray(members)) return 0;
+  
+  const userIds = (members as { user_id: string }[]).map(m => m.user_id);
+  if (userIds.length === 0) return 0;
+  
+  const { count } = await supabase
+    .from('chat_presence' as never)
+    .select('user_id', { count: 'exact', head: true })
+    .in('user_id', userIds)
+    .eq('status', 'online');
+  
+  return count ?? 0;
+}
+
 // ── Messages ───────────────────────────────────────────────────────────────
 export async function getMessages(
   roomId: string,
