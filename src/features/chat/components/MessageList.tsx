@@ -630,6 +630,16 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             isFailed && 'opacity-60 ring-1 ring-destructive/30',
                             isHighlighted && 'ring-2 ring-primary/40',
                           )}>
+                            {m.watermark_text && (
+                              <SecureWatermark
+                                enabled
+                                customText={m.watermark_text}
+                                density={isMe ? 'light' : 'medium'}
+                                overlay
+                                surface={isMe ? 'outgoing-bubble' : 'incoming-bubble'}
+                              />
+                            )}
+
                             {/* Sender name for group chats */}
                             {!isMe && isFirstInGroup && (
                               <p className="text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">
