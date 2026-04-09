@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Send, Paperclip, Mic, X, Clock, Eye,
-  Camera, Plus, Timer, EyeOff, Smile,
+  Camera, Plus, Timer, EyeOff, Smile, Droplets,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
