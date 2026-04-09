@@ -446,3 +446,24 @@ export async function getActiveCall(roomId: string): Promise<ChatCall | null> {
   if (error) throw rpcError('getActiveCall', error);
   return data as unknown as ChatCall | null;
 }
+
+// ── Clear chat (hide messages for current user) ────────────────────────────
+export async function clearChatForMe(roomId: string): Promise<void> {
+  // Mark the last_read_at to current time — effectively "clearing" visible history
+  const { error } = await supabase
+    .from('chat_room_members' as never)
+    .update({ last_read_at: new Date().toISOString(), is_archived: false } as never)
+    .eq('room_id', roomId)
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '');
+  if (error) throw rpcError('clearChatForMe', error);
+}
+
+// ── Mute / unmute room ─────────────────────────────────────────────────────
+export async function toggleMuteRoom(roomId: string, mute: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('chat_room_members' as never)
+    .update({ is_muted: mute } as never)
+    .eq('room_id', roomId)
+    .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '');
+  if (error) throw rpcError('toggleMuteRoom', error);
+}
