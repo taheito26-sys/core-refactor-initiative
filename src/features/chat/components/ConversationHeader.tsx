@@ -74,10 +74,16 @@ export function ConversationHeader({
   onStartVideoCall,
   onToggleCallHistory,
   onSearchToggle,
+  onViewInfo,
+  onMuteToggle,
+  onClearChat,
+  isMuted = false,
 }: Props) {
   const otherUserId = room.other_user_id ?? '';
   const presence    = useChatStore(presenceOf(otherUserId));
   const isMobile    = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const displayName = useMemo(
     () => room.display_name ?? room.name ?? (room.is_direct ? 'Direct Message' : 'Room'),
