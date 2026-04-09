@@ -238,7 +238,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', 'start_error');
     }
-  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallSummary]);
+  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd]);
 
   // ── ANSWER INCOMING ───────────────────────────────────────────────────
   const answerIncoming = useCallback(async () => {
