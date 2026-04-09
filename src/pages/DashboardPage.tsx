@@ -9,7 +9,7 @@ import {
   deriveCashQAR,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
-import { useT } from '@/lib/i18n';
+import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
@@ -50,6 +50,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const stCost = stockCostQAR(derived);
   const averageStockPrice = getWACOP(derived);
   const rLabel = rangeLabel(settings.range);
+  const baseFiat = settings.baseFiatCurrency || 'QAR';
 
   const allTrades = state.trades.filter(t => !t.voided);
   const getTradeMyPct = (tr: typeof allTrades[0]) => {
@@ -330,7 +331,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         {payload.map((p: any, i: number) => (
           <div key={i} style={{ color: p.color, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
             <span>{p.name}</span>
-            <span className="mono" style={{ fontWeight: 700 }}>{fmtTotal(Number(p.value))} QAR</span>
+            <span className="mono" style={{ fontWeight: 700 }}>{fmtTotal(Number(p.value))} {baseFiat}</span>
           </div>
         ))}
       </div>
@@ -483,7 +484,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>Avg Stock Price</span>
           </div>
           <div className="kpi-lbl">Average Stock Price + Spread</div>
-          <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtP(averageStockPrice) + ' QAR' : t('noStock')}</div>
+          <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtP(averageStockPrice) + ' ' + baseFiat : t('noStock')}</div>
           <div className="kpi-sub">
             {(() => {
               const sp = averageStockPrice && p2pAvgs.avgSell ? fmtPrice((p2pAvgs.avgSell - averageStockPrice) / averageStockPrice * 100) : null;
@@ -532,12 +533,12 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
                   {refPrice && cash > 0
                     ? fmtU(cash / refPrice, 0) + ' USDT'
                     : cash > 0
-                      ? fmtQ(cash) + ' QAR'
+                      ? fmtQ(cash) + ' ' + baseFiat
                       : t('setCash')}
                 </div>
                 <div className="kpi-sub">
                   {refPrice
-                    ? `@ Avg ${fmtP(refPrice)} QAR${isFallback ? ` ${t('mktAvg')}` : ''}`
+                    ? `@ Avg ${fmtP(refPrice)} ${baseFiat}${isFallback ? ` ${t('mktAvg')}` : ''}`
                     : cash > 0
                       ? t('addBatchesFirst')
                       : t('addBatchesFirst')}
@@ -560,7 +561,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           </div>
           <div className="kpi-lbl">{t('stockCostEst')}</div>
           <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtQWithUnit(stCost, settings.currency, averageStockPrice)}</div>
-          <div className="kpi-sub">Avg stock price {averageStockPrice ? fmtP(averageStockPrice) + ' QAR' : '—'}</div>
+          <div className="kpi-sub">Avg stock price {averageStockPrice ? fmtP(averageStockPrice) + ' ' + baseFiat : '—'}</div>
         </div>
       </div>
 
@@ -731,6 +732,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           cashHistory={state.cashHistory || []}
           onSave={handleCashSave}
           onClose={() => setShowCashBox(false)}
+          baseFiatCurrency={baseFiat}
         />
       )}
     </div>

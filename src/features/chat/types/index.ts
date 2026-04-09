@@ -343,6 +343,8 @@ export interface CreateMarketOfferInput {
 export interface ChatExpiryCleanupResult {
   expired_messages: number;
   expired_offers: number;
+  cleaned_attachments?: number;
+  cleaned_storage_objects?: number;
   ran_at: string;
 }
 

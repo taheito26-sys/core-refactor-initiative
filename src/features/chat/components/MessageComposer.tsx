@@ -154,6 +154,8 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
   const [watermark, setWatermark]   = useState(false);
   const [expiresSec, setExpiresSec] = useState<number | null>(null);
   const [uploading, setUploading]   = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadLabel, setUploadLabel] = useState<string | null>(null);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showTimerPicker, setShowTimerPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -174,6 +176,30 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
 
   // Phase 36: Send animation
   const [sendPulse, setSendPulse] = useState(false);
+
+  useEffect(() => {
+    if (!uploading) {
+      setUploadProgress(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setUploadProgress((value) => Math.min(value + (value < 40 ? 11 : value < 70 ? 6 : 2), 92));
+    }, 180);
+    return () => window.clearInterval(timer);
+  }, [uploading]);
+
+  const beginUpload = useCallback((label: string) => {
+    setUploadLabel(label);
+    setUploadProgress(8);
+    setUploading(true);
+  }, []);
+
+  const finishUpload = useCallback(async () => {
+    setUploadProgress(100);
+    await new Promise((resolve) => window.setTimeout(resolve, 180));
+    setUploading(false);
+    setUploadLabel(null);
+  }, []);
 
   const validateUploadForRoom = useCallback((file: File, kind: 'image' | 'file') => {
     if (kind === 'image' && !canSendImages) {
@@ -232,9 +258,10 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
           toast.error(validation.error);
           return;
         }
-        setUploading(true);
+        beginUpload('Uploading pasted image');
         try {
           const att = await uploadAttachment(roomId, userId, file, { width: 0, height: 0 });
+          setUploadProgress(94);
           onSend('🖼 Image', {
             attachmentId: att.id,
             viewOnce,
@@ -244,12 +271,12 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
         } catch (err) {
           toast.error('Paste upload failed');
         } finally {
-          setUploading(false);
+          await finishUpload();
         }
         return;
       }
     }
-  }, [canSendImages, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
+  }, [beginUpload, canSendImages, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
 
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -257,10 +284,11 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     const isImage = file.type.startsWith('image/') || file.type.startsWith('video/');
     const v = validateUploadForRoom(file, isImage ? 'image' : 'file');
     if (!v.ok) { toast.error(v.error); return; }
-    setUploading(true);
+    beginUpload(isImage ? 'Uploading media' : 'Uploading document');
     setShowAttachMenu(false);
     try {
       const att = await uploadAttachment(roomId, userId, file, isImage ? { width: 0, height: 0 } : undefined);
+      setUploadProgress(94);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
         {
@@ -272,11 +300,11 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     } catch (err) {
       toast.error('Upload failed: ' + (err as Error).message);
     } finally {
-      setUploading(false);
+      await finishUpload();
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (imageInputRef.current) imageInputRef.current.value = '';
     }
-  }, [roomId, userId, onSend, validateUploadForRoom, viewOnce]);
+  }, [beginUpload, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
 
   // Phase 21: Drag-and-drop file upload
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -292,9 +320,10 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     const isImage = file.type.startsWith('image/') || file.type.startsWith('video/');
     const v = validateUploadForRoom(file, isImage ? 'image' : 'file');
     if (!v.ok) { toast.error(v.error); return; }
-    setUploading(true);
+    beginUpload(isImage ? 'Uploading dropped media' : 'Uploading dropped file');
     try {
       const att = await uploadAttachment(roomId, userId, file, isImage ? { width: 0, height: 0 } : undefined);
+      setUploadProgress(94);
       onSend(
         isImage ? '🖼 Image' : `📎 ${file.name}`,
         {
@@ -306,17 +335,18 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     } catch {
       toast.error('Drop upload failed');
     } finally {
-      setUploading(false);
+      await finishUpload();
     }
-  }, [roomId, userId, onSend, validateUploadForRoom, viewOnce]);
+  }, [beginUpload, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce]);
 
   const handleVoiceSend = useCallback(async () => {
     const blob = await voice.stop();
     if (!blob || !userId) return;
-    setUploading(true);
+    beginUpload('Sending voice note');
     try {
       const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
       const att = await uploadAttachment(roomId, userId, file, { durationMs: voice.duration * 1000 });
+      setUploadProgress(94);
       onSend('🎙 Voice message', {
         attachmentId: att.id, type: 'voice_note',
         metadata: { duration_ms: voice.duration * 1000 },
@@ -324,9 +354,9 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     } catch {
       toast.error('Voice upload failed');
     } finally {
-      setUploading(false);
+      await finishUpload();
     }
-  }, [voice, userId, roomId, onSend]);
+  }, [beginUpload, finishUpload, voice, userId, roomId, onSend]);
 
   const closeMenus = useCallback(() => {
     setShowAttachMenu(false);
@@ -407,6 +437,27 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
               <X className="h-2.5 w-2.5 opacity-60" />
             </button>
           )}
+        </div>
+      )}
+
+      {uploading && (
+        <div className="px-3 pt-2">
+          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-3 py-2">
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <span className="text-[11px] font-semibold text-foreground">
+                {uploadLabel ?? 'Uploading attachment'}
+              </span>
+              <span className="text-[10px] font-medium text-muted-foreground">
+                {Math.round(uploadProgress)}%
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-primary/10">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
         </div>
       )}
 

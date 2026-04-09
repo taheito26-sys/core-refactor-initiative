@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
   getMessages, sendMessage, editMessage, deleteMessage,
-  markRoomRead, addReaction, removeReaction, linkAttachmentToMessage, getRoomClearedAt,
+  markRoomRead, addReaction, removeReaction, getRoomClearedAt,
 } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
 import type { ChatMessage, SendMessageInput } from '../types';
@@ -175,19 +175,11 @@ export function useRoomMessages(roomId: string | null) {
         ),
       );
     },
-    onSuccess: async (confirmed, input, ctx) => {
+    onSuccess: async (confirmed, _input, ctx) => {
       if (!roomId || !ctx) return;
       qc.setQueryData<ChatMessage[]>(MESSAGES_KEY(roomId), (prev) =>
         prev?.map((m) => (m.client_nonce === ctx.nonce ? confirmed : m)),
       );
-      // Link attachment to message if one was provided
-      if (input.attachmentId && confirmed?.id) {
-        try {
-          await linkAttachmentToMessage(input.attachmentId, confirmed.id);
-        } catch (err) {
-          console.warn('[useRoomMessages] failed to link attachment', err);
-        }
-      }
     },
   });
 

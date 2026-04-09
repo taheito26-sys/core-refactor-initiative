@@ -72,6 +72,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const trackerState = tracker?.state as any;
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
   const trades = Array.isArray(trackerState?.trades) ? trackerState.trades : [];
+  const userBaseFiat = trackerState?.settings?.baseFiatCurrency || 'QAR';
 
   const exportCSV = useCallback((filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -104,7 +105,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const exportTrades = () => {
     if (!trades.length) return;
     exportCSV(`trades_${userId.slice(0,8)}.csv`,
-      ['ID','Amount USDT','Sell Price QAR','Customer','Date','Voided'],
+      ['ID','Amount USDT',`Sell Price ${userBaseFiat}`,'Customer','Date','Voided'],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       trades.map((t: any) => [t.id, t.amountUSDT ?? t.qty ?? '', t.sellPriceQAR ?? t.price ?? '', t.customer ?? '', t.ts ? new Date(t.ts).toISOString() : '', t.voided ? 'yes' : 'no'])
     );
@@ -574,7 +575,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
               <Input type="number" value={editEntityQty} onChange={e => setEditEntityQty(e.target.value)} className="h-8 text-sm" />
             </div>
             <div>
-              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Buy Price' : 'Sell Price (QAR)'}</Label>
+              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Buy Price' : `Sell Price (${userBaseFiat})`}</Label>
               <Input type="number" value={editEntityPrice} onChange={e => setEditEntityPrice(e.target.value)} className="h-8 text-sm" />
             </div>
             <div>

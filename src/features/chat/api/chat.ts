@@ -220,6 +220,7 @@ export async function sendMessage(input: SendMessageInput): Promise<ChatMessage>
     _expires_at:     input.expiresAt ?? null,
     _view_once:      input.viewOnce ?? false,
     _watermark_text: input.watermarkText ?? null,
+    _attachment_id:  input.attachmentId ?? null,
   } as never);
   if (error) throw rpcError('sendMessage', error);
   const msg = Array.isArray(data) ? data[0] : data;
@@ -385,25 +386,28 @@ export async function uploadAttachment(
 
   if (uploadErr) throw rpcError('uploadAttachment:upload', uploadErr);
 
-  const { data: att, error: insertErr } = await supabase
-    .from('chat_attachments')
-    .insert({
-      room_id:     roomId,
-      uploader_id: uploaderId,
-      storage_path: path,
-      file_name:   file.name,
-      file_size:   file.size,
-      mime_type:   file.type,
-      duration_ms: opts?.durationMs ?? null,
-      waveform:    opts?.waveform   ?? null,
-      width:       opts?.width      ?? null,
-      height:      opts?.height     ?? null,
-      is_validated: true,
-    })
-    .select('*')
-    .single();
+  const { data: att, error: insertErr } = await supabase.rpc('chat_create_attachment' as never, {
+    _room_id: roomId,
+    _storage_path: path,
+    _file_name: file.name,
+    _file_size: file.size,
+    _mime_type: file.type,
+    _thumbnail_path: null,
+    _duration_ms: opts?.durationMs ?? null,
+    _width: opts?.width ?? null,
+    _height: opts?.height ?? null,
+    _waveform: opts?.waveform ?? null,
+    _checksum_sha256: null,
+    _cdn_url: null,
+    _is_encrypted: false,
+    _iv: null,
+    _auth_tag: null,
+  } as never);
 
-  if (insertErr) throw rpcError('uploadAttachment:insert', insertErr);
+  if (insertErr) {
+    await supabase.storage.from('chat-attachments').remove([path]).catch(() => {});
+    throw rpcError('uploadAttachment:insert', insertErr);
+  }
   return att as unknown as ChatAttachment;
 }
 
@@ -413,17 +417,6 @@ export async function getSignedUrl(storagePath: string, expiresIn = 3600): Promi
     .createSignedUrl(storagePath, expiresIn);
   if (error) throw rpcError('getSignedUrl', error);
   return data.signedUrl;
-}
-
-export async function linkAttachmentToMessage(
-  attachmentId: string,
-  messageId: string,
-): Promise<void> {
-  const { error } = await supabase
-    .from('chat_attachments')
-    .update({ message_id: messageId } as never)
-    .eq('id', attachmentId);
-  if (error) throw rpcError('linkAttachmentToMessage', error);
 }
 
 export async function getAttachment(messageId: string): Promise<ChatAttachment | null> {
