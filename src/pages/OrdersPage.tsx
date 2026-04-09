@@ -3160,7 +3160,7 @@ export default function OrdersPage() {
                         <span className="bVal" style={{ fontSize: 16 }}>
                           {manualSellPrice ? fmtP(Number(manualSellPrice) || 0) : '—'}
                         </span>
-                        <span className="bLbl" style={{ fontSize: 9, opacity: 0.6 }}>{t('sellPriceLabel')}</span>
+                        <span className="bLbl" style={{ fontSize: 9, opacity: 0.6 }}>{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</span>
                       </div>
                     )}
                   </div>
@@ -3195,7 +3195,7 @@ export default function OrdersPage() {
                       </div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('sellPriceLabel')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                     </div>
                   </div>
@@ -3212,7 +3212,7 @@ export default function OrdersPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleAmount) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>
-                          {t('autoCalcSellPrice')}: {fmtPrice(Number(saleAmount) / Number(saleUsdtQty))} QAR/USDT
+                          {t('autoCalcSellPrice')}: {fmtPrice(Number(saleAmount) / Number(saleUsdtQty))} {activeSaleFiat}/USDT
                         </div>
                       )}
                     </div>
@@ -3226,7 +3226,7 @@ export default function OrdersPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleUsdtQty} onChange={numericOnly(setSaleUsdtQty)} style={mobileInputStyle} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{t('sellPriceLabel')}</div>
+                      <div className="lbl">{t(getCurrencyLabel('sellPrice', activeSaleFiat as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleSell} onChange={numericOnly(setSaleSell)} style={mobileInputStyle} /></div>
                       {Number(saleUsdtQty) > 0 && Number(saleSell) > 0 && (
                         <div style={{ fontSize: 9, color: 'var(--good)', marginTop: 2 }}>

@@ -48,10 +48,21 @@ export function applyOrderCashDeposit({
       note,
     };
     const updatedLedger = [...(nextState.cashLedger || []), ledgerEntry];
+    const nextCashQAR = deriveCashQAR(nextState.cashAccounts, updatedLedger);
     return {
       ...nextState,
       cashLedger: updatedLedger,
-      cashQAR: deriveCashQAR(nextState.cashAccounts, updatedLedger),
+      cashHistory: [...(nextState.cashHistory || []), {
+        id: uid(),
+        ts: now,
+        type: 'sale_deposit',
+        amount: depositAmt,
+        balanceAfter: nextCashQAR,
+        owner: nextState.cashOwner || '',
+        bankAccount: targetAccount.name,
+        note,
+      }],
+      cashQAR: nextCashQAR,
     };
   }
   
@@ -66,6 +77,17 @@ export function applyOrderCashDeposit({
     notes: 'Auto-created from order sale deposit',
     createdAt: now,
   };
+  const openingBalance = Math.max(0, nextState.cashQAR || 0);
+  const openingEntry = openingBalance > 0 ? {
+    id: uid(),
+    ts: now,
+    type: 'opening' as const,
+    accountId: autoAccountId,
+    direction: 'in' as const,
+    amount: openingBalance,
+    currency: baseFiatCurrency ?? 'QAR',
+    note: 'Migrated legacy cash balance',
+  } : null;
   const ledgerEntry = {
     id: uid(),
     ts: now,
@@ -77,11 +99,22 @@ export function applyOrderCashDeposit({
     note,
   };
   const nextAccounts = [...(nextState.cashAccounts || []), autoAccount];
-  const nextLedger = [...(nextState.cashLedger || []), ledgerEntry];
+  const nextLedger = [...(nextState.cashLedger || []), ...(openingEntry ? [openingEntry] : []), ledgerEntry];
+  const nextCashQAR = deriveCashQAR(nextAccounts, nextLedger);
   return {
     ...nextState,
     cashAccounts: nextAccounts,
     cashLedger: nextLedger,
-    cashQAR: deriveCashQAR(nextAccounts, nextLedger),
+    cashHistory: [...(nextState.cashHistory || []), {
+      id: uid(),
+      ts: now,
+      type: 'sale_deposit',
+      amount: depositAmt,
+      balanceAfter: nextCashQAR,
+      owner: nextState.cashOwner || '',
+      bankAccount: autoAccount.name,
+      note,
+    }],
+    cashQAR: nextCashQAR,
   };
 }
