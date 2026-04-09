@@ -58,6 +58,10 @@ interface Props {
   onStartVideoCall?: () => void;
   onToggleCallHistory?: () => void;
   onSearchToggle?: () => void;
+  onViewInfo?: () => void;
+  onMuteToggle?: () => void;
+  onClearChat?: () => void;
+  isMuted?: boolean;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
