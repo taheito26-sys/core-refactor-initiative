@@ -55,8 +55,8 @@ export function RoomInfoPanel({ room, onClose }: Props) {
               <Icon className="h-3.5 w-3.5" />
               <span className="text-xs font-semibold">{config.label}</span>
             </div>
-            {room.description && (
-              <p className="text-xs text-muted-foreground mt-2 text-center leading-relaxed">{room.description}</p>
+            {(room as Record<string, unknown>).description && (
+              <p className="text-xs text-muted-foreground mt-2 text-center leading-relaxed">{String((room as Record<string, unknown>).description)}</p>
             )}
           </div>
 
