@@ -8,6 +8,7 @@ export interface ApplyOrderCashDepositInput {
   sell: number;
   amountUSDT: number;
   note: string;
+  baseFiatCurrency?: 'QAR' | 'EGP';
   now?: number;
 }
 
@@ -19,6 +20,7 @@ export function applyOrderCashDeposit({
   sell,
   amountUSDT,
   note,
+  baseFiatCurrency = 'QAR',
   now = Date.now(),
 }: ApplyOrderCashDepositInput): TrackerState {
   if (cashDepositMode === 'none') return nextState;
@@ -29,10 +31,10 @@ export function applyOrderCashDeposit({
     : Math.min(parseFloat(cashDepositAmountRaw) || 0, revenue);
   if (depositAmt <= 0) return nextState;
 
-  const activeQarAccounts = (nextState.cashAccounts || []).filter(a => a.status === 'active' && a.currency === 'QAR');
-  const selectedActiveQarAccount = activeQarAccounts.find(a => a.id === cashDepositAccountId);
-  const fallbackActiveQarAccount = activeQarAccounts[0];
-  const targetAccount = selectedActiveQarAccount || fallbackActiveQarAccount;
+  const activeFiatAccounts = (nextState.cashAccounts || []).filter(a => a.status === 'active' && a.currency === baseFiatCurrency);
+  const selectedActiveFiatAccount = activeFiatAccounts.find(a => a.id === cashDepositAccountId);
+  const fallbackActiveFiatAccount = activeFiatAccounts[0];
+  const targetAccount = selectedActiveFiatAccount || fallbackActiveFiatAccount;
 
   if (targetAccount) {
     const ledgerEntry: CashLedgerEntry = {
@@ -59,7 +61,7 @@ export function applyOrderCashDeposit({
     id: autoAccountId,
     name: 'Cash Wallet',
     type: 'hand' as const,
-    currency: 'QAR' as const,
+    currency: baseFiatCurrency as const,
     status: 'active' as const,
     notes: 'Auto-created from order sale deposit',
     createdAt: now,
@@ -71,7 +73,7 @@ export function applyOrderCashDeposit({
     accountId: autoAccountId,
     direction: 'in' as const,
     amount: depositAmt,
-    currency: 'QAR' as const,
+    currency: baseFiatCurrency as const,
     note,
   };
   const nextAccounts = [...(nextState.cashAccounts || []), autoAccount];

@@ -91,7 +91,8 @@ export default function OrdersPage() {
 
   const [saleDate, setSaleDate] = useState(nowInput());
   const [saleEntryMode, setSaleEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
-  const [saleMode, setSaleMode] = useState<'USDT' | 'QAR'>('USDT');
+  const baseFiat = settings.baseFiatCurrency || 'QAR';
+  const [saleMode, setSaleMode] = useState<'USDT' | 'QAR' | 'EGP'>('USDT');
   const [saleUsdtQty, setSaleUsdtQty] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [saleSell, setSaleSell] = useState('');
@@ -709,7 +710,7 @@ export default function OrdersPage() {
     if (saleEntryMode === 'price_vol') {
       const rawAmount = Number(saleAmount);
       const sell = Number(saleSell);
-      expectedQty = saleMode === 'QAR' ? (sell > 0 ? rawAmount / sell : 0) : rawAmount;
+      expectedQty = saleMode !== 'USDT' ? (sell > 0 ? rawAmount / sell : 0) : rawAmount;
     } else {
       expectedQty = Number(saleUsdtQty);
     }
@@ -1268,7 +1269,7 @@ export default function OrdersPage() {
       // Create backend deal first so local outgoing state only exists when partner can actually receive it.
       try {
         const customerName = buyerName.trim() || t('buyer');
-        const currency = saleMode === 'QAR' ? 'QAR' : 'USDT';
+        const currency = saleMode === 'USDT' ? 'USDT' : baseFiat;
         const sell = saleDraft.sellPriceQar;
         const fee = feeQar;
 
@@ -1538,7 +1539,7 @@ export default function OrdersPage() {
           deal_type: dealType,
           title,
           amount: rev,
-          currency: 'QAR',
+          currency: baseFiat,
           status: 'pending',
           created_by: userId!,
           notes: noteLines,
@@ -3179,7 +3180,7 @@ export default function OrdersPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
                         <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>USDT</button>
-                        <button className={saleMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setSaleMode('QAR')} style={mobileActionStyle}>QAR</button>
+                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{baseFiat}</button>
                       </div>
                     </div>
                     <div className="field2">

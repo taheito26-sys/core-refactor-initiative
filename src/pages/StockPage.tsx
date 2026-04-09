@@ -54,7 +54,8 @@ export default function StockPage() {
   });
 
   const [batchDate, setBatchDate] = useState(nowInput());
-  const [batchMode, setBatchMode] = useState<'QAR' | 'USDT'>('QAR');
+  const baseFiat = settings.baseFiatCurrency || 'QAR';
+  const [batchMode, setBatchMode] = useState<'QAR' | 'EGP' | 'USDT'>(baseFiat);
   const [batchEntryMode, setBatchEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
   const [batchUsdtQty, setBatchUsdtQty] = useState('');
   const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
@@ -138,7 +139,7 @@ export default function StockPage() {
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
   const wacop = getWACOP(derived);
-  /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
+  /** Currency-aware formatter: respects the global {baseFiat}/USDT toggle using FIFO WACOP */
   const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
   const rLabel = rangeLabel(state.range);
 
@@ -240,7 +241,8 @@ export default function StockPage() {
       if (!(rawAmt > 0)) errs.push(t('volume'));
       if (!source) errs.push(t('supplier'));
       if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
-      if (batchMode === 'QAR') {
+      if (batchMode !== 'USDT') {
+        // Fiat mode (QAR or EGP) — rawAmt is the fiat volume
         volumeQAR = rawAmt;
         totalUSDT = rawAmt / px;
       } else {
@@ -282,7 +284,7 @@ export default function StockPage() {
       if (!selectedAcc) { setBatchMsg(t('fundingAccNotFound')); return; }
       const availBal = accountBalances.get(fundingAccountId) || 0;
       if (availBal < batchCostQAR) {
-        setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} QAR, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} QAR`);
+        setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} ${selectedAcc.currency}, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} ${selectedAcc.currency}`);
         return;
       }
       const entryId = uid();
@@ -293,7 +295,7 @@ export default function StockPage() {
         accountId: fundingAccountId,
         direction: 'out',
         amount: batchCostQAR,
-        currency: 'QAR',
+        currency: selectedAcc.currency,
         linkedEntityType: 'batch',
         linkedEntityId: batchId,
         note: `Stock purchase: ${fmtU(totalUSDT)} USDT @ ${fmtP(px)} from ${source}`,
@@ -392,6 +394,7 @@ export default function StockPage() {
     // ── Ledger adjustment if multi-account is active ─────────────
     let nextCashLedger = [...(state.cashLedger || [])];
     if (Math.abs(delta) > 0.01 && existingBatch?.fundingAccountId) {
+      const fundingAcc = (state.cashAccounts || []).find(a => a.id === existingBatch.fundingAccountId);
       const adjustEntry: CashLedgerEntry = {
         id: uid(),
         ts: Date.now(),
@@ -399,10 +402,10 @@ export default function StockPage() {
         accountId: existingBatch.fundingAccountId,
         direction: delta > 0 ? 'out' : 'in',
         amount: Math.abs(delta),
-        currency: 'QAR',
+        currency: fundingAcc?.currency || baseFiat,
         linkedEntityType: 'batch',
         linkedEntityId: editingBatchId,
-        note: `Batch edit: cost ${delta > 0 ? 'increased' : 'reduced'} by ${fmtTotal(Math.abs(delta))} QAR`,
+        note: `Batch edit: cost ${delta > 0 ? 'increased' : 'reduced'} by ${fmtTotal(Math.abs(delta))} ${fundingAcc?.currency || baseFiat}`,
       };
       nextCashLedger = [...nextCashLedger, adjustEntry];
     }
@@ -452,6 +455,7 @@ export default function StockPage() {
     // ── Multi-account refund (new system) ─────────────────────────
     let nextCashLedger = [...(state.cashLedger || [])];
     if (batch.fundingAccountId && (state.cashAccounts || []).length > 0) {
+      const fundingAcc = (state.cashAccounts || []).find(a => a.id === batch.fundingAccountId);
       const refundEntry: CashLedgerEntry = {
         id: uid(),
         ts: Date.now(),
@@ -459,7 +463,7 @@ export default function StockPage() {
         accountId: batch.fundingAccountId,
         direction: 'in',
         amount: batchCostQAR,
-        currency: 'QAR',
+        currency: fundingAcc?.currency || baseFiat,
         linkedEntityType: 'batch',
         linkedEntityId: editingBatchId,
         note: `Batch refund: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${batch.source || 'unknown'}`,
@@ -764,7 +768,7 @@ export default function StockPage() {
                   <div className="field2">
                     <div className="lbl">{t('currencyMode')}</div>
                     <div className="modeToggle">
-                      <button className={batchMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setBatchMode('QAR')}>📦 QAR</button>
+                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat}</button>
                       <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
                     </div>
                   </div>
@@ -774,7 +778,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{batchMode === 'QAR' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="lbl">{batchMode !== 'USDT' ? t('volumeQar') : t('amountUsdt')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                   </div>
@@ -797,7 +801,7 @@ export default function StockPage() {
                     <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
                       <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
-                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} QAR/USDT
+                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat}/USDT
                       </span>
                     </div>
                   )}
@@ -1022,7 +1026,7 @@ export default function StockPage() {
                     <div className="field2">
                       <div className="lbl">{t('currencyMode')}</div>
                       <div className="modeToggle">
-                        <button className={batchMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setBatchMode('QAR')}>📦 QAR</button>
+                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat}</button>
                         <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
                       </div>
                     </div>
@@ -1031,7 +1035,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{batchMode === 'QAR' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="lbl">{batchMode !== 'USDT' ? t('volumeQar') : t('amountUsdt')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                   </>)}
@@ -1047,7 +1051,7 @@ export default function StockPage() {
                     {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
                       <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
                         <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
-                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} QAR/USDT</span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat}/USDT</span>
                       </div>
                     )}
                   </>)}
