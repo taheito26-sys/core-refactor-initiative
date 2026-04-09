@@ -19,6 +19,17 @@ export function resolveChatUserLabel(
   return fallbackId ? fallbackId.slice(0, 8) : 'Unknown';
 }
 
+export function resolveMessageSenderLabel(
+  senderId?: string | null,
+  senderName?: string | null,
+  fallbackMerchantId?: string | null,
+): string {
+  return resolveChatUserLabel(senderId, [
+    senderName,
+    fallbackMerchantId,
+  ]);
+}
+
 export function resolveRoomDisplayName(room: Pick<ChatRoomListItem, 'display_name' | 'name' | 'is_direct' | 'other_user_id' | 'other_user_metadata'>): string {
   const meta = (room.other_user_metadata ?? {}) as RoomIdentityMetadata;
 

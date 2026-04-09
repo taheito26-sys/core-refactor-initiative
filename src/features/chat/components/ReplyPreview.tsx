@@ -2,6 +2,7 @@
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '../types';
+import { resolveMessageSenderLabel } from '../lib/identity';
 
 interface Props {
   message: ChatMessage;
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function ReplyPreview({ message, onClear }: Props) {
-  const senderName = message.sender_name ?? message.sender_id.slice(0, 8);
+  const senderName = resolveMessageSenderLabel(message.sender_id, message.sender_name);
   const preview = message.content.length > 100 ? message.content.slice(0, 100) + '…' : message.content;
 
   return (

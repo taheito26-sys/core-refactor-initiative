@@ -41,6 +41,7 @@ import { MarketOffersPanel } from '../components/MarketOffersPanel';
 import { usePrivacyGuard } from '../hooks/usePrivacyGuard';
 import { useMarketOffers } from '../hooks/useMarketOffers';
 import { usePrivacySettings } from '../hooks/usePrivacySettings';
+import { resolveMessageSenderLabel } from '../lib/identity';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
@@ -253,7 +254,7 @@ export default function ChatWorkspacePage() {
       const metadata = { ...opts?.metadata } as SendMessageInput['metadata'];
       if (replyTo && !opts?.replyToId) {
         (metadata as Record<string, unknown>).reply_preview = {
-          sender_name: replyTo.sender_name ?? replyTo.sender_id.slice(0, 8),
+          sender_name: resolveMessageSenderLabel(replyTo.sender_id, replyTo.sender_name),
           content: replyTo.content.slice(0, 100),
         };
       }

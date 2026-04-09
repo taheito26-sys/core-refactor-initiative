@@ -17,6 +17,7 @@ import { ProtectedMessageContent } from './ProtectedMessageContent';
 import { OfferCard } from './OfferCard';
 import { getAttachment, getSignedUrl } from '../api/chat';
 import { toast } from 'sonner';
+import { resolveMessageSenderLabel } from '../lib/identity';
 
 interface Props {
   messages:  ChatMessage[];
@@ -569,6 +570,11 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                   status?: 'active' | 'filled' | 'cancelled' | 'expired';
                 } | undefined;
                 const isOfferMessage = m.type === 'market_offer' && !!marketOffer;
+                const senderLabel = resolveMessageSenderLabel(
+                  m.sender_id,
+                  m.sender_name,
+                  marketOffer?.merchant_id,
+                );
 
                 // Phase 3: Emoji-only big render
                 const emojiOnly = !isDeleted && m.type === 'text' && isEmojiOnly(m.content);
@@ -604,7 +610,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                         className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mr-1.5 mt-0.5 self-start"
                         style={{ background: avatarGradient(m.sender_id) }}
                       >
-                        {(m.sender_name ?? m.sender_id)[0]?.toUpperCase() ?? '?'}
+                        {senderLabel[0]?.toUpperCase() ?? '?'}
                       </div>
                     )}
                     {!isMe && !isFirstInGroup && <div className="w-7 mr-1.5 shrink-0" />}
@@ -656,7 +662,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                             {/* Sender name for group chats */}
                             {!isMe && isFirstInGroup && (
                               <p className="text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">
-                                {m.sender_name ?? m.sender_id.slice(0, 8)}
+                                {senderLabel}
                               </p>
                             )}
 
@@ -690,7 +696,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                               </div>
                             ) : isOfferMessage && marketOffer ? (
                               <OfferCard
-                                merchantName={m.sender_name ?? marketOffer.merchant_id ?? m.sender_id.slice(0, 8)}
+                                merchantName={senderLabel}
                                 merchantId={marketOffer.merchant_id ?? null}
                                 type={marketOffer.offer_type ?? 'buy'}
                                 amount={`${(marketOffer.amount ?? 0).toLocaleString()} USDT`}
