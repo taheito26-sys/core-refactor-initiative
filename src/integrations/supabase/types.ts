@@ -3513,6 +3513,27 @@ export type Database = {
         Args: { _offer_id: string }
         Returns: undefined
       }
+      chat_create_attachment: {
+        Args: {
+          _auth_tag?: string
+          _cdn_url?: string
+          _checksum_sha256?: string
+          _duration_ms?: number
+          _file_name: string
+          _file_size: number
+          _height?: number
+          _is_encrypted?: boolean
+          _iv?: string
+          _message_id: string
+          _mime_type: string
+          _room_id: string
+          _storage_path: string
+          _thumbnail_path?: string
+          _waveform?: Json
+          _width?: number
+        }
+        Returns: string
+      }
       chat_create_market_offer: {
         Args: {
           _currency_pair?: string
@@ -3653,6 +3674,14 @@ export type Database = {
         }[]
       }
       chat_initiate_call: { Args: { _room_id: string }; Returns: string }
+      chat_is_allowed_mime: {
+        Args: { _allowed_mime_types: string[]; _mime_type: string }
+        Returns: boolean
+      }
+      chat_link_attachment_to_message: {
+        Args: { _attachment_id: string; _message_id: string }
+        Returns: undefined
+      }
       chat_mark_room_read: {
         Args: { _room_id: string; _up_to_message_id?: string }
         Returns: undefined
