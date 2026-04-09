@@ -151,7 +151,7 @@ export function ConversationHeader({
       {/* ── Right: actions ───────────────────────────────────────────────── */}
       <div className="flex items-center gap-0.5 shrink-0">
 
-        {/* Voice call — only for merchant_private rooms */}
+        {/* Voice call */}
         {onStartCall && (
           <button
             onClick={onStartCall}
@@ -159,6 +159,28 @@ export function ConversationHeader({
             title="Voice call"
           >
             <Phone size={16} />
+          </button>
+        )}
+
+        {/* Video call */}
+        {onStartVideoCall && (
+          <button
+            onClick={onStartVideoCall}
+            className="w-9 h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            title="Video call"
+          >
+            <Video size={16} />
+          </button>
+        )}
+
+        {/* Call history */}
+        {onToggleCallHistory && (
+          <button
+            onClick={onToggleCallHistory}
+            className="w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            title="Call history"
+          >
+            <History size={16} />
           </button>
         )}
 
