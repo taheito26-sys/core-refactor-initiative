@@ -428,6 +428,7 @@ export default function ChatWorkspacePage() {
         {lightbox}
         {roomInfo}
         {forwardModal}
+        {newChatModal}
         {mobilePane === 'list' ? (
           <div className="flex flex-col flex-1 min-w-0 h-full chat-pane-enter-left">
             <ConversationSidebar
