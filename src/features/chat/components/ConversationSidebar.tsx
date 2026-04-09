@@ -1,149 +1,201 @@
-import { useMemo, useState } from 'react';
-import type { ChatRoom } from '@/features/chat/lib/types';
-import { Search, SlidersHorizontal, Mic, BarChart3, Forward, Reply, Clock, X } from 'lucide-react';
-import { parseMsg, fmtListTime, getPalette } from '../lib/message-codec';
+import { useState, useMemo } from 'react';
+import { Search, Plus, Users, Lock, Briefcase, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useChatStore } from '@/lib/chat-store';
+import { useT } from '@/lib/i18n';
+import type { ChatRoomListItem, ChatRoomType } from '../types';
+import { Button } from '@/components/ui/button';
 
 interface Props {
-  rooms: ChatRoom[];
+  rooms:        ChatRoomListItem[];
   activeRoomId: string | null;
-  onSelectRoom: (roomId: string) => void;
-  currentUserId: string;
-  isMobile?: boolean;
+  onSelectRoom: (id: string) => void;
+  isLoading:    boolean;
+  meId:         string;
 }
 
-function previewText(raw: string): { icon?: React.ReactNode; text: string } {
-  if (!raw) return { text: 'No messages yet' };
-  const p = parseMsg(raw);
-  if (p.isVoice) return { icon: <Mic size={12} className="shrink-0" />, text: `Voice · ${p.voiceDuration || 0}s` };
-  if (p.isPoll) return { icon: <BarChart3 size={12} className="shrink-0" />, text: p.pollQuestion || 'Poll' };
-  if (p.isFwd) return { icon: <Forward size={12} className="shrink-0" />, text: p.fwdText?.slice(0, 50) || 'Forwarded' };
-  if (p.isReply) return { icon: <Reply size={12} className="shrink-0" />, text: p.text?.slice(0, 50) || 'Reply' };
-  if (p.isScheduled) return { icon: <Clock size={12} className="shrink-0" />, text: p.text?.slice(0, 50) || 'Scheduled' };
-  return { text: p.text?.slice(0, 60) || 'No messages yet' };
-}
+const TYPE_ICONS: Record<ChatRoomType, React.ElementType> = {
+  merchant_private: Lock,
+  merchant_client:  Briefcase,
+  merchant_collab:  Users,
+};
 
-type LaneFilter = 'ALL' | 'DEALS' | 'ALERTS';
+const TYPE_COLORS: Record<ChatRoomType, string> = {
+  merchant_private: 'text-violet-500',
+  merchant_client:  'text-blue-500',
+  merchant_collab:  'text-emerald-500',
+};
 
-export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isMobile }: Props) {
-  // BUG 5 FIX: search was a dead uncontrolled input; now filters room list
-  const [search, setSearch]           = useState('');
-  const [laneFilter, setLaneFilter]   = useState<LaneFilter>('ALL');
+type Filter = 'all' | ChatRoomType;
 
-  const filteredRooms = useMemo(() => {
+export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isLoading, meId }: Props) {
+  const t = useT();
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const unreadCounts = useChatStore((s) => s.unreadCounts);
+
+  const filtered = useMemo(() => {
     let list = rooms;
-    if (laneFilter === 'DEALS')  list = list.filter((r) => r.type === 'deal' || r.lane === 'Deals');
-    if (laneFilter === 'ALERTS') list = list.filter((r) => r.lane === 'Alerts');
+    if (filter !== 'all') list = list.filter((r) => r.room_type === filter);
     if (search.trim()) {
-      const q = search.trim().toLowerCase();
+      const q = search.toLowerCase();
       list = list.filter((r) =>
-        r.title?.toLowerCase().includes(q) ||
-        r.last_message_body?.toLowerCase().includes(q),
+        (r.name ?? r.display_name ?? '').toLowerCase().includes(q) ||
+        (r.last_message_preview ?? '').toLowerCase().includes(q),
       );
     }
     return list;
-  }, [rooms, search, laneFilter]);
+  }, [rooms, filter, search]);
+
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <aside className={`${isMobile ? 'w-full' : 'w-[280px]'} bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0`}>
-      <div className="p-4 pb-2 shrink-0">
-        <h2 className="text-lg font-black text-foreground tracking-tight mb-3 flex items-center justify-between">
-          Inbox
-          <SlidersHorizontal size={16} className="text-muted-foreground/60 cursor-pointer hover:text-primary transition-colors" />
-        </h2>
-        {/* BUG 5 FIX: controlled search input that actually filters the list */}
-        <div className="relative mb-3">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+    <div className="flex flex-col w-72 lg:w-80 border-r border-border/50 bg-card h-full shrink-0">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-sm text-foreground">Messages</h2>
+            {totalUnread > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive text-[9px] font-black text-white px-1">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </span>
+            )}
+            {isLoading && <RefreshCw className="h-3 w-3 text-muted-foreground animate-spin" />}
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
           <input
-            type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search conversations..."
-            className="w-full bg-muted/60 border border-border/50 rounded-xl py-2.5 pl-9 pr-8 text-xs font-medium text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-background focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-muted/50 border border-border/30 focus:outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/40"
           />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground">
-              <X size={12} />
-            </button>
-          )}
         </div>
 
-        {/* BUG 5 FIX: lane tabs now control the laneFilter state */}
-        <div className="flex gap-4 px-1 border-b border-border pb-2">
-          {(['ALL', 'DEALS', 'ALERTS'] as LaneFilter[]).map((lane) => (
+        {/* Filter tabs */}
+        <div className="flex gap-1 mt-2">
+          {(['all', 'merchant_private', 'merchant_client', 'merchant_collab'] as Filter[]).map((f) => (
             <button
-              key={lane}
-              onClick={() => setLaneFilter(lane)}
-              className={`relative text-xs font-bold pb-1 min-h-[36px] transition-colors ${laneFilter === lane ? 'text-foreground' : 'text-muted-foreground/60 hover:text-foreground'}`}
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                'flex-1 text-[9px] font-bold py-1 rounded-md transition-colors',
+                filter === f
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted',
+              )}
             >
-              {lane}
-              {laneFilter === lane && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full" />}
+              {f === 'all' ? 'All'
+                : f === 'merchant_private' ? '🔒 P2P'
+                : f === 'merchant_client'  ? '💼 Client'
+                : '👥 Hub'}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pt-2 space-y-1 pb-6">
-        {filteredRooms.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
-            <Search size={20} className="text-muted-foreground/30" />
-            <p className="text-xs text-muted-foreground/50">No conversations found</p>
+      {/* Room list */}
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+            <p className="text-xs font-medium">
+              {search ? 'No results' : 'No conversations'}
+            </p>
           </div>
-        )}
-        {filteredRooms.map((room) => {
-          const isActive = activeRoomId === room.room_id;
-          const palette = getPalette(room.title || 'R');
-          const preview = previewText(room.last_message_body || '');
-          const timeLabel = room.last_message_at ? fmtListTime(room.last_message_at) : '';
-
-          return (
-            <button
+        ) : (
+          filtered.map((room) => (
+            <RoomRow
               key={room.room_id}
+              room={room}
+              isActive={room.room_id === activeRoomId}
+              unread={unreadCounts[room.room_id] ?? room.unread_count}
               onClick={() => onSelectRoom(room.room_id)}
-              className={`w-full group flex items-start gap-3 p-3 rounded-2xl transition-all duration-200 text-left relative ${
-                isActive
-                  ? 'bg-primary/10 ring-1 ring-primary/20'
-                  : 'hover:bg-muted/60'
-              }`}
-            >
-              <div className="relative shrink-0 mt-0.5">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black shadow-sm"
-                  style={{ background: palette.bg, color: palette.text }}
-                >
-                  {room.title?.charAt(0).toUpperCase()}
-                </div>
-                {room.unread_count > 0 && (
-                  <div className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[9px] font-black min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-background shadow-sm">
-                    {room.unread_count > 99 ? '99+' : room.unread_count}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className={`text-[13px] font-bold truncate ${isActive ? 'text-primary' : 'text-foreground'}`}>
-                    {room.title}
-                  </span>
-                  {timeLabel && (
-                    <span className={`text-[10px] font-medium shrink-0 ml-2 ${room.unread_count > 0 ? 'text-primary font-bold' : 'text-muted-foreground/60'}`}>
-                      {timeLabel}
-                    </span>
-                  )}
-                </div>
-
-                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider block mb-1">
-                  {room.type === 'deal' ? 'Secure Trade' : room.lane}
-                </span>
-
-                <div className={`flex items-center gap-1.5 text-[11px] leading-tight ${room.unread_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground/70'}`}>
-                  {preview.icon}
-                  <span className="truncate">{preview.text}</span>
-                </div>
-              </div>
-            </button>
-          );
-        })}
+              meId={meId}
+            />
+          ))
+        )}
       </div>
-    </aside>
+    </div>
+  );
+}
+
+function RoomRow({
+  room, isActive, unread, onClick, meId,
+}: {
+  room: ChatRoomListItem;
+  isActive: boolean;
+  unread: number;
+  onClick: () => void;
+  meId: string;
+}) {
+  const Icon = TYPE_ICONS[room.room_type];
+  const iconColor = TYPE_COLORS[room.room_type];
+  const displayName = room.display_name ?? room.name ?? 'Unnamed room';
+  const preview = room.last_message_preview ?? '';
+  const timeStr = room.last_message_at
+    ? new Date(room.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-border/20',
+        isActive
+          ? 'bg-primary/10 border-l-2 border-l-primary'
+          : 'hover:bg-muted/50 border-l-2 border-l-transparent',
+      )}
+    >
+      {/* Avatar / type icon */}
+      <div className={cn(
+        'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
+        isActive ? 'bg-primary/20' : 'bg-muted',
+      )}>
+        {room.display_avatar ? (
+          <img
+            src={room.display_avatar}
+            alt={displayName}
+            className="h-10 w-10 rounded-full object-cover"
+          />
+        ) : (
+          <Icon className={cn('h-5 w-5', isActive ? 'text-primary' : iconColor)} />
+        )}
+      </div>
+
+      {/* Text */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <span className={cn(
+            'text-xs font-semibold truncate',
+            unread > 0 ? 'text-foreground' : 'text-muted-foreground',
+          )}>
+            {displayName}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            {room.is_muted && (
+              <span className="text-muted-foreground/40 text-[9px]">🔇</span>
+            )}
+            <span className="text-[9px] text-muted-foreground/50">{timeStr}</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-0.5">
+          <p className="text-[11px] text-muted-foreground/70 truncate max-w-[160px]">
+            {preview || <span className="italic">No messages yet</span>}
+          </p>
+          {unread > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-black text-white px-0.5 shrink-0 ml-1">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
   );
 }

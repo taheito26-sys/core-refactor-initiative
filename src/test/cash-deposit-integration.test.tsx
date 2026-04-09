@@ -17,6 +17,7 @@ function makeState(overrides: Partial<TrackerState> = {}): TrackerState {
     batches: [],
     trades: [],
     customers: [],
+    suppliers: [],
     cashQAR: 0,
     cashOwner: 'owner',
     cashHistory: [],

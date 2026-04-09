@@ -12,9 +12,22 @@ export interface Profile {
   user_id: string;
   email: string;
   status: string;
+  role: string;
   approved_at: string | null;
   approved_by: string | null;
   rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerProfile {
+  id: string;
+  user_id: string;
+  display_name: string;
+  phone: string | null;
+  region: string | null;
+  preferred_currency: string;
+  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +60,7 @@ interface AuthState {
   email: string | null;
   profile: Profile | null;
   merchantProfile: MerchantProfile | null;
+  customerProfile: CustomerProfile | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
@@ -64,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
 
   const loadUserProfiles = useCallback(async (currentUserId?: string | null) => {
     const resolvedUserId = currentUserId ?? (await supabase.auth.getUser()).data.user?.id ?? null;
@@ -71,10 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!resolvedUserId) {
       setProfile(null);
       setMerchantProfile(null);
+      setCustomerProfile(null);
       return;
     }
 
-    const [{ data: profileData }, { data: merchantData }] = await Promise.all([
+    const [{ data: profileData }, { data: merchantData }, { data: customerData }] = await Promise.all([
       supabase
         .from('profiles')
         .select('*')
@@ -85,10 +101,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('user_id', resolvedUserId)
         .maybeSingle(),
+      supabase
+        .from('customer_profiles')
+        .select('*')
+        .eq('user_id', resolvedUserId)
+        .maybeSingle(),
     ]);
 
     setProfile(profileData as Profile | null);
     setMerchantProfile(merchantData as MerchantProfile | null);
+    setCustomerProfile(customerData as CustomerProfile | null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -101,8 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const syncAuthState = async (newSession: Session | null) => {
       if (!isMounted) return;
 
-      // Handle Dev Mode Bypass
-      if (localStorage.getItem('p2p_dev_mode') === 'true' || import.meta.env.DEV) {
+      // Handle Dev Mode Bypass — only when explicitly enabled AND there is no real session
+      if (!newSession && localStorage.getItem('p2p_dev_mode') === 'true') {
         const mockUser: User = {
           id: '00000000-0000-0000-0000-000000000000',
           email: 'dev@local.test',
@@ -143,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(mockUser);
         setProfile(mockProfile);
         setMerchantProfile(mockMerchant);
+        setCustomerProfile(null);
         setIsLoading(false);
         return;
       }
@@ -155,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setProfile(null);
         setMerchantProfile(null);
+        setCustomerProfile(null);
       }
 
       if (isMounted) {
@@ -268,6 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
     setProfile(null);
     setMerchantProfile(null);
+    setCustomerProfile(null);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -293,6 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: user?.email ?? null,
     profile,
     merchantProfile,
+    customerProfile,
     login,
     loginWithGoogle,
     signup,

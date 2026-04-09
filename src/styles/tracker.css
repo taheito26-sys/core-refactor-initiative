@@ -718,25 +718,25 @@
   .tracker-root.orders-mobile-root .formPanel.salePanel .hdr {
     padding: 6px 10px;
   }
-  /* Compact form fields: smaller inputs and labels */
-  .tracker-root.orders-mobile-root .formPanel.salePanel .field2 .lbl {
-    font-size: 9px;
-    margin-bottom: 3px;
+  /* Compact form fields */
+  .tracker-root.orders-mobile-root .formPanel.salePanel .field2 .lbl { font-size: 9px; margin-bottom: 3px; }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox { padding: 5px 10px; }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox input { font-size: 13px; }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow { padding: 5px 8px; }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow .bVal { font-size: 16px; }
+  .tracker-root.orders-mobile-root .formPanel.salePanel .modeToggle { gap: 3px; }
+
+  /* ── Edge-to-edge stock layout (root keeps 10px side padding for controls) ── */
+  .tracker-root.stock-mobile-root .twoColPage > * {
+    max-width: none;
+    overflow: visible;
   }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox {
-    padding: 5px 10px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox input {
-    font-size: 13px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow {
-    padding: 5px 8px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow .bVal {
-    font-size: 16px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .modeToggle {
-    gap: 3px;
+  /* Batch card list bleeds edge-to-edge by escaping the 1px root padding */
+  .tracker-root.stock-mobile-root .orders-cards-list {
+    margin-left: -1px;
+    margin-right: -1px;
+    width: calc(100% + 2px);
+    padding: 0;
   }
 }
 
@@ -1643,4 +1643,44 @@
   .tracker-root .cash-summary-value { font-size: 14px; }
   .tracker-root .cash-accounts-grid { grid-template-columns: 1fr; }
   .tracker-root .cash-summary-sep { display: none; }
+}
+
+/* ── Sale sheet backdrop (Orders page mobile) ──────────────────────── */
+.sale-sheet-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, 0.60);
+  animation: sheetFadeIn 0.18s ease;
+}
+/* Drag-handle pill injected above the sheet form via ::before */
+.tracker-root.orders-mobile-root.sale-sheet-open #new-sale-form::before {
+  content: '';
+  display: block;
+  width: 40px; height: 4px; border-radius: 2px;
+  background: var(--muted); opacity: 0.35;
+  margin: 8px auto 4px;
+}
+
+/* ── Mobile Add Batch Bottom Sheet ─────────────────────────────────── */
+.batch-sheet-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, 0.60);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  animation: sheetFadeIn 0.18s ease;
+}
+@keyframes sheetFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.batch-sheet {
+  background: var(--bg);
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid var(--line);
+  padding: 12px 14px max(16px, env(safe-area-inset-bottom, 0px));
+  max-height: 90dvh;
+  overflow-y: auto;
+  animation: sheetSlideUp 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }

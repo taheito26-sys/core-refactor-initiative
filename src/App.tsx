@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
+import { CustomerGuard } from "@/features/auth/guards/CustomerGuard";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
@@ -24,6 +25,14 @@ import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 
 // Onboarding
 import OnboardingPage from "./pages/merchant/OnboardingPage";
+import { CustomerLayout } from "@/components/layout/CustomerLayout";
+import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
+import CustomerHomePage from "./pages/customer/CustomerHomePage";
+import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
+import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
+import CustomerChatPage from "./pages/customer/CustomerChatPage";
+import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
+import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
@@ -210,6 +219,27 @@ const App = () => (
                 <Route path="/onboarding" element={
                   <AuthGuard><OnboardingPage /></AuthGuard>
                 } />
+
+                {/* Customer onboarding — requires auth */}
+                <Route path="/c/onboarding" element={
+                  <AuthGuard><CustomerOnboardingPage /></AuthGuard>
+                } />
+
+                {/* Customer Portal — requires auth + customer profile */}
+                <Route element={
+                  <AuthGuard>
+                    <CustomerGuard>
+                      <CustomerLayout />
+                    </CustomerGuard>
+                  </AuthGuard>
+                }>
+                  <Route path="/c/home" element={<CustomerHomePage />} />
+                  <Route path="/c/merchants" element={<CustomerMerchantsPage />} />
+                  <Route path="/c/orders" element={<CustomerOrdersPage />} />
+                  <Route path="/c/wallet" element={<CustomerWalletPage />} />
+                  <Route path="/c/chat" element={<CustomerChatPage />} />
+                  <Route path="/c/settings" element={<CustomerSettingsPage />} />
+                </Route>
 
                 {/* App Shell — requires auth + approved profile + merchant profile */}
                 <Route element={

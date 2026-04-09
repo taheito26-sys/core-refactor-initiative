@@ -40,16 +40,23 @@ function legacyRoute(n: AppNotification): NotificationNavigationTarget {
   switch (n.category) {
     case 'deal':
     case 'order':
+    case 'customer_order':
       return { pathname: '/trading/orders' };
     case 'invite':
     case 'network':
+    case 'customer':
       return { pathname: '/merchants' };
     case 'approval':
       return { pathname: '/admin/approvals' };
     case 'message':
+    case 'chat':
       return { pathname: '/chat' };
     case 'stock':
       return { pathname: '/trading/stock' };
+    case 'agreement':
+      return { pathname: '/merchants', search: '?tab=agreements' };
+    case 'settlement':
+      return { pathname: '/trading/orders', search: '?tab=settlements' };
     default:
       return { pathname: '/dashboard' };
   }
@@ -64,8 +71,47 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
   const params = new URLSearchParams();
 
   // Add tab context
-  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers'].includes(target.targetTab)) {
+  if (target.targetTab && ['my', 'incoming', 'outgoing', 'transfers', 'cash', 'agreements', 'clients', 'capital', 'settlements', 'liquidity'].includes(target.targetTab)) {
     params.set('tab', target.targetTab);
+  }
+
+  const targetConversationId =
+    target.conversationId
+    ?? (target.targetEntityType === 'os_room' || target.targetEntityType === 'chat_room'
+      ? target.targetEntityId ?? null
+      : null);
+
+  const targetMessageId =
+    target.messageId
+    ?? (target.targetEntityType === 'chat_message'
+      || target.targetEntityType === 'customer_message'
+      || target.targetEntityType === 'message'
+      ? target.targetEntityId ?? null
+      : null);
+
+  // Handle chat deep links first so message-only notifications still work.
+  if (target.targetPath === '/chat') {
+    if (targetConversationId) {
+      params.set('roomId', targetConversationId);
+      if (targetMessageId) params.set('messageId', targetMessageId);
+      return {
+        pathname: '/chat',
+        search: `?${params.toString()}`,
+        pendingChatNav: {
+          conversationId: targetConversationId,
+          messageId: targetMessageId ?? null,
+          notificationId: target.notificationId,
+        },
+      };
+    }
+
+    if (targetMessageId) {
+      params.set('messageId', targetMessageId);
+      return {
+        pathname: '/chat',
+        search: `?${params.toString()}`,
+      };
+    }
   }
 
   // Add focus parameter using the stored focus key
@@ -82,6 +128,16 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
       invite: 'focusInviteId',
       transfer: 'focusTransferId',
       capital_transfer: 'focusTransferId',
+      cash_custody: 'focusCustodyId',
+      agreement: 'focusAgreementId',
+      customer_order: 'focusOrderId',
+      customer_connection: 'focusConnectionId',
+      customer_message: 'messageId',
+      chat_message: 'messageId',
+      capital_ledger: 'focusLedgerId',
+      os_room: 'roomId',   // legacy — os_rooms migrated to chat_rooms, same UUIDs
+      chat_room: 'roomId',
+      message: 'messageId',
     };
     const focusKey = focusKeyMap[target.targetEntityType];
     if (focusKey) {
@@ -90,21 +146,6 @@ function buildPreciseTarget(target: AppNotification['target']): NotificationNavi
   }
 
   const search = params.toString();
-
-  // Handle chat deep links with pendingChatNav
-  if (target.targetPath === '/chat' && target.conversationId) {
-    params.set('roomId', target.conversationId);
-    if (target.messageId) params.set('messageId', target.messageId);
-    return {
-      pathname: '/chat',
-      search: `?${params.toString()}`,
-      pendingChatNav: {
-        conversationId: target.conversationId,
-        messageId: target.messageId ?? null,
-        notificationId: target.notificationId,
-      },
-    };
-  }
 
   return {
     pathname: target.targetPath,
@@ -116,7 +157,9 @@ export function isNotificationDeepLinkable(notification: AppNotification): boole
   const { target } = notification;
   if (target.actionUrl && isInternalActionUrl(target.actionUrl)) return true;
   if (target.targetPath && (target.targetEntityId || target.targetTab)) return true;
-  if (target.kind === 'chat_message') return Boolean(target.conversationId);
+  if (target.kind === 'chat_message') {
+    return Boolean(target.conversationId || target.messageId || target.targetEntityId || target.entityId);
+  }
   // Transfer notifications
   if (target.targetEntityType === 'transfer' || target.targetEntityType === 'capital_transfer') return Boolean(target.targetEntityId);
   return Boolean(target.entityId);

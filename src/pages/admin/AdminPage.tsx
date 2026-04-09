@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Loader2, LayoutDashboard, Users, CheckCircle, Bell, FileText, Cloud, Shield } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, CheckCircle, Bell, FileText, Cloud, Shield, UserCircle } from 'lucide-react';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 import { AdminDashboard } from '@/features/admin/components/AdminDashboard';
 import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirectory';
 import { AdminUserWorkspace } from '@/features/admin/components/AdminUserWorkspace';
+import { AdminCustomerDirectory } from '@/features/admin/components/AdminCustomerDirectory';
+import { AdminCustomerWorkspace } from '@/features/admin/components/AdminCustomerWorkspace';
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
 import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
 import { AdminBackupManager } from '@/features/admin/components/AdminBackupManager';
@@ -12,6 +14,7 @@ import AdminApprovalsPage from './AdminApprovalsPage';
 const TABS = [
   { id: 'overview',      label: 'Overview',      Icon: LayoutDashboard },
   { id: 'users',         label: 'Users',          Icon: Users           },
+  { id: 'customers',     label: 'Customers',      Icon: UserCircle      },
   { id: 'approvals',     label: 'Approvals',      Icon: CheckCircle     },
   { id: 'notifications', label: 'Notifications',  Icon: Bell            },
   { id: 'audit',         label: 'Audit Log',      Icon: FileText        },
@@ -24,6 +27,7 @@ export default function AdminPage() {
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
+  const [workspaceType, setWorkspaceType] = useState<'merchant' | 'customer'>('merchant');
 
   if (roleLoading) {
     return (
@@ -56,6 +60,13 @@ export default function AdminPage() {
   }
 
   if (workspaceUserId) {
+    if (workspaceType === 'customer') {
+      return (
+        <div style={{ minHeight: '100%', padding: '18px 20px' }}>
+          <AdminCustomerWorkspace userId={workspaceUserId} onBack={() => setWorkspaceUserId(null)} />
+        </div>
+      );
+    }
     return (
       <div style={{ minHeight: '100%', padding: '18px 20px' }}>
         <AdminUserWorkspace userId={workspaceUserId} onBack={() => setWorkspaceUserId(null)} />
@@ -137,7 +148,8 @@ export default function AdminPage() {
       {/* ── Content ── */}
       <div style={{ flex: 1, padding: '24px' }}>
         {activeTab === 'overview'      && <AdminDashboard />}
-        {activeTab === 'users'         && <AdminUserDirectory onOpenWorkspace={uid => setWorkspaceUserId(uid)} />}
+        {activeTab === 'users'         && <AdminUserDirectory onOpenWorkspace={uid => { setWorkspaceType('merchant'); setWorkspaceUserId(uid); }} />}
+        {activeTab === 'customers'     && <AdminCustomerDirectory onOpenWorkspace={uid => { setWorkspaceType('customer'); setWorkspaceUserId(uid); }} />}
         {activeTab === 'approvals'     && <AdminApprovalsPage />}
         {activeTab === 'notifications' && <AdminNotificationSender />}
         {activeTab === 'audit'         && <AdminAuditCenter />}

@@ -5,24 +5,25 @@ import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Loader2, TrendingUp, BarChart3, Shield, Zap, Users } from 'lucide-react';
+import { Loader2, TrendingUp, BarChart3, Shield, Zap, Users, Store, User } from 'lucide-react';
 import { toast } from 'sonner';
+
+type PortalRole = 'merchant' | 'customer';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<PortalRole | null>(null);
   const { loginWithGoogle, devLogin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const t = useT();
   const { settings, update } = useTheme();
 
-  // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  // On mount: proactively update stale service workers that cause mobile render failures
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(regs => {
@@ -32,6 +33,11 @@ export default function LoginPage() {
   }, []);
 
   const handleGoogleLogin = async () => {
+    if (!selectedRole) {
+      toast.error(t.isRTL ? 'اختر البوابة أولاً' : 'Please select a portal first');
+      return;
+    }
+    localStorage.setItem('p2p_signup_role', selectedRole);
     setLoading(true);
     try {
       await loginWithGoogle();
@@ -95,6 +101,74 @@ export default function LoginPage() {
                 </div>
               ))}
             </div>
+
+            {/* ── Portal Selector ── */}
+            <div className="max-w-md space-y-3 pt-2">
+              <p className="text-[10px] font-semibold text-[hsl(35,60%,65%)] uppercase tracking-[0.15em]">
+                {t.isRTL ? 'اختر البوابة' : 'Choose your portal'}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole('merchant')}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-xl border p-5 transition-all duration-200',
+                    selectedRole === 'merchant'
+                      ? 'border-[hsl(35,80%,55%)] bg-[hsl(35,80%,55%)]/10 shadow-lg shadow-[hsl(35,80%,55%)]/10'
+                      : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
+                  )}
+                >
+                  <div className={cn(
+                    'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                    selectedRole === 'merchant' ? 'bg-[hsl(35,80%,55%)]/20' : 'bg-white/[0.06]'
+                  )}>
+                    <Store className={cn(
+                      'h-5 w-5 transition-colors',
+                      selectedRole === 'merchant' ? 'text-[hsl(35,80%,55%)]' : 'text-white/40'
+                    )} />
+                  </div>
+                  <span className={cn(
+                    'text-sm font-bold transition-colors',
+                    selectedRole === 'merchant' ? 'text-[hsl(35,80%,55%)]' : 'text-white/60'
+                  )}>
+                    {t.isRTL ? 'تاجر' : 'Merchant'}
+                  </span>
+                  <span className="text-[10px] text-white/30 leading-tight text-center">
+                    {t.isRTL ? 'تداول وإدارة المخزون' : 'Trade & manage stock'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole('customer')}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-xl border p-5 transition-all duration-200',
+                    selectedRole === 'customer'
+                      ? 'border-[hsl(35,80%,55%)] bg-[hsl(35,80%,55%)]/10 shadow-lg shadow-[hsl(35,80%,55%)]/10'
+                      : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
+                  )}
+                >
+                  <div className={cn(
+                    'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                    selectedRole === 'customer' ? 'bg-[hsl(35,80%,55%)]/20' : 'bg-white/[0.06]'
+                  )}>
+                    <User className={cn(
+                      'h-5 w-5 transition-colors',
+                      selectedRole === 'customer' ? 'text-[hsl(35,80%,55%)]' : 'text-white/40'
+                    )} />
+                  </div>
+                  <span className={cn(
+                    'text-sm font-bold transition-colors',
+                    selectedRole === 'customer' ? 'text-[hsl(35,80%,55%)]' : 'text-white/60'
+                  )}>
+                    {t.isRTL ? 'عميل' : 'Customer'}
+                  </span>
+                  <span className="text-[10px] text-white/30 leading-tight text-center">
+                    {t.isRTL ? 'شراء وبيع مع التجار' : 'Buy & sell with merchants'}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -138,13 +212,61 @@ export default function LoginPage() {
         </div>
 
         <div className="w-full max-w-sm space-y-8">
-          <div className="lg:hidden flex flex-col items-center gap-3 mb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(340,50%,35%)] shadow-lg">
-              <TrendingUp className="h-7 w-7 text-white" />
+          {/* Mobile-only: logo + portal selector */}
+          <div className="lg:hidden space-y-6">
+            <div className="flex flex-col items-center gap-3 mb-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(340,50%,35%)] shadow-lg">
+                <TrendingUp className="h-7 w-7 text-white" />
+              </div>
+              <div className="text-center">
+                <div className="text-xl font-black text-foreground tracking-tight">TRACKER</div>
+                <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-[0.2em]">P2P Intelligence</div>
+              </div>
             </div>
-            <div className="text-center">
-              <div className="text-xl font-black text-foreground tracking-tight">TRACKER</div>
-              <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-[0.2em]">P2P Intelligence</div>
+
+            {/* Mobile portal selector */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.15em]">
+                {t.isRTL ? 'اختر البوابة' : 'Choose your portal'}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole('merchant')}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-xl border p-4 transition-all duration-200',
+                    selectedRole === 'merchant'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-muted/30 hover:border-primary/40'
+                  )}
+                >
+                  <Store className={cn('h-5 w-5', selectedRole === 'merchant' ? 'text-primary' : 'text-muted-foreground')} />
+                  <span className={cn('text-sm font-bold', selectedRole === 'merchant' ? 'text-primary' : 'text-muted-foreground')}>
+                    {t.isRTL ? 'تاجر' : 'Merchant'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground leading-tight text-center">
+                    {t.isRTL ? 'تداول وإدارة المخزون' : 'Trade & manage stock'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole('customer')}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-xl border p-4 transition-all duration-200',
+                    selectedRole === 'customer'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-muted/30 hover:border-primary/40'
+                  )}
+                >
+                  <User className={cn('h-5 w-5', selectedRole === 'customer' ? 'text-primary' : 'text-muted-foreground')} />
+                  <span className={cn('text-sm font-bold', selectedRole === 'customer' ? 'text-primary' : 'text-muted-foreground')}>
+                    {t.isRTL ? 'عميل' : 'Customer'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground leading-tight text-center">
+                    {t.isRTL ? 'شراء وبيع مع التجار' : 'Buy & sell with merchants'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -158,7 +280,7 @@ export default function LoginPage() {
             className="w-full h-12 text-sm font-semibold gap-3 rounded-xl shadow-sm"
             size="lg"
             onClick={handleGoogleLogin}
-            disabled={loading}
+            disabled={loading || !selectedRole}
           >
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />

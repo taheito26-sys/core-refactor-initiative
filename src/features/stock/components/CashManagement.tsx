@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { deleteCashAccountLedgerFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
+import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
 const IconHand = () => (
@@ -227,16 +228,11 @@ function AddAccountModal({ existingAccount, onSave, onClose, isMobile = false }:
 
         {type === 'merchant_custody' && (
           <div className="field2" style={{ marginBottom: 10 }}>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <div className="lbl">{t('linkToMerchant' as any) || 'Link to Merchant'}</div>
+            <div className="lbl">{t('linkToMerchant')}</div>
             <select value={relationshipId} onChange={e => setRelationshipId(e.target.value)} style={selectStyle}>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <option value="" style={optionStyle}>{t('selectRelationship' as any) || 'Select Relationship...'}</option>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {(window as any)._allRels?.map((r: any) => (
-                <option key={r.id} value={r.id} style={optionStyle}>{r.counterparty_name || r.id}</option>
-              ))}
+              <option value="" style={optionStyle}>{t('selectRelationship')}</option>
             </select>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
           </div>
         )}
 
@@ -599,9 +595,9 @@ function ReconcileEntryModal({ account, currentBalance, onSave, onClose, isMobil
 
 // ── MerchantCustodyModal ──────────────────────────────────────────
 interface MerchantCustodyModalProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  relationships: any[];
+  counterparties: NormalizedCounterparty[];
   myMerchantId: string;
+  myUserId: string;
   onSubmit: (input: {
     custodianMerchantId: string;
     custodianUserId: string;
@@ -614,30 +610,30 @@ interface MerchantCustodyModalProps {
   onClose: () => void;
   isMobile?: boolean;
 }
-function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, isMobile = false }: MerchantCustodyModalProps) {
-  const [relId, setRelId] = useState('');
+function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit, onClose, isMobile = false }: MerchantCustodyModalProps) {
+  const t = useT();
+  const [selectedIdx, setSelectedIdx] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<CashCurrency>('QAR');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const selectedRel = relationships.find((r: any) => r.id === relId);
+  const selected = selectedIdx !== '' ? counterparties[Number(selectedIdx)] : null;
 
   const handle = () => {
-    if (!relId) { setErr('Select a merchant relationship.'); return; }
-    if (!(num(amount, 0) > 0)) { setErr('Enter a valid amount.'); return; }
-    if (!selectedRel) { setErr('Invalid relationship.'); return; }
-    const custodianMerchantId: string = selectedRel.counterparty_name || selectedRel.merchant_b_id || '';
-    const custodianUserId: string = selectedRel.merchant_b_user_id || selectedRel.user_b_id || '';
+    if (!selected) { setErr(t('invalidRelationship')); return; }
+    if (!(num(amount, 0) > 0)) { setErr(t('enterValidAmount')); return; }
+    if (!selected.counterpartyUserId) { setErr(t('missingMerchantUserMapping')); return; }
+    if (selected.counterpartyMerchantId === myMerchantId) { setErr(t('cannotSendToYourself')); return; }
+    if (selected.counterpartyUserId === myUserId) { setErr(t('cannotSendToYourself')); return; }
     onSubmit({
-      custodianMerchantId,
-      custodianUserId,
+      custodianMerchantId: selected.counterpartyMerchantId,
+      custodianUserId: selected.counterpartyUserId,
       requesterMerchantId: myMerchantId,
       amount: num(amount, 0),
       currency,
       note: note.trim() || undefined,
-      relationshipId: relId,
+      relationshipId: selected.relationshipId,
     });
     onClose();
   };
@@ -647,32 +643,34 @@ function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, 
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🤝 Merchant Cash Custody</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🤝 {t('merchantCashCustody')}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-          Request a merchant to hold cash on your behalf. They will receive a notification to accept or counter-propose.
+          {t('custodyRequestDesc')}
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
-          <div className="lbl">Select Merchant (Custodian)</div>
-          <select value={relId} onChange={e => setRelId(e.target.value)}
+          <div className="lbl">{t('selectMerchantCustodian')}</div>
+          <select value={selectedIdx} onChange={e => setSelectedIdx(e.target.value)}
             style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
-            <option value="">Select relationship...</option>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {relationships.map((r: any) => (
-              <option key={r.id} value={r.id}>{r.counterparty_name || r.merchant_b_id || r.id}</option>
+            <option value="">{t('selectRelationship')}</option>
+            {counterparties.map((cp, i) => (
+              <option key={cp.relationshipId} value={String(i)}>{cp.counterpartyLabel}</option>
             ))}
           </select>
+          {counterparties.length === 0 && (
+            <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 4 }}>{t('noApprovedRelationships')}</div>
+          )}
         </div>
 
         <div className="g2tight" style={{ marginBottom: 10 }}>
           <div className="field2">
-            <div className="lbl">Amount</div>
+            <div className="lbl">{t('amount')}</div>
             <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
           </div>
           <div className="field2">
-            <div className="lbl">Currency</div>
+            <div className="lbl">{t('currency')}</div>
             <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)}
               style={{ width: '100%', minHeight: 42, padding: '8px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: '#1a1d38', color: '#e8eaff', cursor: 'pointer', outline: 'none', colorScheme: 'dark' }}>
               <option value="QAR">QAR</option>
@@ -683,14 +681,14 @@ function MerchantCustodyModal({ relationships, myMerchantId, onSubmit, onClose, 
         </div>
 
         <div className="field2" style={{ marginBottom: 16 }}>
-          <div className="lbl">Note (optional)</div>
-          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Daily float for operations..." /></div>
+          <div className="lbl">{t('custodyNoteOptional')}</div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="..." /></div>
         </div>
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
-          <button className="btn secondary" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={handle}>Send Custody Request</button>
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handle}>{t('sendCustodyRequest')}</button>
         </div>
       </div>
     </div>
@@ -749,8 +747,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
   const [showMerchantCustody, setShowMerchantCustody] = useState(false);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [relationships, setRelationships] = useState<any[]>([]);
+  const [counterparties, setCounterparties] = useState<NormalizedCounterparty[]>([]);
 
   const {
     pendingIncoming,
@@ -760,23 +757,21 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
     cancelRequest,
   } = useCashCustodyRequests();
 
+  const myMerchantId = merchantProfile?.merchant_id ?? '';
+  const myUserId = user?.id ?? '';
+
   useEffect(() => {
-    supabase.from('merchant_relationships').select('*').then(({ data }) => {
-      if (data) {
-        // Enriched list for select box
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const myMerchantId = (state as any).merchantId; // fallback
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const enriched = data.map((r: any) => ({
-          ...r,
-          counterparty_name: r.merchant_a_id === myMerchantId ? r.merchant_b_id : r.merchant_a_id, // simplified
-        }));
-        setRelationships(enriched);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (window as any)._allRels = enriched;
-      }
+    if (!myMerchantId || !myUserId) return;
+    Promise.all([
+      supabase.from('merchant_relationships').select('id, merchant_a_id, merchant_b_id, status'),
+      supabase.from('merchant_profiles').select('merchant_id, user_id, display_name, nickname'),
+    ]).then(([relRes, profRes]) => {
+      const rels = relRes.data ?? [];
+      const profs = profRes.data ?? [];
+      const normalized = normalizeCounterparties(myMerchantId, myUserId, rels, profs);
+      setCounterparties(normalized);
     });
-  }, [state]);
+  }, [myMerchantId, myUserId]);
 
   const balances = useMemo(() => getAllAccountBalances(accounts, ledger), [accounts, ledger]);
 
@@ -998,7 +993,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
           className="btn secondary"
           style={{ padding: isMobile ? '10px 14px' : '7px 14px', minHeight: isMobile ? 42 : undefined, fontSize: isMobile ? 12 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, gridColumn: isMobile ? 'span 1' : undefined, position: 'relative' }}
           onClick={() => setShowMerchantCustody(true)}>
-          🤝 Merchant Cash
+          🤝 {t('merchantCash')}
           {pendingIncoming.length > 0 && (
             <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--bad)', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
               {pendingIncoming.length}
@@ -1164,12 +1159,12 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
       {/* ── PENDING CUSTODY REQUESTS (accounts tab inline) ── */}
       {innerTab === 'accounts' && (pendingIncoming.length > 0 || pendingOutgoing.length > 0) && (
         <div className="panel" style={{ marginTop: 4 }}>
-          <div className="panel-head"><h2>🤝 Pending Custody Requests</h2></div>
+          <div className="panel-head"><h2>🤝 {t('pendingCustodyRequests')}</h2></div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingIncoming.map(req => (
               <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700 }}>Incoming: {req.requesterMerchantId}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700 }}>{t('custodyIncoming')}: {req.requesterMerchantId}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>
                     {fmtTotal(req.amount)} {req.currency}{req.note ? ` — ${req.note}` : ''}
                   </div>
@@ -1178,7 +1173,6 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                   <button className="btn" style={{ fontSize: 10, padding: '5px 10px', background: 'var(--good)', color: '#000' }}
                     onClick={() => {
                       respondRequest.mutate({ id: req.id, action: 'accept' });
-                      // Add local transfer_in entry to a merchant_custody account for the requester's funds
                       const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === req.requesterMerchantId);
                       const custodyAccId = existingCustodyAcc?.id ?? uid();
                       const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
@@ -1200,18 +1194,18 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
                         direction: 'in',
                         amount: req.amount,
                         currency: req.currency as CashCurrency,
-                        note: `Custody accepted from ${req.requesterMerchantId}`,
+                        note: `${t('custodyAcceptedFrom')} ${req.requesterMerchantId}`,
                         merchantId: req.requesterMerchantId,
                         relationshipId: req.relationshipId,
                       };
                       const newLedger = [...ledger, inEntry];
                       applyState({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: deriveCashQAR(newAccounts, newLedger) });
                     }}>
-                    ✓ Accept
+                    ✓ {t('custodyAccept')}
                   </button>
                   <button className="rowBtn" style={{ fontSize: 10 }}
                     onClick={() => respondRequest.mutate({ id: req.id, action: 'reject' })}>
-                    ✕ Reject
+                    ✕ {t('custodyReject')}
                   </button>
                 </div>
               </div>
@@ -1219,14 +1213,14 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
             {pendingOutgoing.map(req => (
               <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--muted) 25%, transparent)', borderRadius: 8 }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700 }}>Outgoing to: {req.custodianMerchantId}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700 }}>{t('custodyOutgoingTo')}: {req.custodianMerchantId}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    {fmtTotal(req.amount)} {req.currency}{req.note ? ` — ${req.note}` : ''} · <span style={{ color: 'var(--warn)' }}>pending</span>
+                    {fmtTotal(req.amount)} {req.currency}{req.note ? ` — ${req.note}` : ''} · <span style={{ color: 'var(--warn)' }}>{t('custodyPending')}</span>
                   </div>
                 </div>
                 <button className="rowBtn" style={{ fontSize: 10, color: 'var(--bad)' }}
                   onClick={() => cancelRequest.mutate(req.id)}>
-                  Cancel
+                  {t('custodyCancel')}
                 </button>
               </div>
             ))}
@@ -1515,18 +1509,22 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
 
       {showMerchantCustody && (
         <MerchantCustodyModal
-          relationships={relationships}
-          myMerchantId={merchantProfile?.merchant_id ?? user?.id ?? ''}
+          counterparties={counterparties}
+          myMerchantId={myMerchantId}
+          myUserId={myUserId}
           isMobile={isMobile}
           onClose={() => setShowMerchantCustody(false)}
           onSubmit={(input) => {
             createRequest.mutate(input);
+            // Find counterparty label for the account name
+            const cp = counterparties.find(c => c.counterpartyMerchantId === input.custodianMerchantId);
+            const cpLabel = cp?.counterpartyLabel ?? input.custodianMerchantId;
             // Add local merchant_custody account + merchant_funding_out ledger entry
             const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === input.custodianMerchantId);
             const custodyAccId = existingCustodyAcc?.id ?? uid();
             const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
               id: custodyAccId,
-              name: `Custody — ${input.custodianMerchantId}`,
+              name: `Custody — ${cpLabel}`,
               type: 'merchant_custody' as CashAccountType,
               currency: input.currency as CashCurrency,
               status: 'active' as const,
@@ -1543,7 +1541,7 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
               direction: 'out',
               amount: input.amount,
               currency: input.currency as CashCurrency,
-              note: input.note ?? `Custody request to ${input.custodianMerchantId}`,
+              note: input.note ?? `${t('custodyCustodyRequest')} ${cpLabel}`,
               merchantId: input.custodianMerchantId,
               relationshipId: input.relationshipId,
             };

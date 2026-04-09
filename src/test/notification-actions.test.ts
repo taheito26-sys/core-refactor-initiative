@@ -163,6 +163,7 @@ describe('smartGroupNotifications — enhanced edge cases', () => {
 
 describe('isViewingConversationMessage', () => {
   const activeState = {
+    activeRoomId: 'room-1',
     activeConversationId: 'room-1',
     attention: {
       appFocused: true,

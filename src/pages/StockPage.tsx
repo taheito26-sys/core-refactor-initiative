@@ -84,6 +84,11 @@ export default function StockPage() {
     searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
   );
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
+  // ── Mobile Add Batch Sheet ────────────────────────────────────────
+  const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
+  const [batchConfirmDetails, setBatchConfirmDetails] = useState<{
+    qty: number; price: number; source: string; total: number; fundingAccName?: string;
+  } | null>(null);
 
   // Clear shared search query on mount to prevent cross-page filter leak
   useEffect(() => {
@@ -342,10 +347,19 @@ export default function StockPage() {
     setBatchSupplier('');
     setBatchNote('');
     const fundingAccName = activeAccounts.find(a => a.id === fundingAccountId)?.name;
-    const deductMsg = fundingAccName
-       ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
-       : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
-    setBatchMsg(t('batchAdded') + deductMsg);
+    if (isMobile) {
+      setBatchMsg('');
+      setBatchConfirmDetails({ qty: totalUSDT, price: px, source, total: batchCostQAR, fundingAccName });
+      setTimeout(() => {
+        setBatchConfirmDetails(null);
+        setAddBatchSheetOpen(false);
+      }, 2500);
+    } else {
+      const deductMsg = fundingAccName
+         ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
+         : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
+      setBatchMsg(t('batchAdded') + deductMsg);
+    }
   };
 
   const openEdit = (id: string) => {
@@ -481,7 +495,7 @@ export default function StockPage() {
   };
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
       {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
       <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
@@ -561,7 +575,7 @@ export default function StockPage() {
               <div className="empty-s">{t('addFirstPurchase')}</div>
             </div>
           ) : isMobile ? (
-            <div style={{ display: 'grid', gap: 6 }}>
+            <div className="orders-cards-list">
               {perf.map((b) => {
                 const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
                 const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
@@ -569,39 +583,54 @@ export default function StockPage() {
                 const ct = batchCycleTime(state, derived, b.id);
                 const st = rem <= 1e-9 ? t('depleted') : rem < b.initialUSDT ? t('partial') : t('fresh');
                 const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
+                const isOpen = !!detailsOpen[b.id];
                 return (
-                  <div key={b.id} className="panel" style={{ padding: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
-                      <div>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(b.ts)}</div>
+                  <div key={b.id} style={{ borderBottom: '1px solid var(--line2)', background: 'var(--panel)' }}>
+                    {/* ── Compact header row: tap to expand ── */}
+                    <button
+                      onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}
+                      style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+                    >
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>{b.source || '—'}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{fmtDate(b.ts)}</div>
                       </div>
-                      <span className={`pill ${stCls}`} style={{ alignSelf: 'flex-start' }}>{st}</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 10, marginBottom: 6 }}>
-                      <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
-                      <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
-                      <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
-                      <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
-                      <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: detailsOpen[b.id] ? 6 : 0 }}>
-                      {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
-                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
-                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => openEdit(b.id)}>{t('edit')}</button>
-                    </div>
-                    {detailsOpen[b.id] && (
-                      <div style={{ background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))', border: '1px solid color-mix(in srgb, var(--line) 80%, transparent)', borderRadius: 8, padding: 7, display: 'grid', gap: 4, fontSize: 10 }}>
-                        <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
-                        <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
-                        <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
-                        <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
-                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
-                        {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
-                        {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+                        <strong className="mono" style={{ fontSize: 12 }}>{fmtU(b.initialUSDT)} USDT</strong>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(b.buyPriceQAR)}</span>
+                        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                          {(b.profit || 0) !== 0 && (
+                            <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                              {(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}
+                            </span>
+                          )}
+                          <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+                        </div>
+                      </div>
+                    </button>
+                    {/* ── Expanded detail ── */}
+                    {isOpen && (
+                      <div style={{ padding: '0 12px 12px', borderTop: '1px solid var(--line2)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, fontSize: 10, marginTop: 8, marginBottom: 8 }}>
+                          <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
+                          <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
+                          <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
+                          <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
+                          <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                          {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
+                          <button className="rowBtn" style={{ minHeight: 30, padding: '0 10px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); openEdit(b.id); }}>{t('edit')}</button>
+                        </div>
+                        <div style={{ display: 'grid', gap: 3, fontSize: 10 }}>
+                          <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
+                          <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
+                          {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -696,10 +725,10 @@ export default function StockPage() {
           )}
         </div>
 
-        <div>
-          <div className="formPanel salePanel" style={isMobile ? { padding: 8, borderRadius: 10 } : undefined}>
+        {!isMobile && (<div>
+          <div className="formPanel salePanel">
             <div className="hdr">{t('addBatchTitle')}</div>
-            <div className="inner" style={isMobile ? { display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' } : undefined}>
+            <div className="inner">
               {wacop && (
                 <div className="bannerRow">
                   <span className="bLbl">{t('currentAvPrice')}</span>
@@ -905,13 +934,209 @@ export default function StockPage() {
                 </div>
               )}
 
-              <div className="formActions"><button className="btn" style={{ minHeight: isMobile ? 40 : undefined, width: isMobile ? '100%' : undefined, fontSize: isMobile ? 12 : undefined }} onClick={addBatch}>{t('addBatchTitle')}</button></div>
+              <div className="formActions"><button className="btn" onClick={addBatch}>{t('addBatchTitle')}</button></div>
               <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
             </div>
           </div>
-        </div>
+        </div>)}{/* end desktop form column */}
       </div>
       )} {/* end batches tab */}
+
+      {/* ── Mobile FAB: Add Batch ───────────────────────────────────── */}
+      {isMobile && stockTab === 'batches' && (
+        <button
+          aria-label={t('addBatchTitle')}
+          onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}
+          style={{
+            position: 'fixed',
+            bottom: 'max(76px, calc(64px + env(safe-area-inset-bottom, 0px)))',
+            right: 16, zIndex: 40,
+            width: 52, height: 52, borderRadius: '50%',
+            background: 'var(--brand)', color: '#fff',
+            border: 'none', cursor: 'pointer', fontSize: 28, fontWeight: 300,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.40)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            lineHeight: 1,
+          }}
+        >+</button>
+      )}
+
+      {/* ── Mobile Add Batch Bottom Sheet ──────────────────────────── */}
+      {isMobile && addBatchSheetOpen && (
+        <div
+          className="batch-sheet-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget && !batchConfirmDetails) setAddBatchSheetOpen(false); }}
+        >
+          <div className="batch-sheet tracker-root">
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--muted)', margin: '0 auto 14px', opacity: 0.35 }} />
+
+            {batchConfirmDetails ? (
+              <div style={{ textAlign: 'center', padding: '16px 8px 24px' }}>
+                <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 10 }}>✅</div>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: 'var(--good)' }}>{t('batchAdded')}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
+                  {fmtU(batchConfirmDetails.qty)} USDT @ {fmtP(batchConfirmDetails.price)} QAR
+                </div>
+                <div style={{ fontSize: 12, textAlign: 'left', background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 10, padding: '12px 14px', display: 'grid', gap: 8, marginBottom: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('supplier')}</span><strong>{batchConfirmDetails.source}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('total')} USDT</span><strong className="mono">{fmtU(batchConfirmDetails.qty)} USDT</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('buyPriceQar')}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} QAR</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} QAR</strong></div>
+                  {batchConfirmDetails.fundingAccName && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('fundingSourceLbl')}</span><strong style={{ maxWidth: '60%', textAlign: 'right' }}>{batchConfirmDetails.fundingAccName}</strong></div>
+                  )}
+                </div>
+                <div className="muted" style={{ fontSize: 10 }}>Closing automatically…</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800 }}>{t('addBatchTitle')}</div>
+                  <button onClick={() => setAddBatchSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+                  {wacop && (
+                    <div className="bannerRow">
+                      <span className="bLbl">{t('currentAvPrice')}</span>
+                      <span className="bVal">{fmtP(wacop)}</span>
+                      <span className="bSpacer" />
+                      <span className="bPill">{t('avg')}</span>
+                    </div>
+                  )}
+                  <div className="field2">
+                    <div className="lbl">{t('dateTime')}</div>
+                    <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
+                  </div>
+                  <div className="field2">
+                    <div className="lbl">{t('entryModeLabel')}</div>
+                    <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+                      <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModePriceVol')}</button>
+                      <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtQar')}</button>
+                      <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtPrice')}</button>
+                    </div>
+                  </div>
+                  {batchEntryMode === 'price_vol' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('currencyMode')}</div>
+                      <div className="modeToggle">
+                        <button className={batchMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setBatchMode('QAR')}>📦 QAR</button>
+                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
+                      </div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{batchMode === 'QAR' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                  </>)}
+                  {batchEntryMode === 'qty_total' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('usdtBought')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('totalQarPaid')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                    {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                        <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} QAR/USDT</span>
+                      </div>
+                    )}
+                  </>)}
+                  {batchEntryMode === 'qty_price' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('usdtBought')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                    {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                        <span style={{ color: 'var(--t2)' }}>{t('totalQarCalc')} </span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} QAR</span>
+                      </div>
+                    )}
+                  </>)}
+                  <div className="field2">
+                    <div className="lbl">{t('supplier')}</div>
+                    <div className="lookupShell">
+                      <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input placeholder={t('searchOrTypeSupplier')} autoComplete="off" value={batchSupplier}
+                          onChange={(e) => { setBatchSupplier(e.target.value); setSupplierMenuOpen(true); }}
+                          onFocus={() => setSupplierMenuOpen(true)} />
+                        <button className="sideAction" type="button" onClick={() => setSupplierMenuOpen((v) => !v)}>⌄</button>
+                        <button className="sideAction" type="button" onClick={() => { setNewSupplierName(batchSupplier); setSupplierAddOpen((v) => !v); }}>+</button>
+                      </div>
+                      {supplierMenuOpen && (
+                        <div className="lookupMenu" style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                          {supplierLookup.length ? supplierLookup.map((name) => (
+                            <button key={name} className="lookupItem" type="button" onClick={() => { setBatchSupplier(name); setSupplierMenuOpen(false); }}>
+                              <span>{name}</span><span className="lookupMeta">{t('supplier')}</span>
+                            </button>
+                          )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noSuppliersYet')}</span></div>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="lookupHint">{t('supplierHint')}</div>
+                  </div>
+                  {supplierAddOpen && (
+                    <div className="previewBox">
+                      <div className="pt">{t('addSupplierTitle')}</div>
+                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} placeholder={t('supplierName')} /></div></div>
+                      <div className="field2" style={{ marginTop: 6 }}><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newSupplierPhone} onChange={(e) => setNewSupplierPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                      <div className="formActions" style={{ marginTop: 8 }}>
+                        <button className="btn secondary" onClick={() => setSupplierAddOpen(false)}>{t('cancel')}</button>
+                        <button className="btn" onClick={addSupplier}>{t('addSupplierTitle')}</button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="field2">
+                    <div className="lbl">{t('note')}</div>
+                    <div className="inputBox"><input placeholder={t('optionalNote')} value={batchNote} onChange={(e) => setBatchNote(e.target.value)} /></div>
+                  </div>
+                  {activeAccounts.length > 0 && (
+                    <div className="field2">
+                      <div className="lbl">{t('fundingSourceLbl')}</div>
+                      <select value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        style={{ color: 'hsl(var(--foreground))', minHeight: 40 }}>
+                        <option value="none">🚫 {t('noFundingSource')}</option>
+                        {activeAccounts.map(a => {
+                          const bal = accountBalances.get(a.id) || 0;
+                          return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                        })}
+                      </select>
+                      {fundingAccountId && fundingAccountId !== 'none' && (() => {
+                        const acc = activeAccounts.find(a => a.id === fundingAccountId);
+                        const bal = accountBalances.get(fundingAccountId) || 0;
+                        return <div style={{ fontSize: 11, marginTop: 4, color: 'var(--muted)' }}>{t('availableLbl')}: <strong style={{ color: bal < 10000 ? 'var(--warn)' : 'var(--good)' }}>{fmtTotal(bal)} {acc?.currency}</strong></div>;
+                      })()}
+                    </div>
+                  )}
+                  {activeAccounts.length === 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
+                      💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => { setAddBatchSheetOpen(false); setStockTab('cash'); }} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
+                    </div>
+                  )}
+                  <div className="formActions">
+                    <button className="btn" style={{ minHeight: 44, width: '100%', fontSize: 13 }} onClick={addBatch}>{t('addBatchTitle')}</button>
+                  </div>
+                  {batchMsg && (
+                    <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── EDIT BATCH DIALOG ─── */}
       {(() => {
