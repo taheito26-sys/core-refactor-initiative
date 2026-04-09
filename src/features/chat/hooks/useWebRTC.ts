@@ -89,40 +89,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }, END_STATE_LINGER_MS);
   }, []);
 
-  // ── send call summary message to chat ─────────────────────────────────
-  const sendCallSummary = useCallback(async (
-    endState: string,
-    durationSec: number,
-    callId: string | null,
-  ) => {
-    if (!roomIdRef.current || !userId) return;
-    const eventLabel =
-      endState === 'missed' || endState === 'no_answer' ? 'missed_call' :
-      endState === 'declined' ? 'declined_call' :
-      endState === 'failed' ? 'failed_call' :
-      'call_ended';
-
-    try {
-      await supabase
-        .from('chat_messages')
-        .insert({
-          room_id: roomIdRef.current,
-          sender_id: userId,
-          type: 'call_summary' as never,
-          content: eventLabel === 'call_ended'
-            ? `Voice call · ${Math.floor(durationSec / 60)}:${(durationSec % 60).toString().padStart(2, '0')}`
-            : eventLabel === 'missed_call' ? 'Missed voice call'
-            : eventLabel === 'declined_call' ? 'Declined voice call'
-            : 'Call failed',
-          metadata: {
-            call_id: callId,
-            call_event: eventLabel,
-            duration_seconds: durationSec,
-          },
-          client_nonce: crypto.randomUUID(),
-        } as never);
-    } catch { /* non-critical */ }
-  }, [userId]);
+  // NOTE: Call summary messages are inserted by the DB-side chat_end_call RPC.
+  // No client-side insertion needed — avoids duplicate messages.
 
   // ── full cleanup ───────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
