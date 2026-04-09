@@ -98,6 +98,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const cleaningUp      = useRef(false);
   const screenTrackRef  = useRef<MediaStreamTrack | null>(null);
   const prevBytesRef    = useRef<{ received: number; ts: number } | null>(null);
+  const processedRemoteIceCounts = useRef<Map<string, number>>(new Map());
   // Group calls: map of peerId → RTCPeerConnection
   const groupPCs        = useRef<Map<string, RTCPeerConnection>>(new Map());
 
@@ -221,6 +222,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     connectedAtRef.current = null;
     setCallDuration(0);
     prevBytesRef.current = null;
+    processedRemoteIceCounts.current.clear();
 
     if (ringTimer.current) { clearTimeout(ringTimer.current); ringTimer.current = null; }
     if (durationTimer.current) { clearInterval(durationTimer.current); durationTimer.current = null; }
@@ -597,22 +599,29 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'chat_call_participants',
-          filter: `user_id=eq.${userId}`,
         },
         async (payload) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const row = payload.new as any;
           if (!pc.current || !row) return;
 
-          if (row.ice_candidates?.length) {
-            for (const c of row.ice_candidates) {
+          const relevantCallId = callIdRef.current ?? incomingCall?.id;
+          if (!relevantCallId || row.call_id !== relevantCallId) return;
+          if (row.user_id === userId) return;
+
+          const remoteIceCandidates = Array.isArray(row.ice_candidates) ? row.ice_candidates : [];
+          const alreadyProcessed = processedRemoteIceCounts.current.get(row.id) ?? 0;
+          const nextCandidates = remoteIceCandidates.slice(alreadyProcessed);
+          if (nextCandidates.length > 0) {
+            for (const candidate of nextCandidates) {
               try {
-                await pc.current.addIceCandidate(new RTCIceCandidate(c));
+                await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
               } catch { /* stale */ }
             }
+            processedRemoteIceCounts.current.set(row.id, remoteIceCandidates.length);
           }
 
           if (row.sdp_answer && pc.current.signalingState === 'have-local-offer') {
