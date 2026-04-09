@@ -115,7 +115,7 @@ export function AttachmentPreview({ message, isMe, onImageOpen }: Props) {
           src={signedUrl}
           alt={effectiveAtt?.file_name ?? 'image'}
           className="max-w-[260px] max-h-[320px] rounded-xl object-cover cursor-pointer shadow-sm hover:shadow-md transition-shadow"
-          onClick={() => window.open(signedUrl, '_blank')}
+          onClick={() => onImageOpen ? onImageOpen(signedUrl) : window.open(signedUrl, '_blank')}
           loading="lazy"
         />
         {isViewOnce && (
