@@ -163,6 +163,9 @@ export function ConversationHeader({
             ) : (
               <span className="text-[10px] text-muted-foreground font-medium truncate">
                 {room.member_count} member{room.member_count !== 1 ? 's' : ''}
+                {onlineCount > 0 && (
+                  <span className="text-emerald-500"> · {onlineCount} online</span>
+                )}
               </span>
             )}
             <span className="text-[9px] text-border hidden sm:inline">•</span>
