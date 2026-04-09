@@ -35,6 +35,7 @@ import { ForwardMessageModal } from '../components/ForwardMessageModal';
 import { NewChatModal } from '../components/NewChatModal';
 import { ScreenshotProtectionOverlay } from '../components/ScreenshotProtectionOverlay';
 import { PrivacyDashboard } from '../components/PrivacyDashboard';
+import { TradingRoomPrivacyBanner } from '../components/TradingRoomPrivacyBanner';
 import { usePrivacyGuard } from '../hooks/usePrivacyGuard';
 import { cn } from '@/lib/utils';
 
@@ -359,6 +360,11 @@ export default function ChatWorkspacePage() {
             onJumpTo={handleSearchJump}
             onClose={() => setShowSearch(false)}
           />
+        )}
+
+        {/* Privacy watermark banner for trading/collab rooms */}
+        {activeRoom.room_type === 'merchant_collab' && (
+          <TradingRoomPrivacyBanner roomName={activeRoom.name} />
         )}
 
         {showCallHistory && activeRoomId ? (
