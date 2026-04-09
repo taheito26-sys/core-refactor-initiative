@@ -228,7 +228,7 @@ export function useRoomMessages(roomId: string | null) {
   });
 
   return {
-    messages: query.data ?? [],
+    messages,
     isLoading: query.isLoading,
     isError: query.isError,
     send,

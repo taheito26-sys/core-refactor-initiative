@@ -447,23 +447,57 @@ export async function getActiveCall(roomId: string): Promise<ChatCall | null> {
   return data as unknown as ChatCall | null;
 }
 
+const ROOM_CLEAR_STORAGE_KEY = 'chat_room_cleared_at';
+
+function readRoomClearMap(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(ROOM_CLEAR_STORAGE_KEY);
+    return raw ? JSON.parse(raw) as Record<string, string> : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeRoomClearMap(next: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ROOM_CLEAR_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+export function getRoomClearedAt(roomId: string): string | null {
+  return readRoomClearMap()[roomId] ?? null;
+}
+
 // ── Clear chat (hide messages for current user) ────────────────────────────
-export async function clearChatForMe(roomId: string): Promise<void> {
-  // Mark the last_read_at to current time — effectively "clearing" visible history
+export async function clearChatForMe(roomId: string): Promise<string> {
+  const clearedAt = new Date().toISOString();
+  writeRoomClearMap({ ...readRoomClearMap(), [roomId]: clearedAt });
+
+  const userId = (await supabase.auth.getUser()).data.user?.id;
+  if (!userId) return clearedAt;
+
   const { error } = await supabase
     .from('chat_room_members' as never)
-    .update({ last_read_at: new Date().toISOString(), is_archived: false } as never)
+    .update({ last_read_at: clearedAt } as never)
     .eq('room_id', roomId)
-    .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '');
+    .eq('user_id', userId);
   if (error) throw rpcError('clearChatForMe', error);
+  return clearedAt;
 }
 
 // ── Mute / unmute room ─────────────────────────────────────────────────────
 export async function toggleMuteRoom(roomId: string, mute: boolean): Promise<void> {
+  const userId = (await supabase.auth.getUser()).data.user?.id;
+  if (!userId) throw new Error('Not authenticated');
+
   const { error } = await supabase
     .from('chat_room_members' as never)
     .update({ is_muted: mute } as never)
     .eq('room_id', roomId)
-    .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '');
+    .eq('user_id', userId);
   if (error) throw rpcError('toggleMuteRoom', error);
 }

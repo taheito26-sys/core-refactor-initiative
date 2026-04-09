@@ -1,7 +1,6 @@
 // ─── MessageSearch — Phase 9: Search messages within a conversation ───────
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { forwardRef, useState, useCallback, useRef, useEffect } from 'react';
 import { Search, X, ChevronUp, ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import type { ChatMessage } from '../types';
 
 interface Props {
@@ -10,7 +9,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function MessageSearch({ messages, onJumpTo, onClose }: Props) {
+export const MessageSearch = forwardRef<HTMLDivElement, Props>(function MessageSearch({ messages, onJumpTo, onClose }, ref) {
   const [query, setQuery] = useState('');
   const [matchIndex, setMatchIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -22,29 +21,25 @@ export function MessageSearch({ messages, onJumpTo, onClose }: Props) {
         !m.is_deleted &&
         m.type !== 'system' &&
         m.content.toLowerCase().includes(query.toLowerCase()),
-      ).reverse() // newest first
+      ).reverse()
     : [];
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { onClose(); return; }
-    if (e.key === 'Enter') {
-      if (matches.length > 0) {
-        const nextIdx = e.shiftKey
-          ? (matchIndex - 1 + matches.length) % matches.length
-          : (matchIndex + 1) % matches.length;
-        setMatchIndex(nextIdx);
-        onJumpTo(matches[nextIdx].id);
-      }
+    if (e.key === 'Enter' && matches.length > 0) {
+      const nextIdx = e.shiftKey
+        ? (matchIndex - 1 + matches.length) % matches.length
+        : (matchIndex + 1) % matches.length;
+      setMatchIndex(nextIdx);
+      onJumpTo(matches[nextIdx].id);
     }
   }, [matches, matchIndex, onClose, onJumpTo]);
 
-  // Jump on first match
   useEffect(() => {
-    if (matches.length > 0 && matchIndex === 0) {
-      onJumpTo(matches[0].id);
+    if (matches.length > 0) {
+      onJumpTo(matches[matchIndex]?.id ?? matches[0].id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [matches, matchIndex, onJumpTo]);
 
   const goUp = useCallback(() => {
     if (matches.length === 0) return;
@@ -61,7 +56,7 @@ export function MessageSearch({ messages, onJumpTo, onClose }: Props) {
   }, [matches, matchIndex, onJumpTo]);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/95 backdrop-blur-sm animate-in slide-in-from-top-2 duration-150">
+    <div ref={ref} className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/95 backdrop-blur-sm animate-in slide-in-from-top-2 duration-150">
       <Search className="h-4 w-4 text-muted-foreground/50 shrink-0" />
       <input
         ref={inputRef}
@@ -73,7 +68,7 @@ export function MessageSearch({ messages, onJumpTo, onClose }: Props) {
       />
       {query.trim().length >= 2 && (
         <span className="text-[11px] text-muted-foreground/60 shrink-0 font-medium tabular-nums">
-          {matches.length > 0 ? `${matchIndex + 1}/${matches.length}` : 'No results'}
+          {matches.length > 0 ? `${Math.min(matchIndex + 1, matches.length)}/${matches.length}` : 'No results'}
         </span>
       )}
       <div className="flex items-center gap-0.5 shrink-0">
@@ -92,4 +87,4 @@ export function MessageSearch({ messages, onJumpTo, onClose }: Props) {
       </button>
     </div>
   );
-}
+});
