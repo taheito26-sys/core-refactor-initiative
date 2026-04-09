@@ -33,6 +33,9 @@ import { RoomInfoPanel } from '../components/RoomInfoPanel';
 import { ImageLightbox } from '../components/ImageLightbox';
 import { ForwardMessageModal } from '../components/ForwardMessageModal';
 import { NewChatModal } from '../components/NewChatModal';
+import { ScreenshotProtectionOverlay } from '../components/ScreenshotProtectionOverlay';
+import { PrivacyDashboard } from '../components/PrivacyDashboard';
+import { usePrivacyGuard } from '../hooks/usePrivacyGuard';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
