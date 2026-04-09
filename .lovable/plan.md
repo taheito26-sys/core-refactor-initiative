@@ -1,52 +1,139 @@
 
-# 40 Phases — Chat UX/UI/Design/Layout Enhancement Roadmap
+# 25 Phases — Watermark & Privacy Enhancement Roadmap
 
-## A. Message Experience (1–10)
-1. **Swipe-to-reply gesture** — Swipe right on a message bubble to trigger reply (mobile)
-2. **Message bubble tail shapes** — Add WhatsApp-style SVG tails on first-in-group bubbles
-3. **Emoji-only big render** — Messages with 1–3 emoji only render at 2× size, no bubble
-4. **Staggered entrance animation** — New messages slide up with spring physics (framer-motion)
-5. **Long-press haptic feedback** — Trigger device haptics on mobile long-press actions
-6. **Inline link previews** — Auto-fetch OG metadata and render card previews below links
-7. **Voice note waveform playback** — Animated waveform bar that tracks playback progress
-8. **Read receipt tooltips** — Hover on double-tick to see "Read at 3:42 PM" tooltip
-9. **Message edit indicator** — Show "(edited)" label with hover tooltip of edit timestamp
-10. **Smooth scroll-to-bottom FAB** — Floating button with unread count badge, spring animation
+Each phase contains 3+ features for comprehensive security coverage.
 
-## B. Conversation List (11–18)
-11. **Swipe actions on rows** — Swipe left → archive/delete, swipe right → pin/mute
-12. **Pinned conversations section** — Visual separator + pin icon for pinned rooms
-13. **Conversation avatar status ring** — Online = green ring, away = amber ring around avatar
-14. **Last message preview truncation** — Smart truncate with "📎 Photo" / "🎙 Voice" labels
-15. **Typing preview in list** — Replace last message with "typing..." when contact is typing
-16. **Unread count pill redesign** — Gradient pill with muted-style for muted conversations
-17. **Search-as-you-type filtering** — Instant fuzzy search over room names in sidebar
-18. **Empty state illustration** — Branded illustration when no conversations exist yet
+## A. Watermark Core System (1–5)
 
-## C. Composer & Input (19–24)
-19. **Mention autocomplete** — @mention members with popup picker in group rooms
-20. **Emoji picker popover** — Grid-based emoji picker with categories + recent
-21. **Drag-and-drop file upload** — Drop zone overlay on the message area
-22. **Paste-image support** — Clipboard paste → instant image attachment preview
-23. **Character count for long messages** — Subtle count near limit (e.g., 4096 chars)
-24. **Composer height transition** — Smooth CSS transition when textarea auto-grows
+### Phase 1: Dynamic Watermark Engine
+- Configurable watermark text with user ID, timestamp, and custom labels
+- Density control (light / medium / heavy) with adjustable opacity + spacing
+- SVG pattern-based rendering with diagonal rotation for tamper resistance
 
-## D. Layout & Navigation (25–32)
-25. **Resizable sidebar width** — Drag-handle between sidebar and thread (desktop)
-26. **Keyboard shortcuts overlay** — ⌘K command palette for power users (search, navigate)
-27. **Breadcrumb room path** — Show "Inbox > Team > Room Name" for nested navigation
-28. **Split-view context panel** — Slide-out right panel for room info / shared media
-29. **Compact density mode** — Toggle between comfortable and compact message spacing
-30. **Full-screen thread mode** — F11 / button to expand thread to fill viewport
-31. **Transition animations between panes** — Slide left/right on mobile pane switches
-32. **Sticky date headers** — Date separators stick to top while scrolling through messages
+### Phase 2: Room-Level Watermark Policies
+- Per-room watermark toggle in room settings / policies
+- Watermark inheritance from room type defaults (merchant_private = always on)
+- Admin override to force watermarks on specific rooms regardless of type
 
-## E. Visual Polish & Theming (33–40)
-33. **Chat wallpaper selector** — Choose from preset subtle patterns or solid colors
-34. **Bubble color customization** — Let users pick outgoing bubble accent color
-35. **Dark mode contrast audit** — Ensure all elements pass WCAG AA in dark mode
-36. **Micro-interaction on send** — Send button pulse + bubble "pop-in" on message send
-37. **Skeleton loading shimmer** — Replace spinner with message-shaped skeleton placeholders
-38. **Avatar fallback gradient** — Unique gradient per user based on ID hash (not plain color)
-39. **Focus ring accessibility** — Visible keyboard focus rings on all interactive elements
-40. **Scroll progress indicator** — Thin progress bar at top of message area showing scroll position
+### Phase 3: Watermark on Media Previews
+- Overlay watermark on image previews before full-screen view
+- Watermark on document/PDF preview panels
+- Watermark on video thumbnail frames during inline playback
+
+### Phase 4: Watermark on Exports & Downloads
+- Burn-in watermark on exported chat transcripts (PDF/text)
+- Watermark stamped on downloaded images before saving
+- Watermark overlay on forwarded message previews
+
+### Phase 5: Watermark Audit Trail
+- Log every watermark render event (user, room, timestamp, density)
+- Track watermark bypass attempts (screenshot detection signals)
+- Admin dashboard widget showing watermark activity stats
+
+## B. Screenshot & Screen Recording Protection (6–10)
+
+### Phase 6: Screenshot Detection
+- Detect PrintScreen / ⌘+Shift keystrokes and log audit event
+- Blur sensitive content momentarily on screenshot key detection
+- Push notification to room owner when screenshot is detected
+
+### Phase 7: Screen Share Watermark
+- Full-overlay watermark during active WebRTC screen sharing
+- Dynamic text updates every 30s with fresh timestamp
+- Screen share indicator badge visible to all room participants
+
+### Phase 8: CSS Screenshot Protection
+- Apply `user-select: none` on sensitive message bubbles
+- Disable right-click context menu on protected media
+- CSS `filter: blur()` on sensitive content when window loses focus
+
+### Phase 9: Screen Recording Deterrence
+- Detect `getDisplayMedia` API calls and warn users
+- Periodic foreground/background state monitoring with audit logs
+- Visual "CONFIDENTIAL" flash overlay on protected rooms when tab hidden
+
+### Phase 10: Media Viewer Protection
+- Disable long-press save on mobile image lightbox
+- Block drag-to-desktop on image elements
+- Watermark overlay scales with zoom level in lightbox
+
+## C. Message Privacy Controls (11–15)
+
+### Phase 11: View-Once Message Hardening
+- View-once messages auto-delete from local cache after viewing
+- Block forwarding/copying/saving of view-once content
+- Countdown timer overlay showing remaining view time
+
+### Phase 12: Disappearing Messages Engine
+- Per-message custom expiry timer (1min to 30 days)
+- Room-level default disappearing timer setting
+- Visual countdown badge on each disappearing message bubble
+
+### Phase 13: Message Forwarding Controls
+- Per-room toggle to disable message forwarding entirely
+- "Forwarded" label with hop count (forwarded many times)
+- Strip sender identity from forwarded messages in restricted rooms
+
+### Phase 14: Copy & Select Protection
+- Per-room disable text selection on message content
+- Block clipboard copy via keyboard shortcuts in protected rooms
+- Paste-blocking for sensitive content identifiers
+
+### Phase 15: Read Receipt Privacy
+- User-level toggle to hide read receipts from others
+- "Last seen" privacy modes (everyone / contacts / nobody)
+- Typing indicator privacy toggle per user
+
+## D. Data Loss Prevention (16–20)
+
+### Phase 16: File Upload Scanning
+- Validate file types against room policy allowlist
+- File size enforcement with clear error messaging
+- MIME type verification (not just extension) before upload
+
+### Phase 17: Sensitive Data Detection
+- Regex patterns to detect credit card numbers in messages
+- Flag messages containing potential phone numbers or emails
+- Warning prompt before sending messages with detected PII
+
+### Phase 18: Message Retention Policies
+- Room-level retention period (7d / 30d / 90d / indefinite)
+- Automatic purge of expired messages via scheduled function
+- Retention policy indicator in room info panel
+
+### Phase 19: Export Controls
+- Per-room toggle to allow/deny chat export
+- Export audit log (who exported, when, which room)
+- Redacted export mode that masks sensitive fields
+
+### Phase 20: Attachment Lifecycle
+- Auto-expire attachment storage links after configurable TTL
+- Revoke access to attachments when user leaves room
+- Attachment access audit trail per file
+
+## E. User Privacy & Identity (21–25)
+
+### Phase 21: Anonymous Mode
+- Allow users to join rooms with pseudonymous display names
+- Hide real user ID from non-admin participants
+- Anonymous avatar generation (unique per session, not traceable)
+
+### Phase 22: Presence Privacy
+- Granular online status visibility (all / room members / nobody)
+- "Invisible" mode — appear offline while still receiving messages
+- Last active timestamp privacy control per user
+
+### Phase 23: Notification Privacy
+- Strip message content from push notifications (show "New message" only)
+- Sender name hiding in lock-screen notifications
+- Notification preview privacy level (full / partial / none)
+
+### Phase 24: Encryption Indicators
+- Visual lock icon on end-to-end encrypted rooms
+- Encryption status banner in room info panel
+- Key fingerprint verification UI for contact identity confirmation
+
+### Phase 25: Privacy Dashboard
+- Centralized privacy settings page for all toggles
+- Privacy score indicator (% of protections enabled)
+- One-click "Maximum Privacy" preset that enables all protections
