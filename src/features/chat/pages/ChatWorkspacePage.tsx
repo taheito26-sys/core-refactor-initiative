@@ -421,6 +421,7 @@ export default function ChatWorkspacePage() {
               rooms={rooms}
               activeRoomId={activeRoomId}
               onSelectRoom={handleSelectRoom}
+              onNewChat={() => setShowNewChat(true)}
               isLoading={roomsQuery.isLoading}
               meId={meId}
             />
