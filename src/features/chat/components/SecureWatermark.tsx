@@ -90,7 +90,7 @@ export function SecureWatermark({ enabled, customText, density = 'light', overla
               fontFamily="monospace"
               fontSize={config.fontSize}
               fontWeight="bold"
-              className="fill-foreground"
+              fill="hsl(var(--foreground))"
               letterSpacing="0.5"
             >
               {watermarkText}
