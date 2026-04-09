@@ -66,7 +66,7 @@ const ACCOUNT_TYPE_ICON: Record<CashAccountType, React.FC> = {
   vault: IconVault,
   merchant_custody: IconMerchant,
 };
-const CURRENCY_SYMBOLS: Record<CashCurrency, string> = { QAR: 'QAR', USDT: 'USDT', USD: 'USD' };
+const CURRENCY_SYMBOLS: Record<CashCurrency, string> = { QAR: 'QAR', USDT: 'USDT', USD: 'USD', EGP: 'EGP' };
 
 // ── Helpers ────────────────────────────────────────────────────────
 function fmtAmt(n: number, currency: CashCurrency = 'QAR'): string {

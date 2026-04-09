@@ -396,7 +396,7 @@ export interface Supplier {
 }
 
 export interface TrackerState {
-  currency: 'QAR' | 'USDT';
+  currency: 'QAR' | 'EGP' | 'USDT';
   range: string;
   batches: Batch[];
   trades: Trade[];
