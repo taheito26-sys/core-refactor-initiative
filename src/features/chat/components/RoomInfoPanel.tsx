@@ -245,14 +245,35 @@ export function RoomInfoPanel({ room, onClose }: Props) {
 
           {/* Phase 2, 13, 14, 19: Security policies */}
           <div className="px-4 py-3 border-b border-border/50">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">Security Policies</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Security Policies</p>
+              {isRoomAdmin && (
+                <span className="text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">Admin</span>
+              )}
+            </div>
             <div className="space-y-1.5">
-              <PolicyBadge icon={Eye} label="Watermark" enabled={policy?.watermark_enabled ?? false} />
-              <PolicyBadge icon={Shield} label="Screenshot protection" enabled={policy?.screenshot_protection ?? false} />
-              <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={!(policy?.disable_forwarding ?? false)} />
-              <PolicyBadge icon={Shield} label="Strip sender on forward" enabled={policy?.strip_forward_sender_identity ?? false} />
-              <PolicyBadge icon={Copy} label="History searchable" enabled={policy?.history_searchable ?? false} />
-              <PolicyBadge icon={Download} label="Export allowed" enabled={!(policy?.disable_export ?? false)} />
+              <PolicyBadge icon={Droplets} label="Watermark" enabled={policy?.watermark_enabled ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('watermark_enabled', policy?.watermark_enabled ?? false) : undefined} />
+              <PolicyBadge icon={Shield} label="Screenshot protection" enabled={policy?.screenshot_protection ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('screenshot_protection', policy?.screenshot_protection ?? false) : undefined} />
+              <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={!(policy?.disable_forwarding ?? false)}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('disable_forwarding', !(policy?.disable_forwarding ?? false)) : undefined} />
+              <PolicyBadge icon={Shield} label="Strip sender on forward" enabled={policy?.strip_forward_sender_identity ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('strip_forward_sender_identity', policy?.strip_forward_sender_identity ?? false) : undefined} />
+              <PolicyBadge icon={Copy} label="History searchable" enabled={policy?.history_searchable ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('history_searchable', policy?.history_searchable ?? false) : undefined} />
+              <PolicyBadge icon={Download} label="Export allowed" enabled={!(policy?.disable_export ?? false)}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('disable_export', !(policy?.disable_export ?? false)) : undefined} />
+              <PolicyBadge icon={Phone} label="Calls" enabled={policy?.allow_calls ?? false}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_calls', policy?.allow_calls ?? false) : undefined} />
+              <PolicyBadge icon={ImageIcon} label="Images" enabled={policy?.allow_images ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_images', policy?.allow_images ?? true) : undefined} />
+              <PolicyBadge icon={FileText} label="Files" enabled={policy?.allow_files ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_files', policy?.allow_files ?? true) : undefined} />
+              <PolicyBadge icon={Mic2} label="Voice notes" enabled={policy?.allow_voice_notes ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('allow_voice_notes', policy?.allow_voice_notes ?? true) : undefined} />
+              <PolicyBadge icon={Link2} label="Link previews" enabled={policy?.link_preview_enabled ?? true}
+                onToggle={isRoomAdmin ? () => handleTogglePolicy('link_preview_enabled', policy?.link_preview_enabled ?? true) : undefined} />
               <PolicyBadge icon={Timer} label="Disappearing default" enabled={!!policy?.disappearing_default_hours} />
             </div>
           </div>
