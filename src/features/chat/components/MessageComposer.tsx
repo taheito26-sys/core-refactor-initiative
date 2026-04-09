@@ -366,6 +366,12 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
               <Eye className="h-3 w-3" /> View once <X className="h-2.5 w-2.5 opacity-60" />
             </button>
           )}
+          {watermark && (
+            <button onClick={() => setWatermark(false)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-400/20 hover:bg-cyan-500/25 transition-colors">
+              <Droplets className="h-3 w-3" /> Watermarked <X className="h-2.5 w-2.5 opacity-60" />
+            </button>
+          )}
           {expiresSec && (
             <button onClick={() => setExpiresSec(null)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-400/20 hover:bg-amber-500/25 transition-colors">
