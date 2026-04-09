@@ -56,7 +56,7 @@ export function usePrivacyGuard({
     return detectWindowBlur(
       () => {
         setIsBlurred(true);
-        logPrivacyEvent(userId, roomId, 'window_blur_protection', { action: 'blur' });
+        logPrivacyEvent(userId, 'window_blur_protection', roomId, { action: 'blur' });
       },
       () => setIsBlurred(false),
     );
