@@ -6,18 +6,20 @@
  * Phases wired: 1-24, 34, 41-50, 59, 69, 9 (search), 18 (lightbox),
  *               reply-to flow, typing indicator, room info panel
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
 import { useChatStore, typingUsersInRoom } from '@/lib/chat-store';
-import { useRooms } from '../hooks/useRooms';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRooms, ROOMS_KEY } from '../hooks/useRooms';
 import { useRoomMessages } from '../hooks/useRoomMessages';
+import { toast } from 'sonner';
 import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { getMessageById } from '../api/chat';
+import { getMessageById, clearChatForMe, toggleMuteRoom, getOrCreateCollabRoom } from '../api/chat';
 import type { ChatMessage, ChatMessageType, SendMessageInput } from '../types';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ConversationHeader } from '../components/ConversationHeader';
@@ -37,6 +39,7 @@ export default function ChatWorkspacePage() {
   const { userId, merchantProfile } = useAuth();
   const { settings } = useTheme();
   const isMobile = useIsMobile();
+  const qc = useQueryClient();
 
   const meId = userId ?? '';
 
@@ -218,6 +221,7 @@ export default function ChatWorkspacePage() {
       replyToId?: string;
       expiresAt?: string;
       viewOnce?: boolean;
+      watermarkText?: string | null;
       attachmentId?: string;
       type?: ChatMessageType;
       metadata?: Record<string, unknown>;
@@ -226,7 +230,6 @@ export default function ChatWorkspacePage() {
       const messageType = opts?.type ?? 'text';
       const replyId = opts?.replyToId ?? replyTo?.id ?? null;
 
-      // Build reply metadata
       const metadata = { ...opts?.metadata } as SendMessageInput['metadata'];
       if (replyTo && !opts?.replyToId) {
         (metadata as Record<string, unknown>).reply_preview = {
@@ -236,15 +239,16 @@ export default function ChatWorkspacePage() {
       }
 
       send.mutate({
-        roomId:       activeRoomId,
-        content:      content.trim(),
-        type:         messageType,
+        roomId:        activeRoomId,
+        content:       content.trim(),
+        type:          messageType,
         metadata,
-        clientNonce:  crypto.randomUUID(),
-        replyToId:    replyId,
-        expiresAt:    opts?.expiresAt   ?? null,
-        viewOnce:     opts?.viewOnce    ?? false,
-        attachmentId: opts?.attachmentId ?? null,
+        clientNonce:   crypto.randomUUID(),
+        replyToId:     replyId,
+        expiresAt:     opts?.expiresAt   ?? null,
+        viewOnce:      opts?.viewOnce    ?? false,
+        watermarkText: opts?.watermarkText ?? null,
+        attachmentId:  opts?.attachmentId ?? null,
       });
       stopTyping();
       setReplyTo(null);
@@ -253,6 +257,41 @@ export default function ChatWorkspacePage() {
   );
 
   const isRTL = settings.language === 'ar';
+
+  // ── Mute state (derived from room list) ─────────────────────────────────
+  const isRoomMuted = activeRoom?.is_muted ?? false;
+
+  // ── Clear chat handler ──────────────────────────────────────────────────
+  const handleClearChat = useCallback(async () => {
+    if (!activeRoomId) return;
+    const confirmed = window.confirm('Clear this chat? Messages will be hidden for you.');
+    if (!confirmed) return;
+    try {
+      await clearChatForMe(activeRoomId);
+      qc.invalidateQueries({ queryKey: ['chat', 'messages', activeRoomId] });
+      toast.success('Chat cleared');
+    } catch {
+      toast.error('Failed to clear chat');
+    }
+  }, [activeRoomId, qc]);
+
+  // ── Mute toggle handler ─────────────────────────────────────────────────
+  const handleMuteToggle = useCallback(async () => {
+    if (!activeRoomId) return;
+    try {
+      await toggleMuteRoom(activeRoomId, !isRoomMuted);
+      qc.invalidateQueries({ queryKey: ROOMS_KEY });
+      toast.success(isRoomMuted ? 'Unmuted' : 'Muted');
+    } catch {
+      toast.error('Failed to update mute');
+    }
+  }, [activeRoomId, isRoomMuted, qc]);
+
+  // ── Trading Room auto-join ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!userId || !merchantProfile?.merchant_id) return;
+    getOrCreateCollabRoom('Trading Room').catch(() => {});
+  }, [userId, merchantProfile?.merchant_id]);
 
   // ── Shared header props builder ─────────────────────────────────────────
   const headerCallProps = isPrivateRoom ? {
@@ -281,8 +320,9 @@ export default function ChatWorkspacePage() {
           onToggleSidebar={onBack ?? (() => setShowSidebar((v) => !v))}
           onSearchToggle={() => setShowSearch((v) => !v)}
           onViewInfo={() => setShowRoomInfo((v) => !v)}
-          onMuteToggle={() => { /* TODO: mute/unmute room */ }}
-          onClearChat={() => { /* TODO: clear chat */ }}
+          onMuteToggle={handleMuteToggle}
+          onClearChat={handleClearChat}
+          isMuted={isRoomMuted}
           {...headerCallProps}
         />
 

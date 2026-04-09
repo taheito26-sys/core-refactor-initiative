@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Send, Paperclip, Mic, X, Clock, Eye,
-  Camera, Plus, Timer, EyeOff, Smile,
+  Camera, Plus, Timer, EyeOff, Smile, Droplets,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
@@ -17,6 +17,7 @@ interface Props {
     replyToId?:   string;
     expiresAt?:   string;
     viewOnce?:    boolean;
+    watermarkText?: string | null;
     attachmentId?: string;
     type?:        string;
     metadata?:    Record<string, unknown>;
@@ -148,6 +149,7 @@ function formatDuration(seconds: number) {
 export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Props) {
   const [content, setContent]       = useState('');
   const [viewOnce, setViewOnce]     = useState(false);
+  const [watermark, setWatermark]   = useState(false);
   const [expiresSec, setExpiresSec] = useState<number | null>(null);
   const [uploading, setUploading]   = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -169,15 +171,14 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
 
   const handleSend = useCallback(() => {
     if (!content.trim()) return;
-    onSend(content, { expiresAt, viewOnce });
+    const wmText = watermark ? `${meId.slice(0, 8)} · ${new Date().toISOString().split('T')[0]}` : null;
+    onSend(content, { expiresAt, viewOnce, watermarkText: wmText });
     setContent('');
-    // Phase 36: Micro-interaction
     setSendPulse(true);
     setTimeout(() => setSendPulse(false), 300);
     textareaRef.current?.focus();
-    // Reset textarea height
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-  }, [content, onSend, expiresAt, viewOnce]);
+  }, [content, onSend, expiresAt, viewOnce, watermark, meId]);
 
   const handleKey = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -336,7 +337,7 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
     );
   }
 
-  const hasActiveMode = viewOnce || expiresSec;
+  const hasActiveMode = viewOnce || expiresSec || watermark;
 
   // ── Main composer ────────────────────────────────────────────────────────
   return (
@@ -363,6 +364,12 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
             <button onClick={() => setViewOnce(false)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-400/20 hover:bg-violet-500/25 transition-colors">
               <Eye className="h-3 w-3" /> View once <X className="h-2.5 w-2.5 opacity-60" />
+            </button>
+          )}
+          {watermark && (
+            <button onClick={() => setWatermark(false)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-400/20 hover:bg-cyan-500/25 transition-colors">
+              <Droplets className="h-3 w-3" /> Watermarked <X className="h-2.5 w-2.5 opacity-60" />
             </button>
           )}
           {expiresSec && (
@@ -463,6 +470,11 @@ export function MessageComposer({ roomId, roomType, onSend, onTyping, meId }: Pr
 
           {/* Inline action buttons */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+            <button onClick={() => setWatermark((v) => !v)} title={watermark ? 'Watermark: ON' : 'Watermark: OFF'}
+              className={cn('h-7 w-7 rounded-full flex items-center justify-center transition-all',
+                watermark ? 'bg-cyan-500/20 text-cyan-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
+              <Droplets className="h-3.5 w-3.5" />
+            </button>
             <button onClick={() => setViewOnce((v) => !v)} title={viewOnce ? 'View once: ON' : 'View once: OFF'}
               className={cn('h-7 w-7 rounded-full flex items-center justify-center transition-all',
                 viewOnce ? 'bg-violet-500/20 text-violet-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
