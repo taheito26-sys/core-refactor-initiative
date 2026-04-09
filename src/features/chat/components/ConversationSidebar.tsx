@@ -11,6 +11,7 @@ interface Props {
   rooms:        ChatRoomListItem[];
   activeRoomId: string | null;
   onSelectRoom: (id: string) => void;
+  onNewChat:    () => void;
   isLoading:    boolean;
   meId:         string;
 }
