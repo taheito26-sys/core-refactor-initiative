@@ -407,6 +407,19 @@ export default function ChatWorkspacePage() {
     />
   ) : null;
 
+  // ── New chat modal ──────────────────────────────────────────────────────
+  const newChatModal = showNewChat ? (
+    <NewChatModal
+      meId={meId}
+      onSelectRoom={(roomId) => {
+        setActiveRoom(roomId);
+        if (isMobile) setMobilePane('thread');
+        qc.invalidateQueries({ queryKey: ROOMS_KEY });
+      }}
+      onClose={() => setShowNewChat(false)}
+    />
+  ) : null;
+
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
