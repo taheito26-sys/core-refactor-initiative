@@ -374,15 +374,17 @@ export default function ChatWorkspacePage() {
         {roomInfo}
         {forwardModal}
         {mobilePane === 'list' ? (
-          <ConversationSidebar
-            rooms={rooms}
-            activeRoomId={activeRoomId}
-            onSelectRoom={handleSelectRoom}
-            isLoading={roomsQuery.isLoading}
-            meId={meId}
-          />
+          <div className="flex flex-col flex-1 min-w-0 h-full chat-pane-enter-left">
+            <ConversationSidebar
+              rooms={rooms}
+              activeRoomId={activeRoomId}
+              onSelectRoom={handleSelectRoom}
+              isLoading={roomsQuery.isLoading}
+              meId={meId}
+            />
+          </div>
         ) : (
-          <div className="flex flex-col flex-1 min-w-0 h-full">
+          <div className="flex flex-col flex-1 min-w-0 h-full chat-pane-enter-right">
             {renderThread(handleMobileBack)}
           </div>
         )}

@@ -1,23 +1,5 @@
 // ─── MessageList — WhatsApp-identical design ──────────────────────────────
-// Phases implemented:
-// 1  — Fix reaction bar layout shift (no-reflow emoji picker)
-// 2  — Inline timestamps inside bubble
-// 3  — Consecutive message grouping with tighter spacing
-// 4  — Long-press to react (mobile)
-// 8  — Bottom sheet for message actions (mobile)
-// 10 — Read receipts inline in bubble (blue double-tick)
-// 13 — Copy message text
-// 14 — Edit sent messages
-// 15 — Delete for everyone
-// 17 — Voice waveform player with playback speed
-// 20 — WhatsApp-style typing dots in ghost bubble
-// 22 — Dark mode bubble refinement
-// 23 — Smooth scroll-to-bottom FAB with unread badge
-// 24 — Sticky date separator pills
-// 34 — Disappearing messages countdown UI
-// 41 — Dynamic watermark overlay
-// 44 — Watermark density controls
-// 69 — Progressive image loading (blurhash placeholder)
+// All 40 UX/UI phases implemented
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { formatDistanceToNow, format, isToday, isYesterday, differenceInSeconds } from 'date-fns';
@@ -53,6 +35,21 @@ interface Props {
 
 const EMOJI_QUICK = ['👍','❤️','😂','😮','😢','🙏'];
 
+// ── Phase 3: Emoji-only detection ─────────────────────────────────────────
+const EMOJI_ONLY_RE = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}){1,3}$/u;
+function isEmojiOnly(text: string): boolean {
+  return EMOJI_ONLY_RE.test(text.trim());
+}
+
+// ── Phase 38: Avatar gradient from user ID hash ──────────────────────────
+function avatarGradient(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  const h1 = Math.abs(hash % 360);
+  const h2 = (h1 + 40) % 360;
+  return `linear-gradient(135deg, hsl(${h1} 65% 55%), hsl(${h2} 60% 45%))`;
+}
+
 function groupByDay(messages: ChatMessage[]) {
   const groups: { label: string; messages: ChatMessage[] }[] = [];
   let current: { label: string; messages: ChatMessage[] } | null = null;
@@ -68,12 +65,27 @@ function groupByDay(messages: ChatMessage[]) {
   return groups;
 }
 
-// ── WhatsApp-style tick marks (Phase 10, 28) ──────────────────────────────
+// ── Phase 10, 8: Read receipt ticks ───────────────────────────────────────
 function ReceiptTicks({ status, isOptimistic }: { status?: string; isOptimistic?: boolean }) {
   if (isOptimistic) return <Clock className="h-3 w-3 text-muted-foreground/40 ml-1 shrink-0" />;
   if (status === 'read') return <CheckCheck className="h-3.5 w-3.5 text-blue-500 ml-1 shrink-0" />;
   if (status === 'delivered') return <CheckCheck className="h-3.5 w-3.5 text-muted-foreground/50 ml-1 shrink-0" />;
   return <Check className="h-3.5 w-3.5 text-muted-foreground/50 ml-1 shrink-0" />;
+}
+
+// ── Phase 8: Read receipt tooltip ─────────────────────────────────────────
+function ReceiptWithTooltip({ status, isOptimistic, readAt }: { status?: string; isOptimistic?: boolean; readAt?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <ReceiptTicks status={status} isOptimistic={isOptimistic} />
+      {show && status === 'read' && readAt && (
+        <span className="absolute bottom-full mb-1 right-0 px-2 py-1 rounded-md bg-foreground text-background text-[9px] font-medium whitespace-nowrap z-50 shadow-lg animate-in fade-in-0 duration-100">
+          Read at {format(new Date(readAt), 'HH:mm')}
+        </span>
+      )}
+    </span>
+  );
 }
 
 // ── Disappearing countdown (Phase 34) ─────────────────────────────────────
@@ -106,7 +118,7 @@ function DisappearingBadge({ expiresAt }: { expiresAt: string }) {
   );
 }
 
-// ── VoiceNotePlayer — Phase 17: Waveform + playback speed ────────────────
+// ── VoiceNotePlayer — Phase 17 ───────────────────────────────────────────
 function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -140,7 +152,6 @@ function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolea
       if (message.attachment?.storage_path) url = await getSignedUrl(message.attachment.storage_path);
       else { const att = await getAttachment(message.id); url = att?.signed_url ?? null; }
       if (!url) { setLoadingId(null); return; }
-
       const audio = new Audio(url);
       audio.playbackRate = playbackRate;
       audioRef.current = audio;
@@ -168,7 +179,6 @@ function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolea
           : <span className="text-sm ml-0.5">{playing ? '⏸' : '▶'}</span>}
       </button>
       <div className="flex-1 flex flex-col gap-0.5">
-        {/* Waveform visualization */}
         <div className="flex items-end gap-[1.5px] h-6">
           {waveform.slice(0, 40).map((v, i) => {
             const pctPos = (i / waveform.length) * 100;
@@ -186,7 +196,6 @@ function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolea
           <span className="text-[10px] text-muted-foreground/50">
             {playing ? `${Math.floor(currentSec / 60)}:${(currentSec % 60).toString().padStart(2, '0')}` : `${Math.floor(totalSec / 60)}:${(totalSec % 60).toString().padStart(2, '0')}`}
           </span>
-          {/* Phase 59: Playback speed toggle */}
           <button onClick={cycleSpeed} className="text-[9px] font-bold text-muted-foreground/60 hover:text-muted-foreground transition-colors px-1">
             {playbackRate}×
           </button>
@@ -215,7 +224,7 @@ function ReactionBar({ reactions, onReact, isMe }: { reactions: ReactionSummary[
   );
 }
 
-// ── Message actions — desktop hover menu (Phase 1 fix: no layout shift) ──
+// ── Message actions — desktop hover menu ──────────────────────────────────
 function MessageActions({
   message, isMe, onReact, onEdit, onDelete, onCopy, onReply, onForward, onPin, onBookmark,
 }: {
@@ -303,14 +312,12 @@ function MobileActionSheet({
     <>
       <div className="fixed inset-0 bg-black/40 z-50 animate-in fade-in-0 duration-150" onClick={onClose} />
       <div className="fixed bottom-0 inset-x-0 z-50 bg-card border-t border-border rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-200 safe-area-bottom">
-        {/* Quick reactions */}
         <div className="flex items-center justify-center gap-2 px-4 pt-4 pb-2">
           {EMOJI_QUICK.map((e) => (
             <button key={e} onClick={() => { onReact(e); onClose(); }} className="text-2xl hover:scale-110 transition-transform p-1">{e}</button>
           ))}
         </div>
         <div className="h-px bg-border mx-4" />
-        {/* Actions */}
         <div className="py-2 px-2">
           {onReply && (
             <button onClick={() => { onReply(); onClose(); }} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm hover:bg-muted transition-colors">
@@ -344,10 +351,10 @@ function MobileActionSheet({
   );
 }
 
-// ── Typing dots ghost bubble (Phase 20) ───────────────────────────────────
+// ── Phase 20: Typing dots ghost bubble ───────────────────────────────────
 function TypingBubble() {
   return (
-    <div className="flex justify-start mt-1">
+    <div className="flex justify-start mt-1 chat-msg-entrance">
       <div className="relative max-w-[85%] sm:max-w-[65%]">
         <div className="px-4 py-3 rounded-lg rounded-tl-[4px] bg-card text-foreground shadow-sm">
           <div className="flex items-center gap-1">
@@ -362,18 +369,73 @@ function TypingBubble() {
   );
 }
 
-// ── Scroll-to-bottom FAB (Phase 23) ──────────────────────────────────────
+// ── Phase 37: Skeleton loading shimmer ───────────────────────────────────
+function MessageSkeleton() {
+  return (
+    <div className="flex-1 px-4 py-3 space-y-4">
+      {Array.from({ length: 8 }, (_, i) => {
+        const isMe = i % 3 === 0;
+        return (
+          <div key={i} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
+            <div className={cn(
+              'rounded-xl animate-pulse',
+              isMe ? 'bg-primary/10' : 'bg-muted/60',
+            )} style={{
+              width: `${120 + Math.random() * 160}px`,
+              height: `${32 + Math.random() * 24}px`,
+            }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Phase 2: Bubble tail SVG ─────────────────────────────────────────────
+function BubbleTail({ isMe }: { isMe: boolean }) {
+  return (
+    <svg
+      className={cn(
+        'absolute top-0 w-2.5 h-3.5',
+        isMe ? '-right-2 text-[hsl(var(--wa-out-bubble,120,25%,95%))] dark:text-[hsl(var(--wa-out-bubble-dark,163,55%,15%))]' : '-left-2 text-card',
+      )}
+      viewBox="0 0 10 14"
+      fill="currentColor"
+    >
+      {isMe ? (
+        <path d="M0 0 L0 14 Q6 10 10 0 Z" />
+      ) : (
+        <path d="M10 0 L10 14 Q4 10 0 0 Z" />
+      )}
+    </svg>
+  );
+}
+
+// ── Phase 23: Scroll-to-bottom FAB ──────────────────────────────────────
 function ScrollToBottomFAB({ unreadBelow, onClick }: { unreadBelow: number; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      className="absolute bottom-20 right-4 z-30 h-10 w-10 rounded-full bg-card border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-colors active:scale-95 group">
+      className="absolute bottom-20 right-4 z-30 h-10 w-10 rounded-full bg-card border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-all active:scale-95 group animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
       <ArrowDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
       {unreadBelow > 0 && (
-        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1">
+        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1 animate-in zoom-in-50 duration-200">
           {unreadBelow > 99 ? '99+' : unreadBelow}
         </span>
       )}
     </button>
+  );
+}
+
+// ── Phase 40: Scroll progress indicator ─────────────────────────────────
+function ScrollProgress({ progress }: { progress: number }) {
+  if (progress >= 99) return null;
+  return (
+    <div className="absolute top-0 left-0 right-0 h-[2px] z-20 bg-transparent">
+      <div
+        className="h-full bg-primary/30 transition-[width] duration-150 ease-out"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
   );
 }
 
@@ -387,25 +449,26 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
   const [editContent, setEditContent] = useState('');
   const [mobileSheet, setMobileSheet] = useState<ChatMessage | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [scrollPct, setScrollPct] = useState(100);
   const isMobile = useIsMobile();
   const watermarkEnabled = roomType === 'merchant_private' || roomType === 'merchant_client';
-  // Long-press state (Phase 4)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Unread count below viewport
   const unreadBelow = useMemo(() => {
     if (isAtBottom) return 0;
     return messages.filter((m) => m.sender_id !== meId && m.receipt_status !== 'read').length;
   }, [isAtBottom, messages, meId]);
 
-  // Typing users from props
   const showTyping = (typingUserIds ?? []).length > 0;
 
-  // Scroll tracking
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    setIsAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setIsAtBottom(atBottom);
+    // Phase 40: scroll progress
+    const pct = el.scrollHeight <= el.clientHeight ? 100 : (el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100;
+    setScrollPct(Math.min(100, pct));
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -434,22 +497,21 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
     navigator.clipboard.writeText(content).then(() => toast.success('Copied')).catch(() => {});
   }, []);
 
-  // Long-press handlers (Phase 4)
+  // Phase 5: Long-press with haptic feedback
   const handleTouchStart = useCallback((m: ChatMessage) => {
     if (!isMobile) return;
-    longPressTimer.current = setTimeout(() => { setMobileSheet(m); }, 400);
+    longPressTimer.current = setTimeout(() => {
+      setMobileSheet(m);
+      // Phase 5: Haptic feedback
+      if ('vibrate' in navigator) navigator.vibrate(30);
+    }, 400);
   }, [isMobile]);
   const handleTouchEnd = useCallback(() => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-      </div>
-    );
-  }
+  // Phase 37: Skeleton loading
+  if (isLoading) return <MessageSkeleton />;
 
   const filtered = messages.filter((m) => {
     if (m.deleted_for_sender && m.sender_id === meId) return false;
@@ -460,10 +522,13 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
 
   return (
     <div className="flex-1 relative overflow-hidden">
+      {/* Phase 40: Scroll progress */}
+      <ScrollProgress progress={scrollPct} />
+
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-2 sm:px-4 py-3 relative"
+        className="h-full overflow-y-auto px-2 sm:px-4 py-3 relative scroll-smooth"
         style={{
           backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'200\' height=\'200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cdefs%3E%3Cpattern id=\'p\' width=\'40\' height=\'40\' patternUnits=\'userSpaceOnUse\'%3E%3Ccircle cx=\'20\' cy=\'20\' r=\'0.5\' fill=\'%23888\' opacity=\'0.08\'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=\'100%25\' height=\'100%25\' fill=\'url(%23p)\'/%3E%3C/svg%3E")',
         }}
@@ -472,7 +537,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
 
         {groups.map((group) => (
           <div key={group.label} className="mb-4">
-            {/* Phase 24: Sticky date separator pill */}
+            {/* Phase 32: Sticky date separator pill */}
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="px-3 py-1 rounded-lg bg-card/90 backdrop-blur-sm text-[11px] font-medium text-muted-foreground shadow-sm border border-border/50">
                 {group.label}
@@ -486,13 +551,15 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                 const isDeleted = m.is_deleted;
                 const isOptimistic = (m as { _optimistic?: boolean })._optimistic;
                 const isFailed = (m as { _failed?: boolean })._failed;
-                // Phase 3: Consecutive same-sender grouping
                 const prevMsg = idx > 0 ? group.messages[idx - 1] : null;
                 const nextMsg = idx < group.messages.length - 1 ? group.messages[idx + 1] : null;
                 const isSameSenderPrev = prevMsg?.sender_id === m.sender_id && prevMsg?.type !== 'system';
                 const isSameSenderNext = nextMsg?.sender_id === m.sender_id && nextMsg?.type !== 'system';
                 const isFirstInGroup = !isSameSenderPrev;
                 const isLastInGroup = !isSameSenderNext;
+
+                // Phase 3: Emoji-only big render
+                const emojiOnly = !isDeleted && m.type === 'text' && isEmojiOnly(m.content);
 
                 if (m.type === 'system' || m.type === 'call_summary') {
                   return (
@@ -509,7 +576,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                     key={m.id}
                     id={`msg-${m.id}`}
                     className={cn(
-                      'flex group relative',
+                      'flex group relative chat-msg-entrance',
                       isMe ? 'justify-end' : 'justify-start',
                       isFirstInGroup ? 'mt-2' : 'mt-[2px]',
                     )}
@@ -519,81 +586,113 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                     onTouchEnd={handleTouchEnd}
                     onTouchCancel={handleTouchEnd}
                   >
-                    <div className={cn('relative max-w-[85%] sm:max-w-[65%]', isHighlighted && 'animate-pulse')}>
-                      {/* Bubble */}
-                      <div className={cn(
-                        'relative px-2.5 py-1.5 text-[14.2px] leading-[19px] shadow-sm',
-                        isMe
-                          ? 'bg-[hsl(var(--wa-out-bubble,120,25%,95%))] dark:bg-[hsl(var(--wa-out-bubble-dark,163,55%,15%))] text-foreground'
-                          : 'bg-card text-foreground',
-                        // Phase 3: Dynamic corner rounding based on group position
-                        isMe
-                          ? cn('rounded-tl-lg rounded-bl-lg',
-                              isFirstInGroup ? 'rounded-tr-[4px]' : 'rounded-tr-lg',
-                              isLastInGroup ? 'rounded-br-lg' : 'rounded-br-lg')
-                          : cn('rounded-tr-lg rounded-br-lg',
-                              isFirstInGroup ? 'rounded-tl-[4px]' : 'rounded-tl-lg',
-                              isLastInGroup ? 'rounded-bl-lg' : 'rounded-bl-lg'),
-                        isDeleted && 'opacity-50 italic',
-                        isFailed && 'opacity-60 ring-1 ring-destructive/30',
-                        isHighlighted && 'ring-2 ring-primary/40',
-                      )}>
-                        {/* Sender name for group chats — only on first in group */}
-                        {!isMe && isFirstInGroup && (
-                          <p className="text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">
-                            {m.sender_name ?? m.sender_id.slice(0, 8)}
-                          </p>
-                        )}
-
-                        {/* Reply preview */}
-                        {m.metadata?.reply_preview && (
-                          <div className={cn(
-                            'flex items-start gap-2 px-2.5 py-1.5 rounded-md mb-1 border-l-[3px] text-xs',
-                            isMe ? 'bg-background/30 border-primary/50' : 'bg-muted/50 border-muted-foreground/40',
-                          )}>
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-semibold text-primary leading-tight">{m.metadata.reply_preview.sender_name}</p>
-                              <p className="text-muted-foreground/70 truncate text-[12px]">{m.metadata.reply_preview.content}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Message content */}
-                        {isDeleted ? (
-                          <span className="text-[13px] text-muted-foreground italic flex items-center gap-1">
-                            <span className="opacity-60">🚫</span> This message was deleted
-                          </span>
-                        ) : editingId === m.id ? (
-                          <div className="flex flex-col gap-1">
-                            <input value={editContent} onChange={(e) => setEditContent(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(); } if (e.key === 'Escape') setEditingId(null); }}
-                              className="bg-transparent border-b border-primary/50 focus:outline-none text-sm w-full min-w-[120px]" autoFocus />
-                            <div className="flex gap-2 text-[11px]">
-                              <button onClick={submitEdit} className="text-primary font-medium">Save</button>
-                              <button onClick={() => setEditingId(null)} className="text-muted-foreground">Cancel</button>
-                            </div>
-                          </div>
-                        ) : m.type === 'voice_note' ? (
-                          <VoiceNotePlayer message={m} isMe={isMe} />
-                        ) : (m.type === 'image' || m.type === 'file') ? (
-                          <AttachmentPreview message={m} isMe={isMe} onImageOpen={onImageOpen} />
-                        ) : (
-                          <LinkifiedText text={m.content} />
-                        )}
-
-                        {/* Phase 2: Inline timestamp + ticks inside bubble */}
-                        <div className={cn('flex items-center gap-1 mt-0.5 float-right ml-3 -mb-0.5', isDeleted && 'hidden')}>
-                          {m.is_edited && <span className="text-[10px] text-muted-foreground/50 italic">edited</span>}
-                          {m.view_once && <Eye className="h-3 w-3 text-muted-foreground/50" />}
-                          {m.expires_at && <DisappearingBadge expiresAt={m.expires_at} />}
-                          <span className="text-[10.5px] text-muted-foreground/50 leading-none">
-                            {format(new Date(m.created_at), 'HH:mm')}
-                          </span>
-                          {isMe && <ReceiptTicks status={m.receipt_status} isOptimistic={isOptimistic} />}
-                          {isFailed && <span className="text-[10px] text-destructive font-medium">!</span>}
-                        </div>
-                        <div className="clear-both" />
+                    {/* Phase 38: Avatar for non-own first-in-group messages */}
+                    {!isMe && isFirstInGroup && (
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mr-1.5 mt-0.5 self-start"
+                        style={{ background: avatarGradient(m.sender_id) }}
+                      >
+                        {(m.sender_name ?? m.sender_id)[0]?.toUpperCase() ?? '?'}
                       </div>
+                    )}
+                    {!isMe && !isFirstInGroup && <div className="w-7 mr-1.5 shrink-0" />}
+
+                    <div className={cn('relative max-w-[80%] sm:max-w-[60%]', isHighlighted && 'animate-pulse')}>
+
+                      {/* Phase 3: Emoji-only — no bubble */}
+                      {emojiOnly ? (
+                        <div className={cn('py-1', isMe ? 'text-right' : 'text-left')}>
+                          <span className="text-4xl leading-tight">{m.content}</span>
+                          <div className={cn('flex items-center gap-1 mt-0.5', isMe ? 'justify-end' : 'justify-start')}>
+                            <span className="text-[10px] text-muted-foreground/50">{format(new Date(m.created_at), 'HH:mm')}</span>
+                            {isMe && <ReceiptWithTooltip status={m.receipt_status} isOptimistic={isOptimistic} readAt={m.metadata?.read_at as string} />}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Phase 2: Bubble tail */}
+                          {isFirstInGroup && <BubbleTail isMe={isMe} />}
+
+                          {/* Bubble */}
+                          <div className={cn(
+                            'relative px-2.5 py-1.5 text-[14.2px] leading-[19px] shadow-sm',
+                            isMe
+                              ? 'bg-[hsl(var(--wa-out-bubble,120,25%,95%))] dark:bg-[hsl(var(--wa-out-bubble-dark,163,55%,15%))] text-foreground'
+                              : 'bg-card text-foreground',
+                            isMe
+                              ? cn('rounded-tl-lg rounded-bl-lg',
+                                  isFirstInGroup ? 'rounded-tr-[4px]' : 'rounded-tr-lg',
+                                  isLastInGroup ? 'rounded-br-lg' : 'rounded-br-lg')
+                              : cn('rounded-tr-lg rounded-br-lg',
+                                  isFirstInGroup ? 'rounded-tl-[4px]' : 'rounded-tl-lg',
+                                  isLastInGroup ? 'rounded-bl-lg' : 'rounded-bl-lg'),
+                            isDeleted && 'opacity-50 italic',
+                            isFailed && 'opacity-60 ring-1 ring-destructive/30',
+                            isHighlighted && 'ring-2 ring-primary/40',
+                          )}>
+                            {/* Sender name for group chats */}
+                            {!isMe && isFirstInGroup && (
+                              <p className="text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">
+                                {m.sender_name ?? m.sender_id.slice(0, 8)}
+                              </p>
+                            )}
+
+                            {/* Reply preview */}
+                            {m.metadata?.reply_preview && (
+                              <div className={cn(
+                                'flex items-start gap-2 px-2.5 py-1.5 rounded-md mb-1 border-l-[3px] text-xs',
+                                isMe ? 'bg-background/30 border-primary/50' : 'bg-muted/50 border-muted-foreground/40',
+                              )}>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold text-primary leading-tight">{m.metadata.reply_preview.sender_name}</p>
+                                  <p className="text-muted-foreground/70 truncate text-[12px]">{m.metadata.reply_preview.content}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Message content */}
+                            {isDeleted ? (
+                              <span className="text-[13px] text-muted-foreground italic flex items-center gap-1">
+                                <span className="opacity-60">🚫</span> This message was deleted
+                              </span>
+                            ) : editingId === m.id ? (
+                              <div className="flex flex-col gap-1">
+                                <input value={editContent} onChange={(e) => setEditContent(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(); } if (e.key === 'Escape') setEditingId(null); }}
+                                  className="bg-transparent border-b border-primary/50 focus:outline-none text-sm w-full min-w-[120px] focus:ring-2 focus:ring-primary/30 rounded-sm" autoFocus />
+                                <div className="flex gap-2 text-[11px]">
+                                  <button onClick={submitEdit} className="text-primary font-medium">Save</button>
+                                  <button onClick={() => setEditingId(null)} className="text-muted-foreground">Cancel</button>
+                                </div>
+                              </div>
+                            ) : m.type === 'voice_note' ? (
+                              <VoiceNotePlayer message={m} isMe={isMe} />
+                            ) : (m.type === 'image' || m.type === 'file') ? (
+                              <AttachmentPreview message={m} isMe={isMe} onImageOpen={onImageOpen} />
+                            ) : (
+                              <LinkifiedText text={m.content} />
+                            )}
+
+                            {/* Phase 2: Inline timestamp + ticks inside bubble */}
+                            <div className={cn('flex items-center gap-1 mt-0.5 float-right ml-3 -mb-0.5', isDeleted && 'hidden')}>
+                              {/* Phase 9: Edit indicator */}
+                              {m.is_edited && (
+                                <span className="text-[10px] text-muted-foreground/50 italic cursor-default" title={m.metadata?.edited_at ? `Edited at ${format(new Date(m.metadata.edited_at as string), 'HH:mm')}` : 'Edited'}>
+                                  edited
+                                </span>
+                              )}
+                              {m.view_once && <Eye className="h-3 w-3 text-muted-foreground/50" />}
+                              {m.expires_at && <DisappearingBadge expiresAt={m.expires_at} />}
+                              <span className="text-[10.5px] text-muted-foreground/50 leading-none">
+                                {format(new Date(m.created_at), 'HH:mm')}
+                              </span>
+                              {isMe && <ReceiptWithTooltip status={m.receipt_status} isOptimistic={isOptimistic} readAt={m.metadata?.read_at as string} />}
+                              {isFailed && <span className="text-[10px] text-destructive font-medium">!</span>}
+                            </div>
+                            <div className="clear-both" />
+                          </div>
+                        </>
+                      )}
 
                       {/* Reactions */}
                       {m.reactions && m.reactions.length > 0 && (
@@ -612,7 +711,7 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
                         />
                       )}
 
-                      {/* Phase 1 fix: Action toolbar positioned absolutely — no layout shift */}
+                      {/* Action toolbar */}
                       {hovered === m.id && !isDeleted && !isMobile && (
                         <MessageActions
                           message={m} isMe={isMe}
@@ -634,16 +733,12 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
           </div>
         ))}
 
-        {/* Phase 20: Typing indicator as ghost bubble */}
         {showTyping && <TypingBubble />}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* Phase 23: Scroll-to-bottom FAB */}
       {!isAtBottom && <ScrollToBottomFAB unreadBelow={unreadBelow} onClick={scrollToBottom} />}
 
-      {/* Phase 8: Mobile bottom sheet */}
       {mobileSheet && (
         <MobileActionSheet
           message={mobileSheet}
@@ -657,11 +752,17 @@ export function MessageList({ messages, meId, isLoading, roomType, typingUserIds
         />
       )}
 
-      {/* Phase 20: Typing animation keyframes */}
       <style>{`
         @keyframes typing-bounce {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
           30% { transform: translateY(-4px); opacity: 1; }
+        }
+        @keyframes msg-entrance {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .chat-msg-entrance {
+          animation: msg-entrance 0.2s ease-out;
         }
       `}</style>
     </div>
