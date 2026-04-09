@@ -39,6 +39,7 @@ interface Props {
   meId:      string;
   isLoading: boolean;
   roomType:  ChatRoomType;
+  typingUserIds?: string[];
   onReact:   (msgId: string, emoji: string, remove?: boolean) => void;
   onEdit:    (msgId: string, content: string) => void;
   onDelete:  (msgId: string, forEveryone?: boolean) => void;
@@ -46,6 +47,7 @@ interface Props {
   onForward?:(msg: ChatMessage) => void;
   onPin?:    (msgId: string) => void;
   onBookmark?:(msgId: string) => void;
+  onImageOpen?:(src: string) => void;
 }
 
 const EMOJI_QUICK = ['👍','❤️','😂','😮','😢','🙏'];
@@ -374,7 +376,7 @@ function ScrollToBottomFAB({ unreadBelow, onClick }: { unreadBelow: number; onCl
   );
 }
 
-export function MessageList({ messages, meId, isLoading, roomType, onReact, onEdit, onDelete, onReply, onForward, onPin, onBookmark }: Props) {
+export function MessageList({ messages, meId, isLoading, roomType, typingUserIds, onReact, onEdit, onDelete, onReply, onForward, onPin, onBookmark, onImageOpen }: Props) {
   const bottomRef        = useRef<HTMLDivElement>(null);
   const containerRef     = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -395,8 +397,8 @@ export function MessageList({ messages, meId, isLoading, roomType, onReact, onEd
     return messages.filter((m) => m.sender_id !== meId && m.receipt_status !== 'read').length;
   }, [isAtBottom, messages, meId]);
 
-  // Typing users — placeholder; actual typing state is managed by useTyping hook
-  const showTyping = false;
+  // Typing users from props
+  const showTyping = (typingUserIds ?? []).length > 0;
 
   // Scroll tracking
   const handleScroll = useCallback(() => {
