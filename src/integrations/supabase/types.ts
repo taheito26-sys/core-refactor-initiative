@@ -3731,6 +3731,7 @@ export type Database = {
       }
       chat_send_message: {
         Args: {
+          _attachment_id?: string
           _client_nonce?: string
           _content: string
           _expires_at?: string
