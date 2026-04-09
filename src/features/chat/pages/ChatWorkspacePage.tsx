@@ -29,6 +29,7 @@ import { MessageSearch } from '../components/MessageSearch';
 import { ReplyPreview } from '../components/ReplyPreview';
 import { RoomInfoPanel } from '../components/RoomInfoPanel';
 import { ImageLightbox } from '../components/ImageLightbox';
+import { ForwardMessageModal } from '../components/ForwardMessageModal';
 import { cn } from '@/lib/utils';
 
 export default function ChatWorkspacePage() {
