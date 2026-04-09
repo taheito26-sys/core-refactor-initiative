@@ -310,7 +310,7 @@ export default function ChatWorkspacePage() {
   // ── Trading Room auto-join ──────────────────────────────────────────────
   useEffect(() => {
     if (!userId || !merchantProfile?.merchant_id) return;
-    getOrCreateCollabRoom('Trading Room').catch(() => {});
+    getOrCreateCollabRoom('Qatar P2P Market').catch(() => {});
   }, [userId, merchantProfile?.merchant_id]);
 
   // ── Shared header props builder ─────────────────────────────────────────
