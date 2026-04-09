@@ -362,6 +362,11 @@ export default function ChatWorkspacePage() {
           />
         )}
 
+        {/* Privacy watermark banner for trading/collab rooms */}
+        {activeRoom.room_type === 'merchant_collab' && (
+          <TradingRoomPrivacyBanner roomName={activeRoom.name} />
+        )}
+
         {showCallHistory && activeRoomId ? (
           <div className="flex-1 overflow-y-auto bg-background">
             <div className="px-4 py-3 border-b border-border">
