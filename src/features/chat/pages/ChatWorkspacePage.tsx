@@ -332,7 +332,13 @@ export default function ChatWorkspacePage() {
     }
 
     return (
-      <>
+      <div ref={privacyContainerRef} className="flex flex-col flex-1 min-h-0 relative">
+        {/* Phases 6, 8, 9: Screenshot/blur overlays */}
+        <ScreenshotProtectionOverlay
+          screenshotDetected={screenshotDetected}
+          isBlurred={isBlurred}
+        />
+
         <ConversationHeader
           room={activeRoom}
           meId={meId}
@@ -401,7 +407,7 @@ export default function ChatWorkspacePage() {
             />
           </>
         )}
-      </>
+      </div>
     );
   };
 
