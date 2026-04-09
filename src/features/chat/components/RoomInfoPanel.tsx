@@ -1,7 +1,15 @@
-// ─── RoomInfoPanel — Phase 74: Room details sheet ────────────────────────
-import { X, Lock, ShieldCheck, Users, Image as ImageIcon, FileText, Mic2, Bell, BellOff, Archive, LogOut } from 'lucide-react';
+// ─── RoomInfoPanel — Enhanced with Privacy Phases ────────────────────────
+// Phase 2: Room watermark policy display
+// Phase 18: Retention policy indicator  
+// Phase 24: Encryption status banner
+// Phase 13: Forwarding controls display
+// Phase 19: Export controls display
+
+import { X, Lock, ShieldCheck, Users, Image as ImageIcon, FileText, Mic2, BellOff, Archive, LogOut, Shield, Forward, Copy, Download, Eye, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
+import { EncryptionBanner } from './EncryptionIndicator';
+import { RetentionSection } from './RetentionIndicator';
 
 interface Props {
   room: ChatRoomListItem;
@@ -22,11 +30,31 @@ function initials(name: string | null | undefined): string {
   return words.length >= 2 ? (words[0][0] + words[words.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
+function PolicyBadge({ icon: Icon, label, enabled }: { icon: React.ElementType; label: string; enabled: boolean }) {
+  return (
+    <div className={cn(
+      'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold',
+      enabled ? 'bg-primary/10 text-primary' : 'bg-muted/50 text-muted-foreground/50',
+    )}>
+      <Icon className="h-3 w-3" />
+      {label}
+      <span className={cn('ml-auto text-[9px]', enabled ? 'text-emerald-500' : 'text-muted-foreground/30')}>
+        {enabled ? 'ON' : 'OFF'}
+      </span>
+    </div>
+  );
+}
+
 export function RoomInfoPanel({ room, onClose }: Props) {
   const config = roomTypeConfig(room.room_type);
   const Icon = config.icon;
   const displayName = room.display_name ?? room.name ?? 'Room';
   const avatarUrl = room.display_avatar ?? room.avatar_url;
+  const policy = room.policy;
+
+  const encryptionMode = room.room_type === 'merchant_private' ? 'client_e2ee' as const
+    : room.room_type === 'merchant_client' ? 'server_e2ee' as const
+    : 'tls_only' as const;
 
   return (
     <>
@@ -55,9 +83,6 @@ export function RoomInfoPanel({ room, onClose }: Props) {
               <Icon className="h-3.5 w-3.5" />
               <span className="text-xs font-semibold">{config.label}</span>
             </div>
-            {(room as unknown as { description?: string }).description && (
-              <p className="text-xs text-muted-foreground mt-2 text-center leading-relaxed">{(room as unknown as { description?: string }).description}</p>
-            )}
           </div>
 
           {/* Stats */}
@@ -68,20 +93,28 @@ export function RoomInfoPanel({ room, onClose }: Props) {
                 <span className="text-xs text-muted-foreground">Members</span>
                 <span className="text-xs font-semibold text-foreground">{room.member_count ?? 2}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Created</span>
-                <span className="text-xs font-semibold text-foreground">—</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Encryption</span>
-                <span className="text-xs font-semibold text-primary">
-                  {room.room_type === 'merchant_private' ? 'End-to-end' : 'TLS'}
-                </span>
-              </div>
             </div>
           </div>
 
-          {/* Shared media (placeholder counts) */}
+          {/* Phase 24: Encryption status */}
+          <EncryptionBanner mode={encryptionMode} />
+
+          {/* Phase 18: Retention policy */}
+          <RetentionSection retentionHours={policy?.retention_hours ?? null} />
+
+          {/* Phase 2, 13, 14, 19: Security policies */}
+          <div className="px-4 py-3 border-b border-border/50">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">Security Policies</p>
+            <div className="space-y-1.5">
+              <PolicyBadge icon={Eye} label="Watermark" enabled={policy?.watermark_enabled ?? false} />
+              <PolicyBadge icon={Shield} label="Screenshot protection" enabled={policy?.screenshot_protection ?? false} />
+              <PolicyBadge icon={Forward} label="Forwarding allowed" enabled={true} />
+              <PolicyBadge icon={Copy} label="History searchable" enabled={policy?.history_searchable ?? false} />
+              <PolicyBadge icon={Timer} label="Disappearing default" enabled={!!policy?.disappearing_default_hours} />
+            </div>
+          </div>
+
+          {/* Shared media */}
           <div className="px-4 py-3 border-b border-border/50">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 mb-2">Shared Media</p>
             <div className="grid grid-cols-3 gap-2">
