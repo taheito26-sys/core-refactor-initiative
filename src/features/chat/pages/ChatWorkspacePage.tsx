@@ -247,7 +247,10 @@ export default function ChatWorkspacePage() {
       type?: ChatMessageType;
       metadata?: Record<string, unknown>;
     }) => {
-      if (!activeRoomId || !content.trim()) return;
+      if (!activeRoomId) return;
+      const normalizedContent = content.trim();
+      const hasAttachment = !!opts?.attachmentId;
+      if (!normalizedContent && !hasAttachment) return;
       const messageType = opts?.type ?? 'text';
       const replyId = opts?.replyToId ?? replyTo?.id ?? null;
 
@@ -261,7 +264,7 @@ export default function ChatWorkspacePage() {
 
       send.mutate({
         roomId:        activeRoomId,
-        content:       content.trim(),
+        content:       normalizedContent,
         type:          messageType,
         metadata,
         clientNonce:   crypto.randomUUID(),

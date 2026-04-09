@@ -310,12 +310,15 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     setUploadLabel(null);
   }, []);
 
-  const validateUploadForRoom = useCallback((file: File, kind: 'image' | 'file') => {
+  const validateUploadForRoom = useCallback((file: File, kind: 'image' | 'file' | 'voice') => {
     if (kind === 'image' && !canSendImages) {
       return { ok: false, error: 'Images and videos are disabled in this room' };
     }
     if (kind === 'file' && !canSendFiles) {
       return { ok: false, error: 'Document uploads are disabled in this room' };
+    }
+    if (kind === 'voice' && !canSendVoiceNotes) {
+      return { ok: false, error: 'Voice notes are disabled in this room' };
     }
     const baseValidation = validateAttachment(file);
     if (!baseValidation.ok) return baseValidation;
@@ -323,7 +326,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
       allowed_mime_types: roomPolicy?.allowed_mime_types ?? null,
       max_file_size_mb: roomPolicy?.max_file_size_mb ?? undefined,
     });
-  }, [canSendFiles, canSendImages, roomPolicy?.allowed_mime_types, roomPolicy?.max_file_size_mb]);
+  }, [canSendFiles, canSendImages, canSendVoiceNotes, roomPolicy?.allowed_mime_types, roomPolicy?.max_file_size_mb]);
 
   const handleSend = useCallback(() => {
     if (!content.trim()) return;
@@ -479,13 +482,19 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
   }, [beginUpload, finishUpload, roomId, userId, onSend, validateUploadForRoom, viewOnce, watermarkText]);
 
   const handleVoiceSend = useCallback(async () => {
+    const recordedDurationSec = voice.duration;
     const blob = await voice.stop();
     if (!blob || !userId) return;
+    const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+    const validation = validateUploadForRoom(file, 'voice');
+    if (!validation.ok) {
+      toast.error(validation.error);
+      return;
+    }
     beginUpload('Sending voice note');
     try {
-      const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
       const mediaMetadata = await extractMediaMetadata(file).catch(() => ({} as Record<string, unknown>));
-      const durMs = ('durationMs' in mediaMetadata ? (mediaMetadata as { durationMs?: number }).durationMs : undefined) ?? voice.duration * 1000;
+      const durMs = ('durationMs' in mediaMetadata ? (mediaMetadata as { durationMs?: number }).durationMs : undefined) ?? recordedDurationSec * 1000;
       const att = await uploadAttachment(roomId, userId, file, {
         durationMs: durMs,
       });
@@ -494,12 +503,12 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
         attachmentId: att.id, type: 'voice_note', watermarkText,
         metadata: { duration_ms: durMs },
       });
-    } catch {
-      toast.error('Voice upload failed');
+    } catch (error) {
+      toast.error((error as Error).message || 'Voice upload failed');
     } finally {
       await finishUpload();
     }
-  }, [beginUpload, finishUpload, voice, userId, roomId, onSend, watermarkText]);
+  }, [beginUpload, finishUpload, onSend, roomId, userId, validateUploadForRoom, voice, watermarkText]);
 
   const closeMenus = useCallback(() => {
     setShowAttachMenu(false);
