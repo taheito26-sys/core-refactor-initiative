@@ -185,7 +185,7 @@ Deno.serve(async (req: Request) => {
     // ── START ─────────────────────────────────────────────────────────────
     if (action === "start") {
       const requestedCallId = callId || crypto.randomUUID();
-      const { data, error: startErr } = await adminClient.rpc("chat_initiate_call", {
+      const { data, error: startErr } = await userClient.rpc("chat_initiate_call", {
         _room_id: roomId!,
         _call_id: requestedCallId,
         _ice_config: DEFAULT_ICE_CONFIG,
@@ -306,7 +306,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Not a member of this call's room" }, 403);
       }
 
-      const { error: endErr } = await adminClient.rpc("chat_end_call", {
+      const { error: endErr } = await userClient.rpc("chat_end_call", {
         _call_id: callId!,
         _end_reason: endReason,
         _signaling_channel: signalingChannel,
