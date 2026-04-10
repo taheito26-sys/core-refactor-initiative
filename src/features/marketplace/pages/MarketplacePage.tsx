@@ -460,8 +460,9 @@ function MyListingCard({ listing, onTogglePause, onDelete }: {
   );
 }
 
-function TradeCard({ trade, userId, onCounter, onConfirm, onComplete, onCancel }: {
+function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel }: {
   trade: OtcTrade; userId: string;
+  onOpenChat?: (roomId: string) => void;
   onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void;
 }) {
   const isInitiator = trade.initiator_user_id === userId;
