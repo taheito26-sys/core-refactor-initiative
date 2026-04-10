@@ -540,20 +540,22 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const escrowStatus = (trade as any).escrow_status as string | undefined;
 
+  // Trade timeline steps
+  const timelineSteps = [
+    { label: 'Offered', done: true, ts: trade.created_at },
+    { label: 'Confirmed', done: ['confirmed', 'completed'].includes(trade.status), ts: trade.confirmed_at },
+    { label: 'Escrowed', done: escrowStatus === 'both_deposited', ts: null },
+    { label: 'Completed', done: trade.status === 'completed', ts: trade.completed_at },
+  ];
+
   return (
-    <Card className="p-2.5 sm:p-3">
+    <Card className="p-2.5 sm:p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
             <Badge className={`text-[9px] px-1 py-0 ${STATUS_COLORS[trade.status] || ''}`}>{trade.status}</Badge>
             <span className="text-xs font-bold truncate max-w-[100px]">{trade.counterparty_name}</span>
             <Badge variant="outline" className="text-[9px] px-1 py-0">{trade.side === 'cash' ? '💵' : '🪙'} {trade.currency}</Badge>
-            {escrowStatus && escrowStatus !== 'none' && (
-              <Badge variant="outline" className="text-[8px] px-1 py-0 gap-0.5 text-green-600">
-                <Shield className="h-2.5 w-2.5" />
-                {escrowStatus === 'both_deposited' ? 'Escrow ✓' : 'Escrow ½'}
-              </Badge>
-            )}
           </div>
           <div className="text-[11px]">
             <span className="font-bold">{fmtAmt(finalAmount)}</span>
@@ -582,12 +584,7 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
               <Button size="sm" className="h-6 text-[9px] gap-0.5" onClick={onConfirm}><Check className="h-2.5 w-2.5" /> Accept</Button>
             )}
             {trade.status === 'confirmed' && (
-              <>
-                <Button size="sm" className="h-6 text-[9px] gap-0.5 bg-emerald-600 hover:bg-emerald-700" onClick={onComplete}><Check className="h-2.5 w-2.5" /> Complete</Button>
-                {onEscrow && (
-                  <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={onEscrow}><Shield className="h-2.5 w-2.5" /> Escrow</Button>
-                )}
-              </>
+              <Button size="sm" className="h-6 text-[9px] gap-0.5 bg-emerald-600 hover:bg-emerald-700" onClick={onComplete}><Check className="h-2.5 w-2.5" /> Complete</Button>
             )}
             {trade.chat_room_id && onOpenChat && (
               <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
@@ -608,6 +605,63 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
           </div>
         )}
       </div>
+
+      {/* ── Trade Progress Timeline ── */}
+      {isActive && (
+        <div className="flex items-center gap-0 px-1">
+          {timelineSteps.map((step, i) => (
+            <div key={step.label} className="flex items-center flex-1 last:flex-none">
+              <div className="flex flex-col items-center">
+                <div className={`h-3.5 w-3.5 rounded-full border-2 flex items-center justify-center transition-colors ${step.done ? 'bg-primary border-primary' : 'border-muted-foreground/30 bg-background'}`}>
+                  {step.done && <Check className="h-2 w-2 text-primary-foreground" />}
+                </div>
+                <span className={`text-[7px] mt-0.5 ${step.done ? 'text-primary font-bold' : 'text-muted-foreground'}`}>{step.label}</span>
+              </div>
+              {i < timelineSteps.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-0.5 rounded-full transition-colors ${step.done ? 'bg-primary' : 'bg-muted-foreground/20'}`} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Prominent Escrow Section for Confirmed Trades ── */}
+      {trade.status === 'confirmed' && onEscrow && (
+        <div className="rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-2.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Shield className="h-4 w-4 text-primary" />
+              <span className="text-[11px] font-bold">Escrow Protection</span>
+            </div>
+            {escrowStatus === 'both_deposited' ? (
+              <Badge className="bg-green-500/15 text-green-600 text-[9px] gap-0.5 border-green-500/30">
+                <ShieldCheck className="h-2.5 w-2.5" /> Both Deposited
+              </Badge>
+            ) : escrowStatus && escrowStatus !== 'none' ? (
+              <Badge className="bg-amber-500/15 text-amber-600 text-[9px] gap-0.5 border-amber-500/30">
+                <Clock className="h-2.5 w-2.5" /> Partial
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[9px] gap-0.5 text-muted-foreground">
+                <Clock className="h-2.5 w-2.5" /> Not Started
+              </Badge>
+            )}
+          </div>
+          {/* Escrow progress bar */}
+          <div className="flex gap-1">
+            <div className={`flex-1 h-1.5 rounded-full ${escrowStatus && escrowStatus !== 'none' ? 'bg-primary' : 'bg-muted-foreground/20'}`} />
+            <div className={`flex-1 h-1.5 rounded-full ${escrowStatus === 'both_deposited' ? 'bg-primary' : 'bg-muted-foreground/20'}`} />
+          </div>
+          <div className="flex justify-between text-[8px] text-muted-foreground">
+            <span>You deposit</span>
+            <span>Counterparty deposits</span>
+          </div>
+          <Button size="sm" className="w-full h-7 text-[10px] gap-1" variant={escrowStatus === 'both_deposited' ? 'outline' : 'default'} onClick={onEscrow}>
+            <Shield className="h-3 w-3" />
+            {escrowStatus === 'both_deposited' ? 'View Escrow Details' : escrowStatus && escrowStatus !== 'none' ? 'View & Complete Escrow' : 'Open Escrow'}
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
