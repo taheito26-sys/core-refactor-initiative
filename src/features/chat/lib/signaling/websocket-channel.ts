@@ -161,8 +161,15 @@ export class WebSocketSignalingChannel implements SignalingChannel {
   private disposed = false;
   private messageQueue: WireMessage[] = [];
 
+  private authToken: string | null = null;
+
   constructor(relayUrls: string[]) {
     this.relayUrls = relayUrls;
+  }
+
+  /** Set the auth token to pass as a query parameter on WS connect. */
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
   }
 
   // ── availability probe ──────────────────────────────────────────────────
@@ -231,7 +238,10 @@ export class WebSocketSignalingChannel implements SignalingChannel {
 
     // Rotate relay URLs on reconnect — Tox-style bootstrap diversity
     this.activeUrl = this.relayUrls[this.reconnectCount % this.relayUrls.length];
-    const url = `${this.activeUrl}?room=${encodeURIComponent(roomId)}`;
+    let url = `${this.activeUrl}?room=${encodeURIComponent(roomId)}`;
+    if (this.authToken) {
+      url += `&token=${encodeURIComponent(this.authToken)}`;
+    }
 
     const ws = new WebSocket(url);
     this.ws = ws;
