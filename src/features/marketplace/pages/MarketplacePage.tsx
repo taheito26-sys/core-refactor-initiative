@@ -19,6 +19,7 @@ import {
 import { useOtcListings, useMyOtcListings, type OtcListing, type CreateListingInput } from '../hooks/useOtcListings';
 import { useOtcTrades, type OtcTrade, type SendOfferInput, type CounterOfferInput } from '../hooks/useOtcTrades';
 import { useOtcEscrow } from '../hooks/useOtcEscrow';
+import { useSubmitReview } from '../hooks/useOtcReviews';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
 import { toast } from 'sonner';
 
