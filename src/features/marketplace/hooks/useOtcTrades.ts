@@ -107,7 +107,9 @@ export function useOtcTrades() {
   const sendOffer = useMutation({
     mutationFn: async (input: SendOfferInput) => {
       if (!userId || !merchantProfile) throw new Error('Not authenticated');
-      const { data, error } = await supabase
+
+      // 1. Create the trade
+      const { data: trade, error } = await supabase
         .from('otc_trades')
         .insert({
           listing_id: input.listing_id,
@@ -126,7 +128,43 @@ export function useOtcTrades() {
         .select()
         .single();
       if (error) throw error;
-      return data;
+
+      // 2. Auto-create a direct chat room between the two merchants
+      try {
+        // Check if a direct room already exists
+        const { data: existingDirect } = await supabase
+          .from('chat_direct_rooms')
+          .select('room_id')
+          .or(`and(user_a_id.eq.${userId},user_b_id.eq.${input.responder_user_id}),and(user_a_id.eq.${input.responder_user_id},user_b_id.eq.${userId})`)
+          .maybeSingle();
+
+        let chatRoomId = existingDirect?.room_id ?? null;
+
+        if (!chatRoomId) {
+          // Create a new direct room via RPC
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: newRoomId } = await (supabase.rpc as any)('fn_chat_create_room', {
+            _name: `OTC Trade`,
+            _type: 'direct',
+            _lane: 'Personal',
+            _member_merchant_ids: [merchantProfile.merchant_id, input.responder_merchant_id],
+          });
+          chatRoomId = newRoomId ?? null;
+        }
+
+        // Link the chat room to the trade
+        if (chatRoomId) {
+          await supabase
+            .from('otc_trades')
+            .update({ chat_room_id: chatRoomId })
+            .eq('id', trade.id);
+        }
+      } catch (chatErr) {
+        // Don't fail the trade if chat creation fails
+        console.warn('[OTC] Auto-chat room creation failed:', chatErr);
+      }
+
+      return trade;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: MY_TRADES_KEY });
