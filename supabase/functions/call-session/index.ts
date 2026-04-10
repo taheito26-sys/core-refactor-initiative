@@ -214,14 +214,19 @@ Deno.serve(async (req: Request) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify user
+    // Verify user via JWT claims (no session lookup required)
     const jwt = authHeader.slice(7);
-    const {
-      data: { user },
-      error: authErr,
-    } = await adminClient.auth.getUser(jwt);
-    if (authErr || !user) {
-      return json({ error: "Invalid token" }, 401);
+    const { data: claimsData, error: claimsErr } = await adminClient.auth.getClaims(jwt);
+    if (claimsErr || !claimsData?.claims) {
+      // Fallback to getUser if getClaims is unavailable
+      const { data: { user: fallbackUser }, error: fallbackErr } = await adminClient.auth.getUser(jwt);
+      if (fallbackErr || !fallbackUser) {
+        console.error("call-session auth failed:", claimsErr?.message || fallbackErr?.message);
+        return json({ error: "Invalid token" }, 401);
+      }
+      var user = { id: fallbackUser.id };
+    } else {
+      var user = { id: claimsData.claims.sub as string };
     }
 
     // User-scoped client for RPCs that rely on auth.uid()
