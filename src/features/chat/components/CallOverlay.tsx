@@ -57,8 +57,23 @@ export function CallOverlay({ webrtc }: Props) {
   } = webrtc;
   const isMobile = useIsMobile();
 
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const localVideoRef  = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const audioEl = remoteAudioRef.current;
+    if (!audioEl) return;
+
+    if (remoteStream) {
+      audioEl.srcObject = remoteStream;
+      audioEl.play().catch(() => {});
+      return;
+    }
+
+    audioEl.pause();
+    audioEl.srcObject = null;
+  }, [remoteStream]);
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
@@ -80,18 +95,23 @@ export function CallOverlay({ webrtc }: Props) {
   const isConnecting = callState === 'connecting';
   const isTerminal   = ['ended', 'failed', 'missed', 'declined'].includes(callState);
 
-  const showVideo = (isVideoCall || isScreenSharing) && (isActive || isConnecting);
+  const localHasVideo = (localStream?.getVideoTracks().length ?? 0) > 0;
+  const remoteHasVideo = (remoteStream?.getVideoTracks().length ?? 0) > 0;
+  const showVideo = (isVideoCall || isScreenSharing || localHasVideo || remoteHasVideo) && (isActive || isConnecting);
 
   // Full-screen video call layout
   if (showVideo) {
     return (
       <div className="absolute inset-0 z-50 bg-black flex flex-col">
+        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
         {/* Remote video (full) */}
         <div className="flex-1 relative">
           {remoteStream ? (
             <video
               ref={remoteVideoRef}
-              autoPlay playsInline
+              autoPlay
+              playsInline
+              muted
               className="w-full h-full object-cover"
             />
           ) : (
@@ -236,6 +256,7 @@ export function CallOverlay({ webrtc }: Props) {
         ? 'top-0 px-2 pt-2'
         : 'top-0 px-4 pt-4',
     )}>
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       <div className={cn(
         'pointer-events-auto flex items-center gap-3 rounded-2xl shadow-2xl border backdrop-blur-md transition-all duration-300',
         isMobile ? 'px-4 py-3 w-full max-w-sm' : 'px-6 py-3',

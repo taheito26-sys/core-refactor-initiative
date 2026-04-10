@@ -82,6 +82,40 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+type IncomingCallState = ChatCall & {
+  _sdpOffer?: string;
+  _wantsVideo?: boolean;
+};
+
+function sdpWantsVideo(sdp: string | null | undefined): boolean {
+  return typeof sdp === 'string' && /\bm=video\b/.test(sdp);
+}
+
+function getMediaFailureReason(error: unknown, requestedVideo: boolean): string {
+  const name = typeof error === 'object' && error && 'name' in error
+    ? String((error as { name?: unknown }).name)
+    : '';
+  const message = typeof error === 'object' && error && 'message' in error
+    ? String((error as { message?: unknown }).message).toLowerCase()
+    : '';
+
+  if (
+    name === 'NotAllowedError' ||
+    name === 'PermissionDeniedError' ||
+    name === 'SecurityError' ||
+    message.includes('permission') ||
+    message.includes('denied')
+  ) {
+    return requestedVideo ? 'camera_permission_denied' : 'microphone_permission_denied';
+  }
+
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return requestedVideo ? 'camera_unavailable' : 'microphone_unavailable';
+  }
+
+  return requestedVideo ? 'video_setup_failed' : 'audio_setup_failed';
+}
+
 export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const { userId } = useAuth();
   const [callState,       setCallState]       = useState<CallState>('idle');
@@ -251,6 +285,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setRemoteStreams(new Map());
     setParticipantCount(0);
 
+    incomingCallRef.current = null;
+    setIncomingCall(null);
+    useChatStore.getState().setIncomingCall(null, null);
     setLocalStream(null);
     setRemoteStream(null);
     setActiveCallId(null);
@@ -426,6 +463,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const startCallFn = useCallback(async (video = false) => {
     if (!roomId || !userId || callState !== 'idle') return;
     const config = getSignalingConfig();
+    let startedCallId: string | null = null;
     try {
       // Probe all channels in parallel; populates availableChannels for routing
       signaling.isAvailable().catch(() => {});
@@ -459,6 +497,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         callId = await signaling.initiateCall(roomId);
       }
 
+      startedCallId = callId;
       callIdRef.current = callId;
       setActiveCallId(callId);
       setCallState('calling');
@@ -494,8 +533,14 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     } catch (err) {
       console.error('[WebRTC] startCall failed', err);
+      if (startedCallId) {
+        if (config.useCallSession) {
+          endCallSession(startedCallId, 'failed').catch(() => {});
+        }
+        await signaling.publishCallEnd(startedCallId, 'failed').catch(() => {});
+      }
       cleanup();
-      transitionToEnd('failed', 'start_error');
+      transitionToEnd('failed', getMediaFailureReason(err, video));
     }
   }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallPush, signaling]);
 
@@ -503,9 +548,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const answerIncoming = useCallback(async () => {
     if (!incomingCall || !userId) return;
     const config = getSignalingConfig();
+    const currentIncoming = incomingCall as IncomingCallState;
+    let wantsVideo = currentIncoming._wantsVideo ?? false;
     try {
-      const stream = await getMedia(false);
-      const callId = incomingCall.id;
+      const callId = currentIncoming.id;
       callIdRef.current = callId;
       setActiveCallId(callId);
       setCallState('connecting');
@@ -523,22 +569,17 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         }
       }
 
-      const peerConn = buildPC();
-      pc.current = peerConn;
-      stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
-
       // Try SDP offer from in-memory state first (delivered by WS channel,
       // stashed on the ChatCall object by the signaling useEffect below).
       // Fall back to a direct Supabase fetch for the Supabase channel path.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let offerSdp: string | null = (incomingCall as any)._sdpOffer ?? null;
+      let offerSdp: string | null = currentIncoming._sdpOffer ?? null;
       if (!offerSdp) {
         for (let attempt = 0; attempt < OFFER_FETCH_MAX_ATTEMPTS && !offerSdp; attempt++) {
           const { data, error } = await supabase
             .from('chat_call_participants' as never)
             .select('sdp_offer')
             .eq('call_id', callId)
-            .eq('user_id', incomingCall.initiated_by)
+            .eq('user_id', currentIncoming.initiated_by)
             .maybeSingle();
 
           if (error) {
@@ -554,18 +595,35 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       }
       if (!offerSdp) throw new Error('No SDP offer from initiator');
 
+      wantsVideo = sdpWantsVideo(offerSdp);
+      const stream = await getMedia(wantsVideo);
+
+      const peerConn = buildPC();
+      pc.current = peerConn;
+      stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
+
       await peerConn.setRemoteDescription({ type: 'offer', sdp: offerSdp });
       const answer = await peerConn.createAnswer();
       await peerConn.setLocalDescription(answer);
 
       await signaling.publishAnswer(callId, answer.sdp!);
+      incomingCallRef.current = null;
       setIncomingCall(null);
       useChatStore.getState().setIncomingCall(null, null);
 
     } catch (err) {
       console.error('[WebRTC] answerIncoming failed', err);
+      if (currentIncoming.id) {
+        if (config.useCallSession) {
+          endCallSession(currentIncoming.id, 'failed').catch(() => {});
+        }
+        await signaling.publishCallEnd(currentIncoming.id, 'failed').catch(() => {});
+      }
+      incomingCallRef.current = null;
+      setIncomingCall(null);
+      useChatStore.getState().setIncomingCall(null, null);
       cleanup();
-      transitionToEnd('failed', 'answer_error');
+      transitionToEnd('failed', getMediaFailureReason(err, wantsVideo));
     }
   }, [incomingCall, userId, roomId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, signaling]);
 
@@ -573,6 +631,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const declineIncoming = useCallback(async () => {
     if (!incomingCall) return;
     await signaling.publishCallEnd(incomingCall.id, 'declined').catch(() => {});
+    incomingCallRef.current = null;
     setIncomingCall(null);
     useChatStore.getState().setIncomingCall(null, null);
     transitionToEnd('declined', 'declined');
@@ -708,9 +767,14 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         if (callIdRef.current && callIdRef.current !== callId) return; // already in another call
         if (incomingCallRef.current?.id === callId) {
           if (sdpOffer) {
+            incomingCallRef.current = {
+              ...incomingCallRef.current,
+              _sdpOffer: sdpOffer,
+              _wantsVideo: sdpWantsVideo(sdpOffer),
+            } as IncomingCallState;
             setIncomingCall((prev) => (
               prev?.id === callId
-                ? ({ ...prev, _sdpOffer: sdpOffer } as ChatCall)
+                ? ({ ...prev, _sdpOffer: sdpOffer, _wantsVideo: sdpWantsVideo(sdpOffer) } as IncomingCallState)
                 : prev
             ));
           }
@@ -731,8 +795,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           created_at: new Date().toISOString(),
           // Stash SDP offer when delivered by WS channel so answerIncoming
           // can use it without a Supabase round-trip in censored environments.
-          ...(sdpOffer ? { _sdpOffer: sdpOffer } : {}),
-        } as ChatCall;
+          ...(sdpOffer ? { _sdpOffer: sdpOffer, _wantsVideo: sdpWantsVideo(sdpOffer) } : {}),
+        } as IncomingCallState;
+        incomingCallRef.current = incoming;
         setIncomingCall(incoming);
         setCallState('ringing');
         useChatStore.getState().setIncomingCall(callId, roomId);
@@ -763,6 +828,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
             transitionToEnd('ended', 'remote_ended');
           }
         } else if (incomingCallRef.current) {
+          incomingCallRef.current = null;
           setIncomingCall(null);
           useChatStore.getState().setIncomingCall(null, null);
           transitionToEnd('missed', 'caller_cancelled');
@@ -780,10 +846,12 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // ── beforeunload: cleanup on tab close ────────────────────────────────
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (callIdRef.current) {
+      const unloadCallId = callIdRef.current ?? incomingCallRef.current?.id;
+      const unloadReason = callIdRef.current ? 'tab_closed' : 'declined';
+      if (unloadCallId) {
         const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/chat_end_call?apikey=${encodeURIComponent(anonKey)}`;
-        const body = JSON.stringify({ _call_id: callIdRef.current, _end_reason: 'tab_closed' });
+        const body = JSON.stringify({ _call_id: unloadCallId, _end_reason: unloadReason });
 
         const sessionStr = localStorage.getItem('sb-' + import.meta.env.VITE_SUPABASE_PROJECT_ID + '-auth-token');
         const headers: Record<string, string> = {
@@ -824,6 +892,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     return () => {
       if (callIdRef.current) {
         signalingRef.current?.publishCallEnd(callIdRef.current, 'navigated_away').catch(() => {});
+      } else if (incomingCallRef.current) {
+        signalingRef.current?.publishCallEnd(incomingCallRef.current.id, 'declined').catch(() => {});
       }
       cleanup();
       if (lingerTimer.current) clearTimeout(lingerTimer.current);
@@ -836,6 +906,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     return () => {
       if (callIdRef.current) {
         signalingRef.current?.publishCallEnd(callIdRef.current, 'room_changed').catch(() => {});
+        cleanup();
+        setCallState('idle');
+        setEndReason(null);
+      } else if (incomingCallRef.current) {
+        signalingRef.current?.publishCallEnd(incomingCallRef.current.id, 'declined').catch(() => {});
         cleanup();
         setCallState('idle');
         setEndReason(null);

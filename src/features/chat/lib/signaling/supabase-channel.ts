@@ -139,22 +139,24 @@ export class SupabaseSignalingChannel implements SignalingChannel {
         (payload) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const row = payload.new as any;
-          if (!row || row.user_id === userId) return;
+          if (!row) return;
 
-          if (row.sdp_offer) {
+          if (row.user_id !== userId && row.sdp_offer) {
             handlers.onIncomingCall(row.call_id, row.sdp_offer as string, row.user_id);
           }
 
-          const remoteIce: RTCIceCandidateInit[] = Array.isArray(row.ice_candidates)
-            ? row.ice_candidates
-            : [];
-          const already = processedIceCounts.get(row.id) ?? 0;
-          for (const c of remoteIce.slice(already)) {
-            handlers.onIceCandidate(c);
+          if (row.user_id === userId) {
+            const remoteIce: RTCIceCandidateInit[] = Array.isArray(row.ice_candidates)
+              ? row.ice_candidates
+              : [];
+            const already = processedIceCounts.get(row.id) ?? 0;
+            for (const c of remoteIce.slice(already)) {
+              handlers.onIceCandidate(c);
+            }
+            processedIceCounts.set(row.id, remoteIce.length);
           }
-          processedIceCounts.set(row.id, remoteIce.length);
 
-          if (row.sdp_answer) {
+          if (row.user_id !== userId && row.sdp_answer) {
             handlers.onAnswer(row.sdp_answer as string);
           }
         },
