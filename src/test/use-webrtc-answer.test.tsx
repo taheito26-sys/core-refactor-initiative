@@ -13,6 +13,7 @@ const callSessionMocks = {
 
 const signalingMock = {
   setAuthToken: vi.fn(),
+  setRelayAuthToken: vi.fn(),
   setRelayUrls: vi.fn(),
   isAvailable: vi.fn().mockResolvedValue(true),
   initiateCall: vi.fn().mockResolvedValue('call-started'),
@@ -310,11 +311,11 @@ describe('useWebRTC answerIncoming', () => {
       await result.current.startCall(false);
     });
 
-    expect(signalingMock.setAuthToken).toHaveBeenCalledWith('relay-hmac-token');
+    expect(signalingMock.setRelayAuthToken).toHaveBeenCalledWith('relay-hmac-token');
     expect(signalingMock.setRelayUrls).toHaveBeenCalledWith([
       'wss://relay.example.com/functions/v1/signaling-relay',
     ]);
-    expect(signalingMock.setAuthToken.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(signalingMock.setRelayAuthToken.mock.invocationCallOrder[0]).toBeLessThan(
       signalingMock.setRelayUrls.mock.invocationCallOrder[0],
     );
   });
@@ -472,11 +473,11 @@ describe('useWebRTC answerIncoming', () => {
       await result.current.answerIncoming();
     });
 
-    expect(signalingMock.setAuthToken).toHaveBeenCalledWith('relay-hmac-token');
+    expect(signalingMock.setRelayAuthToken).toHaveBeenCalledWith('relay-hmac-token');
     expect(signalingMock.setRelayUrls).toHaveBeenCalledWith([
       'wss://relay.example.com/functions/v1/signaling-relay',
     ]);
-    expect(signalingMock.setAuthToken.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(signalingMock.setRelayAuthToken.mock.invocationCallOrder[0]).toBeLessThan(
       signalingMock.setRelayUrls.mock.invocationCallOrder[0],
     );
   });

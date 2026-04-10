@@ -42,6 +42,7 @@ export class MultiSignalingChannel implements SignalingChannel {
     handlers: SignalingHandlers;
   } | null = null;
   private wsAuthToken: string | null = null;
+  private wsRelayToken: string | null = null;
 
   private constructor(channels: SignalingChannel[]) {
     this.channels = channels;
@@ -69,7 +70,18 @@ export class MultiSignalingChannel implements SignalingChannel {
   /** Pass an auth token to the WebSocket channel for authenticated connections. */
   setAuthToken(token: string | null): void {
     this.wsAuthToken = token ?? null;
-    this.wsChannel?.setAuthToken(token ?? null);
+    if (!this.wsRelayToken) {
+      this.wsChannel?.setAuthToken(token ?? null);
+    }
+  }
+
+  /**
+   * Call-session returns a short-lived HMAC relay token that must take priority
+   * over the normal Supabase session token for WebSocket relay auth.
+   */
+  setRelayAuthToken(token: string | null): void {
+    this.wsRelayToken = token ?? null;
+    this.wsChannel?.setAuthToken(this.wsRelayToken ?? this.wsAuthToken);
   }
 
   /**
@@ -98,9 +110,10 @@ export class MultiSignalingChannel implements SignalingChannel {
     }
 
     const wsChannel = new WebSocketSignalingChannel(normalizedRelayUrls);
-    wsChannel.setAuthToken(this.wsAuthToken);
+    wsChannel.setAuthToken(this.wsRelayToken ?? this.wsAuthToken);
     this.wsChannel = wsChannel;
     this.channels.push(wsChannel);
+    this.availableChannels = Array.from(new Set([...this.availableChannels, wsChannel]));
 
     if (this.currentSubscription) {
       this.unsubMap.set(
@@ -113,8 +126,6 @@ export class MultiSignalingChannel implements SignalingChannel {
         ),
       );
     }
-
-    this.isAvailable().catch(() => {});
   }
 
   // ── isAvailable ─────────────────────────────────────────────────────────

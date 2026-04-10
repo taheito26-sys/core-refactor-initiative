@@ -288,6 +288,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     incomingCallRef.current = null;
     setIncomingCall(null);
     useChatStore.getState().setIncomingCall(null, null);
+    signaling.setRelayAuthToken(null);
     setLocalStream(null);
     setRemoteStream(null);
     setActiveCallId(null);
@@ -489,7 +490,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
           // If relay URL + token provided, configure WS channel
           if (creds.token) {
-            signaling.setAuthToken(creds.token);
+            signaling.setRelayAuthToken(creds.token);
           }
           if (creds.signaling_url) {
             signaling.setRelayUrls([creds.signaling_url]);
@@ -573,7 +574,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
             iceConfig = creds.ice_config as RTCConfiguration;
           }
           if (creds.token) {
-            signaling.setAuthToken(creds.token);
+            signaling.setRelayAuthToken(creds.token);
           }
           if (creds.signaling_url) {
             signaling.setRelayUrls([creds.signaling_url]);
