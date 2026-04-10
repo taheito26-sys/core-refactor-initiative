@@ -377,9 +377,9 @@ function MyListingCard({ listing, onTogglePause, onDelete }: { listing: OtcListi
   );
 }
 
-function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel, onEscrow }: {
+function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel, onEscrow, onReview }: {
   trade: OtcTrade; userId: string;
-  onOpenChat?: (roomId: string) => void; onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void; onEscrow?: () => void;
+  onOpenChat?: (roomId: string) => void; onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void; onEscrow?: () => void; onReview?: () => void;
 }) {
   const isInitiator = trade.initiator_user_id === userId;
   const isActive = !['completed', 'cancelled', 'expired'].includes(trade.status);
