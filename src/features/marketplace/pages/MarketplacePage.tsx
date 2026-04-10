@@ -444,6 +444,14 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
             <Button size="sm" variant="ghost" className="h-6 text-[9px] text-destructive gap-0.5" onClick={onCancel}><X className="h-2.5 w-2.5" /> Cancel</Button>
           </div>
         )}
+        {!isActive && trade.status === 'completed' && onReview && (
+          <div className="flex flex-col gap-0.5 shrink-0">
+            <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={onReview}><Star className="h-2.5 w-2.5" /> Review</Button>
+            {trade.chat_room_id && onOpenChat && (
+              <Button size="sm" variant="ghost" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
