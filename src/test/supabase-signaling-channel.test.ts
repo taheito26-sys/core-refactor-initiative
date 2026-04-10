@@ -36,7 +36,7 @@ describe('SupabaseSignalingChannel', () => {
     removeChannel.mockReset();
   });
 
-  it('applies remote ICE from the current user participant row and still processes remote offer/answer rows', async () => {
+  it('delivers ICE candidates from the remote peer row and ignores own-row ICE candidates', async () => {
     const { SupabaseSignalingChannel } = await import('@/features/chat/lib/signaling/supabase-channel');
     const handlers = {
       onIncomingCall: vi.fn(),
@@ -50,15 +50,20 @@ describe('SupabaseSignalingChannel', () => {
 
     expect(channelCallbacks).toHaveLength(2);
 
+    // Own-row update: ICE candidates written by the local peer — must NOT be
+    // fed back into the RTCPeerConnection; the local PC already generated them.
     channelCallbacks[1]({
       new: {
         id: 'self-row',
         call_id: 'call-1',
         user_id: 'me',
-        ice_candidates: [{ candidate: 'candidate:1', sdpMid: '0', sdpMLineIndex: 0 }],
+        ice_candidates: [{ candidate: 'candidate:own', sdpMid: '0', sdpMLineIndex: 0 }],
       },
     });
 
+    expect(handlers.onIceCandidate).not.toHaveBeenCalled();
+
+    // Remote-row update: ICE candidates from the other peer MUST be delivered.
     channelCallbacks[1]({
       new: {
         id: 'remote-row',
@@ -66,15 +71,16 @@ describe('SupabaseSignalingChannel', () => {
         user_id: 'other',
         sdp_offer: 'offer-sdp',
         sdp_answer: 'answer-sdp',
-        ice_candidates: [],
+        ice_candidates: [{ candidate: 'candidate:remote', sdpMid: '0', sdpMLineIndex: 0 }],
       },
     });
 
     expect(handlers.onIceCandidate).toHaveBeenCalledWith({
-      candidate: 'candidate:1',
+      candidate: 'candidate:remote',
       sdpMid: '0',
       sdpMLineIndex: 0,
     });
+    expect(handlers.onIceCandidate).toHaveBeenCalledTimes(1);
     expect(handlers.onIncomingCall).toHaveBeenCalledWith('call-1', 'offer-sdp', 'other');
     expect(handlers.onAnswer).toHaveBeenCalledWith('answer-sdp');
 

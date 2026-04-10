@@ -85,12 +85,18 @@ describe('MultiSignalingChannel', () => {
     channel.setRelayUrls(['wss://relay.example.com/ws']);
 
     expect(signalingMocks.supabaseInstances).toHaveLength(1);
-    expect(signalingMocks.websocketInstances).toHaveLength(1);
-    const [relayChannel] = signalingMocks.websocketInstances as Array<{
+    // If VITE_SIGNAL_RELAY_URLS is set in .env, create() spawns one WS channel
+    // at startup.  setRelayUrls() with a *different* URL then replaces it with
+    // a second instance (matchesRelayUrls() → false → new channel).  In
+    // production both URLs are identical so there is only ever one instance;
+    // the test uses a distinct URL to exercise the replacement code path.
+    const wsCount = signalingMocks.websocketInstances.length;
+    expect(wsCount).toBeGreaterThanOrEqual(1);
+    const relayChannel = (signalingMocks.websocketInstances as Array<{
       relayUrls: string[];
       setAuthToken: ReturnType<typeof vi.fn>;
       subscribe: ReturnType<typeof vi.fn>;
-    }>;
+    }>)[wsCount - 1]; // last instance is the active relay channel
     expect(relayChannel.relayUrls).toEqual(['wss://relay.example.com/ws']);
     expect(relayChannel.setAuthToken).toHaveBeenCalledWith('relay-token');
     expect(relayChannel.subscribe).toHaveBeenCalledWith(null, 'room-1', 'user-1', expect.any(Object));

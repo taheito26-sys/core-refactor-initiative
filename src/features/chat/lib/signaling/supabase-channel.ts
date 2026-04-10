@@ -145,7 +145,7 @@ export class SupabaseSignalingChannel implements SignalingChannel {
             handlers.onIncomingCall(row.call_id, row.sdp_offer as string, row.user_id);
           }
 
-          if (row.user_id === userId) {
+          if (row.user_id !== userId) {
             const remoteIce: RTCIceCandidateInit[] = Array.isArray(row.ice_candidates)
               ? row.ice_candidates
               : [];
