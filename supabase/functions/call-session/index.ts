@@ -173,11 +173,13 @@ const STUN_SERVERS: IceServer[] = [
 ];
 
 async function buildIceConfig() {
-  // Try Cloudflare first, fall back to static env vars
   let turnServers = await fetchCloudflareTurnServers();
+  const source = turnServers.length > 0 ? "cloudflare" : "static";
   if (turnServers.length === 0) {
     turnServers = loadStaticTurnServers();
   }
+  const totalIce = STUN_SERVERS.length + turnServers.length;
+  console.log(`[TURN-diag] buildIceConfig: source=${source} stunCount=${STUN_SERVERS.length} turnCount=${turnServers.length} totalIceServers=${totalIce}`);
   return {
     iceServers: [...STUN_SERVERS, ...turnServers],
     iceTransportPolicy: "all",
