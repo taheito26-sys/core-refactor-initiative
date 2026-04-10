@@ -13,6 +13,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
+import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
 
 // Auth pages
 import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
@@ -195,6 +196,7 @@ const App = () => (
           <NativePlatformBootstrap />
           <AuthProvider>
             <AuthDiagnostics />
+            <ChatRuntimeBootstrap />
             <RouteErrorBoundary>
               <Routes>
                 {/* OAuth callback — Supabase redirects here after Google consent */}

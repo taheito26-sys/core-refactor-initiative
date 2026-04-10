@@ -16,7 +16,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRooms, ROOMS_KEY } from '../hooks/useRooms';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import { toast } from 'sonner';
-import { usePresence } from '../hooks/usePresence';
 import { useTyping } from '../hooks/useTyping';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { getMessageById, clearChatForMe, toggleMuteRoom, getQatarMarketRoom, forwardMessage } from '../api/chat';
@@ -156,9 +155,6 @@ export default function ChatWorkspacePage() {
   // ── typing ────────────────────────────────────────────────────────────────
   const { startTyping, stopTyping } = useTyping(activeRoomId);
   const typingUsers = useChatStore(typingUsersInRoom(activeRoomId ?? ''));
-
-  // ── presence ─────────────────────────────────────────────────────────────
-  usePresence();
 
   // ── calls ─────────────────────────────────────────────────────────────────
   const webrtc = useWebRTC(activeRoomId);
