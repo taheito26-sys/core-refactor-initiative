@@ -502,6 +502,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // ── ANSWER INCOMING ───────────────────────────────────────────────────
   const answerIncoming = useCallback(async () => {
     if (!incomingCall || !userId) return;
+    const config = getSignalingConfig();
     try {
       const stream = await getMedia(false);
       const callId = incomingCall.id;
@@ -509,6 +510,18 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       setActiveCallId(callId);
       setCallState('connecting');
       setEndReason(null);
+
+      // ── New path: join via edge function for server-side validation ────
+      if (config.useCallSession && roomId) {
+        try {
+          const creds = await joinCallSession(roomId, callId);
+          if (creds.signaling_url && creds.token) {
+            signaling.setAuthToken(creds.token);
+          }
+        } catch (edgeFnErr) {
+          console.warn('[WebRTC] call-session join failed, continuing with direct signaling', edgeFnErr);
+        }
+      }
 
       const peerConn = buildPC();
       pc.current = peerConn;
@@ -554,7 +567,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', 'answer_error');
     }
-  }, [incomingCall, userId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd]);
+  }, [incomingCall, userId, roomId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, signaling]);
 
   // ── DECLINE ───────────────────────────────────────────────────────────
   const declineIncoming = useCallback(async () => {
