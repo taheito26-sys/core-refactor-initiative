@@ -695,8 +695,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     return () => {
       unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, userId]);
+  }, [roomId, userId, cleanup, transitionToEnd]);
 
   // ── beforeunload: cleanup on tab close ────────────────────────────────
   useEffect(() => {
