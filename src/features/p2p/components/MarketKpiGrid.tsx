@@ -82,6 +82,9 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
               {fmtPrice(1 / fxRate)}
             </div>
             <div className="kpi-sub">1 EGP ≈ {fmtPrice(fxRate)} QAR</div>
+            <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
+              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ EG Buy {snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'}
+            </div>
           </div>
         )}
       </div>
