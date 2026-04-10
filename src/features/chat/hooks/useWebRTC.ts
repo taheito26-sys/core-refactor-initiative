@@ -98,6 +98,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const qualityTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectedAtRef  = useRef<number | null>(null);
   const cleaningUp      = useRef(false);
+  const qualityStatsRef = useRef<CallQualityStats | null>(null);
   const screenTrackRef  = useRef<MediaStreamTrack | null>(null);
   const prevBytesRef    = useRef<{ received: number; ts: number } | null>(null);
   const processedRemoteIceCounts = useRef<Map<string, number>>(new Map());

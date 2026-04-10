@@ -161,8 +161,15 @@ export class WebSocketSignalingChannel implements SignalingChannel {
   private disposed = false;
   private messageQueue: WireMessage[] = [];
 
+  private authToken: string | null = null;
+
   constructor(relayUrls: string[]) {
     this.relayUrls = relayUrls;
+  }
+
+  /** Set the auth token to pass as a query parameter on WS connect. */
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
   }
 
   // ── availability probe ──────────────────────────────────────────────────
