@@ -8,11 +8,16 @@ import { useAuth } from '@/features/auth/auth-context';
 import {
   DEFAULT_ICE_CONFIG, getCallParticipants,
 } from '../api/chat';
+import {
+  startCallSession, joinCallSession, endCallSession,
+  type CallSessionCredentials,
+} from '../api/call-session';
 import { useChatStore } from '@/lib/chat-store';
 import { MultiSignalingChannel } from '../lib/signaling/multi-channel';
 import type { SignalingHandlers } from '../lib/signaling/types';
 import type { ChatCall } from '../types';
 import { isNativeApp } from '@/platform/runtime';
+import { getSignalingConfig } from '../lib/signaling/config';
 
 export type CallState =
   | 'idle'
