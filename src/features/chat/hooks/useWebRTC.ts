@@ -112,6 +112,17 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   }
   const signaling = signalingRef.current;
 
+  // Keep WS channel auth token in sync with session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      signaling.setAuthToken(session?.access_token ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      signaling.setAuthToken(session?.access_token ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, [signaling]);
+
   // Incoming call ref — kept in sync with state so async handlers see current value
   const incomingCallRef = useRef<ChatCall | null>(null);
 
