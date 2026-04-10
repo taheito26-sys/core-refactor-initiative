@@ -289,9 +289,10 @@ export default function MarketplacePage() {
           <div className="grid grid-cols-2 gap-2">
             <Card className="p-3"><div className="flex items-center gap-2"><Check className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.completedCount}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completed</div></div></div></Card>
             <Card className="p-3"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{fmtAmt(analytics.totalVolume)}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Volume</div></div></div></Card>
-            <Card className="p-3"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.completionRate.toFixed(0)}%</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Rate</div></div></div></Card>
-            <Card className="p-3"><div className="flex items-center gap-2"><ArrowRightLeft className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.totalTrades}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</div></div></div></Card>
+            <Card className="p-3"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.completionRate.toFixed(0)}%</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Success Rate</div></div></div></Card>
+            <Card className="p-3"><div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.disputeCount}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Disputes</div></div></div></Card>
           </div>
+
           {suggestedRate && (
             <Card className="p-3">
               <div className="text-xs">
@@ -300,6 +301,57 @@ export default function MarketplacePage() {
                 <span className="text-[10px] text-muted-foreground ml-1">QAR/USDT</span>
               </div>
             </Card>
+          )}
+
+          {/* Volume by Currency */}
+          {analytics.byCurrency.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><PieChart className="h-3 w-3" /> Volume by Currency</h3>
+              {analytics.byCurrency.map(([currency, data]) => (
+                <Card key={currency} className="p-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[9px] px-1 py-0">{currency}</Badge>
+                      <span className="text-xs font-bold">{data.count} trades</span>
+                    </div>
+                    <span className="text-xs font-black text-primary">{fmtAmt(data.volume)}</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${Math.min(100, (data.volume / (analytics.totalVolume || 1)) * 100)}%` }} />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Top Counterparties */}
+          {analytics.topCounterparties.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Activity className="h-3 w-3" /> Top Counterparties</h3>
+              {analytics.topCounterparties.map(([name, count]) => (
+                <Card key={name} className="p-2.5 flex items-center justify-between">
+                  <span className="text-xs font-bold truncate max-w-[180px]">{name}</span>
+                  <Badge variant="secondary" className="text-[9px] px-1.5">{count} trades</Badge>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Disputes Summary */}
+          {disputes.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Recent Disputes</h3>
+              {disputes.slice(0, 3).map(d => (
+                <Card key={d.id} className="p-2.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <Badge className={`text-[9px] px-1 py-0 ${d.status === 'open' ? 'bg-amber-500/10 text-amber-600' : d.status === 'resolved' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{d.status}</Badge>
+                    <span className="text-[9px] text-muted-foreground">{getTimeAgo(d.created_at)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground truncate">{d.reason}</p>
+                  {d.resolution_note && <p className="text-[10px] text-primary mt-0.5">Resolution: {d.resolution_note}</p>}
+                </Card>
+              ))}
+            </div>
           )}
 
           {/* Market Depth */}
