@@ -74,6 +74,7 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -120,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    const syncAuthState = async (newSession: Session | null) => {
+    const syncAuthState = async (newSession: Session | null, isInitial = false) => {
       if (!isMounted) return;
 
       // Handle Dev Mode Bypass — only when explicitly enabled AND there is no real session
@@ -174,11 +175,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
+        // Only show loading spinner on the very first load —
+        // subsequent token refreshes keep existing profile data visible.
+        if (!profilesLoaded) {
+          setIsLoading(true);
+        }
         await loadUserProfiles(newSession.user.id);
+        if (isMounted) setProfilesLoaded(true);
       } else {
         setProfile(null);
         setMerchantProfile(null);
         setCustomerProfile(null);
+        if (isMounted) setProfilesLoaded(false);
       }
 
       if (isMounted) {
@@ -186,15 +194,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Use ONLY onAuthStateChange — it fires INITIAL_SESSION on mount.
+    // Calling getSession() in parallel causes the "lock stolen" race.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
-        void syncAuthState(newSession);
+        void syncAuthState(newSession, _event === 'INITIAL_SESSION');
       }
     );
-
-    void supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      void syncAuthState(existingSession);
-    });
 
     return () => {
       isMounted = false;
