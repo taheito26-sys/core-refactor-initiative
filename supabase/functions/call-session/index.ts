@@ -84,7 +84,47 @@ function buildTurnEntries(
   ];
 }
 
-function loadTurnServers(): IceServer[] {
+// ── Cloudflare TURN credential generator ─────────────────────────────────────
+// Calls Cloudflare's TURN API to generate ephemeral credentials (default 24h).
+// Falls back to static TURN_URL/TURN_USERNAME/TURN_CREDENTIAL env vars if
+// Cloudflare secrets are not configured.
+async function fetchCloudflareTurnServers(): Promise<IceServer[]> {
+  const token = Deno.env.get("CLOUDFLARE_TURN_TOKEN");
+  const keyId = Deno.env.get("CLOUDFLARE_TURN_KEY_ID");
+  if (!token || !keyId) return [];
+
+  try {
+    const res = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ttl: 86400 }),
+      },
+    );
+    if (!res.ok) {
+      console.error("Cloudflare TURN API error:", res.status, await res.text());
+      return [];
+    }
+    const data = await res.json();
+    // Return the TURN entries directly from Cloudflare (already formatted)
+    return (data.iceServers ?? []).filter(
+      (s: IceServer) =>
+        Array.isArray(s.urls)
+          ? s.urls.some((u: string) => u.startsWith("turn"))
+          : typeof s.urls === "string" && s.urls.startsWith("turn"),
+    );
+  } catch (err) {
+    console.error("Cloudflare TURN fetch failed:", err);
+    return [];
+  }
+}
+
+// Static fallback: reads TURN_URL / TURN_USERNAME / TURN_CREDENTIAL env vars
+function loadStaticTurnServers(): IceServer[] {
   const out: IceServer[] = [];
 
   const pushFromEnv = (
@@ -98,42 +138,44 @@ function loadTurnServers(): IceServer[] {
   };
 
   pushFromEnv(
-    Deno.env.get("TURN_URL") || Deno.env.get("VITE_TURN_URL") || undefined,
-    Deno.env.get("TURN_USERNAME") || Deno.env.get("VITE_TURN_USERNAME") || undefined,
-    Deno.env.get("TURN_CREDENTIAL") || Deno.env.get("VITE_TURN_CREDENTIAL") || undefined,
+    Deno.env.get("TURN_URL") || undefined,
+    Deno.env.get("TURN_USERNAME") || undefined,
+    Deno.env.get("TURN_CREDENTIAL") || undefined,
   );
 
   for (const n of [2, 3, 4] as const) {
     pushFromEnv(
-      Deno.env.get(`TURN_URL_${n}`) || Deno.env.get(`VITE_TURN_URL_${n}`) || undefined,
-      Deno.env.get(`TURN_URL_${n}_USERNAME`) ||
-        Deno.env.get(`TURN_USERNAME_${n}`) ||
-        Deno.env.get(`VITE_TURN_URL_${n}_USERNAME`) ||
-        undefined,
-      Deno.env.get(`TURN_URL_${n}_CREDENTIAL`) ||
-        Deno.env.get(`TURN_CREDENTIAL_${n}`) ||
-        Deno.env.get(`VITE_TURN_URL_${n}_CREDENTIAL`) ||
-        undefined,
+      Deno.env.get(`TURN_URL_${n}`) || undefined,
+      Deno.env.get(`TURN_URL_${n}_USERNAME`) || undefined,
+      Deno.env.get(`TURN_URL_${n}_CREDENTIAL`) || undefined,
     );
   }
 
   return out;
 }
 
-const DEFAULT_ICE_CONFIG = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun.cloudflare.com:3478" },
-    { urls: "stun:stun.nextcloud.com:443" },
-    ...loadTurnServers(),
-  ],
-  iceTransportPolicy: "all",
-  iceCandidatePoolSize: 4,
-};
+const STUN_SERVERS: IceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "stun:stun3.l.google.com:19302" },
+  { urls: "stun:stun4.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:stun.nextcloud.com:443" },
+];
+
+async function buildIceConfig() {
+  // Try Cloudflare first, fall back to static env vars
+  let turnServers = await fetchCloudflareTurnServers();
+  if (turnServers.length === 0) {
+    turnServers = loadStaticTurnServers();
+  }
+  return {
+    iceServers: [...STUN_SERVERS, ...turnServers],
+    iceTransportPolicy: "all",
+    iceCandidatePoolSize: 4,
+  };
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -233,13 +275,18 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Build ICE config with fresh TURN credentials
+    const iceConfig = (action === "start" || action === "join")
+      ? await buildIceConfig()
+      : null;
+
     // ── START ─────────────────────────────────────────────────────────────
     if (action === "start") {
       const requestedCallId = callId || crypto.randomUUID();
       const { data, error: startErr } = await userClient.rpc("chat_initiate_call", {
         _room_id: roomId!,
         _call_id: requestedCallId,
-        _ice_config: DEFAULT_ICE_CONFIG,
+        _ice_config: iceConfig,
       });
 
       if (startErr) {
@@ -262,7 +309,7 @@ Deno.serve(async (req: Request) => {
         call_id: resolvedCallId,
         signaling_url: signalingUrl,
         token,
-        ice_config: DEFAULT_ICE_CONFIG,
+        ice_config: iceConfig,
         signaling_mode: signalingMode,
       });
     }
@@ -323,7 +370,7 @@ Deno.serve(async (req: Request) => {
         call_id: resolvedCallId,
         signaling_url: signalingUrl,
         token,
-        ice_config: DEFAULT_ICE_CONFIG,
+        ice_config: iceConfig,
         signaling_mode: signalingMode,
       });
     }
