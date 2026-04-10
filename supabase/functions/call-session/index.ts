@@ -70,11 +70,13 @@ async function buildSignalingToken(
 }
 
 // Default ICE configuration — matches frontend resilient-ice.ts
+interface IceServer { urls: string | string[]; username?: string; credential?: string }
+
 function buildTurnEntries(
   host: string,
   username: string,
   credential: string,
-): RTCIceServer[] {
+): IceServer[] {
   return [
     { urls: `turn:${host}:3478`, username, credential },
     { urls: `turn:${host}:443?transport=tcp`, username, credential },
@@ -82,8 +84,8 @@ function buildTurnEntries(
   ];
 }
 
-function loadTurnServers(): RTCIceServer[] {
-  const out: RTCIceServer[] = [];
+function loadTurnServers(): IceServer[] {
+  const out: IceServer[] = [];
 
   const pushFromEnv = (
     url: string | undefined,
