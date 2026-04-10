@@ -240,6 +240,7 @@ export default function MarketplacePage() {
                       onComplete={() => completeTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade completed!') })}
                       onCancel={() => cancelTrade.mutate(trade.id, { onSuccess: () => toast.info('Trade cancelled') })}
                       onEscrow={() => setEscrowTradeId(trade.id)}
+                      onDispute={() => { setDisputeTrade(trade); setDisputeReason(''); }}
                     />
                   ))}
                 </div>
@@ -251,6 +252,7 @@ export default function MarketplacePage() {
                     <TradeCard key={trade.id} trade={trade} userId={userId!}
                       onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)}
                       onReview={() => { setReviewTrade(trade); setReviewRating(5); setReviewComment(''); }}
+                      onDispute={() => { setDisputeTrade(trade); setDisputeReason(''); }}
                     />
                   ))}
                 </div>
