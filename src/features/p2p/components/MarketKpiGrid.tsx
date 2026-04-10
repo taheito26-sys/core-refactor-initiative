@@ -20,6 +20,9 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
   const fxRate = market === 'egypt' && qatarRates?.sellAvg && snapshot.buyAvg
     ? qatarRates.sellAvg / snapshot.buyAvg
     : null;
+  const fxRateV2 = market === 'egypt' && qatarRates?.sellAvg && snapshot.sellAvg
+    ? qatarRates.sellAvg / snapshot.sellAvg
+    : null;
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
       <div className="kpis kpis-p2p">
