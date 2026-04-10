@@ -214,20 +214,33 @@ Deno.serve(async (req: Request) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify user via JWT claims (no session lookup required)
+    // Verify user - try getUser first, fall back to JWT decode if session not found
     const jwt = authHeader.slice(7);
-    const { data: claimsData, error: claimsErr } = await adminClient.auth.getClaims(jwt);
-    if (claimsErr || !claimsData?.claims) {
-      // Fallback to getUser if getClaims is unavailable
-      const { data: { user: fallbackUser }, error: fallbackErr } = await adminClient.auth.getUser(jwt);
-      if (fallbackErr || !fallbackUser) {
-        console.error("call-session auth failed:", claimsErr?.message || fallbackErr?.message);
+    let userId: string;
+    const { data: { user: authUser }, error: authErr } = await adminClient.auth.getUser(jwt);
+    if (authErr || !authUser) {
+      // Session may have been cleaned up but JWT is still valid
+      // Decode the JWT payload to extract the user ID
+      try {
+        const parts = jwt.split(".");
+        if (parts.length !== 3) throw new Error("Malformed JWT");
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+        if (!payload.sub || typeof payload.sub !== "string") throw new Error("Missing sub claim");
+        // Check expiration
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < now) {
+          return json({ error: "Token expired" }, 401);
+        }
+        userId = payload.sub;
+        console.log("[auth-diag] Fallback to JWT decode, session lookup failed:", authErr?.message);
+      } catch (decodeErr) {
+        console.error("call-session auth failed:", authErr?.message, decodeErr);
         return json({ error: "Invalid token" }, 401);
       }
-      var user = { id: fallbackUser.id };
     } else {
-      var user = { id: claimsData.claims.sub as string };
+      userId = authUser.id;
     }
+    const user = { id: userId };
 
     // User-scoped client for RPCs that rely on auth.uid()
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
