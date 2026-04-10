@@ -98,6 +98,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const qualityTimer    = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectedAtRef  = useRef<number | null>(null);
   const cleaningUp      = useRef(false);
+  const qualityStatsRef = useRef<CallQualityStats | null>(null);
   const screenTrackRef  = useRef<MediaStreamTrack | null>(null);
   const prevBytesRef    = useRef<{ received: number; ts: number } | null>(null);
   const processedRemoteIceCounts = useRef<Map<string, number>>(new Map());
@@ -110,6 +111,17 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     signalingRef.current = MultiSignalingChannel.create();
   }
   const signaling = signalingRef.current;
+
+  // Keep WS channel auth token in sync with session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      signaling.setAuthToken(session?.access_token ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      signaling.setAuthToken(session?.access_token ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, [signaling]);
 
   // Incoming call ref — kept in sync with state so async handlers see current value
   const incomingCallRef = useRef<ChatCall | null>(null);
@@ -195,13 +207,19 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }, QUALITY_POLL_MS);
   }, []);
 
+  // Keep qualityStatsRef in sync with state
+  useEffect(() => {
+    qualityStatsRef.current = qualityStats;
+  }, [qualityStats]);
+
   // ── full cleanup ───────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     if (cleaningUp.current) return;
     cleaningUp.current = true;
 
-    // Persist final quality stats
-    if (qualityStats) persistQualityStats(qualityStats);
+    // Persist final quality stats via ref (avoids stale closure)
+    const finalStats = qualityStatsRef.current;
+    if (finalStats) persistQualityStats(finalStats);
 
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenTrackRef.current?.stop();
@@ -243,7 +261,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     reconnectTries.current = 0;
 
     cleaningUp.current = false;
-  }, [setActiveCallId, qualityStats, persistQualityStats]);
+  }, [setActiveCallId, persistQualityStats]);
 
   // ── start duration timer ──────────────────────────────────────────────
   const startDurationTimer = useCallback(() => {
@@ -677,8 +695,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     return () => {
       unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, userId]);
+  }, [roomId, userId, cleanup, transitionToEnd]);
 
   // ── beforeunload: cleanup on tab close ────────────────────────────────
   useEffect(() => {

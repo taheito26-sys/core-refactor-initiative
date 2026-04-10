@@ -58,6 +58,11 @@ export class MultiSignalingChannel implements SignalingChannel {
     return new MultiSignalingChannel(channels);
   }
 
+  /** Pass an auth token to the WebSocket channel for authenticated connections. */
+  setAuthToken(token: string | null): void {
+    this.wsChannel?.setAuthToken(token ?? null);
+  }
+
   // ── isAvailable ─────────────────────────────────────────────────────────
   // Probes all channels in parallel; populates availableChannels for routing.
   async isAvailable(): Promise<boolean> {
