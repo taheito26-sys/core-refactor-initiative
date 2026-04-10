@@ -1962,9 +1962,11 @@ export type Database = {
           merchant_code: string | null
           merchant_id: string
           nickname: string
+          otc_avg_rating: number
           otc_completed_trades: number
           otc_completion_rate: number
           otc_reputation_updated_at: string | null
+          otc_review_count: number
           otc_total_volume: number
           region: string | null
           status: string
@@ -1982,9 +1984,11 @@ export type Database = {
           merchant_code?: string | null
           merchant_id: string
           nickname: string
+          otc_avg_rating?: number
           otc_completed_trades?: number
           otc_completion_rate?: number
           otc_reputation_updated_at?: string | null
+          otc_review_count?: number
           otc_total_volume?: number
           region?: string | null
           status?: string
@@ -2002,9 +2006,11 @@ export type Database = {
           merchant_code?: string | null
           merchant_id?: string
           nickname?: string
+          otc_avg_rating?: number
           otc_completed_trades?: number
           otc_completion_rate?: number
           otc_reputation_updated_at?: string | null
+          otc_review_count?: number
           otc_total_volume?: number
           region?: string | null
           status?: string
@@ -2995,6 +3001,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      otc_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          rating: number
+          reviewed_user_id: string
+          reviewer_user_id: string
+          trade_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating: number
+          reviewed_user_id: string
+          reviewer_user_id: string
+          trade_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating?: number
+          reviewed_user_id?: string
+          reviewer_user_id?: string
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_reviews_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "otc_trades"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       otc_trades: {
         Row: {
@@ -4145,6 +4189,7 @@ export type Database = {
         Args: { _target_user_id: string; _viewer_id: string }
         Returns: boolean
       }
+      fn_otc_lifecycle_cleanup: { Args: never; Returns: undefined }
       get_unread_counts: {
         Args: { _user_id?: string }
         Returns: {
