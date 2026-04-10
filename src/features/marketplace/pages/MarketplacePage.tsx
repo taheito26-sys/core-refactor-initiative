@@ -36,14 +36,25 @@ function fmtAmt(n: number) {
   return Math.round(n).toLocaleString();
 }
 
+// Currency → MarketId mapping for P2P rate suggestions
+const CURRENCY_TO_MARKET: Record<string, string> = {
+  QAR: 'qatar', AED: 'uae', EGP: 'egypt', SAR: 'ksa', TRY: 'turkey', OMR: 'oman', GEL: 'georgia', KZT: 'kazakhstan',
+};
+
 export default function MarketplacePage() {
   const t = useT();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { userId } = useAuth();
   const { listings, isLoading: listingsLoading } = useOtcListings();
   const { myListings, isLoading: myLoading, create, update, remove } = useMyOtcListings();
   const { trades, isLoading: tradesLoading, sendOffer, counterOffer, confirmTrade, completeTrade, cancelTrade } = useOtcTrades();
 
-  const [activeTab, setActiveTab] = useState('board');
+  // P2P market data for rate suggestions (default to Qatar)
+  const { snapshot: qatarSnapshot } = useP2PMarketData('qatar');
+
+  const initialTab = searchParams.get('tab') || 'board';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [sideFilter, setSideFilter] = useState<'all' | 'cash' | 'usdt'>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showOfferDialog, setShowOfferDialog] = useState<OtcListing | null>(null);
@@ -55,6 +66,17 @@ export default function MarketplacePage() {
 
   const activeTrades = trades.filter(t => !['completed', 'cancelled', 'expired'].includes(t.status));
   const completedTrades = trades.filter(t => ['completed', 'cancelled', 'expired'].includes(t.status));
+
+  // Analytics
+  const analytics = useMemo(() => {
+    const completed = trades.filter(t => t.status === 'completed');
+    const totalVolume = completed.reduce((s, t) => s + (t.counter_total ?? t.total), 0);
+    const completionRate = trades.length > 0 ? (completed.length / trades.length * 100) : 0;
+    return { completedCount: completed.length, totalVolume, completionRate, totalTrades: trades.length };
+  }, [trades]);
+
+  // Suggested rate from P2P data
+  const suggestedRate = qatarSnapshot?.sellAvg ?? qatarSnapshot?.buyAvg ?? null;
 
   return (
     <div className="p-3 md:p-6 space-y-4 max-w-6xl mx-auto">
