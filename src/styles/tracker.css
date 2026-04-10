@@ -62,6 +62,7 @@
 
 /* ── KPI CARDS ── */
 .tracker-root .kpis { display: grid; gap: 4px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tracker-root .kpis.kpis-p2p { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 .tracker-root .kpi-card {
   background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius);
   padding: 6px; box-shadow: var(--lt-shadow2); position: relative; overflow: hidden;
