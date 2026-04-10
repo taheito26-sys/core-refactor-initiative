@@ -55,6 +55,7 @@ import MerchantsPage from './pages/MerchantsPage';
 import RelationshipPage from './pages/RelationshipPage';
 import ChatPage from './pages/ChatPage';
 import ChatPreview from './pages/ChatPreview';
+import MarketplacePage from './features/marketplace/pages/MarketplacePage';
 
 
 import NotificationsPage from './pages/NotificationsPage';
@@ -263,6 +264,7 @@ const App = () => (
                   <Route path="/merchants" element={<MerchantsPage />} />
                   <Route path="/merchants/:relationshipId" element={<RelationshipPage />} />
                   <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/marketplace" element={<MarketplacePage />} />
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />

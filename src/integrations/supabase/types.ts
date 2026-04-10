@@ -2883,6 +2883,150 @@ export type Database = {
           },
         ]
       }
+      otc_listings: {
+        Row: {
+          amount_max: number
+          amount_min: number
+          created_at: string
+          currency: string
+          expires_at: string | null
+          id: string
+          merchant_id: string
+          note: string | null
+          payment_methods: string[]
+          rate: number
+          side: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_max?: number
+          amount_min?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id: string
+          note?: string | null
+          payment_methods?: string[]
+          rate?: number
+          side: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_max?: number
+          amount_min?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id?: string
+          note?: string | null
+          payment_methods?: string[]
+          rate?: number
+          side?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      otc_trades: {
+        Row: {
+          amount: number
+          cancelled_at: string | null
+          chat_room_id: string | null
+          completed_at: string | null
+          confirmed_at: string | null
+          counter_amount: number | null
+          counter_note: string | null
+          counter_rate: number | null
+          counter_total: number | null
+          created_at: string
+          currency: string
+          id: string
+          initiator_merchant_id: string
+          initiator_user_id: string
+          listing_id: string | null
+          note: string | null
+          rate: number
+          responder_merchant_id: string
+          responder_user_id: string
+          side: string
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          cancelled_at?: string | null
+          chat_room_id?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          counter_amount?: number | null
+          counter_note?: string | null
+          counter_rate?: number | null
+          counter_total?: number | null
+          created_at?: string
+          currency?: string
+          id?: string
+          initiator_merchant_id: string
+          initiator_user_id: string
+          listing_id?: string | null
+          note?: string | null
+          rate?: number
+          responder_merchant_id: string
+          responder_user_id: string
+          side: string
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cancelled_at?: string | null
+          chat_room_id?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          counter_amount?: number | null
+          counter_note?: string | null
+          counter_rate?: number | null
+          counter_total?: number | null
+          created_at?: string
+          currency?: string
+          id?: string
+          initiator_merchant_id?: string
+          initiator_user_id?: string
+          listing_id?: string | null
+          note?: string | null
+          rate?: number
+          responder_merchant_id?: string
+          responder_user_id?: string
+          side?: string
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_trades_chat_room_id_fkey"
+            columns: ["chat_room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "otc_trades_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "otc_listings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       p2p_snapshots: {
         Row: {
           data: Json

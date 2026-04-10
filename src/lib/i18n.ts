@@ -44,6 +44,17 @@ const translations = {
   notifications: { en: 'Notifications', ar: 'الإشعارات' },
   logout: { en: 'Logout', ar: 'تسجيل خروج' },
 
+  // ── Marketplace ──
+  marketplace: { en: 'OTC Marketplace', ar: 'سوق OTC' },
+  marketplaceSubtitle: { en: 'Post liquidity, browse offers, and book trades', ar: 'انشر السيولة، تصفح العروض، واحجز الصفقات' },
+  postListing: { en: 'Post Listing', ar: 'نشر عرض' },
+  listingBoard: { en: 'Listing Board', ar: 'لوحة العروض' },
+  myListings: { en: 'My Listings', ar: 'عروضي' },
+  myTrades: { en: 'My Trades', ar: 'صفقاتي' },
+  noListings: { en: 'No listings available. Be the first to post!', ar: 'لا توجد عروض. كن أول من ينشر!' },
+  noMyListings: { en: "You haven't posted any listings yet.", ar: 'لم تنشر أي عروض بعد.' },
+  noTrades: { en: 'No trades yet. Send an offer to get started!', ar: 'لا توجد صفقات. أرسل عرض للبدء!' },
+
   // ── Dashboard ──
   tradingVolume: { en: '📦 TRADING VOLUME', ar: '📦 حجم التداول' },
   netProfit: { en: '📈 NET PROFIT', ar: '📈 صافي الربح' },
