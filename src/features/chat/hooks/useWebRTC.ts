@@ -651,7 +651,17 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     const handlers: SignalingHandlers = {
       // ── incoming call ──────────────────────────────────────────────────
       onIncomingCall: (callId, sdpOffer, initiatedBy) => {
-        if (callIdRef.current) return; // already in a call
+        if (callIdRef.current && callIdRef.current !== callId) return; // already in another call
+        if (incomingCallRef.current?.id === callId) {
+          if (sdpOffer) {
+            setIncomingCall((prev) => (
+              prev?.id === callId
+                ? ({ ...prev, _sdpOffer: sdpOffer } as ChatCall)
+                : prev
+            ));
+          }
+          return;
+        }
         const incoming = {
           id: callId,
           room_id: roomId,

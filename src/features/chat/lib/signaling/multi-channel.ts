@@ -34,6 +34,7 @@ export class MultiSignalingChannel implements SignalingChannel {
   private wsChannel: WebSocketSignalingChannel | null = null;
   private unsubFns: Array<() => void> = [];
   private seenKeys = new Set<string>();
+  private incomingOfferState = new Map<string, boolean>();
 
   private constructor(channels: SignalingChannel[]) {
     this.channels = channels;
@@ -114,12 +115,18 @@ export class MultiSignalingChannel implements SignalingChannel {
     handlers: SignalingHandlers,
   ): () => void {
     this.seenKeys.clear();
+    this.incomingOfferState.clear();
 
     const deduped: SignalingHandlers = {
       onIncomingCall: (cid, sdpOffer, initiatedBy) => {
         const key = `incoming:${cid}`;
-        if (this.seenKeys.has(key)) return;
+        const hadOffer = this.incomingOfferState.get(cid) ?? false;
+        const hasOfferNow = Boolean(sdpOffer);
+
+        if (this.seenKeys.has(key) && (!hasOfferNow || hadOffer)) return;
+
         this.seenKeys.add(key);
+        this.incomingOfferState.set(cid, hadOffer || hasOfferNow);
         handlers.onIncomingCall(cid, sdpOffer, initiatedBy);
       },
 
@@ -147,6 +154,7 @@ export class MultiSignalingChannel implements SignalingChannel {
       this.unsubFns.forEach((fn) => fn());
       this.unsubFns = [];
       this.seenKeys.clear();
+      this.incomingOfferState.clear();
     };
   }
 

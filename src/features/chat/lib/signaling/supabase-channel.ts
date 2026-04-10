@@ -141,6 +141,10 @@ export class SupabaseSignalingChannel implements SignalingChannel {
           const row = payload.new as any;
           if (!row || row.user_id === userId) return;
 
+          if (row.sdp_offer) {
+            handlers.onIncomingCall(row.call_id, row.sdp_offer as string, row.user_id);
+          }
+
           const remoteIce: RTCIceCandidateInit[] = Array.isArray(row.ice_candidates)
             ? row.ice_candidates
             : [];
