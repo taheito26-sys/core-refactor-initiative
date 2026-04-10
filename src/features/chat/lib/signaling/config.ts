@@ -19,12 +19,10 @@ export interface SignalingConfig {
 }
 
 export function getSignalingConfig(): SignalingConfig {
-  const staticRelayUrls = (
-    (import.meta.env.VITE_SIGNAL_RELAY_URLS as string | undefined) ?? ''
-  )
-    .split(',')
-    .map((u) => u.trim())
-    .filter(Boolean);
+  // Static relay URLs are no longer used — the relay URL is issued dynamically
+  // by the call-session edge function together with an HMAC auth token.
+  // Reading VITE_SIGNAL_RELAY_URLS caused premature unauthenticated WS connections.
+  const staticRelayUrls: string[] = [];
 
   // call-session is always attempted; it gracefully degrades to supabase_fallback mode
   // when no SIGNALING_RELAY_URL is configured on the edge function
