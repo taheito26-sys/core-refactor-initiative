@@ -1962,6 +1962,10 @@ export type Database = {
           merchant_code: string | null
           merchant_id: string
           nickname: string
+          otc_completed_trades: number
+          otc_completion_rate: number
+          otc_reputation_updated_at: string | null
+          otc_total_volume: number
           region: string | null
           status: string
           updated_at: string
@@ -1978,6 +1982,10 @@ export type Database = {
           merchant_code?: string | null
           merchant_id: string
           nickname: string
+          otc_completed_trades?: number
+          otc_completion_rate?: number
+          otc_reputation_updated_at?: string | null
+          otc_total_volume?: number
           region?: string | null
           status?: string
           updated_at?: string
@@ -1994,6 +2002,10 @@ export type Database = {
           merchant_code?: string | null
           merchant_id?: string
           nickname?: string
+          otc_completed_trades?: number
+          otc_completion_rate?: number
+          otc_reputation_updated_at?: string | null
+          otc_total_volume?: number
           region?: string | null
           status?: string
           updated_at?: string
@@ -2883,6 +2895,56 @@ export type Database = {
           },
         ]
       }
+      otc_escrow: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          deposited_at: string | null
+          depositor_user_id: string
+          id: string
+          released_at: string | null
+          side: string
+          status: string
+          trade_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deposited_at?: string | null
+          depositor_user_id: string
+          id?: string
+          released_at?: string | null
+          side: string
+          status?: string
+          trade_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deposited_at?: string | null
+          depositor_user_id?: string
+          id?: string
+          released_at?: string | null
+          side?: string
+          status?: string
+          trade_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_escrow_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "otc_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       otc_listings: {
         Row: {
           amount_max: number
@@ -2947,6 +3009,7 @@ export type Database = {
           counter_total: number | null
           created_at: string
           currency: string
+          escrow_status: string
           id: string
           initiator_merchant_id: string
           initiator_user_id: string
@@ -2972,6 +3035,7 @@ export type Database = {
           counter_total?: number | null
           created_at?: string
           currency?: string
+          escrow_status?: string
           id?: string
           initiator_merchant_id: string
           initiator_user_id: string
@@ -2997,6 +3061,7 @@ export type Database = {
           counter_total?: number | null
           created_at?: string
           currency?: string
+          escrow_status?: string
           id?: string
           initiator_merchant_id?: string
           initiator_user_id?: string
