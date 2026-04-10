@@ -54,14 +54,12 @@ export class MultiSignalingChannel implements SignalingChannel {
 
   // ── Static factory — reads env vars; no args needed at call sites ────────
   static create(): MultiSignalingChannel {
-    const relayUrls = (import.meta.env.VITE_SIGNAL_RELAY_URLS as string | undefined ?? '')
-      .split(',')
-      .map((u) => u.trim())
-      .filter(Boolean);
-
+    // WS relay channel is mounted lazily via setRelayUrls() after call-session
+    // returns a per-call relay URL + HMAC token. Do NOT read VITE_SIGNAL_RELAY_URLS
+    // here — a static relay URL causes the browser to open an unauthenticated
+    // WebSocket before the call-session token flow runs, which gets rejected.
     const channels: SignalingChannel[] = [
       new SupabaseSignalingChannel(),
-      ...(relayUrls.length > 0 ? [new WebSocketSignalingChannel(relayUrls)] : []),
     ];
 
     return new MultiSignalingChannel(channels);
