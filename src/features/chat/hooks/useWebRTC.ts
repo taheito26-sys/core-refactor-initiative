@@ -12,6 +12,7 @@ import { useChatStore } from '@/lib/chat-store';
 import { MultiSignalingChannel } from '../lib/signaling/multi-channel';
 import type { SignalingHandlers } from '../lib/signaling/types';
 import type { ChatCall } from '../types';
+import { isNativeApp } from '@/platform/runtime';
 
 export type CallState =
   | 'idle'
@@ -303,8 +304,40 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     return peerConn;
   }, [cleanup, startDurationTimer, startQualityPolling, transitionToEnd]);
 
+  // ── request native mic/camera permissions (Android / iOS only) ───────
+  // On native Capacitor, the OS requires explicit permission requests before
+  // getUserMedia succeeds. On web the browser handles this natively.
+  const requestNativePermissions = useCallback(async (video: boolean) => {
+    if (!isNativeApp()) return; // browser handles its own prompts
+    try {
+      // Dynamically import to avoid bundling Capacitor plugins on web
+      const { Permissions } = await import('@capacitor/core');
+      // Check & request microphone
+      const micStatus = await (Permissions as unknown as { query: (o: { name: string }) => Promise<{ state: string }> })
+        .query({ name: 'microphone' });
+      if (micStatus.state === 'denied') {
+        throw new Error('Microphone permission denied. Please enable it in Settings.');
+      }
+      // Check & request camera only for video calls
+      if (video) {
+        const camStatus = await (Permissions as unknown as { query: (o: { name: string }) => Promise<{ state: string }> })
+          .query({ name: 'camera' });
+        if (camStatus.state === 'denied') {
+          throw new Error('Camera permission denied. Please enable it in Settings.');
+        }
+      }
+    } catch (err) {
+      // Re-throw permission denials; swallow plugin-not-available errors
+      // (older Capacitor versions that don't support Permissions.query)
+      const msg = (err as Error)?.message ?? '';
+      if (msg.includes('denied') || msg.includes('Settings')) throw err;
+      // Otherwise non-fatal — getUserMedia will trigger the OS prompt itself
+    }
+  }, []);
+
   // ── get media (audio, optionally video) ───────────────────────────────
   const getMedia = useCallback(async (video = false) => {
+    await requestNativePermissions(video);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: video ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false,
@@ -313,7 +346,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setIsVideoEnabled(video);
     setIsVideoCall(video);
     return stream;
-  }, []);
+  }, [requestNativePermissions]);
 
   // ── fire push notification for incoming call ──────────────────────────
   const sendCallPush = useCallback(async (callId: string, targetRoomId: string) => {

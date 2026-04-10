@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -8,7 +9,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private var privacyShieldView: UIView?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Pre-activate AVAudioSession in .playAndRecord / .voiceChat mode.
+        // Without this, WKWebView delivers silent or stuttering audio on the
+        // first WebRTC call because the audio session category is wrong.
+        // Must be done at launch — not on first getUserMedia — to avoid the
+        // known iOS race condition where the category change arrives too late.
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord,
+                                    mode: .voiceChat,
+                                    options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker])
+            try session.setActive(true)
+        } catch {
+            // Non-fatal: WebRTC will still work, but may have first-call audio issues
+            print("[AppDelegate] AVAudioSession setup failed: \(error)")
+        }
         return true
     }
 

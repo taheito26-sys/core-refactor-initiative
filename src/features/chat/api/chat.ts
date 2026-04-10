@@ -617,9 +617,13 @@ export async function getAttachment(messageId: string): Promise<ChatAttachment |
  */
 export const DEFAULT_ICE_CONFIG: IceConfig = selectIceConfig();
 
-export async function initiateCall(roomId: string): Promise<string> {
+export async function initiateCall(roomId: string, callId?: string): Promise<string> {
+  // Pass all three params explicitly so PostgREST resolves the correct overload
+  // (PGRST203 occurs when two overloads exist and the call is ambiguous).
   const { data, error } = await supabase.rpc('chat_initiate_call', {
-    _room_id: roomId,
+    _room_id:    roomId,
+    _call_id:    callId ?? null,
+    _ice_config: null,
   } as never);
   if (error) throw rpcError('initiateCall', error);
   return data as string;
