@@ -1,6 +1,16 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+let lastPeerConnectionConfig: RTCConfiguration | null = null;
+const signalingConfigState = {
+  useCallSession: false,
+};
+const callSessionMocks = {
+  startCallSession: vi.fn(),
+  joinCallSession: vi.fn(),
+  endCallSession: vi.fn().mockResolvedValue({ call_id: 'ended', status: 'ended' }),
+};
+
 const signalingMock = {
   setAuthToken: vi.fn(),
   isAvailable: vi.fn().mockResolvedValue(true),
@@ -62,10 +72,16 @@ vi.mock('@/features/chat/lib/signaling/multi-channel', () => ({
 
 vi.mock('@/features/chat/lib/signaling/config', () => ({
   getSignalingConfig: () => ({
-    useCallSession: false,
+    useCallSession: signalingConfigState.useCallSession,
     staticRelayUrls: [],
     supabaseFallbackEnabled: true,
   }),
+}));
+
+vi.mock('@/features/chat/api/call-session', () => ({
+  startCallSession: callSessionMocks.startCallSession,
+  joinCallSession: callSessionMocks.joinCallSession,
+  endCallSession: callSessionMocks.endCallSession,
 }));
 
 class FakeRTCPeerConnection {
@@ -77,6 +93,10 @@ class FakeRTCPeerConnection {
   onconnectionstatechange: (() => void) | null = null;
   oniceconnectionstatechange: (() => void) | null = null;
   private readonly senders: RTCRtpSender[] = [];
+
+  constructor(config?: RTCConfiguration) {
+    lastPeerConnectionConfig = config ?? null;
+  }
 
   addTrack(track: MediaStreamTrack) {
     const sender = {
@@ -159,6 +179,8 @@ describe('useWebRTC answerIncoming', () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    signalingConfigState.useCallSession = false;
+    lastPeerConnectionConfig = null;
     storeState.activeCallId = null;
     Object.assign(import.meta.env, {
       VITE_SUPABASE_URL: 'https://example.supabase.co',
@@ -177,6 +199,26 @@ describe('useWebRTC answerIncoming', () => {
       value: {
         getUserMedia: vi.fn((constraints: MediaStreamConstraints) =>
           Promise.resolve(createStream(Boolean(constraints.video)))),
+      },
+    });
+    callSessionMocks.startCallSession.mockResolvedValue({
+      call_id: 'call-session-start',
+      signaling_url: null,
+      token: null,
+      signaling_mode: 'supabase_fallback',
+      ice_config: {
+        iceServers: [{ urls: 'turn:turn.default.example.com:3478', username: 'user', credential: 'pass' }],
+        iceTransportPolicy: 'relay',
+      },
+    });
+    callSessionMocks.joinCallSession.mockResolvedValue({
+      call_id: 'call-session-join',
+      signaling_url: null,
+      token: null,
+      signaling_mode: 'supabase_fallback',
+      ice_config: {
+        iceServers: [{ urls: 'turn:turn.join.example.com:3478', username: 'joiner', credential: 'secret' }],
+        iceTransportPolicy: 'relay',
       },
     });
   });
@@ -214,6 +256,37 @@ describe('useWebRTC answerIncoming', () => {
       }),
     );
     expect(signalingMock.publishAnswer).toHaveBeenCalledWith('call-1', 'fake-answer');
+  });
+
+  it('uses the call-session ice config when starting an outgoing call', async () => {
+    signalingConfigState.useCallSession = true;
+    callSessionMocks.startCallSession.mockResolvedValue({
+      call_id: 'call-session-start',
+      signaling_url: null,
+      token: null,
+      signaling_mode: 'supabase_fallback',
+      ice_config: {
+        iceServers: [{ urls: 'turn:turn.start.example.com:3478', username: 'starter', credential: 'secret' }],
+        iceTransportPolicy: 'relay',
+      },
+    });
+
+    const { useWebRTC } = await import('@/features/chat/hooks/useWebRTC');
+    const { result } = renderHook(() => useWebRTC('room-1'));
+
+    await act(async () => {
+      await result.current.startCall(false);
+    });
+
+    expect(callSessionMocks.startCallSession).toHaveBeenCalledWith('room-1');
+    expect(lastPeerConnectionConfig).toEqual(
+      expect.objectContaining({
+        iceTransportPolicy: 'relay',
+        iceServers: expect.arrayContaining([
+          expect.objectContaining({ urls: 'turn:turn.start.example.com:3478' }),
+        ]),
+      }),
+    );
   });
 
   it('deduplicates repeated incoming events for the same call id', async () => {
@@ -282,6 +355,54 @@ describe('useWebRTC answerIncoming', () => {
     expect(signalingMock.publishCallEnd).toHaveBeenCalledWith('call-2', 'failed');
     expect(result.current.callState).toBe('failed');
     expect(result.current.endReason).toBe('camera_permission_denied');
+  });
+
+  it('uses the call-session ice config when answering an incoming call', async () => {
+    signalingConfigState.useCallSession = true;
+    let handlers: {
+      onIncomingCall: (callId: string, sdpOffer: string, initiatedBy: string) => void;
+    } | null = null;
+    signalingMock.subscribe.mockImplementation((_callId, _roomId, _userId, nextHandlers) => {
+      handlers = nextHandlers;
+      return () => {};
+    });
+    callSessionMocks.joinCallSession.mockResolvedValue({
+      call_id: 'call-ice-join',
+      signaling_url: null,
+      token: null,
+      signaling_mode: 'supabase_fallback',
+      ice_config: {
+        iceServers: [{ urls: 'turn:turn.answer.example.com:3478', username: 'callee', credential: 'secret' }],
+        iceTransportPolicy: 'relay',
+      },
+    });
+
+    const { useWebRTC } = await import('@/features/chat/hooks/useWebRTC');
+    const { result } = renderHook(() => useWebRTC('room-1'));
+
+    await waitFor(() => expect(handlers).not.toBeNull());
+
+    act(() => {
+      handlers?.onIncomingCall(
+        'call-ice-join',
+        'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n',
+        'other-user',
+      );
+    });
+
+    await act(async () => {
+      await result.current.answerIncoming();
+    });
+
+    expect(callSessionMocks.joinCallSession).toHaveBeenCalledWith('room-1', 'call-ice-join');
+    expect(lastPeerConnectionConfig).toEqual(
+      expect.objectContaining({
+        iceTransportPolicy: 'relay',
+        iceServers: expect.arrayContaining([
+          expect.objectContaining({ urls: 'turn:turn.answer.example.com:3478' }),
+        ]),
+      }),
+    );
   });
 
   it('fails cleanly when microphone permission is denied during outgoing call start', async () => {

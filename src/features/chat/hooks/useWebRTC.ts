@@ -323,8 +323,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   }, []);
 
   // ── build peer connection ─────────────────────────────────────────────
-  const buildPC = useCallback(() => {
-    const peerConn = new RTCPeerConnection(DEFAULT_ICE_CONFIG);
+  const buildPC = useCallback((iceConfig: RTCConfiguration = DEFAULT_ICE_CONFIG) => {
+    const peerConn = new RTCPeerConnection(iceConfig);
 
     peerConn.onicecandidate = (e) => {
       if (e.candidate && callIdRef.current) {
@@ -503,7 +503,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       setCallState('calling');
       setEndReason(null);
 
-      const peerConn = buildPC();
+      const peerConn = buildPC(iceConfig);
       pc.current = peerConn;
       stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
 
@@ -550,6 +550,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     const config = getSignalingConfig();
     const currentIncoming = incomingCall as IncomingCallState;
     let wantsVideo = currentIncoming._wantsVideo ?? false;
+    let iceConfig: RTCConfiguration = DEFAULT_ICE_CONFIG;
     try {
       const callId = currentIncoming.id;
       callIdRef.current = callId;
@@ -561,6 +562,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       if (config.useCallSession && roomId) {
         try {
           const creds = await joinCallSession(roomId, callId);
+          if (creds.ice_config) {
+            iceConfig = creds.ice_config as RTCConfiguration;
+          }
           if (creds.signaling_url && creds.token) {
             signaling.setAuthToken(creds.token);
           }
@@ -598,7 +602,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       wantsVideo = sdpWantsVideo(offerSdp);
       const stream = await getMedia(wantsVideo);
 
-      const peerConn = buildPC();
+      const peerConn = buildPC(iceConfig);
       pc.current = peerConn;
       stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
 

@@ -70,6 +70,54 @@ async function buildSignalingToken(
 }
 
 // Default ICE configuration — matches frontend resilient-ice.ts
+function buildTurnEntries(
+  host: string,
+  username: string,
+  credential: string,
+): RTCIceServer[] {
+  return [
+    { urls: `turn:${host}:3478`, username, credential },
+    { urls: `turn:${host}:443?transport=tcp`, username, credential },
+    { urls: `turns:${host}:443?transport=tcp`, username, credential },
+  ];
+}
+
+function loadTurnServers(): RTCIceServer[] {
+  const out: RTCIceServer[] = [];
+
+  const pushFromEnv = (
+    url: string | undefined,
+    username: string | undefined,
+    credential: string | undefined,
+  ) => {
+    if (!url || !username || !credential) return;
+    const host = url.replace(/^turns?:/, "").replace(/[:?].*$/, "");
+    out.push(...buildTurnEntries(host, username, credential));
+  };
+
+  pushFromEnv(
+    Deno.env.get("TURN_URL") || Deno.env.get("VITE_TURN_URL") || undefined,
+    Deno.env.get("TURN_USERNAME") || Deno.env.get("VITE_TURN_USERNAME") || undefined,
+    Deno.env.get("TURN_CREDENTIAL") || Deno.env.get("VITE_TURN_CREDENTIAL") || undefined,
+  );
+
+  for (const n of [2, 3, 4] as const) {
+    pushFromEnv(
+      Deno.env.get(`TURN_URL_${n}`) || Deno.env.get(`VITE_TURN_URL_${n}`) || undefined,
+      Deno.env.get(`TURN_URL_${n}_USERNAME`) ||
+        Deno.env.get(`TURN_USERNAME_${n}`) ||
+        Deno.env.get(`VITE_TURN_URL_${n}_USERNAME`) ||
+        undefined,
+      Deno.env.get(`TURN_URL_${n}_CREDENTIAL`) ||
+        Deno.env.get(`TURN_CREDENTIAL_${n}`) ||
+        Deno.env.get(`VITE_TURN_URL_${n}_CREDENTIAL`) ||
+        undefined,
+    );
+  }
+
+  return out;
+}
+
 const DEFAULT_ICE_CONFIG = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -79,6 +127,7 @@ const DEFAULT_ICE_CONFIG = {
     { urls: "stun:stun4.l.google.com:19302" },
     { urls: "stun:stun.cloudflare.com:3478" },
     { urls: "stun:stun.nextcloud.com:443" },
+    ...loadTurnServers(),
   ],
   iceTransportPolicy: "all",
   iceCandidatePoolSize: 4,
