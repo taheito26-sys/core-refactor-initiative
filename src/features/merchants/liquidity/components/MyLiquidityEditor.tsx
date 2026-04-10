@@ -297,10 +297,16 @@ export function MyLiquidityEditor({ myProfile, internal, saveProfile, isSaving, 
             />
           </div>
 
-          <Button onClick={save} disabled={isSaving} size="sm" className="ml-auto gap-1.5">
-            <Save className="w-3.5 h-3.5" />
-            {isSaving ? (t('saving') || 'Saving…') : (t('liquidityPublishButton') || 'Publish')}
-          </Button>
+          <div className="flex items-center gap-2 ml-auto">
+            <Button onClick={publishToMarketplace} disabled={createListing.isPending} size="sm" variant="outline" className="gap-1.5">
+              <Handshake className="w-3.5 h-3.5" />
+              {t('liquidityPublishToMarketplace') || 'To Marketplace'}
+            </Button>
+            <Button onClick={save} disabled={isSaving} size="sm" className="gap-1.5">
+              <Save className="w-3.5 h-3.5" />
+              {isSaving ? (t('saving') || 'Saving…') : (t('liquidityPublishButton') || 'Publish')}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
