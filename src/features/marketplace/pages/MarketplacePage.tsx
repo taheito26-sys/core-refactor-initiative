@@ -19,6 +19,7 @@ import {
 import { useOtcListings, useMyOtcListings, type OtcListing, type CreateListingInput } from '../hooks/useOtcListings';
 import { useOtcTrades, type OtcTrade, type SendOfferInput, type CounterOfferInput } from '../hooks/useOtcTrades';
 import { useOtcEscrow } from '../hooks/useOtcEscrow';
+import { useSubmitReview } from '../hooks/useOtcReviews';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
 import { toast } from 'sonner';
 
@@ -47,6 +48,7 @@ export default function MarketplacePage() {
   const { myListings, isLoading: myLoading, create, update, remove } = useMyOtcListings();
   const { trades, isLoading: tradesLoading, sendOffer, counterOffer, confirmTrade, completeTrade, cancelTrade } = useOtcTrades();
   const { snapshot: qatarSnapshot } = useP2PMarketData('qatar');
+  const submitReview = useSubmitReview();
 
   const initialTab = searchParams.get('tab') || 'board';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -58,6 +60,9 @@ export default function MarketplacePage() {
   const [showOfferDialog, setShowOfferDialog] = useState<OtcListing | null>(null);
   const [showCounterDialog, setShowCounterDialog] = useState<OtcTrade | null>(null);
   const [escrowTradeId, setEscrowTradeId] = useState<string | null>(null);
+  const [reviewTrade, setReviewTrade] = useState<OtcTrade | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
 
   // Filter logic
   const filteredListings = useMemo(() => {
@@ -238,7 +243,10 @@ export default function MarketplacePage() {
                 <div className="space-y-2">
                   <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">History</h3>
                   {completedTrades.map(trade => (
-                    <TradeCard key={trade.id} trade={trade} userId={userId!} onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)} />
+                    <TradeCard key={trade.id} trade={trade} userId={userId!}
+                      onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)}
+                      onReview={() => { setReviewTrade(trade); setReviewRating(5); setReviewComment(''); }}
+                    />
                   ))}
                 </div>
               )}
@@ -263,6 +271,9 @@ export default function MarketplacePage() {
               </div>
             </Card>
           )}
+
+          {/* Market Depth */}
+          <MarketDepthSection listings={listings} />
         </TabsContent>
       </Tabs>
 
@@ -281,6 +292,39 @@ export default function MarketplacePage() {
 
       <EscrowSheet tradeId={escrowTradeId} trade={trades.find(t => t.id === escrowTradeId) ?? null} userId={userId}
         onClose={() => setEscrowTradeId(null)} />
+
+      {/* Review Dialog */}
+      {reviewTrade && (
+        <Dialog open={!!reviewTrade} onOpenChange={v => { if (!v) setReviewTrade(null); }}>
+          <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
+            <DialogHeader><DialogTitle className="text-sm font-bold">Review Trade</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground">Rate your experience with <span className="font-bold text-foreground">{reviewTrade.counterparty_name}</span></div>
+              <div className="flex gap-1 justify-center">
+                {[1, 2, 3, 4, 5].map(s => (
+                  <button key={s} onClick={() => setReviewRating(s)} className={`p-1 ${s <= reviewRating ? 'text-amber-500' : 'text-muted-foreground/30'}`}>
+                    <Star className="h-6 w-6 fill-current" />
+                  </button>
+                ))}
+              </div>
+              <Textarea placeholder="Share your experience (optional)" value={reviewComment} onChange={e => setReviewComment(e.target.value)} className="text-xs min-h-[60px]" />
+            </div>
+            <DialogFooter>
+              <Button size="sm" className="w-full gap-1.5" disabled={submitReview.isPending}
+                onClick={() => {
+                  const reviewedId = reviewTrade.initiator_user_id === userId ? reviewTrade.responder_user_id : reviewTrade.initiator_user_id;
+                  submitReview.mutate({ trade_id: reviewTrade.id, reviewed_user_id: reviewedId, rating: reviewRating, comment: reviewComment || undefined }, {
+                    onSuccess: () => { toast.success('Review submitted!'); setReviewTrade(null); },
+                    onError: (err) => toast.error(err.message),
+                  });
+                }}>
+                {submitReview.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Star className="h-3.5 w-3.5" />}
+                Submit Review
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -369,9 +413,9 @@ function MyListingCard({ listing, onTogglePause, onDelete }: { listing: OtcListi
   );
 }
 
-function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel, onEscrow }: {
+function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel, onEscrow, onReview }: {
   trade: OtcTrade; userId: string;
-  onOpenChat?: (roomId: string) => void; onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void; onEscrow?: () => void;
+  onOpenChat?: (roomId: string) => void; onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void; onEscrow?: () => void; onReview?: () => void;
 }) {
   const isInitiator = trade.initiator_user_id === userId;
   const isActive = !['completed', 'cancelled', 'expired'].includes(trade.status);
@@ -434,6 +478,14 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
               <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
             )}
             <Button size="sm" variant="ghost" className="h-6 text-[9px] text-destructive gap-0.5" onClick={onCancel}><X className="h-2.5 w-2.5" /> Cancel</Button>
+          </div>
+        )}
+        {!isActive && trade.status === 'completed' && onReview && (
+          <div className="flex flex-col gap-0.5 shrink-0">
+            <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={onReview}><Star className="h-2.5 w-2.5" /> Review</Button>
+            {trade.chat_room_id && onOpenChat && (
+              <Button size="sm" variant="ghost" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
+            )}
           </div>
         )}
       </div>
@@ -641,6 +693,56 @@ function CounterOfferDialog({ trade, onClose, onCounter, isPending }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Market Depth Section ──
+function MarketDepthSection({ listings }: { listings: OtcListing[] }) {
+  const depthByCurrency = useMemo(() => {
+    const map = new Map<string, { cashVolume: number; usdtVolume: number; cashCount: number; usdtCount: number; avgRate: number; rates: number[] }>();
+    for (const l of listings) {
+      if (l.status !== 'active') continue;
+      const key = l.currency;
+      let entry = map.get(key);
+      if (!entry) { entry = { cashVolume: 0, usdtVolume: 0, cashCount: 0, usdtCount: 0, avgRate: 0, rates: [] }; map.set(key, entry); }
+      const midpoint = (l.amount_min + l.amount_max) / 2;
+      if (l.side === 'cash') { entry.cashVolume += midpoint; entry.cashCount++; }
+      else { entry.usdtVolume += midpoint; entry.usdtCount++; }
+      entry.rates.push(l.rate);
+    }
+    for (const [, v] of map) {
+      v.avgRate = v.rates.length > 0 ? v.rates.reduce((a, b) => a + b, 0) / v.rates.length : 0;
+    }
+    return Array.from(map.entries()).sort((a, b) => (b[1].cashVolume + b[1].usdtVolume) - (a[1].cashVolume + a[1].usdtVolume));
+  }, [listings]);
+
+  if (depthByCurrency.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Market Depth by Currency</h3>
+      {depthByCurrency.map(([currency, depth]) => {
+        const totalVolume = depth.cashVolume + depth.usdtVolume;
+        const cashPct = totalVolume > 0 ? (depth.cashVolume / totalVolume * 100) : 50;
+        return (
+          <Card key={currency} className="p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-bold">{currency}</span>
+              <span className="text-[10px] text-muted-foreground">Avg rate: <span className="font-bold text-primary">{depth.avgRate.toFixed(3)}</span></span>
+            </div>
+            {/* Depth bar */}
+            <div className="flex h-4 rounded-full overflow-hidden bg-muted mb-1">
+              <div className="bg-green-500/60 transition-all" style={{ width: `${cashPct}%` }} />
+              <div className="bg-blue-500/60 transition-all" style={{ width: `${100 - cashPct}%` }} />
+            </div>
+            <div className="flex justify-between text-[9px] text-muted-foreground">
+              <span>💵 {depth.cashCount} listings · {fmtAmt(depth.cashVolume)}</span>
+              <span>🪙 {depth.usdtCount} listings · {fmtAmt(depth.usdtVolume)}</span>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
