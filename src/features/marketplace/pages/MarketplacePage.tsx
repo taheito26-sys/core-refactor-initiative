@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useT } from '@/lib/i18n';
 import { useAuth } from '@/features/auth/auth-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,9 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import {
   Banknote, Coins, Plus, Loader2, Send, ArrowRightLeft, Users, TrendingUp,
   Pause, Play, Trash2, X, Check, RefreshCw, Clock, AlertTriangle,
+  MessageCircle, Star, BarChart3,
 } from 'lucide-react';
 import { useOtcListings, useMyOtcListings, type OtcListing, type CreateListingInput } from '../hooks/useOtcListings';
 import { useOtcTrades, type OtcTrade, type SendOfferInput, type CounterOfferInput } from '../hooks/useOtcTrades';
+import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
 import { toast } from 'sonner';
 
 const CURRENCIES = ['QAR', 'AED', 'EGP', 'SAR', 'TRY', 'OMR', 'GEL', 'KZT'];
@@ -33,14 +36,25 @@ function fmtAmt(n: number) {
   return Math.round(n).toLocaleString();
 }
 
+// Currency → MarketId mapping for P2P rate suggestions
+const CURRENCY_TO_MARKET: Record<string, string> = {
+  QAR: 'qatar', AED: 'uae', EGP: 'egypt', SAR: 'ksa', TRY: 'turkey', OMR: 'oman', GEL: 'georgia', KZT: 'kazakhstan',
+};
+
 export default function MarketplacePage() {
   const t = useT();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { userId } = useAuth();
   const { listings, isLoading: listingsLoading } = useOtcListings();
   const { myListings, isLoading: myLoading, create, update, remove } = useMyOtcListings();
   const { trades, isLoading: tradesLoading, sendOffer, counterOffer, confirmTrade, completeTrade, cancelTrade } = useOtcTrades();
 
-  const [activeTab, setActiveTab] = useState('board');
+  // P2P market data for rate suggestions (default to Qatar)
+  const { snapshot: qatarSnapshot } = useP2PMarketData('qatar');
+
+  const initialTab = searchParams.get('tab') || 'board';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [sideFilter, setSideFilter] = useState<'all' | 'cash' | 'usdt'>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showOfferDialog, setShowOfferDialog] = useState<OtcListing | null>(null);
@@ -52,6 +66,21 @@ export default function MarketplacePage() {
 
   const activeTrades = trades.filter(t => !['completed', 'cancelled', 'expired'].includes(t.status));
   const completedTrades = trades.filter(t => ['completed', 'cancelled', 'expired'].includes(t.status));
+
+  // Analytics
+  const analytics = useMemo(() => {
+    const completed = trades.filter(t => t.status === 'completed');
+    const totalVolume = completed.reduce((s, t) => s + (t.counter_total ?? t.total), 0);
+    const completionRate = trades.length > 0 ? (completed.length / trades.length * 100) : 0;
+    return { completedCount: completed.length, totalVolume, completionRate, totalTrades: trades.length };
+  }, [trades]);
+
+  // Suggested rate from P2P data
+  const suggestedRate = qatarSnapshot?.sellAvg ?? qatarSnapshot?.buyAvg ?? null;
+
+  const handleOpenChat = (roomId: string) => {
+    navigate(`/chat?room=${roomId}`);
+  };
 
   return (
     <div className="p-3 md:p-6 space-y-4 max-w-6xl mx-auto">
@@ -82,17 +111,21 @@ export default function MarketplacePage() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-3">
+        <TabsList className="w-full grid grid-cols-4">
           <TabsTrigger value="board" className="text-xs">
-            {t('listingBoard' as any) || 'Listing Board'}
+            {t('listingBoard' as any) || 'Board'}
           </TabsTrigger>
           <TabsTrigger value="my-listings" className="text-xs">
-            {t('myListings' as any) || 'My Listings'}
+            {t('myListings' as any) || 'Mine'}
             {myListings.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1">{myListings.length}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="trades" className="text-xs">
-            {t('myTrades' as any) || 'My Trades'}
+            {t('myTrades' as any) || 'Trades'}
             {activeTrades.length > 0 && <Badge variant="destructive" className="ml-1 text-[10px] px-1">{activeTrades.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="text-xs">
+            <BarChart3 className="h-3 w-3 mr-0.5" />
+            Stats
           </TabsTrigger>
         </TabsList>
 
@@ -191,6 +224,7 @@ export default function MarketplacePage() {
                       key={trade.id}
                       trade={trade}
                       userId={userId!}
+                      onOpenChat={handleOpenChat}
                       onCounter={() => setShowCounterDialog(trade)}
                       onConfirm={() => confirmTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade confirmed!') })}
                       onComplete={() => completeTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade completed!') })}
@@ -203,11 +237,72 @@ export default function MarketplacePage() {
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">History</h3>
                   {completedTrades.map(trade => (
-                    <TradeCard key={trade.id} trade={trade} userId={userId!} />
+                    <TradeCard key={trade.id} trade={trade} userId={userId!} onOpenChat={handleOpenChat} />
                   ))}
                 </div>
               )}
             </>
+          )}
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-3 mt-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{analytics.completedCount}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completed Trades</div>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{fmtAmt(analytics.totalVolume)}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Volume</div>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{analytics.completionRate.toFixed(0)}%</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completion Rate</div>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{analytics.totalTrades}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Trades</div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {suggestedRate && (
+            <Card className="p-3">
+              <div className="text-xs">
+                <span className="text-muted-foreground">Live P2P Market Rate (QAR): </span>
+                <span className="font-bold text-primary">{suggestedRate.toFixed(3)}</span>
+                <span className="text-[10px] text-muted-foreground ml-1">QAR/USDT</span>
+              </div>
+            </Card>
+          )}
+
+          {completedTrades.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Recent Completed</h3>
+              {completedTrades.slice(0, 10).map(trade => (
+                <TradeCard key={trade.id} trade={trade} userId={userId!} onOpenChat={handleOpenChat} />
+              ))}
+            </div>
           )}
         </TabsContent>
       </Tabs>
@@ -216,6 +311,7 @@ export default function MarketplacePage() {
       <CreateListingDialog
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
+        suggestedRate={suggestedRate}
         onCreate={(input) => {
           create.mutate(input, {
             onSuccess: () => {
@@ -365,8 +461,9 @@ function MyListingCard({ listing, onTogglePause, onDelete }: {
   );
 }
 
-function TradeCard({ trade, userId, onCounter, onConfirm, onComplete, onCancel }: {
+function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel }: {
   trade: OtcTrade; userId: string;
+  onOpenChat?: (roomId: string) => void;
   onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void;
 }) {
   const isInitiator = trade.initiator_user_id === userId;
@@ -436,6 +533,12 @@ function TradeCard({ trade, userId, onCounter, onConfirm, onComplete, onCancel }
                 <Check className="h-3 w-3" /> Complete
               </Button>
             )}
+            {/* Chat button */}
+            {trade.chat_room_id && onOpenChat && (
+              <Button size="sm" variant="outline" className="h-6 text-[10px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}>
+                <MessageCircle className="h-3 w-3" /> Chat
+              </Button>
+            )}
             {/* Either party can cancel */}
             <Button size="sm" variant="ghost" className="h-6 text-[10px] text-destructive gap-0.5" onClick={onCancel}>
               <X className="h-3 w-3" /> Cancel
@@ -449,8 +552,9 @@ function TradeCard({ trade, userId, onCounter, onConfirm, onComplete, onCancel }
 
 // ── Dialogs ──
 
-function CreateListingDialog({ open, onClose, onCreate, isPending }: {
+function CreateListingDialog({ open, onClose, onCreate, isPending, suggestedRate }: {
   open: boolean; onClose: () => void; onCreate: (i: CreateListingInput) => void; isPending: boolean;
+  suggestedRate?: number | null;
 }) {
   const [side, setSide] = useState<'cash' | 'usdt'>('cash');
   const [currency, setCurrency] = useState('QAR');
@@ -499,7 +603,18 @@ function CreateListingDialog({ open, onClose, onCreate, isPending }: {
             <Input type="number" placeholder="Min amount" value={amountMin} onChange={e => setAmountMin(e.target.value)} className="h-8 text-xs" />
             <Input type="number" placeholder="Max amount" value={amountMax} onChange={e => setAmountMax(e.target.value)} className="h-8 text-xs" />
           </div>
-          <Input type="number" placeholder={`Rate (${currency}/USDT)`} value={rate} onChange={e => setRate(e.target.value)} className="h-8 text-xs" />
+          <div className="space-y-1">
+            <Input type="number" placeholder={`Rate (${currency}/USDT)`} value={rate} onChange={e => setRate(e.target.value)} className="h-8 text-xs" />
+            {suggestedRate && currency === 'QAR' && (
+              <button
+                type="button"
+                onClick={() => setRate(suggestedRate.toFixed(3))}
+                className="text-[10px] text-primary hover:underline"
+              >
+                💡 Use P2P market rate: {suggestedRate.toFixed(3)}
+              </button>
+            )}
+          </div>
           <div>
             <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Payment Methods</label>
             <div className="flex flex-wrap gap-1">

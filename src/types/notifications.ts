@@ -92,6 +92,7 @@ export function inferTargetKind(row: NotificationRow): NotificationTargetKind {
   if (row.entity_type === 'customer_message') return 'chat_message';
   if (row.entity_type === 'customer_connection' || row.category === 'customer') return 'invite';
   if (row.entity_type === 'capital_ledger' || row.entity_type === 'cash_custody') return 'deal';
+  if (row.entity_type === 'otc_trade') return 'deal';
   return 'system';
 }
 
