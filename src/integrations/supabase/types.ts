@@ -497,6 +497,7 @@ export type Database = {
           initiated_by: string
           quality_stats: Json | null
           room_id: string
+          signaling_channel: string | null
           started_at: string
           status: Database["public"]["Enums"]["chat_call_status"]
         }
@@ -511,6 +512,7 @@ export type Database = {
           initiated_by: string
           quality_stats?: Json | null
           room_id: string
+          signaling_channel?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["chat_call_status"]
         }
@@ -525,6 +527,7 @@ export type Database = {
           initiated_by?: string
           quality_stats?: Json | null
           room_id?: string
+          signaling_channel?: string | null
           started_at?: string
           status?: Database["public"]["Enums"]["chat_call_status"]
         }
@@ -860,34 +863,58 @@ export type Database = {
       }
       chat_privacy_settings: {
         Row: {
+          anonymous_mode: boolean
+          copy_disabled: boolean
           created_at: string
+          export_disabled: boolean
+          forwarding_disabled: boolean
           hide_last_seen: boolean
           hide_read_receipts: boolean
           hide_typing: boolean
           invisible_mode: boolean
+          notification_preview: string
           online_visibility: string
+          screenshot_protection: boolean
+          show_sender_in_notification: boolean
           updated_at: string
           user_id: string
+          watermark_enabled: boolean
         }
         Insert: {
+          anonymous_mode?: boolean
+          copy_disabled?: boolean
           created_at?: string
+          export_disabled?: boolean
+          forwarding_disabled?: boolean
           hide_last_seen?: boolean
           hide_read_receipts?: boolean
           hide_typing?: boolean
           invisible_mode?: boolean
+          notification_preview?: string
           online_visibility?: string
+          screenshot_protection?: boolean
+          show_sender_in_notification?: boolean
           updated_at?: string
           user_id: string
+          watermark_enabled?: boolean
         }
         Update: {
+          anonymous_mode?: boolean
+          copy_disabled?: boolean
           created_at?: string
+          export_disabled?: boolean
+          forwarding_disabled?: boolean
           hide_last_seen?: boolean
           hide_read_receipts?: boolean
           hide_typing?: boolean
           invisible_mode?: boolean
+          notification_preview?: string
           online_visibility?: string
+          screenshot_protection?: boolean
+          show_sender_in_notification?: boolean
           updated_at?: string
           user_id?: string
+          watermark_enabled?: boolean
         }
         Relationships: []
       }
@@ -3587,10 +3614,19 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      chat_end_call: {
-        Args: { _call_id: string; _end_reason?: string }
-        Returns: undefined
-      }
+      chat_end_call:
+        | {
+            Args: { _call_id: string; _end_reason?: string }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              _call_id: string
+              _end_reason?: string
+              _signaling_channel?: string
+            }
+            Returns: undefined
+          }
       chat_export_room_transcript: {
         Args: { _room_id: string }
         Returns: {
@@ -3673,7 +3709,12 @@ export type Database = {
           unread_count: number
         }[]
       }
-      chat_initiate_call: { Args: { _room_id: string }; Returns: string }
+      chat_initiate_call:
+        | { Args: { _room_id: string }; Returns: string }
+        | {
+            Args: { _call_id?: string; _ice_config?: Json; _room_id: string }
+            Returns: string
+          }
       chat_is_allowed_mime: {
         Args: { _allowed_mime_types: string[]; _mime_type: string }
         Returns: boolean
@@ -3781,16 +3822,35 @@ export type Database = {
         Args: { _is_typing: boolean; _room_id: string }
         Returns: undefined
       }
-      chat_update_privacy_settings: {
-        Args: {
-          _hide_last_seen?: boolean
-          _hide_read_receipts?: boolean
-          _hide_typing?: boolean
-          _invisible_mode?: boolean
-          _online_visibility?: string
-        }
-        Returns: Json
-      }
+      chat_update_privacy_settings:
+        | {
+            Args: {
+              _anonymous_mode?: boolean
+              _copy_disabled?: boolean
+              _export_disabled?: boolean
+              _forwarding_disabled?: boolean
+              _hide_last_seen?: boolean
+              _hide_read_receipts?: boolean
+              _hide_typing?: boolean
+              _invisible_mode?: boolean
+              _notification_preview?: string
+              _online_visibility?: string
+              _screenshot_protection?: boolean
+              _show_sender_in_notification?: boolean
+              _watermark_enabled?: boolean
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _hide_last_seen?: boolean
+              _hide_read_receipts?: boolean
+              _hide_typing?: boolean
+              _invisible_mode?: boolean
+              _online_visibility?: string
+            }
+            Returns: Json
+          }
       chat_update_room_policy: {
         Args: { _room_id: string; _updates: Json }
         Returns: Json
@@ -3851,14 +3911,22 @@ export type Database = {
       fn_get_user_privacy: {
         Args: { p_user_id: string }
         Returns: {
+          anonymous_mode: boolean
+          copy_disabled: boolean
           created_at: string
+          export_disabled: boolean
+          forwarding_disabled: boolean
           hide_last_seen: boolean
           hide_read_receipts: boolean
           hide_typing: boolean
           invisible_mode: boolean
+          notification_preview: string
           online_visibility: string
+          screenshot_protection: boolean
+          show_sender_in_notification: boolean
           updated_at: string
           user_id: string
+          watermark_enabled: boolean
         }
         SetofOptions: {
           from: "*"

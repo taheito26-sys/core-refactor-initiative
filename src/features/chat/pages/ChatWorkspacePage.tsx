@@ -440,6 +440,7 @@ export default function ChatWorkspacePage() {
               onSend={handleSend}
               onTyping={startTyping}
               meId={meId}
+              onPrivacyDashboard={() => setShowPrivacyDashboard(true)}
             />
           </>
         )}
