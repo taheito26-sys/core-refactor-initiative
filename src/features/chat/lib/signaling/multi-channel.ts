@@ -32,9 +32,16 @@ export class MultiSignalingChannel implements SignalingChannel {
   private readonly channels: SignalingChannel[];
   private availableChannels: SignalingChannel[] = [];
   private wsChannel: WebSocketSignalingChannel | null = null;
-  private unsubFns: Array<() => void> = [];
+  private unsubMap = new Map<SignalingChannel, () => void>();
   private seenKeys = new Set<string>();
   private incomingOfferState = new Map<string, boolean>();
+  private currentSubscription: {
+    callId: string | null;
+    roomId: string;
+    userId: string;
+    handlers: SignalingHandlers;
+  } | null = null;
+  private wsAuthToken: string | null = null;
 
   private constructor(channels: SignalingChannel[]) {
     this.channels = channels;
@@ -61,7 +68,53 @@ export class MultiSignalingChannel implements SignalingChannel {
 
   /** Pass an auth token to the WebSocket channel for authenticated connections. */
   setAuthToken(token: string | null): void {
+    this.wsAuthToken = token ?? null;
     this.wsChannel?.setAuthToken(token ?? null);
+  }
+
+  /**
+   * The edge function can return a per-call signaling relay URL.
+   * If the app wasn't booted with static relay URLs, mount the WS channel lazily.
+   */
+  setRelayUrls(relayUrls: string[]): void {
+    const normalizedRelayUrls = relayUrls
+      .map((url) => url.trim())
+      .filter(Boolean);
+
+    if (normalizedRelayUrls.length === 0) return;
+
+    if (this.wsChannel?.matchesRelayUrls(normalizedRelayUrls)) {
+      return;
+    }
+
+    if (this.wsChannel) {
+      this.unsubMap.get(this.wsChannel)?.();
+      this.unsubMap.delete(this.wsChannel);
+      this.availableChannels = this.availableChannels.filter((channel) => channel !== this.wsChannel);
+      const wsIndex = this.channels.indexOf(this.wsChannel);
+      if (wsIndex >= 0) {
+        this.channels.splice(wsIndex, 1);
+      }
+    }
+
+    const wsChannel = new WebSocketSignalingChannel(normalizedRelayUrls);
+    wsChannel.setAuthToken(this.wsAuthToken);
+    this.wsChannel = wsChannel;
+    this.channels.push(wsChannel);
+
+    if (this.currentSubscription) {
+      this.unsubMap.set(
+        wsChannel,
+        wsChannel.subscribe(
+          this.currentSubscription.callId,
+          this.currentSubscription.roomId,
+          this.currentSubscription.userId,
+          this.currentSubscription.handlers,
+        ),
+      );
+    }
+
+    this.isAvailable().catch(() => {});
   }
 
   // ── isAvailable ─────────────────────────────────────────────────────────
@@ -146,13 +199,20 @@ export class MultiSignalingChannel implements SignalingChannel {
       },
     };
 
-    this.unsubFns = this.channels.map((ch) =>
-      ch.subscribe(callId, roomId, userId, deduped),
-    );
+    this.currentSubscription = { callId, roomId, userId, handlers: deduped };
+    this.unsubMap.forEach((unsubscribe) => unsubscribe());
+    this.unsubMap.clear();
+    this.channels.forEach((channel) => {
+      this.unsubMap.set(
+        channel,
+        channel.subscribe(callId, roomId, userId, deduped),
+      );
+    });
 
     return () => {
-      this.unsubFns.forEach((fn) => fn());
-      this.unsubFns = [];
+      this.unsubMap.forEach((unsubscribe) => unsubscribe());
+      this.unsubMap.clear();
+      this.currentSubscription = null;
       this.seenKeys.clear();
       this.incomingOfferState.clear();
     };

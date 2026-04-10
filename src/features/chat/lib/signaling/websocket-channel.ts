@@ -167,6 +167,11 @@ export class WebSocketSignalingChannel implements SignalingChannel {
     this.relayUrls = relayUrls;
   }
 
+  matchesRelayUrls(relayUrls: string[]): boolean {
+    return this.relayUrls.length === relayUrls.length
+      && this.relayUrls.every((url, index) => url === relayUrls[index]);
+  }
+
   /** Set the auth token to pass as a query parameter on WS connect. */
   setAuthToken(token: string | null): void {
     this.authToken = token;
