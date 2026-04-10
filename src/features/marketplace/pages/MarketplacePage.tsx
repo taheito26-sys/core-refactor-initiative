@@ -237,7 +237,7 @@ export default function MarketplacePage() {
                 <div className="space-y-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">History</h3>
                   {completedTrades.map(trade => (
-                    <TradeCard key={trade.id} trade={trade} userId={userId!} />
+                    <TradeCard key={trade.id} trade={trade} userId={userId!} onOpenChat={handleOpenChat} />
                   ))}
                 </div>
               )}
