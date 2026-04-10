@@ -13,6 +13,7 @@ const callSessionMocks = {
 
 const signalingMock = {
   setAuthToken: vi.fn(),
+  setRelayUrls: vi.fn(),
   isAvailable: vi.fn().mockResolvedValue(true),
   initiateCall: vi.fn().mockResolvedValue('call-started'),
   publishOffer: vi.fn(),
@@ -289,6 +290,35 @@ describe('useWebRTC answerIncoming', () => {
     );
   });
 
+  it('sets the relay auth token before mounting runtime relay URLs for outgoing calls', async () => {
+    signalingConfigState.useCallSession = true;
+    callSessionMocks.startCallSession.mockResolvedValue({
+      call_id: 'call-session-start',
+      signaling_url: 'wss://relay.example.com/functions/v1/signaling-relay',
+      token: 'relay-hmac-token',
+      signaling_mode: 'relay',
+      ice_config: {
+        iceServers: [{ urls: 'turn:turn.start.example.com:3478', username: 'starter', credential: 'secret' }],
+        iceTransportPolicy: 'relay',
+      },
+    });
+
+    const { useWebRTC } = await import('@/features/chat/hooks/useWebRTC');
+    const { result } = renderHook(() => useWebRTC('room-1'));
+
+    await act(async () => {
+      await result.current.startCall(false);
+    });
+
+    expect(signalingMock.setAuthToken).toHaveBeenCalledWith('relay-hmac-token');
+    expect(signalingMock.setRelayUrls).toHaveBeenCalledWith([
+      'wss://relay.example.com/functions/v1/signaling-relay',
+    ]);
+    expect(signalingMock.setAuthToken.mock.invocationCallOrder[0]).toBeLessThan(
+      signalingMock.setRelayUrls.mock.invocationCallOrder[0],
+    );
+  });
+
   it('deduplicates repeated incoming events for the same call id', async () => {
     let handlers: {
       onIncomingCall: (callId: string, sdpOffer: string, initiatedBy: string) => void;
@@ -402,6 +432,52 @@ describe('useWebRTC answerIncoming', () => {
           expect.objectContaining({ urls: 'turn:turn.answer.example.com:3478' }),
         ]),
       }),
+    );
+  });
+
+  it('sets the relay auth token before mounting runtime relay URLs for incoming answers', async () => {
+    signalingConfigState.useCallSession = true;
+    let handlers: {
+      onIncomingCall: (callId: string, sdpOffer: string, initiatedBy: string) => void;
+    } | null = null;
+    signalingMock.subscribe.mockImplementation((_callId, _roomId, _userId, nextHandlers) => {
+      handlers = nextHandlers;
+      return () => {};
+    });
+    callSessionMocks.joinCallSession.mockResolvedValue({
+      call_id: 'call-ice-join',
+      signaling_url: 'wss://relay.example.com/functions/v1/signaling-relay',
+      token: 'relay-hmac-token',
+      signaling_mode: 'relay',
+      ice_config: {
+        iceServers: [{ urls: 'turn:turn.answer.example.com:3478', username: 'callee', credential: 'secret' }],
+        iceTransportPolicy: 'relay',
+      },
+    });
+
+    const { useWebRTC } = await import('@/features/chat/hooks/useWebRTC');
+    const { result } = renderHook(() => useWebRTC('room-1'));
+
+    await waitFor(() => expect(handlers).not.toBeNull());
+
+    act(() => {
+      handlers?.onIncomingCall(
+        'call-ice-join',
+        'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n',
+        'other-user',
+      );
+    });
+
+    await act(async () => {
+      await result.current.answerIncoming();
+    });
+
+    expect(signalingMock.setAuthToken).toHaveBeenCalledWith('relay-hmac-token');
+    expect(signalingMock.setRelayUrls).toHaveBeenCalledWith([
+      'wss://relay.example.com/functions/v1/signaling-relay',
+    ]);
+    expect(signalingMock.setAuthToken.mock.invocationCallOrder[0]).toBeLessThan(
+      signalingMock.setRelayUrls.mock.invocationCallOrder[0],
     );
   });
 

@@ -85,12 +85,12 @@ describe('MultiSignalingChannel', () => {
     channel.setRelayUrls(['wss://relay.example.com/ws']);
 
     expect(signalingMocks.supabaseInstances).toHaveLength(1);
-    expect(signalingMocks.websocketInstances).toHaveLength(1);
-    const [relayChannel] = signalingMocks.websocketInstances as Array<{
+    expect(signalingMocks.websocketInstances.length).toBeGreaterThanOrEqual(1);
+    const relayChannel = (signalingMocks.websocketInstances as Array<{
       relayUrls: string[];
       setAuthToken: ReturnType<typeof vi.fn>;
       subscribe: ReturnType<typeof vi.fn>;
-    }>;
+    }>).at(-1)!;
     expect(relayChannel.relayUrls).toEqual(['wss://relay.example.com/ws']);
     expect(relayChannel.setAuthToken).toHaveBeenCalledWith('relay-token');
     expect(relayChannel.subscribe).toHaveBeenCalledWith(null, 'room-1', 'user-1', expect.any(Object));

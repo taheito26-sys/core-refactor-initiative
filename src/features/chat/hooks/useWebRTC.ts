@@ -484,11 +484,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           if (creds.ice_config) iceConfig = creds.ice_config as typeof DEFAULT_ICE_CONFIG;
 
           // If relay URL + token provided, configure WS channel
-          if (creds.signaling_url) {
-            signaling.setRelayUrls([creds.signaling_url]);
-          }
           if (creds.token) {
             signaling.setAuthToken(creds.token);
+          }
+          if (creds.signaling_url) {
+            signaling.setRelayUrls([creds.signaling_url]);
           }
         } catch (edgeFnErr) {
           console.warn('[WebRTC] call-session edge fn failed, falling back to RPC', edgeFnErr);
@@ -568,11 +568,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           if (creds.ice_config) {
             iceConfig = creds.ice_config as RTCConfiguration;
           }
-          if (creds.signaling_url) {
-            signaling.setRelayUrls([creds.signaling_url]);
-          }
           if (creds.token) {
             signaling.setAuthToken(creds.token);
+          }
+          if (creds.signaling_url) {
+            signaling.setRelayUrls([creds.signaling_url]);
           }
         } catch (edgeFnErr) {
           console.warn('[WebRTC] call-session join failed, continuing with direct signaling', edgeFnErr);
