@@ -16,7 +16,7 @@ import {
   Banknote, Coins, Plus, Loader2, Send, ArrowRightLeft, Users, TrendingUp,
   Pause, Play, Trash2, X, Check, RefreshCw, Clock,
   MessageCircle, Star, BarChart3, Filter, Shield, ShieldCheck, AlertTriangle,
-  PieChart, Activity, Upload, FileCheck, Eye, Download, History, Search,
+  PieChart, Activity, Upload, FileCheck, Eye, Download, Search,
   BadgeCheck, Award, UserCheck,
 } from 'lucide-react';
 import { useOtcListings, useMyOtcListings, type OtcListing, type CreateListingInput } from '../hooks/useOtcListings';
@@ -44,7 +44,7 @@ function fmtAmt(n: number) {
   return Math.round(n).toLocaleString();
 }
 
-// ── Phase 4: Verification Badge Component ──
+// ── Verification Badge ──
 function VerificationBadge({ tier, trades, rate }: { tier?: string; trades?: number; rate?: number }) {
   const t = trades ?? 0;
   const r = rate ?? 0;
@@ -94,8 +94,14 @@ export default function MarketplacePage() {
   const submitReview = useSubmitReview();
   const { disputes, openDispute } = useOtcDisputes();
 
-  const initialTab = searchParams.get('tab') || 'board';
+  const initialTab = searchParams.get('tab') || 'p2p';
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Buy/Sell toggle: Buy USDT = I want to buy USDT (show sellers who have USDT, side='usdt')
+  // Sell USDT = I want to sell USDT (show buyers who have cash, side='cash')
+  const [tradeDirection, setTradeDirection] = useState<'buy' | 'sell'>('buy');
+
+  // Additional Cash/USDT filter (kept from current)
   const [sideFilter, setSideFilter] = useState<'all' | 'cash' | 'usdt'>('all');
   const [currencyFilter, setCurrencyFilter] = useState<string>('all');
   const [methodFilter, setMethodFilter] = useState<string>('all');
@@ -115,24 +121,30 @@ export default function MarketplacePage() {
   const [disputeTrade, setDisputeTrade] = useState<OtcTrade | null>(null);
   const [disputeReason, setDisputeReason] = useState('');
 
-  // Phase 5: Trade history filters
-  const [historyDateFrom, setHistoryDateFrom] = useState('');
-  const [historyDateTo, setHistoryDateTo] = useState('');
-  const [historyStatus, setHistoryStatus] = useState('all');
-  const [historyCurrency, setHistoryCurrency] = useState('all');
+  // Orders tab filters (merged trades + history)
+  const [ordersFilter, setOrdersFilter] = useState<'active' | 'completed' | 'all'>('active');
   const [historySearch, setHistorySearch] = useState('');
+  const [historyCurrency, setHistoryCurrency] = useState('all');
 
   const { filteredTrades: historyTrades, exportCSV } = useTradeHistory(trades, {
-    dateFrom: historyDateFrom || undefined,
-    dateTo: historyDateTo || undefined,
-    status: historyStatus,
+    status: ordersFilter === 'active' ? 'all' : ordersFilter === 'completed' ? 'completed' : 'all',
     currency: historyCurrency,
     counterparty: historySearch || undefined,
   });
 
-  // Phase 3: Advanced filter logic
+  // Filter listings by Buy/Sell direction + additional filters
   const filteredListings = useMemo(() => {
     let result = listings.filter(l => l.user_id !== userId);
+
+    // Buy USDT → show listings from people who have USDT (side='usdt')
+    // Sell USDT → show listings from people who have cash (side='cash')
+    if (tradeDirection === 'buy') {
+      result = result.filter(l => l.side === 'usdt');
+    } else {
+      result = result.filter(l => l.side === 'cash');
+    }
+
+    // Additional side filter overlay
     if (sideFilter !== 'all') result = result.filter(l => l.side === sideFilter);
     if (currencyFilter !== 'all') result = result.filter(l => l.currency === currencyFilter);
     if (methodFilter !== 'all') result = result.filter(l => l.payment_methods.includes(methodFilter));
@@ -154,7 +166,7 @@ export default function MarketplacePage() {
       });
     }
     return result;
-  }, [listings, userId, sideFilter, currencyFilter, methodFilter, minAmountFilter, maxAmountFilter, minRateFilter, maxRateFilter, minRatingFilter, tierFilter]);
+  }, [listings, userId, tradeDirection, sideFilter, currencyFilter, methodFilter, minAmountFilter, maxAmountFilter, minRateFilter, maxRateFilter, minRatingFilter, tierFilter]);
 
   const activeTrades = trades.filter(t => !['completed', 'cancelled', 'expired'].includes(t.status));
   const completedTrades = trades.filter(t => ['completed', 'cancelled', 'expired'].includes(t.status));
@@ -192,76 +204,101 @@ export default function MarketplacePage() {
 
   return (
     <div className="p-2 sm:p-3 md:p-6 space-y-3 max-w-6xl mx-auto">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="text-base sm:text-lg md:text-xl font-black tracking-tight truncate">
-            OTC Marketplace
+            P2P Trading
           </h1>
           <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">
-            Post liquidity, browse offers, and book trades
+            Buy and sell USDT directly with merchants
           </p>
         </div>
         <Button size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1 shrink-0 h-8 text-xs">
           <Plus className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Post Listing</span>
+          <span className="hidden sm:inline">Post Ad</span>
           <span className="sm:hidden">Post</span>
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* ── Quick Stats ── */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-2 px-2 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4">
-        <StatCard icon={Banknote} label="Cash" value={listings.filter(l => l.side === 'cash').length} />
-        <StatCard icon={Coins} label="USDT" value={listings.filter(l => l.side === 'usdt').length} />
+        <StatCard icon={Banknote} label="Cash Ads" value={listings.filter(l => l.side === 'cash').length} />
+        <StatCard icon={Coins} label="USDT Ads" value={listings.filter(l => l.side === 'usdt').length} />
         <StatCard icon={Users} label="Merchants" value={new Set(listings.map(l => l.user_id)).size} />
-        <StatCard icon={ArrowRightLeft} label="Active" value={activeTrades.length} />
+        <StatCard icon={ArrowRightLeft} label="Active Trades" value={activeTrades.length} />
       </div>
 
-      {/* Main Tabs — now 5 tabs */}
+      {/* ── Main Tabs: 4 tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-5 h-9">
-          <TabsTrigger value="board" className="text-[10px] sm:text-xs">Board</TabsTrigger>
-          <TabsTrigger value="my-listings" className="text-[10px] sm:text-xs">
-            Mine{myListings.length > 0 && <Badge variant="secondary" className="ml-1 text-[9px] px-1 hidden sm:inline">{myListings.length}</Badge>}
+        <TabsList className="w-full grid grid-cols-4 h-9">
+          <TabsTrigger value="p2p" className="text-[10px] sm:text-xs">P2P</TabsTrigger>
+          <TabsTrigger value="my-ads" className="text-[10px] sm:text-xs">
+            My Ads{myListings.length > 0 && <Badge variant="secondary" className="ml-1 text-[9px] px-1 hidden sm:inline">{myListings.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="trades" className="text-[10px] sm:text-xs">
-            Trades{activeTrades.length > 0 && <Badge variant="destructive" className="ml-1 text-[9px] px-1">{activeTrades.length}</Badge>}
+          <TabsTrigger value="orders" className="text-[10px] sm:text-xs">
+            Orders{activeTrades.length > 0 && <Badge variant="destructive" className="ml-1 text-[9px] px-1">{activeTrades.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="history" className="text-[10px] sm:text-xs">
-            <History className="h-3 w-3 mr-0.5 hidden sm:inline" />History
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="text-[10px] sm:text-xs">Stats</TabsTrigger>
+          <TabsTrigger value="stats" className="text-[10px] sm:text-xs">Stats</TabsTrigger>
         </TabsList>
 
-        {/* Board Tab */}
-        <TabsContent value="board" className="space-y-2 mt-2">
-          {/* Filters row */}
+        {/* ══════════════════════════════════════════════════
+            P2P TAB — Binance/Bybit-style Buy/Sell toggle
+           ══════════════════════════════════════════════════ */}
+        <TabsContent value="p2p" className="space-y-2.5 mt-2">
+          {/* Buy / Sell USDT toggle — Binance style */}
+          <div className="flex items-center gap-0 rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => setTradeDirection('buy')}
+              className={`flex-1 py-2 text-xs font-bold transition-colors ${
+                tradeDirection === 'buy'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-background text-muted-foreground hover:bg-muted/50'
+              }`}
+            >
+              Buy USDT
+            </button>
+            <button
+              onClick={() => setTradeDirection('sell')}
+              className={`flex-1 py-2 text-xs font-bold transition-colors ${
+                tradeDirection === 'sell'
+                  ? 'bg-destructive text-destructive-foreground'
+                  : 'bg-background text-muted-foreground hover:bg-muted/50'
+              }`}
+            >
+              Sell USDT
+            </button>
+          </div>
+
+          {/* Filter row */}
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Currency quick filter */}
+            <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+              <SelectTrigger className="h-7 text-[10px] w-[80px]"><SelectValue placeholder="Currency" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">All</SelectItem>
+                {CURRENCIES.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            {/* Cash/USDT filter chips (keep existing) */}
             {(['all', 'cash', 'usdt'] as const).map(f => (
-              <Button key={f} size="sm" variant={sideFilter === f ? 'default' : 'outline'} onClick={() => setSideFilter(f)} className="text-[10px] h-6 px-2">
-                {f === 'all' ? 'All' : f === 'cash' ? '💵 Cash' : '🪙 USDT'}
+              <Button key={f} size="sm" variant={sideFilter === f ? 'default' : 'ghost'} onClick={() => setSideFilter(f)} className="text-[9px] h-6 px-1.5">
+                {f === 'all' ? 'All' : f === 'cash' ? '💵' : '🪙'}
               </Button>
             ))}
+
+            {/* Advanced filters */}
             <Sheet>
               <SheetTrigger asChild>
-                <Button size="sm" variant={hasActiveFilters ? 'secondary' : 'outline'} className="text-[10px] h-6 px-2 gap-0.5 ml-auto">
+                <Button size="sm" variant={hasActiveFilters ? 'secondary' : 'ghost'} className="text-[10px] h-6 px-2 gap-0.5 ml-auto">
                   <Filter className="h-3 w-3" />
-                  {hasActiveFilters ? `Filtered (${filteredListings.length})` : 'Filter'}
+                  {hasActiveFilters ? `(${filteredListings.length})` : 'Filter'}
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto">
                 <SheetHeader><SheetTitle className="text-sm">Advanced Filters</SheetTitle></SheetHeader>
                 <div className="space-y-3 mt-3">
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Currency</label>
-                    <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all" className="text-xs">All Currencies</SelectItem>
-                        {CURRENCIES.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div>
                     <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Payment Method</label>
                     <Select value={methodFilter} onValueChange={setMethodFilter}>
@@ -287,15 +324,13 @@ export default function MarketplacePage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">
-                      Merchant Trust Tier
-                    </label>
+                    <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Merchant Trust Tier</label>
                     <Select value={tierFilter} onValueChange={setTierFilter}>
                       <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all" className="text-xs">All Tiers</SelectItem>
-                        <SelectItem value="verified" className="text-xs">✅ Verified (50+ trades, 90%+)</SelectItem>
-                        <SelectItem value="trusted" className="text-xs">🔷 Trusted (10+ trades, 70%+)</SelectItem>
+                        <SelectItem value="verified" className="text-xs">✅ Verified</SelectItem>
+                        <SelectItem value="trusted" className="text-xs">🔷 Trusted</SelectItem>
                         <SelectItem value="new" className="text-xs">🆕 New</SelectItem>
                       </SelectContent>
                     </Select>
@@ -317,27 +352,42 @@ export default function MarketplacePage() {
             </Sheet>
           </div>
 
+          {/* Listing count */}
+          <div className="text-[10px] text-muted-foreground">
+            {filteredListings.length} {tradeDirection === 'buy' ? 'sellers' : 'buyers'} available
+          </div>
+
+          {/* Listing cards */}
           {listingsLoading ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : filteredListings.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No listings match your filters.</div>
+            <div className="text-center py-12 text-muted-foreground text-sm">
+              No {tradeDirection === 'buy' ? 'sellers' : 'buyers'} match your filters.
+            </div>
           ) : (
             <div className="space-y-2">
               {filteredListings.map(listing => (
-                <ListingCard key={listing.id} listing={listing} onSendOffer={() => setShowOfferDialog(listing)} />
+                <P2PListingCard
+                  key={listing.id}
+                  listing={listing}
+                  direction={tradeDirection}
+                  onTrade={() => setShowOfferDialog(listing)}
+                />
               ))}
             </div>
           )}
         </TabsContent>
 
-        {/* My Listings Tab */}
-        <TabsContent value="my-listings" className="space-y-2 mt-2">
+        {/* ══════════════════════════════════════════════════
+            MY ADS TAB
+           ══════════════════════════════════════════════════ */}
+        <TabsContent value="my-ads" className="space-y-2 mt-2">
           {myLoading ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : myListings.length === 0 ? (
             <div className="text-center py-12 space-y-3">
-              <p className="text-muted-foreground text-sm">You haven't posted any listings yet.</p>
-              <Button size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1.5"><Plus className="h-3.5 w-3.5" /> Post Listing</Button>
+              <p className="text-muted-foreground text-sm">You haven't posted any ads yet.</p>
+              <Button size="sm" onClick={() => setShowCreateDialog(true)} className="gap-1.5"><Plus className="h-3.5 w-3.5" /> Post Ad</Button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -345,139 +395,74 @@ export default function MarketplacePage() {
                 <MyListingCard key={listing.id} listing={listing}
                   onTogglePause={() => {
                     const newStatus = listing.status === 'active' ? 'paused' : 'active';
-                    update.mutate({ id: listing.id, status: newStatus }, { onSuccess: () => toast.success(newStatus === 'paused' ? 'Listing paused' : 'Listing activated') });
+                    update.mutate({ id: listing.id, status: newStatus }, { onSuccess: () => toast.success(newStatus === 'paused' ? 'Ad paused' : 'Ad activated') });
                   }}
-                  onDelete={() => { remove.mutate(listing.id, { onSuccess: () => toast.success('Listing removed') }); }}
+                  onDelete={() => { remove.mutate(listing.id, { onSuccess: () => toast.success('Ad removed') }); }}
                 />
               ))}
             </div>
           )}
         </TabsContent>
 
-        {/* Trades Tab */}
-        <TabsContent value="trades" className="space-y-3 mt-2">
-          {tradesLoading ? (
-            <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-          ) : trades.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No trades yet. Send an offer to get started!</div>
-          ) : (
-            <>
-              {activeTrades.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Active</h3>
-                  {activeTrades.map(trade => (
-                    <TradeCard key={trade.id} trade={trade} userId={userId!}
-                      onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)}
-                      onCounter={() => setShowCounterDialog(trade)}
-                      onConfirm={() => confirmTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade confirmed!') })}
-                      onComplete={() => completeTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade completed!') })}
-                      onCancel={() => cancelTrade.mutate(trade.id, { onSuccess: () => toast.info('Trade cancelled') })}
-                      onEscrow={() => setEscrowTradeId(trade.id)}
-                      onDispute={() => { setDisputeTrade(trade); setDisputeReason(''); }}
-                    />
-                  ))}
-                </div>
-              )}
-              {completedTrades.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Recent</h3>
-                  {completedTrades.slice(0, 5).map(trade => (
-                    <TradeCard key={trade.id} trade={trade} userId={userId!}
-                      onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)}
-                      onReview={() => { setReviewTrade(trade); setReviewRating(5); setReviewComment(''); }}
-                      onDispute={() => { setDisputeTrade(trade); setDisputeReason(''); }}
-                    />
-                  ))}
-                  {completedTrades.length > 5 && (
-                    <Button size="sm" variant="ghost" className="w-full text-xs text-muted-foreground" onClick={() => setActiveTab('history')}>
-                      View all {completedTrades.length} trades in History →
-                    </Button>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </TabsContent>
-
-        {/* Phase 5: Trade History Tab */}
-        <TabsContent value="history" className="space-y-3 mt-2">
-          {/* History filters */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+        {/* ══════════════════════════════════════════════════
+            ORDERS TAB — merged trades + history
+           ══════════════════════════════════════════════════ */}
+        <TabsContent value="orders" className="space-y-3 mt-2">
+          {/* Sub-filter tabs */}
+          <div className="flex items-center gap-1.5">
+            {(['active', 'completed', 'all'] as const).map(f => (
+              <Button key={f} size="sm" variant={ordersFilter === f ? 'default' : 'outline'} onClick={() => setOrdersFilter(f)} className="text-[10px] h-6 px-2.5 capitalize">
+                {f}{f === 'active' && activeTrades.length > 0 ? ` (${activeTrades.length})` : ''}
+              </Button>
+            ))}
+            <div className="ml-auto flex items-center gap-1">
+              <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                <Input placeholder="Search counterparty..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} className="h-7 text-xs pl-7" />
+                <Input placeholder="Search..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} className="h-6 text-[10px] pl-7 w-[100px] sm:w-[140px]" />
               </div>
-              <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 shrink-0" onClick={exportCSV} disabled={historyTrades.length === 0}>
-                <Download className="h-3 w-3" /> CSV
+              <Button size="sm" variant="ghost" className="h-6 text-[9px] gap-0.5 px-1.5" onClick={exportCSV} disabled={trades.length === 0}>
+                <Download className="h-3 w-3" />
               </Button>
             </div>
-            <div className="flex gap-1.5 flex-wrap">
-              <Input type="date" value={historyDateFrom} onChange={e => setHistoryDateFrom(e.target.value)} className="h-7 text-[10px] w-[110px]" />
-              <span className="text-[10px] text-muted-foreground self-center">to</span>
-              <Input type="date" value={historyDateTo} onChange={e => setHistoryDateTo(e.target.value)} className="h-7 text-[10px] w-[110px]" />
-              <Select value={historyStatus} onValueChange={setHistoryStatus}>
-                <SelectTrigger className="h-7 text-[10px] w-[90px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">All</SelectItem>
-                  <SelectItem value="completed" className="text-xs">Completed</SelectItem>
-                  <SelectItem value="cancelled" className="text-xs">Cancelled</SelectItem>
-                  <SelectItem value="expired" className="text-xs">Expired</SelectItem>
-                  <SelectItem value="confirmed" className="text-xs">Confirmed</SelectItem>
-                  <SelectItem value="offered" className="text-xs">Offered</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={historyCurrency} onValueChange={setHistoryCurrency}>
-                <SelectTrigger className="h-7 text-[10px] w-[80px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">All</SelectItem>
-                  {CURRENCIES.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="text-[10px] text-muted-foreground flex items-center justify-between">
-            <span>{historyTrades.length} trade{historyTrades.length !== 1 ? 's' : ''}</span>
-            <span>Total: {fmtAmt(historyTrades.reduce((s, t) => s + (t.counter_total ?? t.total), 0))}</span>
           </div>
 
           {tradesLoading ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-          ) : historyTrades.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">No trades match your filters.</div>
-          ) : (
-            <div className="space-y-1.5">
-              {historyTrades.map(trade => (
-                <Card key={trade.id} className="p-2 sm:p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 mb-0.5 flex-wrap">
-                        <Badge className={`text-[8px] px-1 py-0 ${STATUS_COLORS[trade.status] || ''}`}>{trade.status}</Badge>
-                        <span className="text-[10px] font-bold truncate max-w-[80px]">{trade.counterparty_name}</span>
-                        <Badge variant="outline" className="text-[8px] px-1 py-0">{trade.side === 'cash' ? '💵' : '🪙'} {trade.currency}</Badge>
-                      </div>
-                      <div className="text-[10px]">
-                        <span className="font-bold">{fmtAmt(trade.counter_amount ?? trade.amount)}</span>
-                        <span className="mx-0.5 text-muted-foreground">@</span>
-                        <span className="font-bold text-primary">{trade.counter_rate ?? trade.rate}</span>
-                        <span className="mx-0.5 text-muted-foreground">=</span>
-                        <span className="font-bold">{fmtAmt(trade.counter_total ?? trade.total)}</span>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-[9px] text-muted-foreground">{new Date(trade.created_at).toLocaleDateString()}</div>
-                      <div className="text-[8px] text-muted-foreground">{getTimeAgo(trade.created_at)}</div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
+          ) : (() => {
+            const displayTrades = ordersFilter === 'active' ? activeTrades
+              : ordersFilter === 'completed' ? completedTrades
+              : trades;
+            const filtered = historySearch
+              ? displayTrades.filter(t => t.counterparty_name?.toLowerCase().includes(historySearch.toLowerCase()))
+              : displayTrades;
+
+            if (filtered.length === 0) {
+              return <div className="text-center py-12 text-muted-foreground text-sm">No orders found.</div>;
+            }
+
+            return (
+              <div className="space-y-2">
+                {filtered.map(trade => (
+                  <TradeCard key={trade.id} trade={trade} userId={userId!}
+                    onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)}
+                    onCounter={() => setShowCounterDialog(trade)}
+                    onConfirm={() => confirmTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade confirmed!') })}
+                    onComplete={() => completeTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade completed!') })}
+                    onCancel={() => cancelTrade.mutate(trade.id, { onSuccess: () => toast.info('Trade cancelled') })}
+                    onEscrow={() => setEscrowTradeId(trade.id)}
+                    onReview={() => { setReviewTrade(trade); setReviewRating(5); setReviewComment(''); }}
+                    onDispute={() => { setDisputeTrade(trade); setDisputeReason(''); }}
+                  />
+                ))}
+              </div>
+            );
+          })()}
         </TabsContent>
 
-        {/* Analytics Tab */}
-        <TabsContent value="analytics" className="space-y-3 mt-2">
+        {/* ══════════════════════════════════════════════════
+            STATS TAB
+           ══════════════════════════════════════════════════ */}
+        <TabsContent value="stats" className="space-y-3 mt-2">
           <div className="grid grid-cols-2 gap-2">
             <Card className="p-3"><div className="flex items-center gap-2"><Check className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.completedCount}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completed</div></div></div></Card>
             <Card className="p-3"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{fmtAmt(analytics.totalVolume)}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Volume</div></div></div></Card>
@@ -547,13 +532,13 @@ export default function MarketplacePage() {
         </TabsContent>
       </Tabs>
 
-      {/* Dialogs */}
+      {/* ── Dialogs ── */}
       <CreateListingDialog open={showCreateDialog} onClose={() => setShowCreateDialog(false)} suggestedRate={suggestedRate}
-        onCreate={(input) => { create.mutate(input, { onSuccess: () => { toast.success('Listing posted!'); setShowCreateDialog(false); setActiveTab('my-listings'); }, onError: (err) => toast.error(err.message) }); }}
+        onCreate={(input) => { create.mutate(input, { onSuccess: () => { toast.success('Ad posted!'); setShowCreateDialog(false); setActiveTab('my-ads'); }, onError: (err) => toast.error(err.message) }); }}
         isPending={create.isPending} />
 
       <SendOfferDialog listing={showOfferDialog} onClose={() => setShowOfferDialog(null)}
-        onSend={(input) => { sendOffer.mutate(input, { onSuccess: () => { toast.success('Offer sent!'); setShowOfferDialog(null); setActiveTab('trades'); }, onError: (err) => toast.error(err.message) }); }}
+        onSend={(input) => { sendOffer.mutate(input, { onSuccess: () => { toast.success('Offer sent!'); setShowOfferDialog(null); setActiveTab('orders'); }, onError: (err) => toast.error(err.message) }); }}
         isPending={sendOffer.isPending} />
 
       <CounterOfferDialog trade={showCounterDialog} onClose={() => setShowCounterDialog(null)}
@@ -608,21 +593,24 @@ export default function MarketplacePage() {
                 <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><Badge className={`text-[9px] px-1 py-0 ${STATUS_COLORS[disputeTrade.status]}`}>{disputeTrade.status}</Badge></div>
               </div>
               <div className="bg-amber-500/5 rounded-lg p-2.5 text-[10px] text-amber-700 dark:text-amber-400">
-                ⚠️ Disputes are reviewed by the admin team. Please provide a clear reason for your dispute. Both parties will be notified.
+                ⚠️ Disputes are reviewed by platform moderators. Please provide detailed info.
               </div>
               <Textarea placeholder="Describe the issue in detail..." value={disputeReason} onChange={e => setDisputeReason(e.target.value)} className="text-xs min-h-[80px]" />
             </div>
             <DialogFooter>
-              <Button size="sm" variant="destructive" className="w-full gap-1.5" disabled={openDispute.isPending || !disputeReason.trim()}
+              <Button size="sm" variant="destructive" className="w-full gap-1.5"
+                disabled={openDispute.isPending || !disputeReason.trim()}
                 onClick={() => {
-                  const respondentId = disputeTrade.initiator_user_id === userId ? disputeTrade.responder_user_id : disputeTrade.initiator_user_id;
-                  openDispute.mutate({ trade_id: disputeTrade.id, respondent_user_id: respondentId, reason: disputeReason }, {
-                    onSuccess: () => { toast.success('Dispute opened. Admin team will review.'); setDisputeTrade(null); },
+                  openDispute.mutate({
+                    trade_id: disputeTrade.id,
+                    reason: disputeReason,
+                  } as OpenDisputeInput, {
+                    onSuccess: () => { toast.success('Dispute filed'); setDisputeTrade(null); },
                     onError: (err) => toast.error(err.message),
                   });
                 }}>
                 {openDispute.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-                Open Dispute
+                File Dispute
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -632,69 +620,105 @@ export default function MarketplacePage() {
   );
 }
 
-// ── Sub-components ──
+// ═══════════════════════════════════════════════════════════
+// Sub-components
+// ═══════════════════════════════════════════════════════════
 
-function StatCard({ icon: Icon, label, value }: { icon: any; label: string; value: number }) {
+function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: number }) {
   return (
-    <Card className="p-2.5 min-w-[80px] shrink-0 sm:min-w-0">
-      <div className="flex items-center gap-1.5">
-        <Icon className="h-3.5 w-3.5 text-primary/60" />
-        <div>
-          <div className="text-sm font-black leading-tight">{value}</div>
-          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</div>
-        </div>
+    <Card className="flex items-center gap-2 p-2 sm:p-2.5 min-w-[100px]">
+      <Icon className="h-4 w-4 text-primary/60 shrink-0" />
+      <div>
+        <div className="text-sm sm:text-base font-black leading-tight">{value}</div>
+        <div className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
       </div>
     </Card>
   );
 }
 
-function ListingCard({ listing, onSendOffer }: { listing: OtcListing; onSendOffer: () => void }) {
-  const timeAgo = getTimeAgo(listing.updated_at);
+// ── P2P Listing Card (Binance-style) ──
+function P2PListingCard({ listing, direction, onTrade }: {
+  listing: OtcListing; direction: 'buy' | 'sell'; onTrade: () => void;
+}) {
   return (
-    <Card className="p-2.5 sm:p-3 active:scale-[0.99] transition-transform">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-            <Badge variant="outline" className="text-[9px] px-1 py-0">{listing.side === 'cash' ? '💵 Cash' : '🪙 USDT'}</Badge>
-            <span className="text-xs font-bold truncate max-w-[120px]">{listing.merchant_name}</span>
+    <Card className="p-3 hover:border-primary/30 transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        {/* Left: Merchant info */}
+        <div className="flex-1 min-w-0 space-y-1.5">
+          {/* Merchant name + verification */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+              {(listing.merchant_name || listing.merchant_nickname || '?')[0]?.toUpperCase()}
+            </div>
+            <span className="text-xs font-bold truncate max-w-[100px]">{listing.merchant_name || listing.merchant_nickname}</span>
             <ReputationBadge trades={listing.otc_completed_trades ?? 0} rate={listing.otc_completion_rate ?? 0} />
           </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-            <span><span className="text-muted-foreground">Amt: </span><span className="font-bold">{fmtAmt(listing.amount_min)}–{fmtAmt(listing.amount_max)}</span></span>
-            <span><span className="text-muted-foreground">Rate: </span><span className="font-bold text-primary">{listing.rate}</span></span>
+
+          {/* Price */}
+          <div>
+            <span className="text-lg font-black text-foreground">{listing.rate.toFixed(3)}</span>
+            <span className="text-[10px] text-muted-foreground ml-1">{listing.currency}/USDT</span>
           </div>
-          {listing.payment_methods.length > 0 && (
-            <div className="flex gap-0.5 mt-1 flex-wrap">
-              {listing.payment_methods.map(m => <Badge key={m} variant="secondary" className="text-[8px] px-1 py-0">{m}</Badge>)}
+
+          {/* Limits + methods */}
+          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+            <div>
+              <span className="text-muted-foreground">Limit </span>
+              <span className="text-foreground font-medium">{fmtAmt(listing.amount_min)} – {fmtAmt(listing.amount_max)} {listing.currency}</span>
             </div>
-          )}
+          </div>
+
+          {/* Payment methods */}
+          <div className="flex flex-wrap gap-1">
+            {listing.payment_methods.map(m => (
+              <Badge key={m} variant="outline" className="text-[8px] px-1 py-0 border-border/60">{m}</Badge>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <Button size="sm" onClick={onSendOffer} className="h-7 text-[10px] gap-0.5"><Send className="h-3 w-3" /> Offer</Button>
-          <span className="text-[8px] text-muted-foreground">{timeAgo}</span>
+
+        {/* Right: Trade button */}
+        <div className="shrink-0 flex flex-col items-end gap-1.5">
+          <Button
+            size="sm"
+            onClick={onTrade}
+            className={`h-8 px-4 text-xs font-bold ${
+              direction === 'buy'
+                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                : 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+            }`}
+          >
+            {direction === 'buy' ? 'Buy' : 'Sell'}
+          </Button>
+          <Badge variant="outline" className="text-[8px] px-1 py-0">
+            {listing.side === 'cash' ? '💵 Cash' : '🪙 USDT'}
+          </Badge>
         </div>
       </div>
     </Card>
   );
 }
 
-function MyListingCard({ listing, onTogglePause, onDelete }: { listing: OtcListing; onTogglePause: () => void; onDelete: () => void }) {
+// ── My Listing Card ──
+function MyListingCard({ listing, onTogglePause, onDelete }: {
+  listing: OtcListing; onTogglePause: () => void; onDelete: () => void;
+}) {
   return (
-    <Card className={`p-2.5 sm:p-3 ${listing.status === 'paused' ? 'opacity-60' : ''}`}>
+    <Card className={`p-2.5 ${listing.status === 'paused' ? 'opacity-60' : ''}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-0.5">
+          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+            <Badge className={listing.status === 'active' ? 'bg-green-500/10 text-green-600 text-[9px] px-1 py-0' : 'bg-muted text-muted-foreground text-[9px] px-1 py-0'}>{listing.status}</Badge>
             <Badge variant="outline" className="text-[9px] px-1 py-0">{listing.side === 'cash' ? '💵 Cash' : '🪙 USDT'}</Badge>
-            <Badge className={`text-[9px] px-1 py-0 ${listing.status === 'active' ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>{listing.status}</Badge>
-            <span className="text-xs font-bold">{listing.currency}</span>
+            <Badge variant="outline" className="text-[9px] px-1 py-0">{listing.currency}</Badge>
           </div>
-          <div className="text-[11px]">
-            <span className="font-bold">{fmtAmt(listing.amount_min)}–{fmtAmt(listing.amount_max)}</span>
+          <div className="text-xs">
+            <span className="font-bold">{fmtAmt(listing.amount_min)} – {fmtAmt(listing.amount_max)}</span>
             <span className="mx-1.5 text-muted-foreground">@</span>
             <span className="font-bold text-primary">{listing.rate}</span>
           </div>
+          <div className="text-[9px] text-muted-foreground mt-0.5">{listing.payment_methods.join(' · ') || 'No methods'}</div>
         </div>
-        <div className="flex gap-0.5">
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onTogglePause}>
             {listing.status === 'active' ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
           </Button>
@@ -705,6 +729,7 @@ function MyListingCard({ listing, onTogglePause, onDelete }: { listing: OtcListi
   );
 }
 
+// ── Trade Card ──
 function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel, onEscrow, onReview, onDispute }: {
   trade: OtcTrade; userId: string;
   onOpenChat?: (roomId: string) => void; onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void; onEscrow?: () => void; onReview?: () => void; onDispute?: () => void;
@@ -746,6 +771,7 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
               Counter: {fmtAmt(trade.counter_amount!)} @ {trade.counter_rate}
             </div>
           )}
+          <div className="text-[9px] text-muted-foreground mt-0.5">{getTimeAgo(trade.created_at)}</div>
         </div>
 
         {isActive && (
@@ -760,7 +786,7 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
               <Button size="sm" className="h-6 text-[9px] gap-0.5" onClick={onConfirm}><Check className="h-2.5 w-2.5" /> Accept</Button>
             )}
             {trade.status === 'confirmed' && (
-              <Button size="sm" className="h-6 text-[9px] gap-0.5 bg-emerald-600 hover:bg-emerald-700" onClick={onComplete}><Check className="h-2.5 w-2.5" /> Complete</Button>
+              <Button size="sm" className="h-6 text-[9px] gap-0.5 bg-emerald-500 hover:bg-emerald-600 text-white" onClick={onComplete}><Check className="h-2.5 w-2.5" /> Complete</Button>
             )}
             {trade.chat_room_id && onOpenChat && (
               <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
@@ -990,7 +1016,7 @@ function CreateListingDialog({ open, onClose, onCreate, isPending, suggestedRate
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="text-sm font-bold">Post New Listing</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="text-sm font-bold">Post New Ad</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="flex gap-2">
             <Button size="sm" variant={side === 'cash' ? 'default' : 'outline'} onClick={() => setSide('cash')} className="flex-1 text-xs">💵 I have Cash</Button>
@@ -1027,7 +1053,7 @@ function CreateListingDialog({ open, onClose, onCreate, isPending, suggestedRate
             if (!amountMin || !amountMax || !rate) return toast.error('Fill all required fields');
             onCreate({ side, currency, amount_min: Number(amountMin), amount_max: Number(amountMax), rate: Number(rate), payment_methods: methods, note: note || undefined });
           }} disabled={isPending} size="sm" className="w-full gap-1.5">
-            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Post Listing
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Post Ad
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1049,11 +1075,11 @@ function SendOfferDialog({ listing, onClose, onSend, isPending }: {
   return (
     <Dialog open={!!listing} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="text-sm font-bold">Send Offer to {listing.merchant_name}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="text-sm font-bold">Trade with {listing.merchant_name}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="text-xs bg-muted/50 rounded-lg p-2.5 space-y-1">
-            <div className="flex justify-between"><span className="text-muted-foreground">Listing:</span><span className="font-bold">{listing.side === 'cash' ? '💵 Cash' : '🪙 USDT'} · {listing.currency}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Range:</span><span className="font-bold">{fmtAmt(listing.amount_min)} – {fmtAmt(listing.amount_max)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Ad:</span><span className="font-bold">{listing.side === 'cash' ? '💵 Cash' : '🪙 USDT'} · {listing.currency}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Limit:</span><span className="font-bold">{fmtAmt(listing.amount_min)} – {fmtAmt(listing.amount_max)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Rate:</span><span className="font-bold text-primary">{listing.rate}</span></div>
             {(listing.otc_completed_trades ?? 0) > 0 && (
               <div className="flex justify-between items-center"><span className="text-muted-foreground">Merchant:</span><ReputationBadge trades={listing.otc_completed_trades ?? 0} rate={listing.otc_completion_rate ?? 0} /></div>
@@ -1153,8 +1179,8 @@ function MarketDepthSection({ listings }: { listings: OtcListing[] }) {
               <div className="bg-blue-500/60 transition-all" style={{ width: `${100 - cashPct}%` }} />
             </div>
             <div className="flex justify-between text-[9px] text-muted-foreground">
-              <span>💵 {depth.cashCount} listings · {fmtAmt(depth.cashVolume)}</span>
-              <span>🪙 {depth.usdtCount} listings · {fmtAmt(depth.usdtVolume)}</span>
+              <span>💵 {depth.cashCount} ads · {fmtAmt(depth.cashVolume)}</span>
+              <span>🪙 {depth.usdtCount} ads · {fmtAmt(depth.usdtVolume)}</span>
             </div>
           </Card>
         );
