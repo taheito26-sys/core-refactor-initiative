@@ -24,9 +24,9 @@ function truncateToDP(n: number, dp: number): number {
  */
 export function fmtPrice(n: number): string {
   if (!Number.isFinite(n)) return '—';
-  const truncated = truncateToDP(n, 4);
-  // Use toFixed(4) then strip trailing zeros
-  let s = truncated.toFixed(4);
+  const truncated = truncateToDP(n, 3);
+  // Use toFixed(3) then strip trailing zeros
+  let s = truncated.toFixed(3);
   // Remove trailing zeros after decimal point
   if (s.includes('.')) {
     s = s.replace(/0+$/, '').replace(/\.$/, '');
