@@ -271,6 +271,9 @@ export default function MarketplacePage() {
               </div>
             </Card>
           )}
+
+          {/* Market Depth */}
+          <MarketDepthSection listings={listings} />
         </TabsContent>
       </Tabs>
 
