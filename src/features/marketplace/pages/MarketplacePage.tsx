@@ -311,6 +311,7 @@ export default function MarketplacePage() {
       <CreateListingDialog
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
+        suggestedRate={suggestedRate}
         onCreate={(input) => {
           create.mutate(input, {
             onSuccess: () => {
