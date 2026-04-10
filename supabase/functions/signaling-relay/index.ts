@@ -128,16 +128,17 @@ Deno.serve(async (req: Request) => {
   // ── WebSocket upgrade ──────────────────────────────────────────────────
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
-  const callId = url.searchParams.get("call");
+  // Frontend sends ?room=... ; accept ?call=... too for forward-compat
+  const queryCall = url.searchParams.get("call");
 
-  if (!token || !callId) {
+  if (!token) {
     return new Response(
-      JSON.stringify({ error: "Missing token or call query param" }),
+      JSON.stringify({ error: "Missing token query param" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 
-  // Verify HMAC token
+  // Verify HMAC token — the token's `call` claim is authoritative for grouping
   const claims = await verifyHmacToken(token, RELAY_HMAC_SECRET);
   if (!claims) {
     return new Response(
@@ -146,13 +147,16 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // Ensure the token's call claim matches the requested call
-  if (claims.call !== callId) {
+  // If caller explicitly passed ?call=, verify it matches the token
+  if (queryCall && claims.call !== queryCall) {
     return new Response(
       JSON.stringify({ error: "Token call mismatch" }),
       { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
+
+  // Use token's call claim as the room key (authoritative)
+  const callId = claims.call;
 
   // Upgrade to WebSocket
   const { socket, response } = Deno.upgradeWebSocket(req);
