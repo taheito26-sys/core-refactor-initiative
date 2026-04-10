@@ -20,6 +20,9 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
   const fxRate = market === 'egypt' && qatarRates?.sellAvg && snapshot.buyAvg
     ? qatarRates.sellAvg / snapshot.buyAvg
     : null;
+  const fxRateV2 = market === 'egypt' && qatarRates?.sellAvg && snapshot.sellAvg
+    ? qatarRates.sellAvg / snapshot.sellAvg
+    : null;
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
       <div className="kpis kpis-p2p">
@@ -84,6 +87,18 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
             <div className="kpi-sub">1 EGP ≈ {fmtPrice(fxRate)} QAR</div>
             <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
               QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ EG Buy {snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'}
+            </div>
+          </div>
+        )}
+        {fxRateV2 != null && (
+          <div className="kpi-card">
+            <div className="kpi-lbl">EGP V2</div>
+            <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
+              {fmtPrice(1 / fxRateV2)}
+            </div>
+            <div className="kpi-sub">1 QAR ≈ {fmtPrice(1 / fxRateV2)} EGP</div>
+            <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
+              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ EG Sell {snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}
             </div>
           </div>
         )}
