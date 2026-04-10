@@ -44,7 +44,7 @@ export function fmtTotal(n: number): string {
   return truncated.toLocaleString(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 }
 
-export function fmtU(n: number, dp = 2): string {
+export function fmtU(n: number, dp = 0): string {
   if (!Number.isFinite(n)) return '—';
   // dp === 0 → total formatting (whole number, truncated)
   if (dp === 0) return fmtTotal(n);
