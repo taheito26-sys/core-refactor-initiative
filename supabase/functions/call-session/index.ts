@@ -121,6 +121,12 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Invalid token" }, 401);
     }
 
+    // User-scoped client for RPCs that rely on auth.uid()
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
     // ── Parse body ───────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
     const action: string = body.action;
