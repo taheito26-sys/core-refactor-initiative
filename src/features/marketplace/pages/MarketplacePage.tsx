@@ -407,6 +407,39 @@ export default function MarketplacePage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Dispute Dialog */}
+      {disputeTrade && (
+        <Dialog open={!!disputeTrade} onOpenChange={v => { if (!v) setDisputeTrade(null); }}>
+          <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
+            <DialogHeader><DialogTitle className="text-sm font-bold flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 text-amber-500" /> Open Dispute</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="text-xs bg-muted/50 rounded-lg p-2.5 space-y-1">
+                <div className="flex justify-between"><span className="text-muted-foreground">Trade with:</span><span className="font-bold">{disputeTrade.counterparty_name}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Amount:</span><span className="font-bold">{fmtAmt(disputeTrade.counter_amount ?? disputeTrade.amount)} {disputeTrade.currency}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><Badge className={`text-[9px] px-1 py-0 ${STATUS_COLORS[disputeTrade.status]}`}>{disputeTrade.status}</Badge></div>
+              </div>
+              <div className="bg-amber-500/5 rounded-lg p-2.5 text-[10px] text-amber-700 dark:text-amber-400">
+                ⚠️ Disputes are reviewed by the admin team. Please provide a clear reason for your dispute. Both parties will be notified.
+              </div>
+              <Textarea placeholder="Describe the issue in detail..." value={disputeReason} onChange={e => setDisputeReason(e.target.value)} className="text-xs min-h-[80px]" />
+            </div>
+            <DialogFooter>
+              <Button size="sm" variant="destructive" className="w-full gap-1.5" disabled={openDispute.isPending || !disputeReason.trim()}
+                onClick={() => {
+                  const respondentId = disputeTrade.initiator_user_id === userId ? disputeTrade.responder_user_id : disputeTrade.initiator_user_id;
+                  openDispute.mutate({ trade_id: disputeTrade.id, respondent_user_id: respondentId, reason: disputeReason }, {
+                    onSuccess: () => { toast.success('Dispute opened. Admin team will review.'); setDisputeTrade(null); },
+                    onError: (err) => toast.error(err.message),
+                  });
+                }}>
+                {openDispute.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                Open Dispute
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
