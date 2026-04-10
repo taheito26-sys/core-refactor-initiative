@@ -185,8 +185,16 @@ Deno.serve(async (req: Request) => {
       return;
     }
 
-    // Broadcast to other participants
-    broadcastToCall(callId, socket, event.data);
+    // Stamp userId server-side to prevent spoofing & enable echo suppression
+    try {
+      const msg = JSON.parse(event.data);
+      msg.userId = userId;
+      msg.ts = Date.now();
+      const stamped = JSON.stringify(msg);
+      broadcastToCall(callId, socket, stamped);
+    } catch {
+      // Not valid JSON, ignore
+    }
   };
 
   socket.onclose = () => {
