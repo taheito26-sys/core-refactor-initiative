@@ -582,6 +582,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const hangUp = useCallback(async () => {
     const cid = callIdRef.current;
     if (cid) {
+      // Use edge function for authoritative call end
+      const config = getSignalingConfig();
+      if (config.useCallSession) {
+        endCallSession(cid, 'ended').catch(() => {});
+      }
       await signaling.publishCallEnd(cid, 'ended').catch(() => {});
     }
     cleanup();
