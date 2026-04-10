@@ -328,6 +328,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.onicecandidate = (e) => {
       if (e.candidate && callIdRef.current) {
+        const candidateType = e.candidate.type ?? e.candidate.candidate?.match(/typ (\w+)/)?.[1] ?? 'unknown';
+        console.log(`[ICE_CANDIDATE] type=${candidateType} protocol=${e.candidate.protocol ?? 'unknown'} address=${e.candidate.address ?? 'hidden'}`);
         signaling.publishIceCandidate(callIdRef.current, e.candidate.toJSON()).catch(() => {});
       }
     };
@@ -338,6 +340,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.onconnectionstatechange = () => {
       const s = peerConn.connectionState;
+      console.log(`[ICE_STATE] connectionState=${s} iceConnectionState=${peerConn.iceConnectionState}`);
       if (s === 'connected') {
         setCallState('connected');
         reconnectTries.current = 0;
@@ -369,6 +372,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.oniceconnectionstatechange = () => {
       const iceState = peerConn.iceConnectionState;
+      console.log(`[ICE_STATE] iceConnectionState=${iceState} connectionState=${peerConn.connectionState}`);
 
       if (iceState === 'connected' || iceState === 'completed') {
         setCallState('connected');
@@ -570,6 +574,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           }
           if (creds.token) {
             signaling.setAuthToken(creds.token);
+          }
+          if (creds.signaling_url) {
+            signaling.setRelayUrls([creds.signaling_url]);
           }
           if (creds.signaling_url) {
             signaling.setRelayUrls([creds.signaling_url]);
