@@ -275,13 +275,18 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Build ICE config with fresh TURN credentials
+    const iceConfig = (action === "start" || action === "join")
+      ? await buildIceConfig()
+      : null;
+
     // ── START ─────────────────────────────────────────────────────────────
     if (action === "start") {
       const requestedCallId = callId || crypto.randomUUID();
       const { data, error: startErr } = await userClient.rpc("chat_initiate_call", {
         _room_id: roomId!,
         _call_id: requestedCallId,
-        _ice_config: DEFAULT_ICE_CONFIG,
+        _ice_config: iceConfig,
       });
 
       if (startErr) {
@@ -304,7 +309,7 @@ Deno.serve(async (req: Request) => {
         call_id: resolvedCallId,
         signaling_url: signalingUrl,
         token,
-        ice_config: DEFAULT_ICE_CONFIG,
+        ice_config: iceConfig,
         signaling_mode: signalingMode,
       });
     }
@@ -365,7 +370,7 @@ Deno.serve(async (req: Request) => {
         call_id: resolvedCallId,
         signaling_url: signalingUrl,
         token,
-        ice_config: DEFAULT_ICE_CONFIG,
+        ice_config: iceConfig,
         signaling_mode: signalingMode,
       });
     }
