@@ -310,20 +310,18 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const requestNativePermissions = useCallback(async (video: boolean) => {
     if (!isNativeApp()) return; // browser handles its own prompts
     try {
-      // Dynamically import to avoid bundling Capacitor plugins on web
-      const { Permissions } = await import('@capacitor/core');
-      // Check & request microphone
-      const micStatus = await (Permissions as unknown as { query: (o: { name: string }) => Promise<{ state: string }> })
-        .query({ name: 'microphone' });
-      if (micStatus.state === 'denied') {
-        throw new Error('Microphone permission denied. Please enable it in Settings.');
-      }
-      // Check & request camera only for video calls
-      if (video) {
-        const camStatus = await (Permissions as unknown as { query: (o: { name: string }) => Promise<{ state: string }> })
-          .query({ name: 'camera' });
-        if (camStatus.state === 'denied') {
-          throw new Error('Camera permission denied. Please enable it in Settings.');
+      // On native Capacitor, getUserMedia triggers OS permission prompts automatically.
+      // We just do a light pre-check via navigator.permissions if available.
+      if (navigator.permissions) {
+        const micStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        if (micStatus.state === 'denied') {
+          throw new Error('Microphone permission denied. Please enable it in Settings.');
+        }
+        if (video) {
+          const camStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          if (camStatus.state === 'denied') {
+            throw new Error('Camera permission denied. Please enable it in Settings.');
+          }
         }
       }
     } catch (err) {
