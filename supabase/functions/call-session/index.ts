@@ -253,7 +253,7 @@ Deno.serve(async (req: Request) => {
       }
 
       let token: string | null = null;
-      if (hmacSecret) {
+      if (hmacSecret && resolvedCallId) {
         token = await buildSignalingToken(
           hmacSecret,
           user.id,
