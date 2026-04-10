@@ -443,7 +443,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         try {
           const creds: CallSessionCredentials = await startCallSession(roomId);
           callId = creds.call_id;
-          if (creds.ice_config) iceConfig = creds.ice_config;
+          if (creds.ice_config) iceConfig = creds.ice_config as typeof DEFAULT_ICE_CONFIG;
 
           // If relay URL + token provided, configure WS channel
           if (creds.signaling_url && creds.token) {
