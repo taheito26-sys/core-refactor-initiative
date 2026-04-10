@@ -301,6 +301,27 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       }
     };
 
+    peerConn.oniceconnectionstatechange = () => {
+      const iceState = peerConn.iceConnectionState;
+
+      if (iceState === 'connected' || iceState === 'completed') {
+        setCallState('connected');
+        reconnectTries.current = 0;
+        if (ringTimer.current) { clearTimeout(ringTimer.current); ringTimer.current = null; }
+        if (!connectedAtRef.current) {
+          startDurationTimer();
+        }
+        startQualityPolling();
+      }
+
+      if (iceState === 'failed') {
+        const cid = callIdRef.current;
+        if (cid) signaling.publishCallEnd(cid, 'failed').catch(() => {});
+        cleanup();
+        transitionToEnd('failed', 'ice_failed');
+      }
+    };
+
     return peerConn;
   }, [cleanup, startDurationTimer, startQualityPolling, transitionToEnd]);
 

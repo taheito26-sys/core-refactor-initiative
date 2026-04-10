@@ -229,8 +229,12 @@ export function CallOverlay({ webrtc }: Props) {
   // Audio-only overlay bar (desktop + non-ringing mobile states)
   return (
     <div className={cn(
-      'absolute inset-x-0 top-0 flex justify-center z-50 pointer-events-none',
-      isMobile ? 'px-2 pt-2' : 'px-4 pt-4',
+      'absolute inset-x-0 z-50 flex justify-center pointer-events-none',
+      isMobile && (isCalling || isConnecting)
+        ? 'inset-y-0 items-center px-4'
+        : isMobile
+        ? 'top-0 px-2 pt-2'
+        : 'top-0 px-4 pt-4',
     )}>
       <div className={cn(
         'pointer-events-auto flex items-center gap-3 rounded-2xl shadow-2xl border backdrop-blur-md transition-all duration-300',
