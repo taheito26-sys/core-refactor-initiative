@@ -224,6 +224,7 @@ export default function MarketplacePage() {
                       key={trade.id}
                       trade={trade}
                       userId={userId!}
+                      onOpenChat={handleOpenChat}
                       onCounter={() => setShowCounterDialog(trade)}
                       onConfirm={() => confirmTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade confirmed!') })}
                       onComplete={() => completeTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade completed!') })}
