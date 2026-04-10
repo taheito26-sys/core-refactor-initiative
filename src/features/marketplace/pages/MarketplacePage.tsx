@@ -552,8 +552,9 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
 
 // ── Dialogs ──
 
-function CreateListingDialog({ open, onClose, onCreate, isPending }: {
+function CreateListingDialog({ open, onClose, onCreate, isPending, suggestedRate }: {
   open: boolean; onClose: () => void; onCreate: (i: CreateListingInput) => void; isPending: boolean;
+  suggestedRate?: number | null;
 }) {
   const [side, setSide] = useState<'cash' | 'usdt'>('cash');
   const [currency, setCurrency] = useState('QAR');
