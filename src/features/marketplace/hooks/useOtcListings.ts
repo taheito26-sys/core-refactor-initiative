@@ -21,6 +21,10 @@ export interface OtcListing {
   // joined
   merchant_name?: string;
   merchant_nickname?: string;
+  // reputation
+  otc_completed_trades?: number;
+  otc_completion_rate?: number;
+  otc_total_volume?: number;
 }
 
 export type CreateListingInput = {
@@ -55,17 +59,23 @@ export function useOtcListings() {
       const userIds = [...new Set((data || []).map(d => d.user_id))];
       const { data: profiles } = await supabase
         .from('merchant_profiles')
-        .select('user_id, display_name, nickname')
+        .select('user_id, display_name, nickname, otc_completed_trades, otc_completion_rate, otc_total_volume')
         .in('user_id', userIds);
       const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
 
-      return (data || []).map(row => ({
-        ...row,
-        side: row.side as 'cash' | 'usdt',
-        status: row.status as 'active' | 'paused' | 'expired',
-        merchant_name: profileMap.get(row.user_id)?.display_name ?? row.merchant_id,
-        merchant_nickname: profileMap.get(row.user_id)?.nickname ?? '',
-      }));
+      return (data || []).map(row => {
+        const prof = profileMap.get(row.user_id);
+        return {
+          ...row,
+          side: row.side as 'cash' | 'usdt',
+          status: row.status as 'active' | 'paused' | 'expired',
+          merchant_name: prof?.display_name ?? row.merchant_id,
+          merchant_nickname: prof?.nickname ?? '',
+          otc_completed_trades: prof?.otc_completed_trades ?? 0,
+          otc_completion_rate: prof?.otc_completion_rate ?? 0,
+          otc_total_volume: prof?.otc_total_volume ?? 0,
+        };
+      });
     },
     staleTime: 15_000,
   });
