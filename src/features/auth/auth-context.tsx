@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+  import { useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import {
@@ -74,7 +75,7 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
-  const [profilesLoaded, setProfilesLoaded] = useState(false);
+  const profilesLoadedRef = useRef(false);
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -177,16 +178,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (newSession?.user) {
         // Only show loading spinner on the very first load —
         // subsequent token refreshes keep existing profile data visible.
-        if (!profilesLoaded) {
+        if (!profilesLoadedRef.current) {
           setIsLoading(true);
         }
         await loadUserProfiles(newSession.user.id);
-        if (isMounted) setProfilesLoaded(true);
+        if (isMounted) profilesLoadedRef.current = true;
       } else {
         setProfile(null);
         setMerchantProfile(null);
         setCustomerProfile(null);
-        if (isMounted) setProfilesLoaded(false);
+        if (isMounted) profilesLoadedRef.current = false;
       }
 
       if (isMounted) {
