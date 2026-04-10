@@ -603,7 +603,18 @@ function CreateListingDialog({ open, onClose, onCreate, isPending, suggestedRate
             <Input type="number" placeholder="Min amount" value={amountMin} onChange={e => setAmountMin(e.target.value)} className="h-8 text-xs" />
             <Input type="number" placeholder="Max amount" value={amountMax} onChange={e => setAmountMax(e.target.value)} className="h-8 text-xs" />
           </div>
-          <Input type="number" placeholder={`Rate (${currency}/USDT)`} value={rate} onChange={e => setRate(e.target.value)} className="h-8 text-xs" />
+          <div className="space-y-1">
+            <Input type="number" placeholder={`Rate (${currency}/USDT)`} value={rate} onChange={e => setRate(e.target.value)} className="h-8 text-xs" />
+            {suggestedRate && currency === 'QAR' && (
+              <button
+                type="button"
+                onClick={() => setRate(suggestedRate.toFixed(3))}
+                className="text-[10px] text-primary hover:underline"
+              >
+                💡 Use P2P market rate: {suggestedRate.toFixed(3)}
+              </button>
+            )}
+          </div>
           <div>
             <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1 block">Payment Methods</label>
             <div className="flex flex-wrap gap-1">
