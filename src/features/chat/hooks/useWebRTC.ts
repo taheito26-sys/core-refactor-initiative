@@ -328,6 +328,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.onicecandidate = (e) => {
       if (e.candidate && callIdRef.current) {
+        const candidateType = e.candidate.type ?? e.candidate.candidate?.match(/typ (\w+)/)?.[1] ?? 'unknown';
+        console.log(`[ICE_CANDIDATE] type=${candidateType} protocol=${e.candidate.protocol ?? 'unknown'} address=${e.candidate.address ?? 'hidden'}`);
         signaling.publishIceCandidate(callIdRef.current, e.candidate.toJSON()).catch(() => {});
       }
     };
@@ -338,6 +340,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.onconnectionstatechange = () => {
       const s = peerConn.connectionState;
+      console.log(`[ICE_STATE] connectionState=${s} iceConnectionState=${peerConn.iceConnectionState}`);
       if (s === 'connected') {
         setCallState('connected');
         reconnectTries.current = 0;
@@ -369,6 +372,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.oniceconnectionstatechange = () => {
       const iceState = peerConn.iceConnectionState;
+      console.log(`[ICE_STATE] iceConnectionState=${iceState} connectionState=${peerConn.connectionState}`);
 
       if (iceState === 'connected' || iceState === 'completed') {
         setCallState('connected');
@@ -483,12 +487,21 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           callId = creds.call_id;
           if (creds.ice_config) iceConfig = creds.ice_config as typeof DEFAULT_ICE_CONFIG;
 
-          // If relay URL + token provided, configure WS channel
-          if (creds.signaling_url) {
-            signaling.setRelayUrls([creds.signaling_url]);
-          }
+          // Log call session diagnostics
+          const turnCount = (creds.ice_config as { iceServers?: { urls: string | string[] }[] })
+            ?.iceServers?.filter(s => {
+              const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+              return urls.some(u => u.startsWith('turn'));
+            }).length ?? 0;
+          console.log(`[CALL_SESSION_DIAG] signaling_mode=${creds.signaling_mode} signaling_url=${creds.signaling_url ? 'present' : 'null'} token_present=${!!creds.token} ice_server_count=${(creds.ice_config as { iceServers?: unknown[] })?.iceServers?.length ?? 0} turn_server_count=${turnCount}`);
+
+          // CRITICAL: Set auth token BEFORE relay URLs so the WS channel
+          // connects with the correct HMAC token instead of the Supabase JWT.
           if (creds.token) {
             signaling.setAuthToken(creds.token);
+          }
+          if (creds.signaling_url) {
+            signaling.setRelayUrls([creds.signaling_url]);
           }
         } catch (edgeFnErr) {
           console.warn('[WebRTC] call-session edge fn failed, falling back to RPC', edgeFnErr);
@@ -568,11 +581,22 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           if (creds.ice_config) {
             iceConfig = creds.ice_config as RTCConfiguration;
           }
-          if (creds.signaling_url) {
-            signaling.setRelayUrls([creds.signaling_url]);
-          }
+
+          // Log call session diagnostics
+          const turnCount = (creds.ice_config as { iceServers?: { urls: string | string[] }[] })
+            ?.iceServers?.filter(s => {
+              const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+              return urls.some(u => u.startsWith('turn'));
+            }).length ?? 0;
+          console.log(`[CALL_SESSION_DIAG] join signaling_mode=${creds.signaling_mode} signaling_url=${creds.signaling_url ? 'present' : 'null'} token_present=${!!creds.token} ice_server_count=${(creds.ice_config as { iceServers?: unknown[] })?.iceServers?.length ?? 0} turn_server_count=${turnCount}`);
+
+          // CRITICAL: Set auth token BEFORE relay URLs so the WS channel
+          // connects with the correct HMAC token instead of the Supabase JWT.
           if (creds.token) {
             signaling.setAuthToken(creds.token);
+          }
+          if (creds.signaling_url) {
+            signaling.setRelayUrls([creds.signaling_url]);
           }
         } catch (edgeFnErr) {
           console.warn('[WebRTC] call-session join failed, continuing with direct signaling', edgeFnErr);

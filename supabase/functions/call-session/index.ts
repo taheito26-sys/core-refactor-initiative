@@ -185,6 +185,11 @@ async function buildIceConfig() {
   }
   const totalIce = STUN_SERVERS.length + turnServers.length;
   console.log(`[TURN-diag] buildIceConfig: source=${source} stunCount=${STUN_SERVERS.length} turnCount=${turnServers.length} totalIceServers=${totalIce}`);
+
+  if (turnServers.length === 0) {
+    throw new Error("TURN_UNAVAILABLE: No TURN servers configured. Set CLOUDFLARE_TURN_TOKEN+CLOUDFLARE_TURN_KEY_ID or TURN_URL+TURN_USERNAME+TURN_CREDENTIAL.");
+  }
+
   return {
     iceServers: [...STUN_SERVERS, ...turnServers],
     iceTransportPolicy: "all",
