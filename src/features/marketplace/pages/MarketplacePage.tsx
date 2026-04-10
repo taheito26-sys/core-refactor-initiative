@@ -532,6 +532,12 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
                 <Check className="h-3 w-3" /> Complete
               </Button>
             )}
+            {/* Chat button */}
+            {trade.chat_room_id && onOpenChat && (
+              <Button size="sm" variant="outline" className="h-6 text-[10px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}>
+                <MessageCircle className="h-3 w-3" /> Chat
+              </Button>
+            )}
             {/* Either party can cancel */}
             <Button size="sm" variant="ghost" className="h-6 text-[10px] text-destructive gap-0.5" onClick={onCancel}>
               <X className="h-3 w-3" /> Cancel
