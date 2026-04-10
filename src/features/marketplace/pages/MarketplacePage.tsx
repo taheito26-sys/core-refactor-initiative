@@ -15,7 +15,7 @@ import {
   Banknote, Coins, Plus, Loader2, Send, ArrowRightLeft, Users, TrendingUp,
   Pause, Play, Trash2, X, Check, RefreshCw, Clock,
   MessageCircle, Star, BarChart3, Filter, Shield, ShieldCheck, AlertTriangle,
-  PieChart, Activity,
+  PieChart, Activity, Upload, FileCheck, Eye,
 } from 'lucide-react';
 import { useOtcListings, useMyOtcListings, type OtcListing, type CreateListingInput } from '../hooks/useOtcListings';
 import { useOtcTrades, type OtcTrade, type SendOfferInput, type CounterOfferInput } from '../hooks/useOtcTrades';
