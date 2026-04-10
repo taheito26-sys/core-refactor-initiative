@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
 
-  const loadUserProfiles = useCallback(async (currentUserId?: string | null) => {
+  const loadUserProfiles = useCallback(async (currentUserId?: string | null, retries = 2) => {
     const resolvedUserId = currentUserId ?? (await supabase.auth.getUser()).data.user?.id ?? null;
 
     if (!resolvedUserId) {
@@ -91,27 +91,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const [{ data: profileData }, { data: merchantData }, { data: customerData }] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', resolvedUserId)
-        .maybeSingle(),
-      supabase
-        .from('merchant_profiles')
-        .select('*')
-        .eq('user_id', resolvedUserId)
-        .maybeSingle(),
-      supabase
-        .from('customer_profiles')
-        .select('*')
-        .eq('user_id', resolvedUserId)
-        .maybeSingle(),
-    ]);
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const [profileRes, merchantRes, customerRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', resolvedUserId)
+          .maybeSingle(),
+        supabase
+          .from('merchant_profiles')
+          .select('*')
+          .eq('user_id', resolvedUserId)
+          .maybeSingle(),
+        supabase
+          .from('customer_profiles')
+          .select('*')
+          .eq('user_id', resolvedUserId)
+          .maybeSingle(),
+      ]);
 
-    setProfile(profileData as Profile | null);
-    setMerchantProfile(merchantData as MerchantProfile | null);
-    setCustomerProfile(customerData as CustomerProfile | null);
+      const hasError = profileRes.error || merchantRes.error || customerRes.error;
+
+      if (hasError && attempt < retries) {
+        console.warn(`[Auth] Profile load attempt ${attempt + 1} failed, retrying...`, {
+          profileErr: profileRes.error?.message,
+          merchantErr: merchantRes.error?.message,
+          customerErr: customerRes.error?.message,
+        });
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+
+      // On final attempt or success, apply whatever we got
+      setProfile(profileRes.data as Profile | null);
+      setMerchantProfile(merchantRes.data as MerchantProfile | null);
+      setCustomerProfile(customerRes.data as CustomerProfile | null);
+
+      // If all queries errored on the final attempt, keep isLoading true
+      // so ProfileGuard shows spinner instead of redirecting to onboarding
+      if (hasError && profileRes.error && merchantRes.error && customerRes.error) {
+        console.error('[Auth] All profile queries failed after retries — keeping loading state');
+        return 'all_failed' as const;
+      }
+      return 'ok' as const;
+    }
+    return 'ok' as const;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -180,8 +204,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!profilesLoadedRef.current) {
           setIsLoading(true);
         }
-        await loadUserProfiles(newSession.user.id);
-        if (isMounted) profilesLoadedRef.current = true;
+        const result = await loadUserProfiles(newSession.user.id);
+        if (isMounted) {
+          // If all profile queries failed, keep isLoading true to prevent
+          // ProfileGuard from falsely redirecting to onboarding
+          if (result === 'all_failed' && !profilesLoadedRef.current) {
+            // Don't set isLoading false — retry will happen on next auth event
+            return;
+          }
+          profilesLoadedRef.current = true;
+        }
       } else {
         setProfile(null);
         setMerchantProfile(null);
