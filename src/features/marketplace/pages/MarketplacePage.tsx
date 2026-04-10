@@ -239,6 +239,67 @@ export default function MarketplacePage() {
             </>
           )}
         </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-3 mt-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{analytics.completedCount}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completed Trades</div>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{fmtAmt(analytics.totalVolume)}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Volume</div>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{analytics.completionRate.toFixed(0)}%</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completion Rate</div>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-3">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="h-4 w-4 text-primary/60" />
+                <div>
+                  <div className="text-lg font-black">{analytics.totalTrades}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Trades</div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {suggestedRate && (
+            <Card className="p-3">
+              <div className="text-xs">
+                <span className="text-muted-foreground">Live P2P Market Rate (QAR): </span>
+                <span className="font-bold text-primary">{suggestedRate.toFixed(3)}</span>
+                <span className="text-[10px] text-muted-foreground ml-1">QAR/USDT</span>
+              </div>
+            </Card>
+          )}
+
+          {completedTrades.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Recent Completed</h3>
+              {completedTrades.slice(0, 10).map(trade => (
+                <TradeCard key={trade.id} trade={trade} userId={userId!} onOpenChat={handleOpenChat} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Create Listing Dialog */}
