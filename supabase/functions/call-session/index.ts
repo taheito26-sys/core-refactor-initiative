@@ -106,6 +106,8 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const hmacSecret = Deno.env.get("RELAY_HMAC_SECRET");
     const signalingUrl = Deno.env.get("SIGNALING_RELAY_URL") || null;
+    const signalingMode = signalingUrl ? "relay" : "supabase_fallback";
+    const signalingChannel = signalingUrl ? "relay" : "supabase";
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
@@ -176,137 +178,116 @@ Deno.serve(async (req: Request) => {
 
     // ── START ─────────────────────────────────────────────────────────────
     if (action === "start") {
-      // Check for existing active call in this room
-      const { data: existingCalls } = await adminClient
-        .from("chat_calls")
-        .select("id")
-        .eq("room_id", roomId!)
-        .in("status", ["ringing", "active"])
-        .limit(1);
-
-      if (existingCalls && existingCalls.length > 0) {
-        return json(
-          { error: "An active call already exists in this room" },
-          409
-        );
-      }
-
-      // Create call record
-      const newCallId = crypto.randomUUID();
-      const { error: insertErr } = await adminClient
-        .from("chat_calls")
-        .insert({
-          id: newCallId,
-          room_id: roomId!,
-          initiated_by: user.id,
-          status: "ringing",
-          ice_config: DEFAULT_ICE_CONFIG,
-          signaling_channel: signalingUrl ? "relay" : "supabase",
-        });
-
-      if (insertErr) {
-        console.error("call insert error:", insertErr);
-        return json({ error: "Failed to create call" }, 500);
-      }
-
-      // Create participant record for the caller
-      await adminClient.from("chat_call_participants").insert({
-        call_id: newCallId,
-        user_id: user.id,
-        status: "connected",
-        joined_at: new Date().toISOString(),
+      const requestedCallId = callId || crypto.randomUUID();
+      const { data, error: startErr } = await adminClient.rpc("chat_initiate_call", {
+        _room_id: roomId!,
+        _call_id: requestedCallId,
+        _ice_config: DEFAULT_ICE_CONFIG,
       });
 
-      // Build signaling credentials
+      if (startErr) {
+        console.error("call-session start error:", startErr);
+        return json({ error: startErr.message || "Failed to create call" }, 500);
+      }
+
+      const resolvedCallId = (data as string | null) || requestedCallId;
       let token: string | null = null;
       if (hmacSecret) {
         token = await buildSignalingToken(
           hmacSecret,
           user.id,
           roomId!,
-          newCallId
+          resolvedCallId
         );
       }
 
       return json({
-        call_id: newCallId,
-        signaling_url: signalingUrl || null,
+        call_id: resolvedCallId,
+        signaling_url: signalingUrl,
         token,
         ice_config: DEFAULT_ICE_CONFIG,
-        signaling_mode: signalingUrl ? "relay" : "supabase_fallback",
+        signaling_mode: signalingMode,
       });
     }
 
     // ── JOIN ──────────────────────────────────────────────────────────────
     if (action === "join") {
-      if (!callId) {
-        // Find active call in room
-        const { data: activeCalls } = await adminClient
-          .from("chat_calls")
-          .select("id, room_id")
-          .eq("room_id", roomId!)
-          .in("status", ["ringing", "active"])
-          .order("started_at", { ascending: false })
-          .limit(1);
+      let resolvedCallId = callId || null;
+      let resolvedRoomId = roomId!;
 
-        if (!activeCalls || activeCalls.length === 0) {
-          return json({ error: "No active call in this room" }, 404);
-        }
-
-        const activeCallId = activeCalls[0].id;
-
-        // Upsert participant record
-        await adminClient.from("chat_call_participants").upsert(
-          {
-            call_id: activeCallId,
-            user_id: user.id,
-            status: "connected",
-            joined_at: new Date().toISOString(),
-          },
-          { onConflict: "call_id,user_id", ignoreDuplicates: false }
-        );
-
-        // Update call status to active
-        await adminClient
-          .from("chat_calls")
-          .update({
-            status: "active",
-            connected_at: new Date().toISOString(),
-          })
-          .eq("id", activeCallId)
-          .eq("status", "ringing");
-
-        let token: string | null = null;
-        if (hmacSecret) {
-          token = await buildSignalingToken(
-            hmacSecret,
-            user.id,
-            roomId!,
-            activeCallId
-          );
-        }
-
-        return json({
-          call_id: activeCallId,
-          signaling_url: signalingUrl || null,
-          token,
-          ice_config: DEFAULT_ICE_CONFIG,
-          signaling_mode: signalingUrl ? "relay" : "supabase_fallback",
-        });
-      }
-
-      // Join specific call
-      const { data: call } = await adminClient
+      let callQuery = adminClient
         .from("chat_calls")
         .select("id, room_id, status")
-        .eq("id", callId)
+        .in("status", ["ringing", "active"])
+        .order("started_at", { ascending: false })
+        .limit(1);
+
+      callQuery = callId
+        ? callQuery.eq("id", callId)
+        : callQuery.eq("room_id", roomId!);
+
+      const { data: call, error: callErr } = await callQuery.maybeSingle();
+
+      if (callErr) {
+        console.error("call-session join lookup error:", callErr);
+        return json({ error: "Failed to load call" }, 500);
+      }
+
+      if (!call) {
+        return json({ error: "No active call found" }, 404);
+      }
+
+      resolvedCallId = call.id;
+      resolvedRoomId = call.room_id;
+
+      const { data: memberCheck } = await adminClient
+        .from("chat_room_members")
+        .select("id")
+        .eq("room_id", resolvedRoomId)
+        .eq("user_id", user.id)
+        .is("removed_at", null)
         .maybeSingle();
+
+      if (!memberCheck) {
+        return json({ error: "Not a member of this call's room" }, 403);
+      }
+
+      let token: string | null = null;
+      if (hmacSecret) {
+        token = await buildSignalingToken(
+          hmacSecret,
+          user.id,
+          resolvedRoomId,
+          resolvedCallId
+        );
+      }
+
+      return json({
+        call_id: resolvedCallId,
+        signaling_url: signalingUrl,
+        token,
+        ice_config: DEFAULT_ICE_CONFIG,
+        signaling_mode: signalingMode,
+      });
+    }
+
+    // ── END ──────────────────────────────────────────────────────────────
+    if (action === "end") {
+      const { data: call, error: callErr } = await adminClient
+        .from("chat_calls")
+        .select("id, room_id")
+        .eq("id", callId!)
+        .maybeSingle();
+
+      if (callErr) {
+        console.error("call-session end lookup error:", callErr);
+        return json({ error: "Failed to load call" }, 500);
+      }
 
       if (!call) {
         return json({ error: "Call not found" }, 404);
       }
 
-      // Verify room membership for this call's room
       const { data: memberCheck } = await adminClient
         .from("chat_room_members")
         .select("id")
@@ -319,83 +300,16 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Not a member of this call's room" }, 403);
       }
 
-      // Upsert participant
-      await adminClient.from("chat_call_participants").upsert(
-        {
-          call_id: callId,
-          user_id: user.id,
-          status: "connected",
-          joined_at: new Date().toISOString(),
-        },
-        { onConflict: "call_id,user_id", ignoreDuplicates: false }
-      );
-
-      // Update call status
-      if (call.status === "ringing") {
-        await adminClient
-          .from("chat_calls")
-          .update({
-            status: "active",
-            connected_at: new Date().toISOString(),
-          })
-          .eq("id", callId);
-      }
-
-      let token: string | null = null;
-      if (hmacSecret) {
-        token = await buildSignalingToken(
-          hmacSecret,
-          user.id,
-          call.room_id,
-          callId
-        );
-      }
-
-      return json({
-        call_id: callId,
-        signaling_url: signalingUrl || null,
-        token,
-        ice_config: DEFAULT_ICE_CONFIG,
-        signaling_mode: signalingUrl ? "relay" : "supabase_fallback",
+      const { error: endErr } = await adminClient.rpc("chat_end_call", {
+        _call_id: callId!,
+        _end_reason: endReason,
+        _signaling_channel: signalingChannel,
       });
-    }
 
-    // ── END ──────────────────────────────────────────────────────────────
-    if (action === "end") {
-      const { data: call } = await adminClient
-        .from("chat_calls")
-        .select("id, room_id, started_at, connected_at")
-        .eq("id", callId!)
-        .maybeSingle();
-
-      if (!call) {
-        return json({ error: "Call not found" }, 404);
+      if (endErr) {
+        console.error("call-session end error:", endErr);
+        return json({ error: endErr.message || "Failed to end call" }, 500);
       }
-
-      const now = new Date().toISOString();
-      const durationSeconds = call.connected_at
-        ? Math.floor(
-            (Date.now() - new Date(call.connected_at).getTime()) / 1000
-          )
-        : 0;
-
-      await adminClient
-        .from("chat_calls")
-        .update({
-          status: "ended",
-          ended_at: now,
-          end_reason: endReason,
-          duration_seconds: durationSeconds,
-        })
-        .eq("id", callId!)
-        .in("status", ["ringing", "active"]);
-
-      // Mark all participants as left
-      await adminClient
-        .from("chat_call_participants")
-        .update({ status: "left", left_at: now })
-        .eq("call_id", callId!)
-        .is("left_at", null);
 
       return json({ call_id: callId, status: "ended" });
     }
