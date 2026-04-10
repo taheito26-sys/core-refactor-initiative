@@ -10,14 +10,19 @@ interface Props {
   profitIfSold: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   roundTripSim: any;
+  qatarRates?: { sellAvg: number; buyAvg: number } | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
 }
 
-export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, t }: Props) {
+export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, qatarRates, t }: Props) {
+  // FX rate: Qatar sell avg ÷ Egypt buy avg (only for Egypt market)
+  const fxRate = market === 'egypt' && qatarRates?.sellAvg && snapshot.buyAvg
+    ? qatarRates.sellAvg / snapshot.buyAvg
+    : null;
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
-      <div className="kpis" style={{ gridTemplateColumns: `repeat(${6 + (profitIfSold ? 1 : 0) + (roundTripSim ? 1 : 0)}, minmax(0, 1fr))` }}>
+      <div className="kpis" style={{ gridTemplateColumns: `repeat(${6 + (profitIfSold ? 1 : 0) + (roundTripSim ? 1 : 0) + (fxRate ? 1 : 0)}, minmax(0, 1fr))` }}>
         <div className="kpi-card">
           <div className="kpi-lbl">{t('p2pBestSell')}</div>
           <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.bestSell ? fmtPrice(snapshot.bestSell) : '—'}</div>
@@ -68,6 +73,15 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
               {roundTripSim.profit >= 0 ? '+' : ''}${fmtTotal(roundTripSim.profit)}
             </div>
             <div className="kpi-sub">{fmtPrice(roundTripSim.pct)}% · {t('p2pSim')}</div>
+          </div>
+        )}
+        {fxRate != null && (
+          <div className="kpi-card">
+            <div className="kpi-lbl">QAR → EGP FX</div>
+            <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
+              {fmtPrice(fxRate)}
+            </div>
+            <div className="kpi-sub">1 QAR ≈ {fmtPrice(1 / fxRate)} EGP</div>
           </div>
         )}
       </div>

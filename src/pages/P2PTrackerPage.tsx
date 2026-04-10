@@ -165,6 +165,7 @@ export default function P2PTrackerPage() {
             todaySummary={todaySummary}
             profitIfSold={profitIfSold}
             roundTripSim={roundTripSim}
+            qatarRates={qatarRates}
             t={t}
           />
 
