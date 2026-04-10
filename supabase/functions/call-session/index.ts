@@ -96,6 +96,8 @@ async function fetchCloudflareTurnServers(): Promise<IceServer[]> {
     return [];
   }
 
+  const cfAbort = new AbortController();
+  const cfTimeout = setTimeout(() => cfAbort.abort(), 5_000);
   try {
     const res = await fetch(
       `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`,
@@ -106,8 +108,10 @@ async function fetchCloudflareTurnServers(): Promise<IceServer[]> {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ ttl: 86400 }),
+        signal: cfAbort.signal,
       },
     );
+    clearTimeout(cfTimeout);
     if (!res.ok) {
       const errBody = await res.text();
       console.error(`[TURN-diag] Cloudflare API error: status=${res.status} body=${errBody}`);
@@ -126,6 +130,7 @@ async function fetchCloudflareTurnServers(): Promise<IceServer[]> {
     console.log(`[TURN-diag] Cloudflare OK: totalServers=${allServers.length} turnServers=${turnOnly.length} hasCreds=${hasCreds}`);
     return turnOnly;
   } catch (err) {
+    clearTimeout(cfTimeout);
     console.error("[TURN-diag] Cloudflare TURN fetch failed:", err);
     return [];
   }

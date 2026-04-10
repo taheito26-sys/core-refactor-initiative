@@ -69,8 +69,8 @@ const MAX_RECONNECT_TRIES = 5;
 const RING_TIMEOUT_MS     = 45_000;
 const END_STATE_LINGER_MS = 3_000;
 const QUALITY_POLL_MS     = 3_000;
-const OFFER_FETCH_RETRY_MS = 400;
-const OFFER_FETCH_MAX_ATTEMPTS = 10;
+const OFFER_FETCH_RETRY_MS = 150;
+const OFFER_FETCH_MAX_ATTEMPTS = 20;
 
 function computeQualityLevel(stats: Omit<CallQualityStats, 'level'>): CallQualityStats['level'] {
   if (stats.packetLoss > 10 || stats.roundTripTime > 400 || stats.jitter > 100) return 'poor';

@@ -144,6 +144,10 @@ export const RESILIENT_ICE_CONFIG: IceConfig = {
   // Switch to 'relay' only in environments where you know direct P2P is
   // impossible (e.g. symmetric NAT behind a carrier-grade NAT).
   iceTransportPolicy: 'all',
+  // Pre-gather 4 candidates immediately when the RTCPeerConnection is created,
+  // so they are ready to publish the moment setLocalDescription() returns.
+  // Matches the value returned by the call-session edge function.
+  iceCandidatePoolSize: 4,
 };
 
 // ── Selector used by chat.ts DEFAULT_ICE_CONFIG ────────────────────────────
