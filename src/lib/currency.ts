@@ -53,8 +53,8 @@ function fmtTotalRaw(n: number): string {
 
 function fmtPriceRaw(n: number): string {
   if (!Number.isFinite(n)) return '—';
-  const truncated = truncateToDP(n, 4);
-  let s = truncated.toFixed(4);
+  const truncated = truncateToDP(n, 3);
+  let s = truncated.toFixed(3);
   if (s.includes('.')) {
     s = s.replace(/0+$/, '').replace(/\.$/, '');
   }
