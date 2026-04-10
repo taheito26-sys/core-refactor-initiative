@@ -1972,6 +1972,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          verification_tier: string
         }
         Insert: {
           avatar_url?: string | null
@@ -1994,6 +1995,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          verification_tier?: string
         }
         Update: {
           avatar_url?: string | null
@@ -2016,6 +2018,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          verification_tier?: string
         }
         Relationships: []
       }
