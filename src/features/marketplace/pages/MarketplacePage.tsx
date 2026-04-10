@@ -85,10 +85,33 @@ export default function MarketplacePage() {
 
   const analytics = useMemo(() => {
     const completed = trades.filter(t => t.status === 'completed');
+    const cancelled = trades.filter(t => t.status === 'cancelled');
     const totalVolume = completed.reduce((s, t) => s + (t.counter_total ?? t.total), 0);
     const completionRate = trades.length > 0 ? (completed.length / trades.length * 100) : 0;
-    return { completedCount: completed.length, totalVolume, completionRate, totalTrades: trades.length };
-  }, [trades]);
+    // Volume by currency
+    const byCurrency = new Map<string, { volume: number; count: number }>();
+    for (const t of completed) {
+      const cur = t.currency;
+      const entry = byCurrency.get(cur) || { volume: 0, count: 0 };
+      entry.volume += t.counter_total ?? t.total;
+      entry.count++;
+      byCurrency.set(cur, entry);
+    }
+    // Counterparty frequency
+    const byCounterparty = new Map<string, number>();
+    for (const t of trades) {
+      const name = t.counterparty_name || 'Unknown';
+      byCounterparty.set(name, (byCounterparty.get(name) || 0) + 1);
+    }
+    const topCounterparties = Array.from(byCounterparty.entries())
+      .sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return {
+      completedCount: completed.length, cancelledCount: cancelled.length,
+      totalVolume, completionRate, totalTrades: trades.length,
+      byCurrency: Array.from(byCurrency.entries()).sort((a, b) => b[1].volume - a[1].volume),
+      topCounterparties, disputeCount: disputes.length,
+    };
+  }, [trades, disputes]);
 
   const suggestedRate = qatarSnapshot?.sellAvg ?? qatarSnapshot?.buyAvg ?? null;
   const hasActiveFilters = currencyFilter !== 'all' || methodFilter !== 'all' || minAmountFilter !== '';
