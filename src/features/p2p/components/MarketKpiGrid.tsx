@@ -16,11 +16,16 @@ interface Props {
 }
 
 export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, qatarRates, t }: Props) {
-  // FX rate: Qatar sell avg ÷ Egypt buy avg (only for Egypt market)
-  const fxRate = market === 'egypt' && qatarRates?.sellAvg && snapshot.buyAvg
+  const isCrossMarket = (market === 'egypt' || market === 'ksa');
+  const currLabel = market === 'egypt' ? 'EGP' : market === 'ksa' ? 'SAR' : '';
+  const buyLabel = market === 'egypt' ? 'EG Buy' : 'KSA Buy';
+  const sellLabel = market === 'egypt' ? 'EG Sell' : 'KSA Sell';
+
+  // FX rate: Qatar sell avg ÷ local buy avg
+  const fxRate = isCrossMarket && qatarRates?.sellAvg && snapshot.buyAvg
     ? qatarRates.sellAvg / snapshot.buyAvg
     : null;
-  const fxRateV2 = market === 'egypt' && qatarRates?.sellAvg && snapshot.sellAvg
+  const fxRateV2 = isCrossMarket && qatarRates?.sellAvg && snapshot.sellAvg
     ? qatarRates.sellAvg / snapshot.sellAvg
     : null;
   return (
@@ -80,25 +85,25 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
         )}
         {fxRate != null && (
           <div className="kpi-card">
-            <div className="kpi-lbl">EGP → QAR FX</div>
+            <div className="kpi-lbl">{currLabel} → QAR FX</div>
             <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
               {fmtPrice(1 / fxRate)}
             </div>
-            <div className="kpi-sub">1 EGP ≈ {fmtPrice(fxRate)} QAR</div>
+            <div className="kpi-sub">1 {currLabel} ≈ {fmtPrice(fxRate)} QAR</div>
             <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
-              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ EG Buy {snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'}
+              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ {buyLabel} {snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'}
             </div>
           </div>
         )}
         {fxRateV2 != null && (
           <div className="kpi-card">
-            <div className="kpi-lbl">EGP V2</div>
+            <div className="kpi-lbl">{currLabel} V2</div>
             <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
               {fmtPrice(1 / fxRateV2)}
             </div>
-            <div className="kpi-sub">1 QAR ≈ {fmtPrice(1 / fxRateV2)} EGP</div>
+            <div className="kpi-sub">1 QAR ≈ {fmtPrice(1 / fxRateV2)} {currLabel}</div>
             <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
-              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ EG Sell {snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}
+              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ {sellLabel} {snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}
             </div>
           </div>
         )}
