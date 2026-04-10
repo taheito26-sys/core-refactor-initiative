@@ -2077,6 +2077,7 @@ export default function OrdersPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
             <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)} USDT</strong>
             <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>= {fmtTotal(rev)} {baseFiat}</span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {Number.isFinite(net) && (
                 <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
