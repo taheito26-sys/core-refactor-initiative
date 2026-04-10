@@ -78,6 +78,10 @@ export default function MarketplacePage() {
   // Suggested rate from P2P data
   const suggestedRate = qatarSnapshot?.sellAvg ?? qatarSnapshot?.buyAvg ?? null;
 
+  const handleOpenChat = (roomId: string) => {
+    navigate(`/chat?room=${roomId}`);
+  };
+
   return (
     <div className="p-3 md:p-6 space-y-4 max-w-6xl mx-auto">
       {/* Header */}
