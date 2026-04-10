@@ -14,11 +14,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import {
   Banknote, Coins, Plus, Loader2, Send, ArrowRightLeft, Users, TrendingUp,
   Pause, Play, Trash2, X, Check, RefreshCw, Clock,
-  MessageCircle, Star, BarChart3, Filter, Shield, ShieldCheck,
+  MessageCircle, Star, BarChart3, Filter, Shield, ShieldCheck, AlertTriangle,
+  PieChart, Activity,
 } from 'lucide-react';
 import { useOtcListings, useMyOtcListings, type OtcListing, type CreateListingInput } from '../hooks/useOtcListings';
 import { useOtcTrades, type OtcTrade, type SendOfferInput, type CounterOfferInput } from '../hooks/useOtcTrades';
 import { useOtcEscrow } from '../hooks/useOtcEscrow';
+import { useOtcDisputes, type OpenDisputeInput } from '../hooks/useOtcDisputes';
 import { useSubmitReview } from '../hooks/useOtcReviews';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
 import { toast } from 'sonner';
@@ -49,6 +51,7 @@ export default function MarketplacePage() {
   const { trades, isLoading: tradesLoading, sendOffer, counterOffer, confirmTrade, completeTrade, cancelTrade } = useOtcTrades();
   const { snapshot: qatarSnapshot } = useP2PMarketData('qatar');
   const submitReview = useSubmitReview();
+  const { disputes, openDispute } = useOtcDisputes();
 
   const initialTab = searchParams.get('tab') || 'board';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -63,6 +66,8 @@ export default function MarketplacePage() {
   const [reviewTrade, setReviewTrade] = useState<OtcTrade | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
+  const [disputeTrade, setDisputeTrade] = useState<OtcTrade | null>(null);
+  const [disputeReason, setDisputeReason] = useState('');
 
   // Filter logic
   const filteredListings = useMemo(() => {
@@ -80,10 +85,33 @@ export default function MarketplacePage() {
 
   const analytics = useMemo(() => {
     const completed = trades.filter(t => t.status === 'completed');
+    const cancelled = trades.filter(t => t.status === 'cancelled');
     const totalVolume = completed.reduce((s, t) => s + (t.counter_total ?? t.total), 0);
     const completionRate = trades.length > 0 ? (completed.length / trades.length * 100) : 0;
-    return { completedCount: completed.length, totalVolume, completionRate, totalTrades: trades.length };
-  }, [trades]);
+    // Volume by currency
+    const byCurrency = new Map<string, { volume: number; count: number }>();
+    for (const t of completed) {
+      const cur = t.currency;
+      const entry = byCurrency.get(cur) || { volume: 0, count: 0 };
+      entry.volume += t.counter_total ?? t.total;
+      entry.count++;
+      byCurrency.set(cur, entry);
+    }
+    // Counterparty frequency
+    const byCounterparty = new Map<string, number>();
+    for (const t of trades) {
+      const name = t.counterparty_name || 'Unknown';
+      byCounterparty.set(name, (byCounterparty.get(name) || 0) + 1);
+    }
+    const topCounterparties = Array.from(byCounterparty.entries())
+      .sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return {
+      completedCount: completed.length, cancelledCount: cancelled.length,
+      totalVolume, completionRate, totalTrades: trades.length,
+      byCurrency: Array.from(byCurrency.entries()).sort((a, b) => b[1].volume - a[1].volume),
+      topCounterparties, disputeCount: disputes.length,
+    };
+  }, [trades, disputes]);
 
   const suggestedRate = qatarSnapshot?.sellAvg ?? qatarSnapshot?.buyAvg ?? null;
   const hasActiveFilters = currencyFilter !== 'all' || methodFilter !== 'all' || minAmountFilter !== '';
@@ -235,6 +263,7 @@ export default function MarketplacePage() {
                       onComplete={() => completeTrade.mutate(trade.id, { onSuccess: () => toast.success('Trade completed!') })}
                       onCancel={() => cancelTrade.mutate(trade.id, { onSuccess: () => toast.info('Trade cancelled') })}
                       onEscrow={() => setEscrowTradeId(trade.id)}
+                      onDispute={() => { setDisputeTrade(trade); setDisputeReason(''); }}
                     />
                   ))}
                 </div>
@@ -246,6 +275,7 @@ export default function MarketplacePage() {
                     <TradeCard key={trade.id} trade={trade} userId={userId!}
                       onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)}
                       onReview={() => { setReviewTrade(trade); setReviewRating(5); setReviewComment(''); }}
+                      onDispute={() => { setDisputeTrade(trade); setDisputeReason(''); }}
                     />
                   ))}
                 </div>
@@ -259,9 +289,10 @@ export default function MarketplacePage() {
           <div className="grid grid-cols-2 gap-2">
             <Card className="p-3"><div className="flex items-center gap-2"><Check className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.completedCount}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Completed</div></div></div></Card>
             <Card className="p-3"><div className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{fmtAmt(analytics.totalVolume)}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Volume</div></div></div></Card>
-            <Card className="p-3"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.completionRate.toFixed(0)}%</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Rate</div></div></div></Card>
-            <Card className="p-3"><div className="flex items-center gap-2"><ArrowRightLeft className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.totalTrades}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</div></div></div></Card>
+            <Card className="p-3"><div className="flex items-center gap-2"><Star className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.completionRate.toFixed(0)}%</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Success Rate</div></div></div></Card>
+            <Card className="p-3"><div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-primary/60" /><div><div className="text-lg font-black">{analytics.disputeCount}</div><div className="text-[10px] text-muted-foreground uppercase tracking-wider">Disputes</div></div></div></Card>
           </div>
+
           {suggestedRate && (
             <Card className="p-3">
               <div className="text-xs">
@@ -270,6 +301,57 @@ export default function MarketplacePage() {
                 <span className="text-[10px] text-muted-foreground ml-1">QAR/USDT</span>
               </div>
             </Card>
+          )}
+
+          {/* Volume by Currency */}
+          {analytics.byCurrency.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><PieChart className="h-3 w-3" /> Volume by Currency</h3>
+              {analytics.byCurrency.map(([currency, data]) => (
+                <Card key={currency} className="p-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[9px] px-1 py-0">{currency}</Badge>
+                      <span className="text-xs font-bold">{data.count} trades</span>
+                    </div>
+                    <span className="text-xs font-black text-primary">{fmtAmt(data.volume)}</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${Math.min(100, (data.volume / (analytics.totalVolume || 1)) * 100)}%` }} />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Top Counterparties */}
+          {analytics.topCounterparties.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Activity className="h-3 w-3" /> Top Counterparties</h3>
+              {analytics.topCounterparties.map(([name, count]) => (
+                <Card key={name} className="p-2.5 flex items-center justify-between">
+                  <span className="text-xs font-bold truncate max-w-[180px]">{name}</span>
+                  <Badge variant="secondary" className="text-[9px] px-1.5">{count} trades</Badge>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Disputes Summary */}
+          {disputes.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Recent Disputes</h3>
+              {disputes.slice(0, 3).map(d => (
+                <Card key={d.id} className="p-2.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <Badge className={`text-[9px] px-1 py-0 ${d.status === 'open' ? 'bg-amber-500/10 text-amber-600' : d.status === 'resolved' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{d.status}</Badge>
+                    <span className="text-[9px] text-muted-foreground">{getTimeAgo(d.created_at)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground truncate">{d.reason}</p>
+                  {d.resolution_note && <p className="text-[10px] text-primary mt-0.5">Resolution: {d.resolution_note}</p>}
+                </Card>
+              ))}
+            </div>
           )}
 
           {/* Market Depth */}
@@ -320,6 +402,39 @@ export default function MarketplacePage() {
                 }}>
                 {submitReview.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Star className="h-3.5 w-3.5" />}
                 Submit Review
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Dispute Dialog */}
+      {disputeTrade && (
+        <Dialog open={!!disputeTrade} onOpenChange={v => { if (!v) setDisputeTrade(null); }}>
+          <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
+            <DialogHeader><DialogTitle className="text-sm font-bold flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 text-amber-500" /> Open Dispute</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="text-xs bg-muted/50 rounded-lg p-2.5 space-y-1">
+                <div className="flex justify-between"><span className="text-muted-foreground">Trade with:</span><span className="font-bold">{disputeTrade.counterparty_name}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Amount:</span><span className="font-bold">{fmtAmt(disputeTrade.counter_amount ?? disputeTrade.amount)} {disputeTrade.currency}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><Badge className={`text-[9px] px-1 py-0 ${STATUS_COLORS[disputeTrade.status]}`}>{disputeTrade.status}</Badge></div>
+              </div>
+              <div className="bg-amber-500/5 rounded-lg p-2.5 text-[10px] text-amber-700 dark:text-amber-400">
+                ⚠️ Disputes are reviewed by the admin team. Please provide a clear reason for your dispute. Both parties will be notified.
+              </div>
+              <Textarea placeholder="Describe the issue in detail..." value={disputeReason} onChange={e => setDisputeReason(e.target.value)} className="text-xs min-h-[80px]" />
+            </div>
+            <DialogFooter>
+              <Button size="sm" variant="destructive" className="w-full gap-1.5" disabled={openDispute.isPending || !disputeReason.trim()}
+                onClick={() => {
+                  const respondentId = disputeTrade.initiator_user_id === userId ? disputeTrade.responder_user_id : disputeTrade.initiator_user_id;
+                  openDispute.mutate({ trade_id: disputeTrade.id, respondent_user_id: respondentId, reason: disputeReason }, {
+                    onSuccess: () => { toast.success('Dispute opened. Admin team will review.'); setDisputeTrade(null); },
+                    onError: (err) => toast.error(err.message),
+                  });
+                }}>
+                {openDispute.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                Open Dispute
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -413,9 +528,9 @@ function MyListingCard({ listing, onTogglePause, onDelete }: { listing: OtcListi
   );
 }
 
-function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel, onEscrow, onReview }: {
+function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete, onCancel, onEscrow, onReview, onDispute }: {
   trade: OtcTrade; userId: string;
-  onOpenChat?: (roomId: string) => void; onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void; onEscrow?: () => void; onReview?: () => void;
+  onOpenChat?: (roomId: string) => void; onCounter?: () => void; onConfirm?: () => void; onComplete?: () => void; onCancel?: () => void; onEscrow?: () => void; onReview?: () => void; onDispute?: () => void;
 }) {
   const isInitiator = trade.initiator_user_id === userId;
   const isActive = !['completed', 'cancelled', 'expired'].includes(trade.status);
@@ -478,11 +593,15 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
               <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
             )}
             <Button size="sm" variant="ghost" className="h-6 text-[9px] text-destructive gap-0.5" onClick={onCancel}><X className="h-2.5 w-2.5" /> Cancel</Button>
+            {onDispute && (
+              <Button size="sm" variant="ghost" className="h-6 text-[9px] text-amber-600 gap-0.5" onClick={onDispute}><AlertTriangle className="h-2.5 w-2.5" /> Dispute</Button>
+            )}
           </div>
         )}
-        {!isActive && trade.status === 'completed' && onReview && (
+        {!isActive && trade.status === 'completed' && (
           <div className="flex flex-col gap-0.5 shrink-0">
-            <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={onReview}><Star className="h-2.5 w-2.5" /> Review</Button>
+            {onReview && <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={onReview}><Star className="h-2.5 w-2.5" /> Review</Button>}
+            {onDispute && <Button size="sm" variant="ghost" className="h-6 text-[9px] text-amber-600 gap-0.5" onClick={onDispute}><AlertTriangle className="h-2.5 w-2.5" /> Dispute</Button>}
             {trade.chat_room_id && onOpenChat && (
               <Button size="sm" variant="ghost" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
             )}

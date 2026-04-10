@@ -2901,6 +2901,62 @@ export type Database = {
           },
         ]
       }
+      otc_disputes: {
+        Row: {
+          admin_mediator_id: string | null
+          created_at: string
+          evidence_urls: string[]
+          id: string
+          opened_by: string
+          reason: string
+          resolution: string | null
+          resolution_note: string | null
+          respondent_evidence_urls: string[]
+          respondent_user_id: string
+          status: string
+          trade_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_mediator_id?: string | null
+          created_at?: string
+          evidence_urls?: string[]
+          id?: string
+          opened_by: string
+          reason?: string
+          resolution?: string | null
+          resolution_note?: string | null
+          respondent_evidence_urls?: string[]
+          respondent_user_id: string
+          status?: string
+          trade_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_mediator_id?: string | null
+          created_at?: string
+          evidence_urls?: string[]
+          id?: string
+          opened_by?: string
+          reason?: string
+          resolution?: string | null
+          resolution_note?: string | null
+          respondent_evidence_urls?: string[]
+          respondent_user_id?: string
+          status?: string
+          trade_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_disputes_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "otc_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       otc_escrow: {
         Row: {
           amount: number
