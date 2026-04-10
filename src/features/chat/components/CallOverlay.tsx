@@ -185,7 +185,48 @@ export function CallOverlay({ webrtc }: Props) {
     );
   }
 
-  // Audio-only overlay bar
+  // Mobile full-screen incoming call overlay
+  if (isMobile && isRinging) {
+    return (
+      <div className="absolute inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center pointer-events-auto safe-area-inset">
+        {/* Pulsing ring indicator */}
+        <div className="relative mb-8">
+          <div className="absolute inset-0 rounded-full bg-violet-500/20 animate-ping" style={{ width: 120, height: 120, top: -10, left: -10 }} />
+          <div className="h-24 w-24 rounded-full bg-violet-900/60 border-2 border-violet-400/40 flex items-center justify-center">
+            <PhoneIncoming className="h-10 w-10 text-violet-300" />
+          </div>
+        </div>
+
+        <h2 className="text-white text-xl font-bold mb-1">Incoming Call</h2>
+        <p className="text-violet-300/80 text-sm mb-12">Ringing…</p>
+
+        {/* Accept / Decline buttons */}
+        <div className="flex items-center gap-12">
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={declineIncoming}
+              className="h-16 w-16 rounded-full bg-destructive text-white flex items-center justify-center shadow-lg shadow-red-500/40 active:scale-90 transition-transform"
+            >
+              <PhoneOff className="h-7 w-7" />
+            </button>
+            <span className="text-xs text-red-300/80 font-medium">Decline</span>
+          </div>
+
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={answerIncoming}
+              className="h-16 w-16 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/40 active:scale-90 transition-transform animate-bounce"
+            >
+              <Phone className="h-7 w-7" />
+            </button>
+            <span className="text-xs text-emerald-300/80 font-medium">Accept</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Audio-only overlay bar (desktop + non-ringing mobile states)
   return (
     <div className={cn(
       'absolute inset-x-0 top-0 flex justify-center z-50 pointer-events-none',
