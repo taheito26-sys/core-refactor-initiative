@@ -31,7 +31,7 @@ export class SupabaseSignalingChannel implements SignalingChannel {
       }
 
       const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`,
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/chat_calls?select=id&limit=0`,
         {
           headers,
           signal: controller.signal,
