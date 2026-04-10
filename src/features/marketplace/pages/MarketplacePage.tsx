@@ -48,6 +48,7 @@ export default function MarketplacePage() {
   const { myListings, isLoading: myLoading, create, update, remove } = useMyOtcListings();
   const { trades, isLoading: tradesLoading, sendOffer, counterOffer, confirmTrade, completeTrade, cancelTrade } = useOtcTrades();
   const { snapshot: qatarSnapshot } = useP2PMarketData('qatar');
+  const submitReview = useSubmitReview();
 
   const initialTab = searchParams.get('tab') || 'board';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -59,6 +60,9 @@ export default function MarketplacePage() {
   const [showOfferDialog, setShowOfferDialog] = useState<OtcListing | null>(null);
   const [showCounterDialog, setShowCounterDialog] = useState<OtcTrade | null>(null);
   const [escrowTradeId, setEscrowTradeId] = useState<string | null>(null);
+  const [reviewTrade, setReviewTrade] = useState<OtcTrade | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
 
   // Filter logic
   const filteredListings = useMemo(() => {
