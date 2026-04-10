@@ -671,9 +671,11 @@ export async function getActiveCall(roomId: string): Promise<ChatCall | null> {
     .select('*')
     .eq('room_id', roomId)
     .in('status', ['ringing', 'active'])
-    .maybeSingle();
+    .order('started_at', { ascending: false })
+    .limit(1);
   if (error) throw rpcError('getActiveCall', error);
-  return data as unknown as ChatCall | null;
+  const rows = data as unknown as ChatCall[];
+  return rows?.[0] ?? null;
 }
 
 const ROOM_CLEAR_STORAGE_KEY = 'chat_room_cleared_at';
