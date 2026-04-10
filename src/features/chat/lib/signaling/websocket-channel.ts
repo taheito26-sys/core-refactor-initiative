@@ -247,6 +247,10 @@ export class WebSocketSignalingChannel implements SignalingChannel {
     if (this.authToken) {
       url += `&token=${encodeURIComponent(this.authToken)}`;
     }
+    // Pass callId so relay can verify against the token's call claim
+    if (this.subParams?.callId) {
+      url += `&call=${encodeURIComponent(this.subParams.callId)}`;
+    }
 
     const ws = new WebSocket(url);
     this.ws = ws;
