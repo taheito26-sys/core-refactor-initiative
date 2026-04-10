@@ -2,6 +2,7 @@
 // All supabase calls go through here. Components never touch supabase directly.
 
 import { supabase } from '@/integrations/supabase/client';
+import { selectIceConfig } from '../lib/resilient-ice';
 import type {
   ChatMessage, ChatRoomListItem, ChatRoomMember, ChatAttachment,
   ChatCall, ChatCallParticipant, ChatReaction, SendMessageInput,
@@ -608,22 +609,13 @@ export async function getAttachment(messageId: string): Promise<ChatAttachment |
 
 // ── Calls ──────────────────────────────────────────────────────────────────
 
-/** Default ICE config using public STUNs + the relay fallback */
-export const DEFAULT_ICE_CONFIG: IceConfig = {
-  iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-    { urls: ['stun:stun.cloudflare.com:3478'] },
-    // TURN relay — replace with your own credentials in production
-    ...(import.meta.env.VITE_TURN_URL
-      ? [{
-          urls:       import.meta.env.VITE_TURN_URL as string,
-          username:   import.meta.env.VITE_TURN_USERNAME as string,
-          credential: import.meta.env.VITE_TURN_CREDENTIAL as string,
-        }]
-      : []),
-  ],
-  iceTransportPolicy: 'all',   // 'relay' to force TURN only
-};
+/**
+ * ICE configuration: 15+ STUN servers across diverse providers/geographies
+ * + multi-transport TURN (UDP 3478, TCP 443, TLS 443).
+ * TCP/TLS on port 443 masquerades as HTTPS, bypassing most DPI firewalls.
+ * See src/features/chat/lib/resilient-ice.ts for the full server list.
+ */
+export const DEFAULT_ICE_CONFIG: IceConfig = selectIceConfig();
 
 export async function initiateCall(roomId: string): Promise<string> {
   const { data, error } = await supabase.rpc('chat_initiate_call', {

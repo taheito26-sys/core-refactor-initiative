@@ -6,10 +6,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import {
-  initiateCall, answerCall, endCall, pushIceCandidate,
-  getActiveCall, DEFAULT_ICE_CONFIG, getCallParticipants,
+  DEFAULT_ICE_CONFIG, getCallParticipants,
 } from '../api/chat';
 import { useChatStore } from '@/lib/chat-store';
+import { MultiSignalingChannel } from '../lib/signaling/multi-channel';
+import type { SignalingHandlers } from '../lib/signaling/types';
 import type { ChatCall } from '../types';
 
 export type CallState =
@@ -102,9 +103,20 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // Group calls: map of peerId → RTCPeerConnection
   const groupPCs        = useRef<Map<string, RTCPeerConnection>>(new Map());
 
-  // Keep ref in sync with state
+  // Multi-channel signaling (Supabase + WS relay; lazy init once per mount)
+  const signalingRef    = useRef<MultiSignalingChannel | null>(null);
+  if (!signalingRef.current) {
+    signalingRef.current = MultiSignalingChannel.create();
+  }
+  const signaling = signalingRef.current;
+
+  // Incoming call ref — kept in sync with state so async handlers see current value
+  const incomingCallRef = useRef<ChatCall | null>(null);
+
+  // Keep refs in sync with state
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
   useEffect(() => { roomIdRef.current = roomId; }, [roomId]);
+  useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
 
   const setActiveCallId   = useChatStore((s) => s.setActiveCallId);
   const storeActiveCallId = useChatStore((s) => s.activeCallId);
@@ -249,7 +261,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.onicecandidate = (e) => {
       if (e.candidate && callIdRef.current) {
-        pushIceCandidate(callIdRef.current, e.candidate.toJSON()).catch(() => {});
+        signaling.publishIceCandidate(callIdRef.current, e.candidate.toJSON()).catch(() => {});
       }
     };
 
@@ -275,14 +287,14 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           }, RECONNECT_DELAY_MS);
         } else {
           const cid = callIdRef.current;
-          if (cid) endCall(cid, 'failed').catch(() => {});
+          if (cid) signaling.publishCallEnd(cid, 'failed').catch(() => {});
           cleanup();
           transitionToEnd('failed', 'connection_lost');
         }
       }
       if (s === 'failed') {
         const cid = callIdRef.current;
-        if (cid) endCall(cid, 'failed').catch(() => {});
+        if (cid) signaling.publishCallEnd(cid, 'failed').catch(() => {});
         cleanup();
         transitionToEnd('failed', 'ice_failed');
       }
@@ -333,8 +345,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const startCallFn = useCallback(async (video = false) => {
     if (!roomId || !userId || callState !== 'idle') return;
     try {
+      // Probe all channels in parallel; populates availableChannels for routing
+      signaling.isAvailable().catch(() => {});
+
       const stream = await getMedia(video);
-      const callId = await initiateCall(roomId);
+      const callId = await signaling.initiateCall(roomId);
       callIdRef.current = callId;
       setActiveCallId(callId);
       setCallState('calling');
@@ -350,11 +365,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       });
       await peerConn.setLocalDescription(offer);
 
-      await supabase
-        .from('chat_call_participants')
-        .update({ sdp_offer: offer.sdp } as never)
-        .eq('call_id', callId)
-        .eq('user_id', userId);
+      // Broadcast SDP offer on all available channels simultaneously
+      await signaling.publishOffer(callId, roomId, offer.sdp!, userId);
 
       // Send push notification
       sendCallPush(callId, roomId);
@@ -362,7 +374,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       // Ring timeout → missed
       ringTimer.current = setTimeout(async () => {
         if (callIdRef.current === callId) {
-          await endCall(callId, 'no_answer').catch(() => {});
+          await signaling.publishCallEnd(callId, 'no_answer').catch(() => {});
           cleanup();
           transitionToEnd('missed', 'no_answer');
         }
@@ -390,22 +402,28 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       pc.current = peerConn;
       stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
 
-      const { data } = await supabase
-        .from('chat_call_participants' as never)
-        .select('sdp_offer')
-        .eq('call_id', callId)
-        .eq('user_id', incomingCall.initiated_by)
-        .single();
-
+      // Try SDP offer from in-memory state first (delivered by WS channel,
+      // stashed on the ChatCall object by the signaling useEffect below).
+      // Fall back to a direct Supabase fetch for the Supabase channel path.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const offerSdp = (data as any)?.sdp_offer;
+      let offerSdp: string | null = (incomingCall as any)._sdpOffer ?? null;
+      if (!offerSdp) {
+        const { data } = await supabase
+          .from('chat_call_participants' as never)
+          .select('sdp_offer')
+          .eq('call_id', callId)
+          .eq('user_id', incomingCall.initiated_by)
+          .single();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        offerSdp = (data as any)?.sdp_offer ?? null;
+      }
       if (!offerSdp) throw new Error('No SDP offer from initiator');
 
       await peerConn.setRemoteDescription({ type: 'offer', sdp: offerSdp });
       const answer = await peerConn.createAnswer();
       await peerConn.setLocalDescription(answer);
 
-      await answerCall(callId, answer.sdp!);
+      await signaling.publishAnswer(callId, answer.sdp!);
       setIncomingCall(null);
       useChatStore.getState().setIncomingCall(null, null);
 
@@ -419,21 +437,21 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // ── DECLINE ───────────────────────────────────────────────────────────
   const declineIncoming = useCallback(async () => {
     if (!incomingCall) return;
-    await endCall(incomingCall.id, 'declined').catch(() => {});
+    await signaling.publishCallEnd(incomingCall.id, 'declined').catch(() => {});
     setIncomingCall(null);
     useChatStore.getState().setIncomingCall(null, null);
     transitionToEnd('declined', 'declined');
-  }, [incomingCall, transitionToEnd]);
+  }, [incomingCall, signaling, transitionToEnd]);
 
   // ── HANG UP ───────────────────────────────────────────────────────────
   const hangUp = useCallback(async () => {
     const cid = callIdRef.current;
     if (cid) {
-      await endCall(cid, 'ended').catch(() => {});
+      await signaling.publishCallEnd(cid, 'ended').catch(() => {});
     }
     cleanup();
     transitionToEnd('ended', 'ended');
-  }, [cleanup, transitionToEnd]);
+  }, [signaling, cleanup, transitionToEnd]);
 
   // ── MUTE ──────────────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
@@ -530,114 +548,82 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }
   }, [localStream, isScreenSharing]);
 
-  // ── REALTIME: incoming calls (replaces polling) ───────────────────────
+  // ── SIGNALING: incoming calls + ICE + SDP answer ─────────────────────
+  // Uses MultiSignalingChannel: Supabase Realtime (primary) + WebSocket relay
+  // (fallback). Either channel delivering a message is sufficient.
+  // If Supabase is blocked, the WS relay carries all signaling transparently.
   useEffect(() => {
     if (!roomId || !userId) return;
 
-    // Initial check for any active ringing call
-    let cancelled = false;
-    (async () => {
-      try {
-        const call = await getActiveCall(roomId);
-        if (cancelled) return;
-        if (call && call.status === 'ringing' && call.initiated_by !== userId && !callIdRef.current) {
-          setIncomingCall(call);
-          setCallState('ringing');
-          useChatStore.getState().setIncomingCall(call.id, roomId);
+    const sig = signalingRef.current;
+    if (!sig) return;
+
+    // Non-blocking availability probe; populates availableChannels so
+    // subsequent publish calls route correctly even before the first call.
+    sig.isAvailable().catch(() => {});
+
+    const handlers: SignalingHandlers = {
+      // ── incoming call ──────────────────────────────────────────────────
+      onIncomingCall: (callId, sdpOffer, initiatedBy) => {
+        if (callIdRef.current) return; // already in a call
+        const incoming = {
+          id: callId,
+          room_id: roomId,
+          initiated_by: initiatedBy,
+          status: 'ringing',
+          started_at: new Date().toISOString(),
+          connected_at: null,
+          ended_at: null,
+          duration_seconds: null,
+          end_reason: null,
+          ice_config: null,
+          quality_stats: null,
+          created_at: new Date().toISOString(),
+          // Stash SDP offer when delivered by WS channel so answerIncoming
+          // can use it without a Supabase round-trip in censored environments.
+          ...(sdpOffer ? { _sdpOffer: sdpOffer } : {}),
+        } as ChatCall;
+        setIncomingCall(incoming);
+        setCallState('ringing');
+        useChatStore.getState().setIncomingCall(callId, roomId);
+      },
+
+      // ── SDP answer from callee ─────────────────────────────────────────
+      onAnswer: (sdpAnswer) => {
+        if (!pc.current || pc.current.signalingState !== 'have-local-offer') return;
+        pc.current
+          .setRemoteDescription({ type: 'answer', sdp: sdpAnswer })
+          .then(() => setCallState('connecting'))
+          .catch(() => { /* already set or closed */ });
+      },
+
+      // ── trickle ICE candidate ──────────────────────────────────────────
+      onIceCandidate: (candidate) => {
+        if (!pc.current) return;
+        pc.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => { /* stale */ });
+      },
+
+      // ── remote ended / cancelled ───────────────────────────────────────
+      onCallEnd: (reason) => {
+        if (callIdRef.current) {
+          cleanup();
+          if (reason === 'declined') {
+            transitionToEnd('declined', 'remote_declined');
+          } else {
+            transitionToEnd('ended', 'remote_ended');
+          }
+        } else if (incomingCallRef.current) {
+          setIncomingCall(null);
+          useChatStore.getState().setIncomingCall(null, null);
+          transitionToEnd('missed', 'caller_cancelled');
         }
-      } catch { /* ignore */ }
-    })();
+      },
+    };
 
-    // Realtime subscription on chat_calls for this room
-    const callsCh = supabase
-      .channel(`chat-calls-rt-${roomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_calls',
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const row = payload.new as any;
-          if (!row) return;
-
-          // New or updated call
-          if (row.status === 'ringing' && row.initiated_by !== userId && !callIdRef.current) {
-            const incoming: ChatCall = row as ChatCall;
-            setIncomingCall(incoming);
-            setCallState('ringing');
-            useChatStore.getState().setIncomingCall(incoming.id, roomId);
-          }
-
-          // Call ended/cancelled by the other party
-          if (['ended', 'missed', 'declined', 'failed', 'no_answer'].includes(row.status)) {
-            if (row.id === callIdRef.current) {
-              cleanup();
-              if (row.end_reason === 'declined') {
-                transitionToEnd('declined', 'remote_declined');
-              } else {
-                transitionToEnd('ended', 'remote_ended');
-              }
-            }
-            // Incoming call was cancelled
-            if (incomingCall?.id === row.id) {
-              setIncomingCall(null);
-              useChatStore.getState().setIncomingCall(null, null);
-              transitionToEnd('missed', 'caller_cancelled');
-            }
-          }
-        },
-      )
-      .subscribe();
-
-    // ICE + SDP answer channel
-    const iceCh = supabase
-      .channel(`chat-ice-${userId}-${roomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'chat_call_participants',
-        },
-        async (payload) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const row = payload.new as any;
-          if (!pc.current || !row) return;
-
-          const relevantCallId = callIdRef.current ?? incomingCall?.id;
-          if (!relevantCallId || row.call_id !== relevantCallId) return;
-          if (row.user_id === userId) return;
-
-          const remoteIceCandidates = Array.isArray(row.ice_candidates) ? row.ice_candidates : [];
-          const alreadyProcessed = processedRemoteIceCounts.current.get(row.id) ?? 0;
-          const nextCandidates = remoteIceCandidates.slice(alreadyProcessed);
-          if (nextCandidates.length > 0) {
-            for (const candidate of nextCandidates) {
-              try {
-                await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
-              } catch { /* stale */ }
-            }
-            processedRemoteIceCounts.current.set(row.id, remoteIceCandidates.length);
-          }
-
-          if (row.sdp_answer && pc.current.signalingState === 'have-local-offer') {
-            try {
-              await pc.current.setRemoteDescription({ type: 'answer', sdp: row.sdp_answer });
-              setCallState('connecting');
-            } catch { /* already set */ }
-          }
-        },
-      )
-      .subscribe();
+    const unsubscribe = sig.subscribe(null, roomId, userId, handlers);
 
     return () => {
-      cancelled = true;
-      supabase.removeChannel(callsCh);
-      supabase.removeChannel(iceCh);
+      unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, userId]);
@@ -688,7 +674,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   useEffect(() => {
     return () => {
       if (callIdRef.current) {
-        endCall(callIdRef.current, 'navigated_away').catch(() => {});
+        signalingRef.current?.publishCallEnd(callIdRef.current, 'navigated_away').catch(() => {});
       }
       cleanup();
       if (lingerTimer.current) clearTimeout(lingerTimer.current);
@@ -700,7 +686,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   useEffect(() => {
     return () => {
       if (callIdRef.current) {
-        endCall(callIdRef.current, 'room_changed').catch(() => {});
+        signalingRef.current?.publishCallEnd(callIdRef.current, 'room_changed').catch(() => {});
         cleanup();
         setCallState('idle');
         setEndReason(null);
