@@ -14,11 +14,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import {
   Banknote, Coins, Plus, Loader2, Send, ArrowRightLeft, Users, TrendingUp,
   Pause, Play, Trash2, X, Check, RefreshCw, Clock,
-  MessageCircle, Star, BarChart3, Filter, Shield, ShieldCheck,
+  MessageCircle, Star, BarChart3, Filter, Shield, ShieldCheck, AlertTriangle,
+  PieChart, Activity,
 } from 'lucide-react';
 import { useOtcListings, useMyOtcListings, type OtcListing, type CreateListingInput } from '../hooks/useOtcListings';
 import { useOtcTrades, type OtcTrade, type SendOfferInput, type CounterOfferInput } from '../hooks/useOtcTrades';
 import { useOtcEscrow } from '../hooks/useOtcEscrow';
+import { useOtcDisputes, type OpenDisputeInput } from '../hooks/useOtcDisputes';
 import { useSubmitReview } from '../hooks/useOtcReviews';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
 import { toast } from 'sonner';
@@ -49,6 +51,7 @@ export default function MarketplacePage() {
   const { trades, isLoading: tradesLoading, sendOffer, counterOffer, confirmTrade, completeTrade, cancelTrade } = useOtcTrades();
   const { snapshot: qatarSnapshot } = useP2PMarketData('qatar');
   const submitReview = useSubmitReview();
+  const { disputes, openDispute } = useOtcDisputes();
 
   const initialTab = searchParams.get('tab') || 'board';
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -63,6 +66,8 @@ export default function MarketplacePage() {
   const [reviewTrade, setReviewTrade] = useState<OtcTrade | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
+  const [disputeTrade, setDisputeTrade] = useState<OtcTrade | null>(null);
+  const [disputeReason, setDisputeReason] = useState('');
 
   // Filter logic
   const filteredListings = useMemo(() => {
