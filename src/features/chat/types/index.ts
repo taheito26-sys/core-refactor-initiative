@@ -269,6 +269,7 @@ export interface ChatCallParticipant {
 export interface IceConfig {
   iceServers: RTCIceServer[];
   iceTransportPolicy?: RTCIceTransportPolicy;
+  iceCandidatePoolSize?: number;
 }
 
 // ── Presence ───────────────────────────────────────────────────────────────
