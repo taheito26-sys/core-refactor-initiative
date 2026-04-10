@@ -243,7 +243,10 @@ export default function MarketplacePage() {
                 <div className="space-y-2">
                   <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">History</h3>
                   {completedTrades.map(trade => (
-                    <TradeCard key={trade.id} trade={trade} userId={userId!} onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)} />
+                    <TradeCard key={trade.id} trade={trade} userId={userId!}
+                      onOpenChat={(roomId) => navigate(`/chat?room=${roomId}`)}
+                      onReview={() => { setReviewTrade(trade); setReviewRating(5); setReviewComment(''); }}
+                    />
                   ))}
                 </div>
               )}
