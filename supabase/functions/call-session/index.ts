@@ -154,20 +154,28 @@ function loadStaticTurnServers(): IceServer[] {
   return out;
 }
 
-const DEFAULT_ICE_CONFIG = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun.cloudflare.com:3478" },
-    { urls: "stun:stun.nextcloud.com:443" },
-    ...loadTurnServers(),
-  ],
-  iceTransportPolicy: "all",
-  iceCandidatePoolSize: 4,
-};
+const STUN_SERVERS: IceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  { urls: "stun:stun3.l.google.com:19302" },
+  { urls: "stun:stun4.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:stun.nextcloud.com:443" },
+];
+
+async function buildIceConfig() {
+  // Try Cloudflare first, fall back to static env vars
+  let turnServers = await fetchCloudflareTurnServers();
+  if (turnServers.length === 0) {
+    turnServers = loadStaticTurnServers();
+  }
+  return {
+    iceServers: [...STUN_SERVERS, ...turnServers],
+    iceTransportPolicy: "all",
+    iceCandidatePoolSize: 4,
+  };
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
