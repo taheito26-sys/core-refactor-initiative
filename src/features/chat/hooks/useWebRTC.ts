@@ -64,11 +64,17 @@ const MAX_RECONNECT_TRIES = 5;
 const RING_TIMEOUT_MS     = 45_000;
 const END_STATE_LINGER_MS = 3_000;
 const QUALITY_POLL_MS     = 3_000;
+const OFFER_FETCH_RETRY_MS = 400;
+const OFFER_FETCH_MAX_ATTEMPTS = 10;
 
 function computeQualityLevel(stats: Omit<CallQualityStats, 'level'>): CallQualityStats['level'] {
   if (stats.packetLoss > 10 || stats.roundTripTime > 400 || stats.jitter > 100) return 'poor';
   if (stats.packetLoss > 3 || stats.roundTripTime > 200 || stats.jitter > 50) return 'good';
   return 'excellent';
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function useWebRTC(roomId: string | null): UseWebRTCReturn {
@@ -478,14 +484,24 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let offerSdp: string | null = (incomingCall as any)._sdpOffer ?? null;
       if (!offerSdp) {
-        const { data } = await supabase
-          .from('chat_call_participants' as never)
-          .select('sdp_offer')
-          .eq('call_id', callId)
-          .eq('user_id', incomingCall.initiated_by)
-          .single();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        offerSdp = (data as any)?.sdp_offer ?? null;
+        for (let attempt = 0; attempt < OFFER_FETCH_MAX_ATTEMPTS && !offerSdp; attempt++) {
+          const { data, error } = await supabase
+            .from('chat_call_participants' as never)
+            .select('sdp_offer')
+            .eq('call_id', callId)
+            .eq('user_id', incomingCall.initiated_by)
+            .maybeSingle();
+
+          if (error) {
+            throw error;
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          offerSdp = (data as any)?.sdp_offer ?? null;
+          if (!offerSdp) {
+            await wait(OFFER_FETCH_RETRY_MS);
+          }
+        }
       }
       if (!offerSdp) throw new Error('No SDP offer from initiator');
 

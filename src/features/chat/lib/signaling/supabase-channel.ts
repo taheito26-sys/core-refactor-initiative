@@ -57,11 +57,12 @@ export class SupabaseSignalingChannel implements SignalingChannel {
     sdp: string,
     initiatorId: string,
   ): Promise<void> {
-    await supabase
+    const { error } = await supabase
       .from('chat_call_participants' as never)
       .update({ sdp_offer: sdp } as never)
       .eq('call_id', callId)
       .eq('user_id', initiatorId);
+    if (error) throw error;
   }
 
   async publishAnswer(callId: string, sdp: string): Promise<void> {
