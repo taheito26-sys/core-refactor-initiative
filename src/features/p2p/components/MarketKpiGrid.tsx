@@ -77,11 +77,11 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
         )}
         {fxRate != null && (
           <div className="kpi-card">
-            <div className="kpi-lbl">QAR → EGP FX</div>
+            <div className="kpi-lbl">EGP → QAR FX</div>
             <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
-              {fmtPrice(fxRate)}
+              {fmtPrice(1 / fxRate)}
             </div>
-            <div className="kpi-sub">1 QAR ≈ {fmtPrice(1 / fxRate)} EGP</div>
+            <div className="kpi-sub">1 EGP ≈ {fmtPrice(fxRate)} QAR</div>
           </div>
         )}
       </div>
