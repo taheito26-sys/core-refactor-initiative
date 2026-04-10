@@ -30,7 +30,7 @@ export function useOtcReviews(reviewedUserId: string | null) {
       if (error) throw error;
 
       // Enrich with reviewer names
-      const reviewerIds = [...new Set((data || []).map((r: any) => r.reviewer_user_id))];
+      const reviewerIds = [...new Set((data || []).map((r: any) => r.reviewer_user_id as string))];
       const { data: profiles } = await supabase
         .from('merchant_profiles')
         .select('user_id, display_name')
