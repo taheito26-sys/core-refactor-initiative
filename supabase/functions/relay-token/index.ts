@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-function base64url(buf: ArrayBuffer): string {
+function base64url(buf: ArrayBuffer | Uint8Array): string {
   const bytes = new Uint8Array(buf);
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);

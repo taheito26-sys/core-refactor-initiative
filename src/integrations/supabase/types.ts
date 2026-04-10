@@ -3614,19 +3614,14 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      chat_end_call:
-        | {
-            Args: { _call_id: string; _end_reason?: string }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              _call_id: string
-              _end_reason?: string
-              _signaling_channel?: string
-            }
-            Returns: undefined
-          }
+      chat_end_call: {
+        Args: {
+          _call_id: string
+          _end_reason?: string
+          _signaling_channel?: string
+        }
+        Returns: undefined
+      }
       chat_export_room_transcript: {
         Args: { _room_id: string }
         Returns: {
@@ -3709,12 +3704,10 @@ export type Database = {
           unread_count: number
         }[]
       }
-      chat_initiate_call:
-        | { Args: { _room_id: string }; Returns: string }
-        | {
-            Args: { _call_id?: string; _ice_config?: Json; _room_id: string }
-            Returns: string
-          }
+      chat_initiate_call: {
+        Args: { _call_id?: string; _ice_config?: Json; _room_id: string }
+        Returns: string
+      }
       chat_is_allowed_mime: {
         Args: { _allowed_mime_types: string[]; _mime_type: string }
         Returns: boolean
