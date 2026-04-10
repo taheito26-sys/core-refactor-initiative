@@ -91,7 +91,10 @@ function buildTurnEntries(
 async function fetchCloudflareTurnServers(): Promise<IceServer[]> {
   const token = Deno.env.get("CLOUDFLARE_TURN_TOKEN");
   const keyId = Deno.env.get("CLOUDFLARE_TURN_KEY_ID");
-  if (!token || !keyId) return [];
+  if (!token || !keyId) {
+    console.warn("[TURN-diag] Missing CLOUDFLARE_TURN_TOKEN or CLOUDFLARE_TURN_KEY_ID");
+    return [];
+  }
 
   try {
     const res = await fetch(
@@ -106,19 +109,24 @@ async function fetchCloudflareTurnServers(): Promise<IceServer[]> {
       },
     );
     if (!res.ok) {
-      console.error("Cloudflare TURN API error:", res.status, await res.text());
+      const errBody = await res.text();
+      console.error(`[TURN-diag] Cloudflare API error: status=${res.status} body=${errBody}`);
       return [];
     }
     const data = await res.json();
-    // Return the TURN entries directly from Cloudflare (already formatted)
-    return (data.iceServers ?? []).filter(
+    const allServers: IceServer[] = data.iceServers ?? [];
+    const turnOnly = allServers.filter(
       (s: IceServer) =>
         Array.isArray(s.urls)
           ? s.urls.some((u: string) => u.startsWith("turn"))
           : typeof s.urls === "string" && s.urls.startsWith("turn"),
     );
+    // Diagnostic: log counts and whether credentials are present (not the values)
+    const hasCreds = turnOnly.length > 0 && !!turnOnly[0].username && !!turnOnly[0].credential;
+    console.log(`[TURN-diag] Cloudflare OK: totalServers=${allServers.length} turnServers=${turnOnly.length} hasCreds=${hasCreds}`);
+    return turnOnly;
   } catch (err) {
-    console.error("Cloudflare TURN fetch failed:", err);
+    console.error("[TURN-diag] Cloudflare TURN fetch failed:", err);
     return [];
   }
 }
