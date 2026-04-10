@@ -292,6 +292,39 @@ export default function MarketplacePage() {
 
       <EscrowSheet tradeId={escrowTradeId} trade={trades.find(t => t.id === escrowTradeId) ?? null} userId={userId}
         onClose={() => setEscrowTradeId(null)} />
+
+      {/* Review Dialog */}
+      {reviewTrade && (
+        <Dialog open={!!reviewTrade} onOpenChange={v => { if (!v) setReviewTrade(null); }}>
+          <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
+            <DialogHeader><DialogTitle className="text-sm font-bold">Review Trade</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground">Rate your experience with <span className="font-bold text-foreground">{reviewTrade.counterparty_name}</span></div>
+              <div className="flex gap-1 justify-center">
+                {[1, 2, 3, 4, 5].map(s => (
+                  <button key={s} onClick={() => setReviewRating(s)} className={`p-1 ${s <= reviewRating ? 'text-amber-500' : 'text-muted-foreground/30'}`}>
+                    <Star className="h-6 w-6 fill-current" />
+                  </button>
+                ))}
+              </div>
+              <Textarea placeholder="Share your experience (optional)" value={reviewComment} onChange={e => setReviewComment(e.target.value)} className="text-xs min-h-[60px]" />
+            </div>
+            <DialogFooter>
+              <Button size="sm" className="w-full gap-1.5" disabled={submitReview.isPending}
+                onClick={() => {
+                  const reviewedId = reviewTrade.initiator_user_id === userId ? reviewTrade.responder_user_id : reviewTrade.initiator_user_id;
+                  submitReview.mutate({ trade_id: reviewTrade.id, reviewed_user_id: reviewedId, rating: reviewRating, comment: reviewComment || undefined }, {
+                    onSuccess: () => { toast.success('Review submitted!'); setReviewTrade(null); },
+                    onError: (err) => toast.error(err.message),
+                  });
+                }}>
+                {submitReview.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Star className="h-3.5 w-3.5" />}
+                Submit Review
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
