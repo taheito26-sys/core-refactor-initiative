@@ -483,11 +483,15 @@ function TradeCard({ trade, userId, onOpenChat, onCounter, onConfirm, onComplete
               <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
             )}
             <Button size="sm" variant="ghost" className="h-6 text-[9px] text-destructive gap-0.5" onClick={onCancel}><X className="h-2.5 w-2.5" /> Cancel</Button>
+            {onDispute && (
+              <Button size="sm" variant="ghost" className="h-6 text-[9px] text-amber-600 gap-0.5" onClick={onDispute}><AlertTriangle className="h-2.5 w-2.5" /> Dispute</Button>
+            )}
           </div>
         )}
-        {!isActive && trade.status === 'completed' && onReview && (
+        {!isActive && trade.status === 'completed' && (
           <div className="flex flex-col gap-0.5 shrink-0">
-            <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={onReview}><Star className="h-2.5 w-2.5" /> Review</Button>
+            {onReview && <Button size="sm" variant="outline" className="h-6 text-[9px] gap-0.5" onClick={onReview}><Star className="h-2.5 w-2.5" /> Review</Button>}
+            {onDispute && <Button size="sm" variant="ghost" className="h-6 text-[9px] text-amber-600 gap-0.5" onClick={onDispute}><AlertTriangle className="h-2.5 w-2.5" /> Dispute</Button>}
             {trade.chat_room_id && onOpenChat && (
               <Button size="sm" variant="ghost" className="h-6 text-[9px] gap-0.5" onClick={() => onOpenChat(trade.chat_room_id!)}><MessageCircle className="h-2.5 w-2.5" /> Chat</Button>
             )}
