@@ -8,11 +8,16 @@ import { useAuth } from '@/features/auth/auth-context';
 import {
   DEFAULT_ICE_CONFIG, getCallParticipants,
 } from '../api/chat';
+import {
+  startCallSession, joinCallSession, endCallSession,
+  type CallSessionCredentials,
+} from '../api/call-session';
 import { useChatStore } from '@/lib/chat-store';
 import { MultiSignalingChannel } from '../lib/signaling/multi-channel';
 import type { SignalingHandlers } from '../lib/signaling/types';
 import type { ChatCall } from '../types';
 import { isNativeApp } from '@/platform/runtime';
+import { getSignalingConfig } from '../lib/signaling/config';
 
 export type CallState =
   | 'idle'
@@ -420,12 +425,40 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // ── START CALL ────────────────────────────────────────────────────────
   const startCallFn = useCallback(async (video = false) => {
     if (!roomId || !userId || callState !== 'idle') return;
+    const config = getSignalingConfig();
     try {
       // Probe all channels in parallel; populates availableChannels for routing
       signaling.isAvailable().catch(() => {});
 
       const stream = await getMedia(video);
-      const callId = await signaling.initiateCall(roomId);
+
+      let callId: string;
+      let iceConfig = DEFAULT_ICE_CONFIG;
+
+      if (config.useCallSession) {
+        // ── New path: call-session edge function ──────────────────────────
+        // Returns call_id + signaling credentials in one round-trip.
+        // The edge function handles room membership, policy checks, and
+        // call record creation server-side.
+        try {
+          const creds: CallSessionCredentials = await startCallSession(roomId);
+          callId = creds.call_id;
+          if (creds.ice_config) iceConfig = creds.ice_config as typeof DEFAULT_ICE_CONFIG;
+
+          // If relay URL + token provided, configure WS channel
+          if (creds.signaling_url && creds.token) {
+            signaling.setAuthToken(creds.token);
+          }
+        } catch (edgeFnErr) {
+          console.warn('[WebRTC] call-session edge fn failed, falling back to RPC', edgeFnErr);
+          // Fallback: use existing RPC path
+          callId = await signaling.initiateCall(roomId);
+        }
+      } else {
+        // Legacy path: direct Supabase RPC
+        callId = await signaling.initiateCall(roomId);
+      }
+
       callIdRef.current = callId;
       setActiveCallId(callId);
       setCallState('calling');
@@ -450,6 +483,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       // Ring timeout → missed
       ringTimer.current = setTimeout(async () => {
         if (callIdRef.current === callId) {
+          if (config.useCallSession) {
+            endCallSession(callId, 'no_answer').catch(() => {});
+          }
           await signaling.publishCallEnd(callId, 'no_answer').catch(() => {});
           cleanup();
           transitionToEnd('missed', 'no_answer');
@@ -461,11 +497,12 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', 'start_error');
     }
-  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallPush]);
+  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallPush, signaling]);
 
   // ── ANSWER INCOMING ───────────────────────────────────────────────────
   const answerIncoming = useCallback(async () => {
     if (!incomingCall || !userId) return;
+    const config = getSignalingConfig();
     try {
       const stream = await getMedia(false);
       const callId = incomingCall.id;
@@ -473,6 +510,18 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       setActiveCallId(callId);
       setCallState('connecting');
       setEndReason(null);
+
+      // ── New path: join via edge function for server-side validation ────
+      if (config.useCallSession && roomId) {
+        try {
+          const creds = await joinCallSession(roomId, callId);
+          if (creds.signaling_url && creds.token) {
+            signaling.setAuthToken(creds.token);
+          }
+        } catch (edgeFnErr) {
+          console.warn('[WebRTC] call-session join failed, continuing with direct signaling', edgeFnErr);
+        }
+      }
 
       const peerConn = buildPC();
       pc.current = peerConn;
@@ -518,7 +567,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', 'answer_error');
     }
-  }, [incomingCall, userId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd]);
+  }, [incomingCall, userId, roomId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, signaling]);
 
   // ── DECLINE ───────────────────────────────────────────────────────────
   const declineIncoming = useCallback(async () => {
@@ -533,6 +582,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const hangUp = useCallback(async () => {
     const cid = callIdRef.current;
     if (cid) {
+      // Use edge function for authoritative call end
+      const config = getSignalingConfig();
+      if (config.useCallSession) {
+        endCallSession(cid, 'ended').catch(() => {});
+      }
       await signaling.publishCallEnd(cid, 'ended').catch(() => {});
     }
     cleanup();
