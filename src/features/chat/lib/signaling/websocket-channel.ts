@@ -238,7 +238,10 @@ export class WebSocketSignalingChannel implements SignalingChannel {
 
     // Rotate relay URLs on reconnect — Tox-style bootstrap diversity
     this.activeUrl = this.relayUrls[this.reconnectCount % this.relayUrls.length];
-    const url = `${this.activeUrl}?room=${encodeURIComponent(roomId)}`;
+    let url = `${this.activeUrl}?room=${encodeURIComponent(roomId)}`;
+    if (this.authToken) {
+      url += `&token=${encodeURIComponent(this.authToken)}`;
+    }
 
     const ws = new WebSocket(url);
     this.ws = ws;

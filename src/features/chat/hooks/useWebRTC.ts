@@ -196,13 +196,19 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }, QUALITY_POLL_MS);
   }, []);
 
+  // Keep qualityStatsRef in sync with state
+  useEffect(() => {
+    qualityStatsRef.current = qualityStats;
+  }, [qualityStats]);
+
   // ── full cleanup ───────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     if (cleaningUp.current) return;
     cleaningUp.current = true;
 
-    // Persist final quality stats
-    if (qualityStats) persistQualityStats(qualityStats);
+    // Persist final quality stats via ref (avoids stale closure)
+    const finalStats = qualityStatsRef.current;
+    if (finalStats) persistQualityStats(finalStats);
 
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenTrackRef.current?.stop();
@@ -244,7 +250,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     reconnectTries.current = 0;
 
     cleaningUp.current = false;
-  }, [setActiveCallId, qualityStats, persistQualityStats]);
+  }, [setActiveCallId, persistQualityStats]);
 
   // ── start duration timer ──────────────────────────────────────────────
   const startDurationTimer = useCallback(() => {
