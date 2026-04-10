@@ -671,42 +671,125 @@ function EscrowSheet({ tradeId, trade, userId, onClose }: {
   tradeId: string | null; trade: OtcTrade | null; userId: string | null; onClose: () => void;
 }) {
   const { escrows, myDeposit, counterDeposit, bothDeposited, deposit } = useOtcEscrow(tradeId);
+  const [paymentProof, setPaymentProof] = useState<string | null>(null);
+  const [showProofPreview, setShowProofPreview] = useState(false);
 
   if (!tradeId || !trade || !userId) return null;
 
   const finalAmount = trade.counter_amount ?? trade.amount;
   const isInitiator = trade.initiator_user_id === userId;
+  const myDepositDone = myDeposit?.status === 'deposited';
+  const counterDepositDone = counterDeposit?.status === 'deposited';
+  const progress = (myDepositDone ? 1 : 0) + (counterDepositDone ? 1 : 0);
+
+  const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPaymentProof(reader.result as string);
+    reader.readAsDataURL(file);
+  };
 
   return (
     <Sheet open={!!tradeId} onOpenChange={v => !v && onClose()}>
-      <SheetContent side="bottom" className="max-h-[80dvh]">
-        <SheetHeader><SheetTitle className="text-sm">Escrow for Trade</SheetTitle></SheetHeader>
-        <div className="space-y-3 mt-3">
-          <div className="text-xs bg-muted/50 rounded-lg p-3 space-y-1.5">
-            <div className="flex justify-between"><span className="text-muted-foreground">Amount:</span><span className="font-bold">{fmtAmt(finalAmount)} {trade.side === 'cash' ? trade.currency : 'USDT'}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Your deposit:</span>
-              {myDeposit?.status === 'deposited' ? (
-                <Badge className="bg-green-500/10 text-green-600 text-[9px]"><ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Deposited</Badge>
-              ) : (
-                <Badge variant="outline" className="text-[9px]"><Clock className="h-2.5 w-2.5 mr-0.5" />Pending</Badge>
-              )}
+      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-sm flex items-center gap-1.5">
+            <Shield className="h-4 w-4 text-primary" />
+            Escrow Protection
+          </SheetTitle>
+        </SheetHeader>
+        <div className="space-y-4 mt-3">
+          {/* Progress indicator */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-muted-foreground">Escrow Progress</span>
+              <span className="font-bold text-primary">{progress}/2 deposits</span>
             </div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Counterparty:</span>
-              {counterDeposit?.status === 'deposited' ? (
-                <Badge className="bg-green-500/10 text-green-600 text-[9px]"><ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Deposited</Badge>
-              ) : (
-                <Badge variant="outline" className="text-[9px]"><Clock className="h-2.5 w-2.5 mr-0.5" />Waiting</Badge>
-              )}
+            <div className="flex gap-1">
+              <div className={`flex-1 h-2 rounded-full transition-colors ${myDepositDone ? 'bg-primary' : 'bg-muted'}`} />
+              <div className={`flex-1 h-2 rounded-full transition-colors ${counterDepositDone ? 'bg-primary' : 'bg-muted'}`} />
             </div>
           </div>
 
+          {/* Trade summary */}
+          <div className="text-xs bg-muted/50 rounded-lg p-3 space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Trade Amount:</span>
+              <span className="font-bold">{fmtAmt(finalAmount)} {trade.side === 'cash' ? trade.currency : 'USDT'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Counterparty:</span>
+              <span className="font-bold">{trade.counterparty_name}</span>
+            </div>
+          </div>
+
+          {/* Deposit status cards */}
+          <div className="grid grid-cols-2 gap-2">
+            <Card className={`p-2.5 border-2 ${myDepositDone ? 'border-primary/40 bg-primary/5' : 'border-dashed border-muted-foreground/20'}`}>
+              <div className="text-center space-y-1">
+                {myDepositDone ? (
+                  <ShieldCheck className="h-5 w-5 text-primary mx-auto" />
+                ) : (
+                  <Shield className="h-5 w-5 text-muted-foreground/40 mx-auto" />
+                )}
+                <div className="text-[10px] font-bold">Your Deposit</div>
+                <Badge className={`text-[8px] ${myDepositDone ? 'bg-primary/10 text-primary' : ''}`} variant={myDepositDone ? 'default' : 'outline'}>
+                  {myDepositDone ? '✓ Locked' : '⏳ Pending'}
+                </Badge>
+              </div>
+            </Card>
+            <Card className={`p-2.5 border-2 ${counterDepositDone ? 'border-primary/40 bg-primary/5' : 'border-dashed border-muted-foreground/20'}`}>
+              <div className="text-center space-y-1">
+                {counterDepositDone ? (
+                  <ShieldCheck className="h-5 w-5 text-primary mx-auto" />
+                ) : (
+                  <Clock className="h-5 w-5 text-muted-foreground/40 mx-auto" />
+                )}
+                <div className="text-[10px] font-bold">Counterparty</div>
+                <Badge className={`text-[8px] ${counterDepositDone ? 'bg-primary/10 text-primary' : ''}`} variant={counterDepositDone ? 'default' : 'outline'}>
+                  {counterDepositDone ? '✓ Locked' : '⏳ Waiting'}
+                </Badge>
+              </div>
+            </Card>
+          </div>
+
           {bothDeposited && (
-            <div className="text-center text-xs bg-green-500/10 rounded-lg p-2.5 text-green-600 font-bold">
-              ✅ Both parties deposited — trade can be completed safely
+            <div className="text-center text-xs bg-primary/10 rounded-lg p-3 text-primary font-bold flex items-center justify-center gap-1.5">
+              <ShieldCheck className="h-4 w-4" />
+              Both parties deposited — trade can be completed safely
             </div>
           )}
 
-          {!myDeposit || myDeposit.status !== 'deposited' ? (
+          {/* Payment proof upload */}
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block">
+              Payment Proof (optional)
+            </label>
+            {paymentProof ? (
+              <div className="space-y-1.5">
+                <div className="relative rounded-lg overflow-hidden border bg-muted/30 cursor-pointer" onClick={() => setShowProofPreview(true)}>
+                  <img src={paymentProof} alt="Payment proof" className="w-full h-32 object-cover" />
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <Eye className="h-5 w-5 text-white" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge className="bg-primary/10 text-primary text-[9px] gap-0.5"><FileCheck className="h-2.5 w-2.5" /> Proof attached</Badge>
+                  <Button size="sm" variant="ghost" className="h-5 text-[9px] text-destructive" onClick={() => setPaymentProof(null)}>Remove</Button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center gap-1.5 p-4 border-2 border-dashed border-muted-foreground/20 rounded-lg cursor-pointer hover:border-primary/40 transition-colors">
+                <Upload className="h-5 w-5 text-muted-foreground/50" />
+                <span className="text-[10px] text-muted-foreground">Upload screenshot or receipt</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleProofUpload} />
+              </label>
+            )}
+          </div>
+
+          {/* Action button */}
+          {!myDepositDone ? (
             <Button className="w-full gap-1.5" size="sm"
               disabled={deposit.isPending}
               onClick={() => deposit.mutate({
@@ -720,7 +803,9 @@ function EscrowSheet({ tradeId, trade, userId, onClose }: {
               Deposit to Escrow
             </Button>
           ) : (
-            <div className="text-center text-xs text-muted-foreground">Your escrow is locked. Waiting for counterparty.</div>
+            <div className="text-center text-xs text-muted-foreground py-1">
+              Your escrow is locked. {counterDepositDone ? 'Ready to complete trade.' : 'Waiting for counterparty deposit.'}
+            </div>
           )}
         </div>
       </SheetContent>
