@@ -29,7 +29,9 @@ export function useOtcReviews(reviewedUserId: string | null) {
         .limit(50);
       if (error) throw error;
 
-      const reviewerIds: string[] = [...new Set((data || []).map((r: any) => String(r.reviewer_user_id)))];
+      const reviewerIdsSet = new Set<string>();
+      (data || []).forEach((r: any) => reviewerIdsSet.add(String(r.reviewer_user_id)));
+      const reviewerIds = Array.from(reviewerIdsSet);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: profiles } = await (supabase as any)
         .from('merchant_profiles')
