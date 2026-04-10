@@ -107,17 +107,21 @@ export default function MarketplacePage() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-3">
+        <TabsList className="w-full grid grid-cols-4">
           <TabsTrigger value="board" className="text-xs">
-            {t('listingBoard' as any) || 'Listing Board'}
+            {t('listingBoard' as any) || 'Board'}
           </TabsTrigger>
           <TabsTrigger value="my-listings" className="text-xs">
-            {t('myListings' as any) || 'My Listings'}
+            {t('myListings' as any) || 'Mine'}
             {myListings.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1">{myListings.length}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="trades" className="text-xs">
-            {t('myTrades' as any) || 'My Trades'}
+            {t('myTrades' as any) || 'Trades'}
             {activeTrades.length > 0 && <Badge variant="destructive" className="ml-1 text-[10px] px-1">{activeTrades.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="text-xs">
+            <BarChart3 className="h-3 w-3 mr-0.5" />
+            Stats
           </TabsTrigger>
         </TabsList>
 
