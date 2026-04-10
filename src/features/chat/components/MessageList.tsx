@@ -528,6 +528,14 @@ export function MessageList({ messages, meId, isLoading, roomType, watermarkEnab
       {/* Phase 40: Scroll progress */}
       <ScrollProgress progress={scrollPct} />
 
+      {/* Background watermark lives on the outer non-scrolling container so
+          absolute inset-0 always fills the full visible chat area regardless
+          of how far the user has scrolled. z-[1] keeps it above the bg but
+          below all message content (z-10+). */}
+      {watermarkEnabled && (
+        <SecureWatermark enabled={watermarkEnabled} surface="background" />
+      )}
+
       <div
         ref={containerRef}
         onScroll={handleScroll}
@@ -536,7 +544,6 @@ export function MessageList({ messages, meId, isLoading, roomType, watermarkEnab
           backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'200\' height=\'200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cdefs%3E%3Cpattern id=\'p\' width=\'40\' height=\'40\' patternUnits=\'userSpaceOnUse\'%3E%3Ccircle cx=\'20\' cy=\'20\' r=\'0.5\' fill=\'%23888\' opacity=\'0.08\'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=\'100%25\' height=\'100%25\' fill=\'url(%23p)\'/%3E%3C/svg%3E")',
         }}
       >
-        {watermarkEnabled && <SecureWatermark enabled={watermarkEnabled} surface="background" />}
 
         {groups.map((group) => (
           <div key={group.label} className="mb-4">
