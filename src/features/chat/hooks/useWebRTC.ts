@@ -372,6 +372,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
     peerConn.oniceconnectionstatechange = () => {
       const iceState = peerConn.iceConnectionState;
+      console.log(`[ICE_STATE] iceConnectionState=${iceState} connectionState=${peerConn.connectionState}`);
 
       if (iceState === 'connected' || iceState === 'completed') {
         setCallState('connected');
