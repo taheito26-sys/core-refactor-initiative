@@ -14,6 +14,9 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
   const [selectedBar, setSelectedBar] = useState<number | null>(null);
 
+  // Active bar = clicked (pinned) or hovered
+  const activeBar = selectedBar ?? hoveredBar?.index ?? null;
+
   const priceBarData = useMemo(() => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const last24h = history.filter(h => h.ts >= cutoff);
@@ -72,11 +75,11 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
     };
   }, [history]);
 
-  const selected = selectedBar !== null ? {
-    ts: priceBarData.timestamps?.[selectedBar] ?? 0,
-    sell: priceBarData.sellValues?.[selectedBar] ?? null,
-    buy: priceBarData.buyValues?.[selectedBar] ?? null,
-    spread: priceBarData.spreads?.[selectedBar] ?? null,
+  const selected = activeBar !== null ? {
+    ts: priceBarData.timestamps?.[activeBar] ?? 0,
+    sell: priceBarData.sellValues?.[activeBar] ?? null,
+    buy: priceBarData.buyValues?.[activeBar] ?? null,
+    spread: priceBarData.spreads?.[activeBar] ?? null,
   } : null;
 
   const handleBarClick = (index: number) => {
@@ -103,14 +106,14 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
               className="flex-1 rounded-sm cursor-pointer transition-all duration-100"
               style={{
                 height: `${Math.max(2, pct * 0.22)}px`,
-                background: selectedBar === i
+                background: activeBar === i
                   ? 'var(--brand)'
                   : hoveredBar?.type === 'sell' && hoveredBar.index === i
                     ? 'color-mix(in srgb, var(--good) 100%, transparent)'
                     : 'color-mix(in srgb, var(--good) 82%, transparent)',
-                transform: (hoveredBar?.type === 'sell' && hoveredBar.index === i) || selectedBar === i ? 'scaleY(1.3)' : 'scaleY(1)',
+                transform: activeBar === i ? 'scaleY(1.3)' : 'scaleY(1)',
                 transformOrigin: 'bottom',
-                outline: selectedBar === i ? '1px solid var(--brand)' : 'none',
+                outline: activeBar === i ? '1px solid var(--brand)' : 'none',
               }}
               onMouseEnter={() => setHoveredBar({ type: 'sell', index: i })}
               onMouseLeave={() => setHoveredBar(null)}
@@ -129,14 +132,14 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
               className="flex-1 rounded-sm cursor-pointer transition-all duration-100"
               style={{
                 height: `${Math.max(2, pct * 0.22)}px`,
-                background: selectedBar === i
+                background: activeBar === i
                   ? 'var(--brand)'
                   : hoveredBar?.type === 'buy' && hoveredBar.index === i
                     ? 'color-mix(in srgb, var(--bad) 100%, transparent)'
                     : 'color-mix(in srgb, var(--bad) 82%, transparent)',
-                transform: (hoveredBar?.type === 'buy' && hoveredBar.index === i) || selectedBar === i ? 'scaleY(1.3)' : 'scaleY(1)',
+                transform: activeBar === i ? 'scaleY(1.3)' : 'scaleY(1)',
                 transformOrigin: 'bottom',
-                outline: selectedBar === i ? '1px solid var(--brand)' : 'none',
+                outline: activeBar === i ? '1px solid var(--brand)' : 'none',
               }}
               onMouseEnter={() => setHoveredBar({ type: 'buy', index: i })}
               onMouseLeave={() => setHoveredBar(null)}
