@@ -106,14 +106,14 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
               className="flex-1 rounded-sm cursor-pointer transition-all duration-100"
               style={{
                 height: `${Math.max(2, pct * 0.22)}px`,
-                background: selectedBar === i
+                background: activeBar === i
                   ? 'var(--brand)'
                   : hoveredBar?.type === 'sell' && hoveredBar.index === i
                     ? 'color-mix(in srgb, var(--good) 100%, transparent)'
                     : 'color-mix(in srgb, var(--good) 82%, transparent)',
-                transform: (hoveredBar?.type === 'sell' && hoveredBar.index === i) || selectedBar === i ? 'scaleY(1.3)' : 'scaleY(1)',
+                transform: activeBar === i ? 'scaleY(1.3)' : 'scaleY(1)',
                 transformOrigin: 'bottom',
-                outline: selectedBar === i ? '1px solid var(--brand)' : 'none',
+                outline: activeBar === i ? '1px solid var(--brand)' : 'none',
               }}
               onMouseEnter={() => setHoveredBar({ type: 'sell', index: i })}
               onMouseLeave={() => setHoveredBar(null)}
