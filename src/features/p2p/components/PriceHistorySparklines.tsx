@@ -14,6 +14,9 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
   const [hoveredBar, setHoveredBar] = useState<{ type: 'sell' | 'buy'; index: number } | null>(null);
   const [selectedBar, setSelectedBar] = useState<number | null>(null);
 
+  // Active bar = clicked (pinned) or hovered
+  const activeBar = selectedBar ?? hoveredBar?.index ?? null;
+
   const priceBarData = useMemo(() => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const last24h = history.filter(h => h.ts >= cutoff);
