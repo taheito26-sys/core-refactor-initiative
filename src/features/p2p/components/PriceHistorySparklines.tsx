@@ -75,11 +75,11 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
     };
   }, [history]);
 
-  const selected = selectedBar !== null ? {
-    ts: priceBarData.timestamps?.[selectedBar] ?? 0,
-    sell: priceBarData.sellValues?.[selectedBar] ?? null,
-    buy: priceBarData.buyValues?.[selectedBar] ?? null,
-    spread: priceBarData.spreads?.[selectedBar] ?? null,
+  const selected = activeBar !== null ? {
+    ts: priceBarData.timestamps?.[activeBar] ?? 0,
+    sell: priceBarData.sellValues?.[activeBar] ?? null,
+    buy: priceBarData.buyValues?.[activeBar] ?? null,
+    spread: priceBarData.spreads?.[activeBar] ?? null,
   } : null;
 
   const handleBarClick = (index: number) => {
