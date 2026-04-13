@@ -70,14 +70,33 @@ export default function P2PTrackerPage() {
       return top20.reduce((s, o) => s + o.price, 0) / top20.length;
     };
 
-    // VCash: Vodafone-branded methods
-    const egBuyVCashAvg = computeEgAvg(egBuyOffers, /vodafone|vcash|vf.?cash|فودافون/i);
+    // VCash: Vodafone-branded methods only
+    const VCASH_RE = /vodafone|vcash|vf.?cash|فودافون/i;
+    const egBuyVCashAvg = computeEgAvg(egBuyOffers, VCASH_RE);
 
-    // InstaPay + all bank transfer methods (broad to catch any naming variant)
-    const egBuyInstaAvg = computeEgAvg(
-      egBuyOffers,
-      /instapay|insta[- ]?pay|انستاباي|انستا|bank|بنك|cib|nbe|qnb|misr|alex|faisal|banque|ahli|national|commercial|transfer|تحويل/i,
-    );
+    // InstaPay / non-VCash wallets + banks:
+    // Egypt P2P buy offers use mobile carrier wallets — the real method names from
+    // the live Binance feed are: "Orange Cash", "Etisalat Cash", "we Pay",
+    // "Qahera Cash" (and classic "InstaPay" / bank names when they appear).
+    const INSTA_RE =
+      /orange|etisalat|we.?pay|wepay|qahera|instapay|insta[- ]?pay|إنستاباي|انستاباي|إنستا|انستا|bank|بنك|cib|nbe|qnb|misr|alex|faisal|banque|ahli|national|commercial|transfer|تحويل|fawry/i;
+
+    let egBuyInstaAvg: number | null = computeEgAvg(egBuyOffers, INSTA_RE);
+
+    // Safety fallback: if the named regex still matches nothing, use every offer
+    // whose methods do NOT include a VCash pattern (catches any future unlisted
+    // non-VCash method without needing regex updates).
+    if (egBuyInstaAvg === null) {
+      const nonVCashOffers = egBuyOffers.filter(
+        o => o.methods.length === 0 || !o.methods.some(m => VCASH_RE.test(m)),
+      );
+      if (nonVCashOffers.length > 0) {
+        const deduped = new Map<string, P2POffer>();
+        nonVCashOffers.forEach(o => { if (!deduped.has(o.nick)) deduped.set(o.nick, o); });
+        const top20 = Array.from(deduped.values()).sort((a, b) => a.price - b.price).slice(0, 20);
+        egBuyInstaAvg = top20.length > 0 ? top20.reduce((s, o) => s + o.price, 0) / top20.length : null;
+      }
+    }
 
     // Values expressed as EGP per QAR (EGP → QAR direction, ~14.xxx)
     // Formula: EG Buy avg ÷ QA rate  →  how many EGP you get per 1 QAR
