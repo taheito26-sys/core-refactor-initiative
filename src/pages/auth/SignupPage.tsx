@@ -12,7 +12,6 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<'merchant' | 'customer'>('merchant');
   const [loading, setLoading] = useState(false);
   const { signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -29,8 +28,6 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
-      // Store chosen role so onboarding can use it after email verification
-      localStorage.setItem('p2p_signup_role', role);
       await signup(email, password);
       toast.success('Account created! Please check your email to verify your account.');
       navigate('/verify-email');
@@ -54,39 +51,6 @@ export default function SignupPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Role picker */}
-            <div className="space-y-2">
-              <Label>I am a</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRole('merchant')}
-                  className={`flex flex-col items-center gap-1 rounded-lg border-2 p-3 text-sm transition-colors ${
-                    role === 'merchant'
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/40'
-                  }`}
-                >
-                  <TrendingUp className="h-5 w-5" />
-                  <span className="font-medium">Merchant</span>
-                  <span className="text-[11px]">Trade & manage stock</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('customer')}
-                  className={`flex flex-col items-center gap-1 rounded-lg border-2 p-3 text-sm transition-colors ${
-                    role === 'customer'
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/40'
-                  }`}
-                >
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
-                  <span className="font-medium">Customer</span>
-                  <span className="text-[11px]">Buy & sell with merchants</span>
-                </button>
-              </div>
-            </div>
-
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

@@ -3,34 +3,36 @@ import { useT } from '@/lib/i18n';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { RefreshCw, Search, Loader2, Zap, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { MarketId, MARKETS, P2POffer } from '@/features/p2p/types';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
-import { computeFIFO, totalStock, getWACOP, stockCostQAR } from '@/lib/tracker-helpers';
+import { computeFIFO, totalStock, getWACOP, stockCostQAR, fmtU } from '@/lib/tracker-helpers';
 import { getCurrentTrackerState } from '@/lib/tracker-backup';
 import type { TrackerState } from '@/lib/tracker-helpers';
 import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
 import { PriceHistorySparklines } from '@/features/p2p/components/PriceHistorySparklines';
 import { MerchantDepthStats } from '@/features/p2p/components/MerchantDepthStats';
 import { P2POfferTable } from '@/features/p2p/components/P2POfferTable';
-import { DeepScanBox } from '@/features/p2p/components/DeepScanBox';
+import { MerchantIntelligenceCard } from '@/features/p2p/components/MerchantIntelligenceCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function P2PTrackerPage() {
   const t = useT();
   const [market, setMarket] = useState<MarketId>('qatar');
   const { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, refresh } = useP2PMarketData(market);
-  const currentMarket = MARKETS.find(m => m.id === market) ?? MARKETS[0];
+  const currentMarket = MARKETS.find(m => m.id === market)!;
 
-  // EGY Average Buy override – persisted in localStorage
-  const [egyBuyOverride, setEgyBuyOverride] = useState<number | null>(() => {
-    try {
-      const stored = localStorage.getItem('p2p_egy_buy_override');
-      if (stored) { const v = Number(stored); return Number.isFinite(v) && v > 0 ? v : null; }
-    } catch { /* ignore */ }
-    return null;
-  });
+  // ── Deep Scan State ──
+  const [scanAmount, setScanAmount] = useState('10000');
+  const [singleMerchantOnly, setSingleMerchantOnly] = useState(true);
+  const [scanResults, setScanResults] = useState<P2POffer[] | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const todaySummary = useMemo(() => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -84,6 +86,31 @@ export default function P2PTrackerPage() {
     if (ageMin < 60) return t('p2pMinAgo').replace('{n}', String(ageMin));
     return t('p2pHAgo').replace('{n}', String(Math.floor(ageMin / 60)));
   }, [latestFetchedAt, t]);
+
+  const runDeepScan = () => {
+    setScanError(null);
+    const amount = parseFloat(scanAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setScanError('Required USDT must be a positive number');
+      return;
+    }
+
+    if (!snapshot) return;
+
+    setIsScanning(true);
+    setTimeout(() => {
+      const offers = snapshot.buyOffers || [];
+      const matches = offers.filter(o => {
+        if (singleMerchantOnly) {
+          return o.available >= amount && o.max >= amount;
+        }
+        return true;
+      });
+      
+      setScanResults(matches.sort((a, b) => a.price - b.price));
+      setIsScanning(false);
+    }, 400);
+  };
 
   const deriveMid = (s: number | null, b: number | null): number | null => {
     if (s != null && b != null && s > 0 && b > 0) return (s + b) / 2;
@@ -165,8 +192,8 @@ export default function P2PTrackerPage() {
     <div className="space-y-4 p-3 md:p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Tabs value={market} onValueChange={(v) => setMarket(v as MarketId)}>
-            <TabsList className="bg-muted/50 border border-border/50 h-auto flex-wrap">
+          <Tabs value={market} onValueChange={(v) => { setMarket(v as MarketId); setScanResults(null); }}>
+            <TabsList className="bg-muted/50 border border-border/50">
               {MARKETS.map(m => (
                 <TabsTrigger key={m.id} value={m.id} className="text-[11px] px-3">{m.label}</TabsTrigger>
               ))}
@@ -206,26 +233,89 @@ export default function P2PTrackerPage() {
             profitIfSold={profitIfSold}
             roundTripSim={roundTripSim}
             egyptKpis={egyptKpis}
-            qatarRates={qatarRates}
-            egyBuyOverride={egyBuyOverride}
-            onEgyBuyOverrideChange={(v) => {
-              setEgyBuyOverride(v);
-              try {
-                if (v != null) localStorage.setItem('p2p_egy_buy_override', String(v));
-                else localStorage.removeItem('p2p_egy_buy_override');
-              } catch { /* ignore */ }
-            }}
             t={t}
           />
 
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
             <div className="xl:col-span-1 space-y-4">
-               {/* Deep Scan Tool Component */}
-               <DeepScanBox snapshot={snapshot} market={market} />
+               {/* Simplified Deep Scan Tool */}
+               <Card className="border-primary/20 shadow-lg shadow-primary/5 bg-gradient-to-br from-card to-background">
+                 <CardHeader className="pb-3 pt-4 px-4">
+                   <CardTitle className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
+                     <Zap className="h-3.5 w-3.5 text-primary fill-primary/20" />
+                     Deep Market Scan
+                   </CardTitle>
+                 </CardHeader>
+                 <CardContent className="px-4 pb-4 space-y-4">
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Required USDT</Label>
+                     <div className="relative">
+                       <Input 
+                         type="number" 
+                         value={scanAmount} 
+                         onChange={e => setScanAmount(e.target.value)}
+                         className={cn("h-9 font-black font-mono bg-muted/20 border-border/50", scanError && "border-destructive focus-visible:ring-destructive")}
+                       />
+                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30">USDT</span>
+                     </div>
+                     {scanError && <p className="text-[10px] text-destructive font-bold flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {scanError}</p>}
+                   </div>
+
+                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/30">
+                     <div className="space-y-0.5">
+                       <Label className="text-[10px] font-black uppercase tracking-widest cursor-pointer" htmlFor="single-merch">Single Merchant</Label>
+                       <p className="text-[9px] text-muted-foreground leading-tight">Must fulfill full amount alone</p>
+                     </div>
+                     <Switch 
+                       id="single-merch"
+                       checked={singleMerchantOnly} 
+                       onCheckedChange={setSingleMerchantOnly} 
+                     />
+                   </div>
+
+                   <Button 
+                     onClick={runDeepScan} 
+                     disabled={isScanning} 
+                     className="w-full h-10 font-black uppercase tracking-widest text-[11px] gap-2 shadow-lg shadow-primary/20"
+                   >
+                     {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                     Run Deep Scan
+                   </Button>
+                 </CardContent>
+               </Card>
+
                <MerchantDepthStats merchantStats={merchantStats} t={t} />
             </div>
 
             <div className="xl:col-span-3 space-y-4">
+              {/* Scan Results Display */}
+              {scanResults && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                      Scan Results for {fmtU(parseFloat(scanAmount))} USDT
+                      <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+                      {scanResults.length} Matches Found
+                    </h3>
+                    <button onClick={() => setScanResults(null)} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Clear Results</button>
+                  </div>
+                  
+                  {scanResults.length === 0 ? (
+                    <div className="p-12 text-center border-2 border-dashed border-border/40 rounded-xl bg-muted/10">
+                      <AlertTriangle className="h-8 w-8 text-muted-foreground/20 mx-auto mb-3" />
+                      <p className="text-sm font-bold text-muted-foreground/50">No Merchants Match Criteria</p>
+                      <p className="text-[10px] text-muted-foreground/40 mt-1 uppercase tracking-widest">Try a lower amount or disable single merchant filter</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+                      {scanResults.map((m, i) => (
+                        <MerchantIntelligenceCard key={i} merchant={m} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <PriceHistorySparklines history={history} dataAgeLabel={dataAgeLabel} t={t} />
               
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

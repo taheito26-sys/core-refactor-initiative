@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,9 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { fmtU } from '@/lib/tracker-helpers';
 import { type InternalLiquiditySnapshot, type LiquidityPublishMode, type LiquidityPublishProfile, type LiquidityStatus } from '../liquidity-model';
-import { Settings2, Wallet, Save, Handshake } from 'lucide-react';
-import { useAuth } from '@/features/auth/auth-context';
-import { useMyOtcListings } from '@/features/marketplace/hooks/useOtcListings';
+import { Settings2, Wallet, Save } from 'lucide-react';
 
 const statusOptions: LiquidityStatus[] = ['available', 'limited', 'unavailable'];
 
@@ -151,9 +148,6 @@ function SideCard({
 
 export function MyLiquidityEditor({ myProfile, internal, saveProfile, isSaving, t }: Props) {
   const [draft, setDraft] = useState(myProfile);
-  const navigate = useNavigate();
-  const { merchantProfile } = useAuth();
-  const { create: createListing } = useMyOtcListings();
 
   React.useEffect(() => {
     setDraft(myProfile);
@@ -167,48 +161,6 @@ export function MyLiquidityEditor({ myProfile, internal, saveProfile, isSaving, 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       toast.error(error?.message || (t('liquidityPublishFailed') || 'Failed to publish'));
-    }
-  };
-
-  const publishToMarketplace = () => {
-    if (!draft || !merchantProfile) return;
-    const currency = merchantProfile.default_currency || 'QAR';
-
-    const listings: Array<{ side: 'cash' | 'usdt'; min: number; max: number }> = [];
-    if (draft.publishCashEnabled) {
-      const min = draft.cashPublishMode === 'range' ? (draft.cashRangeMin ?? 0) : (draft.publishedCashAmount ?? 0);
-      const max = draft.cashPublishMode === 'range' ? (draft.cashRangeMax ?? min) : min;
-      if (max > 0) listings.push({ side: 'cash', min, max });
-    }
-    if (draft.publishUsdtEnabled) {
-      const min = draft.usdtPublishMode === 'range' ? (draft.usdtRangeMin ?? 0) : (draft.publishedUsdtAmount ?? 0);
-      const max = draft.usdtPublishMode === 'range' ? (draft.usdtRangeMax ?? min) : min;
-      if (max > 0) listings.push({ side: 'usdt', min, max });
-    }
-
-    if (listings.length === 0) {
-      toast.error(t('liquidityNothingToPublish') || 'Enable and set amounts for Cash or USDT first');
-      return;
-    }
-
-    let created = 0;
-    for (const l of listings) {
-      createListing.mutate({
-        side: l.side,
-        currency,
-        amount_min: l.min,
-        amount_max: l.max,
-        rate: 0,
-        payment_methods: [],
-      }, {
-        onSuccess: () => {
-          created++;
-          if (created === listings.length) {
-            toast.success(t('liquidityPublishedToMarketplace') || 'Published to OTC Marketplace! Set your rate there.');
-            navigate('/marketplace');
-          }
-        },
-      });
     }
   };
 
@@ -297,16 +249,10 @@ export function MyLiquidityEditor({ myProfile, internal, saveProfile, isSaving, 
             />
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
-            <Button onClick={publishToMarketplace} disabled={createListing.isPending} size="sm" variant="outline" className="gap-1.5">
-              <Handshake className="w-3.5 h-3.5" />
-              {t('liquidityPublishToMarketplace') || 'To Marketplace'}
-            </Button>
-            <Button onClick={save} disabled={isSaving} size="sm" className="gap-1.5">
-              <Save className="w-3.5 h-3.5" />
-              {isSaving ? (t('saving') || 'Saving…') : (t('liquidityPublishButton') || 'Publish')}
-            </Button>
-          </div>
+          <Button onClick={save} disabled={isSaving} size="sm" className="ml-auto gap-1.5">
+            <Save className="w-3.5 h-3.5" />
+            {isSaving ? (t('saving') || 'Saving…') : (t('liquidityPublishButton') || 'Publish')}
+          </Button>
         </div>
       </CardContent>
     </Card>

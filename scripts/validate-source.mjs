@@ -13,53 +13,6 @@ const NARRATIVE_PHRASES = [
   "Specifically, I have"
 ];
 
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function globToRegExp(pattern) {
-  const normalized = pattern.split(path.sep).join('/');
-  const escaped = escapeRegex(normalized)
-    .replace(/\\\*\\\*/g, '.*')
-    .replace(/\\\*/g, '[^/]*');
-  return new RegExp(`^${escaped}$`);
-}
-
-function walkFiles(startDir) {
-  const results = [];
-  if (!fs.existsSync(startDir)) return results;
-
-  for (const entry of fs.readdirSync(startDir, { withFileTypes: true })) {
-    const fullPath = path.join(startDir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...walkFiles(fullPath));
-      continue;
-    }
-    results.push(fullPath);
-  }
-
-  return results;
-}
-
-function expandInputPattern(inputPath) {
-  if (!inputPath.includes('*')) return [inputPath];
-
-  const normalizedInput = path.normalize(inputPath);
-  const firstWildcard = normalizedInput.search(/[*]/);
-  const searchRootCandidate = firstWildcard === -1
-    ? normalizedInput
-    : normalizedInput.slice(0, firstWildcard);
-  const lastSeparator = searchRootCandidate.lastIndexOf(path.sep);
-  const searchRoot = lastSeparator >= 0
-    ? searchRootCandidate.slice(0, lastSeparator)
-    : '.';
-
-  const absoluteRoot = path.resolve(searchRoot || '.');
-  const matcher = globToRegExp(path.resolve(normalizedInput));
-
-  return walkFiles(absoluteRoot).filter((candidate) => matcher.test(path.resolve(candidate)));
-}
-
 function validateFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   
@@ -103,9 +56,7 @@ function validateFile(filePath) {
   return true;
 }
 
-const filesToValidate = process.argv
-  .slice(2)
-  .flatMap((input) => expandInputPattern(input));
+const filesToValidate = process.argv.slice(2);
 let allValid = true;
 
 for (const file of filesToValidate) {

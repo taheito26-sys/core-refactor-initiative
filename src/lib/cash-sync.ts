@@ -1,33 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
 
-
-
-const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
-  opening: 'opening',
-  deposit: 'deposit',
-  sale_deposit: 'deposit',
-  withdrawal: 'withdrawal',
-  transfer_in: 'transfer_in',
-  transfer_out: 'transfer_out',
-  stock_purchase: 'stock_purchase',
-  stock_refund: 'stock_refund',
-  stock_edit_adjust: 'stock_edit_adjust',
-  reconcile: 'reconcile',
-  merchant_funding_out: 'transfer_out',
-  merchant_funding_return: 'transfer_in',
-  merchant_sale_proceeds: 'deposit',
-  merchant_settlement_in: 'transfer_in',
-  merchant_settlement_out: 'transfer_out',
-  merchant_fee: 'withdrawal',
-  merchant_adjustment: 'reconcile',
-};
-
-
-function normalizeLegacyAccountType(type: CashAccount['type']): 'hand' | 'bank' | 'vault' {
-  return type === 'merchant_custody' ? 'vault' : type;
-}
-
 // ── Type adapters (camelCase ↔ snake_case) ──────────────────────
 
 function accountToRow(a: CashAccount, userId: string) {
@@ -35,27 +8,44 @@ function accountToRow(a: CashAccount, userId: string) {
     id:              a.id,
     user_id:         userId,
     name:            a.name,
-    type:            normalizeLegacyAccountType(a.type),
+    type:            a.type,
     currency:        a.currency,
     status:          a.status,
     bank_name:       a.bankName  ?? null,
     branch:          a.branch    ?? null,
     notes:           a.notes     ?? null,
     last_reconciled: a.lastReconciled ?? null,
-    is_merchant_account: a.isMerchantAccount ?? a.type === 'merchant_custody',
+    merchant_id:     a.merchantId ?? null,
+    relationship_id: a.relationshipId ?? null,
+    purpose:         a.purpose ?? 'custody',
+    is_merchant_account: a.isMerchantAccount ?? false,
     created_at:      a.createdAt,
     updated_at:      new Date().toISOString(),
   };
 }
 
+function accountToRowLegacy(a: CashAccount, userId: string) {
+  return {
+    id:              a.id,
+    user_id:         userId,
+    name:            a.name,
+    type:            a.type,
+    currency:        a.currency,
+    status:          a.status,
+    bank_name:       a.bankName  ?? null,
+    branch:          a.branch    ?? null,
+    notes:           a.notes     ?? null,
+    last_reconciled: a.lastReconciled ?? null,
+    created_at:      a.createdAt,
+    updated_at:      new Date().toISOString(),
+  };
+}
 
 function rowToAccount(row: Record<string, unknown>): CashAccount {
-  const isMerchantAccount = (row.is_merchant_account as boolean | null) ?? false;
-
   return {
     id:             row.id as string,
     name:           row.name as string,
-    type:           isMerchantAccount ? 'merchant_custody' : row.type as CashAccount['type'],
+    type:           row.type as CashAccount['type'],
     currency:       row.currency as CashAccount['currency'],
     status:         row.status as 'active' | 'inactive',
     bankName:       (row.bank_name as string | null) ?? undefined,
@@ -65,33 +55,54 @@ function rowToAccount(row: Record<string, unknown>): CashAccount {
     merchantId:     (row.merchant_id as string | null) ?? undefined,
     relationshipId: (row.relationship_id as string | null) ?? undefined,
     purpose:        (row.purpose as CashAccount['purpose']) ?? 'custody',
-    isMerchantAccount,
+    isMerchantAccount: (row.is_merchant_account as boolean | null) ?? false,
     createdAt:      row.created_at as number,
   };
 }
 
 function entryToRow(e: CashLedgerEntry, userId: string) {
-  const normalizedType = LEGACY_LEDGER_TYPE_MAP[e.type] ?? e.type;
-  const linkedEntityType = e.linkedEntityType === 'batch' || e.linkedEntityType === 'trade'
-    ? e.linkedEntityType
-    : null;
   return {
     id:                 e.id,
     user_id:            userId,
     account_id:         e.accountId,
     contra_account_id:  e.contraAccountId  ?? null,
     ts:                 e.ts,
-    type:               normalizedType,
+    type:               e.type,
     direction:          e.direction,
     amount:             e.amount,
     currency:           e.currency,
     note:               e.note              ?? null,
-    linked_entity_id:   linkedEntityType ? e.linkedEntityId ?? null : null,
-    linked_entity_type: linkedEntityType,
+    linked_entity_id:   e.linkedEntityId    ?? null,
+    linked_entity_type: e.linkedEntityType  ?? null,
+    merchant_id:        e.merchantId        ?? null,
+    relationship_id:    e.relationshipId    ?? null,
+    trade_id:           e.tradeId           ?? null,
+    order_id:           e.orderId           ?? null,
     batch_id:           e.batchId           ?? null,
+    settlement_id:      e.settlementId      ?? null,
   };
 }
 
+function entryToRowLegacy(e: CashLedgerEntry, userId: string) {
+  return {
+    id:                 e.id,
+    user_id:            userId,
+    account_id:         e.accountId,
+    contra_account_id:  e.contraAccountId  ?? null,
+    ts:                 e.ts,
+    type:               e.type,
+    direction:          e.direction,
+    amount:             e.amount,
+    currency:           e.currency,
+    note:               e.note              ?? null,
+    linked_entity_id:   e.linkedEntityId    ?? null,
+    linked_entity_type: e.linkedEntityType  ?? null,
+    trade_id:           e.tradeId           ?? null,
+    order_id:           e.orderId           ?? null,
+    batch_id:           e.batchId           ?? null,
+    settlement_id:      e.settlementId      ?? null,
+  };
+}
 
 function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
   return {
@@ -133,7 +144,15 @@ export async function saveCashToCloud(
       .from('cash_accounts') as any)
       .upsert(accounts.map(a => accountToRow(a, uid)), { onConflict: 'id' });
     if (accErr) {
-      console.warn('[cash-sync] accounts upsert failed:', accErr.message);
+      if (accErr.message?.includes("Could not find the 'merchant_id' column")) {
+        const { error: legacyAccErr } = await (supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .from('cash_accounts') as any)
+          .upsert(accounts.map(a => accountToRowLegacy(a, uid)), { onConflict: 'id' });
+        if (legacyAccErr) console.warn('[cash-sync] accounts upsert failed (legacy retry):', legacyAccErr.message);
+      } else {
+        console.warn('[cash-sync] accounts upsert failed:', accErr.message);
+      }
     }
   }
 
@@ -144,7 +163,15 @@ export async function saveCashToCloud(
       .from('cash_ledger') as any)
       .upsert(ledger.map(e => entryToRow(e, uid)), { onConflict: 'id' });
     if (ledErr) {
-      console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
+      if (ledErr.message?.includes("Could not find the 'merchant_id' column")) {
+        const { error: legacyLedErr } = await (supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .from('cash_ledger') as any)
+          .upsert(ledger.map(e => entryToRowLegacy(e, uid)), { onConflict: 'id' });
+        if (legacyLedErr) console.warn('[cash-sync] ledger upsert failed (legacy retry):', legacyLedErr.message);
+      } else {
+        console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
+      }
     }
   }
 }

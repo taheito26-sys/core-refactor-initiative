@@ -14,7 +14,7 @@ export const VISION_PROFILES = ['standard','large','xlarge','compact'] as const;
 
 const DEFAULT_SETTINGS: AppSettings = {
   layout: 'quantum_ledger', theme: 't1',
-  range: '7d', currency: 'QAR', baseFiatCurrency: 'QAR', language: 'en', searchQuery: '',
+  range: '7d', currency: 'QAR', language: 'en', searchQuery: '',
   lowStockThreshold: 5000, priceAlertThreshold: 2,
   allowInvalidTrades: true,
   ledgerFont: 'Inter', ledgerFontSize: 11,

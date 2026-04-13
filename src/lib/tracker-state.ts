@@ -6,7 +6,7 @@ interface StateOverrides {
   lowStockThreshold?: number;
   priceAlertThreshold?: number;
   range?: string;
-  currency?: 'QAR' | 'EGP' | 'USDT';
+  currency?: 'QAR' | 'USDT';
 }
 
 function asNumber(value: unknown, fallback: number): number {
@@ -40,7 +40,6 @@ export function buildStateFrom(
     batches: Array.isArray(stored?.batches) ? stored.batches : [],
     trades: Array.isArray(stored?.trades) ? stored.trades : [],
     customers: Array.isArray(stored?.customers) ? stored.customers : [],
-    suppliers: Array.isArray(stored?.suppliers) ? stored.suppliers : [],
     cashQAR: asNumber(stored?.cashQAR, 0),
     cashOwner: typeof stored?.cashOwner === 'string' ? stored.cashOwner : '',
     cashHistory: Array.isArray(stored?.cashHistory) ? stored.cashHistory : [],
@@ -70,8 +69,8 @@ export function mergeLocalAndCloud(
   if (!cloud) return local;
   if (!local) return cloud;
 
-  const localCount = (local.trades?.length ?? 0) + (local.batches?.length ?? 0) + (local.customers?.length ?? 0) + (local.suppliers?.length ?? 0);
-  const cloudCount = (cloud.trades?.length ?? 0) + (cloud.batches?.length ?? 0) + (cloud.customers?.length ?? 0) + (cloud.suppliers?.length ?? 0);
+  const localCount = (local.trades?.length ?? 0) + (local.batches?.length ?? 0) + (local.customers?.length ?? 0);
+  const cloudCount = (cloud.trades?.length ?? 0) + (cloud.batches?.length ?? 0) + (cloud.customers?.length ?? 0);
 
   // Use whichever has more data
   return cloudCount >= localCount ? cloud : local;

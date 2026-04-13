@@ -7,13 +7,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
-import { CustomerGuard } from "@/features/auth/guards/CustomerGuard";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
-import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
 
 // Auth pages
 import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
@@ -26,14 +24,6 @@ import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 
 // Onboarding
 import OnboardingPage from "./pages/merchant/OnboardingPage";
-import { CustomerLayout } from "@/components/layout/CustomerLayout";
-import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
-import CustomerHomePage from "./pages/customer/CustomerHomePage";
-import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
-import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
-import CustomerChatPage from "./pages/customer/CustomerChatPage";
-import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
-import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
@@ -55,7 +45,6 @@ import MerchantsPage from './pages/MerchantsPage';
 import RelationshipPage from './pages/RelationshipPage';
 import ChatPage from './pages/ChatPage';
 import ChatPreview from './pages/ChatPreview';
-import MarketplacePage from './features/marketplace/pages/MarketplacePage';
 
 
 import NotificationsPage from './pages/NotificationsPage';
@@ -197,7 +186,6 @@ const App = () => (
           <NativePlatformBootstrap />
           <AuthProvider>
             <AuthDiagnostics />
-            <ChatRuntimeBootstrap />
             <RouteErrorBoundary>
               <Routes>
                 {/* OAuth callback — Supabase redirects here after Google consent */}
@@ -223,27 +211,6 @@ const App = () => (
                   <AuthGuard><OnboardingPage /></AuthGuard>
                 } />
 
-                {/* Customer onboarding — requires auth */}
-                <Route path="/c/onboarding" element={
-                  <AuthGuard><CustomerOnboardingPage /></AuthGuard>
-                } />
-
-                {/* Customer Portal — requires auth + customer profile */}
-                <Route element={
-                  <AuthGuard>
-                    <CustomerGuard>
-                      <CustomerLayout />
-                    </CustomerGuard>
-                  </AuthGuard>
-                }>
-                  <Route path="/c/home" element={<CustomerHomePage />} />
-                  <Route path="/c/merchants" element={<CustomerMerchantsPage />} />
-                  <Route path="/c/orders" element={<CustomerOrdersPage />} />
-                  <Route path="/c/wallet" element={<CustomerWalletPage />} />
-                  <Route path="/c/chat" element={<CustomerChatPage />} />
-                  <Route path="/c/settings" element={<CustomerSettingsPage />} />
-                </Route>
-
                 {/* App Shell — requires auth + approved profile + merchant profile */}
                 <Route element={
                   <AuthGuard>
@@ -264,7 +231,6 @@ const App = () => (
                   <Route path="/merchants" element={<MerchantsPage />} />
                   <Route path="/merchants/:relationshipId" element={<RelationshipPage />} />
                   <Route path="/chat" element={<ChatPage />} />
-                  <Route path="/marketplace" element={<MarketplacePage />} />
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />

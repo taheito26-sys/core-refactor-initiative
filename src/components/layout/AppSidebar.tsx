@@ -15,7 +15,6 @@ import {
   Store,
   ShieldCheck,
   Globe,
-  Handshake,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,7 +42,6 @@ export const tradingNav: NavItem[] = [
 
 export const networkNav: NavItem[] = [
   { labelKey: 'theMerchants', fallback: 'The Merchants', icon: Store, path: '/merchants' },
-  { labelKey: 'marketplace', fallback: 'OTC Market', icon: Handshake, path: '/marketplace' },
   { labelKey: 'vault', fallback: 'Vault', icon: Wallet, path: '/trading/vault' },
   { labelKey: 'settings', fallback: 'Settings', icon: Settings, path: '/settings' },
 ];

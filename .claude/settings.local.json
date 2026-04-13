@@ -31,16 +31,7 @@
       "Bash(mkdir -p /c/tmp)",
       "Bash(echo \"Done: $?\")",
       "Bash(grep -v \"^\\\\s*//\")",
-      "Bash(node:*)",
-      "Bash(xargs grep:*)",
-      "Bash(npx vite:*)",
-      "Bash(grep \"CREATE TABLE.*os_\\\\|CREATE TABLE.*chat_\\\\|CREATE TABLE.*typing_\\\\|CREATE TABLE.*message_\" /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/hardcore-rosalind/scripts/migrations/*.sql)",
-      "Bash(grep -B 2 \"CREATE TABLE IF NOT EXISTS public.message_reactions\" /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/hardcore-rosalind/supabase/migrations/*.sql)",
-      "Bash(sed -n '100,140p' src/pages/MerchantsPage.tsx)",
-      "Bash(sed -n '1,30p' src/pages/MerchantsPage.tsx)",
-      "Bash(find \"C:\\\\Data\\\\GITHUB\\\\core-refactor-initiative\\\\src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"QAR\" {} \\\\;)",
-      "mcp__Claude_Preview__preview_start",
-      "Bash(find /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/magical-clarke -name \"types.ts\" -path \"*/chat/*\" -exec head -150 {} \\\\;)"
+      "Bash(node:*)"
     ]
   }
 }

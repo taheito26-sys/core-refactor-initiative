@@ -9,8 +9,6 @@ import { RequiredFieldsModal } from '@/features/auth/components/RequiredFieldsMo
 import { useAuth } from '@/features/auth/auth-context';
 import { useWelcomeMessage } from '@/hooks/useWelcomeMessage';
 import { WelcomeOverlay } from '@/components/WelcomeOverlay';
-import { usePushRegistration } from '@/hooks/usePushRegistration';
-import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
 
 export function AppLayout() {
   const isMobile = useIsMobile();
@@ -18,10 +16,6 @@ export function AppLayout() {
   const { settings } = useTheme();
   const { merchantProfile } = useAuth();
   const isRTL = settings.language === 'ar';
-
-  // App-level hooks: push registration + cross-device read sync
-  usePushRegistration();
-  useReadReceiptSync();
 
   const { msg: welcomeMsg, dismiss: dismissWelcome } = useWelcomeMessage(
     merchantProfile?.display_name,

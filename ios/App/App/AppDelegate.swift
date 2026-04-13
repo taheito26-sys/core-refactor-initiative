@@ -1,29 +1,13 @@
 import UIKit
 import Capacitor
-import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
-    private var privacyShieldView: UIView?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Pre-activate AVAudioSession in .playAndRecord / .voiceChat mode.
-        // Without this, WKWebView delivers silent or stuttering audio on the
-        // first WebRTC call because the audio session category is wrong.
-        // Must be done at launch — not on first getUserMedia — to avoid the
-        // known iOS race condition where the category change arrives too late.
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord,
-                                    mode: .voiceChat,
-                                    options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker])
-            try session.setActive(true)
-        } catch {
-            // Non-fatal: WebRTC will still work, but may have first-call audio issues
-            print("[AppDelegate] AVAudioSession setup failed: \(error)")
-        }
+        // Override point for customization after application launch.
         return true
     }
 
@@ -35,12 +19,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func applicationDidEnterBackground(_ application: UIApplication) {
         // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
         // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-        showPrivacyShield()
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
         // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
-        hidePrivacyShield()
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
@@ -72,60 +54,4 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
     }
 
-    private func showPrivacyShield() {
-        guard let window = window ?? UIApplication.shared.connectedScenes
-            .compactMap({ ($0 as? UIWindowScene)?.keyWindow })
-            .first else {
-            return
-        }
-
-        if privacyShieldView != nil { return }
-
-        let shield = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
-        shield.frame = window.bounds
-        shield.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        shield.isUserInteractionEnabled = false
-
-        let icon = UIImageView(image: UIImage(systemName: "lock.shield.fill"))
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        icon.tintColor = UIColor.white.withAlphaComponent(0.85)
-        icon.contentMode = .scaleAspectFit
-
-        let title = UILabel()
-        title.translatesAutoresizingMaskIntoConstraints = false
-        title.text = "Protected Screen"
-        title.textColor = UIColor.white.withAlphaComponent(0.95)
-        title.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
-
-        let subtitle = UILabel()
-        subtitle.translatesAutoresizingMaskIntoConstraints = false
-        subtitle.text = "Content hidden while the app is not active"
-        subtitle.textColor = UIColor.white.withAlphaComponent(0.75)
-        subtitle.font = UIFont.systemFont(ofSize: 13, weight: .medium)
-
-        shield.contentView.addSubview(icon)
-        shield.contentView.addSubview(title)
-        shield.contentView.addSubview(subtitle)
-
-        NSLayoutConstraint.activate([
-            icon.centerXAnchor.constraint(equalTo: shield.contentView.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: shield.contentView.centerYAnchor, constant: -24),
-            icon.heightAnchor.constraint(equalToConstant: 40),
-            icon.widthAnchor.constraint(equalToConstant: 40),
-
-            title.topAnchor.constraint(equalTo: icon.bottomAnchor, constant: 14),
-            title.centerXAnchor.constraint(equalTo: shield.contentView.centerXAnchor),
-
-            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 8),
-            subtitle.centerXAnchor.constraint(equalTo: shield.contentView.centerXAnchor)
-        ])
-
-        window.addSubview(shield)
-        privacyShieldView = shield
-    }
-
-    private func hidePrivacyShield() {
-        privacyShieldView?.removeFromSuperview()
-        privacyShieldView = nil
-    }
 }

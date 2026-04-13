@@ -35,21 +35,6 @@ describe('deriveSaleDraft', () => {
     expect(draft.feeQar).toBe(10);
   });
 
-  it('derives quantity from total QAR / entered sell price (not FIFO cost)', () => {
-    const draft = deriveSaleDraft({
-      saleEntryMode: 'price_vol',
-      saleMode: 'QAR',
-      saleUsdtQty: '',
-      saleAmount: '100000',
-      saleSell: '3.81',
-      saleFee: '0',
-    });
-
-    expect(draft.quantityUsdt).toBeCloseTo(100000 / 3.81, 8);
-    expect(draft.sellPriceQar).toBe(3.81);
-    expect(draft.revenueQar).toBeCloseTo(100000, 6);
-  });
-
   it('supports qty_total mode', () => {
     const draft = deriveSaleDraft({
       saleEntryMode: 'qty_total',

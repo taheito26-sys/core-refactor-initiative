@@ -8,7 +8,6 @@ export interface ApplyOrderCashDepositInput {
   sell: number;
   amountUSDT: number;
   note: string;
-  baseFiatCurrency?: 'QAR' | 'EGP';
   now?: number;
 }
 
@@ -20,7 +19,6 @@ export function applyOrderCashDeposit({
   sell,
   amountUSDT,
   note,
-  baseFiatCurrency = 'QAR',
   now = Date.now(),
 }: ApplyOrderCashDepositInput): TrackerState {
   if (cashDepositMode === 'none') return nextState;
@@ -31,10 +29,10 @@ export function applyOrderCashDeposit({
     : Math.min(parseFloat(cashDepositAmountRaw) || 0, revenue);
   if (depositAmt <= 0) return nextState;
 
-  const activeFiatAccounts = (nextState.cashAccounts || []).filter(a => a.status === 'active' && a.currency === baseFiatCurrency);
-  const selectedActiveFiatAccount = activeFiatAccounts.find(a => a.id === cashDepositAccountId);
-  const fallbackActiveFiatAccount = activeFiatAccounts[0];
-  const targetAccount = selectedActiveFiatAccount || fallbackActiveFiatAccount;
+  const activeQarAccounts = (nextState.cashAccounts || []).filter(a => a.status === 'active' && a.currency === 'QAR');
+  const selectedActiveQarAccount = activeQarAccounts.find(a => a.id === cashDepositAccountId);
+  const fallbackActiveQarAccount = activeQarAccounts[0];
+  const targetAccount = selectedActiveQarAccount || fallbackActiveQarAccount;
 
   if (targetAccount) {
     const ledgerEntry: CashLedgerEntry = {
@@ -48,21 +46,10 @@ export function applyOrderCashDeposit({
       note,
     };
     const updatedLedger = [...(nextState.cashLedger || []), ledgerEntry];
-    const nextCashQAR = deriveCashQAR(nextState.cashAccounts, updatedLedger);
     return {
       ...nextState,
       cashLedger: updatedLedger,
-      cashHistory: [...(nextState.cashHistory || []), {
-        id: uid(),
-        ts: now,
-        type: 'sale_deposit',
-        amount: depositAmt,
-        balanceAfter: nextCashQAR,
-        owner: nextState.cashOwner || '',
-        bankAccount: targetAccount.name,
-        note,
-      }],
-      cashQAR: nextCashQAR,
+      cashQAR: deriveCashQAR(nextState.cashAccounts, updatedLedger),
     };
   }
   
@@ -72,22 +59,11 @@ export function applyOrderCashDeposit({
     id: autoAccountId,
     name: 'Cash Wallet',
     type: 'hand' as const,
-    currency: baseFiatCurrency ?? 'QAR',
+    currency: 'QAR' as const,
     status: 'active' as const,
     notes: 'Auto-created from order sale deposit',
     createdAt: now,
   };
-  const openingBalance = Math.max(0, nextState.cashQAR || 0);
-  const openingEntry = openingBalance > 0 ? {
-    id: uid(),
-    ts: now,
-    type: 'opening' as const,
-    accountId: autoAccountId,
-    direction: 'in' as const,
-    amount: openingBalance,
-    currency: baseFiatCurrency ?? 'QAR',
-    note: 'Migrated legacy cash balance',
-  } : null;
   const ledgerEntry = {
     id: uid(),
     ts: now,
@@ -95,26 +71,15 @@ export function applyOrderCashDeposit({
     accountId: autoAccountId,
     direction: 'in' as const,
     amount: depositAmt,
-    currency: baseFiatCurrency ?? 'QAR',
+    currency: 'QAR' as const,
     note,
   };
   const nextAccounts = [...(nextState.cashAccounts || []), autoAccount];
-  const nextLedger = [...(nextState.cashLedger || []), ...(openingEntry ? [openingEntry] : []), ledgerEntry];
-  const nextCashQAR = deriveCashQAR(nextAccounts, nextLedger);
+  const nextLedger = [...(nextState.cashLedger || []), ledgerEntry];
   return {
     ...nextState,
     cashAccounts: nextAccounts,
     cashLedger: nextLedger,
-    cashHistory: [...(nextState.cashHistory || []), {
-      id: uid(),
-      ts: now,
-      type: 'sale_deposit',
-      amount: depositAmt,
-      balanceAfter: nextCashQAR,
-      owner: nextState.cashOwner || '',
-      bankAccount: autoAccount.name,
-      note,
-    }],
-    cashQAR: nextCashQAR,
+    cashQAR: deriveCashQAR(nextAccounts, nextLedger),
   };
 }

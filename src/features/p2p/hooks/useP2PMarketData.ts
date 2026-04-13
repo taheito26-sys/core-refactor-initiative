@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MarketId, P2PSnapshot, P2PHistoryPoint, MerchantStat, EMPTY_SNAPSHOT } from '../types';
-import { toSnapshot, toFiniteNumber, computeDistinctMerchantAverage } from '../utils/converters';
+import { toSnapshot, toFiniteNumber, toOffer } from '../utils/converters';
 
 export function useP2PMarketData(market: MarketId) {
   const [snapshot, setSnapshot] = useState<P2PSnapshot | null>(null);
   const [history, setHistory] = useState<P2PHistoryPoint[]>([]);
   const [merchantStats, setMerchantStats] = useState<MerchantStat[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);  // ISSUE 8 FIX: expose error state
   const [latestFetchedAt, setLatestFetchedAt] = useState<string | null>(null);
   const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
 
@@ -30,7 +30,6 @@ export function useP2PMarketData(market: MarketId) {
         setLatestFetchedAt(null);
       }
 
-      // Always fetch Qatar rates for cross-market comparisons
       if (market !== 'qatar') {
         const { data: qatarRow } = await supabase
           .from('p2p_snapshots')
@@ -73,7 +72,7 @@ export function useP2PMarketData(market: MarketId) {
       const { data: merchantRowsDesc } = await (supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
-        .select('data, fetched_at')
+        .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
         .eq('market', market)
         .gte('fetched_at', cutoff24h)
         .order('fetched_at', { ascending: false })
@@ -82,40 +81,17 @@ export function useP2PMarketData(market: MarketId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows = (merchantRowsDesc || []) as any[];
       const marketPolls = Math.max(rows.length, 1);
-      const merchantMap = new Map<string, {
-        appearances: number;
-        totalAvailable: number;
-        sampleCount: number;
-        maxAvailable: number;
-        merchant30dTrades: number | null;
-        merchant30dCompletion: number | null;
-        advertiserMessage: string | null;
-        feedbackCount: number | null;
-        avgReleaseMinutes: number | null;
-        avgPayMinutes: number | null;
-        allTrades: number | null;
-        tradeType: string | null;
-        onlineStatus: 'online' | 'offline' | 'unknown' | null;
-        paymentMethodCategories: Set<string>;
-      }>();
+      const merchantMap = new Map<string, { appearances: number; totalAvailable: number; sampleCount: number; maxAvailable: number }>();
 
       for (const row of rows) {
         const seenInSnapshot = new Set<string>();
-        const normalizedSnapshot = toSnapshot(row.data, row.fetched_at);
-        const offers = [...normalizedSnapshot.sellOffers, ...normalizedSnapshot.buyOffers];
+        const offers = [...(row.sell_offers || []), ...(row.buy_offers || [])].map(toOffer).filter(o => o !== null);
         for (const offer of offers) {
           const nick = offer.nick.trim();
           if (!nick) continue;
           let stat = merchantMap.get(nick);
           if (!stat) {
-            stat = {
-              appearances: 0, totalAvailable: 0, sampleCount: 0, maxAvailable: 0,
-              merchant30dTrades: null, merchant30dCompletion: null,
-              advertiserMessage: null, feedbackCount: null,
-              avgReleaseMinutes: null, avgPayMinutes: null,
-              allTrades: null, tradeType: null, onlineStatus: null,
-              paymentMethodCategories: new Set(),
-            };
+            stat = { appearances: 0, totalAvailable: 0, sampleCount: 0, maxAvailable: 0 };
             merchantMap.set(nick, stat);
           }
           if (!seenInSnapshot.has(nick)) {
@@ -125,18 +101,6 @@ export function useP2PMarketData(market: MarketId) {
           stat.totalAvailable += offer.available;
           stat.sampleCount += 1;
           stat.maxAvailable = Math.max(stat.maxAvailable, offer.available);
-          if (offer.merchant30dTrades != null) stat.merchant30dTrades = offer.merchant30dTrades;
-          if (offer.merchant30dCompletion != null) stat.merchant30dCompletion = offer.merchant30dCompletion;
-          if (offer.advertiserMessage != null) stat.advertiserMessage = offer.advertiserMessage;
-          if (offer.feedbackCount != null) stat.feedbackCount = offer.feedbackCount;
-          if (offer.avgReleaseMinutes != null) stat.avgReleaseMinutes = offer.avgReleaseMinutes;
-          if (offer.avgPayMinutes != null) stat.avgPayMinutes = offer.avgPayMinutes;
-          if (offer.allTrades != null) stat.allTrades = offer.allTrades;
-          if (offer.tradeType != null) stat.tradeType = offer.tradeType;
-          if (offer.onlineStatus != null) stat.onlineStatus = offer.onlineStatus;
-          for (const cat of (offer.paymentMethodCategories ?? [])) {
-            stat.paymentMethodCategories.add(cat);
-          }
         }
       }
 
@@ -146,18 +110,10 @@ export function useP2PMarketData(market: MarketId) {
         availabilityRatio: stat.appearances / marketPolls,
         avgAvailable: stat.sampleCount > 0 ? stat.totalAvailable / stat.sampleCount : 0,
         maxAvailable: stat.maxAvailable,
-        merchant30dTrades: stat.merchant30dTrades,
-        merchant30dCompletion: stat.merchant30dCompletion,
-        advertiserMessage: stat.advertiserMessage,
-        feedbackCount: stat.feedbackCount,
-        avgReleaseMinutes: stat.avgReleaseMinutes,
-        avgPayMinutes: stat.avgPayMinutes,
-        allTrades: stat.allTrades,
-        tradeType: stat.tradeType,
-        onlineStatus: stat.onlineStatus,
-        paymentMethodCategories: Array.from(stat.paymentMethodCategories) as MerchantStat['paymentMethodCategories'],
       })));
     } catch (err) {
+      // ISSUE 8 FIX: surface error to consumers so the UI can show an error
+      // state instead of silently rendering empty/stale charts.
       const msg = err instanceof Error ? err.message : 'Unknown P2P load error';
       console.error('P2P load error:', err);
       setError(msg);
@@ -168,7 +124,7 @@ export function useP2PMarketData(market: MarketId) {
 
   useEffect(() => {
     setLoading(true);
-    setError(null);
+    setError(null);   // ISSUE 8 FIX: reset error on market change
     loadFromDb();
 
     const channel = supabase
@@ -181,21 +137,5 @@ export function useP2PMarketData(market: MarketId) {
     return () => { void supabase.removeChannel(channel); };
   }, [market, loadFromDb]);
 
-  // Compute 20-merchant average for the current snapshot
-  const avg20Sell = useMemo(() => {
-    if (!snapshot) return null;
-    return computeDistinctMerchantAverage(snapshot.sellOffers, 'highest');
-  }, [snapshot]);
-
-  const avg20Buy = useMemo(() => {
-    if (!snapshot) return null;
-    return computeDistinctMerchantAverage(snapshot.buyOffers, 'lowest');
-  }, [snapshot]);
-
-  return {
-    snapshot, history, merchantStats, loading, error, latestFetchedAt, qatarRates,
-    refresh: loadFromDb,
-    avg20Sell,
-    avg20Buy,
-  };
+  return { snapshot, history, merchantStats, loading, error, latestFetchedAt, qatarRates, refresh: loadFromDb };
 }

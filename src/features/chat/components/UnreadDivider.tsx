@@ -8,12 +8,10 @@ interface Props {
 
 export function UnreadDivider({ count }: Props) {
   return (
-    <div className="relative my-3 px-4 flex items-center gap-3 animate-in fade-in duration-500">
-      <div className="flex-1 h-[1px] bg-primary/20" />
-      <span className="px-3 py-1 rounded-full bg-primary/10 text-[11px] font-bold text-primary uppercase tracking-wide">
-        {count} unread {count === 1 ? 'message' : 'messages'}
-      </span>
-      <div className="flex-1 h-[1px] bg-primary/20" />
+    <div className="relative my-10 px-12 flex items-center gap-6 animate-in fade-in duration-700">
+      <div className="flex-1 h-[1px] bg-slate-100" />
+      <span className="text-[12px] font-black text-rose-500 uppercase tracking-[0.2em]">{count} unread messages</span>
+      <div className="flex-1 h-[1px] bg-transparent" />
     </div>
   );
 }

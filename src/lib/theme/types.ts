@@ -52,9 +52,7 @@ export interface AppSettings {
   layout: string;
   theme: string;
   range: 'today' | '7d' | '30d' | 'this_month' | 'last_month' | 'all';
-  currency: 'QAR' | 'EGP' | 'USDT';
-  /** Preferred base fiat currency for new records (QAR or EGP) */
-  baseFiatCurrency: 'QAR' | 'EGP';
+  currency: 'QAR' | 'USDT';
   language: 'en' | 'ar';
   searchQuery: string;
   lowStockThreshold: number;
