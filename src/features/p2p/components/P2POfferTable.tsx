@@ -2,7 +2,7 @@ import { P2POffer } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users } from 'lucide-react';
 import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 
 interface Props {
@@ -51,9 +51,17 @@ export function P2POfferTable({ offers, type, t }: Props) {
             {offers.map((o, i) => {
               const depthPct = maxAvailable > 0 ? Math.min(100, (o.available / maxAvailable) * 100) : 0;
               return (
-                <TableRow key={`${type}-${i}`} className="h-7">
-                  <TableCell className="text-[11px] font-medium whitespace-nowrap py-1">{o.nick}</TableCell>
-                  <TableCell className="py-1">
+                <TableRow key={`${type}-${i}`} className="h-auto group">
+                  <TableCell className="py-2">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold whitespace-nowrap leading-tight">{o.nick}</span>
+                      <div className="flex items-center gap-1.5 mt-1 opacity-60 text-[9px] font-semibold">
+                        <Users className="h-2.5 w-2.5" />
+                        <span>{o.trades} ({Math.round(o.completion * 100)}%)</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-2">
                     <div className="flex items-center gap-1">
                       <span className="font-bold font-mono text-[11px]">{fmtPrice(o.price)}</span>
                       <div className="w-10 h-1 rounded bg-muted overflow-hidden">
@@ -61,9 +69,9 @@ export function P2POfferTable({ offers, type, t }: Props) {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                  <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
-                  <TableCell className="text-[10px] text-muted-foreground py-1 truncate max-w-[100px]">{o.methods.join(' ')}</TableCell>
+                  <TableCell className="text-right font-mono text-[11px] py-2">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                  <TableCell className="text-right font-mono text-[11px] py-2">{formatOfferLimit(o.max)}</TableCell>
+                  <TableCell className="text-[10px] text-muted-foreground py-2 truncate max-w-[120px]">{o.methods.join(', ')}</TableCell>
                 </TableRow>
               );
             })}

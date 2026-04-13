@@ -35,7 +35,7 @@ export function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string): 
 
 export function toOffer(value: unknown): P2POffer | null {
   if (!value || typeof value !== 'object') return null;
-  const source = value as Record<string, unknown>;
+  const source = value as Record<string, any>;
   const price = toFiniteNumber(source.price);
   if (price === null) return null;
   return {
@@ -49,6 +49,14 @@ export function toOffer(value: unknown): P2POffer | null {
     available: toFiniteNumber(source.available) ?? 0,
     trades: toFiniteNumber(source.trades) ?? 0,
     completion: toFiniteNumber(source.completion) ?? 0,
+    // Map new intelligence fields
+    feedback: toFiniteNumber(source.feedback) ?? undefined,
+    status: source.status ?? undefined,
+    avgPay: toFiniteNumber(source.avgPay) ?? undefined,
+    avgRelease: toFiniteNumber(source.avgRelease) ?? undefined,
+    allTimeTrades: toFiniteNumber(source.allTimeTrades) ?? undefined,
+    tradeType: source.tradeType ?? undefined,
+    message: source.message ?? undefined,
   };
 }
 

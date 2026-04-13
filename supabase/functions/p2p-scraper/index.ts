@@ -14,11 +14,18 @@ interface BinanceP2POffer {
     minSingleTransAmount: string;
     maxSingleTransAmount: string;
     tradeMethods: { identifier: string; tradeMethodName: string }[];
+    avgPayTime: number;
+    avgReleaseTime: number;
+    tradeType: string;
+    remark: string;
   };
   advertiser: {
     nickName: string;
     monthOrderCount: number;
     monthFinishRate: number;
+    positiveRate: number;
+    userStatus: number;
+    totalOrderCount: number;
   };
 }
 
@@ -43,7 +50,7 @@ async function fetchBinanceP2P(
   fiat: string,
   tradeType: "BUY" | "SELL",
   asset = "USDT",
-  rows = 10
+  rows = 20
 ): Promise<BinanceP2POffer[]> {
   const body = {
     fiat,
@@ -56,7 +63,6 @@ async function fetchBinanceP2P(
     shieldMerchantAds: false,
     publisherType: null,
     payTypes: [],
-    // Relaxed classifies to ensure results in smaller markets
     classifies: ["mass"], 
   };
 
@@ -87,6 +93,13 @@ function parseOffers(raw: BinanceP2POffer[]) {
     nick: o.advertiser.nickName,
     trades: o.advertiser.monthOrderCount || 0,
     completion: o.advertiser.monthFinishRate || 0,
+    feedback: o.advertiser.positiveRate || 0,
+    status: o.advertiser.userStatus === 1 ? 'Online' : 'Offline',
+    avgPay: o.adv.avgPayTime || 0,
+    avgRelease: o.adv.avgReleaseTime || 0,
+    allTimeTrades: o.advertiser.totalOrderCount || 0,
+    tradeType: o.adv.tradeType,
+    message: o.adv.remark || '',
     methods: o.adv.tradeMethods.map((m) => m.tradeMethodName || m.identifier),
   }));
 }
@@ -99,7 +112,7 @@ function buildSnapshot(
   const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);
   const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);
 
-  const topNForAvg = marketId === "qatar" ? 5 : 10;
+  const topNForAvg = 10;
   const topSell = sellOffers.slice(0, topNForAvg);
   const topBuy = buyOffers.slice(0, topNForAvg);
 
@@ -167,10 +180,9 @@ Deno.serve(async (req: Request) => {
 
     for (const market of marketsToScrape) {
       try {
-        const apiRows = market.id === "qatar" ? 10 : 20;
         const [sellRaw, buyRaw] = await Promise.all([
-          fetchBinanceP2P(market.fiat, "SELL", market.asset, apiRows),
-          fetchBinanceP2P(market.fiat, "BUY", market.asset, apiRows),
+          fetchBinanceP2P(market.fiat, "SELL", market.asset, 20),
+          fetchBinanceP2P(market.fiat, "BUY", market.asset, 20),
         ]);
 
         const snapshot = buildSnapshot(sellRaw, buyRaw, market.id);
