@@ -1,8 +1,9 @@
-import { P2POffer } from '../types';
+import { useState } from 'react';
+import { P2POffer, PaymentMethodCategory } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Users } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 
 interface Props {
@@ -19,9 +20,50 @@ function formatOfferLimit(value: number): string {
   return fmtTotal(value);
 }
 
+const CAT_LABELS: Record<PaymentMethodCategory, string> = {
+  vodafone_cash: 'VCash',
+  instapay: 'InstaPay',
+  bank: 'Bank',
+  wallet: 'Wallet',
+  other: 'Other',
+};
+
+function ExpandedDetail({ offer }: { offer: P2POffer }) {
+  const f = (v: number | null | undefined, suffix?: string) =>
+    v != null ? `${v.toLocaleString()}${suffix ?? ''}` : '—';
+  return (
+    <div className="px-3 py-2 bg-muted/20 border-t border-border/30 space-y-1.5 text-[10px]">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1">
+        <div><span className="text-muted-foreground">30d Trades:</span> <span className="font-mono">{f(offer.merchant30dTrades ?? offer.trades)}</span></div>
+        <div><span className="text-muted-foreground">30d Completion:</span> <span className="font-mono">{f(offer.merchant30dCompletion ?? (offer.completion * 100), '%')}</span></div>
+        <div><span className="text-muted-foreground">Feedback:</span> <span className="font-mono">{f(offer.feedbackCount ?? offer.feedback)}</span></div>
+        <div><span className="text-muted-foreground">Status:</span> <span className="font-mono">{offer.onlineStatus ?? offer.status ?? 'Unknown'}</span></div>
+        <div><span className="text-muted-foreground">Avg Pay:</span> <span className="font-mono">{f(offer.avgPayMinutes ?? offer.avgPay, ' min')}</span></div>
+        <div><span className="text-muted-foreground">Avg Release:</span> <span className="font-mono">{f(offer.avgReleaseMinutes ?? offer.avgRelease, ' min')}</span></div>
+        <div><span className="text-muted-foreground">All-time Trades:</span> <span className="font-mono">{f(offer.allTrades ?? offer.allTimeTrades)}</span></div>
+        <div><span className="text-muted-foreground">Type:</span> <span className="font-mono">{offer.tradeType ?? '—'}</span></div>
+      </div>
+      {(offer.paymentMethodCategories?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {offer.paymentMethodCategories!.map(cat => (
+            <Badge key={cat} variant="secondary" className="text-[7px] px-1 py-0">{CAT_LABELS[cat] ?? cat}</Badge>
+          ))}
+        </div>
+      )}
+      <div className="mt-1">
+        <div className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Advertiser Message</div>
+        <div className="text-[10px] leading-relaxed whitespace-pre-wrap break-words rounded bg-muted/30 px-2 py-1.5 max-h-20 overflow-y-auto" dir="auto">
+          {offer.advertiserMessage ?? offer.message || 'Unavailable'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function P2POfferTable({ offers, type, t }: Props) {
   const isSell = type === 'sell';
   const maxAvailable = Math.max(...(offers.map(o => o.available) || [1]));
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   return (
     <Card className="border-border/50">
@@ -40,28 +82,40 @@ export function P2POfferTable({ offers, type, t }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="text-[9px] uppercase tracking-wider font-semibold w-5"></TableHead>
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pTrader')}</TableHead>
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pPrice')}</TableHead>
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMin')}</TableHead>
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMax')}</TableHead>
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pMethods')}</TableHead>
+              <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">30d</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {offers.map((o, i) => {
               const depthPct = maxAvailable > 0 ? Math.min(100, (o.available / maxAvailable) * 100) : 0;
+              const isExpanded = expandedIdx === i;
               return (
-                <TableRow key={`${type}-${i}`} className="h-auto group">
+                <React.Fragment key={`${type}-${i}`}>
+                <TableRow className="group">
+                  <TableCell className="py-1 px-1 w-5">
+                    <button
+                      onClick={() => setExpandedIdx(isExpanded ? null : i)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    </button>
+                  </TableCell>
                   <TableCell className="py-2">
                     <div className="flex flex-col">
                       <span className="text-[11px] font-bold whitespace-nowrap leading-tight">{o.nick}</span>
                       <div className="flex items-center gap-1.5 mt-1 opacity-60 text-[9px] font-semibold">
                         <Users className="h-2.5 w-2.5" />
-                        <span>{o.trades} ({Math.round(o.completion * 100)}%)</span>
+                        <span>{(o.merchant30dTrades ?? o.trades)} ({Math.round((o.merchant30dCompletion ?? (o.completion * 100)))}%)</span>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="py-2">
+                  <TableCell className="py-1">
                     <div className="flex items-center gap-1">
                       <span className="font-bold font-mono text-[11px]">{fmtPrice(o.price)}</span>
                       <div className="w-10 h-1 rounded bg-muted overflow-hidden">
@@ -69,10 +123,21 @@ export function P2POfferTable({ offers, type, t }: Props) {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-[11px] py-2">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
-                  <TableCell className="text-right font-mono text-[11px] py-2">{formatOfferLimit(o.max)}</TableCell>
-                  <TableCell className="text-[10px] text-muted-foreground py-2 truncate max-w-[120px]">{o.methods.join(', ')}</TableCell>
+                  <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
+                  <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
+                  <TableCell className="text-[10px] text-muted-foreground py-1 truncate max-w-[100px]">{o.methods.join(' ')}</TableCell>
+                  <TableCell className="text-right text-[10px] py-1 font-mono">
+                    <span title="30d trades">{o.merchant30dTrades != null ? o.merchant30dTrades : o.trades}</span>
+                  </TableCell>
                 </TableRow>
+                {isExpanded && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="p-0 border-none">
+                      <ExpandedDetail offer={o} />
+                    </TableCell>
+                  </TableRow>
+                )}
+                </React.Fragment>
               );
             })}
           </TableBody>

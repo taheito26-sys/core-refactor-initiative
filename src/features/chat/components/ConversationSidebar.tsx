@@ -1,149 +1,310 @@
-import { useMemo, useState } from 'react';
-import type { ChatRoom } from '@/features/chat/lib/types';
-import { Search, SlidersHorizontal, Mic, BarChart3, Forward, Reply, Clock, X } from 'lucide-react';
-import { parseMsg, fmtListTime, getPalette } from '../lib/message-codec';
+// ─── ConversationSidebar — All 40 UX phases ──────────────────────────────
+import { useState, useMemo, useCallback, useRef } from 'react';
+import { Search, Plus, Users, Lock, Briefcase, RefreshCw, Pin, MessageCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useChatStore, typingUsersInRoom } from '@/lib/chat-store';
+import { useT } from '@/lib/i18n';
+import type { ChatRoomListItem, ChatRoomType } from '../types';
+import { Button } from '@/components/ui/button';
 
 interface Props {
-  rooms: ChatRoom[];
+  rooms:        ChatRoomListItem[];
   activeRoomId: string | null;
-  onSelectRoom: (roomId: string) => void;
-  currentUserId: string;
-  isMobile?: boolean;
+  onSelectRoom: (id: string) => void;
+  onNewChat:    () => void;
+  isLoading:    boolean;
+  meId:         string;
 }
 
-function previewText(raw: string): { icon?: React.ReactNode; text: string } {
-  if (!raw) return { text: 'No messages yet' };
-  const p = parseMsg(raw);
-  if (p.isVoice) return { icon: <Mic size={12} className="shrink-0" />, text: `Voice · ${p.voiceDuration || 0}s` };
-  if (p.isPoll) return { icon: <BarChart3 size={12} className="shrink-0" />, text: p.pollQuestion || 'Poll' };
-  if (p.isFwd) return { icon: <Forward size={12} className="shrink-0" />, text: p.fwdText?.slice(0, 50) || 'Forwarded' };
-  if (p.isReply) return { icon: <Reply size={12} className="shrink-0" />, text: p.text?.slice(0, 50) || 'Reply' };
-  if (p.isScheduled) return { icon: <Clock size={12} className="shrink-0" />, text: p.text?.slice(0, 50) || 'Scheduled' };
-  return { text: p.text?.slice(0, 60) || 'No messages yet' };
+const TYPE_ICONS: Record<ChatRoomType, React.ElementType> = {
+  merchant_private: Lock,
+  merchant_client:  Briefcase,
+  merchant_collab:  Users,
+};
+
+// Phase 38: Avatar gradient from user ID hash
+function avatarGradient(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  const h1 = Math.abs(hash % 360);
+  const h2 = (h1 + 40) % 360;
+  return `linear-gradient(135deg, hsl(${h1} 65% 55%), hsl(${h2} 60% 45%))`;
 }
 
-type LaneFilter = 'ALL' | 'DEALS' | 'ALERTS';
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/);
+  return words.length >= 2
+    ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+}
 
-export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, isMobile }: Props) {
-  // BUG 5 FIX: search was a dead uncontrolled input; now filters room list
-  const [search, setSearch]           = useState('');
-  const [laneFilter, setLaneFilter]   = useState<LaneFilter>('ALL');
+// Phase 14: Smart preview
+function smartPreview(preview: string, type?: string): string {
+  if (!preview) return '';
+  if (preview.startsWith('🖼')) return '📷 Photo';
+  if (preview.startsWith('🎙')) return '🎤 Voice message';
+  if (preview.startsWith('📎')) return preview;
+  return preview.length > 45 ? preview.slice(0, 45) + '…' : preview;
+}
 
-  const filteredRooms = useMemo(() => {
+type Filter = 'all' | ChatRoomType;
+
+export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewChat, isLoading, meId }: Props) {
+  const t = useT();
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const unreadCounts = useChatStore((s) => s.unreadCounts);
+
+  // Phase 12: Pinned conversations
+  const { pinned, unpinned } = useMemo(() => {
     let list = rooms;
-    if (laneFilter === 'DEALS')  list = list.filter((r) => r.type === 'deal' || r.lane === 'Deals');
-    if (laneFilter === 'ALERTS') list = list.filter((r) => r.lane === 'Alerts');
+    if (filter !== 'all') list = list.filter((r) => r.room_type === filter);
     if (search.trim()) {
-      const q = search.trim().toLowerCase();
+      const q = search.toLowerCase();
       list = list.filter((r) =>
-        r.title?.toLowerCase().includes(q) ||
-        r.last_message_body?.toLowerCase().includes(q),
+        (r.name ?? r.display_name ?? '').toLowerCase().includes(q) ||
+        (r.last_message_preview ?? '').toLowerCase().includes(q),
       );
     }
-    return list;
-  }, [rooms, search, laneFilter]);
+    const p = list.filter((r) => r.is_pinned);
+    const u = list.filter((r) => !r.is_pinned);
+    return { pinned: p, unpinned: u };
+  }, [rooms, filter, search]);
+
+  const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <aside className={`${isMobile ? 'w-full' : 'w-[280px]'} bg-background border-r border-border flex flex-col h-full overflow-hidden shrink-0`}>
-      <div className="p-4 pb-2 shrink-0">
-        <h2 className="text-lg font-black text-foreground tracking-tight mb-3 flex items-center justify-between">
-          Inbox
-          <SlidersHorizontal size={16} className="text-muted-foreground/60 cursor-pointer hover:text-primary transition-colors" />
-        </h2>
-        {/* BUG 5 FIX: controlled search input that actually filters the list */}
-        <div className="relative mb-3">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+    <div className="flex flex-col w-72 lg:w-80 border-r border-border/50 bg-card h-full shrink-0">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-sm text-foreground">Messages</h2>
+            {totalUnread > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary text-[9px] font-black text-primary-foreground px-1.5 animate-in zoom-in-50 duration-200">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </span>
+            )}
+            {isLoading && <RefreshCw className="h-3 w-3 text-muted-foreground animate-spin" />}
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-accent" onClick={onNewChat}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Phase 17: Search-as-you-type */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
           <input
-            type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search conversations..."
-            className="w-full bg-muted/60 border border-border/50 rounded-xl py-2.5 pl-9 pr-8 text-xs font-medium text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-background focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-muted/50 border border-border/30 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/40 transition-shadow"
           />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground">
-              <X size={12} />
-            </button>
-          )}
         </div>
 
-        {/* BUG 5 FIX: lane tabs now control the laneFilter state */}
-        <div className="flex gap-4 px-1 border-b border-border pb-2">
-          {(['ALL', 'DEALS', 'ALERTS'] as LaneFilter[]).map((lane) => (
+        {/* Filter tabs */}
+        <div className="flex gap-1 mt-2">
+          {(['all', 'merchant_private', 'merchant_client', 'merchant_collab'] as Filter[]).map((f) => (
             <button
-              key={lane}
-              onClick={() => setLaneFilter(lane)}
-              className={`relative text-xs font-bold pb-1 min-h-[36px] transition-colors ${laneFilter === lane ? 'text-foreground' : 'text-muted-foreground/60 hover:text-foreground'}`}
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                'flex-1 text-[9px] font-bold py-1 rounded-md transition-all',
+                filter === f
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted',
+              )}
             >
-              {lane}
-              {laneFilter === lane && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-full" />}
+              {f === 'all' ? 'All'
+                : f === 'merchant_private' ? '🔒 P2P'
+                : f === 'merchant_client'  ? '💼 Client'
+                : '👥 Hub'}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pt-2 space-y-1 pb-6">
-        {filteredRooms.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
-            <Search size={20} className="text-muted-foreground/30" />
-            <p className="text-xs text-muted-foreground/50">No conversations found</p>
+      {/* Room list */}
+      <div className="flex-1 overflow-y-auto">
+        {pinned.length === 0 && unpinned.length === 0 ? (
+          /* Phase 18: Empty state illustration */
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3 px-8">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <MessageCircle className="h-8 w-8 text-primary/40" />
+            </div>
+            <p className="text-xs font-semibold text-center">
+              {search ? 'No conversations found' : 'No conversations yet'}
+            </p>
+            <p className="text-[10px] text-muted-foreground/60 text-center">
+              {search ? 'Try a different search term' : 'Start a new conversation to begin messaging'}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Phase 12: Pinned section */}
+            {pinned.length > 0 && (
+              <>
+                <div className="flex items-center gap-1.5 px-4 py-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                  <Pin className="h-2.5 w-2.5" />
+                  Pinned
+                </div>
+                {pinned.map((room) => (
+                  <RoomRow
+                    key={room.room_id}
+                    room={room}
+                    isActive={room.room_id === activeRoomId}
+                    unread={unreadCounts[room.room_id] ?? room.unread_count}
+                    onClick={() => onSelectRoom(room.room_id)}
+                    meId={meId}
+                  />
+                ))}
+                <div className="h-px bg-border/30 mx-4 my-1" />
+              </>
+            )}
+            {unpinned.map((room) => (
+              <RoomRow
+                key={room.room_id}
+                room={room}
+                isActive={room.room_id === activeRoomId}
+                unread={unreadCounts[room.room_id] ?? room.unread_count}
+                onClick={() => onSelectRoom(room.room_id)}
+                meId={meId}
+              />
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RoomRow({
+  room, isActive, unread, onClick, meId,
+}: {
+  room: ChatRoomListItem;
+  isActive: boolean;
+  unread: number;
+  onClick: () => void;
+  meId: string;
+}) {
+  const Icon = TYPE_ICONS[room.room_type];
+  const displayName = room.display_name ?? room.name ?? 'Unnamed room';
+  const preview = smartPreview(room.last_message_preview ?? '');
+  const timeStr = room.last_message_at
+    ? new Date(room.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  // Phase 13: Presence status ring
+  const presence = useChatStore((s) => room.other_user_id ? s.presenceByUser[room.other_user_id] : undefined);
+  const isOnline = presence === 'online';
+  const isAway = presence === 'away';
+
+  // Phase 15: Typing preview in list
+  const typingUsers = useChatStore(typingUsersInRoom(room.room_id));
+  const isTyping = typingUsers.length > 0;
+
+  // Phase 11: Swipe actions (touch gesture)
+  const touchStartX = useRef(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const dx = e.touches[0].clientX - touchStartX.current;
+    if (dx < -10) setSwipeOffset(Math.max(-80, dx));
+    else setSwipeOffset(0);
+  }, []);
+  const handleTouchEnd = useCallback(() => {
+    setSwipeOffset(0);
+  }, []);
+
+  return (
+    <button
+      onClick={onClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className={cn(
+        'w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-border/20 relative overflow-hidden',
+        isActive
+          ? 'bg-primary/10 border-l-2 border-l-primary'
+          : 'hover:bg-muted/50 border-l-2 border-l-transparent',
+      )}
+      style={{ transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
+    >
+      {/* Phase 13: Avatar with presence ring */}
+      <div className="relative shrink-0">
+        {room.display_avatar ? (
+          <div className={cn(
+            'rounded-full p-[2px]',
+            isOnline ? 'ring-2 ring-emerald-500' : isAway ? 'ring-2 ring-amber-400' : '',
+          )}>
+            <img
+              src={room.display_avatar}
+              alt={displayName}
+              className="h-10 w-10 rounded-full object-cover"
+            />
+          </div>
+        ) : (
+          <div className={cn(
+            'rounded-full p-[2px]',
+            isOnline ? 'ring-2 ring-emerald-500' : isAway ? 'ring-2 ring-amber-400' : '',
+          )}>
+            <div
+              className="h-10 w-10 rounded-full flex items-center justify-center text-[11px] font-bold text-white"
+              style={{ background: avatarGradient(room.room_id) }}
+            >
+              {initials(displayName)}
+            </div>
           </div>
         )}
-        {filteredRooms.map((room) => {
-          const isActive = activeRoomId === room.room_id;
-          const palette = getPalette(room.title || 'R');
-          const preview = previewText(room.last_message_body || '');
-          const timeLabel = room.last_message_at ? fmtListTime(room.last_message_at) : '';
-
-          return (
-            <button
-              key={room.room_id}
-              onClick={() => onSelectRoom(room.room_id)}
-              className={`w-full group flex items-start gap-3 p-3 rounded-2xl transition-all duration-200 text-left relative ${
-                isActive
-                  ? 'bg-primary/10 ring-1 ring-primary/20'
-                  : 'hover:bg-muted/60'
-              }`}
-            >
-              <div className="relative shrink-0 mt-0.5">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black shadow-sm"
-                  style={{ background: palette.bg, color: palette.text }}
-                >
-                  {room.title?.charAt(0).toUpperCase()}
-                </div>
-                {room.unread_count > 0 && (
-                  <div className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground text-[9px] font-black min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-background shadow-sm">
-                    {room.unread_count > 99 ? '99+' : room.unread_count}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className={`text-[13px] font-bold truncate ${isActive ? 'text-primary' : 'text-foreground'}`}>
-                    {room.title}
-                  </span>
-                  {timeLabel && (
-                    <span className={`text-[10px] font-medium shrink-0 ml-2 ${room.unread_count > 0 ? 'text-primary font-bold' : 'text-muted-foreground/60'}`}>
-                      {timeLabel}
-                    </span>
-                  )}
-                </div>
-
-                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider block mb-1">
-                  {room.type === 'deal' ? 'Secure Trade' : room.lane}
-                </span>
-
-                <div className={`flex items-center gap-1.5 text-[11px] leading-tight ${room.unread_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground/70'}`}>
-                  {preview.icon}
-                  <span className="truncate">{preview.text}</span>
-                </div>
-              </div>
-            </button>
-          );
-        })}
+        {/* Online dot */}
+        {isOnline && (
+          <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
+        )}
       </div>
-    </aside>
+
+      {/* Text */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <span className={cn(
+            'text-xs truncate',
+            unread > 0 ? 'font-bold text-foreground' : 'font-semibold text-muted-foreground',
+          )}>
+            {displayName}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            {room.is_muted && (
+              <span className="text-muted-foreground/40 text-[9px]">🔇</span>
+            )}
+            <span className={cn(
+              'text-[9px]',
+              unread > 0 ? 'text-primary font-semibold' : 'text-muted-foreground/50',
+            )}>{timeStr}</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-0.5">
+          <p className={cn(
+            'text-[11px] truncate max-w-[160px]',
+            isTyping ? 'text-primary font-medium italic' : 'text-muted-foreground/70',
+          )}>
+            {/* Phase 15: Typing preview replaces last message */}
+            {isTyping ? 'typing...' : preview || <span className="italic">No messages yet</span>}
+          </p>
+          {/* Phase 16: Unread count pill redesign */}
+          {unread > 0 && (
+            <span className={cn(
+              'flex h-[18px] min-w-[18px] items-center justify-center rounded-full text-[9px] font-black px-1 shrink-0 ml-1',
+              room.is_muted
+                ? 'bg-muted text-muted-foreground'
+                : 'bg-primary text-primary-foreground',
+            )}>
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
   );
 }

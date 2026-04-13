@@ -1,0 +1,1 @@
+UPDATE profiles SET role = 'merchant' WHERE user_id = 'c0c85f54-ad64-4baf-9247-6c81d131d9d9';

@@ -2,12 +2,20 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { fireEvent, screen } from '@testing-library/dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { CashManagement } from '@/features/stock/components/CashManagement';
 import type { TrackerState } from '@/lib/tracker-helpers';
 
 vi.mock('@/lib/i18n', () => ({
   useT: () => (key: string) => key,
+}));
+
+vi.mock('@/features/auth/auth-context', () => ({
+  useAuth: () => ({
+    user: null,
+    merchantProfile: null,
+  }),
 }));
 
 function makeState(overrides: Partial<TrackerState> = {}): TrackerState {
@@ -17,6 +25,7 @@ function makeState(overrides: Partial<TrackerState> = {}): TrackerState {
     batches: [],
     trades: [],
     customers: [],
+    suppliers: [],
     cashQAR: 0,
     cashOwner: 'owner',
     cashHistory: [],
@@ -120,8 +129,9 @@ describe('order cash deposit integration', () => {
     });
 
     expect(next.cashAccounts.some(a => a.currency === 'QAR' && a.status === 'active')).toBe(true);
-    expect(next.cashLedger).toHaveLength(1);
-    expect(next.cashLedger[0].type).toBe('sale_deposit');
+    expect(next.cashLedger).toHaveLength(2);
+    expect(next.cashLedger[0].type).toBe('opening');
+    expect(next.cashLedger[1].type).toBe('sale_deposit');
     expect(next.cashHistory).toHaveLength(1);
     expect(next.cashHistory[0].type).toBe('sale_deposit');
     expect(next.cashQAR).toBe(35);
@@ -130,6 +140,7 @@ describe('order cash deposit integration', () => {
 
 describe('cash management sale_deposit visibility', () => {
   it('renders sale_deposit rows and summary totals', () => {
+    const queryClient = new QueryClient();
     const state = makeState({
       cashAccounts: [
         { id: 'acc-1', name: 'Hand', type: 'hand', currency: 'QAR', status: 'active', createdAt: 1 },
@@ -149,7 +160,11 @@ describe('cash management sale_deposit visibility', () => {
       ],
     });
 
-    render(<CashManagement state={state} applyState={() => undefined} />);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CashManagement state={state} applyState={() => undefined} />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getAllByText('150').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByText('cashLedgerTab'));

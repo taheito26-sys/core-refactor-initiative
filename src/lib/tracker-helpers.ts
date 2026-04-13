@@ -24,9 +24,9 @@ function truncateToDP(n: number, dp: number): number {
  */
 export function fmtPrice(n: number): string {
   if (!Number.isFinite(n)) return '—';
-  const truncated = truncateToDP(n, 4);
-  // Use toFixed(4) then strip trailing zeros
-  let s = truncated.toFixed(4);
+  const truncated = truncateToDP(n, 3);
+  // Use toFixed(3) then strip trailing zeros
+  let s = truncated.toFixed(3);
   // Remove trailing zeros after decimal point
   if (s.includes('.')) {
     s = s.replace(/0+$/, '').replace(/\.$/, '');
@@ -44,7 +44,7 @@ export function fmtTotal(n: number): string {
   return truncated.toLocaleString(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 }
 
-export function fmtU(n: number, dp = 2): string {
+export function fmtU(n: number, dp = 0): string {
   if (!Number.isFinite(n)) return '—';
   // dp === 0 → total formatting (whole number, truncated)
   if (dp === 0) return fmtTotal(n);
@@ -52,9 +52,10 @@ export function fmtU(n: number, dp = 2): string {
   return fmtPrice(n);
 }
 
-export function fmtQ(v: number): string {
+/** Format fiat amount with currency code. Defaults to QAR for backward compat. */
+export function fmtQ(v: number, fiatCurrency: 'QAR' | 'EGP' = 'QAR'): string {
   const x = num(v, 0);
-  return fmtTotal(x) + ' QAR';
+  return fmtTotal(x) + ' ' + fiatCurrency;
 }
 
 export function fmtQRaw(v: number): string {
@@ -88,13 +89,26 @@ export function fmtDate(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function fmtQWithUnit(qarAmount: number, currency = 'QAR', wacop: number | null = null): string {
-  const q = num(qarAmount);
+/**
+ * Format a fiat amount with display currency awareness.
+ * @param fiatAmount - The amount in whatever fiat currency the record uses
+ * @param displayCurrency - What the user wants to see ('QAR', 'EGP', or 'USDT')
+ * @param wacop - Weighted average cost of purchase (for USDT conversion)
+ * @param recordFiat - The actual fiat currency of this record (defaults to 'QAR' for backward compat)
+ */
+export function fmtQWithUnit(
+  fiatAmount: number,
+  displayCurrency: string = 'QAR',
+  wacop: number | null = null,
+  recordFiat: 'QAR' | 'EGP' = 'QAR',
+): string {
+  const q = num(fiatAmount);
   if (!Number.isFinite(q)) return '—';
-  if (currency === 'USDT' && wacop && wacop > 0) {
+  if (displayCurrency === 'USDT' && wacop && wacop > 0) {
     return fmtPrice(q / wacop) + ' USDT';
   }
-  return fmtTotal(q) + ' QAR';
+  // Show in the record's actual fiat currency
+  return fmtTotal(q) + ' ' + recordFiat;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,7 +130,7 @@ export function uid(): string {
 
 // ── Cash Management System Types ──────────────────────────────
 export type CashAccountType = 'hand' | 'bank' | 'vault' | 'merchant_custody';
-export type CashCurrency = 'QAR' | 'USDT' | 'USD';
+export type CashCurrency = 'QAR' | 'EGP' | 'USDT' | 'USD';
 export type LedgerEntryType =
   | 'opening'
   | 'deposit'
@@ -237,7 +251,7 @@ export type SettlementMode =
 export interface Trade {
   id: string;
   ts: number;
-  inputMode: 'USDT' | 'QAR';
+  inputMode: 'USDT' | 'QAR' | 'EGP';
   amountUSDT: number;
   sellPriceQAR: number;
   feeQAR: number;
@@ -302,6 +316,64 @@ export interface TradeCalcResult {
   margin: number;
   ppu: number;
   slices: { batchId: string; qty: number; cost: number }[];
+  coveredQty: number;
+  shortfallQty: number;
+  totalCost: number;
+}
+
+export interface StockLayer {
+  id: string;
+  ts: number;
+  remainingQty: number;
+  buyPrice: number;
+}
+
+export interface FifoConsumeRow {
+  layerId: string;
+  qty: number;
+  buyPrice: number;
+  cost: number;
+}
+
+export interface FifoResult {
+  coveredQty: number;
+  shortfallQty: number;
+  totalCost: number;
+  unitCost: number | null;
+  consumed: FifoConsumeRow[];
+}
+
+export function consumeFifo(layers: StockLayer[], sellQty: number): FifoResult {
+  const ordered = layers.filter(l => l.remainingQty > 0);
+
+  let remainingToSell = Math.max(0, sellQty);
+  let coveredQty = 0;
+  let totalCost = 0;
+  const consumed: FifoConsumeRow[] = [];
+
+  for (const layer of ordered) {
+    if (remainingToSell <= 0) break;
+
+    const takeQty = Math.min(layer.remainingQty, remainingToSell);
+    const cost = takeQty * layer.buyPrice;
+    consumed.push({
+      layerId: layer.id,
+      qty: takeQty,
+      buyPrice: layer.buyPrice,
+      cost,
+    });
+    coveredQty += takeQty;
+    totalCost += cost;
+    remainingToSell -= takeQty;
+  }
+
+  return {
+    coveredQty,
+    shortfallQty: remainingToSell,
+    totalCost,
+    unitCost: coveredQty > 0 ? totalCost / coveredQty : null,
+    consumed,
+  };
 }
 
 export interface CashTransaction {
@@ -315,12 +387,21 @@ export interface CashTransaction {
   note: string;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  notes: string;
+  createdAt: number;
+}
+
 export interface TrackerState {
-  currency: 'QAR' | 'USDT';
+  currency: 'QAR' | 'EGP' | 'USDT';
   range: string;
   batches: Batch[];
   trades: Trade[];
   customers: Customer[];
+  suppliers: Supplier[];
   cashQAR: number;
   cashOwner: string;
   cashHistory: CashTransaction[];
@@ -391,28 +472,26 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
   const sortedTrades = [...trades].filter(t => !isTradeInactive(t) && t.usesStock).sort((a, b) => a.ts - b.ts);
 
   for (const t of sortedTrades) {
-    let qtyLeft = t.amountUSDT;
-    const slices: { batchId: string; qty: number; cost: number }[] = [];
-    let totalCost = 0;
-
     // Use merchant-aware batch selection
     const eligibleBatches = selectEligibleBatches(t, sortedBatches, remaining);
+    const layers: StockLayer[] = eligibleBatches.map(b => ({
+      id: b.id,
+      ts: b.ts,
+      remainingQty: Math.max(0, remaining.get(b.id) || 0),
+      buyPrice: b.buyPriceQAR,
+    }));
+    const fifo = consumeFifo(layers, t.amountUSDT);
+    const slices = fifo.consumed.map(row => ({ batchId: row.layerId, qty: row.qty, cost: row.cost }));
 
-    for (const b of eligibleBatches) {
-      if (qtyLeft <= 0) break;
-      const rem = remaining.get(b.id) || 0;
-      if (rem <= 0) continue;
-      const allocated = Math.min(rem, qtyLeft);
-      slices.push({ batchId: b.id, qty: allocated, cost: allocated * b.buyPriceQAR });
-      totalCost += allocated * b.buyPriceQAR;
-      remaining.set(b.id, rem - allocated);
-      qtyLeft -= allocated;
+    for (const row of fifo.consumed) {
+      const rem = remaining.get(row.layerId) || 0;
+      remaining.set(row.layerId, Math.max(0, rem - row.qty));
     }
 
-    const fullyMatched = qtyLeft <= 0;
+    const fullyMatched = fifo.shortfallQty <= 0;
     const rev = t.amountUSDT * t.sellPriceQAR;
-    const netQAR = fullyMatched ? rev - totalCost - t.feeQAR : 0;
-    const avgBuyQAR = fullyMatched && t.amountUSDT > 0 ? totalCost / t.amountUSDT : 0;
+    const netQAR = fullyMatched ? rev - fifo.totalCost - t.feeQAR : 0;
+    const avgBuyQAR = fullyMatched && t.amountUSDT > 0 ? fifo.totalCost / t.amountUSDT : 0;
     const margin = fullyMatched && rev > 0 ? (netQAR / rev) * 100 : 0;
 
     tradeCalc.set(t.id, {
@@ -422,6 +501,9 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
       margin,
       ppu: rev > 0 ? netQAR / t.amountUSDT : 0,
       slices,
+      coveredQty: fifo.coveredQty,
+      shortfallQty: fifo.shortfallQty,
+      totalCost: fifo.totalCost,
     });
   }
 
@@ -440,6 +522,9 @@ export function computeFIFO(batches: Batch[], trades: Trade[]): DerivedState {
       margin,
       ppu: rev > 0 ? netQAR / t.amountUSDT : 0,
       slices: [],
+      coveredQty: t.amountUSDT,
+      shortfallQty: 0,
+      totalCost: cost,
     });
   }
 

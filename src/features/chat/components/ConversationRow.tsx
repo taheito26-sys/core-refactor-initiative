@@ -3,7 +3,17 @@
    (kept for import compatibility but sidebar now renders inline)
    ═══════════════════════════════════════════════════════════════ */
 
-import type { ConversationSummary } from '@/lib/chat-store';
+import type { ChatRoomListItem } from '@/features/chat/types';
+
+/** @deprecated alias kept for compat */
+type ConversationSummary = {
+  counterparty_name: string;
+  counterparty_nickname?: string;
+  last_sender_id?: string;
+  last_message?: string;
+  last_message_at?: string;
+  unread_count: number;
+};
 import { getPalette, fmtListTime, parseMsg } from '../lib/message-codec';
 
 interface Props {

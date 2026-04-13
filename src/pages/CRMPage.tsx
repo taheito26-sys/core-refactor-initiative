@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
-import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, type Customer } from '@/lib/tracker-helpers';
+import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, type Customer, type Supplier } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import '@/styles/tracker.css';
@@ -177,31 +177,58 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
     );
   }, [customers, search]);
 
+  const supplierMaster = state.suppliers ?? [];
+
+  // Backfill legacy supplier names from historical batches into CRM master data once.
+  useEffect(() => {
+    const existing = new Set((state.suppliers || []).map(s => s.name.trim().toLowerCase()).filter(Boolean));
+    const toAdd: Supplier[] = [];
+    state.batches.forEach((b) => {
+      const name = b.source.trim();
+      const key = name.toLowerCase();
+      if (!name || existing.has(key)) return;
+      existing.add(key);
+      toAdd.push({ id: uid(), name, phone: '', notes: '', createdAt: Date.now() });
+    });
+    if (!toAdd.length) return;
+    applyState({ ...state, suppliers: [...(state.suppliers || []), ...toAdd] });
+  }, [applyState, state]);
+
   const suppliers = useMemo(() => {
-    const map = new Map<string, { name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number }>();
+    const batchStats = new Map<string, { batchCount: number; totalUSDT: number; spentQAR: number; lastDate: number }>();
     let grandTotal = 0;
     for (const b of state.batches) {
       const src = b.source.trim();
       if (!src) continue;
+      const key = src.toLowerCase();
       const cost = b.initialUSDT * b.buyPriceQAR;
-      const ex = map.get(src);
+      const ex = batchStats.get(key);
       if (ex) {
         ex.batchCount++;
         ex.totalUSDT += b.initialUSDT;
         ex.spentQAR += cost;
         ex.lastDate = Math.max(ex.lastDate, b.ts);
       } else {
-        map.set(src, { name: src, batchCount: 1, totalUSDT: b.initialUSDT, avgCost: 0, spentQAR: cost, lastDate: b.ts, volumePct: 0 });
+        batchStats.set(key, { batchCount: 1, totalUSDT: b.initialUSDT, spentQAR: cost, lastDate: b.ts });
       }
       grandTotal += b.initialUSDT;
     }
-    const arr = Array.from(map.values());
-    for (const s of arr) {
-      s.avgCost = s.totalUSDT > 0 ? s.spentQAR / s.totalUSDT : 0;
-      s.volumePct = grandTotal > 0 ? (s.totalUSDT / grandTotal) * 100 : 0;
-    }
-    return arr.sort((a, b) => b.totalUSDT - a.totalUSDT);
-  }, [state.batches]);
+
+    return supplierMaster.map((supplier) => {
+      const stats = batchStats.get(supplier.name.trim().toLowerCase());
+      const totalUSDT = stats?.totalUSDT ?? 0;
+      const spentQAR = stats?.spentQAR ?? 0;
+      return {
+        ...supplier,
+        batchCount: stats?.batchCount ?? 0,
+        totalUSDT,
+        spentQAR,
+        avgCost: totalUSDT > 0 ? spentQAR / totalUSDT : 0,
+        lastDate: stats?.lastDate ?? supplier.createdAt,
+        volumePct: grandTotal > 0 ? (totalUSDT / grandTotal) * 100 : 0,
+      };
+    }).sort((a, b) => b.totalUSDT - a.totalUSDT || a.name.localeCompare(b.name));
+  }, [state.batches, supplierMaster]);
 
   const filteredSuppliers = useMemo(() => {
     if (!search) return suppliers;
@@ -304,34 +331,32 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
     if (!name) { setNewSuppError('Supplier name is required.'); return; }
     const exists = suppliers.some(s => s.name.toLowerCase() === name.toLowerCase());
     if (exists) { setNewSuppError('A supplier with this name already exists.'); return; }
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: name,
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
+    const newSupplier: Supplier = { id: uid(), name, phone: '', notes: '', createdAt: Date.now() };
+    applyState({ ...state, suppliers: [...(state.suppliers || []), newSupplier] });
     setShowAddSuppModal(false);
   };
 
   const saveSupplier = () => {
     if (!suppName.trim()) { setSuppError('Name is required.'); return; }
-    if (suppName.trim() !== editingSupp) {
-      applyState({
-        ...state,
-        batches: state.batches.map(b =>
-          b.source.trim() === editingSupp ? { ...b, source: suppName.trim() } : b,
-        ),
-      });
+    const nextName = suppName.trim();
+    if (nextName.toLowerCase() !== editingSupp.toLowerCase() && suppliers.some(s => s.name.toLowerCase() === nextName.toLowerCase())) {
+      setSuppError('A supplier with this name already exists.');
+      return;
     }
+    applyState({
+      ...state,
+      suppliers: (state.suppliers || []).map(s =>
+        s.name.toLowerCase() === editingSupp.toLowerCase() ? { ...s, name: nextName } : s,
+      ),
+    });
     setShowSuppModal(false);
   };
 
   const deleteSupplier = (name: string) => {
-    if (!window.confirm(`Delete supplier "${name}" and all associated batches? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete supplier "${name}" from CRM? Stock batches will be kept.`)) return;
     applyState({
       ...state,
-      batches: state.batches.filter(b => b.source.trim() !== name),
+      suppliers: (state.suppliers || []).filter(s => s.name.toLowerCase() !== name.toLowerCase()),
     });
   };
 

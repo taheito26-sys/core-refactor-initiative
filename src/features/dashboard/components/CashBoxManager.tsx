@@ -8,9 +8,10 @@ interface CashBoxManagerProps {
   cashHistory: CashTransaction[];
   onSave: (newCash: number, owner: string, history: CashTransaction[]) => void;
   onClose: () => void;
+  baseFiatCurrency?: 'QAR' | 'EGP';
 }
 
-export function CashBoxManager({ currentCash, currentOwner, cashHistory, onSave, onClose }: CashBoxManagerProps) {
+export function CashBoxManager({ currentCash, currentOwner, cashHistory, onSave, onClose, baseFiatCurrency = 'QAR' }: CashBoxManagerProps) {
   const [tab, setTab] = useState<'add' | 'deduct' | 'history'>('add');
   const [amount, setAmount] = useState('');
   const [owner, setOwner] = useState(currentOwner);
@@ -89,7 +90,7 @@ export function CashBoxManager({ currentCash, currentOwner, cashHistory, onSave,
           <div>
             <div style={{ fontSize: 10, color: 'var(--good)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>💰 Available Balance</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--good)', fontFamily: 'var(--mono, monospace)', lineHeight: 1 }}>
-              {fmtTotal(currentCash)} <span style={{ fontSize: 13, fontWeight: 600 }}>QAR</span>
+              {fmtTotal(currentCash)} <span style={{ fontSize: 13, fontWeight: 600 }}>{baseFiatCurrency}</span>
             </div>
           </div>
           {currentOwner && (
@@ -113,7 +114,7 @@ export function CashBoxManager({ currentCash, currentOwner, cashHistory, onSave,
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--good)', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  {tab === 'add' ? 'Amount to Add (QAR)' : 'Amount to Deduct (QAR)'}
+                  {tab === 'add' ? `Amount to Add (${baseFiatCurrency})` : `Amount to Deduct (${baseFiatCurrency})`}
                 </label>
                 <input
                   type="number" placeholder="e.g. 20000" value={amount}
@@ -184,7 +185,7 @@ export function CashBoxManager({ currentCash, currentOwner, cashHistory, onSave,
 
             {tab === 'deduct' && amtNum > currentCash && (
               <div style={{ fontSize: 11, color: 'var(--bad)', marginBottom: 8, fontWeight: 600 }}>
-                ⚠ Cannot deduct more than available balance ({fmtTotal(currentCash)} QAR)
+                ⚠ Cannot deduct more than available balance ({fmtTotal(currentCash)} {baseFiatCurrency})
               </div>
             )}
 

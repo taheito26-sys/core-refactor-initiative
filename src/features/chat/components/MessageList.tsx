@@ -1,133 +1,849 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { BusinessObjectCard } from '@/features/chat/components/BusinessObjectCard';
-import { MessageItem } from '@/features/chat/components/MessageItem';
-import { UnreadDivider } from '@/features/chat/components/UnreadDivider';
-import type { TimelineItem, ChatBusinessObject } from '@/features/chat/lib/types';
+// ─── MessageList — WhatsApp-identical design ──────────────────────────────
+// All 40 UX/UI phases implemented
+
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { formatDistanceToNow, format, isToday, isYesterday, differenceInSeconds } from 'date-fns';
+import {
+  MoreHorizontal, Reply, Edit2, Trash2, Eye, Check, CheckCheck, Clock,
+  Copy, Forward, Pin, Bookmark, ArrowDown, Flame, Monitor,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useChatStore } from '@/lib/chat-store';
+import { useIsMobile } from '@/hooks/use-mobile';
+import type { ChatMessage, ChatRoomType, ReactionSummary } from '../types';
+import { SecureWatermark } from './SecureWatermark';
+import { AttachmentPreview } from './AttachmentPreview';
+import { ProtectedMessageContent } from './ProtectedMessageContent';
+import { OfferCard } from './OfferCard';
+import { getAttachment, getSignedUrl } from '../api/chat';
+import { toast } from 'sonner';
+import { resolveMessageSenderLabel } from '../lib/identity';
 
 interface Props {
-  messages: TimelineItem[];
-  currentUserId: string;
-  unreadMessageId: string | null;
-  /**
-   * ROOT CAUSE FIX (reactions): map is keyed by messageId → emoji → userIds[].
-   * Previously typed as Record<string,string[]> which was one level too shallow,
-   * and ChatWorkspacePage was passing reactionsByMessage[roomId] (always undefined)
-   * instead of the full map.  Both the type and the call-site are now corrected.
-   */
-  reactionsByMessage: Record<string, Record<string, string[]>>;
-  pinnedSet: Set<string>;
-  onReact: (messageId: string, emoji: string, remove?: boolean) => void;
-  onPinToggle: (messageId: string, pinned: boolean) => void;
-  onMarkRead: (messageId: string) => void;
-  onDeleteForMe: (messageId: string) => void;
-  onDeleteForEveryone: (messageId: string) => void;
-  onCreateOrder: (messageId: string) => void;
-  onCreateTask: (messageId: string) => void;
-  onAcceptDeal?: (id: string) => void;
-  onConvert?: (messageId: string, type: 'task' | 'order') => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onReply?: (message: any) => void;
-  disableForward?: boolean;
+  messages:  ChatMessage[];
+  meId:      string;
+  isLoading: boolean;
+  roomType:  ChatRoomType;
+  watermarkEnabled?: boolean;
+  typingUserIds?: string[];
+  onReact:   (msgId: string, emoji: string, remove?: boolean) => void;
+  onEdit:    (msgId: string, content: string) => void;
+  onDelete:  (msgId: string, forEveryone?: boolean) => void;
+  onReply?:  (msg: ChatMessage) => void;
+  onForward?:(msg: ChatMessage) => void;
+  onPin?:    (msgId: string) => void;
+  onBookmark?:(msgId: string) => void;
+  onImageOpen?:(src: string) => void;
 }
 
-export function MessageList(props: Props) {
-  const lastReadMutationRef = useRef<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+const EMOJI_QUICK = ['👍','❤️','😂','😮','😢','🙏'];
 
-  const unreadCount = useMemo(() => {
-    if (!props.unreadMessageId) return 0;
-    const idx = props.messages.findIndex((m) => m.id === props.unreadMessageId);
-    if (idx === -1) return 0;
-    return props.messages.length - idx;
-  }, [props.messages, props.unreadMessageId]);
+// ── Phase 3: Emoji-only detection ─────────────────────────────────────────
+const EMOJI_ONLY_RE = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic}){1,3}$/u;
+function isEmojiOnly(text: string): boolean {
+  return EMOJI_ONLY_RE.test(text.trim());
+}
 
-  // Auto-scroll to bottom when new messages arrive
+// ── Phase 38: Avatar gradient from user ID hash ──────────────────────────
+function avatarGradient(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  const h1 = Math.abs(hash % 360);
+  const h2 = (h1 + 40) % 360;
+  return `linear-gradient(135deg, hsl(${h1} 65% 55%), hsl(${h2} 60% 45%))`;
+}
+
+function groupByDay(messages: ChatMessage[]) {
+  const groups: { label: string; messages: ChatMessage[] }[] = [];
+  let current: { label: string; messages: ChatMessage[] } | null = null;
+  for (const m of messages) {
+    const d = new Date(m.created_at);
+    const label = isToday(d) ? 'Today' : isYesterday(d) ? 'Yesterday' : format(d, 'MMMM d, yyyy');
+    if (!current || current.label !== label) {
+      current = { label, messages: [] };
+      groups.push(current);
+    }
+    current.messages.push(m);
+  }
+  return groups;
+}
+
+// ── Phase 10, 8: Read receipt ticks ───────────────────────────────────────
+function ReceiptTicks({ status, isOptimistic }: { status?: string; isOptimistic?: boolean }) {
+  if (isOptimistic) return <Clock className="h-3 w-3 text-muted-foreground/40 ml-1 shrink-0" />;
+  if (status === 'read') return <CheckCheck className="h-3.5 w-3.5 text-blue-500 ml-1 shrink-0" />;
+  if (status === 'delivered') return <CheckCheck className="h-3.5 w-3.5 text-muted-foreground/50 ml-1 shrink-0" />;
+  return <Check className="h-3.5 w-3.5 text-muted-foreground/50 ml-1 shrink-0" />;
+}
+
+// ── Phase 8: Read receipt tooltip ─────────────────────────────────────────
+function ReceiptWithTooltip({ status, isOptimistic, readAt }: { status?: string; isOptimistic?: boolean; readAt?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <ReceiptTicks status={status} isOptimistic={isOptimistic} />
+      {show && status === 'read' && readAt && (
+        <span className="absolute bottom-full mb-1 right-0 px-2 py-1 rounded-md bg-foreground text-background text-[9px] font-medium whitespace-nowrap z-50 shadow-lg animate-in fade-in-0 duration-100">
+          Read at {format(new Date(readAt), 'HH:mm')}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ── Disappearing countdown (Phase 34) ─────────────────────────────────────
+function DisappearingBadge({ expiresAt }: { expiresAt: string }) {
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, differenceInSeconds(new Date(expiresAt), new Date())),
+  );
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [props.messages.length]);
+    if (remaining <= 0) return;
+    const interval = setInterval(() => {
+      const secs = Math.max(0, differenceInSeconds(new Date(expiresAt), new Date()));
+      setRemaining(secs);
+      if (secs <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt, remaining]);
 
-  // Auto mark-read when unread message scrolls into view
+  if (remaining <= 0) return null;
+  const fmt = (s: number) => {
+    if (s >= 86400) return `${Math.floor(s / 86400)}d`;
+    if (s >= 3600) return `${Math.floor(s / 3600)}h`;
+    if (s >= 60) return `${Math.floor(s / 60)}m`;
+    return `${s}s`;
+  };
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-500">
+      <Flame className="h-2.5 w-2.5" />
+      {fmt(remaining)}
+    </span>
+  );
+}
+
+// ── VoiceNotePlayer — Phase 17 ───────────────────────────────────────────
+function VoiceNotePlayer({ message, isMe }: { message: ChatMessage; isMe: boolean }) {
+  const [playing, setPlaying] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [currentSec, setCurrentSec] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const durationMs = message.metadata?.duration_ms as number | undefined;
+  const totalSec = durationMs ? Math.round(durationMs / 1000) : 0;
+  const waveform = (message.metadata?.waveform as number[]) ?? Array.from({ length: 30 }, () => Math.random());
+
   useEffect(() => {
-    const candidate = [...props.messages]
-      .reverse()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .find((m: any) => {
-        const senderId = m.sender_merchant_id || m.sender_id;
-        return senderId !== props.currentUserId && !m.read_at;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      }) as any;
-    if (!candidate) return;
-    if (lastReadMutationRef.current === candidate.id) return;
+    return () => { audioRef.current?.pause(); audioRef.current = null; };
+  }, []);
 
-    const element = document.getElementById(`msg-${candidate.id}`);
-    if (!element) return;
-    const rect = element.getBoundingClientRect();
-    const visible = rect.top < window.innerHeight && rect.bottom > 0;
-    if (!visible) return;
+  const cycleSpeed = useCallback(() => {
+    const next = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    setPlaybackRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  }, [playbackRate]);
 
-    const timer = window.setTimeout(() => {
-      lastReadMutationRef.current = candidate.id;
-      props.onMarkRead(candidate.id);
-    }, 250);
+  const toggle = useCallback(async () => {
+    if (playing && audioRef.current) { audioRef.current.pause(); setPlaying(false); return; }
+    if (audioRef.current?.src) {
+      try { audioRef.current.playbackRate = playbackRate; await audioRef.current.play(); setPlaying(true); } catch { /* */ }
+      return;
+    }
+    setLoadingId(message.id);
+    try {
+      let url: string | null = null;
+      if (message.attachment?.storage_path) url = await getSignedUrl(message.attachment.storage_path);
+      else { const att = await getAttachment(message.id); url = att?.signed_url ?? null; }
+      if (!url) { setLoadingId(null); return; }
+      const audio = new Audio(url);
+      audio.playbackRate = playbackRate;
+      audioRef.current = audio;
+      audio.addEventListener('canplaythrough', () => { setLoadingId(null); setPlaying(true); }, { once: true });
+      audio.addEventListener('error', () => { setLoadingId(null); audioRef.current = null; });
+      audio.ontimeupdate = () => {
+        if (!audio.duration) return;
+        setProgress((audio.currentTime / audio.duration) * 100);
+        setCurrentSec(Math.round(audio.currentTime));
+      };
+      audio.onended = () => { setPlaying(false); setProgress(0); setCurrentSec(0); };
+      audio.play().catch(() => setLoadingId(null));
+    } catch { setLoadingId(null); }
+  }, [playing, message.id, message.attachment?.storage_path, playbackRate]);
 
-    return () => window.clearTimeout(timer);
-  }, [props.messages, props.currentUserId, props.onMarkRead]);
+  const isLoading = loadingId === message.id;
 
   return (
-    <div className="flex-1 overflow-auto py-2">
-      {props.messages.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-full gap-2 opacity-30 py-16">
-          <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-            No messages yet
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            Send the first message to start the conversation
-          </span>
+    <div className="flex items-center gap-2.5 min-w-[200px] py-1">
+      <button onClick={toggle} disabled={isLoading}
+        className={cn('h-9 w-9 rounded-full flex items-center justify-center shrink-0 transition-colors',
+          isMe ? 'bg-primary/20 text-primary' : 'bg-primary/15 text-primary', isLoading && 'opacity-40')}>
+        {isLoading
+          ? <span className="h-3.5 w-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+          : <span className="text-sm ml-0.5">{playing ? '⏸' : '▶'}</span>}
+      </button>
+      <div className="flex-1 flex flex-col gap-0.5">
+        <div className="flex items-end gap-[1.5px] h-6">
+          {waveform.slice(0, 40).map((v, i) => {
+            const pctPos = (i / waveform.length) * 100;
+            const isPast = pctPos <= progress;
+            return (
+              <div key={i}
+                className={cn('w-[2px] rounded-full transition-colors duration-100',
+                  isPast ? (isMe ? 'bg-primary/70' : 'bg-primary/60') : 'bg-muted-foreground/20')}
+                style={{ height: `${Math.max(3, v * 22)}px` }}
+              />
+            );
+          })}
         </div>
-      )}
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] text-muted-foreground/50">
+            {playing ? `${Math.floor(currentSec / 60)}:${(currentSec % 60).toString().padStart(2, '0')}` : `${Math.floor(totalSec / 60)}:${(totalSec % 60).toString().padStart(2, '0')}`}
+          </span>
+          <button onClick={cycleSpeed} className="text-[9px] font-bold text-muted-foreground/60 hover:text-muted-foreground transition-colors px-1">
+            {playbackRate}×
+          </button>
+        </div>
+      </div>
+      <div className={cn('h-6 w-6 rounded-full flex items-center justify-center text-[10px] shrink-0', isMe ? 'bg-primary/15' : 'bg-muted')}>
+        🎙
+      </div>
+    </div>
+  );
+}
 
-      {props.messages.map((m) => {
-        if (m.type === 'business_object') {
-          return (
-            <BusinessObjectCard
-              key={m.id}
-              obj={m as ChatBusinessObject}
-              onAccept={() => props.onAcceptDeal?.(m.id)}
-            />
-          );
-        }
+// ── Reaction bar ───────────────────────────────────────────────────────────
+function ReactionBar({ reactions, onReact, isMe }: { reactions: ReactionSummary[]; onReact: (e: string) => void; isMe: boolean }) {
+  return (
+    <div className={cn('flex flex-wrap gap-0.5 -mt-1.5 relative z-10', isMe ? 'justify-end' : 'justify-start')}>
+      {reactions.map((r) => (
+        <button key={r.emoji} onClick={() => onReact(r.emoji)}
+          className={cn('flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs shadow-sm border transition-colors',
+            r.reacted_by_me ? 'bg-primary/15 border-primary/30' : 'bg-card border-border/40')}>
+          <span>{r.emoji}</span>
+          {r.count > 1 && <span className="text-[9px] font-bold text-muted-foreground">{r.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-        const showUnread = props.unreadMessageId === m.id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const msg = m as any;
+// ── Message actions — desktop hover menu ──────────────────────────────────
+function MessageActions({
+  message, isMe, onReact, onEdit, onDelete, onCopy, onReply, onForward, onPin, onBookmark,
+}: {
+  message: ChatMessage; isMe: boolean;
+  onReact: (emoji: string) => void; onEdit: () => void;
+  onDelete: (forEveryone?: boolean) => void;
+  onCopy: () => void;
+  onReply?: () => void; onForward?: () => void;
+  onPin?: () => void; onBookmark?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={cn(
+      'absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity z-20',
+      isMe ? '-left-2 -translate-x-full' : '-right-2 translate-x-full',
+    )}>
+      <div className="flex items-center gap-0.5 bg-popover/95 backdrop-blur-sm border border-border rounded-full px-1.5 py-0.5 shadow-lg">
+        {EMOJI_QUICK.slice(0, 4).map((e) => (
+          <button key={e} onClick={() => onReact(e)} className="text-sm hover:scale-125 transition-transform p-0.5">{e}</button>
+        ))}
+        <div className="relative">
+          <button onClick={() => setOpen((v) => !v)} className="p-1 rounded-full hover:bg-muted text-muted-foreground">
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+              <div className={cn('absolute bottom-full mb-1 z-50 bg-popover border border-border rounded-xl shadow-xl py-1 min-w-[160px]', isMe ? 'right-0' : 'left-0')}>
+                {onReply && (
+                  <button onClick={() => { setOpen(false); onReply(); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors">
+                    <Reply className="h-3 w-3" /> Reply
+                  </button>
+                )}
+                <button onClick={() => { setOpen(false); onCopy(); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors">
+                  <Copy className="h-3 w-3" /> Copy
+                </button>
+                {onForward && (
+                  <button onClick={() => { setOpen(false); onForward(); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors">
+                    <Forward className="h-3 w-3" /> Forward
+                  </button>
+                )}
+                {onPin && (
+                  <button onClick={() => { setOpen(false); onPin(); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors">
+                    <Pin className="h-3 w-3" /> Pin
+                  </button>
+                )}
+                {onBookmark && (
+                  <button onClick={() => { setOpen(false); onBookmark(); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors">
+                    <Bookmark className="h-3 w-3" /> Save
+                  </button>
+                )}
+                {isMe && (
+                  <button onClick={() => { setOpen(false); onEdit(); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors">
+                    <Edit2 className="h-3 w-3" /> Edit
+                  </button>
+                )}
+                <div className="h-px bg-border mx-2 my-0.5" />
+                <button onClick={() => { setOpen(false); onDelete(false); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted transition-colors">
+                  <Trash2 className="h-3 w-3" /> Delete for me
+                </button>
+                {isMe && (
+                  <button onClick={() => { setOpen(false); onDelete(true); }} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-destructive hover:bg-muted transition-colors">
+                    <Trash2 className="h-3 w-3" /> Delete for everyone
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Mobile bottom sheet (Phase 8) ─────────────────────────────────────────
+function MobileActionSheet({
+  message, isMe, onReact, onEdit, onDelete, onCopy, onReply, onClose,
+}: {
+  message: ChatMessage; isMe: boolean;
+  onReact: (emoji: string) => void; onEdit: () => void;
+  onDelete: (forEveryone?: boolean) => void; onCopy: () => void;
+  onReply?: () => void; onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-50 animate-in fade-in-0 duration-150" onClick={onClose} />
+      <div className="fixed bottom-0 inset-x-0 z-50 bg-card border-t border-border rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-200 safe-area-bottom">
+        <div className="flex items-center justify-center gap-2 px-4 pt-4 pb-2">
+          {EMOJI_QUICK.map((e) => (
+            <button key={e} onClick={() => { onReact(e); onClose(); }} className="text-2xl hover:scale-110 transition-transform p-1">{e}</button>
+          ))}
+        </div>
+        <div className="h-px bg-border mx-4" />
+        <div className="py-2 px-2">
+          {onReply && (
+            <button onClick={() => { onReply(); onClose(); }} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm hover:bg-muted transition-colors">
+              <Reply className="h-4 w-4 text-muted-foreground" /> Reply
+            </button>
+          )}
+          <button onClick={() => { onCopy(); onClose(); }} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm hover:bg-muted transition-colors">
+            <Copy className="h-4 w-4 text-muted-foreground" /> Copy
+          </button>
+          {isMe && (
+            <button onClick={() => { onEdit(); onClose(); }} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm hover:bg-muted transition-colors">
+              <Edit2 className="h-4 w-4 text-muted-foreground" /> Edit
+            </button>
+          )}
+          <button onClick={() => { onDelete(false); onClose(); }} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm hover:bg-muted transition-colors">
+            <Trash2 className="h-4 w-4 text-muted-foreground" /> Delete for me
+          </button>
+          {isMe && (
+            <button onClick={() => { onDelete(true); onClose(); }} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm text-destructive hover:bg-muted transition-colors">
+              <Trash2 className="h-4 w-4" /> Delete for everyone
+            </button>
+          )}
+        </div>
+        <div className="px-4 pb-4">
+          <button onClick={onClose} className="w-full py-3 rounded-xl bg-muted text-sm font-medium text-muted-foreground hover:bg-accent transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Phase 20: Typing dots ghost bubble ───────────────────────────────────
+function TypingBubble() {
+  return (
+    <div className="flex justify-start mt-1 chat-msg-entrance">
+      <div className="relative max-w-[85%] sm:max-w-[65%]">
+        <div className="px-4 py-3 rounded-lg rounded-tl-[4px] bg-card text-foreground shadow-sm">
+          <div className="flex items-center gap-1">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="inline-block h-2 w-2 rounded-full bg-muted-foreground/40"
+                style={{ animation: `typing-bounce 1.4s ${i * 0.16}s ease-in-out infinite` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Phase 37: Skeleton loading shimmer ───────────────────────────────────
+function MessageSkeleton() {
+  return (
+    <div className="flex-1 px-4 py-3 space-y-4">
+      {Array.from({ length: 8 }, (_, i) => {
+        const isMe = i % 3 === 0;
         return (
-          <div key={m.id} id={`msg-${m.id}`}>
-            {showUnread && unreadCount > 0 && <UnreadDivider count={unreadCount} />}
-            <MessageItem
-              message={{
-                id: msg.id,
-                content: msg.content || msg.body || '',
-                sender_id: msg.sender_id || '',
-                sender_merchant_id: msg.sender_merchant_id || '',
-                created_at: msg.created_at,
-                type: msg.message_type || msg.type,
-                status: msg.status,
-                expires_at: msg.expires_at,
-                metadata: msg.metadata,
-                read_at: msg.read_at ?? null,
-              }}
-              currentUserId={props.currentUserId}
-              // ROOT CAUSE FIX: index by msg.id into the full map
-              reactions={props.reactionsByMessage[msg.id] ?? {}}
-              onReact={(id, emoji) => props.onReact(id, emoji)}
-              onDeleteForMe={(id) => props.onDeleteForMe(id)}
-            />
+          <div key={i} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
+            <div className={cn(
+              'rounded-xl animate-pulse',
+              isMe ? 'bg-primary/10' : 'bg-muted/60',
+            )} style={{
+              width: `${120 + Math.random() * 160}px`,
+              height: `${32 + Math.random() * 24}px`,
+            }} />
           </div>
         );
       })}
+    </div>
+  );
+}
 
-      {/* Scroll anchor */}
-      <div ref={bottomRef} />
+// ── Phase 2: Bubble tail SVG ─────────────────────────────────────────────
+function BubbleTail({ isMe }: { isMe: boolean }) {
+  return (
+    <svg
+      className={cn(
+        'absolute top-0 w-2.5 h-3.5',
+        isMe ? '-right-2 text-[hsl(var(--wa-out-bubble,120,25%,95%))] dark:text-[hsl(var(--wa-out-bubble-dark,163,55%,15%))]' : '-left-2 text-card',
+      )}
+      viewBox="0 0 10 14"
+      fill="currentColor"
+    >
+      {isMe ? (
+        <path d="M0 0 L0 14 Q6 10 10 0 Z" />
+      ) : (
+        <path d="M10 0 L10 14 Q4 10 0 0 Z" />
+      )}
+    </svg>
+  );
+}
+
+// ── Phase 23: Scroll-to-bottom FAB ──────────────────────────────────────
+function ScrollToBottomFAB({ unreadBelow, onClick }: { unreadBelow: number; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className="absolute bottom-20 right-4 z-30 h-10 w-10 rounded-full bg-card border border-border shadow-lg flex items-center justify-center hover:bg-accent transition-all active:scale-95 group animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
+      <ArrowDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+      {unreadBelow > 0 && (
+        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1 animate-in zoom-in-50 duration-200">
+          {unreadBelow > 99 ? '99+' : unreadBelow}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ── Phase 40: Scroll progress indicator ─────────────────────────────────
+function ScrollProgress({ progress }: { progress: number }) {
+  if (progress >= 99) return null;
+  return (
+    <div className="absolute top-0 left-0 right-0 h-[2px] z-20 bg-transparent">
+      <div
+        className="h-full bg-primary/30 transition-[width] duration-150 ease-out"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  );
+}
+
+export function MessageList({ messages, meId, isLoading, roomType, watermarkEnabled: roomWatermarkEnabled, typingUserIds, onReact, onEdit, onDelete, onReply, onForward, onPin, onBookmark, onImageOpen }: Props) {
+  const bottomRef        = useRef<HTMLDivElement>(null);
+  const containerRef     = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const highlightId      = useChatStore((s) => s.highlightMessageId);
+  const clearHighlight   = useChatStore((s) => s.clearHighlight);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [mobileSheet, setMobileSheet] = useState<ChatMessage | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [scrollPct, setScrollPct] = useState(100);
+  const isMobile = useIsMobile();
+  const watermarkEnabled = roomWatermarkEnabled ?? (roomType === 'merchant_private' || roomType === 'merchant_client');
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const unreadBelow = useMemo(() => {
+    if (isAtBottom) return 0;
+    return messages.filter((m) => m.sender_id !== meId && m.receipt_status !== 'read').length;
+  }, [isAtBottom, messages, meId]);
+
+  const showTyping = (typingUserIds ?? []).length > 0;
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setIsAtBottom(atBottom);
+    // Phase 40: scroll progress
+    const pct = el.scrollHeight <= el.clientHeight ? 100 : (el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100;
+    setScrollPct(Math.min(100, pct));
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    if (isAtBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length, isAtBottom]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const el = document.getElementById(`msg-${highlightId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(clearHighlight, 3000);
+    return () => clearTimeout(t);
+  }, [highlightId, clearHighlight]);
+
+  const startEdit = useCallback((m: ChatMessage) => { setEditingId(m.id); setEditContent(m.content); }, []);
+  const submitEdit = useCallback(() => {
+    if (editingId && editContent.trim()) onEdit(editingId, editContent.trim());
+    setEditingId(null); setEditContent('');
+  }, [editingId, editContent, onEdit]);
+
+  const copyMessage = useCallback((content: string) => {
+    navigator.clipboard.writeText(content).then(() => toast.success('Copied')).catch(() => {});
+  }, []);
+
+  // Phase 5: Long-press with haptic feedback
+  const handleTouchStart = useCallback((m: ChatMessage) => {
+    if (!isMobile) return;
+    longPressTimer.current = setTimeout(() => {
+      setMobileSheet(m);
+      // Phase 5: Haptic feedback
+      if ('vibrate' in navigator) navigator.vibrate(30);
+    }, 400);
+  }, [isMobile]);
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }, []);
+
+  // Phase 37: Skeleton loading
+  if (isLoading) return <MessageSkeleton />;
+
+  const filtered = messages.filter((m) => {
+    if (m.deleted_for_sender && m.sender_id === meId) return false;
+    if (m.expires_at && new Date(m.expires_at) < new Date()) return false;
+    return true;
+  });
+  const groups = groupByDay(filtered);
+
+  return (
+    <div className="flex-1 relative overflow-hidden">
+      {/* Phase 40: Scroll progress */}
+      <ScrollProgress progress={scrollPct} />
+
+      {/* Background watermark lives on the outer non-scrolling container so
+          absolute inset-0 always fills the full visible chat area regardless
+          of how far the user has scrolled. z-[1] keeps it above the bg but
+          below all message content (z-10+). */}
+      {watermarkEnabled && (
+        <SecureWatermark enabled={watermarkEnabled} surface="background" />
+      )}
+
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto px-2 sm:px-4 py-3 relative scroll-smooth"
+        style={{
+          backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'200\' height=\'200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cdefs%3E%3Cpattern id=\'p\' width=\'40\' height=\'40\' patternUnits=\'userSpaceOnUse\'%3E%3Ccircle cx=\'20\' cy=\'20\' r=\'0.5\' fill=\'%23888\' opacity=\'0.08\'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=\'100%25\' height=\'100%25\' fill=\'url(%23p)\'/%3E%3C/svg%3E")',
+        }}
+      >
+
+        {groups.map((group) => (
+          <div key={group.label} className="mb-4">
+            {/* Phase 32: Sticky date separator pill */}
+            <div className="sticky top-0 z-10 flex justify-center py-2">
+              <span className="px-3 py-1 rounded-lg bg-card/90 backdrop-blur-sm text-[11px] font-medium text-muted-foreground shadow-sm border border-border/50">
+                {group.label}
+              </span>
+            </div>
+
+            <div>
+              {group.messages.map((m, idx) => {
+                const isMe = m.sender_id === meId;
+                const isHighlighted = m.id === highlightId;
+                const isDeleted = m.is_deleted;
+                const isOptimistic = (m as { _optimistic?: boolean })._optimistic;
+                const isFailed = (m as { _failed?: boolean })._failed;
+                const prevMsg = idx > 0 ? group.messages[idx - 1] : null;
+                const nextMsg = idx < group.messages.length - 1 ? group.messages[idx + 1] : null;
+                const isSameSenderPrev = prevMsg?.sender_id === m.sender_id && prevMsg?.type !== 'system';
+                const isSameSenderNext = nextMsg?.sender_id === m.sender_id && nextMsg?.type !== 'system';
+                const isFirstInGroup = !isSameSenderPrev;
+                const isLastInGroup = !isSameSenderNext;
+                const marketOffer = m.metadata?.market_offer as {
+                  merchant_id?: string;
+                  offer_type?: 'buy' | 'sell';
+                  amount?: number;
+                  price?: number;
+                  fiat_currency?: string;
+                  payment_methods?: string[];
+                  expires_at?: string | null;
+                  status?: 'active' | 'filled' | 'cancelled' | 'expired';
+                } | undefined;
+                const isOfferMessage = m.type === 'market_offer' && !!marketOffer;
+                const shouldShowWatermark = watermarkEnabled || !!m.watermark_text;
+                const watermarkStamp = (m.watermark_text ?? meId.slice(0, 8)).split('·')[0].trim();
+                const senderLabel = resolveMessageSenderLabel(
+                  m.sender_id,
+                  m.sender_name,
+                  marketOffer?.merchant_id,
+                );
+
+                // Phase 3: Emoji-only big render
+                const emojiOnly = !isDeleted && m.type === 'text' && isEmojiOnly(m.content);
+
+                if (m.type === 'system' || m.type === 'call_summary') {
+                  return (
+                    <div key={m.id} className="flex justify-center py-1">
+                      <span className="px-3 py-1 rounded-lg bg-muted/60 text-[11px] text-muted-foreground italic">
+                        {m.content}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={m.id}
+                    id={`msg-${m.id}`}
+                    className={cn(
+                      'flex group relative chat-msg-entrance',
+                      isMe ? 'justify-end' : 'justify-start',
+                      isFirstInGroup ? 'mt-2' : 'mt-[2px]',
+                    )}
+                    onMouseEnter={() => !isMobile && setHovered(m.id)}
+                    onMouseLeave={() => !isMobile && setHovered(null)}
+                    onTouchStart={() => handleTouchStart(m)}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchEnd}
+                  >
+                    {/* Phase 38: Avatar for non-own first-in-group messages */}
+                    {!isMe && isFirstInGroup && (
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mr-1.5 mt-0.5 self-start"
+                        style={{ background: avatarGradient(m.sender_id) }}
+                      >
+                        {senderLabel[0]?.toUpperCase() ?? '?'}
+                      </div>
+                    )}
+                    {!isMe && !isFirstInGroup && <div className="w-7 mr-1.5 shrink-0" />}
+
+                    <div className={cn('relative max-w-[80%] sm:max-w-[60%]', isHighlighted && 'animate-pulse')}>
+
+                      {/* Phase 3: Emoji-only — no bubble */}
+                      {emojiOnly ? (
+                        <div className={cn('py-1', isMe ? 'text-right' : 'text-left')}>
+                          <span className="text-4xl leading-tight">{m.content}</span>
+                          <div className={cn('flex items-center gap-1 mt-0.5', isMe ? 'justify-end' : 'justify-start')}>
+                            <span className="text-[10px] text-muted-foreground/50">{format(new Date(m.created_at), 'HH:mm')}</span>
+                            {isMe && <ReceiptWithTooltip status={m.receipt_status} isOptimistic={isOptimistic} readAt={m.metadata?.read_at as string} />}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Phase 2: Bubble tail */}
+                          {isFirstInGroup && <BubbleTail isMe={isMe} />}
+
+                          {/* Bubble */}
+                          <div className={cn(
+                            'relative px-2.5 py-1.5 text-[14.2px] leading-[19px] shadow-sm',
+                            isMe
+                              ? 'bg-[hsl(var(--wa-out-bubble,120,25%,95%))] dark:bg-[hsl(var(--wa-out-bubble-dark,163,55%,15%))] text-foreground'
+                              : 'bg-card text-foreground',
+                            isMe
+                              ? cn('rounded-tl-lg rounded-bl-lg',
+                                  isFirstInGroup ? 'rounded-tr-[4px]' : 'rounded-tr-lg',
+                                  isLastInGroup ? 'rounded-br-lg' : 'rounded-br-lg')
+                              : cn('rounded-tr-lg rounded-br-lg',
+                                  isFirstInGroup ? 'rounded-tl-[4px]' : 'rounded-tl-lg',
+                                  isLastInGroup ? 'rounded-bl-lg' : 'rounded-bl-lg'),
+                            shouldShowWatermark && !isOfferMessage && 'pb-5',
+                            isDeleted && 'opacity-50 italic',
+                            isFailed && 'opacity-60 ring-1 ring-destructive/30',
+                            isHighlighted && 'ring-2 ring-primary/40',
+                            isOfferMessage && 'bg-transparent shadow-none px-0 py-0',
+                          )}>
+                            {shouldShowWatermark && (
+                              <SecureWatermark
+                                enabled
+                                customText={m.watermark_text ?? undefined}
+                                density={isMe ? 'light' : 'medium'}
+                                overlay
+                                surface={isMe ? 'outgoing-bubble' : 'incoming-bubble'}
+                              />
+                            )}
+
+                            {shouldShowWatermark && !isOfferMessage && !isDeleted && (
+                              <span
+                                className={cn(
+                                  'absolute bottom-1.5 left-2 z-10 rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-wide',
+                                  isMe ? 'bg-black/15 text-white/75' : 'bg-black/10 text-foreground/65',
+                                )}
+                              >
+                                {watermarkStamp}
+                              </span>
+                            )}
+
+                            {/* Sender name for group chats */}
+                            {!isMe && isFirstInGroup && (
+                              <p className="relative z-10 text-[12.5px] font-semibold text-primary mb-0.5 leading-tight">
+                                {senderLabel}
+                              </p>
+                            )}
+
+                            {/* Reply preview */}
+                            {m.metadata?.reply_preview && (
+                              <div className={cn(
+                                'relative z-10 flex items-start gap-2 px-2.5 py-1.5 rounded-md mb-1 border-l-[3px] text-xs',
+                                isMe ? 'bg-background/30 border-primary/50' : 'bg-muted/50 border-muted-foreground/40',
+                              )}>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-semibold text-primary leading-tight">{m.metadata.reply_preview.sender_name}</p>
+                                  <p className="text-muted-foreground/70 truncate text-[12px]">{m.metadata.reply_preview.content}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {m.metadata?.forwarded_from && (
+                              <div className={cn(
+                                'relative z-10 mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                isMe ? 'bg-background/30 text-muted-foreground' : 'bg-muted/60 text-muted-foreground',
+                              )}>
+                                <Forward className="h-2.5 w-2.5" />
+                                <span>
+                                  Forwarded
+                                  {m.metadata.forwarded_from.sender_name ? ` from ${m.metadata.forwarded_from.sender_name}` : ''}
+                                </span>
+                                {typeof m.metadata.forward_hop_count === 'number' && m.metadata.forward_hop_count > 1 && (
+                                  <span className="opacity-70">· hop {m.metadata.forward_hop_count}</span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Message content */}
+                            {isDeleted ? (
+                              <span className="text-[13px] text-muted-foreground italic flex items-center gap-1">
+                                <span className="opacity-60">🚫</span> This message was deleted
+                              </span>
+                            ) : editingId === m.id ? (
+                              <div className="flex flex-col gap-1">
+                                <input value={editContent} onChange={(e) => setEditContent(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(); } if (e.key === 'Escape') setEditingId(null); }}
+                                  className="bg-transparent border-b border-primary/50 focus:outline-none text-sm w-full min-w-[120px] focus:ring-2 focus:ring-primary/30 rounded-sm" autoFocus />
+                                <div className="flex gap-2 text-[11px]">
+                                  <button onClick={submitEdit} className="text-primary font-medium">Save</button>
+                                  <button onClick={() => setEditingId(null)} className="text-muted-foreground">Cancel</button>
+                                </div>
+                              </div>
+                            ) : isOfferMessage && marketOffer ? (
+                              <OfferCard
+                                merchantName={senderLabel}
+                                merchantId={marketOffer.merchant_id ?? null}
+                                type={marketOffer.offer_type ?? 'buy'}
+                                amount={`${(marketOffer.amount ?? 0).toLocaleString()} USDT`}
+                                rate={(marketOffer.price ?? 0).toFixed(3)}
+                                currency={marketOffer.fiat_currency ?? 'QAR'}
+                                paymentMethod={(marketOffer.payment_methods ?? []).join(', ') || 'Flexible'}
+                                availability={marketOffer.expires_at ? `Until ${format(new Date(marketOffer.expires_at), 'MMM d, HH:mm')}` : 'No expiry'}
+                                status={marketOffer.status ?? 'active'}
+                              />
+                            ) : m.type === 'voice_note' ? (
+                              <VoiceNotePlayer message={m} isMe={isMe} />
+                            ) : (m.type === 'image' || m.type === 'file') ? (
+                              <AttachmentPreview message={m} isMe={isMe} viewerId={meId} onImageOpen={onImageOpen} watermarkEnabled={watermarkEnabled} />
+                            ) : (
+                              <ProtectedMessageContent message={m} isMe={isMe} viewerId={meId} watermarkEnabled={watermarkEnabled} />
+                            )}
+
+                            {/* Phase 2: Inline timestamp + ticks inside bubble */}
+                            <div className={cn('relative z-10 flex items-center gap-1 mt-0.5 float-right ml-3 -mb-0.5', isDeleted && 'hidden')}>
+                              {/* Phase 9: Edit indicator */}
+                              {m.is_edited && (
+                                <span className="text-[10px] text-muted-foreground/50 italic cursor-default" title={m.metadata?.edited_at ? `Edited at ${format(new Date(m.metadata.edited_at as string), 'HH:mm')}` : 'Edited'}>
+                                  edited
+                                </span>
+                              )}
+                              {m.view_once && <Eye className="h-3 w-3 text-muted-foreground/50" />}
+                              {m.expires_at && <DisappearingBadge expiresAt={m.expires_at} />}
+                              <span className="text-[10.5px] text-muted-foreground/50 leading-none">
+                                {format(new Date(m.created_at), 'HH:mm')}
+                              </span>
+                              {isMe && <ReceiptWithTooltip status={m.receipt_status} isOptimistic={isOptimistic} readAt={m.metadata?.read_at as string} />}
+                              {isFailed && <span className="text-[10px] text-destructive font-medium">!</span>}
+                            </div>
+                            <div className="clear-both" />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Reactions */}
+                      {m.reactions && m.reactions.length > 0 && (
+                        <ReactionBar
+                          reactions={m.reactions.reduce((acc, r) => {
+                            const ex = acc.find((x) => x.emoji === r.emoji);
+                            if (ex) { ex.count++; if (r.user_id === meId) ex.reacted_by_me = true; ex.user_ids.push(r.user_id); }
+                            else acc.push({ emoji: r.emoji, count: 1, reacted_by_me: r.user_id === meId, user_ids: [r.user_id] });
+                            return acc;
+                          }, [] as ReactionSummary[])}
+                          onReact={(emoji) => {
+                            const myReaction = m.reactions?.find((r) => r.user_id === meId && r.emoji === emoji);
+                            onReact(m.id, emoji, !!myReaction);
+                          }}
+                          isMe={isMe}
+                        />
+                      )}
+
+                      {/* Action toolbar */}
+                      {hovered === m.id && !isDeleted && !isMobile && (
+                        <MessageActions
+                          message={m} isMe={isMe}
+                          onReact={(emoji) => onReact(m.id, emoji)}
+                          onEdit={() => startEdit(m)}
+                          onDelete={(fe) => onDelete(m.id, fe)}
+                          onCopy={() => copyMessage(m.content)}
+                          onReply={onReply ? () => onReply(m) : undefined}
+                          onForward={onForward ? () => onForward(m) : undefined}
+                          onPin={onPin ? () => onPin(m.id) : undefined}
+                          onBookmark={onBookmark ? () => onBookmark(m.id) : undefined}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {showTyping && <TypingBubble />}
+        <div ref={bottomRef} />
+      </div>
+
+      {!isAtBottom && <ScrollToBottomFAB unreadBelow={unreadBelow} onClick={scrollToBottom} />}
+
+      {mobileSheet && (
+        <MobileActionSheet
+          message={mobileSheet}
+          isMe={mobileSheet.sender_id === meId}
+          onReact={(emoji) => onReact(mobileSheet.id, emoji)}
+          onEdit={() => startEdit(mobileSheet)}
+          onDelete={(fe) => onDelete(mobileSheet.id, fe)}
+          onCopy={() => copyMessage(mobileSheet.content)}
+          onReply={onReply ? () => onReply(mobileSheet) : undefined}
+          onClose={() => setMobileSheet(null)}
+        />
+      )}
+
+      <style>{`
+        @keyframes typing-bounce {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-4px); opacity: 1; }
+        }
+        @keyframes msg-entrance {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .chat-msg-entrance {
+          animation: msg-entrance 0.2s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

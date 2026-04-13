@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import {
@@ -12,9 +12,22 @@ export interface Profile {
   user_id: string;
   email: string;
   status: string;
+  role: string;
   approved_at: string | null;
   approved_by: string | null;
   rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerProfile {
+  id: string;
+  user_id: string;
+  display_name: string;
+  phone: string | null;
+  region: string | null;
+  preferred_currency: string;
+  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +60,7 @@ interface AuthState {
   email: string | null;
   profile: Profile | null;
   merchantProfile: MerchantProfile | null;
+  customerProfile: CustomerProfile | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
@@ -60,35 +74,68 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
+  const profilesLoadedRef = useRef(false);
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [merchantProfile, setMerchantProfile] = useState<MerchantProfile | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
 
-  const loadUserProfiles = useCallback(async (currentUserId?: string | null) => {
+  const loadUserProfiles = useCallback(async (currentUserId?: string | null, retries = 2) => {
     const resolvedUserId = currentUserId ?? (await supabase.auth.getUser()).data.user?.id ?? null;
 
     if (!resolvedUserId) {
       setProfile(null);
       setMerchantProfile(null);
+      setCustomerProfile(null);
       return;
     }
 
-    const [{ data: profileData }, { data: merchantData }] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', resolvedUserId)
-        .maybeSingle(),
-      supabase
-        .from('merchant_profiles')
-        .select('*')
-        .eq('user_id', resolvedUserId)
-        .maybeSingle(),
-    ]);
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const [profileRes, merchantRes, customerRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', resolvedUserId)
+          .maybeSingle(),
+        supabase
+          .from('merchant_profiles')
+          .select('*')
+          .eq('user_id', resolvedUserId)
+          .maybeSingle(),
+        supabase
+          .from('customer_profiles')
+          .select('*')
+          .eq('user_id', resolvedUserId)
+          .maybeSingle(),
+      ]);
 
-    setProfile(profileData as Profile | null);
-    setMerchantProfile(merchantData as MerchantProfile | null);
+      const hasError = profileRes.error || merchantRes.error || customerRes.error;
+
+      if (hasError && attempt < retries) {
+        console.warn(`[Auth] Profile load attempt ${attempt + 1} failed, retrying...`, {
+          profileErr: profileRes.error?.message,
+          merchantErr: merchantRes.error?.message,
+          customerErr: customerRes.error?.message,
+        });
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+
+      // On final attempt or success, apply whatever we got
+      setProfile(profileRes.data as Profile | null);
+      setMerchantProfile(merchantRes.data as MerchantProfile | null);
+      setCustomerProfile(customerRes.data as CustomerProfile | null);
+
+      // If all queries errored on the final attempt, keep isLoading true
+      // so ProfileGuard shows spinner instead of redirecting to onboarding
+      if (hasError && profileRes.error && merchantRes.error && customerRes.error) {
+        console.error('[Auth] All profile queries failed after retries — keeping loading state');
+        return 'all_failed' as const;
+      }
+      return 'ok' as const;
+    }
+    return 'ok' as const;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -98,11 +145,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    const syncAuthState = async (newSession: Session | null) => {
+    const syncAuthState = async (newSession: Session | null, isInitial = false) => {
       if (!isMounted) return;
 
-      // Handle Dev Mode Bypass
-      if (localStorage.getItem('p2p_dev_mode') === 'true' || import.meta.env.DEV) {
+      // Handle Dev Mode Bypass — only when explicitly enabled AND there is no real session
+      if (!newSession && localStorage.getItem('p2p_dev_mode') === 'true') {
         const mockUser: User = {
           id: '00000000-0000-0000-0000-000000000000',
           email: 'dev@local.test',
@@ -143,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(mockUser);
         setProfile(mockProfile);
         setMerchantProfile(mockMerchant);
+        setCustomerProfile(null);
         setIsLoading(false);
         return;
       }
@@ -151,10 +199,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(newSession?.user ?? null);
 
       if (newSession?.user) {
-        await loadUserProfiles(newSession.user.id);
+        // Only show loading spinner on the very first load —
+        // subsequent token refreshes keep existing profile data visible.
+        if (!profilesLoadedRef.current) {
+          setIsLoading(true);
+        }
+        const result = await loadUserProfiles(newSession.user.id);
+        if (isMounted) {
+          // If all profile queries failed, keep isLoading true to prevent
+          // ProfileGuard from falsely redirecting to onboarding
+          if (result === 'all_failed' && !profilesLoadedRef.current) {
+            // Don't set isLoading false — retry will happen on next auth event
+            return;
+          }
+          profilesLoadedRef.current = true;
+        }
       } else {
         setProfile(null);
         setMerchantProfile(null);
+        setCustomerProfile(null);
+        if (isMounted) profilesLoadedRef.current = false;
       }
 
       if (isMounted) {
@@ -162,15 +226,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Use ONLY onAuthStateChange — it fires INITIAL_SESSION on mount.
+    // Calling getSession() in parallel causes the "lock stolen" race.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
-        void syncAuthState(newSession);
+        void syncAuthState(newSession, _event === 'INITIAL_SESSION');
       }
     );
-
-    void supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      void syncAuthState(existingSession);
-    });
 
     return () => {
       isMounted = false;
@@ -268,6 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
     setProfile(null);
     setMerchantProfile(null);
+    setCustomerProfile(null);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
@@ -293,6 +356,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: user?.email ?? null,
     profile,
     merchantProfile,
+    customerProfile,
     login,
     loginWithGoogle,
     signup,

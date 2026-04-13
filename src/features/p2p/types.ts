@@ -7,6 +7,15 @@ export interface MarketConfig {
   pair: string;
 }
 
+export type PaymentMethodCategory =
+  | 'vodafone_cash'
+  | 'instapay'
+  | 'bank'
+  | 'wallet'
+  | 'other';
+
+export type MerchantOnlineStatus = 'online' | 'offline' | 'unknown';
+
 export interface P2POffer {
   price: number;
   min: number;
@@ -17,12 +26,22 @@ export interface P2POffer {
   trades: number;
   completion: number;
   // Deep Intelligence Fields
+  merchant30dTrades?: number | null;
+  merchant30dCompletion?: number | null;
+  advertiserMessage?: string | null;
+  feedbackCount?: number | null;
+  avgReleaseMinutes?: number | null;
+  avgPayMinutes?: number | null;
+  allTrades?: number | null;
+  tradeType?: string | null;
+  onlineStatus?: MerchantOnlineStatus | null;
+  paymentMethodCategories?: PaymentMethodCategory[];
+  // Head Legacy Aliases
   feedback?: number;
   status?: string;
   avgPay?: number;
   avgRelease?: number;
   allTimeTrades?: number;
-  tradeType?: string;
   message?: string;
 }
 
@@ -63,6 +82,16 @@ export interface MerchantStat {
   availabilityRatio: number;
   avgAvailable: number;
   maxAvailable: number;
+  merchant30dTrades?: number | null;
+  merchant30dCompletion?: number | null;
+  advertiserMessage?: string | null;
+  feedbackCount?: number | null;
+  avgReleaseMinutes?: number | null;
+  avgPayMinutes?: number | null;
+  allTrades?: number | null;
+  tradeType?: string | null;
+  onlineStatus?: MerchantOnlineStatus | null;
+  paymentMethodCategories?: PaymentMethodCategory[];
 }
 
 export const MARKETS: MarketConfig[] = [

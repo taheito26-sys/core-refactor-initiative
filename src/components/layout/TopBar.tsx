@@ -80,10 +80,10 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
       {/* ── Currency Toggle ── */}
       <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
-        {(['QAR', 'USDT'] as const).map(c => (
+        {(['QAR', 'EGP', 'USDT'] as const).map(c => (
           <button
             key={c}
-            onClick={() => update({ currency: c })}
+            onClick={() => update({ currency: c, ...(c !== 'USDT' ? { baseFiatCurrency: c } : {}) })}
             className={cn(
               'px-1.5 py-1 rounded text-[10px] font-semibold transition-all md:px-2.5 md:text-[11px]',
               settings.currency === c

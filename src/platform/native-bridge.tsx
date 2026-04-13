@@ -28,6 +28,22 @@ type PushPlugin = {
   register?: () => Promise<void>;
 };
 
+type PrivacyShieldPlugin = {
+  addListener?: (
+    eventName: "privacyCaptureDetected",
+    listener: (payload: { source?: string; platform?: string }) => void
+  ) => Promise<ListenerHandle> | ListenerHandle;
+};
+
+function dispatchPrivacySignal(source: string, platform: string) {
+  window.dispatchEvent(new CustomEvent("chat-privacy-signal", {
+    detail: {
+      source,
+      platform,
+    },
+  }));
+}
+
 async function initializeNativePushScaffold() {
   const pushPlugin = getNativePlugin<PushPlugin>("PushNotifications");
   if (!pushPlugin?.requestPermissions || !pushPlugin.register) return;
@@ -57,9 +73,10 @@ export function NativePlatformBootstrap() {
     void initializeNativePushScaffold();
 
     const appPlugin = getNativePlugin<AppPlugin>("App");
-    if (!appPlugin?.addListener) return;
+    const privacyPlugin = getNativePlugin<PrivacyShieldPlugin>("PrivacyShield");
+    if (!appPlugin?.addListener && !privacyPlugin?.addListener) return;
 
-    let listenerHandle: ListenerHandle | null = null;
+    const listenerHandles: ListenerHandle[] = [];
 
     const routeFromIncomingUrl = (url: string): string | null => {
       if (isAuthCallbackUrl(url)) {
@@ -83,11 +100,25 @@ export function NativePlatformBootstrap() {
       }
     };
 
+    const handlePrivacyCapture = (source: string) => {
+      console.info("[NativeBridge] Privacy capture signal", {
+        source,
+        runtimePlatform,
+      });
+      dispatchPrivacySignal(source, runtimePlatform);
+    };
+
     const setupListener = async () => {
-      listenerHandle = await appPlugin.addListener?.("appUrlOpen", ({ url }) => {
+      const appUrlHandle = await appPlugin?.addListener?.("appUrlOpen", ({ url }) => {
         if (!url) return;
         handleIncomingUrl(url, "appUrlOpen");
       });
+      if (appUrlHandle) listenerHandles.push(appUrlHandle);
+
+      const privacyHandle = await privacyPlugin?.addListener?.("privacyCaptureDetected", (payload) => {
+        handlePrivacyCapture(payload?.source ?? "native-plugin");
+      });
+      if (privacyHandle) listenerHandles.push(privacyHandle);
 
       const launchUrl = await appPlugin.getLaunchUrl?.();
       if (launchUrl?.url) {
@@ -98,7 +129,7 @@ export function NativePlatformBootstrap() {
     void setupListener();
 
     return () => {
-      void listenerHandle?.remove?.();
+      void Promise.all(listenerHandles.map((handle) => handle.remove?.()));
     };
   }, [navigate]);
 

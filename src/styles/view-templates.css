@@ -271,6 +271,13 @@
   .layout-glass_mobile .app-page-shell,
   .layout-terminal_hc .app-page-shell { padding: 12px 14px; }
 
+  /* Minimal edge padding when edge-to-edge mobile roots are active */
+  .app-page-shell:has(.orders-mobile-root),
+  .app-page-shell:has(.stock-mobile-root) {
+    padding-left: 1px !important;
+    padding-right: 1px !important;
+  }
+
   .layout-flux .grid,
   .layout-cipher .grid,
   .layout-dark_ledger .grid,

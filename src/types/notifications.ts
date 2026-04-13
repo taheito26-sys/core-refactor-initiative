@@ -64,6 +64,7 @@ export type NotificationCategoryGroup =
   | 'approval'
   | 'agreement'
   | 'message'
+  | 'settlement'
   | 'system';
 
 export function normalizeNotificationCategory(category: string): NotificationCategoryGroup {
@@ -73,18 +74,25 @@ export function normalizeNotificationCategory(category: string): NotificationCat
   if (category === 'order') return 'order';
   if (category === 'approval') return 'approval';
   if (category === 'agreement') return 'agreement';
+  if (category === 'settlement') return 'settlement';
   return 'system';
 }
 
 export function inferTargetKind(row: NotificationRow): NotificationTargetKind {
-  if (row.conversation_id || row.category === 'message') return 'chat_message';
+  if (row.conversation_id || row.category === 'message' || row.category === 'chat') return 'chat_message';
   if (row.entity_type === 'order' || row.category === 'order') return 'order';
+  if (row.entity_type === 'customer_order' || row.category === 'customer_order') return 'order';
   if (row.entity_type === 'deal' || row.category === 'deal' || row.category === 'merchant') return 'deal';
-  if (row.entity_type === 'stock') return 'stock';
+  if (row.entity_type === 'stock' || row.category === 'stock') return 'stock';
   if (row.entity_type === 'settlement' || row.category === 'settlement') return 'settlement';
   if (row.entity_type === 'approval' || row.category === 'approval') return 'approval';
   if (row.entity_type === 'invite' || row.category === 'invite' || row.category === 'network') return 'invite';
   if (row.entity_type === 'agreement' || row.category === 'agreement') return 'agreement';
+  if (row.entity_type === 'os_room' || row.entity_type === 'chat_room') return 'chat_message';
+  if (row.entity_type === 'customer_message') return 'chat_message';
+  if (row.entity_type === 'customer_connection' || row.category === 'customer') return 'invite';
+  if (row.entity_type === 'capital_ledger' || row.entity_type === 'cash_custody') return 'deal';
+  if (row.entity_type === 'otc_trade') return 'deal';
   return 'system';
 }
 

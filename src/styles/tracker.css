@@ -62,6 +62,7 @@
 
 /* ── KPI CARDS ── */
 .tracker-root .kpis { display: grid; gap: 4px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tracker-root .kpis.kpis-p2p { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 .tracker-root .kpi-card {
   background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius);
   padding: 6px; box-shadow: var(--lt-shadow2); position: relative; overflow: hidden;
@@ -88,7 +89,7 @@
 .tracker-root .r { text-align: right; }
 
 /* ── PANELS ── */
-.tracker-root .panel { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius); box-shadow: var(--lt-shadow2); transition: all var(--lt-tr); }
+.tracker-root .panel { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius); box-shadow: var(--lt-shadow2); transition: all var(--lt-tr); overflow: visible; }
 .tracker-root .panel:hover { border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
 .tracker-root .panel-head { padding: 10px 12px 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg,rgba(255,255,255,.02),transparent); }
 .tracker-root .panel-head h2 { margin: 0; font-size: calc(11px * var(--ui-scale,1)); font-weight: var(--lt-fw-ui,700); letter-spacing: var(--lt-label-tracking,.3px); text-transform: uppercase; }
@@ -678,65 +679,76 @@
   }
   .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
 
-  /* ── Edge-to-edge orders layout ── */
-  .tracker-root.orders-mobile-root {
+  /* ── Edge-to-edge layout (shared: orders + stock) ── */
+  .tracker-root.orders-mobile-root,
+  .tracker-root.stock-mobile-root {
     padding-left: 0 !important;
     padding-right: 0 !important;
   }
   /* Give back horizontal breathing room to the controls above the list */
   .tracker-root.orders-mobile-root .orders-tab-bar,
-  .tracker-root.orders-mobile-root .month-filter-row {
+  .tracker-root.orders-mobile-root .month-filter-row,
+  .tracker-root.stock-mobile-root .orders-tab-bar,
+  .tracker-root.stock-mobile-root .month-filter-row {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  /* Headings inside stock batches tab */
+  .tracker-root.stock-mobile-root > div:first-child,
+  .tracker-root.stock-mobile-root .twoColPage > div > div:not(.orders-cards-list):not(.tableWrap) {
     padding-left: 10px;
     padding-right: 10px;
   }
   /* Lift the max-width clamp so negative-margin children can escape */
-  .tracker-root.orders-mobile-root .orders-two-col > * {
+  .tracker-root.orders-mobile-root .orders-two-col > *,
+  .tracker-root.stock-mobile-root .twoColPage > * {
     max-width: none;
     overflow: visible;
   }
-  /* Card list: bleed 10px on each side to counter app-page-shell padding */
-  .tracker-root.orders-mobile-root .orders-cards-list {
-    margin-left: -10px;
-    margin-right: -10px;
-    width: calc(100% + 20px);
+  /* Card list: truly edge-to-edge */
+  .tracker-root.orders-mobile-root .orders-cards-list,
+  .tracker-root.stock-mobile-root .orders-cards-list {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    padding: 0;
   }
-  /* Sale form: bleed edge-to-edge, no outer radius, compact */
-  .tracker-root.orders-mobile-root .formPanel.salePanel {
+  /* New Sale form: hidden by default on mobile — shown as sheet via .sale-sheet-open */
+  .tracker-root.orders-mobile-root #new-sale-form {
+    display: none;
+  }
+  /* When sheet is open: reveal as fixed bottom sheet */
+  .tracker-root.orders-mobile-root.sale-sheet-open #new-sale-form {
+    display: block;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 61;
+    max-height: 92dvh;
+    overflow-y: auto;
+    border-radius: 18px 18px 0 0 !important;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-top: 1px solid var(--line);
+    margin: 0;
+    width: 100%;
+    background: var(--bg, #111);
+    animation: sheetSlideUp 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  /* Other panels (incoming, outgoing, transfers) keep their existing style */
+  .tracker-root.orders-mobile-root .formPanel.salePanel:not(#new-sale-form) {
     border-left: none;
     border-right: none;
     border-bottom: none;
     border-radius: 0;
     margin-top: 10px;
-    margin-left: -10px;
-    margin-right: -10px;
-    width: calc(100% + 20px);
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
   }
   .tracker-root.orders-mobile-root .formPanel.salePanel .inner {
     padding: 6px 10px;
     gap: 6px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .hdr {
-    padding: 6px 10px;
-  }
-  /* Compact form fields: smaller inputs and labels */
-  .tracker-root.orders-mobile-root .formPanel.salePanel .field2 .lbl {
-    font-size: 9px;
-    margin-bottom: 3px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox {
-    padding: 5px 10px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .inputBox input {
-    font-size: 13px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow {
-    padding: 5px 8px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .bannerRow .bVal {
-    font-size: 16px;
-  }
-  .tracker-root.orders-mobile-root .formPanel.salePanel .modeToggle {
-    gap: 3px;
   }
 }
 
@@ -1643,4 +1655,44 @@
   .tracker-root .cash-summary-value { font-size: 14px; }
   .tracker-root .cash-accounts-grid { grid-template-columns: 1fr; }
   .tracker-root .cash-summary-sep { display: none; }
+}
+
+/* ── Sale sheet backdrop (Orders page mobile) ──────────────────────── */
+.sale-sheet-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, 0.60);
+  animation: sheetFadeIn 0.18s ease;
+}
+/* Drag-handle pill injected above the sheet form via ::before */
+.tracker-root.orders-mobile-root.sale-sheet-open #new-sale-form::before {
+  content: '';
+  display: block;
+  width: 40px; height: 4px; border-radius: 2px;
+  background: var(--muted); opacity: 0.35;
+  margin: 8px auto 4px;
+}
+
+/* ── Mobile Add Batch Bottom Sheet ─────────────────────────────────── */
+.batch-sheet-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0, 0, 0, 0.60);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  animation: sheetFadeIn 0.18s ease;
+}
+@keyframes sheetFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.batch-sheet {
+  background: var(--bg);
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid var(--line);
+  padding: 12px 14px max(16px, env(safe-area-inset-bottom, 0px));
+  max-height: 90dvh;
+  overflow-y: auto;
+  animation: sheetSlideUp 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }
