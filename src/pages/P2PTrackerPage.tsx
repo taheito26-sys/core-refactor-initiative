@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { RefreshCw, Search, Loader2, Zap, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Search, Loader2, Zap, AlertTriangle, SlidersHorizontal, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { MarketId, MARKETS, P2POffer } from '@/features/p2p/types';
@@ -27,6 +27,14 @@ export default function P2PTrackerPage() {
   const [market, setMarket] = useState<MarketId>('qatar');
   const { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, refresh } = useP2PMarketData(market);
   const currentMarket = MARKETS.find(m => m.id === market)!;
+
+  // ── Egypt QA Sell Override ──
+  // When set, both qaSellAvg and qaBuyAvg use this value for KPI calculations.
+  const [qaSellOverrideText, setQaSellOverrideText] = useState('');
+  const qaSellOverride = useMemo(() => {
+    const v = parseFloat(qaSellOverrideText);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }, [qaSellOverrideText]);
 
   // ── Deep Scan State ──
   const [scanAmount, setScanAmount] = useState('10000');
@@ -54,8 +62,11 @@ export default function P2PTrackerPage() {
     if (market !== 'egypt' || !snapshot || !qatarRates) return undefined;
 
     const egBuyOffers = snapshot.buyOffers || [];
-    const qaSellAvg = qatarRates.sellAvg;
-    const qaBuyAvg = qatarRates.buyAvg;
+
+    // When user has set a QA Sell override, both sell and buy use that single rate
+    // (user's personal average sell rate applies uniformly to both V1 and V2).
+    const qaSellAvg = qaSellOverride ?? qatarRates.sellAvg;
+    const qaBuyAvg  = qaSellOverride ?? qatarRates.buyAvg;
 
     const computeEgAvg = (offers: P2POffer[], regex: RegExp) => {
       const deduped = new Map<string, P2POffer>();
@@ -110,8 +121,11 @@ export default function P2PTrackerPage() {
       qaBuyAvg,
       egBuyVCashAvg,
       egBuyInstaAvg,
+      // Override state for UI indicator
+      isOverridden: qaSellOverride !== null,
+      overrideValue: qaSellOverride,
     };
-  }, [market, snapshot, qatarRates]);
+  }, [market, snapshot, qatarRates, qaSellOverride]);
 
   const dataAgeLabel = useMemo(() => {
     if (!latestFetchedAt) return null;
@@ -322,6 +336,59 @@ export default function P2PTrackerPage() {
                    </Button>
                  </CardContent>
                </Card>
+
+               {/* Egypt QA Sell Override — Egypt market only */}
+               {market === 'egypt' && (
+                 <Card className={cn(
+                   "border-border/40 bg-card/60",
+                   qaSellOverride !== null && "border-primary/40 bg-primary/5"
+                 )}>
+                   <CardHeader className="pb-2 pt-3 px-4">
+                     <CardTitle className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
+                       <SlidersHorizontal className="h-3.5 w-3.5 text-primary/70" />
+                       QA Sell Override
+                       {qaSellOverride !== null && (
+                         <span className="ml-auto text-[9px] font-black text-primary bg-primary/15 px-1.5 py-0.5 rounded">
+                           ACTIVE
+                         </span>
+                       )}
+                     </CardTitle>
+                   </CardHeader>
+                   <CardContent className="px-4 pb-4 space-y-3">
+                     <p className="text-[9px] text-muted-foreground leading-relaxed">
+                       Override the live QA Sell rate for EGP KPI calculations.
+                       When set, both V1 and V2 use this rate. Clear to restore live values.
+                     </p>
+                     <div className="flex gap-2">
+                       <div className="relative flex-1">
+                         <Input
+                           type="number"
+                           placeholder={qatarRates?.sellAvg?.toFixed(4) ?? 'e.g. 3.840'}
+                           value={qaSellOverrideText}
+                           onChange={e => setQaSellOverrideText(e.target.value)}
+                           className="h-9 font-black font-mono bg-muted/20 border-border/50 pr-10 text-[12px]"
+                         />
+                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black opacity-30">QAR</span>
+                       </div>
+                       {qaSellOverride !== null && (
+                         <Button
+                           variant="outline"
+                           size="sm"
+                           className="h-9 px-3 border-destructive/40 text-destructive hover:bg-destructive/10"
+                           onClick={() => setQaSellOverrideText('')}
+                         >
+                           <X className="h-3.5 w-3.5" />
+                         </Button>
+                       )}
+                     </div>
+                     {qaSellOverride !== null && (
+                       <p className="text-[9px] text-primary font-bold">
+                         Using {qaSellOverride.toFixed(4)} QAR for all EGP KPIs (sell = buy)
+                       </p>
+                     )}
+                   </CardContent>
+                 </Card>
+               )}
 
                <MerchantDepthStats merchantStats={merchantStats} t={t} />
             </div>

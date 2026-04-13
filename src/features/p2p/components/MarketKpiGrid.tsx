@@ -20,6 +20,9 @@ interface Props {
     qaBuyAvg: number | null;
     egBuyVCashAvg: number | null;
     egBuyInstaAvg: number | null;
+    // Override indicator
+    isOverridden: boolean;
+    overrideValue: number | null;
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
@@ -65,9 +68,12 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
         {/* Egypt KPI cards – displayed in EGP → QAR direction (~14.xxx EGP per QAR) */}
         {isEgypt && egyptKpis && (
           <>
-            {/* VCash V1: EG VCash Buy avg ÷ QA Sell avg */}
+            {/* VCash V1: EG VCash Buy avg ÷ QA Sell (or override) */}
             <div className="kpi-card" style={{ background: 'color-mix(in srgb, var(--brand) 6%, var(--surface))', borderColor: 'var(--brand)' }}>
-              <div className="kpi-lbl" style={{ color: 'var(--brand)' }}>VCASH V1</div>
+              <div className="kpi-lbl" style={{ color: 'var(--brand)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                VCASH V1
+                {egyptKpis.isOverridden && <span style={{ fontSize: '7px', background: 'var(--brand)', color: 'var(--surface)', borderRadius: '3px', padding: '1px 4px', fontWeight: 900 }}>OVR</span>}
+              </div>
               <div className="kpi-val" style={{ color: 'var(--brand)' }}>
                 {egyptKpis.vCashV1 != null ? egyptKpis.vCashV1.toFixed(3) : '—'}
               </div>
@@ -75,13 +81,16 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
                 1 EGP ≈ {egyptKpis.vCashV1 != null ? (1 / egyptKpis.vCashV1).toFixed(4) : '—'} QAR
               </div>
               <div className="kpi-sub">
-                QA Sell {egyptKpis.qaSellAvg != null ? egyptKpis.qaSellAvg.toFixed(3) : '—'} + VCash Buy {egyptKpis.egBuyVCashAvg != null ? egyptKpis.egBuyVCashAvg.toFixed(3) : '—'}
+                {egyptKpis.isOverridden ? `OVR ${egyptKpis.qaSellAvg != null ? egyptKpis.qaSellAvg.toFixed(3) : '—'}` : `QA Sell ${egyptKpis.qaSellAvg != null ? egyptKpis.qaSellAvg.toFixed(3) : '—'}`} + VCash Buy {egyptKpis.egBuyVCashAvg != null ? egyptKpis.egBuyVCashAvg.toFixed(3) : '—'}
               </div>
             </div>
 
-            {/* VCash V2: EG VCash Buy avg ÷ QA Buy avg */}
+            {/* VCash V2: EG VCash Buy avg ÷ QA Buy (or override — same as V1 when overridden) */}
             <div className="kpi-card" style={{ background: 'color-mix(in srgb, var(--brand) 6%, var(--surface))', borderColor: 'var(--brand)' }}>
-              <div className="kpi-lbl" style={{ color: 'var(--brand)' }}>VCASH V2</div>
+              <div className="kpi-lbl" style={{ color: 'var(--brand)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                VCASH V2
+                {egyptKpis.isOverridden && <span style={{ fontSize: '7px', background: 'var(--brand)', color: 'var(--surface)', borderRadius: '3px', padding: '1px 4px', fontWeight: 900 }}>OVR</span>}
+              </div>
               <div className="kpi-val" style={{ color: 'var(--brand)' }}>
                 {egyptKpis.vCashV2 != null ? egyptKpis.vCashV2.toFixed(3) : '—'}
               </div>
@@ -89,13 +98,16 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
                 1 EGP ≈ {egyptKpis.vCashV2 != null ? (1 / egyptKpis.vCashV2).toFixed(4) : '—'} QAR
               </div>
               <div className="kpi-sub">
-                QA Buy {egyptKpis.qaBuyAvg != null ? egyptKpis.qaBuyAvg.toFixed(3) : '—'} + VCash Buy {egyptKpis.egBuyVCashAvg != null ? egyptKpis.egBuyVCashAvg.toFixed(3) : '—'}
+                {egyptKpis.isOverridden ? `OVR ${egyptKpis.qaBuyAvg != null ? egyptKpis.qaBuyAvg.toFixed(3) : '—'}` : `QA Buy ${egyptKpis.qaBuyAvg != null ? egyptKpis.qaBuyAvg.toFixed(3) : '—'}`} + VCash Buy {egyptKpis.egBuyVCashAvg != null ? egyptKpis.egBuyVCashAvg.toFixed(3) : '—'}
               </div>
             </div>
 
-            {/* InstaPay V1: EG InstaPay/Bank Buy avg ÷ QA Sell avg */}
+            {/* InstaPay V1: EG InstaPay/Bank Buy avg ÷ QA Sell (or override) */}
             <div className="kpi-card" style={{ background: 'color-mix(in srgb, var(--good) 6%, var(--surface))', borderColor: 'var(--good)' }}>
-              <div className="kpi-lbl" style={{ color: 'var(--good)' }}>INSTAPAY V1</div>
+              <div className="kpi-lbl" style={{ color: 'var(--good)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                INSTAPAY V1
+                {egyptKpis.isOverridden && <span style={{ fontSize: '7px', background: 'var(--good)', color: 'var(--surface)', borderRadius: '3px', padding: '1px 4px', fontWeight: 900 }}>OVR</span>}
+              </div>
               <div className="kpi-val" style={{ color: 'var(--good)' }}>
                 {egyptKpis.instaPayV1 != null ? egyptKpis.instaPayV1.toFixed(3) : '—'}
               </div>
@@ -103,13 +115,16 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
                 1 EGP ≈ {egyptKpis.instaPayV1 != null ? (1 / egyptKpis.instaPayV1).toFixed(4) : '—'} QAR
               </div>
               <div className="kpi-sub">
-                QA Sell {egyptKpis.qaSellAvg != null ? egyptKpis.qaSellAvg.toFixed(3) : '—'} + Insta Buy {egyptKpis.egBuyInstaAvg != null ? egyptKpis.egBuyInstaAvg.toFixed(3) : '—'}
+                {egyptKpis.isOverridden ? `OVR ${egyptKpis.qaSellAvg != null ? egyptKpis.qaSellAvg.toFixed(3) : '—'}` : `QA Sell ${egyptKpis.qaSellAvg != null ? egyptKpis.qaSellAvg.toFixed(3) : '—'}`} + Insta Buy {egyptKpis.egBuyInstaAvg != null ? egyptKpis.egBuyInstaAvg.toFixed(3) : '—'}
               </div>
             </div>
 
-            {/* InstaPay V2: EG InstaPay/Bank Buy avg ÷ QA Buy avg */}
+            {/* InstaPay V2: EG InstaPay/Bank Buy avg ÷ QA Buy (or override — same as V1 when overridden) */}
             <div className="kpi-card" style={{ background: 'color-mix(in srgb, var(--good) 6%, var(--surface))', borderColor: 'var(--good)' }}>
-              <div className="kpi-lbl" style={{ color: 'var(--good)' }}>INSTAPAY V2</div>
+              <div className="kpi-lbl" style={{ color: 'var(--good)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                INSTAPAY V2
+                {egyptKpis.isOverridden && <span style={{ fontSize: '7px', background: 'var(--good)', color: 'var(--surface)', borderRadius: '3px', padding: '1px 4px', fontWeight: 900 }}>OVR</span>}
+              </div>
               <div className="kpi-val" style={{ color: 'var(--good)' }}>
                 {egyptKpis.instaPayV2 != null ? egyptKpis.instaPayV2.toFixed(3) : '—'}
               </div>
@@ -117,7 +132,7 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
                 1 EGP ≈ {egyptKpis.instaPayV2 != null ? (1 / egyptKpis.instaPayV2).toFixed(4) : '—'} QAR
               </div>
               <div className="kpi-sub">
-                QA Buy {egyptKpis.qaBuyAvg != null ? egyptKpis.qaBuyAvg.toFixed(3) : '—'} + Insta Buy {egyptKpis.egBuyInstaAvg != null ? egyptKpis.egBuyInstaAvg.toFixed(3) : '—'}
+                {egyptKpis.isOverridden ? `OVR ${egyptKpis.qaBuyAvg != null ? egyptKpis.qaBuyAvg.toFixed(3) : '—'}` : `QA Buy ${egyptKpis.qaBuyAvg != null ? egyptKpis.qaBuyAvg.toFixed(3) : '—'}`} + Insta Buy {egyptKpis.egBuyInstaAvg != null ? egyptKpis.egBuyInstaAvg.toFixed(3) : '—'}
               </div>
             </div>
           </>
