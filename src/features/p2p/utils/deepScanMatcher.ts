@@ -13,22 +13,6 @@ export function isOfferEligibleForScan(
     reasons.push(`Capacity ${effectiveMax} < required ${request.requiredUsdt}`);
   }
 
-  // 30d trades threshold
-  if (request.min30dTrades > 0) {
-    const trades = offer.merchant30dTrades;
-    if (trades == null || trades < request.min30dTrades) {
-      reasons.push(`30d trades ${trades ?? '—'} < min ${request.min30dTrades}`);
-    }
-  }
-
-  // Completion rate threshold
-  if (request.minCompletionPct > 0) {
-    const comp = offer.merchant30dCompletion;
-    if (comp == null || comp < request.minCompletionPct) {
-      reasons.push(`Completion ${comp != null ? comp.toFixed(1) + '%' : '—'} < min ${request.minCompletionPct}%`);
-    }
-  }
-
   return { eligible: reasons.length === 0, reasons };
 }
 
@@ -42,22 +26,19 @@ export function scoreEligibleOffer(
   let score = 0;
 
   // ── Price component (40%) ──
-  // Higher sell price → better for operator selling USDT
   if (averageEligiblePrice && averageEligiblePrice > 0 && offer.price > 0) {
     const priceRatio = offer.price / averageEligiblePrice;
     score += Math.min(40, priceRatio * 40);
   } else {
-    score += 20; // neutral
+    score += 20;
   }
 
   // ── 30d trades component (25%) ──
   const trades = offer.merchant30dTrades ?? offer.trades ?? 0;
-  // Normalize: 1000 trades → full 25 points
   score += Math.min(25, (trades / 1000) * 25);
 
   // ── Completion rate component (20%) ──
   const completion = offer.merchant30dCompletion ?? offer.completion ?? 0;
-  // 100% → 20 points
   score += (completion / 100) * 20;
 
   // ── Capacity coverage (15%) ──
@@ -93,7 +74,6 @@ export function buildDeepScanResult(
   const eligible: DeepScanCandidate[] = [];
   const excluded: DeepScanCandidate[] = [];
 
-  // First pass: classify eligibility
   for (const [nick, offer] of bestByNick) {
     const { eligible: isEligible, reasons } = isOfferEligibleForScan(offer, request);
     const effectiveMax = Math.max(offer.available, offer.max);
@@ -140,7 +120,7 @@ export function buildDeepScanResult(
   return {
     request,
     winner,
-    topCandidates: eligible.slice(0, 5),
+    topCandidates: eligible,
     excludedCandidates: excluded,
     averageEligiblePrice,
     eligibleMerchantCount: eligible.length,

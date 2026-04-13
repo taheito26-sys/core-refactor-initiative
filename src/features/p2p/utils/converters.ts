@@ -59,6 +59,33 @@ export function toOffer(value: unknown): P2POffer | null {
     ? source.methods.filter((m): m is string => typeof m === 'string' && m.trim().length > 0)
     : [];
 
+  // Parse merchant intelligence fields with multiple upstream key fallbacks
+  const merchant30dTrades = toFiniteNumber(
+    source.merchant30dTrades ?? source.monthOrderCount ?? source.monthlyOrderCount ?? source.tradeCount30d
+  );
+  const merchant30dCompletion = toFiniteNumber(
+    source.merchant30dCompletion ?? source.monthFinishRate ?? source.monthlyFinishRate ?? source.completionRate30d
+  );
+  const advertiserMessage = toStringOrNull(
+    source.advertiserMessage ?? source.advertiserInfo ?? source.advertContent ?? source.advertiserContent
+  );
+  const feedbackCount = toFiniteNumber(
+    source.feedbackCount ?? source.positiveCount ?? source.positiveFeedbackCount ?? source.userPositiveCount
+  );
+  const avgReleaseMinutes = toFiniteNumber(
+    source.avgReleaseMinutes ?? source.avgReleaseTime ?? source.releaseTime
+  );
+  const avgPayMinutes = toFiniteNumber(
+    source.avgPayMinutes ?? source.avgPayTime ?? source.payTime
+  );
+  const allTrades = toFiniteNumber(
+    source.allTrades ?? source.tradeCount ?? source.totalTrades ?? source.totalOrderCount
+  );
+  const tradeType = toStringOrNull(source.tradeType ?? source.tradeTypeName);
+  const onlineStatus = toOnlineStatus(
+    source.onlineStatus ?? source.userOnlineStatus ?? source.isOnline
+  );
+
   return {
     price,
     min: toFiniteNumber(source.min) ?? 0,
@@ -68,16 +95,15 @@ export function toOffer(value: unknown): P2POffer | null {
     available: toFiniteNumber(source.available) ?? 0,
     trades: toFiniteNumber(source.trades) ?? 0,
     completion: toFiniteNumber(source.completion) ?? 0,
-    // Extended merchant intelligence fields — backward compatible
-    merchant30dTrades: toFiniteNumber(source.merchant30dTrades ?? source.monthOrderCount),
-    merchant30dCompletion: toFiniteNumber(source.merchant30dCompletion ?? source.monthFinishRate),
-    advertiserMessage: toStringOrNull(source.advertiserMessage ?? source.advertiserInfo),
-    feedbackCount: toFiniteNumber(source.feedbackCount ?? source.positiveCount),
-    avgReleaseMinutes: toFiniteNumber(source.avgReleaseMinutes ?? source.avgReleaseTime),
-    avgPayMinutes: toFiniteNumber(source.avgPayMinutes ?? source.avgPayTime),
-    allTrades: toFiniteNumber(source.allTrades ?? source.tradeCount),
-    tradeType: toStringOrNull(source.tradeType),
-    onlineStatus: toOnlineStatus(source.onlineStatus ?? source.userOnlineStatus),
+    merchant30dTrades,
+    merchant30dCompletion,
+    advertiserMessage,
+    feedbackCount,
+    avgReleaseMinutes,
+    avgPayMinutes,
+    allTrades,
+    tradeType,
+    onlineStatus,
     paymentMethodCategories: classifyPaymentMethods(methods),
   };
 }
@@ -140,7 +166,6 @@ export function filterSnapshotByPaymentMethods(
       const hasAllowed = cats.some(c => allowedCategories.has(c));
       if (!hasAllowed) return false;
       if (excludeCategories) {
-        // Exclude if ALL categories are in excludeCategories (wallet-only)
         const allExcluded = cats.every(c => excludeCategories.has(c));
         if (allExcluded) return false;
       }
@@ -151,7 +176,6 @@ export function filterSnapshotByPaymentMethods(
   const filteredBuy = filterOffers(snapshot.buyOffers);
 
   const computeAvg20 = (offers: P2POffer[]): number | null => {
-    // Dedupe by nick, keep best price per merchant
     const best = new Map<string, number>();
     for (const o of offers) {
       const nick = o.nick.trim();

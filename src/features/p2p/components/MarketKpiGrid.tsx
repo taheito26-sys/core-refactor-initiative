@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { P2PSnapshot, MarketId } from '../types';
+import { filterSnapshotByPaymentMethods } from '../utils/converters';
 import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 
 interface Props {
@@ -16,11 +18,11 @@ interface Props {
 }
 
 export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, qatarRates, t }: Props) {
-  const isCrossMarket = (market === 'egypt' || market === 'ksa' || market === 'egypt_fx_qar' || market === 'egypt_vcash' || market === 'egypt_bank');
-  const isEgyptVariant = market === 'egypt' || market === 'egypt_fx_qar' || market === 'egypt_vcash' || market === 'egypt_bank';
-  const currLabel = isEgyptVariant ? 'EGP' : market === 'ksa' ? 'SAR' : '';
-  const buyLabel = isEgyptVariant ? 'EG Buy' : 'KSA Buy';
-  const sellLabel = isEgyptVariant ? 'EG Sell' : 'KSA Sell';
+  const isCrossMarket = (market === 'egypt' || market === 'ksa');
+  const isEgypt = market === 'egypt';
+  const currLabel = isEgypt ? 'EGP' : market === 'ksa' ? 'SAR' : '';
+  const buyLabel = isEgypt ? 'EG Buy' : 'KSA Buy';
+  const sellLabel = isEgypt ? 'EG Sell' : 'KSA Sell';
 
   // FX rate: Qatar sell avg ÷ local buy avg
   const fxRate = isCrossMarket && qatarRates?.sellAvg && snapshot.buyAvg
@@ -29,6 +31,30 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
   const fxRateV2 = isCrossMarket && qatarRates?.sellAvg && snapshot.sellAvg
     ? qatarRates.sellAvg / snapshot.sellAvg
     : null;
+
+  // Egypt-specific payment rail KPIs
+  const vcashKpi = useMemo(() => {
+    if (!isEgypt || !qatarRates?.sellAvg) return null;
+    const filtered = filterSnapshotByPaymentMethods(snapshot, new Set(['vodafone_cash']));
+    if (!filtered.buyAvg || !filtered.sellAvg) return null;
+    const fxBuy = qatarRates.sellAvg / filtered.buyAvg;
+    const fxSell = qatarRates.sellAvg / filtered.sellAvg;
+    return { buyAvg: filtered.buyAvg, sellAvg: filtered.sellAvg, fxBuy, fxSell };
+  }, [isEgypt, qatarRates, snapshot]);
+
+  const bankKpi = useMemo(() => {
+    if (!isEgypt || !qatarRates?.sellAvg) return null;
+    const filtered = filterSnapshotByPaymentMethods(
+      snapshot,
+      new Set(['instapay', 'bank']),
+      new Set(['wallet'])
+    );
+    if (!filtered.buyAvg || !filtered.sellAvg) return null;
+    const fxBuy = qatarRates.sellAvg / filtered.buyAvg;
+    const fxSell = qatarRates.sellAvg / filtered.sellAvg;
+    return { buyAvg: filtered.buyAvg, sellAvg: filtered.sellAvg, fxBuy, fxSell };
+  }, [isEgypt, qatarRates, snapshot]);
+
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
       <div className="kpis kpis-p2p">
@@ -105,6 +131,32 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
             <div className="kpi-sub">1 QAR ≈ {fmtPrice(1 / fxRateV2)} {currLabel}</div>
             <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
               QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ {sellLabel} {snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}
+            </div>
+          </div>
+        )}
+        {/* Egypt VCash KPI */}
+        {vcashKpi && (
+          <div className="kpi-card">
+            <div className="kpi-lbl">VCash → QAR FX</div>
+            <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
+              {fmtPrice(1 / vcashKpi.fxBuy)}
+            </div>
+            <div className="kpi-sub">1 EGP ≈ {fmtPrice(vcashKpi.fxBuy)} QAR</div>
+            <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
+              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ VCash Buy {fmtPrice(vcashKpi.buyAvg)}
+            </div>
+          </div>
+        )}
+        {/* Egypt InstaPay+Bank KPI */}
+        {bankKpi && (
+          <div className="kpi-card">
+            <div className="kpi-lbl">Bank/InstaPay → QAR FX</div>
+            <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
+              {fmtPrice(1 / bankKpi.fxBuy)}
+            </div>
+            <div className="kpi-sub">1 EGP ≈ {fmtPrice(bankKpi.fxBuy)} QAR</div>
+            <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
+              QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ Bank Buy {fmtPrice(bankKpi.buyAvg)}
             </div>
           </div>
         )}
