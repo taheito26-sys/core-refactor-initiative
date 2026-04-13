@@ -7,10 +7,12 @@ export function isOfferEligibleForScan(
 ): { eligible: boolean; reasons: string[] } {
   const reasons: string[] = [];
 
-  // Full coverage check
-  const effectiveMax = Math.max(offer.available, offer.max);
-  if ((request.mode === 'single_merchant_only' || request.requireFullCoverage) && effectiveMax < request.requiredUsdt) {
-    reasons.push(`Capacity ${effectiveMax} < required ${request.requiredUsdt}`);
+  if (offer.available < request.requiredUsdt) {
+    reasons.push(`Available ${offer.available} < required ${request.requiredUsdt}`);
+  }
+
+  if ((request.mode === 'single_merchant_only' || request.requireFullCoverage) && offer.max < request.requiredUsdt) {
+    reasons.push(`Max ${offer.max} < required ${request.requiredUsdt}`);
   }
 
   return { eligible: reasons.length === 0, reasons };
@@ -42,9 +44,11 @@ export function scoreEligibleOffer(
   score += (completion / 100) * 20;
 
   // ── Capacity coverage (15%) ──
-  const effectiveMax = Math.max(offer.available, offer.max);
-  if (request.requiredUsdt > 0 && effectiveMax > 0) {
-    const coverageRatio = Math.min(2, effectiveMax / request.requiredUsdt);
+  const effectiveCoverage = request.mode === 'single_merchant_only'
+    ? Math.min(offer.available, offer.max)
+    : offer.available;
+  if (request.requiredUsdt > 0 && effectiveCoverage > 0) {
+    const coverageRatio = Math.min(2, effectiveCoverage / request.requiredUsdt);
     score += (coverageRatio / 2) * 15;
   }
 
@@ -76,7 +80,6 @@ export function buildDeepScanResult(
 
   for (const [nick, offer] of bestByNick) {
     const { eligible: isEligible, reasons } = isOfferEligibleForScan(offer, request);
-    const effectiveMax = Math.max(offer.available, offer.max);
     const candidate: DeepScanCandidate = {
       nick,
       score: 0,
@@ -88,7 +91,7 @@ export function buildDeepScanResult(
       feedbackCount: offer.feedbackCount ?? null,
       advertiserMessage: offer.advertiserMessage ?? null,
       methodCategories: offer.paymentMethodCategories ?? [],
-      coversFullAmount: effectiveMax >= request.requiredUsdt,
+      coversFullAmount: offer.available >= request.requiredUsdt && offer.max >= request.requiredUsdt,
       rejectionReasons: reasons,
       sourceOffer: offer,
     };

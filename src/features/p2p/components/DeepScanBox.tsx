@@ -37,8 +37,6 @@ export function DeepScanBox({ snapshot, market }: Props) {
       market,
       requiredUsdt: parsed,
       mode,
-      min30dTrades: 0,
-      minCompletionPct: 0,
       requireFullCoverage: mode === 'single_merchant_only',
     };
 

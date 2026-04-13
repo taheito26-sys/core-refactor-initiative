@@ -29,20 +29,21 @@ function FieldRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function MerchantIntelligenceCard({ candidate, offer, merchantStat, compact }: Props) {
+  const sourceOffer = candidate?.sourceOffer ?? offer;
   const nick = candidate?.nick ?? offer?.nick ?? merchantStat?.nick ?? '—';
-  const price = candidate?.price ?? offer?.price;
-  const available = candidate?.available ?? offer?.available;
-  const max = candidate?.max ?? offer?.max;
-  const trades30d = candidate?.merchant30dTrades ?? offer?.merchant30dTrades ?? merchantStat?.merchant30dTrades;
-  const completion30d = candidate?.merchant30dCompletion ?? offer?.merchant30dCompletion ?? merchantStat?.merchant30dCompletion;
-  const feedback = candidate?.feedbackCount ?? offer?.feedbackCount ?? merchantStat?.feedbackCount;
-  const advMsg = candidate?.advertiserMessage ?? offer?.advertiserMessage ?? merchantStat?.advertiserMessage;
-  const avgRelease = offer?.avgReleaseMinutes ?? merchantStat?.avgReleaseMinutes;
-  const avgPay = offer?.avgPayMinutes ?? merchantStat?.avgPayMinutes;
-  const allTrades = offer?.allTrades ?? merchantStat?.allTrades;
-  const tradeType = offer?.tradeType ?? merchantStat?.tradeType;
-  const status = offer?.onlineStatus ?? merchantStat?.onlineStatus;
-  const methods = candidate?.methodCategories ?? offer?.paymentMethodCategories ?? merchantStat?.paymentMethodCategories ?? [];
+  const price = candidate?.price ?? sourceOffer?.price;
+  const available = candidate?.available ?? sourceOffer?.available;
+  const max = candidate?.max ?? sourceOffer?.max;
+  const trades30d = candidate?.merchant30dTrades ?? sourceOffer?.merchant30dTrades ?? merchantStat?.merchant30dTrades;
+  const completion30d = candidate?.merchant30dCompletion ?? sourceOffer?.merchant30dCompletion ?? merchantStat?.merchant30dCompletion;
+  const feedback = candidate?.feedbackCount ?? sourceOffer?.feedbackCount ?? merchantStat?.feedbackCount;
+  const advMsg = candidate?.advertiserMessage ?? sourceOffer?.advertiserMessage ?? merchantStat?.advertiserMessage;
+  const avgRelease = sourceOffer?.avgReleaseMinutes ?? merchantStat?.avgReleaseMinutes;
+  const avgPay = sourceOffer?.avgPayMinutes ?? merchantStat?.avgPayMinutes;
+  const allTrades = sourceOffer?.allTrades ?? merchantStat?.allTrades;
+  const tradeType = sourceOffer?.tradeType ?? merchantStat?.tradeType;
+  const status = sourceOffer?.onlineStatus ?? merchantStat?.onlineStatus;
+  const methods = candidate?.methodCategories ?? sourceOffer?.paymentMethodCategories ?? merchantStat?.paymentMethodCategories ?? [];
 
   return (
     <div className="rounded-md border border-border/60 p-2.5 space-y-1.5" style={{ background: 'var(--panel2, hsl(var(--card)))' }}>

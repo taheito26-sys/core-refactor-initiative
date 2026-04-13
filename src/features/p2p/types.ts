@@ -14,6 +14,8 @@ export type PaymentMethodCategory =
   | 'wallet'
   | 'other';
 
+export type MerchantOnlineStatus = 'online' | 'offline' | 'unknown';
+
 export interface P2POffer {
   price: number;
   min: number;
@@ -31,7 +33,7 @@ export interface P2POffer {
   avgPayMinutes?: number | null;
   allTrades?: number | null;
   tradeType?: string | null;
-  onlineStatus?: 'online' | 'offline' | 'unknown' | null;
+  onlineStatus?: MerchantOnlineStatus | null;
   paymentMethodCategories?: PaymentMethodCategory[];
 }
 
@@ -80,7 +82,7 @@ export interface MerchantStat {
   avgPayMinutes?: number | null;
   allTrades?: number | null;
   tradeType?: string | null;
-  onlineStatus?: 'online' | 'offline' | 'unknown' | null;
+  onlineStatus?: MerchantOnlineStatus | null;
   paymentMethodCategories?: PaymentMethodCategory[];
 }
 

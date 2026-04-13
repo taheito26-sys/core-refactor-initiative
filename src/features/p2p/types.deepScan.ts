@@ -6,8 +6,6 @@ export interface DeepScanRequest {
   market: MarketId;
   requiredUsdt: number;
   mode: DeepScanMode;
-  min30dTrades: number;
-  minCompletionPct: number;
   requireFullCoverage: boolean;
 }
 

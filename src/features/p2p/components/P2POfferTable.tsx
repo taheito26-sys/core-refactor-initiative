@@ -40,7 +40,7 @@ function ExpandedDetail({ offer }: { offer: P2POffer }) {
         <div><span className="text-muted-foreground">Status:</span> <span className="font-mono">{offer.onlineStatus ?? 'Unknown'}</span></div>
         <div><span className="text-muted-foreground">Avg Pay:</span> <span className="font-mono">{f(offer.avgPayMinutes, ' min')}</span></div>
         <div><span className="text-muted-foreground">Avg Release:</span> <span className="font-mono">{f(offer.avgReleaseMinutes, ' min')}</span></div>
-        <div><span className="text-muted-foreground">All-time:</span> <span className="font-mono">{f(offer.allTrades)}</span></div>
+        <div><span className="text-muted-foreground">All-time Trades:</span> <span className="font-mono">{f(offer.allTrades)}</span></div>
         <div><span className="text-muted-foreground">Type:</span> <span className="font-mono">{offer.tradeType ?? '—'}</span></div>
       </div>
       {/* Payment categories */}

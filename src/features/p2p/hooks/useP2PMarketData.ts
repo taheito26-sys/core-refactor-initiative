@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MarketId, P2PSnapshot, P2PHistoryPoint, MerchantStat, EMPTY_SNAPSHOT } from '../types';
-import { toSnapshot, toFiniteNumber, toOffer } from '../utils/converters';
+import { toSnapshot, toFiniteNumber, computeDistinctMerchantAverage } from '../utils/converters';
 
 export function useP2PMarketData(market: MarketId) {
   const [snapshot, setSnapshot] = useState<P2PSnapshot | null>(null);
@@ -73,7 +73,7 @@ export function useP2PMarketData(market: MarketId) {
       const { data: merchantRowsDesc } = await (supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
-        .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
+        .select('data, fetched_at')
         .eq('market', market)
         .gte('fetched_at', cutoff24h)
         .order('fetched_at', { ascending: false })
@@ -101,7 +101,8 @@ export function useP2PMarketData(market: MarketId) {
 
       for (const row of rows) {
         const seenInSnapshot = new Set<string>();
-        const offers = [...(row.sell_offers || []), ...(row.buy_offers || [])].map(toOffer).filter(o => o !== null);
+        const normalizedSnapshot = toSnapshot(row.data, row.fetched_at);
+        const offers = [...normalizedSnapshot.sellOffers, ...normalizedSnapshot.buyOffers];
         for (const offer of offers) {
           const nick = offer.nick.trim();
           if (!nick) continue;
@@ -183,26 +184,12 @@ export function useP2PMarketData(market: MarketId) {
   // Compute 20-merchant average for the current snapshot
   const avg20Sell = useMemo(() => {
     if (!snapshot) return null;
-    const best = new Map<string, number>();
-    for (const o of snapshot.sellOffers) {
-      const nick = o.nick.trim();
-      const existing = best.get(nick);
-      if (existing == null || o.price > existing) best.set(nick, o.price);
-    }
-    const prices = Array.from(best.values()).sort((a, b) => b - a).slice(0, 20);
-    return prices.length > 0 ? prices.reduce((s, p) => s + p, 0) / prices.length : null;
+    return computeDistinctMerchantAverage(snapshot.sellOffers, 'highest');
   }, [snapshot]);
 
   const avg20Buy = useMemo(() => {
     if (!snapshot) return null;
-    const best = new Map<string, number>();
-    for (const o of snapshot.buyOffers) {
-      const nick = o.nick.trim();
-      const existing = best.get(nick);
-      if (existing == null || o.price < existing) best.set(nick, o.price);
-    }
-    const prices = Array.from(best.values()).sort((a, b) => a - b).slice(0, 20);
-    return prices.length > 0 ? prices.reduce((s, p) => s + p, 0) / prices.length : null;
+    return computeDistinctMerchantAverage(snapshot.buyOffers, 'lowest');
   }, [snapshot]);
 
   return {
