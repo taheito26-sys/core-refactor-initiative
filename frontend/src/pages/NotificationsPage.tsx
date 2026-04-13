@@ -1,31 +1,46 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, CheckCheck, Handshake, Mail, ShieldCheck, Package,
-  Zap, Clock, ArrowRight, Sparkles, Search, Trash2, Filter,
-  ChevronDown, X,
+  Zap, Clock, ArrowRight, Sparkles, Search, Filter,
+  X, Check, SquareCheck, Square,
 } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
   useNotifications,
   useMarkNotificationRead,
+  useMarkNotificationsRead,
   useMarkAllRead,
-  notificationRoute,
   type Notification,
 } from '@/hooks/useNotifications';
+import { handleNotificationClick } from '@/lib/notification-router';
+import { normalizeNotificationCategory } from '@/types/notifications';
+import { smartGroupNotifications, type SmartNotification } from '@/lib/notification-grouping';
+import { useT } from '@/lib/i18n';
+import {
+  resolveNotificationActionKind,
+  useInlineDealApprove, useInlineDealReject,
+  useInlineInviteAccept, useInlineInviteReject,
+  useInlineProfileApprove, useInlineProfileReject,
+  useInlineSettlementApprove, useInlineSettlementReject,
+} from '@/hooks/useNotificationActions';
+import { useUpdateAgreementStatus } from '@/hooks/useProfitShareAgreements';
+import { toast } from 'sonner';
+import { NotificationDigest } from '@/components/notifications/NotificationDigest';
 
 // ─── Category Config ────────────────────────────────────────────────
 type CategoryKey = 'all' | 'deal' | 'order' | 'invite' | 'approval' | 'system';
 
-const CATEGORIES: { key: CategoryKey; label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }[] = [
-  { key: 'all', label: 'All Activity', icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
-  { key: 'deal', label: 'Deals', icon: Handshake, color: 'text-accent', bg: 'bg-accent/10' },
-  { key: 'order', label: 'Orders', icon: Package, color: 'text-warning', bg: 'bg-warning/10' },
-  { key: 'invite', label: 'Invites', icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
-  { key: 'approval', label: 'Approvals', icon: ShieldCheck, color: 'text-success', bg: 'bg-success/10' },
-  { key: 'system', label: 'System', icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
+const CATEGORY_KEYS: { key: CategoryKey; labelKey: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }[] = [
+  { key: 'all', labelKey: 'notifAllActivity', icon: Sparkles, color: 'text-primary', bg: 'bg-primary/10' },
+  { key: 'deal', labelKey: 'notifDeals', icon: Handshake, color: 'text-accent', bg: 'bg-accent/10' },
+  { key: 'order', labelKey: 'orders', icon: Package, color: 'text-warning', bg: 'bg-warning/10' },
+  { key: 'invite', labelKey: 'notifInvites', icon: Mail, color: 'text-primary', bg: 'bg-primary/10' },
+  { key: 'approval', labelKey: 'notifApprovals', icon: ShieldCheck, color: 'text-success', bg: 'bg-success/10' },
+  { key: 'system', labelKey: 'notifSystem', icon: Zap, color: 'text-muted-foreground', bg: 'bg-muted' },
 ];
 
 const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string; gradient: string }> = {
@@ -39,13 +54,14 @@ const categoryMeta: Record<string, { icon: React.ComponentType<{ className?: str
 };
 
 // ─── Group by day ───────────────────────────────────────────────────
-function groupByDay(items: Notification[]): { label: string; items: Notification[] }[] {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function groupByDay(items: Notification[], t: any): { label: string; items: Notification[] }[] {
   const groups = new Map<string, Notification[]>();
   for (const n of items) {
     const d = new Date(n.created_at);
     let label: string;
-    if (isToday(d)) label = 'Today';
-    else if (isYesterday(d)) label = 'Yesterday';
+    if (isToday(d)) label = t('notifToday');
+    else if (isYesterday(d)) label = t('notifYesterday');
     else label = format(d, 'EEEE, MMM d');
     const existing = groups.get(label) || [];
     existing.push(n);
@@ -54,11 +70,140 @@ function groupByDay(items: Notification[]): { label: string; items: Notification
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
-function normalizeCategory(cat: string): CategoryKey {
-  if (cat === 'network' || cat === 'invite') return 'invite';
-  if (cat === 'merchant' || cat === 'deal') return 'deal';
-  if (CATEGORIES.some(c => c.key === cat)) return cat as CategoryKey;
-  return 'system';
+// ─── Smart Priority Scoring ─────────────────────────────────────────
+function priorityScore(n: Notification): number {
+  let score = 0;
+  // Unread items float up
+  if (!n.read_at) score += 100;
+  // Actionable items get highest priority
+  const kind = resolveNotificationActionKind(n.category, n.target?.entityType);
+  if (kind && !n.read_at) score += 200;
+  // Approvals & invites are high-priority
+  if (n.category === 'approval' || n.category === 'invite') score += 50;
+  // Recent items score higher (decay over 24h)
+  const ageMs = Date.now() - new Date(n.created_at).getTime();
+  const ageHours = ageMs / 3_600_000;
+  score += Math.max(0, 48 - ageHours);
+  return score;
+}
+
+// ─── Page-level Inline Action Area ──────────────────────────────────
+function PageInlineActions({
+  n,
+  onDone,
+  t,
+}: {
+  n: SmartNotification;
+  onDone: (ids: string[]) => void;
+  t: (key: string) => string;
+}) {
+  const kind = resolveNotificationActionKind(n.category, n.target?.entityType);
+  const isAgreement = n.category === 'agreement';
+  const updateAgreement = useUpdateAgreementStatus();
+  const dealApprove = useInlineDealApprove();
+  const dealReject = useInlineDealReject();
+  const inviteAccept = useInlineInviteAccept();
+  const inviteReject = useInlineInviteReject();
+  const profileApprove = useInlineProfileApprove();
+  const profileReject = useInlineProfileReject();
+  const settlApprove = useInlineSettlementApprove();
+  const settlReject = useInlineSettlementReject();
+  const [showRejectReason, setShowRejectReason] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const entityId = n.target?.entityId ?? n.target?.targetEntityId ?? null;
+  const ids = (n as any).groupIds?.length ? (n as any).groupIds : [n.id];
+  const busy =
+    dealApprove.isPending || dealReject.isPending ||
+    inviteAccept.isPending || inviteReject.isPending ||
+    profileApprove.isPending || profileReject.isPending ||
+    settlApprove.isPending || settlReject.isPending ||
+    updateAgreement.isPending;
+
+  if (!entityId && !isAgreement) return null;
+  if (!kind && !isAgreement) return null;
+
+  const approveBtn = (label: string, color: string, fn: () => Promise<void>) => (
+    <Button size="sm" variant="default" className={cn('h-7 text-[11px] px-3 gap-1.5', color)} disabled={busy}
+      onClick={async (e) => { e.stopPropagation(); try { await fn(); onDone(ids); toast.success(t('tradeApproved')); } catch (err: any) { toast.error(err.message); } }}>
+      <Check className="h-3.5 w-3.5" />{label}
+    </Button>
+  );
+  const rejectBtn = (label: string, fn: () => Promise<void>) => (
+    <Button size="sm" variant="destructive" className="h-7 text-[11px] px-3 gap-1.5" disabled={busy}
+      onClick={async (e) => { e.stopPropagation(); try { await fn(); onDone(ids); toast.success(t('tradeRejected')); } catch (err: any) { toast.error(err.message); } }}>
+      <X className="h-3.5 w-3.5" />{label}
+    </Button>
+  );
+
+  if (isAgreement) {
+    const agId = (n.target as any)?.targetEntityId ?? entityId;
+    if (!agId) return null;
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', async () => { await updateAgreement.mutateAsync({ agreementId: agId, status: 'approved' }); })}
+        {rejectBtn(t('reject'), async () => { await updateAgreement.mutateAsync({ agreementId: agId, status: 'rejected' }); })}
+        <span className="ml-auto text-[10px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
+  if (kind === 'deal_approval') {
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => dealApprove.mutateAsync(entityId!))}
+        {rejectBtn(t('reject'), () => dealReject.mutateAsync(entityId!))}
+        <span className="ml-auto text-[10px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
+  if (kind === 'invite_incoming') {
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('accept'), 'bg-violet-600 hover:bg-violet-700', () => inviteAccept.mutateAsync(entityId!))}
+        {rejectBtn(t('decline'), () => inviteReject.mutateAsync(entityId!))}
+      </div>
+    );
+  }
+
+  if (kind === 'profile_approval') {
+    if (showRejectReason) {
+      return (
+        <div className="mt-2.5 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <Textarea placeholder={t('rejectReasonPlaceholder') || 'Reason for rejection...'} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="text-xs min-h-[56px] resize-none" />
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" className="h-7 text-[11px] px-3" disabled={busy || !rejectReason.trim()}
+              onClick={async () => { try { await profileReject.mutateAsync({ profileUserId: entityId!, reason: rejectReason.trim() }); onDone(ids); toast.success(t('rejected')); } catch (err: any) { toast.error(err.message); } }}>
+              {t('confirmReject') || 'Confirm'}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => { setShowRejectReason(false); setRejectReason(''); }}>{t('cancel')}</Button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => profileApprove.mutateAsync(entityId!))}
+        <Button size="sm" variant="outline" className="h-7 text-[11px] px-3 gap-1.5 border-destructive text-destructive hover:bg-destructive/10" disabled={busy}
+          onClick={(e) => { e.stopPropagation(); setShowRejectReason(true); }}>
+          <X className="h-3.5 w-3.5" />{t('reject')}
+        </Button>
+      </div>
+    );
+  }
+
+  if (kind === 'settlement_approval') {
+    return (
+      <div className="flex gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
+        {approveBtn(t('approve'), 'bg-emerald-600 hover:bg-emerald-700', () => settlApprove.mutateAsync(entityId!))}
+        {rejectBtn(t('reject'), () => settlReject.mutateAsync(entityId!))}
+        <span className="ml-auto text-[10px] text-amber-500 font-semibold self-center">{t('actionNeeded')}</span>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // ─── Notification Card ──────────────────────────────────────────────
@@ -66,31 +211,45 @@ function NotificationCard({
   n,
   onNavigate,
   onMarkRead,
+  onActionDone,
+  t,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
-  n: Notification;
+  n: SmartNotification;
   onNavigate: (n: Notification) => void;
   onMarkRead: (id: string) => void;
+  onActionDone: (ids: string[]) => void;
+  t: (key: string) => string;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const meta = categoryMeta[n.category] ?? categoryMeta.system;
   const Icon = meta.icon;
   const isUnread = !n.read_at;
+  const isAdminPriority = n.category === 'system' || n.category === 'approval' || n.category === 'invite';
 
   return (
     <div
       className={cn(
         'group relative flex items-start gap-4 p-4 rounded-xl transition-all cursor-pointer border',
-        isUnread
+        selected && 'ring-2 ring-primary/40',
+        isAdminPriority && isUnread
+          ? 'bg-destructive/[0.04] border-destructive/20 shadow-sm shadow-destructive/5 hover:shadow-md hover:border-destructive/30'
+          : isUnread
           ? 'bg-card border-primary/15 shadow-sm hover:shadow-md hover:border-primary/25'
           : 'bg-card/50 border-border/50 hover:bg-card hover:border-border'
       )}
-      onClick={() => onNavigate(n)}
+      onClick={() => selectMode ? onToggleSelect?.(n.id) : onNavigate(n)}
     >
       {/* Timeline connector dot */}
       {isUnread && (
         <div className="absolute -left-[29px] top-5 hidden lg:flex">
           <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-40" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-primary border-2 border-background" />
+            <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-40', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
+            <span className={cn('relative inline-flex rounded-full h-3 w-3 border-2 border-background', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />
           </span>
         </div>
       )}
@@ -98,12 +257,19 @@ function NotificationCard({
         <div className="absolute -left-[27px] top-6 hidden lg:flex h-2 w-2 rounded-full bg-border" />
       )}
 
+      {/* Select checkbox */}
+      {selectMode && (
+        <button onClick={(e) => { e.stopPropagation(); onToggleSelect?.(n.id); }} className="shrink-0 mt-0.5">
+          {selected ? <SquareCheck className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5 text-muted-foreground/40" />}
+        </button>
+      )}
+
       {/* Category icon */}
       <div className={cn(
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110',
-        meta.bg
+        isAdminPriority ? 'bg-destructive/10' : meta.bg
       )}>
-        <Icon className={cn('h-5 w-5', meta.color)} />
+        <Icon className={cn('h-5 w-5', isAdminPriority ? 'text-destructive' : meta.color)} />
       </div>
 
       {/* Content */}
@@ -111,7 +277,17 @@ function NotificationCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              {isUnread && <span className="h-2 w-2 rounded-full bg-primary shrink-0" />}
+              {isUnread && <span className={cn('h-2 w-2 rounded-full shrink-0', isAdminPriority ? 'bg-destructive' : 'bg-primary')} />}
+              {isAdminPriority && isUnread && (
+                <span className="shrink-0 text-[8px] font-black uppercase tracking-wider bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">
+                  ⚡ {t('priority') || 'PRIORITY'}
+                </span>
+              )}
+              {n.groupCount && n.groupCount > 1 && (
+                <span className="shrink-0 text-[8px] font-black bg-primary/15 text-primary px-1.5 py-0.5 rounded">
+                  ×{n.groupCount} {t('messages') || 'messages'}
+                </span>
+              )}
               <h4 className={cn(
                 'text-sm leading-tight truncate',
                 isUnread ? 'font-bold text-foreground' : 'font-medium text-muted-foreground'
@@ -128,6 +304,11 @@ function NotificationCard({
           <ArrowRight className="h-4 w-4 text-muted-foreground/30 mt-0.5 opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-0.5 shrink-0" />
         </div>
 
+        {/* Inline action buttons for actionable notifications */}
+        {isUnread && (
+          <PageInlineActions n={n} onDone={onActionDone} t={t} />
+        )}
+
         <div className="flex items-center gap-3 mt-2">
           <div className="flex items-center gap-1">
             <Clock className="h-3 w-3 text-muted-foreground/40" />
@@ -137,7 +318,7 @@ function NotificationCard({
           </div>
           <span className={cn(
             'text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md',
-            meta.bg, meta.color
+            isAdminPriority ? 'bg-destructive/10 text-destructive' : cn(meta.bg, meta.color)
           )}>
             {n.category}
           </span>
@@ -146,7 +327,7 @@ function NotificationCard({
               onClick={(e) => { e.stopPropagation(); onMarkRead(n.id); }}
               className="ml-auto text-[10px] text-muted-foreground/50 hover:text-foreground font-medium transition-colors"
             >
-              Mark read
+              {t('markRead')}
             </button>
           )}
         </div>
@@ -158,19 +339,38 @@ function NotificationCard({
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function NotificationsPage() {
   const navigate = useNavigate();
+  const t = useT();
   const { data: notifications, isLoading, unreadCount } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const markBulkRead = useMarkNotificationsRead();
   const markAllRead = useMarkAllRead();
 
   const [activeCategory, setActiveCategory] = useState<CategoryKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleBulkMarkRead = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    markBulkRead.mutate(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, [selectedIds, markBulkRead]);
 
   const filtered = useMemo(() => {
     let items = notifications ?? [];
 
     if (activeCategory !== 'all') {
-      items = items.filter(n => normalizeCategory(n.category) === activeCategory);
+      items = items.filter(n => normalizeNotificationCategory(n.category) === activeCategory);
     }
 
     if (showUnreadOnly) {
@@ -185,16 +385,20 @@ export default function NotificationsPage() {
       );
     }
 
+    // Apply smart priority sorting — actionable unread items float to top within each day
+    items = [...items].sort((a, b) => priorityScore(b) - priorityScore(a));
+
     return items;
   }, [notifications, activeCategory, showUnreadOnly, searchQuery]);
 
-  const grouped = useMemo(() => groupByDay(filtered), [filtered]);
+  const smartFiltered = useMemo(() => smartGroupNotifications(filtered), [filtered]);
+  const grouped = useMemo(() => groupByDay(smartFiltered, t), [smartFiltered, t]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const n of (notifications ?? [])) {
       if (!n.read_at) {
-        const cat = normalizeCategory(n.category);
+        const cat = normalizeNotificationCategory(n.category);
         counts[cat] = (counts[cat] || 0) + 1;
       }
     }
@@ -203,7 +407,7 @@ export default function NotificationsPage() {
 
   const handleNavigate = (n: Notification) => {
     if (!n.read_at) markRead.mutate(n.id);
-    navigate(notificationRoute(n));
+    handleNotificationClick(n, navigate);
   };
 
   return (
@@ -218,37 +422,64 @@ export default function NotificationsPage() {
                 <Sparkles className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-black text-foreground tracking-tight">Activity Center</h1>
+                <h1 className="text-xl font-black text-foreground tracking-tight">{t('activityCenter')}</h1>
                 <p className="text-[12px] text-muted-foreground mt-0.5 flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
                   </span>
-                  Real-time updates · {(notifications ?? []).length} total alerts
+                  {t('realTimeUpdates')} · {(notifications ?? []).length} {t('totalAlerts')}
                 </p>
               </div>
             </div>
-            {unreadCount > 0 && (
+            <div className="flex items-center gap-2">
+              {/* Select mode toggle */}
               <Button
-                variant="outline"
+                variant={selectMode ? 'default' : 'outline'}
                 size="sm"
                 className="gap-1.5 text-[11px] h-8 rounded-lg"
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
+                onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
               >
-                <CheckCheck className="h-3.5 w-3.5" />
-                Mark all read ({unreadCount})
+                <SquareCheck className="h-3.5 w-3.5" />
+                {selectMode ? (t('cancel') || 'Cancel') : 'Select'}
               </Button>
-            )}
+
+              {/* Bulk mark read */}
+              {selectMode && selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-[11px] h-8 rounded-lg"
+                  onClick={handleBulkMarkRead}
+                  disabled={markBulkRead.isPending}
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  {t('markRead') || 'Mark Read'} ({selectedIds.size})
+                </Button>
+              )}
+
+              {unreadCount > 0 && !selectMode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-[11px] h-8 rounded-lg"
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending}
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  {t('notifMarkAllRead')} ({unreadCount})
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* ── Stats bar ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
             {[
-              { label: 'Total', value: (notifications ?? []).length, icon: Bell, color: 'text-foreground' },
-              { label: 'Unread', value: unreadCount, icon: Sparkles, color: unreadCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
-              { label: 'Deals', value: (notifications ?? []).filter(n => normalizeCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
-              { label: 'This Week', value: (notifications ?? []).filter(n => Date.now() - new Date(n.created_at).getTime() < 7 * 86400000).length, icon: Clock, color: 'text-primary' },
+              { label: t('notifTotal'), value: (notifications ?? []).length, icon: Bell, color: 'text-foreground' },
+              { label: t('notifUnread'), value: unreadCount, icon: Sparkles, color: unreadCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
+              { label: t('notifDeals'), value: (notifications ?? []).filter(n => normalizeNotificationCategory(n.category) === 'deal').length, icon: Handshake, color: 'text-accent' },
+              { label: t('notifThisWeek'), value: (notifications ?? []).filter(n => Date.now() - new Date(n.created_at).getTime() < 7 * 86400000).length, icon: Clock, color: 'text-primary' },
             ].map(stat => (
               <div key={stat.label} className="flex items-center gap-2.5 p-3 rounded-xl bg-card/80 border border-border/50">
                 <stat.icon className={cn('h-4 w-4', stat.color)} />
@@ -262,6 +493,11 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {/* ── Smart Digest ── */}
+      <div className="px-4 sm:px-6 pt-4">
+        <NotificationDigest />
+      </div>
+
       {/* ── Controls ── */}
       <div className="px-4 sm:px-6 py-4">
         <div className="flex flex-col sm:flex-row gap-3">
@@ -270,7 +506,7 @@ export default function NotificationsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
             <input
               type="text"
-              placeholder="Search notifications..."
+              placeholder={t('searchNotifications')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-9 py-2 rounded-lg border border-border/50 bg-card text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
@@ -296,13 +532,13 @@ export default function NotificationsPage() {
             )}
           >
             <Filter className="h-3.5 w-3.5" />
-            Unread only
+            {t('unreadOnly')}
           </button>
         </div>
 
         {/* Category tabs */}
         <div className="flex gap-2 mt-3 overflow-x-auto scrollbar-hide pb-1">
-          {CATEGORIES.map(cat => {
+          {CATEGORY_KEYS.map(cat => {
             const count = cat.key === 'all' ? unreadCount : (categoryCounts[cat.key] || 0);
             const isActive = activeCategory === cat.key;
             const CatIcon = cat.icon;
@@ -318,7 +554,8 @@ export default function NotificationsPage() {
                 )}
               >
                 <CatIcon className="h-3.5 w-3.5" />
-                {cat.label}
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                {t(cat.labelKey as any)}
                 {count > 0 && (
                   <span className={cn(
                     'flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-black',
@@ -340,7 +577,7 @@ export default function NotificationsPage() {
         {isLoading ? (
           <div className="flex flex-col items-center py-20 gap-4">
             <div className="h-12 w-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-            <p className="text-sm text-muted-foreground font-medium">Loading activity feed...</p>
+            <p className="text-sm text-muted-foreground font-medium">{t('loadingActivityFeed')}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-20 gap-4">
@@ -349,21 +586,21 @@ export default function NotificationsPage() {
                 <Bell className="h-8 w-8 text-muted-foreground/30" />
               ) : (
                 (() => {
-                  const CatIcon = CATEGORIES.find(c => c.key === activeCategory)?.icon ?? Bell;
+                  const CatIcon = CATEGORY_KEYS.find(c => c.key === activeCategory)?.icon ?? Bell;
                   return <CatIcon className="h-8 w-8 text-muted-foreground/30" />;
                 })()
               )}
             </div>
             <div className="text-center">
               <h3 className="text-sm font-bold text-muted-foreground">
-                {searchQuery ? 'No results found' : showUnreadOnly ? 'No unread notifications' : 'No activity yet'}
+                {searchQuery ? t('noResultsFound') : showUnreadOnly ? t('noUnreadNotifications') : t('notifNoActivityYet')}
               </h3>
               <p className="text-[12px] text-muted-foreground/60 mt-1 max-w-[260px]">
                 {searchQuery
-                  ? `No notifications match "${searchQuery}"`
+                  ? `${t('noNotificationsMatch')} "${searchQuery}"`
                   : showUnreadOnly
-                  ? 'You\'re all caught up! Toggle off the filter to see all activity.'
-                  : 'Create a deal or send an invite to start seeing activity here.'}
+                  ? t('allCaughtUp')
+                  : t('createDealOrInvite')}
               </p>
             </div>
           </div>
@@ -379,7 +616,7 @@ export default function NotificationsPage() {
                   <div className="flex items-center gap-3 mb-3 relative">
                     <div className="absolute -left-10 hidden lg:flex h-7 w-7 items-center justify-center rounded-full bg-card border-2 border-border">
                       <span className="text-[9px] font-black text-muted-foreground">
-                        {group.label === 'Today' ? '🔥' : group.label === 'Yesterday' ? '📅' : '📆'}
+                        {group.label === t('notifToday') ? '🔥' : group.label === t('notifYesterday') ? '📅' : '📆'}
                       </span>
                     </div>
                     <h3 className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
@@ -387,18 +624,24 @@ export default function NotificationsPage() {
                     </h3>
                     <div className="h-px flex-1 bg-border/30" />
                     <span className="text-[10px] font-semibold text-muted-foreground/40">
-                      {group.items.length} item{group.items.length > 1 ? 's' : ''}
+                      {group.items.length} {t('notifItems')}
                     </span>
                   </div>
 
                   {/* Cards */}
                   <div className="space-y-2">
-                    {group.items.map(n => (
+                    {(group.items as SmartNotification[]).map(n => (
                       <NotificationCard
                         key={n.id}
                         n={n}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        t={t as any}
                         onNavigate={handleNavigate}
                         onMarkRead={(id) => markRead.mutate(id)}
+                        onActionDone={(ids) => markBulkRead.mutate(ids)}
+                        selectMode={selectMode}
+                        selected={selectedIds.has(n.id)}
+                        onToggleSelect={toggleSelect}
                       />
                     ))}
                   </div>

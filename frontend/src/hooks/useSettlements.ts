@@ -85,12 +85,15 @@ export function useSubmitSettlement() {
         .from('merchant_settlements')
         .insert({
           deal_id: input.deal_id,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           relationship_id: input.relationship_id as any,
           amount: input.amount,
           currency: input.currency,
           settled_by: userId!,
           notes: input.notes || null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           status: 'pending' as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       if (error) throw error;
     },
@@ -103,17 +106,33 @@ export function useSubmitSettlement() {
 
 export function useApproveSettlement() {
   const qc = useQueryClient();
+  const { userId } = useAuth();
 
   return useMutation({
     mutationFn: async (input: { id: string; approved: boolean }) => {
-      const { error } = await supabase
-        .from('merchant_settlements')
-        .update({ status: input.approved ? 'approved' : 'rejected' } as any)
-        .eq('id', input.id);
-      if (error) throw error;
+      if (input.approved) {
+        // Risk 3: atomic RPC — approves settlement + marks period settled in one transaction
+        const { error } = await supabase.rpc('approve_settlement', {
+          _settlement_id: input.id,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
+        if (error) throw error;
+      } else {
+        // Risk 3: atomic RPC — rejects settlement + resets period + creates reversal entry
+        // Also covers Risk 2 (correct pool_balance_after), Risk 4 (period reset),
+        // Risk 5 (original_entry_id on reversal), Risk 6 (double-reversal guard)
+        const { error } = await supabase.rpc('reject_settlement', {
+          _settlement_id: input.id,
+          _actor_id: userId!,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settlements'] });
+      qc.invalidateQueries({ queryKey: ['settlement-periods'] });
+      qc.invalidateQueries({ queryKey: ['deal-capital'] });
     },
   });
 }

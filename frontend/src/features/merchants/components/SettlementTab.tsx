@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 import { useSettlementPeriods, useSyncSettlementPeriods, type SettlementPeriod } from '@/hooks/useSettlementPeriods';
 import { useDealCapital, useReinvestProfit, usePayoutProfit } from '@/hooks/useDealCapital';
-import { fmtU } from '@/lib/tracker-helpers';
+import { fmtU, fmtQWithUnit, getWACOP } from '@/lib/tracker-helpers';
 import { toast } from 'sonner';
 import type { Cadence } from '@/lib/settlement-periods';
+import { DecisionCard } from './DecisionCard';
+import { useTheme } from '@/lib/theme-context';
+import { useTrackerState } from '@/lib/useTrackerState';
 import '@/styles/tracker.css';
 
 interface DealInfo {
@@ -29,17 +32,20 @@ interface Props {
     feeQAR: number;
     voided: boolean;
   }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tradeCalc: Map<string, any>;
 }
 
-function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }: {
+function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType, wacop }: {
   period: SettlementPeriod;
   dealAmount: number;
   relationshipId: string;
   isPartner: boolean;
   dealType: string;
+  wacop: number | null;
 }) {
   const t = useT();
+  const { settings } = useTheme();
   const { data: capital } = useDealCapital(period.deal_id, dealAmount);
   const reinvest = useReinvestProfit();
   const payout = usePayoutProfit();
@@ -63,6 +69,7 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
         current_pool_balance: poolBalance,
       });
       toast.success(t('paidOutToPartner'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -78,6 +85,7 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
         current_pool_balance: poolBalance,
       });
       toast.success(t('reinvestedToPool'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -87,11 +95,10 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
     if (!showActions) return null;
 
     if (dealType === 'arbitrage') {
-      // Sales Deal: merchant (non-partner) settles
       if (!isPartner) {
         return (
           <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
-            💰 {t('settleAmount')} {fmtU(period.partner_amount)}
+            💰 {t('settleAmount')} {fmtQWithUnit(period.partner_amount, settings.currency, wacop)}
           </button>
         );
       }
@@ -103,15 +110,14 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
     }
 
     if (dealType === 'partnership') {
-      // Profit Share: lender (partner) decides
       if (isPartner) {
         return (
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
-              💰 {t('takeProfit')} {fmtU(period.partner_amount)}
+              💰 {t('takeProfit')} {fmtQWithUnit(period.partner_amount, settings.currency, wacop)}
             </button>
             <button className="btn" onClick={handleReinvest} disabled={reinvest.isPending} style={{ fontSize: 10 }}>
-              🔄 {t('addToCapital')} {fmtU(period.partner_amount)}
+              🔄 {t('addToCapital')} {fmtQWithUnit(period.partner_amount, settings.currency, wacop)}
             </button>
           </div>
         );
@@ -123,14 +129,13 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
       );
     }
 
-    // Fallback for other types
     return (
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
-          💰 {t('payOut')} {fmtU(period.partner_amount)}
+          💰 {t('payOut')} {fmtQWithUnit(period.partner_amount, settings.currency, wacop)}
         </button>
         <button className="btn" onClick={handleReinvest} disabled={reinvest.isPending} style={{ fontSize: 10 }}>
-          🔄 {t('reinvest')} {fmtU(period.partner_amount)}
+          🔄 {t('reinvest')} {fmtQWithUnit(period.partner_amount, settings.currency, wacop)}
         </button>
       </div>
     );
@@ -150,35 +155,31 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
         </span>
       </div>
 
-      {/* Trade metrics */}
       <div style={{ display: 'flex', gap: 16, fontSize: 10, marginBottom: 8 }}>
-        <div><span style={{ color: 'var(--muted)' }}>{t('periodTrades')}:</span> <span className="mono">{period.trade_count}</span></div>
-        <div><span style={{ color: 'var(--muted)' }}>{t('periodVolume')}:</span> <span className="mono">{fmtU(period.gross_volume)}</span></div>
-        <div><span style={{ color: 'var(--muted)' }}>{t('periodProfit')}:</span> <span className="mono" style={{ color: period.net_profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>{fmtU(period.net_profit)}</span></div>
+        <div><span className="muted">{t('periodTrades')}:</span> <span className="mono">{period.trade_count}</span></div>
+        <div><span className="muted">{t('periodVolume')}:</span> <span className="mono">{fmtQWithUnit(period.gross_volume, settings.currency, wacop)}</span></div>
+        <div><span className="muted">{t('periodProfit')}:</span> <span className="mono" style={{ color: period.net_profit >= 0 ? 'var(--good)' : 'var(--bad)' }}>{fmtQWithUnit(period.net_profit, settings.currency, wacop)}</span></div>
       </div>
 
-      {/* Capital context */}
       {capital && (
         <div style={{ display: 'flex', gap: 16, fontSize: 10, marginBottom: 8, color: 'var(--muted)' }}>
-          <div>{t('originalPrincipal')}: <span className="mono">{fmtU(capital.originalPrincipal)}</span></div>
-          <div>{t('reinvestedPool')}: <span className="mono">{fmtU(capital.reinvestedPool)}</span></div>
-          <div>{t('workingCapital')}: <span className="mono" style={{ fontWeight: 700, color: 'var(--fg)' }}>{fmtU(capital.workingCapital)}</span></div>
+          <div>{t('originalPrincipal')}: <span className="mono">{fmtQWithUnit(capital.originalPrincipal, settings.currency, wacop)}</span></div>
+          <div>{t('reinvestedPool')}: <span className="mono">{fmtQWithUnit(capital.reinvestedPool, settings.currency, wacop)}</span></div>
+          <div>{t('workingCapital')}: <span className="mono" style={{ fontWeight: 700, color: 'var(--fg)' }}>{fmtQWithUnit(capital.workingCapital, settings.currency, wacop)}</span></div>
         </div>
       )}
 
-      {/* Allocation */}
       <div style={{ display: 'flex', gap: 16, fontSize: 10, marginBottom: 8 }}>
-        <div>{t('partnerShare')}: <span className="mono" style={{ fontWeight: 700 }}>{fmtU(period.partner_amount)}</span></div>
-        <div>{t('merchantShareDist')}: <span className="mono">{fmtU(period.merchant_amount)}</span></div>
+        <div>{t('partnerShare')}: <span className="mono" style={{ fontWeight: 700 }}>{fmtQWithUnit(period.partner_amount, settings.currency, wacop)}</span></div>
+        <div>{t('merchantShareDist')}: <span className="mono">{fmtQWithUnit(period.merchant_amount, settings.currency, wacop)}</span></div>
       </div>
 
-      {/* Actions or resolution */}
       {period.status === 'settled' ? (
         <div style={{ fontSize: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="pill good">
             {period.resolution === 'payout' ? '💰 ' + t('paidOutToPartner') : '🔄 ' + t('reinvestedToPool')}
           </span>
-          <span className="mono" style={{ color: 'var(--good)' }}>{fmtU(period.settled_amount)}</span>
+          <span className="mono" style={{ color: 'var(--good)' }}>{fmtQWithUnit(period.settled_amount, settings.currency, wacop)}</span>
         </div>
       ) : (
         renderActions()
@@ -187,17 +188,24 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType }:
       {period.status === 'overdue' && (
         <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 4 }}>⚠️ {t('graceExpired')}</div>
       )}
+
+      {dealType === 'partnership' && (period.status === 'due' || period.status === 'overdue' || period.status === 'settled') && (
+        <DecisionCard periodId={period.id} periodKey={period.period_key} />
+      )}
     </div>
   );
 }
 
 export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeCalc }: Props) {
   const t = useT();
+  const { settings } = useTheme();
   const { data: periods, isLoading } = useSettlementPeriods(relationshipId);
   const syncPeriods = useSyncSettlementPeriods(relationshipId);
   const [filterDealId, setFilterDealId] = useState<string>('all');
 
-  // Sync periods on mount with real trade data
+  const { derived } = useTrackerState({});
+  const wacop = useMemo(() => getWACOP(derived), [derived]);
+
   useEffect(() => {
     if (deals.length > 0) {
       syncPeriods.mutate({
@@ -210,7 +218,7 @@ export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeC
         tradeCalc,
       });
     }
-  }, [deals.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deals.length]);
 
   const filtered = (periods || []).filter(p =>
     filterDealId === 'all' || p.deal_id === filterDealId
@@ -226,7 +234,6 @@ export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeC
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* KPI summary */}
       <div className="kpi-band">
         <div className="kpi-band-title">{t('settlementTracker')}</div>
         <div className="kpi-band-cols">
@@ -244,12 +251,11 @@ export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeC
           </div>
           <div>
             <div className="kpi-period">{t('totalSettled')}</div>
-            <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{fmtU(totalSettled)}</div>
+            <div className="kpi-cell-val" style={{ color: 'var(--good)' }}>{fmtQWithUnit(totalSettled, settings.currency, wacop)}</div>
           </div>
         </div>
       </div>
 
-      {/* Deal filter */}
       {deals.length > 1 && (
         <select
           value={filterDealId}
@@ -264,7 +270,6 @@ export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeC
         </select>
       )}
 
-      {/* Period cards */}
       {isLoading ? (
         <div className="empty"><div className="empty-t">{t('loading') || '...'}</div></div>
       ) : filtered.length === 0 ? (
@@ -281,6 +286,7 @@ export function SettlementTab({ relationshipId, deals, isPartner, trades, tradeC
             relationshipId={relationshipId}
             isPartner={isPartner}
             dealType={dealTypeMap.get(p.deal_id) || p.deal_type || 'partnership'}
+            wacop={wacop}
           />
         ))
       )}

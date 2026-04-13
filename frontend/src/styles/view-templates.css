@@ -1,0 +1,291 @@
+/* ═══════════════════════════════════════════════════════
+   STRUCTURAL LAYOUT MODULES
+   Each layout defines its own spacing, radii, and density.
+   Applied via .layout-{id} class on the .app-shell.
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── 0. TERMINAL HIGH-CONTRAST (Maximum Visibility) ─── */
+.layout-terminal_hc {
+  --layout-padding: 12px;
+  --layout-gap: 8px;
+  --layout-radius: 4px;
+}
+.layout-terminal_hc .app-page-shell { padding: var(--layout-padding); }
+.layout-terminal_hc .grid { gap: var(--layout-gap); }
+.layout-terminal_hc .glass, 
+.layout-terminal_hc [data-slot="card"], 
+.layout-terminal_hc .border { 
+  border-radius: var(--layout-radius); 
+  border: 1.5px solid hsl(var(--border)) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+  background: #000000 !important;
+}
+
+/* Normal sized neon numbers to fit one window */
+.layout-terminal_hc .kpi-val {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  text-shadow: 0 0 8px currentColor;
+  line-height: 1.2;
+}
+
+.layout-terminal_hc .kpi-card {
+  padding: 10px !important;
+  border: 1.5px solid #222 !important;
+}
+
+.layout-terminal_hc .kpi-lbl {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em !important;
+  color: #00ffff !important;
+  text-transform: uppercase;
+  margin-bottom: 4px !important;
+}
+
+.layout-terminal_hc table thead th {
+  background: #111 !important;
+  font-weight: 900;
+  color: #00ffff !important;
+  border-bottom: 2px solid #00ffff !important;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.layout-terminal_hc .mono {
+  font-weight: 700;
+  font-size: 12px;
+  color: #ffffff;
+}
+
+.layout-terminal_hc .rowBtn, 
+.layout-terminal_hc .btn {
+  border: 1.5px solid currentColor !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: transparent !important;
+}
+
+.layout-terminal_hc .btn:hover {
+  background: currentColor !important;
+  color: #000 !important;
+}
+
+/* ─── 1. QUANTUM LEDGER (High Visibility Terminal) ─── */
+.layout-quantum_ledger {
+  --layout-padding: 12px;
+  --layout-gap: 8px;
+  --layout-radius: 8px;
+}
+.layout-quantum_ledger .app-page-shell { padding: var(--layout-padding); }
+.layout-quantum_ledger .grid { gap: var(--layout-gap); }
+.layout-quantum_ledger .glass, 
+.layout-quantum_ledger [data-slot="card"], 
+.layout-quantum_ledger .border { 
+  border-radius: var(--layout-radius); 
+  border-width: 1px;
+  box-shadow: 0 4px 20px -5px rgba(0,0,0,0.5);
+}
+
+.layout-quantum_ledger .kpi-val {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.layout-quantum_ledger .kpi-card {
+  padding: 10px !important;
+}
+
+.layout-quantum_ledger .kpi-lbl {
+  font-size: 9px !important;
+  letter-spacing: 0.1em !important;
+  opacity: 0.7;
+}
+
+.layout-quantum_ledger table thead th {
+  background: hsl(var(--muted) / 0.1);
+  font-weight: 800;
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--primary));
+}
+
+.layout-quantum_ledger .mono {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* ─── 2. FLUX (Clean SaaS) ─── */
+.layout-flux {
+  --layout-padding: 12px;
+  --layout-gap: 12px;
+  --layout-radius: 12px;
+}
+.layout-flux .app-page-shell { padding: var(--layout-padding); }
+.layout-flux .grid { gap: var(--layout-gap); }
+.layout-flux .glass, 
+.layout-flux [data-slot="card"], 
+.layout-flux .border { border-radius: var(--layout-radius); }
+
+/* ─── 3. CIPHER (Dark Terminal) ─── */
+.layout-cipher {
+  --layout-padding: 8px;
+  --layout-gap: 8px;
+  --layout-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.layout-cipher .app-page-shell { padding: var(--layout-padding); }
+.layout-cipher .grid { gap: var(--layout-gap); }
+.layout-cipher .glass, 
+.layout-cipher [data-slot="card"], 
+.layout-cipher .border { border-radius: var(--layout-radius); border-width: 1px; }
+.layout-cipher table { font-family: inherit; font-size: 11px; }
+.layout-cipher button { border-radius: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ─── 4. DARK LEDGER (Premium Finance) ─── */
+.layout-dark_ledger {
+  --layout-padding: 16px 20px;
+  --layout-gap: 12px;
+  --layout-radius: 6px;
+}
+.layout-dark_ledger .app-page-shell { padding: var(--layout-padding); }
+.layout-dark_ledger .grid { gap: var(--layout-gap); }
+.layout-dark_ledger .glass, 
+.layout-dark_ledger [data-slot="card"], 
+.layout-dark_ledger .border { border-radius: var(--layout-radius); }
+.layout-dark_ledger table thead tr th { font-size: 10px; font-weight: 700; border-bottom: 2px solid hsl(var(--primary) / 0.2); }
+.layout-dark_ledger .tracker-kpi-card { border-left: 3px solid hsl(var(--primary)); }
+
+/* ─── 5. OPERATIONS DESK (High Density) ─── */
+.layout-operations_desk {
+  --layout-padding: 6px 10px;
+  --layout-gap: 6px;
+  --layout-radius: 5px;
+}
+.layout-operations_desk .app-page-shell { padding: var(--layout-padding); }
+.layout-operations_desk .grid { gap: var(--layout-gap); }
+.layout-operations_desk .glass, 
+.layout-operations_desk [data-slot="card"], 
+.layout-operations_desk .border { border-radius: var(--layout-radius); }
+.layout-operations_desk table tbody tr td { padding-top: 4px; padding-bottom: 4px; font-size: 11px; }
+.layout-operations_desk .tracker-kpi-card { padding: 8px 10px; border-left: 3px solid hsl(var(--primary)); }
+.layout-operations_desk button { border-radius: 4px; font-size: 11px; }
+
+/* ─── 6. ATLAS GRID (Spatial Ops) ─── */
+.layout-atlas_grid {
+  --layout-padding: 8px 12px;
+  --layout-gap: 6px;
+  --layout-radius: 4px;
+}
+.layout-atlas_grid .app-page-shell { padding: var(--layout-padding); }
+.layout-atlas_grid .grid { gap: var(--layout-gap); }
+.layout-atlas_grid .glass, 
+.layout-atlas_grid [data-slot="card"], 
+.layout-atlas_grid .border { border-radius: var(--layout-radius); box-shadow: none; }
+.layout-atlas_grid table thead tr th { font-size: 9px; border-bottom: 2px solid hsl(var(--border)); }
+.layout-atlas_grid .tracker-kpi-card { border-left: 3px solid hsl(var(--primary)); }
+
+/* ─── 7. VELVET MONO (Luxury Dark) ─── */
+.layout-velvet_mono {
+  --layout-padding: 20px 24px;
+  --layout-gap: 12px;
+  --layout-radius: 10px;
+}
+.layout-velvet_mono .app-page-shell { padding: var(--layout-padding); }
+.layout-velvet_mono .app-page-content { max-width: 1360px; margin: 0 auto; }
+.layout-velvet_mono .grid { gap: var(--layout-gap); }
+.layout-velvet_mono .glass, 
+.layout-velvet_mono [data-slot="card"], 
+.layout-velvet_mono .border { border-radius: var(--layout-radius); border-color: hsl(var(--border) / 0.4); }
+.layout-velvet_mono table thead tr th { font-size: 10px; letter-spacing: 0.06em; }
+.layout-velvet_mono button { border-radius: 8px; font-weight: 500; }
+
+/* ─── 8. PAPERWIRE (Analytical Newsroom) ─── */
+.layout-paperwire {
+  --layout-padding: 10px 14px;
+  --layout-gap: 6px;
+  --layout-radius: 2px;
+}
+.layout-paperwire .app-page-shell { padding: var(--layout-padding); }
+.layout-paperwire .grid { gap: var(--layout-gap); }
+.layout-paperwire .glass, 
+.layout-paperwire [data-slot="card"], 
+.layout-paperwire .border { border-radius: var(--layout-radius); border-top: 3px solid hsl(var(--primary)); }
+.layout-paperwire table { font-family: 'Public Sans', sans-serif; }
+.layout-paperwire table thead tr th { font-size: 9px; letter-spacing: 0.1em; border-bottom: 2px solid hsl(var(--foreground) / 0.2); }
+
+/* ─── 9. SIGNAL DECK (Navy Command) ─── */
+.layout-signal_deck {
+  --layout-padding: 20px 24px;
+  --layout-gap: 12px;
+  --layout-radius: 10px;
+}
+.layout-signal_deck .app-page-shell { padding: var(--layout-padding); }
+.layout-signal_deck .grid { gap: var(--layout-gap); }
+.layout-signal_deck .glass, 
+.layout-signal_deck [data-slot="card"], 
+.layout-signal_deck .border { border-radius: var(--layout-radius); border-color: rgba(255,255,255,.06); }
+.layout-signal_deck .tracker-kpi-band { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.layout-signal_deck .tracker-kpi-card .text-2xl { font-family: 'JetBrains Mono', monospace; font-weight: 800; }
+
+/* ─── 10. GLASS MOBILE (Frosted Glass) ─── */
+.layout-glass_mobile {
+  --layout-padding: 12px;
+  --layout-gap: 10px;
+  --layout-radius: 16px;
+}
+.layout-glass_mobile .app-page-shell { padding: var(--layout-padding); }
+.layout-glass_mobile .grid { gap: var(--layout-gap); }
+.layout-glass_mobile .glass, 
+.layout-glass_mobile [data-slot="card"], 
+.layout-glass_mobile .border { 
+  border-radius: var(--layout-radius); 
+  backdrop-filter: blur(12px); 
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.4);
+  box-shadow: 0 4px 24px -2px rgba(0,0,0,0.05);
+}
+.layout-glass_mobile .tracker-kpi-card { 
+  background: linear-gradient(135deg, hsl(var(--card) / 0.8), hsl(var(--muted) / 0.1));
+  border-radius: 16px;
+}
+.layout-glass_mobile button { border-radius: 12px; font-weight: 600; }
+.layout-glass_mobile input, 
+.layout-glass_mobile select, 
+.layout-glass_mobile textarea { border-radius: 12px; }
+
+/* ─── Mobile Overrides ─── */
+@media (max-width: 768px) {
+  .layout-flux .app-page-shell,
+  .layout-cipher .app-page-shell,
+  .layout-dark_ledger .app-page-shell,
+  .layout-operations_desk .app-page-shell,
+  .layout-atlas_grid .app-page-shell,
+  .layout-velvet_mono .app-page-shell,
+  .layout-paperwire .app-page-shell,
+  .layout-signal_deck .app-page-shell,
+  .layout-glass_mobile .app-page-shell,
+  .layout-terminal_hc .app-page-shell { padding: 12px 14px; }
+
+  /* Minimal edge padding when edge-to-edge mobile roots are active */
+  .app-page-shell:has(.orders-mobile-root),
+  .app-page-shell:has(.stock-mobile-root) {
+    padding-left: 1px !important;
+    padding-right: 1px !important;
+  }
+
+  .layout-flux .grid,
+  .layout-cipher .grid,
+  .layout-dark_ledger .grid,
+  .layout-operations_desk .grid,
+  .layout-atlas_grid .grid,
+  .layout-velvet_mono .grid,
+  .layout-paperwire .grid,
+  .layout-signal_deck .grid,
+  .layout-glass_mobile .grid,
+  .layout-terminal_hc .grid { gap: 8px; }
+}

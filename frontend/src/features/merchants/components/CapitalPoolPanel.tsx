@@ -27,7 +27,7 @@ export function CapitalPoolPanel({ dealId, dealAmount, dealTitle, relationshipId
 
   const handleWithdraw = async () => {
     const amt = parseFloat(withdrawAmount);
-    if (!amt || amt <= 0) { toast.error('Invalid amount'); return; }
+    if (!amt || amt <= 0) { toast.error(t('invalidAmount')); return; }
     if (!capital || amt > capital.reinvestedPool) { toast.error(t('exceedsPoolBalance')); return; }
     try {
       await withdraw.mutateAsync({
@@ -40,6 +40,7 @@ export function CapitalPoolPanel({ dealId, dealAmount, dealTitle, relationshipId
       toast.success(t('withdrawnByPartner'));
       setShowWithdraw(false);
       setWithdrawAmount('');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { toast.error(err.message); }
   };
 

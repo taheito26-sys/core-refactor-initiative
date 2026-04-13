@@ -78,6 +78,7 @@ export function useProfitDistribution(relationshipId: string) {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return data ? Number((data as any).pool_balance_after) : 0;
       }
 

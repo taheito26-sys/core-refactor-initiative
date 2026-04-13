@@ -238,6 +238,79 @@ export function calculateAllocation(
   return { counterpartyAmount, merchantAmount, allocationBase: 'sale_economics' };
 }
 
+// ─── Agreement-Based Allocation (New Model) ─────────────────────────
+
+import type { ProfitShareAgreement } from '@/types/domain';
+import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
+
+/**
+ * Calculate allocation for a standing profit share agreement.
+ * Supports both standard and operator_priority agreement types.
+ */
+export function calculateAgreementAllocation(
+  agreement: ProfitShareAgreement,
+  orderRevenue: number,
+  orderCost: number,
+  orderFee: number,
+  options?: { isOperator?: boolean },
+): { partnerAmount: number; merchantAmount: number; netProfit: number } {
+  const netProfit = orderRevenue - orderCost - orderFee;
+  const isOperator = options?.isOperator ?? true;
+
+  // ── Operator Priority: fee first, then capital-weighted split ──
+  if (agreement.agreement_type === 'operator_priority' && agreement.operator_ratio != null) {
+    const result = calculateOperatorPriorityProfit({
+      grossProfit: netProfit,
+      operatorRatio: agreement.operator_ratio,
+      operatorContribution: agreement.operator_contribution ?? 0,
+      lenderContribution: agreement.lender_contribution ?? 0,
+    });
+    return {
+      partnerAmount: Math.round((isOperator ? result.lenderTotal : result.operatorTotal) * 100) / 100,
+      merchantAmount: Math.round((isOperator ? result.operatorTotal : result.lenderTotal) * 100) / 100,
+      netProfit: Math.round(netProfit * 100) / 100,
+    };
+  }
+
+  // ── Standard profit share ──
+  const partnerAmount = (netProfit * agreement.partner_ratio) / 100;
+  const merchantAmount = netProfit - partnerAmount;
+  return {
+    partnerAmount: Math.round(partnerAmount * 100) / 100,
+    merchantAmount: Math.round(merchantAmount * 100) / 100,
+    netProfit: Math.round(netProfit * 100) / 100,
+  };
+}
+
+/**
+ * Check if a profit share agreement is currently active and usable.
+ */
+export function isAgreementActive(agreement: ProfitShareAgreement): boolean {
+  // Accept both `approved` (current canonical) and legacy `active`.
+  const normalizedStatus = String((agreement as { status?: string }).status || '').toLowerCase();
+  if (normalizedStatus !== 'approved' && normalizedStatus !== 'active') return false;
+  const now = new Date();
+  const from = new Date(agreement.effective_from);
+  if (from > now) return false;
+  if (agreement.expires_at) {
+    const until = new Date(agreement.expires_at);
+    if (until < now) return false;
+  }
+  return true;
+}
+
+/**
+ * Get a human-readable label for an agreement.
+ */
+export function getAgreementLabel(agreement: ProfitShareAgreement): string {
+  if (agreement.agreement_type === 'operator_priority') {
+    return `Operator Priority ${agreement.operator_ratio ?? 0}% fee`;
+  }
+  const settlementWay = agreement.settlement_way ? ` · ${agreement.settlement_way}` : '';
+  const investedCapital = agreement.invested_capital != null ? ` · cap ${agreement.invested_capital}` : '';
+  return `Profit Share ${agreement.partner_ratio}/${agreement.merchant_ratio}${investedCapital}${settlementWay}`;
+}
+
 // ─── Deal Status Transitions ────────────────────────────────────────
 
 export function getAvailableTransitions(status: DealStatus, _dealType: DealType): DealStatus[] {

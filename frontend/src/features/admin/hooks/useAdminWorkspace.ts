@@ -85,6 +85,7 @@ export function useAdminCorrectDeal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ dealId, updates, reason }: { dealId: string; updates: Record<string, unknown>; reason: string }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await supabase.rpc('admin_correct_deal' as any, {
         _deal_id: dealId,
         _updates: updates,
@@ -105,6 +106,7 @@ export function useAdminVoidDeal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ dealId, reason }: { dealId: string; reason: string }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await supabase.rpc('admin_void_deal' as any, {
         _deal_id: dealId,
         _reason: reason,
@@ -126,6 +128,7 @@ export function useAdminCorrectTracker() {
     mutationFn: async ({ targetUserId, entityType, entityId, updates, reason }: {
       targetUserId: string; entityType: 'batch' | 'trade'; entityId: string; updates: Record<string, unknown>; reason: string;
     }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await supabase.rpc('admin_correct_tracker' as any, {
         _target_user_id: targetUserId,
         _entity_type: entityType,
@@ -148,6 +151,7 @@ export function useAdminVoidTrackerEntity() {
     mutationFn: async ({ targetUserId, entityType, entityId, reason }: {
       targetUserId: string; entityType: 'batch' | 'trade'; entityId: string; reason: string;
     }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await supabase.rpc('admin_void_tracker_entity' as any, {
         _target_user_id: targetUserId,
         _entity_type: entityType,

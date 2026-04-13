@@ -42,6 +42,7 @@ export function AdminNotificationSender() {
     setSending(true);
     try {
       if (mode === 'broadcast') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await supabase.rpc('admin_broadcast_notification' as any, {
           _title: title.trim(),
           _body: body.trim() || null,
@@ -76,6 +77,7 @@ export function AdminNotificationSender() {
       }
       setTitle('');
       setBody('');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {

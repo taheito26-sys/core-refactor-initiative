@@ -93,6 +93,7 @@ export function normalizeImportedTrackerState(raw: unknown): TrackerState {
 }
 
 export function findTrackerStorageKey(storage: Storage): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const existing = storageKeys(storage).find((k) => TRACKER_STATE_PREFIXES.some((prefix) => k.startsWith(prefix)) || TRACKER_STATE_KEYS.includes(k as any));
   return existing || TRACKER_STATE_KEYS[0];
 }
@@ -114,7 +115,7 @@ export function loadAutoBackupFromStorage(storage: Storage): boolean {
     if (value === 'true') return true;
     if (value === 'false') return false;
   }
-  return false;
+  return true;
 }
 
 export function saveAutoBackupToStorage(storage: Storage, value: boolean): void {

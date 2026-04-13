@@ -1,0 +1,16 @@
+{
+  "java.import.gradle.java.home": "C:\\Program Files\\Android\\Android Studio\\jbr",
+  "java.import.exclusions": [
+    "**/android_backup_*",
+    "**/android_backup_*/**"
+  ],
+  "files.exclude": {
+    "**/android_backup_*": true
+  },
+  "search.exclude": {
+    "**/android_backup_*": true
+  },
+  "files.watcherExclude": {
+    "**/android_backup_*/**": true
+  }
+}

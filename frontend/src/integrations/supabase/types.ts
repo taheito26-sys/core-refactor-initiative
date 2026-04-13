@@ -44,6 +44,1449 @@ export type Database = {
         }
         Relationships: []
       }
+      balance_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          merchant_id: string
+          note: string | null
+          reference_id: string | null
+          reference_type: string | null
+          relationship_id: string
+          type: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          merchant_id: string
+          note?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          relationship_id: string
+          type?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          merchant_id?: string
+          note?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          relationship_id?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      capital_transfers: {
+        Row: {
+          amount: number
+          cost_basis: number
+          created_at: string
+          currency: string
+          deal_id: string | null
+          direction: string
+          id: string
+          note: string | null
+          relationship_id: string
+          total_cost: number
+          transferred_by: string
+        }
+        Insert: {
+          amount: number
+          cost_basis?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          direction: string
+          id?: string
+          note?: string | null
+          relationship_id: string
+          total_cost?: number
+          transferred_by: string
+        }
+        Update: {
+          amount?: number
+          cost_basis?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          direction?: string
+          id?: string
+          note?: string | null
+          relationship_id?: string
+          total_cost?: number
+          transferred_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capital_transfers_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capital_transfers_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_accounts: {
+        Row: {
+          bank_name: string | null
+          branch: string | null
+          created_at: number
+          currency: string
+          id: string
+          is_merchant_account: boolean | null
+          last_reconciled: number | null
+          name: string
+          notes: string | null
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bank_name?: string | null
+          branch?: string | null
+          created_at: number
+          currency: string
+          id: string
+          is_merchant_account?: boolean | null
+          last_reconciled?: number | null
+          name: string
+          notes?: string | null
+          status?: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bank_name?: string | null
+          branch?: string | null
+          created_at?: number
+          currency?: string
+          id?: string
+          is_merchant_account?: boolean | null
+          last_reconciled?: number | null
+          name?: string
+          notes?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cash_custody_requests: {
+        Row: {
+          accepted_at: string | null
+          amount: number
+          counter_amount: number | null
+          counter_note: string | null
+          created_at: string
+          currency: string
+          custodian_merchant_id: string
+          custodian_user_id: string | null
+          id: string
+          note: string | null
+          rejected_at: string | null
+          relationship_id: string | null
+          requester_merchant_id: string
+          requester_user_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          amount: number
+          counter_amount?: number | null
+          counter_note?: string | null
+          created_at?: string
+          currency?: string
+          custodian_merchant_id: string
+          custodian_user_id?: string | null
+          id?: string
+          note?: string | null
+          rejected_at?: string | null
+          relationship_id?: string | null
+          requester_merchant_id: string
+          requester_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          amount?: number
+          counter_amount?: number | null
+          counter_note?: string | null
+          created_at?: string
+          currency?: string
+          custodian_merchant_id?: string
+          custodian_user_id?: string | null
+          id?: string
+          note?: string | null
+          rejected_at?: string | null
+          relationship_id?: string | null
+          requester_merchant_id?: string
+          requester_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_custody_requests_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_ledger: {
+        Row: {
+          account_id: string
+          amount: number
+          batch_id: string | null
+          contra_account_id: string | null
+          created_at: string
+          currency: string
+          direction: string
+          id: string
+          linked_entity_id: string | null
+          linked_entity_type: string | null
+          note: string | null
+          ts: number
+          type: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          amount?: number
+          batch_id?: string | null
+          contra_account_id?: string | null
+          created_at?: string
+          currency: string
+          direction: string
+          id: string
+          linked_entity_id?: string | null
+          linked_entity_type?: string | null
+          note?: string | null
+          ts: number
+          type: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          batch_id?: string | null
+          contra_account_id?: string | null
+          created_at?: string
+          currency?: string
+          direction?: string
+          id?: string
+          linked_entity_id?: string | null
+          linked_entity_type?: string | null
+          note?: string | null
+          ts?: number
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_ledger_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "cash_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_ledger_contra_account_id_fkey"
+            columns: ["contra_account_id"]
+            isOneToOne: false
+            referencedRelation: "cash_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_attachments: {
+        Row: {
+          auth_tag: string | null
+          cdn_url: string | null
+          checksum_sha256: string | null
+          created_at: string
+          duration_ms: number | null
+          file_name: string
+          file_size: number
+          height: number | null
+          id: string
+          is_encrypted: boolean
+          is_validated: boolean
+          iv: string | null
+          message_id: string | null
+          mime_type: string
+          room_id: string
+          storage_path: string
+          thumbnail_path: string | null
+          uploader_id: string
+          waveform: Json | null
+          width: number | null
+        }
+        Insert: {
+          auth_tag?: string | null
+          cdn_url?: string | null
+          checksum_sha256?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          file_name: string
+          file_size: number
+          height?: number | null
+          id?: string
+          is_encrypted?: boolean
+          is_validated?: boolean
+          iv?: string | null
+          message_id?: string | null
+          mime_type: string
+          room_id: string
+          storage_path: string
+          thumbnail_path?: string | null
+          uploader_id: string
+          waveform?: Json | null
+          width?: number | null
+        }
+        Update: {
+          auth_tag?: string | null
+          cdn_url?: string | null
+          checksum_sha256?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          file_name?: string
+          file_size?: number
+          height?: number | null
+          id?: string
+          is_encrypted?: boolean
+          is_validated?: boolean
+          iv?: string | null
+          message_id?: string | null
+          mime_type?: string
+          room_id?: string
+          storage_path?: string
+          thumbnail_path?: string | null
+          uploader_id?: string
+          waveform?: Json | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_attachments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_audit_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          ip_address: unknown
+          metadata: Json
+          room_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_audit_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_call_participants: {
+        Row: {
+          call_id: string
+          ice_candidates: Json
+          id: string
+          joined_at: string | null
+          left_at: string | null
+          sdp_answer: string | null
+          sdp_offer: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          ice_candidates?: Json
+          id?: string
+          joined_at?: string | null
+          left_at?: string | null
+          sdp_answer?: string | null
+          sdp_offer?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          ice_candidates?: Json
+          id?: string
+          joined_at?: string | null
+          left_at?: string | null
+          sdp_answer?: string | null
+          sdp_offer?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "chat_calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_calls: {
+        Row: {
+          connected_at: string | null
+          created_at: string
+          duration_seconds: number | null
+          end_reason: string | null
+          ended_at: string | null
+          ice_config: Json | null
+          id: string
+          initiated_by: string
+          quality_stats: Json | null
+          room_id: string
+          signaling_channel: string | null
+          started_at: string
+          status: Database["public"]["Enums"]["chat_call_status"]
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ice_config?: Json | null
+          id?: string
+          initiated_by: string
+          quality_stats?: Json | null
+          room_id: string
+          signaling_channel?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["chat_call_status"]
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ice_config?: Json | null
+          id?: string
+          initiated_by?: string
+          quality_stats?: Json | null
+          room_id?: string
+          signaling_channel?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["chat_call_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_calls_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_device_keys: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          is_active: boolean
+          key_id: number | null
+          key_type: string
+          public_key: string
+          signature: string | null
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          is_active?: boolean
+          key_id?: number | null
+          key_type?: string
+          public_key: string
+          signature?: string | null
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          is_active?: boolean
+          key_id?: number | null
+          key_type?: string
+          public_key?: string
+          signature?: string | null
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_direct_rooms: {
+        Row: {
+          created_at: string
+          room_id: string
+          user_a_id: string
+          user_b_id: string
+        }
+        Insert: {
+          created_at?: string
+          room_id: string
+          user_a_id: string
+          user_b_id: string
+        }
+        Update: {
+          created_at?: string
+          room_id?: string
+          user_a_id?: string
+          user_b_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_direct_rooms_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_e2ee_sessions: {
+        Row: {
+          created_at: string
+          encrypted_session_key: string
+          id: string
+          recipient_device_id: string
+          recipient_id: string
+          room_id: string
+          rotated_at: string | null
+          sender_device_id: string
+          sender_id: string
+          session_version: number
+        }
+        Insert: {
+          created_at?: string
+          encrypted_session_key: string
+          id?: string
+          recipient_device_id: string
+          recipient_id: string
+          room_id: string
+          rotated_at?: string | null
+          sender_device_id: string
+          sender_id: string
+          session_version?: number
+        }
+        Update: {
+          created_at?: string
+          encrypted_session_key?: string
+          id?: string
+          recipient_device_id?: string
+          recipient_id?: string
+          room_id?: string
+          rotated_at?: string | null
+          sender_device_id?: string
+          sender_id?: string
+          session_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_e2ee_sessions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_message_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          message_id: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          message_id: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          message_id?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_message_reactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_message_receipts: {
+        Row: {
+          id: string
+          message_id: string
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_message_receipts_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_message_receipts_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }
+        Insert: {
+          client_nonce?: string | null
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_for_sender?: boolean
+          edited_at?: string | null
+          expires_at?: string | null
+          forwarded_from_id?: string | null
+          id?: string
+          is_deleted?: boolean
+          is_edited?: boolean
+          metadata?: Json
+          reply_to_id?: string | null
+          room_id: string
+          search_vector?: unknown
+          sender_id: string
+          type?: Database["public"]["Enums"]["chat_message_type"]
+          updated_at?: string
+          view_once?: boolean
+          viewed_by?: string[]
+          watermark_text?: string | null
+        }
+        Update: {
+          client_nonce?: string | null
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_for_sender?: boolean
+          edited_at?: string | null
+          expires_at?: string | null
+          forwarded_from_id?: string | null
+          id?: string
+          is_deleted?: boolean
+          is_edited?: boolean
+          metadata?: Json
+          reply_to_id?: string | null
+          room_id?: string
+          search_vector?: unknown
+          sender_id?: string
+          type?: Database["public"]["Enums"]["chat_message_type"]
+          updated_at?: string
+          view_once?: boolean
+          viewed_by?: string[]
+          watermark_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_forwarded_from_id_fkey"
+            columns: ["forwarded_from_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_presence: {
+        Row: {
+          device_info: Json
+          last_seen_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          device_info?: Json
+          last_seen_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          device_info?: Json
+          last_seen_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_privacy_settings: {
+        Row: {
+          anonymous_mode: boolean
+          copy_disabled: boolean
+          created_at: string
+          export_disabled: boolean
+          forwarding_disabled: boolean
+          hide_last_seen: boolean
+          hide_read_receipts: boolean
+          hide_typing: boolean
+          invisible_mode: boolean
+          notification_preview: string
+          online_visibility: string
+          screenshot_protection: boolean
+          show_sender_in_notification: boolean
+          updated_at: string
+          user_id: string
+          watermark_enabled: boolean
+        }
+        Insert: {
+          anonymous_mode?: boolean
+          copy_disabled?: boolean
+          created_at?: string
+          export_disabled?: boolean
+          forwarding_disabled?: boolean
+          hide_last_seen?: boolean
+          hide_read_receipts?: boolean
+          hide_typing?: boolean
+          invisible_mode?: boolean
+          notification_preview?: string
+          online_visibility?: string
+          screenshot_protection?: boolean
+          show_sender_in_notification?: boolean
+          updated_at?: string
+          user_id: string
+          watermark_enabled?: boolean
+        }
+        Update: {
+          anonymous_mode?: boolean
+          copy_disabled?: boolean
+          created_at?: string
+          export_disabled?: boolean
+          forwarding_disabled?: boolean
+          hide_last_seen?: boolean
+          hide_read_receipts?: boolean
+          hide_typing?: boolean
+          invisible_mode?: boolean
+          notification_preview?: string
+          online_visibility?: string
+          screenshot_protection?: boolean
+          show_sender_in_notification?: boolean
+          updated_at?: string
+          user_id?: string
+          watermark_enabled?: boolean
+        }
+        Relationships: []
+      }
+      chat_room_members: {
+        Row: {
+          display_name_override: string | null
+          id: string
+          invited_by: string | null
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          joined_at: string
+          last_read_at: string | null
+          last_read_message_id: string | null
+          muted_until: string | null
+          notification_level: string
+          removed_at: string | null
+          removed_by: string | null
+          role: Database["public"]["Enums"]["chat_member_role"]
+          room_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          display_name_override?: string | null
+          id?: string
+          invited_by?: string | null
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          joined_at?: string
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          muted_until?: string | null
+          notification_level?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          role?: Database["public"]["Enums"]["chat_member_role"]
+          room_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          display_name_override?: string | null
+          id?: string
+          invited_by?: string | null
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          joined_at?: string
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          muted_until?: string | null
+          notification_level?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          role?: Database["public"]["Enums"]["chat_member_role"]
+          room_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_room_policies: {
+        Row: {
+          allow_calls: boolean
+          allow_files: boolean
+          allow_group_calls: boolean
+          allow_images: boolean
+          allow_voice_notes: boolean
+          allowed_mime_types: string[] | null
+          created_at: string
+          disable_export: boolean
+          disable_forwarding: boolean
+          disappearing_default_hours: number | null
+          encryption_mode: Database["public"]["Enums"]["chat_encryption_mode"]
+          history_searchable: boolean
+          id: string
+          link_preview_enabled: boolean
+          max_file_size_mb: number
+          moderation_level: string
+          retention_hours: number | null
+          room_type: Database["public"]["Enums"]["chat_room_type"]
+          screenshot_protection: boolean
+          strip_forward_sender_identity: boolean
+          updated_at: string
+          watermark_enabled: boolean
+        }
+        Insert: {
+          allow_calls?: boolean
+          allow_files?: boolean
+          allow_group_calls?: boolean
+          allow_images?: boolean
+          allow_voice_notes?: boolean
+          allowed_mime_types?: string[] | null
+          created_at?: string
+          disable_export?: boolean
+          disable_forwarding?: boolean
+          disappearing_default_hours?: number | null
+          encryption_mode?: Database["public"]["Enums"]["chat_encryption_mode"]
+          history_searchable?: boolean
+          id?: string
+          link_preview_enabled?: boolean
+          max_file_size_mb?: number
+          moderation_level?: string
+          retention_hours?: number | null
+          room_type: Database["public"]["Enums"]["chat_room_type"]
+          screenshot_protection?: boolean
+          strip_forward_sender_identity?: boolean
+          updated_at?: string
+          watermark_enabled?: boolean
+        }
+        Update: {
+          allow_calls?: boolean
+          allow_files?: boolean
+          allow_group_calls?: boolean
+          allow_images?: boolean
+          allow_voice_notes?: boolean
+          allowed_mime_types?: string[] | null
+          created_at?: string
+          disable_export?: boolean
+          disable_forwarding?: boolean
+          disappearing_default_hours?: number | null
+          encryption_mode?: Database["public"]["Enums"]["chat_encryption_mode"]
+          history_searchable?: boolean
+          id?: string
+          link_preview_enabled?: boolean
+          max_file_size_mb?: number
+          moderation_level?: string
+          retention_hours?: number | null
+          room_type?: Database["public"]["Enums"]["chat_room_type"]
+          screenshot_protection?: boolean
+          strip_forward_sender_identity?: boolean
+          updated_at?: string
+          watermark_enabled?: boolean
+        }
+        Relationships: []
+      }
+      chat_rooms: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_announcement_only: boolean
+          is_direct: boolean
+          last_message_at: string | null
+          last_message_id: string | null
+          last_message_preview: string | null
+          metadata: Json
+          migrated_from: string | null
+          migrated_source_id: string | null
+          name: string | null
+          policy_id: string | null
+          type: Database["public"]["Enums"]["chat_room_type"]
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_announcement_only?: boolean
+          is_direct?: boolean
+          last_message_at?: string | null
+          last_message_id?: string | null
+          last_message_preview?: string | null
+          metadata?: Json
+          migrated_from?: string | null
+          migrated_source_id?: string | null
+          name?: string | null
+          policy_id?: string | null
+          type: Database["public"]["Enums"]["chat_room_type"]
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_announcement_only?: boolean
+          is_direct?: boolean
+          last_message_at?: string | null
+          last_message_id?: string | null
+          last_message_preview?: string | null
+          metadata?: Json
+          migrated_from?: string | null
+          migrated_source_id?: string | null
+          name?: string | null
+          policy_id?: string | null
+          type?: Database["public"]["Enums"]["chat_room_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_rooms_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_typing_state: {
+        Row: {
+          expires_at: string
+          is_typing: boolean
+          room_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          expires_at?: string
+          is_typing?: boolean
+          room_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          expires_at?: string
+          is_typing?: boolean
+          room_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_typing_state_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          muted_until: string | null
+          relationship_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          muted_until?: string | null
+          relationship_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          muted_until?: string | null
+          relationship_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_settings_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_merchant_connections: {
+        Row: {
+          created_at: string
+          customer_user_id: string
+          id: string
+          is_preferred: boolean
+          merchant_id: string
+          nickname: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_user_id: string
+          id?: string
+          is_preferred?: boolean
+          merchant_id: string
+          nickname?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_user_id?: string
+          id?: string
+          is_preferred?: boolean
+          merchant_id?: string
+          nickname?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_messages: {
+        Row: {
+          connection_id: string
+          content: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender_role: string
+          sender_user_id: string
+        }
+        Insert: {
+          connection_id: string
+          content: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role?: string
+          sender_user_id: string
+        }
+        Update: {
+          connection_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender_role?: string
+          sender_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_messages_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "customer_merchant_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_order_events: {
+        Row: {
+          actor_user_id: string
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          order_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          order_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_order_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "customer_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_orders: {
+        Row: {
+          amount: number
+          confirmed_at: string | null
+          connection_id: string
+          created_at: string
+          currency: string
+          customer_user_id: string
+          expires_at: string | null
+          id: string
+          merchant_id: string
+          note: string | null
+          order_type: string
+          payment_proof_uploaded_at: string | null
+          payment_proof_url: string | null
+          rate: number | null
+          status: string
+          total: number | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          confirmed_at?: string | null
+          connection_id: string
+          created_at?: string
+          currency?: string
+          customer_user_id: string
+          expires_at?: string | null
+          id?: string
+          merchant_id: string
+          note?: string | null
+          order_type?: string
+          payment_proof_uploaded_at?: string | null
+          payment_proof_url?: string | null
+          rate?: number | null
+          status?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          confirmed_at?: string | null
+          connection_id?: string
+          created_at?: string
+          currency?: string
+          customer_user_id?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id?: string
+          note?: string | null
+          order_type?: string
+          payment_proof_uploaded_at?: string | null
+          payment_proof_url?: string | null
+          rate?: number | null
+          status?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_orders_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "customer_merchant_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          phone: string | null
+          preferred_currency: string
+          region: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          phone?: string | null
+          preferred_currency?: string
+          region?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          phone?: string | null
+          preferred_currency?: string
+          region?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      daily_reference_rates: {
+        Row: {
+          created_at: string
+          id: string
+          rate_date: string
+          recorded_by: string
+          source: string
+          total_cost_basis_qar: number
+          total_usdt_stock: number
+          wacop_rate: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rate_date: string
+          recorded_by: string
+          source?: string
+          total_cost_basis_qar?: number
+          total_usdt_stock?: number
+          wacop_rate: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rate_date?: string
+          recorded_by?: string
+          source?: string
+          total_cost_basis_qar?: number
+          total_usdt_stock?: number
+          wacop_rate?: number
+        }
+        Relationships: []
+      }
+      deal_capital: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          deal_id: string
+          id: string
+          merchant_id: string
+          relationship_id: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id: string
+          id?: string
+          merchant_id: string
+          relationship_id: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string
+          id?: string
+          merchant_id?: string
+          relationship_id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deal_capital_ledger: {
         Row: {
           amount: number
@@ -53,6 +1496,7 @@ export type Database = {
           id: string
           initiated_by: string
           note: string | null
+          original_entry_id: string | null
           period_id: string | null
           pool_balance_after: number
           relationship_id: string
@@ -66,6 +1510,7 @@ export type Database = {
           id?: string
           initiated_by: string
           note?: string | null
+          original_entry_id?: string | null
           period_id?: string | null
           pool_balance_after?: number
           relationship_id: string
@@ -79,6 +1524,7 @@ export type Database = {
           id?: string
           initiated_by?: string
           note?: string | null
+          original_entry_id?: string | null
           period_id?: string | null
           pool_balance_after?: number
           relationship_id?: string
@@ -93,6 +1539,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "deal_capital_ledger_original_entry_id_fkey"
+            columns: ["original_entry_id"]
+            isOneToOne: false
+            referencedRelation: "deal_capital_ledger"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "deal_capital_ledger_period_id_fkey"
             columns: ["period_id"]
             isOneToOne: false
@@ -104,6 +1557,92 @@ export type Database = {
             columns: ["relationship_id"]
             isOneToOne: false
             referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gas_log: {
+        Row: {
+          action: string
+          created_at: string
+          gas_used: number
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          gas_used?: number
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          gas_used?: number
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      market_offers: {
+        Row: {
+          created_at: string
+          currency_pair: string
+          expires_at: string | null
+          id: string
+          max_amount: number
+          merchant_id: string
+          min_amount: number
+          note: string | null
+          offer_type: string
+          rate: number
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency_pair?: string
+          expires_at?: string | null
+          id?: string
+          max_amount?: number
+          merchant_id: string
+          min_amount?: number
+          note?: string | null
+          offer_type: string
+          rate: number
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency_pair?: string
+          expires_at?: string | null
+          id?: string
+          max_amount?: number
+          merchant_id?: string
+          min_amount?: number
+          note?: string | null
+          offer_type?: string
+          rate?: number
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_offers_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
             referencedColumns: ["id"]
           },
         ]
@@ -163,6 +1702,7 @@ export type Database = {
           currency: string
           deal_type: string
           id: string
+          metadata: Json | null
           notes: string | null
           realized_pnl: number
           relationship_id: string
@@ -178,6 +1718,7 @@ export type Database = {
           currency?: string
           deal_type?: string
           id?: string
+          metadata?: Json | null
           notes?: string | null
           realized_pnl?: number
           relationship_id: string
@@ -193,6 +1734,7 @@ export type Database = {
           currency?: string
           deal_type?: string
           id?: string
+          metadata?: Json | null
           notes?: string | null
           realized_pnl?: number
           relationship_id?: string
@@ -256,29 +1798,139 @@ export type Database = {
           },
         ]
       }
+      merchant_liquidity_profiles: {
+        Row: {
+          auto_sync_enabled: boolean
+          cash_publish_mode: string
+          cash_range_max: number | null
+          cash_range_min: number | null
+          cash_status: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_published_at: string | null
+          merchant_id: string
+          publish_cash_enabled: boolean
+          publish_usdt_enabled: boolean
+          published_cash_amount: number | null
+          published_usdt_amount: number | null
+          reserve_buffer_cash: number
+          reserve_buffer_usdt: number
+          reserved_cash_commitments: number
+          reserved_usdt_commitments: number
+          status: string
+          updated_at: string
+          usdt_publish_mode: string
+          usdt_range_max: number | null
+          usdt_range_min: number | null
+          usdt_status: string
+          user_id: string
+          visibility_scope: string
+        }
+        Insert: {
+          auto_sync_enabled?: boolean
+          cash_publish_mode?: string
+          cash_range_max?: number | null
+          cash_range_min?: number | null
+          cash_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_published_at?: string | null
+          merchant_id: string
+          publish_cash_enabled?: boolean
+          publish_usdt_enabled?: boolean
+          published_cash_amount?: number | null
+          published_usdt_amount?: number | null
+          reserve_buffer_cash?: number
+          reserve_buffer_usdt?: number
+          reserved_cash_commitments?: number
+          reserved_usdt_commitments?: number
+          status?: string
+          updated_at?: string
+          usdt_publish_mode?: string
+          usdt_range_max?: number | null
+          usdt_range_min?: number | null
+          usdt_status?: string
+          user_id: string
+          visibility_scope?: string
+        }
+        Update: {
+          auto_sync_enabled?: boolean
+          cash_publish_mode?: string
+          cash_range_max?: number | null
+          cash_range_min?: number | null
+          cash_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_published_at?: string | null
+          merchant_id?: string
+          publish_cash_enabled?: boolean
+          publish_usdt_enabled?: boolean
+          published_cash_amount?: number | null
+          published_usdt_amount?: number | null
+          reserve_buffer_cash?: number
+          reserve_buffer_usdt?: number
+          reserved_cash_commitments?: number
+          reserved_usdt_commitments?: number
+          status?: string
+          updated_at?: string
+          usdt_publish_mode?: string
+          usdt_range_max?: number | null
+          usdt_range_min?: number | null
+          usdt_status?: string
+          user_id?: string
+          visibility_scope?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_liquidity_profiles_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: true
+            referencedRelation: "merchant_profiles"
+            referencedColumns: ["merchant_id"]
+          },
+        ]
+      }
       merchant_messages: {
         Row: {
           content: string
           created_at: string
+          delivered_at: string | null
+          edited_at: string | null
           id: string
+          metadata: Json | null
+          msg_type: string
           read_at: string | null
           relationship_id: string
+          reply_to: string | null
           sender_id: string
         }
         Insert: {
           content: string
           created_at?: string
+          delivered_at?: string | null
+          edited_at?: string | null
           id?: string
+          metadata?: Json | null
+          msg_type?: string
           read_at?: string | null
           relationship_id: string
+          reply_to?: string | null
           sender_id: string
         }
         Update: {
           content?: string
           created_at?: string
+          delivered_at?: string | null
+          edited_at?: string | null
           id?: string
+          metadata?: Json | null
+          msg_type?: string
           read_at?: string | null
           relationship_id?: string
+          reply_to?: string | null
           sender_id?: string
         }
         Relationships: [
@@ -289,10 +1941,18 @@ export type Database = {
             referencedRelation: "merchant_relationships"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "merchant_messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "merchant_messages"
+            referencedColumns: ["id"]
+          },
         ]
       }
       merchant_profiles: {
         Row: {
+          avatar_url: string | null
           bio: string | null
           created_at: string
           default_currency: string
@@ -302,12 +1962,20 @@ export type Database = {
           merchant_code: string | null
           merchant_id: string
           nickname: string
+          otc_avg_rating: number
+          otc_completed_trades: number
+          otc_completion_rate: number
+          otc_reputation_updated_at: string | null
+          otc_review_count: number
+          otc_total_volume: number
           region: string | null
           status: string
           updated_at: string
           user_id: string
+          verification_tier: string
         }
         Insert: {
+          avatar_url?: string | null
           bio?: string | null
           created_at?: string
           default_currency?: string
@@ -317,12 +1985,20 @@ export type Database = {
           merchant_code?: string | null
           merchant_id: string
           nickname: string
+          otc_avg_rating?: number
+          otc_completed_trades?: number
+          otc_completion_rate?: number
+          otc_reputation_updated_at?: string | null
+          otc_review_count?: number
+          otc_total_volume?: number
           region?: string | null
           status?: string
           updated_at?: string
           user_id: string
+          verification_tier?: string
         }
         Update: {
+          avatar_url?: string | null
           bio?: string | null
           created_at?: string
           default_currency?: string
@@ -332,10 +2008,17 @@ export type Database = {
           merchant_code?: string | null
           merchant_id?: string
           nickname?: string
+          otc_avg_rating?: number
+          otc_completed_trades?: number
+          otc_completion_rate?: number
+          otc_reputation_updated_at?: string | null
+          otc_review_count?: number
+          otc_total_volume?: number
           region?: string | null
           status?: string
           updated_at?: string
           user_id?: string
+          verification_tier?: string
         }
         Relationships: []
       }
@@ -483,35 +2166,1034 @@ export type Database = {
           },
         ]
       }
-      notifications: {
+      message_reactions: {
         Row: {
-          body: string | null
+          created_at: string
+          id: string
+          message_id: string
+          reaction: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_id: string
+          reaction: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_id?: string
+          reaction?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "os_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
           category: string
           created_at: string
           id: string
+          in_app_enabled: boolean
+          push_enabled: boolean
+          sound_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          in_app_enabled?: boolean
+          push_enabled?: boolean
+          sound_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          in_app_enabled?: boolean
+          push_enabled?: boolean
+          sound_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          anchor_id: string | null
+          body: string | null
+          category: string
+          conversation_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          message_id: string | null
           read_at: string | null
+          target_entity_id: string | null
+          target_entity_type: string | null
+          target_focus: string | null
+          target_path: string | null
+          target_tab: string | null
           title: string
           user_id: string
         }
         Insert: {
+          actor_id?: string | null
+          anchor_id?: string | null
           body?: string | null
           category?: string
+          conversation_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          message_id?: string | null
           read_at?: string | null
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          target_focus?: string | null
+          target_path?: string | null
+          target_tab?: string | null
           title: string
           user_id: string
         }
         Update: {
+          actor_id?: string | null
+          anchor_id?: string | null
           body?: string | null
           category?: string
+          conversation_id?: string | null
           created_at?: string
+          dedupe_key?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          message_id?: string | null
           read_at?: string | null
+          target_entity_id?: string | null
+          target_entity_type?: string | null
+          target_focus?: string | null
+          target_path?: string | null
+          target_tab?: string | null
           title?: string
           user_id?: string
         }
         Relationships: []
+      }
+      order_allocations: {
+        Row: {
+          agreement_ratio_snapshot: string | null
+          allocated_usdt: number
+          allocation_cost: number
+          allocation_fee: number
+          allocation_net: number
+          allocation_revenue: number
+          created_at: string
+          deal_terms_snapshot: Json | null
+          family: string
+          fee_share: number
+          id: string
+          merchant_amount: number
+          merchant_cost_per_usdt: number
+          merchant_id: string
+          merchant_share_pct: number
+          note: string | null
+          order_id: string
+          partner_amount: number
+          partner_share_pct: number
+          profit_share_agreement_id: string | null
+          relationship_id: string
+          sale_group_id: string
+          sell_price: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agreement_ratio_snapshot?: string | null
+          allocated_usdt?: number
+          allocation_cost?: number
+          allocation_fee?: number
+          allocation_net?: number
+          allocation_revenue?: number
+          created_at?: string
+          deal_terms_snapshot?: Json | null
+          family: string
+          fee_share?: number
+          id?: string
+          merchant_amount?: number
+          merchant_cost_per_usdt?: number
+          merchant_id: string
+          merchant_share_pct?: number
+          note?: string | null
+          order_id: string
+          partner_amount?: number
+          partner_share_pct?: number
+          profit_share_agreement_id?: string | null
+          relationship_id: string
+          sale_group_id: string
+          sell_price?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agreement_ratio_snapshot?: string | null
+          allocated_usdt?: number
+          allocation_cost?: number
+          allocation_fee?: number
+          allocation_net?: number
+          allocation_revenue?: number
+          created_at?: string
+          deal_terms_snapshot?: Json | null
+          family?: string
+          fee_share?: number
+          id?: string
+          merchant_amount?: number
+          merchant_cost_per_usdt?: number
+          merchant_id?: string
+          merchant_share_pct?: number
+          note?: string | null
+          order_id?: string
+          partner_amount?: number
+          partner_share_pct?: number
+          profit_share_agreement_id?: string | null
+          relationship_id?: string
+          sale_group_id?: string
+          sell_price?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_allocations_profit_share_agreement_id_fkey"
+            columns: ["profit_share_agreement_id"]
+            isOneToOne: false
+            referencedRelation: "profit_share_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_allocations_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_audit_events: {
+        Row: {
+          actor_merchant_id: string
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          room_id: string | null
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          actor_merchant_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          room_id?: string | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          actor_merchant_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          room_id?: string | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_audit_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_audit_events_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_business_objects: {
+        Row: {
+          created_at: string
+          created_by_merchant_id: string
+          id: string
+          object_type: string
+          payload: Json
+          room_id: string
+          source_message_id: string | null
+          state_snapshot_hash: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_merchant_id: string
+          id?: string
+          object_type: string
+          payload?: Json
+          room_id: string
+          source_message_id?: string | null
+          state_snapshot_hash?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_merchant_id?: string
+          id?: string
+          object_type?: string
+          payload?: Json
+          room_id?: string
+          source_message_id?: string | null
+          state_snapshot_hash?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_business_objects_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_business_objects_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_business_objects_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "os_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_channel_identities: {
+        Row: {
+          confidence_level: string
+          created_at: string
+          id: string
+          merchant_id: string
+          provider_type: string
+          provider_uid: string
+        }
+        Insert: {
+          confidence_level?: string
+          created_at?: string
+          id?: string
+          merchant_id: string
+          provider_type: string
+          provider_uid: string
+        }
+        Update: {
+          confidence_level?: string
+          created_at?: string
+          id?: string
+          merchant_id?: string
+          provider_type?: string
+          provider_uid?: string
+        }
+        Relationships: []
+      }
+      os_messages: {
+        Row: {
+          content: string
+          created_at: string
+          deleted_at: string | null
+          expires_at: string | null
+          id: string
+          is_deleted: boolean
+          is_pinned: boolean
+          permissions: Json
+          pinned_at: string | null
+          pinned_by: string | null
+          read_at: string | null
+          retention_policy: string
+          room_id: string
+          sender_identity_id: string | null
+          sender_merchant_id: string
+          thread_id: string | null
+          view_limit: number | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_deleted?: boolean
+          is_pinned?: boolean
+          permissions?: Json
+          pinned_at?: string | null
+          pinned_by?: string | null
+          read_at?: string | null
+          retention_policy?: string
+          room_id: string
+          sender_identity_id?: string | null
+          sender_merchant_id: string
+          thread_id?: string | null
+          view_limit?: number | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_deleted?: boolean
+          is_pinned?: boolean
+          permissions?: Json
+          pinned_at?: string | null
+          pinned_by?: string | null
+          read_at?: string | null
+          retention_policy?: string
+          room_id?: string
+          sender_identity_id?: string | null
+          sender_merchant_id?: string
+          thread_id?: string | null
+          view_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_messages_sender_identity_id_fkey"
+            columns: ["sender_identity_id"]
+            isOneToOne: false
+            referencedRelation: "os_channel_identities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "os_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_policies: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          policy_type: string
+          room_id: string | null
+          rules: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          policy_type: string
+          room_id?: string | null
+          rules?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          policy_type?: string
+          room_id?: string | null
+          rules?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_policies_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_policies_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_room_members: {
+        Row: {
+          id: string
+          joined_at: string
+          merchant_id: string
+          role: string
+          room_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          merchant_id: string
+          role?: string
+          room_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          merchant_id?: string
+          role?: string
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_room_presence: {
+        Row: {
+          id: string
+          is_focused: boolean
+          last_read_message_id: string | null
+          last_seen_at: string
+          merchant_id: string
+          room_id: string
+        }
+        Insert: {
+          id?: string
+          is_focused?: boolean
+          last_read_message_id?: string | null
+          last_seen_at?: string
+          merchant_id: string
+          room_id: string
+        }
+        Update: {
+          id?: string
+          is_focused?: boolean
+          last_read_message_id?: string | null
+          last_seen_at?: string
+          merchant_id?: string
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_room_presence_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "os_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_room_presence_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_room_presence_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_rooms: {
+        Row: {
+          created_at: string
+          id: string
+          lane: string
+          name: string
+          retention_policy: string
+          security_policies: Json
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lane?: string
+          name: string
+          retention_policy?: string
+          security_policies?: Json
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lane?: string
+          name?: string
+          retention_policy?: string
+          security_policies?: Json
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      os_threads: {
+        Row: {
+          created_at: string
+          created_by_merchant_id: string
+          id: string
+          room_id: string
+          routing_target: string | null
+          source_message_ids: string[] | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_merchant_id: string
+          id?: string
+          room_id: string
+          routing_target?: string | null
+          source_message_ids?: string[] | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by_merchant_id?: string
+          id?: string
+          room_id?: string
+          routing_target?: string | null
+          source_message_ids?: string[] | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_threads_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_threads_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      os_workflow_runs: {
+        Row: {
+          completed_at: string | null
+          id: string
+          input_payload: Json | null
+          output_payload: Json | null
+          room_id: string
+          started_at: string
+          status: string
+          trigger_message_id: string | null
+          workflow_name: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          input_payload?: Json | null
+          output_payload?: Json | null
+          room_id: string
+          started_at?: string
+          status?: string
+          trigger_message_id?: string | null
+          workflow_name: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          input_payload?: Json | null
+          output_payload?: Json | null
+          room_id?: string
+          started_at?: string
+          status?: string
+          trigger_message_id?: string | null
+          workflow_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "os_workflow_runs_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_room_summary_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_workflow_runs_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "os_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "os_workflow_runs_trigger_message_id_fkey"
+            columns: ["trigger_message_id"]
+            isOneToOne: false
+            referencedRelation: "os_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      otc_disputes: {
+        Row: {
+          admin_mediator_id: string | null
+          created_at: string
+          evidence_urls: string[]
+          id: string
+          opened_by: string
+          reason: string
+          resolution: string | null
+          resolution_note: string | null
+          respondent_evidence_urls: string[]
+          respondent_user_id: string
+          status: string
+          trade_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_mediator_id?: string | null
+          created_at?: string
+          evidence_urls?: string[]
+          id?: string
+          opened_by: string
+          reason?: string
+          resolution?: string | null
+          resolution_note?: string | null
+          respondent_evidence_urls?: string[]
+          respondent_user_id: string
+          status?: string
+          trade_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_mediator_id?: string | null
+          created_at?: string
+          evidence_urls?: string[]
+          id?: string
+          opened_by?: string
+          reason?: string
+          resolution?: string | null
+          resolution_note?: string | null
+          respondent_evidence_urls?: string[]
+          respondent_user_id?: string
+          status?: string
+          trade_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_disputes_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "otc_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      otc_escrow: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          deposited_at: string | null
+          depositor_user_id: string
+          id: string
+          released_at: string | null
+          side: string
+          status: string
+          trade_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deposited_at?: string | null
+          depositor_user_id: string
+          id?: string
+          released_at?: string | null
+          side: string
+          status?: string
+          trade_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          deposited_at?: string | null
+          depositor_user_id?: string
+          id?: string
+          released_at?: string | null
+          side?: string
+          status?: string
+          trade_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_escrow_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "otc_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      otc_listings: {
+        Row: {
+          amount_max: number
+          amount_min: number
+          created_at: string
+          currency: string
+          expires_at: string | null
+          id: string
+          merchant_id: string
+          note: string | null
+          payment_methods: string[]
+          rate: number
+          side: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_max?: number
+          amount_min?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id: string
+          note?: string | null
+          payment_methods?: string[]
+          rate?: number
+          side: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_max?: number
+          amount_min?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id?: string
+          note?: string | null
+          payment_methods?: string[]
+          rate?: number
+          side?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      otc_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          rating: number
+          reviewed_user_id: string
+          reviewer_user_id: string
+          trade_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating: number
+          reviewed_user_id: string
+          reviewer_user_id: string
+          trade_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating?: number
+          reviewed_user_id?: string
+          reviewer_user_id?: string
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_reviews_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "otc_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      otc_trades: {
+        Row: {
+          amount: number
+          cancelled_at: string | null
+          chat_room_id: string | null
+          completed_at: string | null
+          confirmed_at: string | null
+          counter_amount: number | null
+          counter_note: string | null
+          counter_rate: number | null
+          counter_total: number | null
+          created_at: string
+          currency: string
+          escrow_status: string
+          id: string
+          initiator_merchant_id: string
+          initiator_user_id: string
+          listing_id: string | null
+          note: string | null
+          rate: number
+          responder_merchant_id: string
+          responder_user_id: string
+          side: string
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          cancelled_at?: string | null
+          chat_room_id?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          counter_amount?: number | null
+          counter_note?: string | null
+          counter_rate?: number | null
+          counter_total?: number | null
+          created_at?: string
+          currency?: string
+          escrow_status?: string
+          id?: string
+          initiator_merchant_id: string
+          initiator_user_id: string
+          listing_id?: string | null
+          note?: string | null
+          rate?: number
+          responder_merchant_id: string
+          responder_user_id: string
+          side: string
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cancelled_at?: string | null
+          chat_room_id?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          counter_amount?: number | null
+          counter_note?: string | null
+          counter_rate?: number | null
+          counter_total?: number | null
+          created_at?: string
+          currency?: string
+          escrow_status?: string
+          id?: string
+          initiator_merchant_id?: string
+          initiator_user_id?: string
+          listing_id?: string | null
+          note?: string | null
+          rate?: number
+          responder_merchant_id?: string
+          responder_user_id?: string
+          side?: string
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otc_trades_chat_room_id_fkey"
+            columns: ["chat_room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "otc_trades_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "otc_listings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       p2p_snapshots: {
         Row: {
@@ -538,35 +3220,334 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          avatar_url: string | null
           created_at: string
           email: string
+          full_name: string | null
           id: string
           rejection_reason: string | null
+          role: string
           status: string
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          avatar_url?: string | null
           created_at?: string
           email: string
+          full_name?: string | null
           id?: string
           rejection_reason?: string | null
+          role?: string
           status?: string
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          avatar_url?: string | null
           created_at?: string
           email?: string
+          full_name?: string | null
           id?: string
           rejection_reason?: string | null
+          role?: string
           status?: string
           updated_at?: string
           user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      profit_records: {
+        Row: {
+          agreement_id: string | null
+          amount: number
+          created_at: string
+          currency: string
+          deal_id: string | null
+          id: string
+          merchant_id: string
+          notes: string | null
+          period_id: string | null
+          recorded_by: string | null
+          relationship_id: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          agreement_id?: string | null
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          id?: string
+          merchant_id: string
+          notes?: string | null
+          period_id?: string | null
+          recorded_by?: string | null
+          relationship_id: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          agreement_id?: string | null
+          amount?: number
+          created_at?: string
+          currency?: string
+          deal_id?: string | null
+          id?: string
+          merchant_id?: string
+          notes?: string | null
+          period_id?: string | null
+          recorded_by?: string | null
+          relationship_id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profit_share_agreements: {
+        Row: {
+          agreement_type: string
+          approved_at: string | null
+          approved_by: string | null
+          counterparty_default_profit_handling: string
+          created_at: string
+          created_by: string
+          effective_from: string
+          expires_at: string | null
+          id: string
+          invested_capital: number | null
+          lender_contribution: number | null
+          merchant_ratio: number
+          notes: string | null
+          operator_contribution: number | null
+          operator_default_profit_handling: string
+          operator_merchant_id: string | null
+          operator_ratio: number | null
+          partner_ratio: number
+          relationship_id: string
+          settlement_cadence: string
+          settlement_way: string | null
+          status: string
+          terms_snapshot: Json | null
+          updated_at: string
+        }
+        Insert: {
+          agreement_type?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          counterparty_default_profit_handling?: string
+          created_at?: string
+          created_by: string
+          effective_from?: string
+          expires_at?: string | null
+          id?: string
+          invested_capital?: number | null
+          lender_contribution?: number | null
+          merchant_ratio: number
+          notes?: string | null
+          operator_contribution?: number | null
+          operator_default_profit_handling?: string
+          operator_merchant_id?: string | null
+          operator_ratio?: number | null
+          partner_ratio: number
+          relationship_id: string
+          settlement_cadence?: string
+          settlement_way?: string | null
+          status?: string
+          terms_snapshot?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          agreement_type?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          counterparty_default_profit_handling?: string
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          expires_at?: string | null
+          id?: string
+          invested_capital?: number | null
+          lender_contribution?: number | null
+          merchant_ratio?: number
+          notes?: string | null
+          operator_contribution?: number | null
+          operator_default_profit_handling?: string
+          operator_merchant_id?: string | null
+          operator_ratio?: number | null
+          partner_ratio?: number
+          relationship_id?: string
+          settlement_cadence?: string
+          settlement_way?: string | null
+          status?: string
+          terms_snapshot?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profit_share_agreements_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_relationships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_device_tokens: {
+        Row: {
+          created_at: string
+          device_id: string | null
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          platform?: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      settlement_decisions: {
+        Row: {
+          agreement_id: string
+          created_at: string
+          decision: string
+          decision_confirmed_at: string | null
+          decision_due_at: string | null
+          default_behavior: string
+          effective_capital_after: number
+          effective_capital_before: number
+          finalization_snapshot: Json | null
+          finalized_at: string | null
+          id: string
+          merchant_id: string
+          profit_amount: number
+          reinvested_amount: number
+          role: string
+          settlement_period_id: string
+          updated_at: string
+          withdrawn_amount: number
+        }
+        Insert: {
+          agreement_id: string
+          created_at?: string
+          decision?: string
+          decision_confirmed_at?: string | null
+          decision_due_at?: string | null
+          default_behavior?: string
+          effective_capital_after?: number
+          effective_capital_before?: number
+          finalization_snapshot?: Json | null
+          finalized_at?: string | null
+          id?: string
+          merchant_id: string
+          profit_amount?: number
+          reinvested_amount?: number
+          role?: string
+          settlement_period_id: string
+          updated_at?: string
+          withdrawn_amount?: number
+        }
+        Update: {
+          agreement_id?: string
+          created_at?: string
+          decision?: string
+          decision_confirmed_at?: string | null
+          decision_due_at?: string | null
+          default_behavior?: string
+          effective_capital_after?: number
+          effective_capital_before?: number
+          finalization_snapshot?: Json | null
+          finalized_at?: string | null
+          id?: string
+          merchant_id?: string
+          profit_amount?: number
+          reinvested_amount?: number
+          role?: string
+          settlement_period_id?: string
+          updated_at?: string
+          withdrawn_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_decisions_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "profit_share_agreements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlement_decisions_settlement_period_id_fkey"
+            columns: ["settlement_period_id"]
+            isOneToOne: false
+            referencedRelation: "settlement_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlement_overviews: {
+        Row: {
+          agreement_id: string | null
+          created_at: string
+          id: string
+          period_label: string | null
+          relationship_id: string
+          status: string
+          total_profit: number
+          total_reinvested: number
+          total_withdrawn: number
+          updated_at: string
+        }
+        Insert: {
+          agreement_id?: string | null
+          created_at?: string
+          id?: string
+          period_label?: string | null
+          relationship_id: string
+          status?: string
+          total_profit?: number
+          total_reinvested?: number
+          total_withdrawn?: number
+          updated_at?: string
+        }
+        Update: {
+          agreement_id?: string | null
+          created_at?: string
+          id?: string
+          period_label?: string | null
+          relationship_id?: string
+          status?: string
+          total_profit?: number
+          total_reinvested?: number
+          total_withdrawn?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -700,6 +3681,33 @@ export type Database = {
         }
         Relationships: []
       }
+      tracker_states: {
+        Row: {
+          created_at: string
+          id: string
+          state: Json
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          state?: Json
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -720,9 +3728,58 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      chat_room_summary_v: {
+        Row: {
+          id: string | null
+          lane: string | null
+          last_message_at: string | null
+          last_message_content: string | null
+          last_message_sender: string | null
+          message_count: number | null
+          name: string | null
+          retention_policy: string | null
+          security_policies: Json | null
+          type: string | null
+        }
+        Insert: {
+          id?: string | null
+          lane?: string | null
+          last_message_at?: string | null
+          last_message_content?: never
+          last_message_sender?: never
+          message_count?: never
+          name?: string | null
+          retention_policy?: string | null
+          security_policies?: Json | null
+          type?: string | null
+        }
+        Update: {
+          id?: string | null
+          lane?: string | null
+          last_message_at?: string | null
+          last_message_content?: never
+          last_message_sender?: never
+          message_count?: never
+          name?: string | null
+          retention_policy?: string | null
+          security_policies?: Json | null
+          type?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      admin_analytics_overview: {
+        Args: { _months?: number }
+        Returns: {
+          deal_count: number
+          deal_volume: number
+          month: string
+          new_users: number
+          profit_amount: number
+          settlement_amount: number
+        }[]
+      }
       admin_broadcast_notification: {
         Args: { _body: string; _category?: string; _title: string }
         Returns: number
@@ -741,6 +3798,30 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_merchant_performance: {
+        Args: never
+        Returns: {
+          avg_deal_size: number
+          deal_count: number
+          display_name: string
+          merchant_id: string
+          nickname: string
+          settlement_count: number
+          status: string
+          total_profit: number
+          total_volume: number
+        }[]
+      }
+      admin_revenue_breakdown: {
+        Args: never
+        Returns: {
+          currency: string
+          deal_count: number
+          deal_type: string
+          total_profit: number
+          total_volume: number
+        }[]
+      }
       admin_system_stats: { Args: never; Returns: Json }
       admin_void_deal: {
         Args: { _deal_id: string; _reason: string }
@@ -755,8 +3836,426 @@ export type Database = {
         }
         Returns: undefined
       }
+      approve_settlement: {
+        Args: { _settlement_id: string }
+        Returns: undefined
+      }
+      chat_add_reaction: {
+        Args: { _emoji: string; _message_id: string }
+        Returns: undefined
+      }
+      chat_answer_call: {
+        Args: { _call_id: string; _sdp_answer: string }
+        Returns: undefined
+      }
+      chat_cancel_market_offer: {
+        Args: { _offer_id: string }
+        Returns: undefined
+      }
+      chat_create_attachment: {
+        Args: {
+          _auth_tag?: string
+          _cdn_url?: string
+          _checksum_sha256?: string
+          _duration_ms?: number
+          _file_name: string
+          _file_size: number
+          _height?: number
+          _is_encrypted?: boolean
+          _iv?: string
+          _message_id: string
+          _mime_type: string
+          _room_id: string
+          _storage_path: string
+          _thumbnail_path?: string
+          _waveform?: Json
+          _width?: number
+        }
+        Returns: string
+      }
+      chat_create_market_offer: {
+        Args: {
+          _currency_pair?: string
+          _expires_at?: string
+          _max_amount?: number
+          _min_amount?: number
+          _note?: string
+          _offer_type: string
+          _rate: number
+        }
+        Returns: string
+      }
+      chat_create_merchant_client_room: {
+        Args: { _customer_user_id: string; _room_name?: string }
+        Returns: string
+      }
+      chat_delete_message: {
+        Args: { _for_everyone?: boolean; _message_id: string }
+        Returns: undefined
+      }
+      chat_edit_message: {
+        Args: { _message_id: string; _new_content: string }
+        Returns: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "chat_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      chat_end_call: {
+        Args: {
+          _call_id: string
+          _end_reason?: string
+          _signaling_channel?: string
+        }
+        Returns: undefined
+      }
+      chat_export_room_transcript: {
+        Args: { _room_id: string }
+        Returns: {
+          content: string
+          sender_name: string
+          sent_at: string
+        }[]
+      }
+      chat_forward_message: {
+        Args: {
+          _client_nonce?: string
+          _message_id: string
+          _target_room_id: string
+        }
+        Returns: string
+      }
+      chat_get_or_create_collab_room: {
+        Args: { _name?: string }
+        Returns: string
+      }
+      chat_get_or_create_direct_room: {
+        Args: { _other_user_id: string; _room_name?: string }
+        Returns: string
+      }
+      chat_get_privacy_settings: { Args: never; Returns: Json }
+      chat_get_qatar_market_room: { Args: never; Returns: string }
+      chat_get_room_members: {
+        Args: { _room_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          is_archived: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          joined_at: string
+          last_read_at: string
+          last_read_message_id: string
+          notification_level: string
+          role: Database["public"]["Enums"]["chat_member_role"]
+          room_id: string
+          user_id: string
+        }[]
+      }
+      chat_get_rooms: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          is_archived: boolean
+          is_direct: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          last_message_at: string
+          last_message_preview: string
+          member_count: number
+          name: string
+          other_user_id: string
+          other_user_metadata: Json
+          room_id: string
+          room_type: Database["public"]["Enums"]["chat_room_type"]
+          unread_count: number
+        }[]
+      }
+      chat_get_rooms_v2: {
+        Args: never
+        Returns: {
+          is_archived: boolean
+          is_direct: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          last_message_at: string
+          last_message_preview: string
+          my_role: string
+          other_user_metadata: Json
+          room_avatar: string
+          room_id: string
+          room_name: string
+          room_policy: Json
+          room_type: string
+          unread_count: number
+        }[]
+      }
+      chat_initiate_call: {
+        Args: { _call_id?: string; _ice_config?: Json; _room_id: string }
+        Returns: string
+      }
+      chat_is_allowed_mime: {
+        Args: { _allowed_mime_types: string[]; _mime_type: string }
+        Returns: boolean
+      }
+      chat_link_attachment_to_message: {
+        Args: { _attachment_id: string; _message_id: string }
+        Returns: undefined
+      }
+      chat_mark_room_read: {
+        Args: { _room_id: string; _up_to_message_id?: string }
+        Returns: undefined
+      }
+      chat_mark_viewed: { Args: { _message_id: string }; Returns: undefined }
+      chat_push_ice_candidate: {
+        Args: { _call_id: string; _candidate: Json }
+        Returns: undefined
+      }
+      chat_remove_reaction: {
+        Args: { _emoji: string; _message_id: string }
+        Returns: undefined
+      }
+      chat_run_expiry_cleanup: { Args: never; Returns: Json }
+      chat_search_messages: {
+        Args: { _limit?: number; _query: string; _room_id: string }
+        Returns: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "chat_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      chat_send_message: {
+        Args: {
+          _attachment_id?: string
+          _client_nonce?: string
+          _content: string
+          _expires_at?: string
+          _metadata?: Json
+          _reply_to_id?: string
+          _room_id: string
+          _type?: string
+          _view_once?: boolean
+          _watermark_text?: string
+        }
+        Returns: {
+          client_nonce: string | null
+          content: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_for_sender: boolean
+          edited_at: string | null
+          expires_at: string | null
+          forwarded_from_id: string | null
+          id: string
+          is_deleted: boolean
+          is_edited: boolean
+          metadata: Json
+          reply_to_id: string | null
+          room_id: string
+          search_vector: unknown
+          sender_id: string
+          type: Database["public"]["Enums"]["chat_message_type"]
+          updated_at: string
+          view_once: boolean
+          viewed_by: string[]
+          watermark_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "chat_messages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      chat_set_presence: {
+        Args: { _device_info?: Json; _status?: string }
+        Returns: undefined
+      }
+      chat_set_typing: {
+        Args: { _is_typing: boolean; _room_id: string }
+        Returns: undefined
+      }
+      chat_update_privacy_settings:
+        | {
+            Args: {
+              _anonymous_mode?: boolean
+              _copy_disabled?: boolean
+              _export_disabled?: boolean
+              _forwarding_disabled?: boolean
+              _hide_last_seen?: boolean
+              _hide_read_receipts?: boolean
+              _hide_typing?: boolean
+              _invisible_mode?: boolean
+              _notification_preview?: string
+              _online_visibility?: string
+              _screenshot_protection?: boolean
+              _show_sender_in_notification?: boolean
+              _watermark_enabled?: boolean
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _hide_last_seen?: boolean
+              _hide_read_receipts?: boolean
+              _hide_typing?: boolean
+              _invisible_mode?: boolean
+              _online_visibility?: string
+            }
+            Returns: Json
+          }
+      chat_update_room_policy: {
+        Args: { _room_id: string; _updates: Json }
+        Returns: Json
+      }
       current_merchant_id: { Args: never; Returns: string }
+      customer_wallet_summary: { Args: { p_user_id: string }; Returns: Json }
       deal_reinvested_pool: { Args: { _deal_id: string }; Returns: number }
+      fn_chat_add_reaction: {
+        Args: { _message_id: string; _reaction: string; _room_id: string }
+        Returns: boolean
+      }
+      fn_chat_delete_message: {
+        Args: { p_message_id: string; p_room_id: string }
+        Returns: undefined
+      }
+      fn_chat_expire_messages: { Args: never; Returns: Json }
+      fn_chat_mark_read: {
+        Args: { _message_id: string; _room_id: string }
+        Returns: boolean
+      }
+      fn_chat_member_role: {
+        Args: { p_room_id: string; p_user_id: string }
+        Returns: Database["public"]["Enums"]["chat_member_role"]
+      }
+      fn_chat_pin_message: {
+        Args: { p_message_id: string; p_room_id: string }
+        Returns: undefined
+      }
+      fn_chat_remove_reaction: {
+        Args: { _message_id: string; _reaction: string; _room_id: string }
+        Returns: boolean
+      }
+      fn_chat_send_message: {
+        Args: {
+          _body: string
+          _body_json?: Json
+          _client_nonce?: string
+          _expires_at?: string
+          _message_type?: string
+          _reply_to_message_id?: string
+          _room_id: string
+        }
+        Returns: Json
+      }
+      fn_chat_unpin_message: {
+        Args: { p_message_id: string; p_room_id: string }
+        Returns: undefined
+      }
+      fn_finalize_settlement_decisions: {
+        Args: {
+          p_agreement_id: string
+          p_agreement_snapshot: Json
+          p_period_id: string
+        }
+        Returns: undefined
+      }
+      fn_get_dashboard_stats: { Args: { p_merchant_id: string }; Returns: Json }
+      fn_get_user_privacy: {
+        Args: { p_user_id: string }
+        Returns: {
+          anonymous_mode: boolean
+          copy_disabled: boolean
+          created_at: string
+          export_disabled: boolean
+          forwarding_disabled: boolean
+          hide_last_seen: boolean
+          hide_read_receipts: boolean
+          hide_typing: boolean
+          invisible_mode: boolean
+          notification_preview: string
+          online_visibility: string
+          screenshot_protection: boolean
+          show_sender_in_notification: boolean
+          updated_at: string
+          user_id: string
+          watermark_enabled: boolean
+        }
+        SetofOptions: {
+          from: "*"
+          to: "chat_privacy_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fn_is_chat_member: {
+        Args: { p_room_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      fn_is_presence_visible: {
+        Args: { _target_user_id: string; _viewer_id: string }
+        Returns: boolean
+      }
+      fn_otc_lifecycle_cleanup: { Args: never; Returns: undefined }
+      get_unread_counts: {
+        Args: { _user_id?: string }
+        Returns: {
+          relationship_id: string
+          unread_count: number
+        }[]
+      }
       has_relationship_with: {
         Args: { _target_merchant_id: string; _viewer_merchant_id: string }
         Returns: boolean
@@ -768,13 +4267,92 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_customer_connection_member: {
+        Args: { _connection_id: string }
+        Returns: boolean
+      }
+      is_os_room_member: { Args: { _room_id: string }; Returns: boolean }
       is_relationship_member: {
         Args: { _relationship_id: string }
         Returns: boolean
       }
+      mark_conversation_read: {
+        Args: { _relationship_id: string }
+        Returns: undefined
+      }
+      merchant_trust_metrics: {
+        Args: { p_customer_user_id: string; p_merchant_id: string }
+        Returns: Json
+      }
+      os_capture_snapshot: {
+        Args: { _target_business_object_id: string; _trigger_event: string }
+        Returns: string
+      }
+      os_convert_message: {
+        Args: { _message_id: string; _payload?: Json; _target_type: string }
+        Returns: string
+      }
+      os_get_unread_counts: {
+        Args: { _merchant_id?: string }
+        Returns: {
+          room_id: string
+          unread_count: number
+        }[]
+      }
+      os_promote_thread: {
+        Args: {
+          _room_id: string
+          _routing_target?: string
+          _source_message_ids: string[]
+        }
+        Returns: string
+      }
+      os_record_presence: {
+        Args: {
+          _is_focused: boolean
+          _last_read_message_id?: string
+          _room_id: string
+        }
+        Returns: undefined
+      }
+      os_send_notification: {
+        Args: { _message_id: string; _room_id: string; _urgency?: string }
+        Returns: number
+      }
+      reject_settlement: {
+        Args: { _actor_id: string; _settlement_id: string }
+        Returns: undefined
+      }
+      set_merchant_deal_status: {
+        Args: { _deal_id: string; _status: string }
+        Returns: undefined
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      chat_call_status:
+        | "ringing"
+        | "active"
+        | "ended"
+        | "missed"
+        | "declined"
+        | "failed"
+        | "no_answer"
+      chat_encryption_mode: "none" | "tls_only" | "server_e2ee" | "client_e2ee"
+      chat_member_role: "owner" | "admin" | "member" | "guest"
+      chat_message_type:
+        | "text"
+        | "voice_note"
+        | "image"
+        | "file"
+        | "system"
+        | "call_summary"
+        | "order_card"
+        | "payment_card"
+        | "reaction_burst"
+      chat_room_type: "merchant_private" | "merchant_client" | "merchant_collab"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -903,6 +4481,33 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      chat_call_status: [
+        "ringing",
+        "active",
+        "ended",
+        "missed",
+        "declined",
+        "failed",
+        "no_answer",
+      ],
+      chat_encryption_mode: ["none", "tls_only", "server_e2ee", "client_e2ee"],
+      chat_member_role: ["owner", "admin", "member", "guest"],
+      chat_message_type: [
+        "text",
+        "voice_note",
+        "image",
+        "file",
+        "system",
+        "call_summary",
+        "order_card",
+        "payment_card",
+        "reaction_burst",
+      ],
+      chat_room_type: [
+        "merchant_private",
+        "merchant_client",
+        "merchant_collab",
+      ],
     },
   },
 } as const

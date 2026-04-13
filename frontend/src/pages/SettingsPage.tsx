@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Check, Save, RotateCcw, Download, Trash2 } from 'lucide-react';
+import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import {
@@ -21,6 +22,7 @@ import {
   detectOptimalFontSize,
   type ThemeDef,
 } from '@/lib/theme-context';
+import type { AppSettings } from '@/lib/theme/types';
 
 export default function SettingsPage() {
   const {
@@ -70,7 +72,7 @@ export default function SettingsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-3 mb-6">
               {LAYOUTS.map(l => (
                 <button
                   key={l.id}
@@ -151,9 +153,27 @@ export default function SettingsPage() {
               </div>
             </div>
             <div>
+              <Label className="text-xs mb-2 block">Base Fiat Currency</Label>
+              <div className="flex gap-1.5">
+                {(['QAR', 'EGP'] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => update({ baseFiatCurrency: c, currency: c })}
+                    className={cn(
+                      'px-3 py-1.5 rounded text-xs border transition-all',
+                      draft.baseFiatCurrency === c ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
+                    )}
+                  >
+                    {c === 'QAR' ? '🇶🇦 QAR' : '🇪🇬 EGP'}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">New orders and stock will default to this fiat currency</p>
+            </div>
+            <div>
               <Label className="text-xs mb-2 block">{t('currency')}</Label>
               <div className="flex gap-1.5">
-                {(['QAR', 'USDT'] as const).map(c => (
+                {(['QAR', 'EGP', 'USDT'] as const).map(c => (
                   <button
                     key={c}
                     onClick={() => update({ currency: c })}
@@ -170,20 +190,20 @@ export default function SettingsPage() {
             <div>
               <Label className="text-xs mb-2 block">{t('dateRange')}</Label>
               <div className="flex gap-1.5">
-                {([{ id: 'today', label: '1 Day' }, { id: '7d', label: '7 Days' }, { id: '30d', label: '30 Days' }, { id: 'all', label: 'All' }] as const).map(r => (
+                {([{ id: 'today', labelKey: 'oneDay2' as const }, { id: '7d', labelKey: 'sevenDays2' as const }, { id: '30d', labelKey: 'thirtyDays' as const }, { id: 'this_month', labelKey: 'thisMonth' as const }, { id: 'last_month', labelKey: 'lastMonth' as const }, { id: 'all', labelKey: 'allLabel' as const }]).map(r => (
                   <button
                     key={r.id}
-                    onClick={() => update({ range: r.id as any })}
+                    onClick={() => update({ range: r.id as AppSettings['range'] })}
                     className={cn(
                       'px-3 py-1.5 rounded text-xs border transition-all',
                       draft.range === r.id ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
                     )}
                   >
-                    {r.label}
+                    {t(r.labelKey)}
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Default: 7 Days</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{t('defaultSevenDays')}</p>
             </div>
           </CardContent>
         </Card>
@@ -292,6 +312,9 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* ── Notification Preferences ── */}
+          <NotificationPreferencesPanel />
 
           {/* ── Logs ── */}
           <Card className="glass">

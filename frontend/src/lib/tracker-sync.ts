@@ -16,6 +16,58 @@ function stateToJson(state: TrackerState): string {
   }
 }
 
+type TrackerSnapshotRow = {
+  state: Partial<TrackerState> | null;
+  updated_at?: string | null;
+  user_id?: string;
+};
+
+function mergeArrayById<T>(base: T[] | undefined, incoming: T[] | undefined): T[] {
+  const out = new Map<string, T>();
+  for (const item of base || []) {
+    const key = typeof item === 'object' && item && 'id' in (item as Record<string, unknown>)
+      ? String((item as Record<string, unknown>).id)
+      : JSON.stringify(item);
+    out.set(key, item);
+  }
+  for (const item of incoming || []) {
+    const key = typeof item === 'object' && item && 'id' in (item as Record<string, unknown>)
+      ? String((item as Record<string, unknown>).id)
+      : JSON.stringify(item);
+    out.set(key, item);
+  }
+  return Array.from(out.values());
+}
+
+/** Merge multiple snapshot states into one merchant-scoped view. */
+export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Partial<TrackerState> | null {
+  const validRows = rows
+    .filter(r => r.state && typeof r.state === 'object')
+    .sort((a, b) => {
+      const at = new Date(a.updated_at || 0).getTime();
+      const bt = new Date(b.updated_at || 0).getTime();
+      return at - bt;
+    });
+
+  if (validRows.length === 0) return null;
+
+  let merged: Partial<TrackerState> = {};
+  for (const row of validRows) {
+    const state = row.state!;
+    merged = {
+      ...merged,
+      ...state,
+      batches: mergeArrayById(merged.batches, Array.isArray(state.batches) ? state.batches : []),
+      trades: mergeArrayById(merged.trades, Array.isArray(state.trades) ? state.trades : []),
+      customers: mergeArrayById(merged.customers, Array.isArray(state.customers) ? state.customers : []),
+      cashAccounts: mergeArrayById(merged.cashAccounts, Array.isArray(state.cashAccounts) ? state.cashAccounts : []),
+      cashLedger: mergeArrayById(merged.cashLedger, Array.isArray(state.cashLedger) ? state.cashLedger : []),
+      cashHistory: mergeArrayById(merged.cashHistory, Array.isArray(state.cashHistory) ? state.cashHistory : []),
+    };
+  }
+  return merged;
+}
+
 /** Save tracker state to localStorage */
 function persistToLocal(state: TrackerState): void {
   if (typeof window === 'undefined') return;
@@ -31,6 +83,7 @@ function persistToLocal(state: TrackerState): void {
 /** Upsert row ensuring user_id row exists */
 async function ensureRow(userId: string): Promise<void> {
   await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .upsert(
       { user_id: userId, updated_at: new Date().toISOString() },
@@ -47,8 +100,10 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   if (!user) return;
 
   const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .upsert(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { user_id: user.id, state: state as any, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     );
@@ -82,15 +137,45 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
-    .from('tracker_snapshots' as any)
-    .select('state, updated_at')
+  const { data: myMerchantProfile } = await supabase
+    .from('merchant_profiles')
+    .select('merchant_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (error || !data) return null;
+  let cloudState: Partial<TrackerState> | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const merchantId = (myMerchantProfile as any)?.merchant_id as string | undefined;
 
-  const cloudState = (data as any).state as Partial<TrackerState> | null;
+  if (merchantId) {
+    const { data: merchantUsers } = await supabase
+      .from('merchant_profiles')
+      .select('user_id')
+      .eq('merchant_id', merchantId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const merchantUserIds = Array.from(new Set((merchantUsers || []).map((m: any) => m.user_id).filter(Boolean)));
+
+    const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('tracker_snapshots' as any)
+      .select('state, updated_at, user_id')
+      .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
+    if (!error && data) {
+      cloudState = mergeTrackerStatesForMerchant(data as unknown as TrackerSnapshotRow[]);
+    }
+  } else {
+    const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('tracker_snapshots' as any)
+      .select('state, updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!error && data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cloudState = (data as any).state as Partial<TrackerState> | null;
+    }
+  }
+
   if (!cloudState || typeof cloudState !== 'object') return null;
 
   // Validate it looks like tracker state
@@ -125,8 +210,10 @@ async function persistPrefsToCloud(prefs: Record<string, unknown>): Promise<void
   if (!user) return;
 
   const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .upsert(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { user_id: user.id, preferences: prefs as any, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     );
@@ -144,6 +231,7 @@ export async function loadPreferencesFromCloud(): Promise<Record<string, unknown
   if (!user) return null;
 
   const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .select('preferences')
     .eq('user_id', user.id)
@@ -151,6 +239,7 @@ export async function loadPreferencesFromCloud(): Promise<Record<string, unknown
 
   if (error || !data) return null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prefs = (data as any).preferences as Record<string, unknown> | null;
   if (!prefs || typeof prefs !== 'object' || Object.keys(prefs).length === 0) return null;
 

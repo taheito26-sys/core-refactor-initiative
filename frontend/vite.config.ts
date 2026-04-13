@@ -13,36 +13,73 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
-  },
-  plugins: [
-    react(),
-    mode === "development" && componentTagger(),
-    VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "robots.txt"],
-      workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
-        clientsClaim: true,
-        skipWaiting: true,
+    server: {
+      host: "::",
+      port: 5000,
+      hmr: {
+        overlay: false,
       },
-      manifest: {
-        name: "P2P Tracker",
-        short_name: "P2P Tracker",
-        description: "P2P Trading Platform — live market rates, deals & merchant management",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
-        display: "standalone",
-        start_url: "/",
-        icons: [
-          { src: "/favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
-        ],
-      },
-    }),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom"],
-  },
-}));
+    build: {
+      // Prevent long/blocked gzip-size analysis in constrained CI environments.
+      reportCompressedSize: false,
+    },
+    plugins: [
+      react(),
+      mode === "development" && componentTagger(),
+      !disablePwaBuild &&
+        VitePWA({
+          registerType: "autoUpdate",
+          includeAssets: ["favicon.svg", "robots.txt"],
+          workbox: {
+            maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+            navigateFallbackDenylist: [
+              /^\/auth\//,
+              /^\/~oauth/,
+              /^\/login/,
+              /^\/signup/,
+              /^\/reset-password/,
+              /^\/verify-email/,
+            ],
+            clientsClaim: true,
+            skipWaiting: true,
+            cleanupOutdatedCaches: true,
+            runtimeCaching: [
+              {
+                urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+                handler: "NetworkFirst",
+                options: {
+                  cacheName: "supabase-api",
+                  expiration: { maxEntries: 50, maxAgeSeconds: 60 },
+                },
+              },
+            ],
+          },
+          manifest: {
+            name: "P2P Tracker",
+            short_name: "P2P Tracker",
+            description:
+              "P2P Trading Platform — live market rates, deals & merchant management",
+            theme_color: "#0f172a",
+            background_color: "#0f172a",
+            display: "standalone",
+            start_url: "/",
+            icons: [
+              {
+                src: "/favicon.svg",
+                sizes: "any",
+                type: "image/svg+xml",
+                purpose: "any maskable",
+              },
+            ],
+          },
+        }),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+      dedupe: ["react", "react-dom"],
+    },
+  };
+});

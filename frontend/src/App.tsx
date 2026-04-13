@@ -7,11 +7,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/features/auth/auth-context";
 import { AuthGuard } from "@/features/auth/guards/AuthGuard";
 import { ProfileGuard } from "@/features/auth/guards/ProfileGuard";
+import { CustomerGuard } from "@/features/auth/guards/CustomerGuard";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
+import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
+import { NativePlatformBootstrap } from "@/platform/native-bridge";
+import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
 
 // Auth pages
+import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
@@ -21,6 +26,14 @@ import AccountRejectedPage from "./pages/auth/AccountRejectedPage";
 
 // Onboarding
 import OnboardingPage from "./pages/merchant/OnboardingPage";
+import { CustomerLayout } from "@/components/layout/CustomerLayout";
+import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
+import CustomerHomePage from "./pages/customer/CustomerHomePage";
+import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
+import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
+import CustomerChatPage from "./pages/customer/CustomerChatPage";
+import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
+import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
@@ -29,6 +42,7 @@ import AdminPage from "./pages/admin/AdminPage";
 // Core pages (exact repo copies)
 import DashboardPage from './pages/DashboardPage';
 import OrdersPage from './pages/OrdersPage';
+import OrdersImportLedgerPage from './pages/OrdersImportLedgerPage';
 import StockPage from './pages/StockPage';
 import P2PTrackerPage from './pages/P2PTrackerPage';
 import VaultPage from './pages/VaultPage';
@@ -38,6 +52,10 @@ import SettingsPage from './pages/SettingsPage';
 import CalendarPage from './pages/CalendarPage';
 import CRMPage from './pages/CRMPage';
 import MerchantsPage from './pages/MerchantsPage';
+import RelationshipPage from './pages/RelationshipPage';
+import ChatPage from './pages/ChatPage';
+import ChatPreview from './pages/ChatPreview';
+import MarketplacePage from './features/marketplace/pages/MarketplacePage';
 
 
 import NotificationsPage from './pages/NotificationsPage';
@@ -51,13 +69,43 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// ── Aggressive SW cleanup on every app boot ──
+// This ensures stale service workers never block new deployments
+(async function cleanupStaleSW() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        // Force the waiting SW to activate immediately
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        // Check for updates
+        reg.update().catch(() => {});
+      }
+    }
+  } catch {
+    // Best effort
+  }
+})();
+
 class RouteErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; autoCleared: boolean }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, autoCleared: false };
+  }
+
+  componentDidMount() {
+    this.clearRecoveryQueryParam();
+  }
+
+  componentDidUpdate() {
+    if (!this.state.hasError) {
+      this.clearRecoveryQueryParam();
+    }
   }
 
   static getDerivedStateFromError() {
@@ -66,7 +114,52 @@ class RouteErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error) {
     console.error('[RouteErrorBoundary] route render failed', error);
+    // Auto-clear caches at most once per cooldown window (prevents reload loops).
+    const key = '_p2p_auto_clear_attempt_ts';
+    const lastAttempt = Number(sessionStorage.getItem(key) || '0');
+    const now = Date.now();
+    const cooldownMs = 5 * 60 * 1000;
+    if (now - lastAttempt > cooldownMs) {
+      sessionStorage.setItem(key, String(now));
+      this.clearAndReload();
+    }
   }
+
+  clearAndReload = async (targetHref?: string) => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(n => caches.delete(n)));
+      }
+    } catch {
+      // Best effort
+    }
+    if (targetHref) {
+      window.location.replace(targetHref);
+      return;
+    }
+    window.location.reload();
+  };
+
+  handleClearAndReload = async () => {
+    sessionStorage.removeItem('_p2p_auto_clear_attempt_ts');
+    await this.clearAndReload();
+  };
+
+  clearRecoveryQueryParam = () => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('_cache_cleared') !== '1') return;
+      url.searchParams.delete('_cache_cleared');
+      window.history.replaceState({}, '', url.toString());
+    } catch {
+      // Best effort
+    }
+  };
 
   render() {
     if (this.state.hasError) {
@@ -75,7 +168,16 @@ class RouteErrorBoundary extends React.Component<
           <div className="text-center space-y-4">
             <h2 className="text-xl font-semibold text-foreground">This page could not be rendered.</h2>
             <p className="text-muted-foreground">
-              Try refreshing the page. If the issue continues, the data source may be temporarily unavailable.
+              This is usually caused by a stale cache. Tap below to clear and reload.
+            </p>
+            <button
+              onClick={this.handleClearAndReload}
+              className="mt-4 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm shadow-sm hover:opacity-90 transition-opacity"
+            >
+              Clear Cache & Reload
+            </button>
+            <p className="text-xs text-muted-foreground mt-2">
+              If this keeps happening, clear your browser data for this site.
             </p>
           </div>
         </div>
@@ -90,16 +192,23 @@ const App = () => (
     <ThemeProvider>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
-        <BrowserRouter>
+        <Sonner richColors position="bottom-right" />
+         <BrowserRouter>
+          <NativePlatformBootstrap />
           <AuthProvider>
+            <AuthDiagnostics />
+            <ChatRuntimeBootstrap />
             <RouteErrorBoundary>
               <Routes>
+                {/* OAuth callback — Supabase redirects here after Google consent */}
+                <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+
                 {/* Auth — public */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/verify-email" element={<VerifyEmailPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/chat-preview" element={<ChatPreview />} />
 
                 {/* Pending approval — requires auth but not profile */}
                 <Route path="/pending-approval" element={
@@ -114,6 +223,27 @@ const App = () => (
                   <AuthGuard><OnboardingPage /></AuthGuard>
                 } />
 
+                {/* Customer onboarding — requires auth */}
+                <Route path="/c/onboarding" element={
+                  <AuthGuard><CustomerOnboardingPage /></AuthGuard>
+                } />
+
+                {/* Customer Portal — requires auth + customer profile */}
+                <Route element={
+                  <AuthGuard>
+                    <CustomerGuard>
+                      <CustomerLayout />
+                    </CustomerGuard>
+                  </AuthGuard>
+                }>
+                  <Route path="/c/home" element={<CustomerHomePage />} />
+                  <Route path="/c/merchants" element={<CustomerMerchantsPage />} />
+                  <Route path="/c/orders" element={<CustomerOrdersPage />} />
+                  <Route path="/c/wallet" element={<CustomerWalletPage />} />
+                  <Route path="/c/chat" element={<CustomerChatPage />} />
+                  <Route path="/c/settings" element={<CustomerSettingsPage />} />
+                </Route>
+
                 {/* App Shell — requires auth + approved profile + merchant profile */}
                 <Route element={
                   <AuthGuard>
@@ -125,12 +255,16 @@ const App = () => (
                   {/* Trading */}
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/trading/orders" element={<OrdersPage />} />
+                  <Route path="/trading/orders/import-ledger" element={<OrdersImportLedgerPage />} />
                   <Route path="/trading/stock" element={<StockPage />} />
                   <Route path="/trading/calendar" element={<CalendarPage />} />
                   <Route path="/trading/p2p" element={<P2PTrackerPage />} />
                   <Route path="/trading/vault" element={<VaultPage />} />
                   <Route path="/crm" element={<CRMPage />} />
                   <Route path="/merchants" element={<MerchantsPage />} />
+                  <Route path="/merchants/:relationshipId" element={<RelationshipPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
+                  <Route path="/marketplace" element={<MarketplacePage />} />
 
                   {/* Supporting */}
                   <Route path="/deals" element={<Navigate to="/merchants" replace />} />

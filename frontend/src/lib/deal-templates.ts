@@ -16,7 +16,7 @@ export interface AgreementTemplate {
   helperText: { en: string; ar: string };
   dealType: SupportedDealType;
   /** Agreement family for display */
-  family: 'profit_share' | 'sales_deal';
+  family: 'profit_share' | 'sales_deal' | 'capital_transfer';
   icon: string;
   /** Predefined metadata values auto-applied on agreement creation */
   defaults: {
@@ -114,6 +114,28 @@ export const AGREEMENT_TEMPLATES: AgreementTemplate[] = [
     ratioDisplay: '50/50',
     tags: ['sales'],
   },
+
+  // ── Capital Transfer ──
+  {
+    id: 'capital_transfer',
+    label: { en: 'Capital Transfer', ar: 'تحويل رأس مال' },
+    description: {
+      en: 'Pure USDT transfer between operator and lender. No profit sharing.',
+      ar: 'تحويل USDT صافي بين المشغل والمقرض. بدون مشاركة أرباح.',
+    },
+    helperText: {
+      en: 'Use when sending or receiving USDT capital with a cost basis. No profit split applies.',
+      ar: 'استخدم عند إرسال أو استلام رأس مال USDT بسعر تكلفة. لا تنطبق مشاركة أرباح.',
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dealType: 'capital_transfer' as any,
+    family: 'capital_transfer' as const,
+    icon: '💸',
+    defaults: {},
+    accent: 'brand' as const,
+    ratioDisplay: '—',
+    tags: ['capital'],
+  },
 ];
 
 /** Get a template by its ID */
@@ -186,19 +208,47 @@ export function getDealShares(deal: { deal_type: string; metadata?: Record<strin
     ? deal.metadata
     : parseNotesToMeta(deal.notes);
 
+  // Try multiple key aliases in priority order, return first valid numeric hit
+  const pickNum = (...keys: string[]): number | null => {
+    for (const k of keys) {
+      if (meta[k] != null) {
+        const n = Number(meta[k]);
+        if (!isNaN(n) && n > 0) return n;
+      }
+    }
+    return null;
+  };
+
   let partnerPct: number | null = null;
 
   if (deal.deal_type === 'partnership') {
-    partnerPct = meta.partner_ratio != null ? Number(meta.partner_ratio) : null;
+    // Notes may store as: partner_ratio, counterparty_share_pct, or counterparty_share (legacy)
+    partnerPct = pickNum('partner_ratio', 'counterparty_share_pct', 'counterparty_share');
     return { partnerPct, merchantPct: partnerPct != null ? 100 - partnerPct : null, allocationBase: 'net_profit' };
   }
   if (deal.deal_type === 'arbitrage') {
-    partnerPct = meta.counterparty_share_pct != null ? Number(meta.counterparty_share_pct) : null;
+    // Notes may store as: counterparty_share_pct (new), counterparty_share (legacy, % stripped by parser),
+    // or partner_ratio (profit-share path). Also derive from merchant side if partner missing.
+    partnerPct = pickNum('counterparty_share_pct', 'counterparty_share', 'partner_ratio');
+    if (partnerPct == null) {
+      const m = pickNum('merchant_share_pct', 'merchant_share', 'merchant_ratio');
+      if (m != null) partnerPct = 100 - m;
+    }
     return { partnerPct, merchantPct: partnerPct != null ? 100 - partnerPct : null, allocationBase: 'sale_economics' };
   }
   if (deal.deal_type === 'capital_placement') {
-    partnerPct = meta.pool_owner_share_pct != null ? Number(meta.pool_owner_share_pct) : null;
+    partnerPct = pickNum('pool_owner_share_pct', 'counterparty_share_pct', 'counterparty_share', 'partner_ratio');
     return { partnerPct, merchantPct: partnerPct != null ? 100 - partnerPct : null, allocationBase: 'sale_economics' };
+  }
+
+  // Generic fallback — try all known ratio keys regardless of deal_type so no deal type is ever left with null
+  partnerPct = pickNum('counterparty_share_pct', 'counterparty_share', 'partner_ratio');
+  if (partnerPct == null) {
+    const m = pickNum('merchant_share_pct', 'merchant_share', 'merchant_ratio');
+    if (m != null) partnerPct = 100 - m;
+  }
+  if (partnerPct != null) {
+    return { partnerPct, merchantPct: 100 - partnerPct, allocationBase: 'net_profit' };
   }
 
   return { partnerPct: null, merchantPct: null, allocationBase: 'net_profit' };

@@ -25,21 +25,26 @@ export function useBalanceLedger(relationshipId: string) {
   return useQuery({
     queryKey: ['balance-ledger', relationshipId],
     queryFn: async (): Promise<BalanceSummary> => {
-      const [{ data: transfers }, { data: ledgerEntries }] = await Promise.all([
+      const [transfersRes, ledgerRes] = await Promise.all([
         supabase
-          .from('capital_transfers')
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .from('capital_transfers' as any)
           .select('*')
           .eq('relationship_id', relationshipId)
-          .order('created_at', { ascending: true }),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .order('created_at', { ascending: true }) as any,
         supabase
           .from('deal_capital_ledger')
           .select('*')
           .eq('relationship_id', relationshipId)
           .order('created_at', { ascending: true }),
       ]);
+      const transfers = transfersRes.data;
+      const ledgerEntries = ledgerRes.data;
 
       const allEvents: { ts: string; entry: BalanceEntry }[] = [];
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const tx of (transfers || []) as any[]) {
         const isIn = tx.direction === 'lender_to_operator';
         allEvents.push({
@@ -57,6 +62,7 @@ export function useBalanceLedger(relationshipId: string) {
         });
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const le of (ledgerEntries || []) as any[]) {
         allEvents.push({
           ts: le.created_at,

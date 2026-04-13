@@ -16,6 +16,9 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { AdminOrdersMirror } from './AdminOrdersMirror';
 import { AdminStockMirror } from './AdminStockMirror';
+import DashboardPage from '@/pages/DashboardPage';
+import MerchantsPage from '@/pages/MerchantsPage';
+import CRMPage from '@/pages/CRMPage';
 import { fmtTotal } from '@/lib/tracker-helpers';
 import {
   useAdminUserDeals,
@@ -46,24 +49,31 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const correctTracker = useAdminCorrectTracker();
   const voidTrackerEntity = useAdminVoidTrackerEntity();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editDeal, setEditDeal] = useState<any | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [editReason, setEditReason] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [voidTarget, setVoidTarget] = useState<any | null>(null);
   const [voidReason, setVoidReason] = useState('');
 
   // Tracker edit state
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editEntity, setEditEntity] = useState<{ type: 'batch' | 'trade'; data: any } | null>(null);
   const [editEntityQty, setEditEntityQty] = useState('');
   const [editEntityPrice, setEditEntityPrice] = useState('');
   const [editEntityReason, setEditEntityReason] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [voidEntity, setVoidEntity] = useState<{ type: 'batch' | 'trade'; data: any } | null>(null);
   const [voidEntityReason, setVoidEntityReason] = useState('');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const trackerState = tracker?.state as any;
+  const trackerPreferences = tracker?.preferences as any;
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
   const trades = Array.isArray(trackerState?.trades) ? trackerState.trades : [];
+  const userBaseFiat = trackerState?.settings?.baseFiatCurrency || trackerPreferences?.baseFiatCurrency || 'QAR';
 
   const exportCSV = useCallback((filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -79,6 +89,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     if (!deals?.length) return;
     exportCSV(`deals_${userId.slice(0,8)}.csv`,
       ['ID','Title','Amount','Currency','Type','Status','Created','Notes'],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       deals.map((d: any) => [d.id, d.title, d.amount, d.currency, d.deal_type, d.status, d.created_at, d.notes ?? ''])
     );
   };
@@ -87,6 +98,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     if (!settlements?.length) return;
     exportCSV(`settlements_${userId.slice(0,8)}.csv`,
       ['ID','Deal ID','Amount','Currency','Date','Notes'],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       settlements.map((s: any) => [s.id, s.deal_id, s.amount, s.currency, s.created_at, s.notes ?? ''])
     );
   };
@@ -94,7 +106,8 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const exportTrades = () => {
     if (!trades.length) return;
     exportCSV(`trades_${userId.slice(0,8)}.csv`,
-      ['ID','Amount USDT','Sell Price QAR','Customer','Date','Voided'],
+      ['ID','Amount USDT',`Sell Price ${userBaseFiat}`,'Customer','Date','Voided'],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       trades.map((t: any) => [t.id, t.amountUSDT ?? t.qty ?? '', t.sellPriceQAR ?? t.price ?? '', t.customer ?? '', t.ts ? new Date(t.ts).toISOString() : '', t.voided ? 'yes' : 'no'])
     );
   };
@@ -102,8 +115,9 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const exportBatches = () => {
     if (!batches.length) return;
     exportCSV(`batches_${userId.slice(0,8)}.csv`,
-      ['ID','Qty','Price','Supplier','Date','Voided'],
-      batches.map((b: any) => [b.id, b.qty, b.price, b.supplier ?? '', b.ts ? new Date(b.ts).toISOString() : '', b.voided ? 'yes' : 'no'])
+      ['ID','Qty USDT',`Buy Price ${userBaseFiat}`,'Supplier','Date','Voided'],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      batches.map((b: any) => [b.id, b.initialUSDT ?? b.qty ?? '', b.buyPriceQAR ?? b.price ?? '', b.source ?? b.supplier ?? '', b.ts ? new Date(b.ts).toISOString() : '', b.voided ? 'yes' : 'no'])
     );
   };
 
@@ -114,6 +128,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     exportBatches();
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const openEdit = (deal: any) => {
     setEditDeal(deal);
     setEditTitle(deal.title);
@@ -152,8 +167,8 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     try {
       const updates: Record<string, unknown> = {};
       if (editEntity.type === 'batch') {
-        if (editEntityQty) updates.qty = Number(editEntityQty);
-        if (editEntityPrice) updates.price = Number(editEntityPrice);
+        if (editEntityQty) updates.initialUSDT = Number(editEntityQty);
+        if (editEntityPrice) updates.buyPriceQAR = Number(editEntityPrice);
       } else {
         if (editEntityQty) updates.amountUSDT = Number(editEntityQty);
         if (editEntityPrice) updates.sellPriceQAR = Number(editEntityPrice);
@@ -209,15 +224,35 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         <p className="text-sm text-muted-foreground">No merchant profile found.</p>
       )}
 
-      <Tabs defaultValue="orders" className="w-full">
+      <Tabs defaultValue="dashboard" className="w-full">
         <TabsList className="w-full justify-start flex-wrap h-auto gap-1">
+          <TabsTrigger value="dashboard" className="text-xs">Dashboard</TabsTrigger>
+          <TabsTrigger value="merchants" className="text-xs">Merchants</TabsTrigger>
           <TabsTrigger value="orders" className="text-xs">Orders</TabsTrigger>
           <TabsTrigger value="stock" className="text-xs">Stock</TabsTrigger>
+          <TabsTrigger value="crm" className="text-xs">CRM</TabsTrigger>
           <TabsTrigger value="deals" className="text-xs">Deals ({deals?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="settlements" className="text-xs">Settlements ({settlements?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="profits" className="text-xs">Profits ({profits?.length ?? 0})</TabsTrigger>
           <TabsTrigger value="tracker" className="text-xs">Tracker ({batches.length}B / {trades.length}T)</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="dashboard" className="mt-3">
+          <DashboardPage
+            adminUserId={userId}
+            adminMerchantId={profile?.merchant_id ?? undefined}
+            adminTrackerState={trackerState ?? undefined}
+            isAdminView
+          />
+        </TabsContent>
+
+        <TabsContent value="merchants" className="mt-3">
+          <MerchantsPage
+            adminUserId={userId}
+            adminMerchantId={profile?.merchant_id ?? undefined}
+            isAdminView
+          />
+        </TabsContent>
 
         <TabsContent value="orders" className="mt-3">
           <AdminOrdersMirror userId={userId} merchantId={profile?.merchant_id ?? null} trackerState={trackerState ?? null} />
@@ -225,6 +260,13 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
 
         <TabsContent value="stock" className="mt-3">
           <AdminStockMirror trackerState={trackerState ?? null} />
+        </TabsContent>
+
+        <TabsContent value="crm" className="mt-3">
+          <CRMPage
+            adminTrackerState={trackerState ?? undefined}
+            isAdminView
+          />
         </TabsContent>
 
         <TabsContent value="deals" className="mt-3">
@@ -249,6 +291,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {deals.map((d: any) => (
                     <TableRow key={d.id}>
                       <TableCell className="text-xs font-medium">{d.title}</TableCell>
@@ -295,7 +338,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {settlements.map((s: any) => (
+                  {settlements.map((s: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                     <TableRow key={s.id}>
                       <TableCell className="text-xs font-mono">{s.deal_id.slice(0, 8)}</TableCell>
                       <TableCell className="text-xs">{fmtTotal(Number(s.amount))}</TableCell>
@@ -308,6 +351,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
               </Table>
             </div>
           )}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         </TabsContent>
 
         <TabsContent value="profits" className="mt-3">
@@ -325,8 +369,9 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {profits.map((p: any) => (
+                  {profits.map((p: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                     <TableRow key={p.id}>
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                       <TableCell className="text-xs font-mono">{p.deal_id.slice(0, 8)}</TableCell>
                       <TableCell className="text-xs">{Number(p.amount).toLocaleString()}</TableCell>
                       <TableCell className="text-xs">{p.currency}</TableCell>
@@ -362,18 +407,19 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                           <TableRow>
                             <TableHead className="text-xs">ID</TableHead>
                             <TableHead className="text-xs">Qty</TableHead>
-                            <TableHead className="text-xs">Price</TableHead>
+                            <TableHead className="text-xs">Buy Price ({userBaseFiat})</TableHead>
                             <TableHead className="text-xs">Date</TableHead>
                             <TableHead className="text-xs">Status</TableHead>
                             <TableHead className="text-xs text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {batches.slice(0, 50).map((b: any) => (
+                          {batches.slice(0, 50).map((b: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                             <TableRow key={b.id} className={b.voided ? 'opacity-40' : ''}>
                               <TableCell className="text-xs font-mono">{String(b.id).slice(0, 8)}</TableCell>
-                              <TableCell className="text-xs">{b.qty}</TableCell>
-                              <TableCell className="text-xs">{b.price}</TableCell>
+                              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                              <TableCell className="text-xs">{b.initialUSDT ?? b.qty}</TableCell>
+                              <TableCell className="text-xs">{b.buyPriceQAR ?? b.price}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">
                                 {b.ts ? format(new Date(b.ts), 'MMM d, yyyy') : '—'}
                               </TableCell>
@@ -383,10 +429,11 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                               <TableCell className="text-right space-x-1">
                                 <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={() => {
                                   setEditEntity({ type: 'batch', data: b });
-                                  setEditEntityQty(String(b.qty ?? ''));
-                                  setEditEntityPrice(String(b.price ?? ''));
+                                  setEditEntityQty(String(b.initialUSDT ?? b.qty ?? ''));
+                                  setEditEntityPrice(String(b.buyPriceQAR ?? b.price ?? ''));
                                   setEditEntityReason('');
                                 }}>
+                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                   <Edit className="h-3 w-3 mr-1" /> Edit
                                 </Button>
                                 {!b.voided && (
@@ -416,7 +463,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                           <TableRow>
                             <TableHead className="text-xs">ID</TableHead>
                             <TableHead className="text-xs">Qty</TableHead>
-                            <TableHead className="text-xs">Sell Price</TableHead>
+                            <TableHead className="text-xs">Sell Price ({userBaseFiat})</TableHead>
                             <TableHead className="text-xs">Customer</TableHead>
                             <TableHead className="text-xs">Date</TableHead>
                             <TableHead className="text-xs">Status</TableHead>
@@ -424,10 +471,11 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {trades.slice(0, 50).map((t: any) => (
+                          {trades.slice(0, 50).map((t: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                             <TableRow key={t.id} className={t.voided ? 'opacity-40' : ''}>
                               <TableCell className="text-xs font-mono">{String(t.id).slice(0, 8)}</TableCell>
                               <TableCell className="text-xs">{t.amountUSDT ?? t.qty}</TableCell>
+                              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                               <TableCell className="text-xs">{t.sellPriceQAR ?? t.price}</TableCell>
                               <TableCell className="text-xs">{t.customer ?? '—'}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">
@@ -445,6 +493,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
                                 }}>
                                   <Edit className="h-3 w-3 mr-1" /> Edit
                                 </Button>
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 {!t.voided && (
                                   <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive" onClick={() => {
                                     setVoidEntity({ type: 'trade', data: t });
@@ -526,7 +575,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
               <Input type="number" value={editEntityQty} onChange={e => setEditEntityQty(e.target.value)} className="h-8 text-sm" />
             </div>
             <div>
-              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Buy Price' : 'Sell Price (QAR)'}</Label>
+              <Label className="text-xs">{editEntity?.type === 'batch' ? 'Buy Price' : `Sell Price (${userBaseFiat})`}</Label>
               <Input type="number" value={editEntityPrice} onChange={e => setEditEntityPrice(e.target.value)} className="h-8 text-sm" />
             </div>
             <div>
