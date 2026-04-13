@@ -33,11 +33,76 @@ export function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string): 
   return normalizedRaw;
 }
 
+// Normalize a rate/percentage value to the 0–1 range.
+// Binance API may send either 0.975 (decimal) or 97.5 (percentage) for
+// completion/feedback. Values > 1 are treated as already in percentage form.
+function normalizeRate(raw: number | null): number | null {
+  if (raw === null) return null;
+  return raw > 1 ? raw / 100 : raw;
+}
+
 export function toOffer(value: unknown): P2POffer | null {
   if (!value || typeof value !== 'object') return null;
-  const source = value as Record<string, unknown>;
+  const source = value as Record<string, any>;
   const price = toFiniteNumber(source.price);
   if (price === null) return null;
+
+  // Completion: accept canonical 'completion' or Binance API 'monthFinishRate'
+  const rawCompletion =
+    toFiniteNumber(source.completion) ??
+    toFiniteNumber(source.monthFinishRate);
+  const completion = normalizeRate(rawCompletion) ?? 0;
+
+  // Feedback / positive rate: accept 'feedback' or Binance 'positiveRate'
+  const rawFeedback =
+    toFiniteNumber(source.feedback) ??
+    toFiniteNumber(source.positiveRate);
+  const feedback = normalizeRate(rawFeedback) ?? undefined;
+
+  // 30-day trade count: accept 'trades' or Binance 'monthOrderCount'
+  const trades =
+    toFiniteNumber(source.trades) ??
+    toFiniteNumber(source.monthOrderCount) ??
+    0;
+
+  // Avg pay time: accept 'avgPay' or Binance 'avgPayTime'
+  const avgPay =
+    toFiniteNumber(source.avgPay) ??
+    toFiniteNumber(source.avgPayTime) ??
+    undefined;
+
+  // Avg release time: accept 'avgRelease' or Binance 'avgLeadTime'
+  const avgRelease =
+    toFiniteNumber(source.avgRelease) ??
+    toFiniteNumber(source.avgLeadTime) ??
+    undefined;
+
+  // All-time trade count: accept 'allTimeTrades' or Binance 'orderCount'
+  const allTimeTrades =
+    toFiniteNumber(source.allTimeTrades) ??
+    toFiniteNumber(source.orderCount) ??
+    undefined;
+
+  // Status string – only keep if non-empty
+  const rawStatus = source.status ?? source.userStatus;
+  const status =
+    typeof rawStatus === 'string' && rawStatus.trim() ? rawStatus : undefined;
+
+  // Trade type string – only keep if non-empty
+  const rawTradeType = source.tradeType ?? source.userType;
+  const tradeType =
+    typeof rawTradeType === 'string' && rawTradeType.trim()
+      ? rawTradeType
+      : undefined;
+
+  // Advertiser message: accept 'message', 'remarks', or 'advertiserMessage'
+  const rawMessage =
+    source.message ?? source.remarks ?? source.advertiserMessage;
+  const message =
+    typeof rawMessage === 'string' && rawMessage.trim()
+      ? rawMessage
+      : undefined;
+
   return {
     price,
     min: toFiniteNumber(source.min) ?? 0,
@@ -47,8 +112,15 @@ export function toOffer(value: unknown): P2POffer | null {
       ? source.methods.filter((m): m is string => typeof m === 'string' && m.trim().length > 0)
       : [],
     available: toFiniteNumber(source.available) ?? 0,
-    trades: toFiniteNumber(source.trades) ?? 0,
-    completion: toFiniteNumber(source.completion) ?? 0,
+    trades,
+    completion,
+    feedback,
+    status,
+    avgPay,
+    avgRelease,
+    allTimeTrades,
+    tradeType,
+    message,
   };
 }
 
