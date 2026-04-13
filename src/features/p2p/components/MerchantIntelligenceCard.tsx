@@ -13,11 +13,11 @@ export function MerchantIntelligenceCard({ merchant, className }: Props) {
   const stats = [
     { label: '30d Trades', value: merchant.trades || 0, icon: History },
     { label: 'Completion', value: `${Math.round(merchant.completion * 100)}%`, icon: CheckCircle },
-    { label: 'Feedback', value: merchant.feedback ? `${Math.round(merchant.feedback * 100)}%` : '—', icon: Shield },
+    { label: 'Feedback', value: `${Math.round((merchant.feedback || 0) * 100)}%`, icon: Shield },
     { label: 'Status', value: merchant.status || 'Active', icon: User },
-    { label: 'Avg Pay', value: merchant.avgPay != null ? `${merchant.avgPay}m` : '—', icon: Clock },
-    { label: 'Avg Release', value: merchant.avgRelease != null ? `${merchant.avgRelease}m` : '—', icon: Clock },
-    { label: 'All-time', value: merchant.allTimeTrades ? fmtTotal(merchant.allTimeTrades) : '—', icon: History },
+    { label: 'Avg Pay', value: `${merchant.avgPay || 0}m`, icon: Clock },
+    { label: 'Avg Release', value: `${merchant.avgRelease || 0}m`, icon: Clock },
+    { label: 'All-time', value: fmtTotal(merchant.allTimeTrades || 0), icon: History },
     { label: 'Type', value: merchant.tradeType || 'Standard', icon: Info },
   ];
 
@@ -26,6 +26,7 @@ export function MerchantIntelligenceCard({ merchant, className }: Props) {
       "group relative flex flex-col p-4 rounded-xl border border-border/50 bg-card/40 hover:bg-card transition-all shadow-sm",
       className
     )}>
+      {/* Primary Header */}
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -50,6 +51,7 @@ export function MerchantIntelligenceCard({ merchant, className }: Props) {
         </div>
       </div>
 
+      {/* Primary Deal Details */}
       <div className="grid grid-cols-2 gap-3 mb-4 p-3 rounded-lg bg-muted/30 border border-border/20">
         <div>
           <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">AVAILABLE</div>
@@ -57,10 +59,11 @@ export function MerchantIntelligenceCard({ merchant, className }: Props) {
         </div>
         <div>
           <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">MAX LIMIT</div>
-          <div className="text-sm font-black font-mono">{fmtTotal(merchant.max)}</div>
+          <div className="text-sm font-black font-mono">{fmtTotal(merchant.max)} <span className="text-[10px] opacity-60">EGP</span></div>
         </div>
       </div>
 
+      {/* Intelligence Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-4 mb-4">
         {stats.map((stat, i) => (
           <div key={i} className="flex items-center gap-2">
@@ -73,6 +76,7 @@ export function MerchantIntelligenceCard({ merchant, className }: Props) {
         ))}
       </div>
 
+      {/* Advertiser Message */}
       {merchant.message && (
         <div className="mt-auto pt-3 border-t border-border/30">
           <div className="flex items-start gap-2">

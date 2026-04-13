@@ -38,7 +38,6 @@ export function toOffer(value: unknown): P2POffer | null {
   const source = value as Record<string, any>;
   const price = toFiniteNumber(source.price);
   if (price === null) return null;
-  
   return {
     price,
     min: toFiniteNumber(source.min) ?? 0,
@@ -50,15 +49,14 @@ export function toOffer(value: unknown): P2POffer | null {
     available: toFiniteNumber(source.available) ?? 0,
     trades: toFiniteNumber(source.trades) ?? 0,
     completion: toFiniteNumber(source.completion) ?? 0,
-    // Fix mapping for intelligence fields from payload
-    feedback: toFiniteNumber(source.feedback),
-    status: typeof source.status === 'string' ? source.status : null,
-    avgPay: toFiniteNumber(source.avgPay),
-    avgRelease: toFiniteNumber(source.avgRelease),
-    allTimeTrades: toFiniteNumber(source.allTimeTrades),
-    tradeType: typeof source.tradeType === 'string' ? source.tradeType : null,
-    // Preserve line breaks and no trimming for message
-    message: typeof source.message === 'string' ? source.message : null,
+    // Map new intelligence fields
+    feedback: toFiniteNumber(source.feedback) ?? undefined,
+    status: source.status ?? undefined,
+    avgPay: toFiniteNumber(source.avgPay) ?? undefined,
+    avgRelease: toFiniteNumber(source.avgRelease) ?? undefined,
+    allTimeTrades: toFiniteNumber(source.allTimeTrades) ?? undefined,
+    tradeType: source.tradeType ?? undefined,
+    message: source.message ?? undefined,
   };
 }
 
