@@ -36,10 +36,17 @@ export function useP2PRates(market = 'qatar') {
       }
 
       const snapshot = data.data as Record<string, unknown>;
-      const buyRate = typeof snapshot.buyRate === 'number' ? snapshot.buyRate : null;
-      const sellRate = typeof snapshot.sellRate === 'number' ? snapshot.sellRate : null;
-      const spread = buyRate && sellRate ? sellRate - buyRate : null;
-      const spreadPercent = spread && buyRate ? (spread / buyRate) * 100 : null;
+      // sellAvg / buyAvg are the canonical field names in the current schema
+      const sellRate = typeof snapshot.sellAvg === 'number' ? snapshot.sellAvg : null;
+      const buyRate  = typeof snapshot.buyAvg  === 'number' ? snapshot.buyAvg  : null;
+      const spread =
+        typeof snapshot.spread === 'number'
+          ? snapshot.spread
+          : sellRate && buyRate ? sellRate - buyRate : null;
+      const spreadPercent =
+        typeof snapshot.spreadPct === 'number'
+          ? snapshot.spreadPct
+          : spread && buyRate ? (spread / buyRate) * 100 : null;
 
       const fetchedAt = data.fetched_at;
       const isLive = fetchedAt
