@@ -16,10 +16,11 @@ interface Props {
 }
 
 export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, qatarRates, t }: Props) {
-  const isCrossMarket = (market === 'egypt' || market === 'ksa');
-  const currLabel = market === 'egypt' ? 'EGP' : market === 'ksa' ? 'SAR' : '';
-  const buyLabel = market === 'egypt' ? 'EG Buy' : 'KSA Buy';
-  const sellLabel = market === 'egypt' ? 'EG Sell' : 'KSA Sell';
+  const isCrossMarket = (market === 'egypt' || market === 'ksa' || market === 'egypt_fx_qar' || market === 'egypt_vcash' || market === 'egypt_bank');
+  const isEgyptVariant = market === 'egypt' || market === 'egypt_fx_qar' || market === 'egypt_vcash' || market === 'egypt_bank';
+  const currLabel = isEgyptVariant ? 'EGP' : market === 'ksa' ? 'SAR' : '';
+  const buyLabel = isEgyptVariant ? 'EG Buy' : 'KSA Buy';
+  const sellLabel = isEgyptVariant ? 'EG Sell' : 'KSA Sell';
 
   // FX rate: Qatar sell avg ÷ local buy avg
   const fxRate = isCrossMarket && qatarRates?.sellAvg && snapshot.buyAvg

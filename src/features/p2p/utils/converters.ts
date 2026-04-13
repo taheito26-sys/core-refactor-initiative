@@ -1,5 +1,6 @@
 import { P2POffer, P2PSnapshot, P2PHistoryPoint, DaySummary } from '../types';
 import { format } from 'date-fns';
+import { classifyPaymentMethods } from './paymentMethodClassifier';
 
 export function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -33,22 +34,51 @@ export function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string): 
   return normalizedRaw;
 }
 
+function toStringOrNull(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) return value;
+  return null;
+}
+
+function toOnlineStatus(value: unknown): 'online' | 'offline' | 'unknown' | null {
+  if (typeof value === 'string') {
+    const v = value.toLowerCase();
+    if (v === 'online') return 'online';
+    if (v === 'offline') return 'offline';
+    if (v === 'unknown') return 'unknown';
+  }
+  return null;
+}
+
 export function toOffer(value: unknown): P2POffer | null {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
   const price = toFiniteNumber(source.price);
   if (price === null) return null;
+
+  const methods = Array.isArray(source.methods)
+    ? source.methods.filter((m): m is string => typeof m === 'string' && m.trim().length > 0)
+    : [];
+
   return {
     price,
     min: toFiniteNumber(source.min) ?? 0,
     max: toFiniteNumber(source.max) ?? 0,
     nick: typeof source.nick === 'string' && source.nick.trim() ? source.nick : 'Unknown trader',
-    methods: Array.isArray(source.methods)
-      ? source.methods.filter((m): m is string => typeof m === 'string' && m.trim().length > 0)
-      : [],
+    methods,
     available: toFiniteNumber(source.available) ?? 0,
     trades: toFiniteNumber(source.trades) ?? 0,
     completion: toFiniteNumber(source.completion) ?? 0,
+    // Extended merchant intelligence fields — backward compatible
+    merchant30dTrades: toFiniteNumber(source.merchant30dTrades ?? source.monthOrderCount),
+    merchant30dCompletion: toFiniteNumber(source.merchant30dCompletion ?? source.monthFinishRate),
+    advertiserMessage: toStringOrNull(source.advertiserMessage ?? source.advertiserInfo),
+    feedbackCount: toFiniteNumber(source.feedbackCount ?? source.positiveCount),
+    avgReleaseMinutes: toFiniteNumber(source.avgReleaseMinutes ?? source.avgReleaseTime),
+    avgPayMinutes: toFiniteNumber(source.avgPayMinutes ?? source.avgPayTime),
+    allTrades: toFiniteNumber(source.allTrades ?? source.tradeCount),
+    tradeType: toStringOrNull(source.tradeType),
+    onlineStatus: toOnlineStatus(source.onlineStatus ?? source.userOnlineStatus),
+    paymentMethodCategories: classifyPaymentMethods(methods),
   };
 }
 
@@ -91,6 +121,66 @@ export function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
     buyDepth: toFiniteNumber(source.buyDepth) ?? 0,
     sellOffers: sellOffersRaw,
     buyOffers: buyOffersRaw,
+  };
+}
+
+/**
+ * Filter a snapshot's offers by payment method categories.
+ * Recomputes averages from up to 20 distinct eligible merchants.
+ */
+export function filterSnapshotByPaymentMethods(
+  snapshot: P2PSnapshot,
+  allowedCategories: Set<string>,
+  excludeCategories?: Set<string>
+): P2PSnapshot {
+  const filterOffers = (offers: P2POffer[]): P2POffer[] =>
+    offers.filter(o => {
+      const cats = o.paymentMethodCategories ?? [];
+      if (cats.length === 0) return false;
+      const hasAllowed = cats.some(c => allowedCategories.has(c));
+      if (!hasAllowed) return false;
+      if (excludeCategories) {
+        // Exclude if ALL categories are in excludeCategories (wallet-only)
+        const allExcluded = cats.every(c => excludeCategories.has(c));
+        if (allExcluded) return false;
+      }
+      return true;
+    });
+
+  const filteredSell = filterOffers(snapshot.sellOffers);
+  const filteredBuy = filterOffers(snapshot.buyOffers);
+
+  const computeAvg20 = (offers: P2POffer[]): number | null => {
+    // Dedupe by nick, keep best price per merchant
+    const best = new Map<string, number>();
+    for (const o of offers) {
+      const nick = o.nick.trim();
+      const existing = best.get(nick);
+      if (existing == null || o.price > existing) best.set(nick, o.price);
+    }
+    const prices = Array.from(best.values()).sort((a, b) => b - a).slice(0, 20);
+    return prices.length > 0 ? prices.reduce((s, p) => s + p, 0) / prices.length : null;
+  };
+
+  const sellAvg = computeAvg20(filteredSell);
+  const buyAvg = computeAvg20(filteredBuy);
+  const bestSell = filteredSell.length ? Math.max(...filteredSell.map(o => o.price)) : null;
+  const bestBuy = filteredBuy.length ? Math.min(...filteredBuy.map(o => o.price)) : null;
+  const spread = sellAvg != null && buyAvg != null ? sellAvg - buyAvg : null;
+  const spreadPct = sellAvg != null && buyAvg != null && buyAvg > 0 ? ((sellAvg - buyAvg) / buyAvg) * 100 : null;
+
+  return {
+    ...snapshot,
+    sellOffers: filteredSell,
+    buyOffers: filteredBuy,
+    sellAvg,
+    buyAvg,
+    bestSell,
+    bestBuy,
+    spread,
+    spreadPct,
+    sellDepth: filteredSell.reduce((s, o) => s + o.available, 0),
+    buyDepth: filteredBuy.reduce((s, o) => s + o.available, 0),
   };
 }
 
