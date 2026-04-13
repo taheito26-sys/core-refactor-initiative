@@ -41,7 +41,8 @@
       "Bash(find \"C:\\\\Data\\\\GITHUB\\\\core-refactor-initiative\\\\src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"QAR\" {} \\\\;)",
       "mcp__Claude_Preview__preview_start",
       "Bash(find /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/magical-clarke -name \"types.ts\" -path \"*/chat/*\" -exec head -150 {} \\\\;)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(python3 -m json.tool)"
     ]
   }
 }
