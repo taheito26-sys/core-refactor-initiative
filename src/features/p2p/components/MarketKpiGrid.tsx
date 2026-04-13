@@ -14,14 +14,23 @@ interface Props {
 }
 
 const VCASH_RE = /vodafone|vcash|v[\s-]?cash|فودافون/i;
-const INSTA_RE = /instapay|insta\s*pay|إنستاباي|\bbank\b|\bbanks?\b|\btransfer\b|\biban\b|\bnational\s*bank\b|\bbanque\s*misr\b|\balex\s*bank\b|\bqnb\b|\bfaisal\b|\barab\s*bank\b|\bhsbc\b|\bmeeza\b/i;
+// Covers InstaPay, all Egyptian bank names, and the carrier-wallet methods
+// that Binance Egypt actually uses: "Orange Cash", "Etisalat Cash", "we Pay", "Qahera Cash"
+const INSTA_RE =
+  /instapay|insta\s*pay|إنستاباي|إنستا|انستاباي|انستا|orange|etisalat|we[\s-]?pay|qahera|fawry|\bbank\b|\bbanks?\b|\btransfer\b|\biban\b|\bnational\s*bank\b|\bbanque\s*misr\b|\balex\s*bank\b|\bqnb\b|\bfaisal\b|\barab\s*bank\b|\bhsbc\b|\bmeeza\b/i;
 
 function isVcashOffer(offer: P2POffer): boolean {
   return offer.methods.some(method => VCASH_RE.test(method));
 }
 
+// An offer qualifies for the InstaPay/Banks bucket if:
+// 1. It is not a VCash offer, AND
+// 2. At least one method matches INSTA_RE  — OR —
+//    it has no methods at all (catch-all for unlisted methods)
 function isInstaBankOffer(offer: P2POffer): boolean {
-  return !isVcashOffer(offer) && offer.methods.some(method => INSTA_RE.test(method));
+  if (isVcashOffer(offer)) return false;
+  if (offer.methods.length === 0) return true;
+  return offer.methods.some(method => INSTA_RE.test(method));
 }
 
 function bucketTop20(offers: P2POffer[]): P2POffer[] {
