@@ -45,7 +45,7 @@ export function useP2PMarketData(market: MarketId) {
       const cutoff = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
       const { data: histRowsDesc } = await (supabase
         .from('p2p_snapshots') as any)
-        .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_pct_val:data->>spreadPct')
+        .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
         .eq('market', market)
         .gte('fetched_at', cutoff)
         .order('fetched_at', { ascending: false })
@@ -58,6 +58,7 @@ export function useP2PMarketData(market: MarketId) {
           ts: ts < 1e12 ? ts * 1000 : ts,
           sellAvg: toFiniteNumber(row.sell_avg),
           buyAvg: toFiniteNumber(row.buy_avg),
+          spread: toFiniteNumber(row.spread_val),
           spreadPct: toFiniteNumber(row.spread_pct_val),
         }];
       });
@@ -126,6 +127,7 @@ export function useP2PMarketData(market: MarketId) {
     return () => { void supabase.removeChannel(channel); };
   }, [market, loadFromDb]);
 
+  // Compute Egypt-specific averages from buyOffers (top 20 DISTINCT merchants)
   const egyptAverages = useCallback(() => {
     if (market !== 'egypt' || !snapshot) return null;
     const buyOffers = snapshot.buyOffers || [];

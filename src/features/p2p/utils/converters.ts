@@ -26,7 +26,7 @@ export function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string): 
 
   if (hasValidFetchedAt) {
     const driftMs = Math.abs(normalizedRaw - fetchedAtMs);
-    const suspiciousDriftMs = 12 * 60 * 60 * 1000;
+    const suspiciousDriftMs = 12 * 60 * 60 * 1000; // 12h
     if (driftMs > suspiciousDriftMs) return fetchedAtMs;
   }
 
@@ -50,12 +50,14 @@ export function toOffer(value: unknown): P2POffer | null {
     available: toFiniteNumber(source.available) ?? 0,
     trades: toFiniteNumber(source.trades) ?? 0,
     completion: toFiniteNumber(source.completion) ?? 0,
+    // Fix mapping for intelligence fields from payload
     feedback: toFiniteNumber(source.feedback),
     status: typeof source.status === 'string' ? source.status : null,
     avgPay: toFiniteNumber(source.avgPay),
     avgRelease: toFiniteNumber(source.avgRelease),
     allTimeTrades: toFiniteNumber(source.allTimeTrades),
     tradeType: typeof source.tradeType === 'string' ? source.tradeType : null,
+    // Preserve line breaks and no trimming for message
     message: typeof source.message === 'string' ? source.message : null,
   };
 }
@@ -78,6 +80,7 @@ export function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
       buyAvg: rawSellAvg,
       bestSell: toFiniteNumber(source.bestBuy),
       bestBuy: toFiniteNumber(source.bestSell),
+      spread: rawBuyAvg != null && rawSellAvg != null ? rawBuyAvg - rawSellAvg : null,
       spreadPct: rawBuyAvg != null && rawSellAvg != null && rawSellAvg > 0 ? ((rawBuyAvg - rawSellAvg) / rawSellAvg) * 100 : null,
       sellDepth: toFiniteNumber(source.buyDepth) ?? 0,
       buyDepth: toFiniteNumber(source.sellDepth) ?? 0,
@@ -92,6 +95,7 @@ export function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
     buyAvg: rawBuyAvg,
     bestSell: toFiniteNumber(source.bestSell),
     bestBuy: toFiniteNumber(source.bestBuy),
+    spread: toFiniteNumber(source.spread),
     spreadPct: toFiniteNumber(source.spreadPct),
     sellDepth: toFiniteNumber(source.sellDepth) ?? 0,
     buyDepth: toFiniteNumber(source.buyDepth) ?? 0,
