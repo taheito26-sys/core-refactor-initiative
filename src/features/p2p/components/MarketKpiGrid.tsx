@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { P2PSnapshot, MarketId } from '../types';
 import { filterSnapshotByPaymentMethods } from '../utils/converters';
 import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
@@ -13,16 +13,21 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   roundTripSim: any;
   qatarRates?: { sellAvg: number; buyAvg: number } | null;
+  egyBuyOverride?: number | null;
+  onEgyBuyOverrideChange?: (v: number | null) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
 }
 
-export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, qatarRates, t }: Props) {
+export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, qatarRates, egyBuyOverride, onEgyBuyOverrideChange, t }: Props) {
   const isCrossMarket = (market === 'egypt' || market === 'ksa');
   const isEgypt = market === 'egypt';
   const currLabel = isEgypt ? 'EGP' : market === 'ksa' ? 'SAR' : '';
   const buyLabel = isEgypt ? 'EG Buy' : 'KSA Buy';
   const sellLabel = isEgypt ? 'EG Sell' : 'KSA Sell';
+
+  // Local input state for the override field
+  const [overrideInput, setOverrideInput] = useState(egyBuyOverride != null ? String(egyBuyOverride) : '');
 
   // FX rate: Qatar sell avg ÷ local buy avg
   const fxRate = isCrossMarket && qatarRates?.sellAvg && snapshot.buyAvg
@@ -42,6 +47,7 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
     return { buyAvg: filtered.buyAvg, sellAvg: filtered.sellAvg, fxBuy, fxSell };
   }, [isEgypt, qatarRates, snapshot]);
 
+  // Bank/InstaPay KPI — uses egyBuyOverride if set
   const bankKpi = useMemo(() => {
     if (!isEgypt || !qatarRates?.sellAvg) return null;
     const filtered = filterSnapshotByPaymentMethods(
@@ -49,11 +55,29 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
       new Set(['instapay', 'bank']),
       new Set(['wallet'])
     );
-    if (!filtered.buyAvg || !filtered.sellAvg) return null;
-    const fxBuy = qatarRates.sellAvg / filtered.buyAvg;
+    const computedBuyAvg = filtered.buyAvg;
+    const effectiveBuyAvg = (egyBuyOverride != null && egyBuyOverride > 0) ? egyBuyOverride : computedBuyAvg;
+    if (!effectiveBuyAvg || !filtered.sellAvg) return null;
+    const fxBuy = qatarRates.sellAvg / effectiveBuyAvg;
     const fxSell = qatarRates.sellAvg / filtered.sellAvg;
-    return { buyAvg: filtered.buyAvg, sellAvg: filtered.sellAvg, fxBuy, fxSell };
-  }, [isEgypt, qatarRates, snapshot]);
+    const isOverride = egyBuyOverride != null && egyBuyOverride > 0;
+    return { buyAvg: effectiveBuyAvg, sellAvg: filtered.sellAvg, fxBuy, fxSell, isOverride, computedBuyAvg };
+  }, [isEgypt, qatarRates, snapshot, egyBuyOverride]);
+
+  const handleOverrideApply = () => {
+    const v = Number(overrideInput);
+    if (Number.isFinite(v) && v > 0) {
+      onEgyBuyOverrideChange?.(v);
+    } else {
+      onEgyBuyOverrideChange?.(null);
+      setOverrideInput('');
+    }
+  };
+
+  const handleOverrideClear = () => {
+    onEgyBuyOverrideChange?.(null);
+    setOverrideInput('');
+  };
 
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
@@ -147,16 +171,88 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
             </div>
           </div>
         )}
-        {/* Egypt InstaPay+Bank KPI */}
+        {/* Egypt InstaPay+Bank KPI — supports manual override */}
         {bankKpi && (
           <div className="kpi-card">
-            <div className="kpi-lbl">Bank/InstaPay → QAR FX</div>
+            <div className="kpi-lbl">
+              Bank/InstaPay → QAR FX
+              {bankKpi.isOverride && (
+                <span style={{ fontSize: '8px', color: 'hsl(var(--destructive))', marginLeft: '4px', fontWeight: 600 }}>MANUAL</span>
+              )}
+            </div>
             <div className="kpi-val" style={{ color: 'var(--accent-color, hsl(var(--primary)))' }}>
               {fmtPrice(1 / bankKpi.fxBuy)}
             </div>
             <div className="kpi-sub">1 EGP ≈ {fmtPrice(bankKpi.fxBuy)} QAR</div>
             <div className="kpi-sub" style={{ opacity: 0.55, fontSize: '9px', marginTop: '2px' }}>
               QA Sell {qatarRates?.sellAvg ? fmtPrice(qatarRates.sellAvg) : '—'} ÷ Bank Buy {fmtPrice(bankKpi.buyAvg)}
+              {bankKpi.isOverride && bankKpi.computedBuyAvg ? (
+                <span style={{ marginLeft: '4px', opacity: 0.7 }}>(mkt: {fmtPrice(bankKpi.computedBuyAvg)})</span>
+              ) : null}
+            </div>
+          </div>
+        )}
+        {/* EGY Average Buy override control — Egypt only */}
+        {isEgypt && (
+          <div className="kpi-card" style={{ display: 'flex', flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
+            <div className="kpi-lbl">EGY Average Buy</div>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                placeholder={snapshot.buyAvg ? fmtPrice(snapshot.buyAvg) : '—'}
+                value={overrideInput}
+                onChange={(e) => setOverrideInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleOverrideApply(); }}
+                style={{
+                  width: '80px',
+                  padding: '2px 6px',
+                  fontSize: '11px',
+                  borderRadius: '4px',
+                  border: '1px solid hsl(var(--border))',
+                  background: 'hsl(var(--background))',
+                  color: 'hsl(var(--foreground))',
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleOverrideApply}
+                style={{
+                  fontSize: '10px',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  border: '1px solid hsl(var(--border))',
+                  background: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary-foreground))',
+                  cursor: 'pointer',
+                }}
+              >
+                Set
+              </button>
+              {egyBuyOverride != null && (
+                <button
+                  onClick={handleOverrideClear}
+                  style={{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid hsl(var(--border))',
+                    background: 'transparent',
+                    color: 'hsl(var(--destructive))',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="kpi-sub" style={{ fontSize: '9px' }}>
+              {egyBuyOverride != null
+                ? `Override: ${fmtPrice(egyBuyOverride)} EGP`
+                : `Using market avg${snapshot.buyAvg ? ': ' + fmtPrice(snapshot.buyAvg) : ''}`
+              }
             </div>
           </div>
         )}
