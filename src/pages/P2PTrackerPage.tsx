@@ -15,6 +15,7 @@ import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
 import { PriceHistorySparklines } from '@/features/p2p/components/PriceHistorySparklines';
 import { MerchantDepthStats } from '@/features/p2p/components/MerchantDepthStats';
 import { P2POfferTable } from '@/features/p2p/components/P2POfferTable';
+import { DeepScanBox } from '@/features/p2p/components/DeepScanBox';
 
 export default function P2PTrackerPage() {
   const t = useT();
@@ -129,7 +130,7 @@ export default function P2PTrackerPage() {
     <div className="space-y-2 p-2 md:p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Tabs value={market} onValueChange={(v) => setMarket(v as MarketId)}>
-          <TabsList>
+          <TabsList className="flex-wrap h-auto">
             {MARKETS.map(m => (
               <TabsTrigger key={m.id} value={m.id} className="text-[11px] px-3">{m.label}</TabsTrigger>
             ))}
@@ -173,6 +174,9 @@ export default function P2PTrackerPage() {
             <PriceHistorySparklines history={history} dataAgeLabel={dataAgeLabel} t={t} />
             <MerchantDepthStats merchantStats={merchantStats} t={t} />
           </div>
+
+          {/* Deep Scan — below charts, above offer tables */}
+          <DeepScanBox snapshot={snapshot} market={market} />
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
             <P2POfferTable offers={snapshot.sellOffers} type="sell" t={t} />
