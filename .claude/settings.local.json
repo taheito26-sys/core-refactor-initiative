@@ -31,7 +31,21 @@
       "Bash(mkdir -p /c/tmp)",
       "Bash(echo \"Done: $?\")",
       "Bash(grep -v \"^\\\\s*//\")",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(xargs grep:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(del \"C:\\\\Data\\\\GITHUB\\\\core-refactor-initiative\\\\.git\\\\index.lock\")",
+      "Bash(powershell -Command \"Remove-Item 'C:\\\\Data\\\\GITHUB\\\\core-refactor-initiative\\\\.git\\\\index.lock' -Force\")",
+      "Bash(ls /c/Data/GITHUB/core-refactor-initiative/.git/*.lock)",
+      "Bash(git add:*)",
+      "Bash(git commit -m 'feat\\(p2p\\): Egypt market KPI fix, Deep Scan overhaul, merchant data pipeline:*)",
+      "Bash(git push:*)",
+      "Bash(powershell -Command \"Remove-Item 'C:/Data/GITHUB/core-refactor-initiative/.git/index.lock' -Force -ErrorAction SilentlyContinue; Write-Output done\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(GIT_TERMINAL_PROMPT=0 git add src/pages/P2PTrackerPage.tsx)",
+      "Bash(git commit -m 'fix\\(p2p/egypt\\): fix InstaPay V1/V2 with real Egypt method names:*)",
+      "Bash(curl -s -w '\\\\n---HTTP_STATUS:%{http_code}---' -X POST 'https://dozmqtzlinfqjrropipb.supabase.co/functions/v1/p2p-scraper?market=egypt' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvem1xdHpsaW5mcWpycm9waXBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNDc4NDQsImV4cCI6MjA4OTcyMzg0NH0.dNl2x-W7BC1oCeGNE8hEnw9s7K390yHw8b2tmVFqrp0' -H 'Content-Type: application/json' --max-time 120)"
     ]
   }
 }
