@@ -16,13 +16,6 @@ export interface P2POffer {
   available: number;
   trades: number;
   completion: number;
-  feedback?: number;
-  status?: string;
-  avgPay?: number;
-  avgRelease?: number;
-  allTimeTrades?: number;
-  tradeType?: string;
-  message?: string;
 }
 
 export interface P2PSnapshot {
@@ -63,17 +56,6 @@ export interface MerchantStat {
   avgAvailable: number;
   maxAvailable: number;
 }
-
-export const MARKET_AVG_TOP: Record<MarketId, number> = {
-  qatar: 5,
-  uae: 20,
-  egypt: 20,
-  ksa: 20,
-  turkey: 20,
-  oman: 20,
-  georgia: 20,
-  kazakhstan: 20,
-};
 
 export const MARKETS: MarketConfig[] = [
   { id: 'qatar', label: 'Qatar', currency: 'QAR', pair: 'USDT/QAR' },

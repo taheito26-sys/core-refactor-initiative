@@ -1,4 +1,4 @@
-﻿import { P2POffer } from '../types';
+import { P2POffer } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,7 @@ export function P2POfferTable({ offers, type, t }: Props) {
   return (
     <Card className="border-border/50">
       <CardHeader className="pb-1 pt-2.5 px-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between">
           <CardTitle className={`text-[11px] font-semibold flex items-center gap-1.5 ${isSell ? 'text-success' : 'text-destructive'}`}>
             {isSell ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             {isSell ? t('p2pSellOffers') : t('p2pRestockOffers')}
@@ -45,9 +45,6 @@ export function P2POfferTable({ offers, type, t }: Props) {
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMin')}</TableHead>
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pMax')}</TableHead>
               <TableHead className="text-[9px] uppercase tracking-wider font-semibold">{t('p2pMethods')}</TableHead>
-              <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">{t('p2pTrades')}</TableHead>
-              <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-center">%</TableHead>
-              <TableHead className="text-[9px] uppercase tracking-wider font-semibold text-right">Info</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,30 +63,7 @@ export function P2POfferTable({ offers, type, t }: Props) {
                   </TableCell>
                   <TableCell className="text-right font-mono text-[11px] py-1">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
                   <TableCell className="text-right font-mono text-[11px] py-1">{formatOfferLimit(o.max)}</TableCell>
-                  <TableCell className="text-[10px] text-muted-foreground py-1">
-                    <div className="flex flex-wrap gap-1">
-                      {o.methods.length ? o.methods.map((method, idx) => (
-                        <Badge key={`${method}-${idx}`} variant="outline" className="px-1.5 py-0 text-[9px]">
-                          {method}
-                        </Badge>
-                      )) : '—'}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-[10px] text-muted-foreground py-1">
-                    {o.trades > 0 ? o.trades.toLocaleString() : '—'}
-                  </TableCell>
-                  <TableCell className="text-center font-mono text-[10px] py-1" style={{ color: o.completion >= 0.9 ? 'var(--good)' : undefined }}>
-                    {o.completion > 0 ? `${(o.completion * 100).toFixed(0)}%` : '—'}
-                  </TableCell>
-                  <TableCell className="text-right text-[9px] text-muted-foreground py-1">
-                    <div className="flex flex-col items-end gap-0.5">
-                      {o.status ? <span>{o.status}</span> : null}
-                      {o.feedback != null ? <span>{(o.feedback * 100).toFixed(0)}% feedback</span> : null}
-                      {o.avgPay != null || o.avgRelease != null ? <span>{o.avgPay ?? '?'} / {o.avgRelease ?? '?'}m</span> : null}
-                      {o.allTimeTrades != null ? <span>{o.allTimeTrades.toLocaleString()} all-time</span> : null}
-                      {o.tradeType ? <span>{o.tradeType}</span> : null}
-                    </div>
-                  </TableCell>
+                  <TableCell className="text-[10px] text-muted-foreground py-1 truncate max-w-[100px]">{o.methods.join(' ')}</TableCell>
                 </TableRow>
               );
             })}
