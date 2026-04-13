@@ -11,14 +11,14 @@ interface Props {
 
 export function MerchantIntelligenceCard({ merchant, className }: Props) {
   const stats = [
-    { label: '30d Trades', value: merchant.trades || 0, icon: History },
-    { label: 'Completion', value: `${Math.round(merchant.completion * 100)}%`, icon: CheckCircle },
-    { label: 'Feedback', value: `${Math.round((merchant.feedback || 0) * 100)}%`, icon: Shield },
-    { label: 'Status', value: merchant.status || 'Active', icon: User },
-    { label: 'Avg Pay', value: `${merchant.avgPay || 0}m`, icon: Clock },
-    { label: 'Avg Release', value: `${merchant.avgRelease || 0}m`, icon: Clock },
-    { label: 'All-time', value: fmtTotal(merchant.allTimeTrades || 0), icon: History },
-    { label: 'Type', value: merchant.tradeType || 'Standard', icon: Info },
+    { label: '30d Trades', value: merchant.trades > 0 ? merchant.trades : '—', icon: History },
+    { label: 'Completion', value: merchant.completion > 0 ? `${Math.round(merchant.completion * 100)}%` : '—', icon: CheckCircle },
+    { label: 'Feedback', value: merchant.feedback != null ? `${Math.round(merchant.feedback * 100)}%` : '—', icon: Shield },
+    { label: 'Status', value: merchant.status ?? '—', icon: User },
+    { label: 'Avg Pay', value: merchant.avgPay != null ? `${merchant.avgPay}m` : '—', icon: Clock },
+    { label: 'Avg Release', value: merchant.avgRelease != null ? `${merchant.avgRelease}m` : '—', icon: Clock },
+    { label: 'All-time', value: merchant.allTimeTrades != null ? fmtTotal(merchant.allTimeTrades) : '—', icon: History },
+    { label: 'Type', value: merchant.tradeType ?? '—', icon: Info },
   ];
 
   return (
@@ -59,7 +59,7 @@ export function MerchantIntelligenceCard({ merchant, className }: Props) {
         </div>
         <div>
           <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">MAX LIMIT</div>
-          <div className="text-sm font-black font-mono">{fmtTotal(merchant.max)} <span className="text-[10px] opacity-60">EGP</span></div>
+          <div className="text-sm font-black font-mono">{fmtTotal(merchant.max)}</div>
         </div>
       </div>
 

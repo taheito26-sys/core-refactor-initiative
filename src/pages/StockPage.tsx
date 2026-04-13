@@ -54,7 +54,8 @@ export default function StockPage() {
   });
 
   const [batchDate, setBatchDate] = useState(nowInput());
-  const [batchMode, setBatchMode] = useState<'QAR' | 'USDT'>('QAR');
+  const baseFiat = settings.baseFiatCurrency || 'QAR';
+  const [batchMode, setBatchMode] = useState<'QAR' | 'EGP' | 'USDT'>(baseFiat);
   const [batchEntryMode, setBatchEntryMode] = useState<'price_vol' | 'qty_total' | 'qty_price'>('price_vol');
   const [batchUsdtQty, setBatchUsdtQty] = useState('');
   const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
@@ -84,6 +85,11 @@ export default function StockPage() {
     searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
   );
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
+  // ── Mobile Add Batch Sheet ────────────────────────────────────────
+  const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
+  const [batchConfirmDetails, setBatchConfirmDetails] = useState<{
+    qty: number; price: number; source: string; total: number; fundingAccName?: string;
+  } | null>(null);
 
   // Clear shared search query on mount to prevent cross-page filter leak
   useEffect(() => {
@@ -133,23 +139,36 @@ export default function StockPage() {
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
   const wacop = getWACOP(derived);
-  /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
+  /** Currency-aware formatter: respects the global {baseFiat}/USDT toggle using FIFO WACOP */
   const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
   const rLabel = rangeLabel(state.range);
 
   const query = (settings.searchQuery || '').trim().toLowerCase();
   
-  // BUG FIX: Supplier lookup should filter by the local input text (batchSupplier), 
-  // not the global search query. This ensures the dropdown shows relevant matches 
-  // as the user types, and shows all suppliers when the input is empty.
+  const supplierOptions = useMemo(() => {
+    const byNormalized = new Map<string, string>();
+    (state.suppliers || []).forEach((supplier) => {
+      const cleaned = typeof supplier.name === 'string' ? supplier.name.trim() : '';
+      if (!cleaned) return;
+      const normalized = cleaned.toLocaleLowerCase();
+      if (!normalized) return;
+      if (!byNormalized.has(normalized)) byNormalized.set(normalized, cleaned);
+    });
+    state.batches.forEach((batch) => {
+      const cleaned = typeof batch.source === 'string' ? batch.source.trim() : '';
+      if (!cleaned) return;
+      const normalized = cleaned.toLocaleLowerCase();
+      if (!normalized) return;
+      if (!byNormalized.has(normalized)) byNormalized.set(normalized, cleaned);
+    });
+    return Array.from(byNormalized.values()).sort((a, b) => a.localeCompare(b));
+  }, [state.batches, state.suppliers]);
+
   const supplierLookup = useMemo(() => {
-    const names = state.batches.map((b) => b.source).filter(Boolean);
-    const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    
-    const localQuery = batchSupplier.trim().toLowerCase();
-    if (!localQuery) return unique;
-    return unique.filter((n) => n.toLowerCase().includes(localQuery));
-  }, [state.batches, batchSupplier]);
+    const localQuery = batchSupplier.trim().toLocaleLowerCase();
+    if (!localQuery) return supplierOptions;
+    return supplierOptions.filter((name) => name.toLocaleLowerCase().includes(localQuery));
+  }, [batchSupplier, supplierOptions]);
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -164,6 +183,7 @@ export default function StockPage() {
   }, [state.batches]);
 
   const perf = useMemo(() => state.batches
+    .filter((b) => b.initialUSDT > 0 && b.buyPriceQAR > 0)
     .map((b) => {
       const db = derived.batches.find((x) => x.id === b.id);
       const rem = db ? Math.max(0, db.remainingUSDT) : b.initialUSDT;
@@ -187,21 +207,17 @@ export default function StockPage() {
     })
     .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
 
-  const suppliersForPanel = useMemo(() => [
-    ...new Set(state.batches.map((b) => b.source.trim()).filter(Boolean)),
-  ], [state.batches]);
+  const suppliersForPanel = supplierOptions;
 
   const addSupplier = () => {
     if (!newSupplierName.trim()) return;
-    // CRM adds suppliers by creating a 0-qty batch. We do the same here to ensure persistence.
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: newSupplierName.trim(),
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
-    setBatchSupplier(newSupplierName.trim());
+    const cleanedName = newSupplierName.trim();
+    const existing = (state.suppliers || []).some((s) => s.name.trim().toLocaleLowerCase() === cleanedName.toLocaleLowerCase());
+    const nextSuppliers = existing
+      ? (state.suppliers || [])
+      : [...(state.suppliers || []), { id: uid(), name: cleanedName, phone: newSupplierPhone.trim(), notes: '', createdAt: Date.now() }];
+    applyState({ ...state, suppliers: nextSuppliers });
+    setBatchSupplier(cleanedName);
     setSupplierAddOpen(false);
     setSupplierMenuOpen(false);
     setNewSupplierName('');
@@ -225,8 +241,14 @@ export default function StockPage() {
       if (!(rawAmt > 0)) errs.push(t('volume'));
       if (!source) errs.push(t('supplier'));
       if (errs.length) { setBatchMsg(`${t('fixFields')} ${errs.join(', ')}`); return; }
-      volumeQAR = batchMode === 'QAR' ? rawAmt * px : rawAmt;
-      totalUSDT = volumeQAR / px;
+      if (batchMode !== 'USDT') {
+        // Fiat mode (QAR or EGP) — rawAmt is the fiat volume
+        volumeQAR = rawAmt;
+        totalUSDT = rawAmt / px;
+      } else {
+        totalUSDT = rawAmt;
+        volumeQAR = rawAmt * px;
+      }
     } else if (batchEntryMode === 'qty_total') {
       totalUSDT = Number(batchUsdtQty);
       volumeQAR = Number(batchAmount);
@@ -262,7 +284,7 @@ export default function StockPage() {
       if (!selectedAcc) { setBatchMsg(t('fundingAccNotFound')); return; }
       const availBal = accountBalances.get(fundingAccountId) || 0;
       if (availBal < batchCostQAR) {
-        setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} QAR, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} QAR`);
+        setBatchMsg(`⚠ ${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} ${selectedAcc.currency}, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} ${selectedAcc.currency}`);
         return;
       }
       const entryId = uid();
@@ -273,7 +295,7 @@ export default function StockPage() {
         accountId: fundingAccountId,
         direction: 'out',
         amount: batchCostQAR,
-        currency: 'QAR',
+        currency: selectedAcc.currency,
         linkedEntityType: 'batch',
         linkedEntityId: batchId,
         note: `Stock purchase: ${fmtU(totalUSDT)} USDT @ ${fmtP(px)} from ${source}`,
@@ -327,10 +349,19 @@ export default function StockPage() {
     setBatchSupplier('');
     setBatchNote('');
     const fundingAccName = activeAccounts.find(a => a.id === fundingAccountId)?.name;
-    const deductMsg = fundingAccName
-       ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
-       : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
-    setBatchMsg(t('batchAdded') + deductMsg);
+    if (isMobile) {
+      setBatchMsg('');
+      setBatchConfirmDetails({ qty: totalUSDT, price: px, source, total: batchCostQAR, fundingAccName });
+      setTimeout(() => {
+        setBatchConfirmDetails(null);
+        setAddBatchSheetOpen(false);
+      }, 2500);
+    } else {
+      const deductMsg = fundingAccName
+         ? ` · ${fmtTotal(batchCostQAR)} QAR ${t('deductedFromAccount')} "${fundingAccName}"`
+         : currentCash > 0 ? ` · ${fmtTotal(Math.min(batchCostQAR, currentCash))} QAR ${t('deductedFromCash')}` : '';
+      setBatchMsg(t('batchAdded') + deductMsg);
+    }
   };
 
   const openEdit = (id: string) => {
@@ -363,6 +394,7 @@ export default function StockPage() {
     // ── Ledger adjustment if multi-account is active ─────────────
     let nextCashLedger = [...(state.cashLedger || [])];
     if (Math.abs(delta) > 0.01 && existingBatch?.fundingAccountId) {
+      const fundingAcc = (state.cashAccounts || []).find(a => a.id === existingBatch.fundingAccountId);
       const adjustEntry: CashLedgerEntry = {
         id: uid(),
         ts: Date.now(),
@@ -370,10 +402,10 @@ export default function StockPage() {
         accountId: existingBatch.fundingAccountId,
         direction: delta > 0 ? 'out' : 'in',
         amount: Math.abs(delta),
-        currency: 'QAR',
+        currency: fundingAcc?.currency || baseFiat,
         linkedEntityType: 'batch',
         linkedEntityId: editingBatchId,
-        note: `Batch edit: cost ${delta > 0 ? 'increased' : 'reduced'} by ${fmtTotal(Math.abs(delta))} QAR`,
+        note: `Batch edit: cost ${delta > 0 ? 'increased' : 'reduced'} by ${fmtTotal(Math.abs(delta))} ${fundingAcc?.currency || baseFiat}`,
       };
       nextCashLedger = [...nextCashLedger, adjustEntry];
     }
@@ -423,6 +455,7 @@ export default function StockPage() {
     // ── Multi-account refund (new system) ─────────────────────────
     let nextCashLedger = [...(state.cashLedger || [])];
     if (batch.fundingAccountId && (state.cashAccounts || []).length > 0) {
+      const fundingAcc = (state.cashAccounts || []).find(a => a.id === batch.fundingAccountId);
       const refundEntry: CashLedgerEntry = {
         id: uid(),
         ts: Date.now(),
@@ -430,7 +463,7 @@ export default function StockPage() {
         accountId: batch.fundingAccountId,
         direction: 'in',
         amount: batchCostQAR,
-        currency: 'QAR',
+        currency: fundingAcc?.currency || baseFiat,
         linkedEntityType: 'batch',
         linkedEntityId: editingBatchId,
         note: `Batch refund: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${batch.source || 'unknown'}`,
@@ -466,265 +499,20 @@ export default function StockPage() {
   };
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '10px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left))' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
       {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
       <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
         <button
           onClick={() => setStockTab('batches')}
-          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparentthink
-The user wants me to continue the previous response which was cut off.
-The previous response was a `<dyad-write>` block for `src/pages/StockPage.tsx`.
-It stopped at: `borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent`.
-
-I need to complete the file `src/pages/StockPage.tsx`.
-
-Looking at the previous context:
-The file `src/pages/StockPage.tsx` was being written.
-It was around line 550 of the file.
-
-I will continue from that point.
-
-Wait, the user said "fix these 2 issues only nothing beyond it".
-The issues were:
-1. Dropdown list not showing all suppliers.
-2. Saif added in CRM not showing in dropdown.
-
-In the previous turn, I tried to fix it by:
-1. Removing `overflow: hidden` from `.panel` in `src/styles/tracker.css`.
-2. Updating `supplierLookup` in `src/pages/StockPage.tsx`.
-
-However, I made a mistake in the previous turn by nesting `<dyad-write>` tags which caused a build error.
-The user then pointed out the build error.
-I then tried to fix it again but the response was cut off.
-
-I need to provide the full content of `src/pages/StockPage.tsx` correctly this time.
-
-Let's look at the `supplierLookup` logic again.
-In the original code:
-```typescript
-  const supplierLookup = useMemo(() => {
-    const names = state.batches.map((b) => b.source).filter(Boolean);
-    const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    
-    const localQuery = batchSupplier.trim().toLowerCase();
-    if (!localQuery) return unique;
-    return unique.filter((n) => n.toLowerCase().includes(localQuery));
-  }, [state.batches, batchSupplier]);
-```
-This logic already pulls from `state.batches`.
-In the CRM page, adding a supplier creates a 0-qty batch:
-```typescript
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: name,
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
-```
-So `state.batches` should contain "Saif" if added in CRM.
-The issue might be that the dropdown is clipped or the filtering is wrong.
-
-The user said "dropdown list is not showing all the list of suppliers".
-This usually means CSS clipping (`overflow: hidden` on parent).
-I already addressed that in `src/styles/tracker.css`.
-
-Now I need to finish `src/pages/StockPage.tsx`.
-
-I will write the entire file `src/pages/StockPage.tsx` from scratch to ensure it's complete and correct.
-
-Wait, I should check if there are any other places where suppliers are stored.
-In `CRMPage.tsx`, suppliers are derived from `state.batches`.
-So the logic in `StockPage.tsx` is correct in principle.
-
-Let's refine the `supplierLookup` to be more robust.
-
-```typescript
-  const supplierLookup = useMemo(() => {
-    // Get all unique sources from batches (including 0-qty ones from CRM)
-    const names = state.batches.map(b => b.source).filter(Boolean);
-    const unique = Array.from(new Set(names.map(n => n.trim()))).sort((a, b) => a.localeCompare(b));
-    
-    // Filter by the current input in the supplier field
-    const q = batchSupplier.trim().toLowerCase();
-    if (!q) return unique;
-    return unique.filter(n => n.toLowerCase().includes(q));
-  }, [state.batches, batchSupplier]);
-```
-
-I will now output the full `src/pages/StockPage.tsx`.
-
-Wait, I also need to make sure I don't include the narrative phrases or markdown code blocks.
-
-I will start the response with the continuation of the code.
-The user said "Continue exactly where you left off without any preamble."
-The previous output ended at: `borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent`.
-
-Actually, I should probably just rewrite the whole file to be safe, but the user asked to continue.
-However, the system instructions say "ALWAYS write the entire file. It needs to be a complete file."
-And "Only use ONE <dyad-write> block per file that you write!".
-
-So I will write the entire `src/pages/StockPage.tsx` file in one block.
-
-Wait, the user's prompt "Your previous response did not finish completely. Continue exactly where you left off without any preamble." is a specific instruction to bypass the "entire file" rule?
-No, the "entire file" rule is a "MUST" and "MANDATORY" in the system prompt.
-"Any instance of code within ``` is a CRITICAL FAILURE."
-"REPEAT: NO MARKDOWN CODE BLOCKS. USE <dyad-write> EXCLUSIVELY FOR CODE."
-
-So I will use `<dyad-write>` for the whole file.
-
-Let's check the `src/styles/tracker.css` again.
-I removed `overflow: hidden` from `.panel`.
-```css
-.tracker-root .panel { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius); box-shadow: var(--lt-shadow2); transition: all var(--lt-tr); }
-```
-This should fix the clipping.
-
-Now for `src/pages/StockPage.tsx`.
-
-I'll make sure the `supplierLookup` is correct.
-
-One detail: the user mentioned "Saif" added in CRM.
-In `CRMPage.tsx`:
-```typescript
-  const saveNewSupplier = () => {
-    const name = newSuppName.trim();
-    if (!name) { setNewSuppError('Supplier name is required.'); return; }
-    const exists = suppliers.some(s => s.name.toLowerCase() === name.toLowerCase());
-    if (exists) { setNewSuppError('A supplier with this name already exists.'); return; }
-    const newBatch = {
-      id: uid(), ts: Date.now(), source: name,
-      initialUSDT: 0, remainingUSDT: 0,
-      costPerUnit: 0, sold: 0, voided: false,
-      note: '', buyPriceQAR: 0, revisions: [],
-    };
-    applyState({ ...state, batches: [...state.batches, newBatch] });
-    setShowAddSuppModal(false);
-  };
-```
-This adds a batch with `source: name`.
-So `state.batches` will have an entry with `source: "Saif"`.
-The `supplierLookup` in `StockPage.tsx` should find it.
-
-I will now generate the full `src/pages/StockPage.tsx`.
-
-Wait, I should also check if `src/styles/tracker.css` was actually written correctly in the previous turn.
-The user said "nothing actually fixed at all".
-Maybe the build failed before the CSS was applied?
-The log shows:
-`03:47:43.259 [vite-plugin-pwa:build] [plugin vite-plugin-pwa:build] src/pages/StockPage.tsx (97:37): There was an error during the build:`
-So the build failed on the TSX file.
-
-I will re-write both files to be sure.
-
-Actually, I'll just do `StockPage.tsx` first as it's the one that broke the build.
-And I'll include the CSS fix again.
-
-Wait, I can only use one `<dyad-write>` per file.
-
-Let's go.
-
-Step 1: `src/styles/tracker.css` - remove `overflow: hidden` from `.panel`.
-Step 2: `src/pages/StockPage.tsx` - full file with fixed lookup.
-
-Wait, the user said "fix these 2 issues only nothing beyond it".
-The issues are:
-1. Dropdown not showing all suppliers.
-2. Saif from CRM not showing.
-
-The CSS fix handles #1.
-The lookup logic handles #2.
-
-I will now output the code.
-
-One more thing: the user said "Continue exactly where you left off".
-If I output a `<dyad-write>` tag, it will overwrite the file.
-So I must provide the full content.
-
-I'll start with the CSS.
-
-Wait, I should check if I need to add any dependencies. No.
-
-Let's verify the `supplierLookup` one more time.
-```typescript
-  const supplierLookup = useMemo(() => {
-    const names = state.batches.map((b) => b.source).filter(Boolean);
-    const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    
-    const localQuery = batchSupplier.trim().toLowerCase();
-    if (!localQuery) return unique;
-    return unique.filter((n) => n.toLowerCase().includes(localQuery));
-  }, [state.batches, batchSupplier]);
-```
-This looks correct. It pulls from `state.batches`.
-
-Wait, maybe the `lookupMenu` itself has `overflow: hidden` or something?
-```css
-.tracker-root .lookupMenu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  border-radius: var(--lt-radius-sm);
-  border: 1px solid var(--line);
-  background: var(--panel2);
-  box-shadow: var(--lt-shadow);
-  max-height: 220px;
-  overflow-y: auto;
-  z-index: 40;
-}
-```
-This has `overflow-y: auto`, which is fine.
-But if the parent `.panel` has `overflow: hidden`, the absolute child will be clipped if it goes outside the panel boundaries.
-So removing `overflow: hidden` from `.panel` is the correct fix.
-
-I will now write the files.
-
-Wait, I should check if I should use `pnpm` or `npm`. The log shows `pnpm`.
-But I don't need to run commands.
-
-I'll start.
-
-One detail: the user's previous turn had a build error because I accidentally included a `<dyad-write>` tag INSIDE the code I was writing.
-I must be extremely careful not to do that again.
-
-```typescript
-const accountBalances = useMemo(() => getAllAccountBalances(cashAccounts, cashLedger), [cashAccounts, cashLedger]);<dyad-write path="src/pages/StockPage.tsx" description="Continuing the StockPage implementation with fixed supplier lookup and CSS clipping fixes.">
-```
-Yes, that was the error.
-
-I will now provide the full files.
-
-Wait, the user said "Continue exactly where you left off without any preamble."
-This usually means I should just start with the code block.
-
-But I have to follow the "entire file" rule.
-
-I'll start with `src/styles/tracker.css`.
-
-Wait, I'll just do `StockPage.tsx` first since it's the one that broke.
-
-Actually, I'll do both.
-
-One more check: the user said "Saif as a supplier but not showing up".
-In `CRMPage.tsx`, when adding a customer, it's added to `state.customers`.
-When adding a supplier, it's added to `state.batches` as a 0-qty batch.
-So `state.batches` is indeed the source of truth for suppliers.
-
-Let's check the `StockPage.tsx` code again.
-The `supplierLookup` uses `state.batches`.
-So it should work.
-
-I'll make sure the `lookupMenu` is not being hidden by anything else.
-
-One possibility: `z-index`.
-The `lookupMenu` has `z-index: 40`.
-The `formPanel` has no z-index.
-The `twoColPage` has no z-index.
-So it should be fine.
-
-Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent', color: stockTab === 'batches' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+        >
+          {t('stockTabLabel')}
+          <span style={{ background: stockTab === 'batches' ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.08)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{state.batches.length}</span>
+        </button>
+        <button
+          onClick={() => setStockTab('cash')}
+          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'cash' ? 'var(--brand)' : 'transparent', color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
           {t('cashTabLabel')}
           {cashAccounts.length > 0 && <span style={{ background: 'color-mix(in srgb, var(--good) 20%, transparent)', color: 'var(--good)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{cashAccounts.filter(a => a.status === 'active').length}</span>}
         </button>
@@ -791,7 +579,7 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
               <div className="empty-s">{t('addFirstPurchase')}</div>
             </div>
           ) : isMobile ? (
-            <div style={{ display: 'grid', gap: 6 }}>
+            <div className="orders-cards-list">
               {perf.map((b) => {
                 const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
                 const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
@@ -799,39 +587,57 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
                 const ct = batchCycleTime(state, derived, b.id);
                 const st = rem <= 1e-9 ? t('depleted') : rem < b.initialUSDT ? t('partial') : t('fresh');
                 const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
+                const isOpen = !!detailsOpen[b.id];
                 return (
-                  <div key={b.id} className="panel" style={{ padding: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
-                      <div>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(b.ts)}</div>
-                        <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.2 }}>{b.source || '—'}</div>
+                  <div key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    {/* ── Compact header row: tap to expand ── */}
+                    <button
+                      onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}
+                      style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
+                      onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onPointerUp={e => (e.currentTarget.style.background = 'none')}
+                      onPointerLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{b.source || '—'}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{fmtDate(b.ts)}</div>
                       </div>
-                      <span className={`pill ${stCls}`} style={{ alignSelf: 'flex-start' }}>{st}</span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 10, marginBottom: 6 }}>
-                      <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
-                      <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
-                      <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
-                      <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
-                      <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: detailsOpen[b.id] ? 6 : 0 }}>
-                      {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
-                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}>{detailsOpen[b.id] ? t('hideDetails') : t('details')}</button>
-                      <button className="rowBtn" style={{ minHeight: 30, padding: '0 8px', fontSize: 11 }} onClick={() => openEdit(b.id)}>{t('edit')}</button>
-                    </div>
-                    {detailsOpen[b.id] && (
-                      <div style={{ background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))', border: '1px solid color-mix(in srgb, var(--line) 80%, transparent)', borderRadius: 8, padding: 7, display: 'grid', gap: 4, fontSize: 10 }}>
-                        <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
-                        <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
-                        <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
-                        <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
-                        <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
-                        {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
-                        {ct !== null && <div><span className="muted">{t('cycleTime')}:</span> <strong>{fmtDur(ct)}</strong></div>}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+                        <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(b.initialUSDT)} USDT</strong>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(b.buyPriceQAR)}</span>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {(b.profit || 0) !== 0 && (
+                            <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                              {(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}
+                            </span>
+                          )}
+                          <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', flexShrink: 0, filter: 'drop-shadow(0 0 2px color-mix(in srgb, var(--brand) 30%, transparent))' }}><path d="M6 9l6 6 6-6"/></svg>
+                        </div>
+                      </div>
+                    </button>
+                    {/* ── Expanded detail ── */}
+                    {isOpen && (
+                      <div style={{ padding: '0 12px 12px', borderTop: '1px solid var(--line2)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, fontSize: 10, marginTop: 8, marginBottom: 8 }}>
+                          <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
+                          <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
+                          <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
+                          <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
+                          <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                          {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
+                          <button className="rowBtn" style={{ minHeight: 30, padding: '0 10px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); openEdit(b.id); }}>{t('edit')}</button>
+                        </div>
+                        <div style={{ display: 'grid', gap: 3, fontSize: 10 }}>
+                          <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
+                          <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
+                          {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -926,10 +732,10 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
           )}
         </div>
 
-        <div>
-          <div className="formPanel salePanel" style={isMobile ? { padding: 8, borderRadius: 10 } : undefined}>
+        {!isMobile && (<div>
+          <div className="formPanel salePanel">
             <div className="hdr">{t('addBatchTitle')}</div>
-            <div className="inner" style={isMobile ? { display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' } : undefined}>
+            <div className="inner">
               {wacop && (
                 <div className="bannerRow">
                   <span className="bLbl">{t('currentAvPrice')}</span>
@@ -962,7 +768,7 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
                   <div className="field2">
                     <div className="lbl">{t('currencyMode')}</div>
                     <div className="modeToggle">
-                      <button className={batchMode === 'QAR' ? 'active' : ''} type="button" onClick={() => setBatchMode('QAR')}>📦 QAR</button>
+                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat}</button>
                       <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
                     </div>
                   </div>
@@ -972,7 +778,7 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                     <div className="field2">
-                      <div className="lbl">{batchMode === 'QAR' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="lbl">{batchMode !== 'USDT' ? t('volumeQar') : t('amountUsdt')}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                   </div>
@@ -995,7 +801,7 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
                     <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
                       <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
-                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} QAR/USDT
+                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat}/USDT
                       </span>
                     </div>
                   )}
@@ -1135,13 +941,209 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
                 </div>
               )}
 
-              <div className="formActions"><button className="btn" style={{ minHeight: isMobile ? 40 : undefined, width: isMobile ? '100%' : undefined, fontSize: isMobile ? 12 : undefined }} onClick={addBatch}>{t('addBatchTitle')}</button></div>
+              <div className="formActions"><button className="btn" onClick={addBatch}>{t('addBatchTitle')}</button></div>
               <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
             </div>
           </div>
-        </div>
+        </div>)}{/* end desktop form column */}
       </div>
       )} {/* end batches tab */}
+
+      {/* ── Mobile FAB: Add Batch ───────────────────────────────────── */}
+      {isMobile && stockTab === 'batches' && (
+        <button
+          aria-label={t('addBatchTitle')}
+          onClick={() => { setBatchConfirmDetails(null); setAddBatchSheetOpen(true); }}
+          style={{
+            position: 'fixed',
+            bottom: 'max(76px, calc(64px + env(safe-area-inset-bottom, 0px)))',
+            right: 16, zIndex: 40,
+            width: 52, height: 52, borderRadius: '50%',
+            background: 'var(--brand)', color: '#fff',
+            border: 'none', cursor: 'pointer', fontSize: 28, fontWeight: 300,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.40)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            lineHeight: 1,
+          }}
+        >+</button>
+      )}
+
+      {/* ── Mobile Add Batch Bottom Sheet ──────────────────────────── */}
+      {isMobile && addBatchSheetOpen && (
+        <div
+          className="batch-sheet-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget && !batchConfirmDetails) setAddBatchSheetOpen(false); }}
+        >
+          <div className="batch-sheet tracker-root">
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--muted)', margin: '0 auto 14px', opacity: 0.35 }} />
+
+            {batchConfirmDetails ? (
+              <div style={{ textAlign: 'center', padding: '16px 8px 24px' }}>
+                <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 10 }}>✅</div>
+                <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: 'var(--good)' }}>{t('batchAdded')}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
+                  {fmtU(batchConfirmDetails.qty)} USDT @ {fmtP(batchConfirmDetails.price)} QAR
+                </div>
+                <div style={{ fontSize: 12, textAlign: 'left', background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 10, padding: '12px 14px', display: 'grid', gap: 8, marginBottom: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('supplier')}</span><strong>{batchConfirmDetails.source}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('total')} USDT</span><strong className="mono">{fmtU(batchConfirmDetails.qty)} USDT</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('buyPriceQar')}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} QAR</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} QAR</strong></div>
+                  {batchConfirmDetails.fundingAccName && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('fundingSourceLbl')}</span><strong style={{ maxWidth: '60%', textAlign: 'right' }}>{batchConfirmDetails.fundingAccName}</strong></div>
+                  )}
+                </div>
+                <div className="muted" style={{ fontSize: 10 }}>Closing automatically…</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800 }}>{t('addBatchTitle')}</div>
+                  <button onClick={() => setAddBatchSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+                  {wacop && (
+                    <div className="bannerRow">
+                      <span className="bLbl">{t('currentAvPrice')}</span>
+                      <span className="bVal">{fmtP(wacop)}</span>
+                      <span className="bSpacer" />
+                      <span className="bPill">{t('avg')}</span>
+                    </div>
+                  )}
+                  <div className="field2">
+                    <div className="lbl">{t('dateTime')}</div>
+                    <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
+                  </div>
+                  <div className="field2">
+                    <div className="lbl">{t('entryModeLabel')}</div>
+                    <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+                      <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModePriceVol')}</button>
+                      <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtQar')}</button>
+                      <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtPrice')}</button>
+                    </div>
+                  </div>
+                  {batchEntryMode === 'price_vol' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('currencyMode')}</div>
+                      <div className="modeToggle">
+                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat}</button>
+                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
+                      </div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{batchMode !== 'USDT' ? t('volumeQar') : t('amountUsdt')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="96,050" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                  </>)}
+                  {batchEntryMode === 'qty_total' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('usdtBought')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('totalQarPaid')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
+                    </div>
+                    {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                        <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat}/USDT</span>
+                      </div>
+                    )}
+                  </>)}
+                  {batchEntryMode === 'qty_price' && (<>
+                    <div className="field2">
+                      <div className="lbl">{t('usdtBought')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="25,000" value={batchUsdtQty} onChange={(e) => setBatchUsdtQty(e.target.value)} /></div>
+                    </div>
+                    <div className="field2">
+                      <div className="lbl">{t('buyPriceQar')}</div>
+                      <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
+                    </div>
+                    {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                        <span style={{ color: 'var(--t2)' }}>{t('totalQarCalc')} </span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} QAR</span>
+                      </div>
+                    )}
+                  </>)}
+                  <div className="field2">
+                    <div className="lbl">{t('supplier')}</div>
+                    <div className="lookupShell">
+                      <div className="inputBox lookupBox" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input placeholder={t('searchOrTypeSupplier')} autoComplete="off" value={batchSupplier}
+                          onChange={(e) => { setBatchSupplier(e.target.value); setSupplierMenuOpen(true); }}
+                          onFocus={() => setSupplierMenuOpen(true)} />
+                        <button className="sideAction" type="button" onClick={() => setSupplierMenuOpen((v) => !v)}>⌄</button>
+                        <button className="sideAction" type="button" onClick={() => { setNewSupplierName(batchSupplier); setSupplierAddOpen((v) => !v); }}>+</button>
+                      </div>
+                      {supplierMenuOpen && (
+                        <div className="lookupMenu" style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                          {supplierLookup.length ? supplierLookup.map((name) => (
+                            <button key={name} className="lookupItem" type="button" onClick={() => { setBatchSupplier(name); setSupplierMenuOpen(false); }}>
+                              <span>{name}</span><span className="lookupMeta">{t('supplier')}</span>
+                            </button>
+                          )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noSuppliersYet')}</span></div>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="lookupHint">{t('supplierHint')}</div>
+                  </div>
+                  {supplierAddOpen && (
+                    <div className="previewBox">
+                      <div className="pt">{t('addSupplierTitle')}</div>
+                      <div className="field2"><div className="lbl">{t('name')}</div><div className="inputBox"><input value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} placeholder={t('supplierName')} /></div></div>
+                      <div className="field2" style={{ marginTop: 6 }}><div className="lbl">{t('phone')}</div><div className="inputBox"><input value={newSupplierPhone} onChange={(e) => setNewSupplierPhone(e.target.value)} placeholder="+974 ..." /></div></div>
+                      <div className="formActions" style={{ marginTop: 8 }}>
+                        <button className="btn secondary" onClick={() => setSupplierAddOpen(false)}>{t('cancel')}</button>
+                        <button className="btn" onClick={addSupplier}>{t('addSupplierTitle')}</button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="field2">
+                    <div className="lbl">{t('note')}</div>
+                    <div className="inputBox"><input placeholder={t('optionalNote')} value={batchNote} onChange={(e) => setBatchNote(e.target.value)} /></div>
+                  </div>
+                  {activeAccounts.length > 0 && (
+                    <div className="field2">
+                      <div className="lbl">{t('fundingSourceLbl')}</div>
+                      <select value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        style={{ color: 'hsl(var(--foreground))', minHeight: 40 }}>
+                        <option value="none">🚫 {t('noFundingSource')}</option>
+                        {activeAccounts.map(a => {
+                          const bal = accountBalances.get(a.id) || 0;
+                          return <option key={a.id} value={a.id}>{a.name} · {fmtTotal(bal)} {a.currency}</option>;
+                        })}
+                      </select>
+                      {fundingAccountId && fundingAccountId !== 'none' && (() => {
+                        const acc = activeAccounts.find(a => a.id === fundingAccountId);
+                        const bal = accountBalances.get(fundingAccountId) || 0;
+                        return <div style={{ fontSize: 11, marginTop: 4, color: 'var(--muted)' }}>{t('availableLbl')}: <strong style={{ color: bal < 10000 ? 'var(--warn)' : 'var(--good)' }}>{fmtTotal(bal)} {acc?.currency}</strong></div>;
+                      })()}
+                    </div>
+                  )}
+                  {activeAccounts.length === 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', padding: '6px 8px', background: 'color-mix(in srgb, var(--brand) 5%, transparent)', borderRadius: 6, border: '1px solid var(--line)' }}>
+                      💡 {t('setupCashAccountsHint')} <button type="button" onClick={() => { setAddBatchSheetOpen(false); setStockTab('cash'); }} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 10, fontWeight: 700, padding: 0 }}>{t('setupCashAccHint2')}</button> {t('setupCashAccHint3')}
+                    </div>
+                  )}
+                  <div className="formActions">
+                    <button className="btn" style={{ minHeight: 44, width: '100%', fontSize: 13 }} onClick={addBatch}>{t('addBatchTitle')}</button>
+                  </div>
+                  {batchMsg && (
+                    <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── EDIT BATCH DIALOG ─── */}
       {(() => {
@@ -1158,7 +1160,7 @@ Let's go., color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'al
           const s = c.slices.find(s => s.batchId === editingBatchId);
           if (s) editProfit += s.qty * c.ppu;
         }
-        const knownSuppliers = [...new Set(state.batches.map(b => b.source.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        const knownSuppliers = supplierOptions;
 
         return (
           <Dialog open={!!editingBatchId} onOpenChange={(open) => !open && setEditingBatchId(null)}>

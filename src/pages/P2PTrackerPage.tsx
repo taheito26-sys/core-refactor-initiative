@@ -18,8 +18,9 @@ import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
 import { PriceHistorySparklines } from '@/features/p2p/components/PriceHistorySparklines';
 import { MerchantDepthStats } from '@/features/p2p/components/MerchantDepthStats';
 import { P2POfferTable } from '@/features/p2p/components/P2POfferTable';
-import { MerchantIntelligenceCard } from '@/features/p2p/components/MerchantIntelligenceCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { DeepScanResults } from '@/features/p2p/components/DeepScanResults';
 
 export default function P2PTrackerPage() {
   const t = useT();
@@ -63,7 +64,8 @@ export default function P2PTrackerPage() {
           deduped.set(o.nick, o);
         }
       });
-      const top20 = Array.from(deduped.values()).slice(0, 20);
+      // Sort cheapest first before taking top 20 distinct merchants
+      const top20 = Array.from(deduped.values()).sort((a, b) => a.price - b.price).slice(0, 20);
       if (top20.length === 0) return null;
       return top20.reduce((s, o) => s + o.price, 0) / top20.length;
     };
@@ -101,12 +103,17 @@ export default function P2PTrackerPage() {
     setTimeout(() => {
       const offers = snapshot.buyOffers || [];
       const matches = offers.filter(o => {
+        // Always require merchant has enough available USDT stock
+        if (o.available < amount) return false;
         if (singleMerchantOnly) {
-          return o.available >= amount && o.max >= amount;
+          // Max limit is in local currency; convert to USDT via price to verify
+          // a single transaction can cover the full required amount
+          const maxUsdt = o.price > 0 ? o.max / o.price : 0;
+          return maxUsdt >= amount;
         }
         return true;
       });
-      
+
       setScanResults(matches.sort((a, b) => a.price - b.price));
       setIsScanning(false);
     }, 400);
@@ -300,19 +307,11 @@ export default function P2PTrackerPage() {
                     <button onClick={() => setScanResults(null)} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Clear Results</button>
                   </div>
                   
-                  {scanResults.length === 0 ? (
-                    <div className="p-12 text-center border-2 border-dashed border-border/40 rounded-xl bg-muted/10">
-                      <AlertTriangle className="h-8 w-8 text-muted-foreground/20 mx-auto mb-3" />
-                      <p className="text-sm font-bold text-muted-foreground/50">No Merchants Match Criteria</p>
-                      <p className="text-[10px] text-muted-foreground/40 mt-1 uppercase tracking-widest">Try a lower amount or disable single merchant filter</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
-                      {scanResults.map((m, i) => (
-                        <MerchantIntelligenceCard key={i} merchant={m} />
-                      ))}
-                    </div>
-                  )}
+                  <DeepScanResults
+                    results={scanResults}
+                    amount={parseFloat(scanAmount)}
+                    currency={currentMarket.currency}
+                  />
                 </div>
               )}
 
