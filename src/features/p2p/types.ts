@@ -23,6 +23,7 @@ export interface P2POffer {
   allTimeTrades: number | null;
   tradeType: string | null;
   message: string | null;
+  advertiserMessage?: string | null;
 }
 
 export interface P2PSnapshot {
