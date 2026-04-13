@@ -16,26 +16,32 @@ interface Props {
 }
 
 export function DeepScanBox({ snapshot, market }: Props) {
-  const [requiredUsdt, setRequiredUsdt] = useState(20000);
+  const [requiredUsdtRaw, setRequiredUsdtRaw] = useState('20000');
   const [mode, setMode] = useState<DeepScanMode>('single_merchant_only');
-  const [min30dTrades, setMin30dTrades] = useState(100);
-  const [minCompletionPct, setMinCompletionPct] = useState(90);
   const [showExcluded, setShowExcluded] = useState(false);
   const [ran, setRan] = useState(false);
-
-  const request: DeepScanRequest = useMemo(() => ({
-    market,
-    requiredUsdt,
-    mode,
-    min30dTrades,
-    minCompletionPct,
-    requireFullCoverage: mode === 'single_merchant_only',
-  }), [market, requiredUsdt, mode, min30dTrades, minCompletionPct]);
-
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [result, setResult] = useState<DeepScanResult | null>(null);
 
   const runScan = () => {
-    // Use sell offers — operator is selling USDT to a buyer
+    const parsed = Number(requiredUsdtRaw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setValidationError('Enter a valid USDT amount greater than 0');
+      setResult(null);
+      setRan(false);
+      return;
+    }
+    setValidationError(null);
+
+    const request: DeepScanRequest = {
+      market,
+      requiredUsdt: parsed,
+      mode,
+      min30dTrades: 0,
+      minCompletionPct: 0,
+      requireFullCoverage: mode === 'single_merchant_only',
+    };
+
     const res = buildDeepScanResult(snapshot.sellOffers, request);
     setResult(res);
     setRan(true);
@@ -53,38 +59,17 @@ export function DeepScanBox({ snapshot, market }: Props) {
       </div>
       <div className="panel-body" style={{ padding: '10px 12px' }}>
         {/* Input controls */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <div>
+        <div className="flex flex-wrap items-end gap-3 mb-3">
+          <div className="min-w-[140px]">
             <label className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
               Required USDT
             </label>
             <Input
               type="number"
-              value={requiredUsdt}
-              onChange={e => setRequiredUsdt(Number(e.target.value) || 0)}
+              value={requiredUsdtRaw}
+              onChange={e => { setRequiredUsdtRaw(e.target.value); setValidationError(null); }}
               className="h-7 text-[11px] font-mono"
-            />
-          </div>
-          <div>
-            <label className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-              Min 30d Trades
-            </label>
-            <Input
-              type="number"
-              value={min30dTrades}
-              onChange={e => setMin30dTrades(Number(e.target.value) || 0)}
-              className="h-7 text-[11px] font-mono"
-            />
-          </div>
-          <div>
-            <label className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-              Min Completion %
-            </label>
-            <Input
-              type="number"
-              value={minCompletionPct}
-              onChange={e => setMinCompletionPct(Number(e.target.value) || 0)}
-              className="h-7 text-[11px] font-mono"
+              min={1}
             />
           </div>
           <div>
@@ -99,52 +84,51 @@ export function DeepScanBox({ snapshot, market }: Props) {
               <span className="text-[9px] text-muted-foreground">{mode === 'single_merchant_only' ? 'Yes' : 'No'}</span>
             </div>
           </div>
+          <Button onClick={runScan} variant="default" size="sm" className="gap-1.5 text-[10px] h-7">
+            <Crosshair className="h-3 w-3" /> Run Deep Scan
+          </Button>
         </div>
-        <Button onClick={runScan} variant="default" size="sm" className="gap-1.5 text-[10px] h-7">
-          <Crosshair className="h-3 w-3" /> Run Deep Scan
-        </Button>
+
+        {validationError && (
+          <div className="text-[11px] text-destructive font-medium py-2">
+            {validationError}
+          </div>
+        )}
 
         {/* Results */}
-        {ran && result && (
+        {ran && result && !validationError && (
           <div className="mt-3 space-y-3">
             {/* Summary strip */}
             <div className="flex flex-wrap gap-2 text-[10px]">
               <Badge variant="outline" className="font-mono text-[9px]">
-                {result.eligibleMerchantCount} eligible
+                {result.eligibleMerchantCount} matching
               </Badge>
               <Badge variant="outline" className="font-mono text-[9px]">
                 Avg Price: {result.averageEligiblePrice != null ? fmtPrice(result.averageEligiblePrice) : '—'}
               </Badge>
-              <Badge variant="outline" className="font-mono text-[9px]">
-                {result.excludedCandidates.length} excluded
-              </Badge>
+              {result.excludedCandidates.length > 0 && (
+                <Badge variant="outline" className="font-mono text-[9px]">
+                  {result.excludedCandidates.length} excluded
+                </Badge>
+              )}
             </div>
 
-            {/* Winner */}
-            {result.winner ? (
+            {/* All matching merchants */}
+            {result.topCandidates.length > 0 ? (
               <div>
                 <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                  🏆 Best Match
+                  Matching Merchants ({result.topCandidates.length})
                 </div>
-                <MerchantIntelligenceCard candidate={result.winner} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {result.topCandidates.map((c, i) => (
+                    <MerchantIntelligenceCard key={c.nick} candidate={c} compact={i > 0} />
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="text-[11px] text-destructive font-medium py-3 text-center">
-                No merchant matches all criteria for {requiredUsdt.toLocaleString()} USDT
-              </div>
-            )}
-
-            {/* Top candidates */}
-            {result.topCandidates.length > 1 && (
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                  Top Candidates
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {result.topCandidates.slice(1).map(c => (
-                    <MerchantIntelligenceCard key={c.nick} candidate={c} compact />
-                  ))}
-                </div>
+                No merchants can fulfill {Number(requiredUsdtRaw).toLocaleString()} USDT
+                {mode === 'single_merchant_only' ? ' in a single trade' : ''}
               </div>
             )}
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { MarketId, P2PSnapshot, P2PHistoryPoint, MerchantStat, EMPTY_SNAPSHOT, DERIVED_EGYPT_MARKETS, baseMarketId } from '../types';
-import { toSnapshot, toFiniteNumber, toOffer, filterSnapshotByPaymentMethods } from '../utils/converters';
+import { MarketId, P2PSnapshot, P2PHistoryPoint, MerchantStat, EMPTY_SNAPSHOT } from '../types';
+import { toSnapshot, toFiniteNumber, toOffer } from '../utils/converters';
 
 export function useP2PMarketData(market: MarketId) {
   const [snapshot, setSnapshot] = useState<P2PSnapshot | null>(null);
@@ -12,37 +12,18 @@ export function useP2PMarketData(market: MarketId) {
   const [latestFetchedAt, setLatestFetchedAt] = useState<string | null>(null);
   const [qatarRates, setQatarRates] = useState<{ sellAvg: number; buyAvg: number } | null>(null);
 
-  const isDerived = DERIVED_EGYPT_MARKETS.includes(market);
-  const dbMarket = baseMarketId(market);
-
-  const applyVariantFilter = useCallback((snap: P2PSnapshot): P2PSnapshot => {
-    if (market === 'egypt_vcash') {
-      return filterSnapshotByPaymentMethods(snap, new Set(['vodafone_cash']));
-    }
-    if (market === 'egypt_bank') {
-      return filterSnapshotByPaymentMethods(
-        snap,
-        new Set(['instapay', 'bank']),
-        new Set(['wallet']) // exclude wallet-only
-      );
-    }
-    // egypt_fx_qar uses same offers as egypt base, no filtering
-    return snap;
-  }, [market]);
-
   const loadFromDb = useCallback(async () => {
     try {
       const { data: latestRow } = await supabase
         .from('p2p_snapshots')
         .select('*')
-        .eq('market', dbMarket)
+        .eq('market', market)
         .order('fetched_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (latestRow?.data) {
-        const baseSnap = toSnapshot(latestRow.data, latestRow.fetched_at);
-        setSnapshot(applyVariantFilter(baseSnap));
+        setSnapshot(toSnapshot(latestRow.data, latestRow.fetched_at));
         setLatestFetchedAt(latestRow.fetched_at ?? null);
       } else {
         setSnapshot(EMPTY_SNAPSHOT);
@@ -50,7 +31,7 @@ export function useP2PMarketData(market: MarketId) {
       }
 
       // Always fetch Qatar rates for cross-market comparisons
-      if (dbMarket !== 'qatar') {
+      if (market !== 'qatar') {
         const { data: qatarRow } = await supabase
           .from('p2p_snapshots')
           .select('data, fetched_at')
@@ -69,7 +50,7 @@ export function useP2PMarketData(market: MarketId) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
         .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
-        .eq('market', dbMarket)
+        .eq('market', market)
         .gte('fetched_at', cutoff)
         .order('fetched_at', { ascending: false })
         .limit(10000);
@@ -93,7 +74,7 @@ export function useP2PMarketData(market: MarketId) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
         .select('sell_offers:data->sellOffers, buy_offers:data->buyOffers')
-        .eq('market', dbMarket)
+        .eq('market', market)
         .gte('fetched_at', cutoff24h)
         .order('fetched_at', { ascending: false })
         .limit(2500);
@@ -106,7 +87,6 @@ export function useP2PMarketData(market: MarketId) {
         totalAvailable: number;
         sampleCount: number;
         maxAvailable: number;
-        // latest known intel
         merchant30dTrades: number | null;
         merchant30dCompletion: number | null;
         advertiserMessage: string | null;
@@ -144,7 +124,6 @@ export function useP2PMarketData(market: MarketId) {
           stat.totalAvailable += offer.available;
           stat.sampleCount += 1;
           stat.maxAvailable = Math.max(stat.maxAvailable, offer.available);
-          // Update intel with latest non-null values
           if (offer.merchant30dTrades != null) stat.merchant30dTrades = offer.merchant30dTrades;
           if (offer.merchant30dCompletion != null) stat.merchant30dCompletion = offer.merchant30dCompletion;
           if (offer.advertiserMessage != null) stat.advertiserMessage = offer.advertiserMessage;
@@ -184,7 +163,7 @@ export function useP2PMarketData(market: MarketId) {
     } finally {
       setLoading(false);
     }
-  }, [dbMarket, applyVariantFilter]);
+  }, [market]);
 
   useEffect(() => {
     setLoading(true);
@@ -192,14 +171,14 @@ export function useP2PMarketData(market: MarketId) {
     loadFromDb();
 
     const channel = supabase
-      .channel(`p2p_snapshots_${dbMarket}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'p2p_snapshots', filter: `market=eq.${dbMarket}` }, () => {
+      .channel(`p2p_snapshots_${market}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'p2p_snapshots', filter: `market=eq.${market}` }, () => {
         void loadFromDb();
       })
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [dbMarket, loadFromDb]);
+  }, [market, loadFromDb]);
 
   // Compute 20-merchant average for the current snapshot
   const avg20Sell = useMemo(() => {
