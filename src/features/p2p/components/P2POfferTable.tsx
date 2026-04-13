@@ -70,12 +70,7 @@ export function P2POfferTable({ offers, type, t }: Props) {
                   </TableCell>
                   <TableCell className="text-right font-mono text-[11px] py-2">{o.min > 0 ? o.min.toLocaleString() : '—'}</TableCell>
                   <TableCell className="text-right font-mono text-[11px] py-2">{formatOfferLimit(o.max)}</TableCell>
-                  <TableCell className="text-[10px] text-muted-foreground py-2 truncate max-w-[120px]">
-                    <div className="truncate">{o.methods.join(', ')}</div>
-                    <div className="text-[8px] opacity-40 mt-0.5 truncate italic">
-                      {(o as any).advertiserMessage ?? o.message ?? 'Unavailable'}
-                    </div>
-                  </TableCell>
+                  <TableCell className="text-[10px] text-muted-foreground py-2 truncate max-w-[120px]">{o.methods.join(', ')}</TableCell>
                 </TableRow>
               );
             })}
