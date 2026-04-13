@@ -70,14 +70,27 @@ export default function P2PTrackerPage() {
       return top20.reduce((s, o) => s + o.price, 0) / top20.length;
     };
 
-    const egBuyVCashAvg = computeEgAvg(egBuyOffers, /vodafone|vf cash|فودافون/i);
-    const egBuyInstaAvg = computeEgAvg(egBuyOffers, /instapay|bank|cib|nbe|qnb|انستا/i);
+    // VCash: Vodafone-branded methods
+    const egBuyVCashAvg = computeEgAvg(egBuyOffers, /vodafone|vcash|vf.?cash|فودافون/i);
 
+    // InstaPay + all bank transfer methods (broad to catch any naming variant)
+    const egBuyInstaAvg = computeEgAvg(
+      egBuyOffers,
+      /instapay|insta[- ]?pay|انستاباي|انستا|bank|بنك|cib|nbe|qnb|misr|alex|faisal|banque|ahli|national|commercial|transfer|تحويل/i,
+    );
+
+    // Values expressed as EGP per QAR (EGP → QAR direction, ~14.xxx)
+    // Formula: EG Buy avg ÷ QA rate  →  how many EGP you get per 1 QAR
     return {
-      vCashV1: (qaSellAvg && egBuyVCashAvg) ? qaSellAvg / egBuyVCashAvg : null,
-      vCashV2: (qaBuyAvg && egBuyVCashAvg) ? qaBuyAvg / egBuyVCashAvg : null,
-      instaPayV1: (qaSellAvg && egBuyInstaAvg) ? qaSellAvg / egBuyInstaAvg : null,
-      instaPayV2: (qaBuyAvg && egBuyInstaAvg) ? qaBuyAvg / egBuyInstaAvg : null,
+      vCashV1:    egBuyVCashAvg && qaSellAvg ? egBuyVCashAvg / qaSellAvg : null,
+      vCashV2:    egBuyVCashAvg && qaBuyAvg  ? egBuyVCashAvg / qaBuyAvg  : null,
+      instaPayV1: egBuyInstaAvg && qaSellAvg ? egBuyInstaAvg / qaSellAvg : null,
+      instaPayV2: egBuyInstaAvg && qaBuyAvg  ? egBuyInstaAvg / qaBuyAvg  : null,
+      // Raw inputs passed through for KPI subtitle display
+      qaSellAvg,
+      qaBuyAvg,
+      egBuyVCashAvg,
+      egBuyInstaAvg,
     };
   }, [market, snapshot, qatarRates]);
 
