@@ -1,7 +1,7 @@
 import React from 'react';
 import { P2POffer } from '../types';
 import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
-import { User, Shield, CheckCircle, Clock, MessageSquare, Info, History } from 'lucide-react';
+import { User, Shield, CheckCircle, Clock, MessageSquare, History, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -18,7 +18,7 @@ export function MerchantIntelligenceCard({ merchant, className }: Props) {
     { label: 'Avg Pay', value: merchant.avgPay != null ? `${merchant.avgPay}m` : '—', icon: Clock },
     { label: 'Avg Release', value: merchant.avgRelease != null ? `${merchant.avgRelease}m` : '—', icon: Clock },
     { label: 'All-time', value: merchant.allTimeTrades ? fmtTotal(merchant.allTimeTrades) : '—', icon: History },
-    { label: 'Type', value: merchant.tradeType || 'Standard', icon: Info },
+    { label: 'Type', value: merchant.tradeType || 'Standard', icon: Zap },
   ];
 
   return (

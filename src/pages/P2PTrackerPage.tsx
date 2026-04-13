@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 
 import { MarketId, MARKETS, P2POffer } from '@/features/p2p/types';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
-import { computeFIFO, totalStock, getWACOP, stockCostQAR, fmtU } from '@/lib/tracker-helpers';
+import { totalStock, getWACOP, stockCostQAR, fmtU } from '@/lib/tracker-helpers';
 import { getCurrentTrackerState } from '@/lib/tracker-backup';
 import type { TrackerState } from '@/lib/tracker-helpers';
 import { MarketKpiGrid } from '@/features/p2p/components/MarketKpiGrid';
@@ -24,15 +24,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 export default function P2PTrackerPage() {
   const t = useT();
   const [market, setMarket] = useState<MarketId>('qatar');
-  const { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, refresh } = useP2PMarketData(market);
+  const { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, egyptAverages, refresh } = useP2PMarketData(market);
   const currentMarket = MARKETS.find(m => m.id === market)!;
 
-  // ── Deep Scan State ──
   const [scanAmount, setScanAmount] = useState('10000');
   const [singleMerchantOnly, setSingleMerchantOnly] = useState(true);
   const [scanResults, setScanResults] = useState<P2POffer[] | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
 
   const todaySummary = useMemo(() => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -48,37 +46,6 @@ export default function P2PTrackerPage() {
     };
   }, [history]);
 
-  // ── Egypt Cross-Rate KPIs ──
-  const egyptKpis = useMemo(() => {
-    if (market !== 'egypt' || !snapshot || !qatarRates) return undefined;
-
-    const egBuyOffers = snapshot.buyOffers || [];
-    const qaSellAvg = qatarRates.sellAvg;
-    const qaBuyAvg = qatarRates.buyAvg;
-
-    const computeEgAvg = (offers: P2POffer[], regex: RegExp) => {
-      const deduped = new Map<string, P2POffer>();
-      offers.forEach(o => {
-        if (o.methods.some(m => regex.test(m)) && !deduped.has(o.nick)) {
-          deduped.set(o.nick, o);
-        }
-      });
-      const top20 = Array.from(deduped.values()).slice(0, 20);
-      if (top20.length === 0) return null;
-      return top20.reduce((s, o) => s + o.price, 0) / top20.length;
-    };
-
-    const egBuyVCashAvg = computeEgAvg(egBuyOffers, /vodafone|vf cash|فودافون/i);
-    const egBuyInstaAvg = computeEgAvg(egBuyOffers, /instapay|bank|cib|nbe|qnb|انستا/i);
-
-    return {
-      vCashV1: (qaSellAvg && egBuyVCashAvg) ? qaSellAvg / egBuyVCashAvg : null,
-      vCashV2: (qaBuyAvg && egBuyVCashAvg) ? qaBuyAvg / egBuyVCashAvg : null,
-      instaPayV1: (qaSellAvg && egBuyInstaAvg) ? qaSellAvg / egBuyInstaAvg : null,
-      instaPayV2: (qaBuyAvg && egBuyInstaAvg) ? qaBuyAvg / egBuyInstaAvg : null,
-    };
-  }, [market, snapshot, qatarRates]);
-
   const dataAgeLabel = useMemo(() => {
     if (!latestFetchedAt) return null;
     const ageMin = Math.floor((Date.now() - new Date(latestFetchedAt).getTime()) / 60000);
@@ -88,14 +55,8 @@ export default function P2PTrackerPage() {
   }, [latestFetchedAt, t]);
 
   const runDeepScan = () => {
-    setScanError(null);
     const amount = parseFloat(scanAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setScanError('Required USDT must be a positive number');
-      return;
-    }
-
-    if (!snapshot) return;
+    if (isNaN(amount) || amount <= 0 || !snapshot) return;
 
     setIsScanning(true);
     setTimeout(() => {
@@ -106,19 +67,10 @@ export default function P2PTrackerPage() {
         }
         return true;
       });
-      
       setScanResults(matches.sort((a, b) => a.price - b.price));
       setIsScanning(false);
     }, 400);
   };
-
-  const deriveMid = (s: number | null, b: number | null): number | null => {
-    if (s != null && b != null && s > 0 && b > 0) return (s + b) / 2;
-    return s ?? b ?? null;
-  };
-
-  const sellAvg = snapshot?.sellAvg ?? null;
-  const buyAvg  = snapshot?.buyAvg  ?? null;
 
   const profitIfSold = useMemo(() => {
     try {
@@ -130,57 +82,30 @@ export default function P2PTrackerPage() {
       if (stock <= 0) return null;
       const wacop = getWACOP(derived);
       const costBasis = stockCostQAR(derived);
-      if (!wacop || wacop <= 0) return null;
+      const sellAvg = snapshot?.sellAvg;
+      if (!wacop || wacop <= 0 || !sellAvg) return null;
 
-      const localMid = deriveMid(sellAvg, buyAvg);
-      const qatarMid = market === 'qatar'
-        ? localMid
-        : qatarRates ? deriveMid(qatarRates.sellAvg, qatarRates.buyAvg) : null;
-      if (!localMid || localMid <= 0 || !qatarMid || qatarMid <= 0 || !sellAvg || sellAvg <= 0) return null;
+      const localMid = (snapshot.sellAvg! + (snapshot.buyAvg || snapshot.sellAvg!)) / 2;
+      const qatarMid = market === 'qatar' ? localMid : (qatarRates ? (qatarRates.sellAvg + qatarRates.buyAvg) / 2 : null);
+      if (!qatarMid || !localMid) return null;
 
-      const localToUsd  = 1 / localMid;
-      const qarToUsd    = 1 / qatarMid;
-      const qarToLocal  = localMid / qatarMid;
+      const localToUsd = 1 / localMid;
+      const qarToLocal = localMid / qatarMid;
+      const profit = (stock * sellAvg - costBasis * qarToLocal) * localToUsd;
 
-      const costQAR        = costBasis;
-      const costLocal      = costQAR * qarToLocal;
-      const sellValueLocal = stock * sellAvg;
-      const profitLocal    = sellValueLocal - costLocal;
-      const profit         = profitLocal * localToUsd;
-
-      return {
-        stock, wacop, costQAR, costLocal,
-        costBasisUSD: costQAR * qarToUsd,
-        sellValueLocal, sellValueUSD: sellValueLocal * localToUsd,
-        profitLocal, profit,
-        fx: { localToUsd, qarToUsd, qarToLocal },
-      };
+      return { stock, profit, fx: { localToUsd, qarToLocal }, costQAR: costBasis };
     } catch { return null; }
-  }, [sellAvg, buyAvg, market, qatarRates]);
+  }, [snapshot, market, qatarRates]);
 
   const roundTripSim = useMemo(() => {
-    if (!profitIfSold || !sellAvg || !buyAvg || sellAvg <= 0 || buyAvg <= 0) return null;
+    if (!profitIfSold || !snapshot?.sellAvg || !snapshot?.buyAvg) return null;
     const { qarToLocal, localToUsd } = profitIfSold.fx;
-    if (!qarToLocal || !localToUsd || qarToLocal <= 0 || localToUsd <= 0) return null;
-
-    const startingCapitalLocal = profitIfSold.costQAR * qarToLocal;
-    if (startingCapitalLocal <= 0) return null;
-
-    const boughtUSDT         = startingCapitalLocal / buyAvg;
-    const finalLocal         = boughtUSDT * sellAvg;
-    const roundTripProfitLocal = finalLocal - startingCapitalLocal;
-    const profit             = roundTripProfitLocal * localToUsd;
-    const pct                = (roundTripProfitLocal / startingCapitalLocal) * 100;
-
-    return {
-      startingCapitalLocal,
-      startingCapitalUSD: startingCapitalLocal * localToUsd,
-      finalLocal, finalUSD: finalLocal * localToUsd,
-      boughtUSDT, profit,
-      spreadRatio: sellAvg / buyAvg,
-      pct,
-    };
-  }, [profitIfSold, sellAvg, buyAvg]);
+    const boughtUSDT = (profitIfSold.costQAR * qarToLocal) / snapshot.buyAvg;
+    const finalLocal = boughtUSDT * snapshot.sellAvg;
+    const profit = (finalLocal - (profitIfSold.costQAR * qarToLocal)) * localToUsd;
+    const pct = ((finalLocal / (profitIfSold.costQAR * qarToLocal)) - 1) * 100;
+    return { profit, pct };
+  }, [profitIfSold, snapshot]);
 
   if (loading && (!snapshot || snapshot.sellAvg === null)) {
     return <div className="p-8 text-center text-muted-foreground">{t('loading')}</div>;
@@ -199,30 +124,22 @@ export default function P2PTrackerPage() {
               ))}
             </TabsList>
           </Tabs>
-
           <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5 h-8 text-[11px] border-border/50">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             {t('p2pRefresh')}
           </Button>
-
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md border border-border/20">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
             {hasNoData ? t('p2pWaitingFirstSync') : t('p2pSync5Min')}
           </span>
         </div>
-
         <Badge variant="outline" className="font-mono text-[11px] bg-background border-border/50">{currentMarket.pair}</Badge>
       </div>
 
       {hasNoData ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-          <div className="h-12 w-12 rounded-2xl bg-muted/50 flex items-center justify-center">
-             <RefreshCw className="h-6 w-6 text-muted-foreground/30 animate-spin" />
-          </div>
+          <RefreshCw className="h-6 w-6 text-muted-foreground/30 animate-spin" />
           <p className="text-sm font-semibold text-muted-foreground">{t('p2pCollectingData').replace('{market}', currentMarket.label)}</p>
-          <p className="text-xs text-muted-foreground/60 max-w-xs leading-relaxed">
-            {t('p2pSyncHint')}
-          </p>
         </div>
       ) : snapshot && (
         <>
@@ -232,13 +149,13 @@ export default function P2PTrackerPage() {
             todaySummary={todaySummary}
             profitIfSold={profitIfSold}
             roundTripSim={roundTripSim}
-            egyptKpis={egyptKpis}
+            egyptAverages={egyptAverages}
+            qatarRates={qatarRates}
             t={t}
           />
 
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
             <div className="xl:col-span-1 space-y-4">
-               {/* Simplified Deep Scan Tool */}
                <Card className="border-primary/20 shadow-lg shadow-primary/5 bg-gradient-to-br from-card to-background">
                  <CardHeader className="pb-3 pt-4 px-4">
                    <CardTitle className="text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -249,75 +166,33 @@ export default function P2PTrackerPage() {
                  <CardContent className="px-4 pb-4 space-y-4">
                    <div className="space-y-2">
                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Required USDT</Label>
-                     <div className="relative">
-                       <Input 
-                         type="number" 
-                         value={scanAmount} 
-                         onChange={e => setScanAmount(e.target.value)}
-                         className={cn("h-9 font-black font-mono bg-muted/20 border-border/50", scanError && "border-destructive focus-visible:ring-destructive")}
-                       />
-                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30">USDT</span>
-                     </div>
-                     {scanError && <p className="text-[10px] text-destructive font-bold flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {scanError}</p>}
-                   </div>
-
-                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/30">
-                     <div className="space-y-0.5">
-                       <Label className="text-[10px] font-black uppercase tracking-widest cursor-pointer" htmlFor="single-merch">Single Merchant</Label>
-                       <p className="text-[9px] text-muted-foreground leading-tight">Must fulfill full amount alone</p>
-                     </div>
-                     <Switch 
-                       id="single-merch"
-                       checked={singleMerchantOnly} 
-                       onCheckedChange={setSingleMerchantOnly} 
+                     <Input 
+                       type="number" 
+                       value={scanAmount} 
+                       onChange={e => setScanAmount(e.target.value)}
+                       className="h-9 font-black font-mono bg-muted/20 border-border/50"
                      />
                    </div>
-
-                   <Button 
-                     onClick={runDeepScan} 
-                     disabled={isScanning} 
-                     className="w-full h-10 font-black uppercase tracking-widest text-[11px] gap-2 shadow-lg shadow-primary/20"
-                   >
+                   <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/30">
+                     <Label className="text-[10px] font-black uppercase tracking-widest cursor-pointer" htmlFor="single-merch">Single Merchant</Label>
+                     <Switch id="single-merch" checked={singleMerchantOnly} onCheckedChange={setSingleMerchantOnly} />
+                   </div>
+                   <Button onClick={runDeepScan} disabled={isScanning} className="w-full h-10 font-black uppercase tracking-widest text-[11px] gap-2 shadow-lg shadow-primary/20">
                      {isScanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                      Run Deep Scan
                    </Button>
                  </CardContent>
                </Card>
-
                <MerchantDepthStats merchantStats={merchantStats} t={t} />
             </div>
 
             <div className="xl:col-span-3 space-y-4">
-              {/* Scan Results Display */}
               {scanResults && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className="flex items-center justify-between px-1">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                      Scan Results for {fmtU(parseFloat(scanAmount))} USDT
-                      <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-                      {scanResults.length} Matches Found
-                    </h3>
-                    <button onClick={() => setScanResults(null)} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Clear Results</button>
-                  </div>
-                  
-                  {scanResults.length === 0 ? (
-                    <div className="p-12 text-center border-2 border-dashed border-border/40 rounded-xl bg-muted/10">
-                      <AlertTriangle className="h-8 w-8 text-muted-foreground/20 mx-auto mb-3" />
-                      <p className="text-sm font-bold text-muted-foreground/50">No Merchants Match Criteria</p>
-                      <p className="text-[10px] text-muted-foreground/40 mt-1 uppercase tracking-widest">Try a lower amount or disable single merchant filter</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
-                      {scanResults.map((m, i) => (
-                        <MerchantIntelligenceCard key={i} merchant={m} />
-                      ))}
-                    </div>
-                  )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+                  {scanResults.map((m, i) => <MerchantIntelligenceCard key={i} merchant={m} />)}
                 </div>
               )}
-
               <PriceHistorySparklines history={history} dataAgeLabel={dataAgeLabel} t={t} />
-              
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <P2POfferTable offers={snapshot.sellOffers} type="sell" t={t} />
                 <P2POfferTable offers={snapshot.buyOffers} type="buy" t={t} />

@@ -16,7 +16,6 @@ export interface P2POffer {
   available: number;
   trades: number;
   completion: number;
-  // Deep Intelligence Fields
   feedback: number | null;
   status: string | null;
   avgPay: number | null;
@@ -32,7 +31,6 @@ export interface P2PSnapshot {
   buyAvg: number | null;
   bestSell: number | null;
   bestBuy: number | null;
-  spread: number | null;
   spreadPct: number | null;
   sellDepth: number;
   buyDepth: number;
@@ -44,7 +42,6 @@ export interface P2PHistoryPoint {
   ts: number;
   sellAvg: number | null;
   buyAvg: number | null;
-  spread: number | null;
   spreadPct: number | null;
 }
 
@@ -82,7 +79,6 @@ export const EMPTY_SNAPSHOT: P2PSnapshot = {
   buyAvg: null,
   bestSell: null,
   bestBuy: null,
-  spread: null,
   spreadPct: null,
   sellDepth: 0,
   buyDepth: 0,

@@ -8,7 +8,6 @@ import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 interface Props {
   offers: P2POffer[];
   type: 'sell' | 'buy';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: any;
 }
 
