@@ -21,7 +21,16 @@ export default function P2PTrackerPage() {
   const t = useT();
   const [market, setMarket] = useState<MarketId>('qatar');
   const { snapshot, history, merchantStats, loading, latestFetchedAt, qatarRates, refresh } = useP2PMarketData(market);
-  const currentMarket = MARKETS.find(m => m.id === market)!;
+  const currentMarket = MARKETS.find(m => m.id === market) ?? MARKETS[0];
+
+  // EGY Average Buy override – persisted in localStorage
+  const [egyBuyOverride, setEgyBuyOverride] = useState<number | null>(() => {
+    try {
+      const stored = localStorage.getItem('p2p_egy_buy_override');
+      if (stored) { const v = Number(stored); return Number.isFinite(v) && v > 0 ? v : null; }
+    } catch { /* ignore */ }
+    return null;
+  });
 
   const todaySummary = useMemo(() => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -167,6 +176,14 @@ export default function P2PTrackerPage() {
             profitIfSold={profitIfSold}
             roundTripSim={roundTripSim}
             qatarRates={qatarRates}
+            egyBuyOverride={egyBuyOverride}
+            onEgyBuyOverrideChange={(v) => {
+              setEgyBuyOverride(v);
+              try {
+                if (v != null) localStorage.setItem('p2p_egy_buy_override', String(v));
+                else localStorage.removeItem('p2p_egy_buy_override');
+              } catch { /* ignore */ }
+            }}
             t={t}
           />
 
