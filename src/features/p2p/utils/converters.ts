@@ -57,7 +57,6 @@ export function toOffer(value: unknown): P2POffer | null {
     allTimeTrades: toFiniteNumber(source.allTimeTrades),
     tradeType: typeof source.tradeType === 'string' ? source.tradeType : null,
     message: typeof source.message === 'string' ? source.message : null,
-    advertiserMessage: typeof source.advertiserMessage === 'string' ? source.advertiserMessage : null,
   };
 }
 

@@ -73,7 +73,7 @@ export function P2POfferTable({ offers, type, t }: Props) {
                   <TableCell className="text-[10px] text-muted-foreground py-2 truncate max-w-[120px]">
                     <div className="truncate">{o.methods.join(', ')}</div>
                     <div className="text-[8px] opacity-40 mt-0.5 truncate italic">
-                      {o.advertiserMessage ?? o.message ?? 'Unavailable'}
+                      {(o as any).advertiserMessage ?? o.message ?? 'Unavailable'}
                     </div>
                   </TableCell>
                 </TableRow>
