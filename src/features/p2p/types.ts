@@ -17,13 +17,13 @@ export interface P2POffer {
   trades: number;
   completion: number;
   // Deep Intelligence Fields
-  feedback?: number;
-  status?: string;
-  avgPay?: number;
-  avgRelease?: number;
-  allTimeTrades?: number;
-  tradeType?: string;
-  message?: string;
+  feedback: number | null;
+  status: string | null;
+  avgPay: number | null;
+  avgRelease: number | null;
+  allTimeTrades: number | null;
+  tradeType: string | null;
+  message: string | null;
 }
 
 export interface P2PSnapshot {
