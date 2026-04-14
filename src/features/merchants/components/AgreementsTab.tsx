@@ -27,12 +27,21 @@ interface Props {
   relationshipId: string;
   counterpartyName?: string;
   counterpartyMerchantId?: string;
+  adminUserId?: string | null;
+  adminMerchantId?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adminTrackerState?: any;
+  isAdminView?: boolean;
 }
 
-export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMerchantId }: Props) {
+export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMerchantId, adminUserId, adminMerchantId, adminTrackerState, isAdminView }: Props) {
   const t = useT();
   const { settings } = useTheme();
-  const { userId, merchantProfile } = useAuth();
+  const { userId: authUserId, merchantProfile: authMerchantProfile } = useAuth();
+  const userId = isAdminView ? adminUserId : authUserId;
+  const merchantProfile = isAdminView
+    ? (adminMerchantId ? { merchant_id: adminMerchantId } : null)
+    : authMerchantProfile;
   const { data: agreements = [], isLoading } = useProfitShareAgreements(relationshipId);
   const createAgreement = useCreateAgreement();
   const updateAgreement = useUpdateAgreement();
@@ -50,7 +59,10 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   const [settlementWay, setSettlementWay] = useState<'reinvest' | 'withdraw'>('reinvest');
 
   // FIFO avg buy price for QAR↔USDT conversion
-  const { derived } = useTrackerState({});
+  const { derived } = useTrackerState({
+    preloadedState: isAdminView ? adminTrackerState : undefined,
+    disableCloudSync: isAdminView,
+  });
   const avgRate = useMemo(() => {
     return getWACOP(derived);
   }, [derived]);
@@ -74,6 +86,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
   // ── Monthly profit handling defaults ──
   const [operatorDefaultHandling, setOperatorDefaultHandling] = useState<'reinvest' | 'withdraw'>('reinvest');
   const [counterpartyDefaultHandling, setCounterpartyDefaultHandling] = useState<'reinvest' | 'withdraw'>('withdraw');
+  const canMutate = !isAdminView;
 
   // Group agreements by status
   const pending = agreements.filter(a => a.status === 'pending');
@@ -502,9 +515,11 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
             {t('standingAgreementsWith')} {counterpartyName || t('partner')} · {approved.length} {t('active')}
           </div>
         </div>
-        <button className="btn" onClick={() => setShowForm(v => !v)}>
-          {showForm ? t('close') : `+ ${t('newAgreement')}`}
-        </button>
+        {canMutate && (
+          <button className="btn" onClick={() => setShowForm(v => !v)}>
+            {showForm ? t('close') : `+ ${t('newAgreement')}`}
+          </button>
+        )}
       </div>
 
       <div style={{
@@ -516,7 +531,7 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
         <strong style={{ color: 'var(--brand)' }}>{t('howItWorksAgreement')}</strong> {t('howItWorksDesc')}
       </div>
 
-      {showForm && (
+      {canMutate && showForm && (
         <div style={{
           padding: 14, borderRadius: 8,
           border: '1px solid var(--brand)',
@@ -943,17 +958,17 @@ export function AgreementsTab({ relationshipId, counterpartyName, counterpartyMe
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button className="rowBtn" onClick={() => setExpandedAgreementId(isExpanded ? null : a.id)}>{t('viewDetailsAction')}</button>
-                          {!isCreator ? (
+                          {canMutate && !isCreator ? (
                             <>
                               <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction')}</button>
                               <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                             </>
-                          ) : (
+                          ) : canMutate ? (
                             <>
                               <button className="rowBtn" onClick={() => handleEditAgreement(a)}>{t('editAction')}</button>
                               <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('cancel')}</button>
                             </>
-                          )}
+                          ) : null}
                         </div>
                       </td>
                     </tr>

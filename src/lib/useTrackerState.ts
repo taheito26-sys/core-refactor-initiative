@@ -12,6 +12,7 @@ interface UseTrackerOptions {
   priceAlertThreshold?: number;
   range?: string;
   currency?: 'QAR' | 'EGP' | 'USDT';
+  disableCloudSync?: boolean;
   /** When provided (admin view), skip cloud sync and use this state directly */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preloadedState?: any;
@@ -19,14 +20,25 @@ interface UseTrackerOptions {
 
 export function useTrackerState(options: UseTrackerOptions = {}) {
   const { isAuthenticated } = useAuth();
-  const [cloudLoaded, setCloudLoaded] = useState(false);
+  const [cloudLoaded, setCloudLoaded] = useState(options.disableCloudSync ? true : false);
+  const adminMode = Boolean(options.disableCloudSync);
 
-  const initial = useMemo(() => createEmptyState({
-    lowStockThreshold: options.lowStockThreshold,
-    priceAlertThreshold: options.priceAlertThreshold,
-    range: options.range,
-    currency: options.currency,
-  }), []);
+  const initial = useMemo(() => {
+    const base = {
+      lowStockThreshold: options.lowStockThreshold,
+      priceAlertThreshold: options.priceAlertThreshold,
+      range: options.range,
+      currency: options.currency,
+    };
+
+    if (adminMode) {
+      return options.preloadedState
+        ? buildStateFrom(options.preloadedState, base)
+        : buildStateFrom(null, base);
+    }
+
+    return createEmptyState(base);
+  }, [adminMode, options.preloadedState, options.lowStockThreshold, options.priceAlertThreshold, options.range, options.currency]);
 
   const [state, setState] = useState<TrackerState>(initial.state);
   const [derived, setDerived] = useState<DerivedState>(initial.derived);
@@ -35,7 +47,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
 
   const applyState = useCallback((next: TrackerState) => {
     // In admin preloaded mode, don't persist
-    if (options.preloadedState) {
+    if (adminMode || options.preloadedState) {
       setState(next);
       stateRef.current = next;
       setDerived(computeFIFO(next.batches, next.trades));
@@ -53,11 +65,11 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
           .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
       }, 500);
     }
-  }, [options.preloadedState]);
+  }, [adminMode, options.preloadedState]);
 
   // Handle preloaded state (admin view)
   useEffect(() => {
-    if (!options.preloadedState) return;
+    if (!adminMode && !options.preloadedState) return;
     const ps = options.preloadedState;
     const rebuilt = buildStateFrom(ps, {
       lowStockThreshold: options.lowStockThreshold,
@@ -69,11 +81,11 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     stateRef.current = rebuilt.state;
     setDerived(rebuilt.derived);
     setCloudLoaded(true);
-  }, [options.preloadedState]);
+  }, [adminMode, options.preloadedState, options.lowStockThreshold, options.priceAlertThreshold, options.range, options.currency]);
 
   // On mount + auth, try loading from cloud and merge with local
   useEffect(() => {
-    if (options.preloadedState) return; // skip cloud sync in admin mode
+    if (adminMode || options.preloadedState) return; // skip cloud sync in admin mode
     if (!isAuthenticated) return;
 
     let cancelled = false;
@@ -133,7 +145,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     });
 
     return () => { cancelled = true; };
-  }, [isAuthenticated, options.preloadedState]);
+  }, [adminMode, isAuthenticated, options.preloadedState]);
 
   return { state, derived, applyState, cloudLoaded };
 }

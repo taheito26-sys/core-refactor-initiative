@@ -12,9 +12,10 @@ interface Props {
   userId: string;
   merchantId?: string | null;
   trackerState: TrackerState | null;
+  workspace?: import('../hooks/useAdminWorkspace').AdminUserWorkspacePayload | null;
 }
 
-export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
+export function AdminOrdersMirror({ userId, merchantId, trackerState, workspace }: Props) {
   const { settings } = useTheme();
   const t = useT();
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing'>('my');
@@ -25,7 +26,7 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
 
   const { data } = useQuery({
     queryKey: ['admin-orders-mirror', userId, merchantId],
-    enabled: !!merchantId,
+    enabled: !workspace && !!merchantId,
     queryFn: async () => {
       const relsRes = await supabase
         .from('merchant_relationships')
@@ -79,8 +80,31 @@ export function AdminOrdersMirror({ userId, merchantId, trackerState }: Props) {
     },
   });
 
-  const relationships = data?.relationships ?? [];
-  const allMerchantDeals = data?.allMerchantDeals ?? [];
+  const relationships = useMemo(() => {
+    const rels = (workspace?.relationships ?? data?.relationships ?? []) as any[];
+    const profileMap = new Map<string, any>((workspace?.merchant_profiles ?? []).map((p: any) => [p.merchant_id, p]));
+    return rels.map((r: any) => {
+      const cpId = r.merchant_a_id === merchantId ? r.merchant_b_id : r.merchant_a_id;
+      const cp = profileMap.get(cpId);
+      const aProfile = profileMap.get(r.merchant_a_id);
+      const bProfile = profileMap.get(r.merchant_b_id);
+      return {
+        ...r,
+        counterparty: { display_name: cp?.display_name || cpId, nickname: cp?.nickname || '' },
+        counterparty_name: cp?.display_name || cpId,
+        merchant_a_user_id: aProfile?.user_id || null,
+        merchant_b_user_id: bProfile?.user_id || null,
+      } as any;
+    });
+  }, [merchantId, workspace?.merchant_profiles, workspace?.relationships, data?.relationships]);
+
+  const allMerchantDeals = useMemo(() => {
+    const deals = (workspace?.deals ?? data?.allMerchantDeals ?? []) as any[];
+    return deals.map((d: any) => {
+      const rel = relationships.find((r: any) => r.id === d.relationship_id);
+      return { ...d, counterparty_name: rel?.counterparty_name || '—' } as any;
+    });
+  }, [data?.allMerchantDeals, relationships, workspace?.deals]);
   const allTrades = useMemo(() => state ? [...state.trades].sort((a, b) => b.ts - a.ts) : [], [state]);
 
   const cancelledDealIds = useMemo(() => new Set(

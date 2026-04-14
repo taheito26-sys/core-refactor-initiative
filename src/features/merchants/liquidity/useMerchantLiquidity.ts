@@ -22,6 +22,12 @@ interface MerchantRelationship {
   status: string;
 }
 
+interface UseMerchantLiquidityOptions {
+  merchantId?: string | null;
+  userId?: string | null;
+  isAdminView?: boolean;
+}
+
 const defaultProfile = (merchantId: string): LiquidityPublishProfile => ({
   merchantId,
   publishCashEnabled: false,
@@ -45,15 +51,18 @@ const defaultProfile = (merchantId: string): LiquidityPublishProfile => ({
   status: 'active',
 });
 
-export function useMerchantLiquidity() {
-  const { merchantProfile, userId } = useAuth();
+export function useMerchantLiquidity(options: UseMerchantLiquidityOptions = {}) {
+  const { merchantId: optionMerchantId, userId: optionUserId, isAdminView } = options;
+  const { merchantProfile, userId: authUserId } = useAuth();
   const qc = useQueryClient();
+  const resolvedMerchantId = isAdminView ? optionMerchantId ?? null : merchantProfile?.merchant_id ?? optionMerchantId ?? null;
+  const resolvedUserId = isAdminView ? optionUserId ?? null : authUserId ?? optionUserId ?? null;
 
   const query = useQuery({
-    queryKey: ['merchant-liquidity', merchantProfile?.merchant_id, userId],
-    enabled: !!merchantProfile?.merchant_id && !!userId,
+    queryKey: ['merchant-liquidity', resolvedMerchantId, resolvedUserId],
+    enabled: !!resolvedMerchantId && !!resolvedUserId,
     queryFn: async () => {
-      const myMerchantId = merchantProfile?.merchant_id as string;
+      const myMerchantId = resolvedMerchantId as string;
 
       const [relationshipsRes, profilesRes, postingsRes, accountsRes, ledgerRes, allocationsRes] = await Promise.all([
         supabase
@@ -69,11 +78,11 @@ export function useMerchantLiquidity() {
         supabase
           .from('cash_accounts')
           .select('id, status')
-          .eq('user_id', userId as string),
+          .eq('user_id', resolvedUserId as string),
         supabase
           .from('cash_ledger')
           .select('account_id, direction, amount')
-          .eq('user_id', userId as string),
+          .eq('user_id', resolvedUserId as string),
         supabase
           .from('order_allocations')
           .select('allocated_usdt, status')
@@ -234,10 +243,10 @@ export function useMerchantLiquidity() {
 
   const saveMutation = useMutation({
     mutationFn: async (input: LiquidityPublishProfile) => {
-      if (!merchantProfile?.merchant_id || !userId) throw new Error('Missing merchant profile');
+      if (!resolvedMerchantId || !resolvedUserId) throw new Error('Missing merchant profile');
       const payload = {
-        merchant_id: merchantProfile.merchant_id,
-        user_id: userId,
+        merchant_id: resolvedMerchantId,
+        user_id: resolvedUserId,
         publish_cash_enabled: input.publishCashEnabled,
         publish_usdt_enabled: input.publishUsdtEnabled,
         published_cash_amount: input.publishedCashAmount,
@@ -266,7 +275,7 @@ export function useMerchantLiquidity() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['merchant-liquidity', merchantProfile?.merchant_id, userId] });
+      qc.invalidateQueries({ queryKey: ['merchant-liquidity', resolvedMerchantId, resolvedUserId] });
     },
   });
 

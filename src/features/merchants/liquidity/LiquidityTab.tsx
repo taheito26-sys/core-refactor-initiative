@@ -10,9 +10,14 @@ interface LiquidityTabProps {
   onOpenRelationship: (relationshipId: string) => void;
   onOpenChat: (relationshipId: string) => void;
   onOpenDeal: (relationshipId: string) => void;
+  adminUserId?: string | null;
+  adminMerchantId?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adminTrackerState?: any;
+  isAdminView?: boolean;
 }
 
-export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: LiquidityTabProps) {
+export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal, adminUserId, adminMerchantId, isAdminView }: LiquidityTabProps) {
   const t = useT();
   const {
     isLoading,
@@ -26,7 +31,11 @@ export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: Liq
     filter,
     rank,
     liquidityTableMissing,
-  } = useMerchantLiquidity();
+  } = useMerchantLiquidity({
+    userId: adminUserId,
+    merchantId: adminMerchantId,
+    isAdminView,
+  });
 
   if (isLoading) {
     return (
@@ -83,13 +92,15 @@ export function LiquidityTab({ onOpenRelationship, onOpenChat, onOpenDeal }: Liq
         </div>
       </div>
 
-      <MyLiquidityEditor
-        myProfile={myProfile}
-        internal={internal}
-        saveProfile={saveProfile}
-        isSaving={isSaving}
-        t={t}
-      />
+      {!isAdminView && (
+        <MyLiquidityEditor
+          myProfile={myProfile}
+          internal={internal}
+          saveProfile={saveProfile}
+          isSaving={isSaving}
+          t={t}
+        />
+      )}
     </div>
   );
 }

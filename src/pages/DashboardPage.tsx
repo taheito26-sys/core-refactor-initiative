@@ -34,12 +34,17 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
+  const isAdminWorkspace = Boolean(isAdminView);
+  const { user, merchantProfile } = useAuth();
+  const resolvedUserId = isAdminWorkspace ? adminUserId : user?.id;
+  const resolvedMerchantId = isAdminWorkspace ? adminMerchantId : merchantProfile?.merchant_id;
   const { state, derived, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
     currency: settings.currency,
-    preloadedState: adminTrackerState || undefined,
+    preloadedState: adminTrackerState,
+    disableCloudSync: isAdminWorkspace,
   });
 
   const dM = kpiFor(state, derived, 'this_month');
@@ -144,9 +149,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const [showCashBox, setShowCashBox] = useState(false);
   const [expandedNewKpi, setExpandedNewKpi] = useState<string | null>(null);
   const [roiPeriod, setRoiPeriod] = useState<'7d' | '30d'>('7d');
-  const { user, merchantProfile } = useAuth();
-  const userId = adminUserId || user?.id;
-  const workspaceMerchantId = adminMerchantId || merchantProfile?.merchant_id;
+  const userId = resolvedUserId;
+  const workspaceMerchantId = resolvedMerchantId;
 
   interface DealDetail {
     id: string;
@@ -402,6 +406,18 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prevMo = t(monthKeys[prevDate.getMonth()] as any);
+
+  if (isAdminWorkspace && (!resolvedUserId || !resolvedMerchantId || adminTrackerState === undefined)) {
+    return (
+      <div className="tracker-root" style={{ padding: 12 }}>
+        <div className="empty">
+          <div className="empty-t">
+            {!resolvedUserId || !resolvedMerchantId ? 'Target workspace is not ready.' : 'No tracker snapshot found for this user.'}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>

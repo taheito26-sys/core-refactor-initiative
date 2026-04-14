@@ -22,13 +22,23 @@ interface Props {
   allAgreements: ProfitShareAgreement[];
   activeAgreementCount: number;
   onOpenRelationship: (id: string) => void;
+  adminUserId?: string | null;
+  adminMerchantId?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adminTrackerState?: any;
+  isAdminView?: boolean;
 }
 
-export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreementCount, onOpenRelationship }: Props) {
+export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreementCount, onOpenRelationship, adminUserId, adminMerchantId, adminTrackerState, isAdminView }: Props) {
   const t = useT();
   const { settings } = useTheme();
-  const { userId, merchantProfile } = useAuth();
+  const { userId: authUserId, merchantProfile: authMerchantProfile } = useAuth();
+  const userId = isAdminView ? adminUserId : authUserId;
+  const merchantProfile = isAdminView
+    ? (adminMerchantId ? { merchant_id: adminMerchantId } : null)
+    : authMerchantProfile;
   const myMerchantId = merchantProfile?.merchant_id;
+  const canMutate = !isAdminView;
   const [createForRelId, setCreateForRelId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [simProfit, setSimProfit] = useState<string>('1000');
@@ -38,7 +48,10 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
   const selectedRel = relationships.find((r: any) => r.id === createForRelId);
 
   // FIFO avg buy price for QAR↔USDT conversion
-  const { derived } = useTrackerState({});
+  const { derived } = useTrackerState({
+    preloadedState: isAdminView ? adminTrackerState : undefined,
+    disableCloudSync: isAdminView,
+  });
   const avgRate = useMemo(() => getWACOP(derived), [derived]);
 
   const agreementDisplayLabel = (a: ProfitShareAgreement) => {
@@ -278,7 +291,7 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
           </div>
         </div>
 
-        {!createForRelId ? (
+        {canMutate && !createForRelId ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <select
               id="rel-picker"
@@ -298,14 +311,14 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
             </select>
             <span style={{ fontSize: 9, color: 'var(--muted)' }}>← {t('pickToCreateAgreement')}</span>
           </div>
-        ) : (
+        ) : canMutate ? (
           <button className="btn secondary" onClick={() => setCreateForRelId(null)} style={{ fontSize: 10 }}>
             ✕ {t('close')}
           </button>
-        )}
+        ) : null}
       </div>
 
-      {createForRelId && selectedRel && (
+      {canMutate && createForRelId && selectedRel && (
         <div style={{
           marginBottom: 12, padding: 12, borderRadius: 8,
           border: '1px solid var(--brand)',
@@ -322,6 +335,10 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
                 ? selectedRel.merchant_b_id
                 : selectedRel.merchant_a_id
             }
+            adminUserId={userId}
+            adminMerchantId={myMerchantId}
+            adminTrackerState={adminTrackerState}
+            isAdminView={isAdminView}
           />
         </div>
       )}
@@ -397,16 +414,16 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
                       <td>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                           <button className="rowBtn" onClick={() => setExpandedId(isExpanded ? null : a.id)}>{t('viewDetailsAction')}</button>
-                          {isPending && !isCreator && (
+                          {canMutate && isPending && !isCreator && (
                             <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700 }} onClick={() => handleApprove(a.id)}>{t('approveAction')}</button>
                           )}
-                          {isPending && isCreator && rel && (
+                          {canMutate && isPending && isCreator && rel && (
                             <button className="rowBtn" onClick={() => onOpenRelationship(rel.id)}>{t('editAction')}</button>
                           )}
-                          {active && (
+                          {canMutate && active && (
                             <button className="rowBtn" style={{ color: 'var(--warn)' }} onClick={() => handleExpire(a.id)}>{t('expireAction')}</button>
                           )}
-                          {(active || isPending) && (
+                          {canMutate && (active || isPending) && (
                             <button className="rowBtn" style={{ color: 'var(--bad)' }} onClick={() => handleReject(a.id)}>{t('rejectAction')}</button>
                           )}
                         </div>

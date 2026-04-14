@@ -39,19 +39,23 @@ interface AgreementRow {
 interface MerchantsPageProps {
   adminUserId?: string;
   adminMerchantId?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adminMerchantProfile?: any | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adminTrackerState?: any;
   isAdminView?: boolean;
 }
 
-export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminView }: MerchantsPageProps = {}) {
+export default function MerchantsPage({ adminUserId, adminMerchantId, adminMerchantProfile, adminTrackerState, isAdminView }: MerchantsPageProps = {}) {
   const { settings } = useTheme();
   const { userId: authUserId, merchantProfile: authMerchantProfile } = useAuth();
-  const effectiveUserId = adminUserId || authUserId;
-  const effectiveMerchantProfile = adminMerchantId
-    ? { ...authMerchantProfile, merchant_id: adminMerchantId } as typeof authMerchantProfile
+  const userId = isAdminView ? adminUserId : authUserId;
+  const merchantProfile = isAdminView
+    ? (adminMerchantProfile ?? (adminUserId && adminMerchantId ? {
+        user_id: adminUserId,
+        merchant_id: adminMerchantId,
+      } : null))
     : authMerchantProfile;
-  // Alias for rest of file
-  const userId = effectiveUserId;
-  const merchantProfile = effectiveMerchantProfile;
   const t = useT();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -81,7 +85,10 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
   const { data: allAgreements = [] } = useProfitShareAgreements(undefined, adminMerchantId);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 
-  useEffect(() => { loadData(); }, [userId, merchantProfile?.merchant_id]);
+  useEffect(() => {
+    if (isAdminView && (!userId || !merchantProfile?.merchant_id)) return;
+    loadData();
+  }, [isAdminView, userId, merchantProfile?.merchant_id]);
 
   useEffect(() => {
     const focusInviteId = searchParams.get('focusInviteId');
@@ -746,26 +753,38 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
           )}
 
           {tab === 'liquidity' && (
-            <LiquidityTab
-              onOpenRelationship={handleOpenRelationship}
-              onOpenChat={handleOpenRelationshipChat}
-              onOpenDeal={handleOpenOrders}
-            />
+          <LiquidityTab
+            onOpenRelationship={handleOpenRelationship}
+            onOpenChat={handleOpenRelationshipChat}
+            onOpenDeal={handleOpenOrders}
+            adminUserId={userId}
+            adminMerchantId={merchantProfile?.merchant_id}
+            adminTrackerState={adminTrackerState}
+            isAdminView={isAdminView}
+          />
           )}
 
           {/* ═══ CUSTOMER ORDERS TAB ═══ */}
           {tab === 'client-orders' && (
-            <MerchantCustomerOrdersTab />
+            <MerchantCustomerOrdersTab
+              merchantId={merchantProfile?.merchant_id}
+              userId={userId}
+              isAdminView={isAdminView}
+            />
           )}
 
           {/* ═══ AGREEMENTS TAB ═══ */}
           {tab === 'agreements' && (
-            <AgreementsGlobalTab
-              relationships={relationships}
-              allAgreements={allAgreements}
-              activeAgreementCount={activeAgreementCount}
-              onOpenRelationship={handleOpenRelationship}
-            />
+          <AgreementsGlobalTab
+            relationships={relationships}
+            allAgreements={allAgreements}
+            activeAgreementCount={activeAgreementCount}
+            onOpenRelationship={handleOpenRelationship}
+            adminUserId={userId}
+            adminMerchantId={merchantProfile?.merchant_id}
+            adminTrackerState={adminTrackerState}
+            isAdminView={isAdminView}
+          />
           )}
 
           {/* ═══ SETTLEMENTS TAB ═══ */}
@@ -913,7 +932,11 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, isAdminVie
 
           {/* ═══ CLIENTS TAB ═══ */}
           {tab === 'clients' && merchantProfile?.merchant_id && (
-            <MerchantClientsTab merchantId={merchantProfile.merchant_id} />
+          <MerchantClientsTab
+            merchantId={merchantProfile.merchant_id}
+            userId={userId}
+            isAdminView={isAdminView}
+          />
           )}
 
           {/* ═══ CHAT TAB ═══ — Unified chat platform */}

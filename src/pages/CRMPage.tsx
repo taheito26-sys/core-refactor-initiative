@@ -140,10 +140,12 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
+  const isAdminWorkspace = Boolean(isAdminView);
   const { state, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     preloadedState: adminTrackerState,
+    disableCloudSync: isAdminWorkspace,
   });
 
   const [tab, setTab] = useState<'pipeline' | 'list' | 'suppliers'>('pipeline');
@@ -362,6 +364,15 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
 
   // ── Tab views (Pipeline = card view, List = table view) ───────────
   const isCustomerTab = tab === 'pipeline' || tab === 'list';
+  if (isAdminWorkspace && adminTrackerState === undefined) {
+    return (
+      <div className="tracker-root" style={{ padding: 12 }}>
+        <div className="empty">
+          <div className="empty-t">No tracker snapshot found for this user.</div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Render ────────────────────────────────────────────────────────
   return (

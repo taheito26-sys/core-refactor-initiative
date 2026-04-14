@@ -9,10 +9,14 @@ import { getOrCreateDirectRoom } from '@/features/chat/api/chat';
 
 interface Props {
   merchantId: string;
+  userId?: string | null;
+  isAdminView?: boolean;
 }
 
-export default function MerchantClientsTab({ merchantId }: Props) {
-  const { userId } = useAuth();
+export default function MerchantClientsTab({ merchantId, userId, isAdminView }: Props) {
+  const { userId: authUserId } = useAuth();
+  const resolvedUserId = isAdminView ? userId ?? null : authUserId;
+  const canMutate = !isAdminView;
   const qc = useQueryClient();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -83,7 +87,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
 
   // Unread counts per connection
   const { data: unreadCounts = {} } = useQuery({
-    queryKey: ['merchant-client-unread', merchantId, userId],
+    queryKey: ['merchant-client-unread', merchantId, resolvedUserId],
     queryFn: async () => {
       const { data } = await supabase
         .from('customer_messages')
@@ -97,7 +101,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
       });
       return counts;
     },
-    enabled: !!userId,
+    enabled: !!resolvedUserId,
   });
 
   const updateStatus = useMutation({
@@ -222,7 +226,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  {conn.status === 'active' && (
+                  {canMutate && conn.status === 'active' && (
                     <button
                       className="btn"
                       style={{
@@ -248,7 +252,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
                       )}
                     </button>
                   )}
-                  {conn.status === 'pending' && (
+                  {canMutate && conn.status === 'pending' && (
                     <>
                       <button
                         className="btn"
@@ -268,7 +272,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
                       </button>
                     </>
                   )}
-                  {conn.status === 'active' && (
+                  {canMutate && conn.status === 'active' && (
                     <button
                       className="btn"
                       style={{ fontSize: 10, minHeight: 34, padding: '4px 12px' }}
@@ -278,7 +282,7 @@ export default function MerchantClientsTab({ merchantId }: Props) {
                       🚫 Block
                     </button>
                   )}
-                  {conn.status === 'blocked' && (
+                  {canMutate && conn.status === 'blocked' && (
                     <button
                       className="btn"
                       style={{ fontSize: 10, minHeight: 34, padding: '4px 12px' }}

@@ -21,11 +21,7 @@ import MerchantsPage from '@/pages/MerchantsPage';
 import CRMPage from '@/pages/CRMPage';
 import { fmtTotal } from '@/lib/tracker-helpers';
 import {
-  useAdminUserDeals,
-  useAdminUserSettlements,
-  useAdminUserProfits,
-  useAdminUserTracker,
-  useAdminUserProfile,
+  useAdminWorkspace,
   useAdminCorrectDeal,
   useAdminVoidDeal,
   useAdminCorrectTracker,
@@ -39,11 +35,7 @@ interface Props {
 
 export function AdminUserWorkspace({ userId, onBack }: Props) {
   const { toast } = useToast();
-  const { data: profile, isLoading: profileLoading } = useAdminUserProfile(userId);
-  const { data: deals, isLoading: dealsLoading } = useAdminUserDeals(userId);
-  const { data: settlements } = useAdminUserSettlements(userId);
-  const { data: profits } = useAdminUserProfits(userId);
-  const { data: tracker } = useAdminUserTracker(userId);
+  const { data: workspace, isLoading: workspaceLoading } = useAdminWorkspace(userId);
   const correctDeal = useAdminCorrectDeal();
   const voidDeal = useAdminVoidDeal();
   const correctTracker = useAdminCorrectTracker();
@@ -69,11 +61,19 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const [voidEntityReason, setVoidEntityReason] = useState('');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const trackerState = tracker?.state as any;
-  const trackerPreferences = tracker?.preferences as any;
+  const profile = workspace?.merchant_profile ?? null;
+  const trackerSnapshot = workspace?.tracker_snapshot ?? null;
+  const trackerState = trackerSnapshot?.state as any;
+  const trackerPreferences = trackerSnapshot?.preferences as any;
   const batches = Array.isArray(trackerState?.batches) ? trackerState.batches : [];
   const trades = Array.isArray(trackerState?.trades) ? trackerState.trades : [];
   const userBaseFiat = trackerState?.settings?.baseFiatCurrency || trackerPreferences?.baseFiatCurrency || 'QAR';
+  const deals = (workspace?.deals ?? []) as any[];
+  const settlements = (workspace?.settlements ?? []) as any[];
+  const profits = (workspace?.profits ?? []) as any[];
+  const profileLoading = workspaceLoading;
+  const dealsLoading = workspaceLoading;
+  const tracker = trackerSnapshot;
 
   const exportCSV = useCallback((filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -127,6 +127,38 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     exportTrades();
     exportBatches();
   };
+
+  if (workspaceLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-24" />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            No merchant profile found for this user.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (trackerSnapshot === null) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            No tracker snapshot found for this user.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const openEdit = (deal: any) => {
@@ -250,12 +282,19 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
           <MerchantsPage
             adminUserId={userId}
             adminMerchantId={profile?.merchant_id ?? undefined}
+            adminMerchantProfile={profile}
+            adminTrackerState={trackerState ?? undefined}
             isAdminView
           />
         </TabsContent>
 
         <TabsContent value="orders" className="mt-3">
-          <AdminOrdersMirror userId={userId} merchantId={profile?.merchant_id ?? null} trackerState={trackerState ?? null} />
+          <AdminOrdersMirror
+            userId={userId}
+            merchantId={profile?.merchant_id ?? null}
+            trackerState={trackerState ?? null}
+            workspace={workspace}
+          />
         </TabsContent>
 
         <TabsContent value="stock" className="mt-3">

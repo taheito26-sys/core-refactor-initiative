@@ -6,33 +6,38 @@ import { toast } from 'sonner';
 
 type StatusFilter = 'all' | 'pending' | 'confirmed' | 'awaiting_payment' | 'payment_sent' | 'completed' | 'cancelled';
 
-export default function MerchantCustomerOrdersTab() {
+interface Props {
+  merchantId?: string | null;
+  isAdminView?: boolean;
+}
+
+export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: Props = {}) {
   const { merchantProfile } = useAuth();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  const merchantId = merchantProfile?.merchant_id;
+  const resolvedMerchantId = isAdminView ? merchantId ?? null : merchantProfile?.merchant_id;
 
   // Fetch customer orders for this merchant
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['merchant-customer-orders', merchantId],
+    queryKey: ['merchant-customer-orders', resolvedMerchantId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customer_orders')
         .select('*')
-        .eq('merchant_id', merchantId!)
+        .eq('merchant_id', resolvedMerchantId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!merchantId,
+    enabled: !!resolvedMerchantId,
   });
 
   // Fetch customer profiles for display names
   const customerIds = useMemo(() => [...new Set(orders.map((o: any) => o.customer_user_id))], [orders]);
   const { data: customerProfiles = [] } = useQuery({
-    queryKey: ['merchant-customer-profiles', customerIds],
+    queryKey: ['merchant-customer-profiles', customerIds, resolvedMerchantId],
     queryFn: async () => {
       if (customerIds.length === 0) return [];
       const { data } = await supabase
@@ -74,7 +79,7 @@ export default function MerchantCustomerOrdersTab() {
     },
     onSuccess: (_, { status }) => {
       toast.success(`Order ${status}`);
-      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       setActioningId(null);
     },
     onError: (err: any) => {
@@ -104,6 +109,7 @@ export default function MerchantCustomerOrdersTab() {
   };
 
   const actionButtons = (order: any) => {
+    if (isAdminView) return null;
     const isActioning = actioningId === order.id;
     const btnStyle = (bg: string, color: string = '#fff') => ({
       fontSize: 10, fontWeight: 700, padding: '5px 12px', borderRadius: 6,

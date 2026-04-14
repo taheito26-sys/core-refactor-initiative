@@ -1,6 +1,42 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+export type AdminUserWorkspacePayload = {
+  user_id: string;
+  merchant_profile: {
+    user_id: string;
+    merchant_id: string | null;
+    display_name: string | null;
+    status?: string | null;
+    region?: string | null;
+    [key: string]: unknown;
+  } | null;
+  tracker_snapshot: {
+    state: unknown | null;
+    preferences: unknown | null;
+    updated_at: string | null;
+  } | null;
+  deals: unknown[];
+  settlements: unknown[];
+  profits: unknown[];
+  relationships: unknown[];
+  merchant_profiles: unknown[];
+};
+
+export function useAdminWorkspace(userId: string | null) {
+  return useQuery({
+    queryKey: ['admin-user-workspace', userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<AdminUserWorkspacePayload | null> => {
+      const { data, error } = await supabase.rpc('admin_get_user_workspace' as any, {
+        _target_user_id: userId!,
+      });
+      if (error) throw error;
+      return (data ?? null) as AdminUserWorkspacePayload | null;
+    },
+  });
+}
+
 export function useAdminUserDeals(userId: string | null) {
   return useQuery({
     queryKey: ['admin-user-deals', userId],
