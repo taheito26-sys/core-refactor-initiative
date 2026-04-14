@@ -1,16 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+export type AdminWorkspaceProfile = {
+  user_id: string;
+  merchant_id: string | null;
+  display_name: string | null;
+  status?: string | null;
+  region?: string | null;
+  nickname?: string | null;
+  merchant_code?: string | null;
+  [key: string]: unknown;
+};
+
 export type AdminUserWorkspacePayload = {
   user_id: string;
-  merchant_profile: {
-    user_id: string;
-    merchant_id: string | null;
-    display_name: string | null;
-    status?: string | null;
-    region?: string | null;
-    [key: string]: unknown;
-  } | null;
+  merchant_profile: AdminWorkspaceProfile | null;
   tracker_snapshot: {
     state: unknown | null;
     preferences: unknown | null;
@@ -20,8 +24,35 @@ export type AdminUserWorkspacePayload = {
   settlements: unknown[];
   profits: unknown[];
   relationships: unknown[];
-  merchant_profiles: unknown[];
+  merchant_profiles: AdminWorkspaceProfile[];
 };
+
+function normalizeAdminWorkspacePayload(raw: any, requestedUserId: string): AdminUserWorkspacePayload | null {
+  if (!raw) return null;
+
+  const candidate = Array.isArray(raw) ? raw[0] : raw;
+  const merchantProfiles = Array.isArray(candidate?.merchant_profiles)
+    ? candidate.merchant_profiles
+    : Array.isArray(candidate?.profiles)
+      ? candidate.profiles
+      : [];
+
+  const resolvedProfile =
+    candidate?.merchant_profile ??
+    merchantProfiles.find((p: any) => p?.user_id === requestedUserId) ??
+    null;
+
+  return {
+    user_id: candidate?.user_id ?? requestedUserId,
+    merchant_profile: resolvedProfile,
+    tracker_snapshot: candidate?.tracker_snapshot ?? candidate?.trackerSnapshot ?? null,
+    deals: Array.isArray(candidate?.deals) ? candidate.deals : [],
+    settlements: Array.isArray(candidate?.settlements) ? candidate.settlements : [],
+    profits: Array.isArray(candidate?.profits) ? candidate.profits : [],
+    relationships: Array.isArray(candidate?.relationships) ? candidate.relationships : [],
+    merchant_profiles: merchantProfiles,
+  };
+}
 
 export function useAdminWorkspace(userId: string | null) {
   return useQuery({
@@ -32,7 +63,7 @@ export function useAdminWorkspace(userId: string | null) {
         _target_user_id: userId!,
       });
       if (error) throw error;
-      return (data ?? null) as AdminUserWorkspacePayload | null;
+      return normalizeAdminWorkspacePayload(data, userId!);
     },
   });
 }

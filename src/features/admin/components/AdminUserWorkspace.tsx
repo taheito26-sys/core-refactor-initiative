@@ -60,8 +60,13 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const [voidEntity, setVoidEntity] = useState<{ type: 'batch' | 'trade'; data: any } | null>(null);
   const [voidEntityReason, setVoidEntityReason] = useState('');
 
+  const workspaceProfiles = Array.isArray(workspace?.merchant_profiles) ? workspace.merchant_profiles : [];
+  const profileFallback =
+    workspaceProfiles.find((p: any) => p?.user_id === userId) ??
+    null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const profile = workspace?.merchant_profile ?? null;
+  const profile = (workspace?.merchant_profile ?? profileFallback) as any;
   const trackerSnapshot = workspace?.tracker_snapshot ?? null;
   const trackerState = trackerSnapshot?.state as any;
   const trackerPreferences = trackerSnapshot?.preferences as any;
@@ -74,6 +79,19 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
   const profileLoading = workspaceLoading;
   const dealsLoading = workspaceLoading;
   const tracker = trackerSnapshot;
+
+  const resolvedMerchantId =
+    profile?.merchant_id ??
+    workspaceProfiles.find((p: any) => p?.user_id === userId)?.merchant_id ??
+    null;
+
+  const hasAnyWorkspaceData =
+    !!profile ||
+    !!trackerSnapshot ||
+    deals.length > 0 ||
+    settlements.length > 0 ||
+    profits.length > 0 ||
+    workspaceProfiles.length > 0;
 
   const exportCSV = useCallback((filename: string, headers: string[], rows: string[][]) => {
     const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -136,24 +154,12 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     );
   }
 
-  if (!profile) {
+  if (!hasAnyWorkspaceData) {
     return (
       <div className="space-y-4">
         <Card>
           <CardContent className="p-4 text-sm text-muted-foreground">
-            No merchant profile found for this user.
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (trackerSnapshot === null) {
-    return (
-      <div className="space-y-4">
-        <Card>
-          <CardContent className="p-4 text-sm text-muted-foreground">
-            No tracker snapshot found for this user.
+            No admin-readable workspace data found for this user.
           </CardContent>
         </Card>
       </div>
@@ -243,17 +249,31 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
       </div>
 
       {/* Profile card */}
-      {profileLoading ? <Skeleton className="h-24" /> : profile ? (
+      {profileLoading ? <Skeleton className="h-24" /> : (
         <Card>
           <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 text-xs">
-            <div><span className="text-muted-foreground">Display Name</span><p className="font-medium">{profile.display_name}</p></div>
-            <div><span className="text-muted-foreground">Merchant ID</span><p className="font-mono">{profile.merchant_id}</p></div>
-            <div><span className="text-muted-foreground">Region</span><p>{profile.region ?? 'â€”'}</p></div>
-            <div><span className="text-muted-foreground">Status</span><p><Badge variant="outline" className="text-[10px]">{profile.status}</Badge></p></div>
+            <div><span className="text-muted-foreground">Display Name</span><p className="font-medium">{profile?.display_name ?? '—'}</p></div>
+            <div><span className="text-muted-foreground">Merchant ID</span><p className="font-mono">{resolvedMerchantId ?? '—'}</p></div>
+            <div><span className="text-muted-foreground">Region</span><p>{profile?.region ?? '—'}</p></div>
+            <div><span className="text-muted-foreground">Status</span><p>{profile?.status ? <Badge variant="outline" className="text-[10px]">{profile.status}</Badge> : '—'}</p></div>
           </CardContent>
         </Card>
-      ) : (
-        <p className="text-sm text-muted-foreground">No merchant profile found.</p>
+      )}
+
+      {!profile && (
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            No merchant profile was returned for this user. Rendering the workspace from the remaining target data only.
+          </CardContent>
+        </Card>
+      )}
+
+      {!trackerSnapshot && (
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            No tracker snapshot was returned for this user. Tracker-based tabs may be empty.
+          </CardContent>
+        </Card>
       )}
 
       <Tabs defaultValue="dashboard" className="w-full">
@@ -272,7 +292,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         <TabsContent value="dashboard" className="mt-3">
           <DashboardPage
             adminUserId={userId}
-            adminMerchantId={profile?.merchant_id ?? undefined}
+            adminMerchantId={resolvedMerchantId ?? undefined}
             adminTrackerState={trackerState ?? undefined}
             isAdminView
           />
@@ -281,7 +301,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         <TabsContent value="merchants" className="mt-3">
           <MerchantsPage
             adminUserId={userId}
-            adminMerchantId={profile?.merchant_id ?? undefined}
+            adminMerchantId={resolvedMerchantId ?? undefined}
             adminMerchantProfile={profile}
             adminTrackerState={trackerState ?? undefined}
             isAdminView
@@ -291,7 +311,7 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
         <TabsContent value="orders" className="mt-3">
           <AdminOrdersMirror
             userId={userId}
-            merchantId={profile?.merchant_id ?? null}
+            merchantId={resolvedMerchantId}
             trackerState={trackerState ?? null}
             workspace={workspace}
           />
@@ -655,3 +675,4 @@ export function AdminUserWorkspace({ userId, onBack }: Props) {
     </div>
   );
 }
+
