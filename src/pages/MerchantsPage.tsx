@@ -768,7 +768,6 @@ export default function MerchantsPage({ adminUserId, adminMerchantId, adminMerch
           {tab === 'client-orders' && (
             <MerchantCustomerOrdersTab
               merchantId={merchantProfile?.merchant_id}
-              userId={userId}
               isAdminView={isAdminView}
             />
           )}
