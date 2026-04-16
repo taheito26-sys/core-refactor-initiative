@@ -1,3 +1,8 @@
+-- Fix: admin_get_user_workspace declared target_merchant_id and merchant_ids as uuid/uuid[]
+-- but merchant_profiles.merchant_id is TEXT (e.g. 'taheito', 'zakaria').
+-- The ::uuid cast was throwing "invalid input syntax for type uuid" for every call,
+-- causing the admin workspace to show "No admin-readable workspace data found."
+
 CREATE OR REPLACE FUNCTION public.admin_get_user_workspace(_target_user_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
