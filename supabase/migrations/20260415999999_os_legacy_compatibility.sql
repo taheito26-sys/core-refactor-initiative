@@ -1,0 +1,7 @@
+-- Legacy OS compatibility fields required by the export bundle.
+
+ALTER TABLE public.os_channel_identities
+  ADD COLUMN IF NOT EXISTS confidence_level text;
+
+ALTER TABLE public.os_messages
+  ADD COLUMN IF NOT EXISTS thread_id uuid;

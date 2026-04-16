@@ -18,6 +18,9 @@ export function AuthDiagnostics() {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
 
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'unknown';
+    const authTokenKey = `sb-${projectId}-auth-token`;
+
     const update = () => {
       setInfo({
         supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '—',
@@ -27,7 +30,7 @@ export function AuthDiagnostics() {
           : '—',
         returnPath: sessionStorage.getItem('oauth:return-path') || '—',
         currentPath: window.location.pathname + window.location.search,
-        hasSession: localStorage.getItem('sb-dozmqtzlinfqjrropipb-auth-token') ? 'Yes' : 'No',
+        hasSession: localStorage.getItem(authTokenKey) ? 'Yes' : 'No',
       });
     };
 
