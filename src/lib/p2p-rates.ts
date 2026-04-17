@@ -31,37 +31,55 @@ export const useP2PRatesStore = create<P2PRatesStore>((set, get) => ({
   },
 }));
 
+function snapshotMidRate(row: { data: unknown } | null): number | null {
+  if (!row?.data) return null;
+  const snap = row.data as Record<string, unknown>;
+  const buyAvg = typeof snap.buyAvg === 'number' ? snap.buyAvg : null;
+  const sellAvg = typeof snap.sellAvg === 'number' ? snap.sellAvg : null;
+  if (buyAvg && sellAvg) return (buyAvg + sellAvg) / 2;
+  return buyAvg ?? sellAvg ?? null;
+}
+
 /**
  * Fetch latest P2P EGP/QAR rates from market data.
- * Calculates egpToQar (1 EGP = X QAR) and qarToEgp (1 QAR = X EGP) inverse.
+ * Calculates egpToQar (1 EGP = X QAR) by combining Qatar (QAR/USDT) and
+ * Egypt (EGP/USDT) snapshots: 1 EGP = QAR_rate / EGP_rate.
  * Falls back to last known rate on error.
  */
 export async function fetchP2PPrices(): Promise<P2PPrices> {
   const store = useP2PRatesStore.getState();
 
   try {
-    // Fetch from Supabase P2P snapshots table
-    const { data, error } = await supabase
-      .from('p2p_snapshots')
-      .select('data, fetched_at')
-      .eq('market', 'qatar')
-      .order('fetched_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [qatarResult, egyptResult] = await Promise.all([
+      supabase
+        .from('p2p_snapshots')
+        .select('data, fetched_at')
+        .eq('market', 'qatar')
+        .order('fetched_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('p2p_snapshots')
+        .select('data, fetched_at')
+        .eq('market', 'egypt')
+        .order('fetched_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-    if (error) throw error;
-    if (!data) throw new Error('No P2P market data available');
+    if (qatarResult.error) throw qatarResult.error;
+    if (egyptResult.error) throw egyptResult.error;
 
-    const snapshot = data.data as Record<string, unknown>;
-    const buyAvg = typeof snapshot.buyAvg === 'number' ? snapshot.buyAvg : null;
-    const sellAvg = typeof snapshot.sellAvg === 'number' ? snapshot.sellAvg : null;
+    const qarPerUsdt = snapshotMidRate(qatarResult.data);
+    const egpPerUsdt = snapshotMidRate(egyptResult.data);
 
-    if (!buyAvg || !sellAvg) {
-      throw new Error('Invalid P2P market data: missing buyAvg or sellAvg');
+    if (!qarPerUsdt || !egpPerUsdt || qarPerUsdt <= 0 || egpPerUsdt <= 0) {
+      throw new Error('Invalid or missing P2P market rates');
     }
 
-    // Calculate EGP to QAR rate as average of buy and sell
-    const egpToQar = (buyAvg + sellAvg) / 2;
+    // 1 USDT = qarPerUsdt QAR = egpPerUsdt EGP
+    // So: 1 EGP = qarPerUsdt / egpPerUsdt QAR
+    const egpToQar = qarPerUsdt / egpPerUsdt;
 
     if (!Number.isFinite(egpToQar) || egpToQar <= 0) {
       throw new Error('Invalid EGP/QAR rate');
@@ -78,15 +96,14 @@ export async function fetchP2PPrices(): Promise<P2PPrices> {
   } catch (error) {
     console.warn('[p2p-rates] Failed to fetch rates, using fallback', error);
 
-    // Fall back to last known rate
     if (store.lastValidRates) {
       return store.lastValidRates;
     }
 
-    // Ultimate fallback: 1 EGP ≈ 0.06 QAR (approximate historical rate)
+    // Ultimate fallback: 1 EGP ≈ 0.076 QAR (approximate historical rate)
     return {
-      egpToQar: 0.06,
-      qarToEgp: 16.67,
+      egpToQar: 0.076,
+      qarToEgp: 13.16,
       timestamp: Date.now(),
     };
   }
