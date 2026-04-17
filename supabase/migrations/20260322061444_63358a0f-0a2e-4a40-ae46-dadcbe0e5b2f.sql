@@ -407,9 +407,9 @@ CREATE TABLE public.p2p_snapshots (
 );
 ALTER TABLE public.p2p_snapshots ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Anyone authenticated can read P2P snapshots"
+CREATE POLICY "Anyone can read P2P snapshots"
   ON public.p2p_snapshots FOR SELECT
-  TO authenticated USING (true);
+  USING (true);
 
 -- Index for fast latest-snapshot lookups
 CREATE INDEX idx_p2p_snapshots_market_time ON public.p2p_snapshots (market, fetched_at DESC);

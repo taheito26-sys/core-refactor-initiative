@@ -228,7 +228,7 @@ CREATE POLICY "otc_trades_delete" ON public.otc_trades AS PERMISSIVE FOR DELETE 
 CREATE POLICY "otc_trades_insert" ON public.otc_trades AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((initiator_user_id = auth.uid()));
 CREATE POLICY "otc_trades_select" ON public.otc_trades AS PERMISSIVE FOR SELECT TO authenticated USING (((initiator_user_id = auth.uid()) OR (responder_user_id = auth.uid())));
 CREATE POLICY "otc_trades_update" ON public.otc_trades AS PERMISSIVE FOR UPDATE TO authenticated USING (((initiator_user_id = auth.uid()) OR (responder_user_id = auth.uid())));
-CREATE POLICY "Anyone authenticated can read P2P snapshots" ON public.p2p_snapshots AS PERMISSIVE FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Anyone can read P2P snapshots" ON public.p2p_snapshots AS PERMISSIVE FOR SELECT USING (true);
 CREATE POLICY "Admins can update all profiles" ON public.profiles AS PERMISSIVE FOR UPDATE USING (has_role(auth.uid(), 'admin'::app_role));
 CREATE POLICY "Admins can view all profiles" ON public.profiles AS PERMISSIVE FOR SELECT USING (has_role(auth.uid(), 'admin'::app_role));
 CREATE POLICY "Users can insert own profile" ON public.profiles AS PERMISSIVE FOR INSERT WITH CHECK ((auth.uid() = user_id));
