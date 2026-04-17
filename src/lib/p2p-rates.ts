@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { supabase } from '@/integrations/supabase/client';
 import type { FiatCurrency } from './currency';
 
 export interface P2PPrices {
@@ -39,19 +40,29 @@ export async function fetchP2PPrices(): Promise<P2PPrices> {
   const store = useP2PRatesStore.getState();
 
   try {
-    // Fetch from Supabase P2P market data
-    // The market data comes from the P2P scraper
-    const response = await fetch('/api/p2p/rates', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    // Fetch from Supabase P2P snapshots table
+    const { data, error } = await supabase
+      .from('p2p_snapshots')
+      .select('data, fetched_at')
+      .eq('market', 'qatar')
+      .order('fetched_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (error) throw error;
+    if (!data) throw new Error('No P2P market data available');
 
-    const data = await response.json();
+    const snapshot = data.data as Record<string, unknown>;
+    const buyAvg = typeof snapshot.buyAvg === 'number' ? snapshot.buyAvg : null;
+    const sellAvg = typeof snapshot.sellAvg === 'number' ? snapshot.sellAvg : null;
 
-    // data should contain: { egpToQar: number, timestamp: number }
-    const egpToQar = parseFloat(data.egpToQar);
+    if (!buyAvg || !sellAvg) {
+      throw new Error('Invalid P2P market data: missing buyAvg or sellAvg');
+    }
+
+    // Calculate EGP to QAR rate as average of buy and sell
+    const egpToQar = (buyAvg + sellAvg) / 2;
+
     if (!Number.isFinite(egpToQar) || egpToQar <= 0) {
       throw new Error('Invalid EGP/QAR rate');
     }
