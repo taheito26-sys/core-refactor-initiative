@@ -1,8 +1,8 @@
 -- Schedule P2P scraper to run every 5 minutes to keep market data fresh.
 -- Requires: pg_cron + pg_net extensions (already enabled in prior migration),
--- and a database-level setting `app.settings.service_role_key` holding the
--- Supabase service-role JWT. Set once per environment with:
---   ALTER DATABASE postgres SET app.settings.service_role_key = '<SERVICE_ROLE_KEY>';
+-- and a Supabase Vault secret named 'service_role_key' containing the
+-- project's service-role JWT. Create it once with:
+--   SELECT vault.create_secret('<SERVICE_ROLE_JWT>', 'service_role_key');
 
 -- Remove any existing p2p-scraper cron job to avoid duplicates
 DO $$
@@ -12,7 +12,8 @@ BEGIN
   END IF;
 END $$;
 
--- Schedule p2p-cron edge function every 5 minutes
+-- Schedule p2p-cron edge function every 5 minutes, pulling the service-role
+-- key from Vault at call time so the secret never lives in plaintext SQL.
 SELECT cron.schedule(
   'p2p-scraper-every-5min',
   '*/5 * * * *',
@@ -21,7 +22,12 @@ SELECT cron.schedule(
     url := 'https://uqinpckirpatvkxyizqf.supabase.co/functions/v1/p2p-cron',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      'Authorization', 'Bearer ' || (
+        SELECT decrypted_secret
+        FROM vault.decrypted_secrets
+        WHERE name = 'service_role_key'
+        LIMIT 1
+      )
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 30000
