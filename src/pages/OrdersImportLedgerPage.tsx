@@ -265,7 +265,7 @@ export default function OrdersImportLedgerPage() {
         .filter((row) => !existingHashes.has(row.normalizedHash))
         .map((row) => ({
           relationship_id: selectedMerchant.relationshipId,
-          deal_type: 'arbitrage',
+          deal_type: 'investment',
           title: `Ledger Import · USDT ${row.usdtAmount} @ ${row.rate}`,
           amount: row.computedQarAmount || 0,
           currency: 'USDT',

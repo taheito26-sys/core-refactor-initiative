@@ -1138,9 +1138,11 @@ export default function OrdersPage() {
               : `counterparty_share: ${alloc.partnerSharePct}%, merchant_share: ${alloc.merchantSharePct}%`,
           ].join(' | ');
 
+          const dbDealType = alloc.family === 'profit_share' ? 'profit_share' : 'investment';
+
           const { data: dealData, error: dealError } = await supabase.from('merchant_deals').insert({
             relationship_id: alloc.relationshipId,
-            deal_type: alloc.family === 'profit_share' ? 'partnership' : 'arbitrage',
+            deal_type: dbDealType,
             title,
             amount: usdt * sell,
             currency: 'USDT',
@@ -1312,9 +1314,11 @@ export default function OrdersPage() {
             : `counterparty_share: ${tmpl.defaults.counterparty_share_pct}%, merchant_share: ${tmpl.defaults.merchant_share_pct}%`,
         ].join(' | ');
 
+        const dbDealType = tmpl.dealType === 'partnership' ? 'profit_share' : 'investment';
+
         const { data, error } = await supabase.from('merchant_deals').insert({
           relationship_id: linkedRelId,
-          deal_type: tmpl.dealType as string,
+          deal_type: dbDealType,
           title,
           amount: baseTrade.amountUSDT * sell,
           currency,
@@ -1511,7 +1515,7 @@ export default function OrdersPage() {
       const merchantPct = isEditProfitShare
         ? (editAgreement?.merchant_ratio ?? 0)
         : 50;
-      const dealType = isEditProfitShare ? 'partnership' : 'arbitrage';
+      const dealType = isEditProfitShare ? 'profit_share' : 'investment';
       const familyLabel = isEditProfitShare ? t('profitShareLabel') : t('salesDealLabel');
       const cadence = isEditProfitShare
         ? (editAgreement?.settlement_cadence || 'monthly')

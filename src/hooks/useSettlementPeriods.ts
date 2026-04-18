@@ -157,7 +157,9 @@ export function useSyncSettlementPeriods(relationshipId: string) {
           }
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const allocationBase = (dealMeta as any)?.deal_type === 'partnership' ? netProfit : grossVolume;
+          const allocationBase = ((dealMeta as any)?.deal_type === 'partnership' || (dealMeta as any)?.deal_type === 'profit_share')
+            ? netProfit
+            : grossVolume;
           let partnerAmount = allocationBase * (partnerPct / 100);
           let merchantAmount = allocationBase - partnerAmount;
 

@@ -125,7 +125,7 @@ export function buildDealRowModel({
     return { left, right };
   };
   let partnerPct: number | null = null;
-  if (deal.deal_type === 'partnership') {
+  if (deal.deal_type === 'partnership' || deal.deal_type === 'profit_share') {
     partnerPct = firstPct('partner_ratio', 'counterparty_share_pct', 'counterparty_share');
   } else {
     partnerPct = firstPct('counterparty_share_pct', 'counterparty_share', 'partner_ratio');

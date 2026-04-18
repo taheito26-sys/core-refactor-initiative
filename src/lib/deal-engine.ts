@@ -225,7 +225,7 @@ export function calculateAllocation(
   if (sharePct <= 0 || sharePct > 100) return null;
 
   // Profit Share: allocate from NET PROFIT
-  if (deal.deal_type === 'partnership') {
+  if (deal.deal_type === 'partnership' || deal.deal_type === 'profit_share') {
     const base = netProfit ?? 0;
     const counterpartyAmount = (base * sharePct) / 100;
     const merchantAmount = base - counterpartyAmount;

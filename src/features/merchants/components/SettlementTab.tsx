@@ -94,7 +94,7 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType, w
   const renderActions = () => {
     if (!showActions) return null;
 
-    if (dealType === 'arbitrage') {
+    if (dealType === 'arbitrage' || dealType === 'investment') {
       if (!isPartner) {
         return (
           <button className="btn" onClick={handlePayout} disabled={payout.isPending} style={{ fontSize: 10 }}>
@@ -109,7 +109,7 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType, w
       );
     }
 
-    if (dealType === 'partnership') {
+    if (dealType === 'partnership' || dealType === 'profit_share') {
       if (isPartner) {
         return (
           <div style={{ display: 'flex', gap: 6 }}>
@@ -189,7 +189,7 @@ function PeriodCard({ period, dealAmount, relationshipId, isPartner, dealType, w
         <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 4 }}>⚠️ {t('graceExpired')}</div>
       )}
 
-      {dealType === 'partnership' && (period.status === 'due' || period.status === 'overdue' || period.status === 'settled') && (
+      {(dealType === 'partnership' || dealType === 'profit_share') && (period.status === 'due' || period.status === 'overdue' || period.status === 'settled') && (
         <DecisionCard periodId={period.id} periodKey={period.period_key} />
       )}
     </div>

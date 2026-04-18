@@ -163,10 +163,10 @@ export function buildTemplateMetadata(template: AgreementTemplate): Record<strin
   const meta: Record<string, unknown> = {};
   const d = template.defaults;
 
-  if (template.dealType === 'arbitrage') {
+  if (template.dealType === 'arbitrage' || template.dealType === 'investment') {
     if (d.counterparty_share_pct != null) meta.counterparty_share_pct = d.counterparty_share_pct;
     if (d.merchant_share_pct != null) meta.merchant_share_pct = d.merchant_share_pct;
-  } else if (template.dealType === 'partnership') {
+  } else if (template.dealType === 'partnership' || template.dealType === 'profit_share') {
     if (d.partner_ratio != null) meta.partner_ratio = d.partner_ratio;
     if (d.merchant_ratio != null) meta.merchant_ratio = d.merchant_ratio;
   }
@@ -187,10 +187,10 @@ export function generateTemplateTitle(template: AgreementTemplate, customerName:
 
 /** Get agreement family label */
 export function getAgreementFamilyLabel(dealType: string, lang: 'en' | 'ar'): { label: string; icon: string } {
-  if (dealType === 'partnership') {
+  if (dealType === 'partnership' || dealType === 'profit_share') {
     return { label: lang === 'ar' ? 'مشاركة أرباح' : 'Profit Share', icon: '🤝' };
   }
-  if (dealType === 'arbitrage') {
+  if (dealType === 'arbitrage' || dealType === 'investment') {
     return { label: lang === 'ar' ? 'صفقة بيع' : 'Sales Deal', icon: '📊' };
   }
   // Legacy fallback
@@ -221,12 +221,12 @@ export function getDealShares(deal: { deal_type: string; metadata?: Record<strin
 
   let partnerPct: number | null = null;
 
-  if (deal.deal_type === 'partnership') {
+  if (deal.deal_type === 'partnership' || deal.deal_type === 'profit_share') {
     // Notes may store as: partner_ratio, counterparty_share_pct, or counterparty_share (legacy)
     partnerPct = pickNum('partner_ratio', 'counterparty_share_pct', 'counterparty_share');
     return { partnerPct, merchantPct: partnerPct != null ? 100 - partnerPct : null, allocationBase: 'net_profit' };
   }
-  if (deal.deal_type === 'arbitrage') {
+  if (deal.deal_type === 'arbitrage' || deal.deal_type === 'investment') {
     // Notes may store as: counterparty_share_pct (new), counterparty_share (legacy, % stripped by parser),
     // or partner_ratio (profit-share path). Also derive from merchant side if partner missing.
     partnerPct = pickNum('counterparty_share_pct', 'counterparty_share', 'partner_ratio');
