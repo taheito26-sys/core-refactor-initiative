@@ -95,6 +95,8 @@ export function AdminDashboard() {
     { label: 'Completed',       value: stats.deals_completed,                                              Icon: CheckCircle, tint: 'color-mix(in srgb, var(--tracker-good) 12%, transparent)'  },
     { label: 'Settled',         value: Number(stats.total_settlement_amount).toLocaleString(),             Icon: DollarSign,  tint: 'color-mix(in srgb, var(--tracker-brand2) 14%, transparent)' },
     { label: 'Total Profit',    value: Number(stats.total_profit_amount).toLocaleString(),                 Icon: TrendingUp,  tint: 'color-mix(in srgb, var(--tracker-good) 14%, transparent)'  },
+    { label: 'App Sessions',    value: stats.total_app_sessions,                                           Icon: Clock,       tint: 'color-mix(in srgb, var(--tracker-brand) 12%, transparent)'  },
+    { label: 'Active 30d',      value: stats.active_app_users_30d,                                         Icon: Users,       tint: 'color-mix(in srgb, var(--tracker-brand2) 12%, transparent)' },
   ];
 
   return (

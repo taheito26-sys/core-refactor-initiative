@@ -6,6 +6,7 @@ import {
   isNativeRuntime,
 } from '@/features/auth/auth-redirects';
 import { getNativePlugin } from '@/platform/runtime';
+import { startAppActivityTracking } from '@/lib/app-activity';
 
 export interface Profile {
   id: string;
@@ -75,6 +76,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const profilesLoadedRef = useRef(false);
+  const appActivityStopRef = useRef<(() => void) | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -240,6 +242,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [loadUserProfiles]);
 
+  useEffect(() => {
+    appActivityStopRef.current?.();
+    appActivityStopRef.current = null;
+
+    if (!user?.id) return;
+
+    const isDevUser = user.id === '00000000-0000-0000-0000-000000000000';
+    if (isDevUser) return;
+
+    appActivityStopRef.current = startAppActivityTracking(user.id);
+
+    return () => {
+      appActivityStopRef.current?.();
+      appActivityStopRef.current = null;
+    };
+  }, [user?.id]);
+
   const login = useCallback(async (email: string, password: string) => {
     console.info('[Auth] Starting password login', { email: email.trim().toLowerCase() });
 
@@ -328,6 +347,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    appActivityStopRef.current?.();
+    appActivityStopRef.current = null;
     setProfile(null);
     setMerchantProfile(null);
     setCustomerProfile(null);

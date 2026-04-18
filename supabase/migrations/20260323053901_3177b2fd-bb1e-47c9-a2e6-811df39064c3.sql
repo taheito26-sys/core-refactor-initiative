@@ -79,7 +79,13 @@ BEGIN
     'total_settlement_amount', (SELECT coalesce(sum(amount), 0) FROM merchant_settlements),
     'total_profit_amount', (SELECT coalesce(sum(amount), 0) FROM merchant_profits),
     'total_merchant_profiles', (SELECT count(*) FROM merchant_profiles),
-    'total_relationships', (SELECT count(*) FROM merchant_relationships WHERE status = 'active')
+    'total_relationships', (SELECT count(*) FROM merchant_relationships WHERE status = 'active'),
+    'total_app_sessions', (SELECT count(*) FROM app_usage_sessions),
+    'active_app_users_30d', (
+      SELECT count(DISTINCT user_id)
+      FROM app_usage_sessions
+      WHERE last_seen_at >= now() - interval '30 days'
+    )
   ) INTO result;
 
   RETURN result;

@@ -861,6 +861,39 @@ export type Database = {
         }
         Relationships: []
       }
+      app_usage_sessions: {
+        Row: {
+          app_version: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          platform: string
+          session_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          platform?: string
+          session_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          platform?: string
+          session_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_privacy_settings: {
         Row: {
           anonymous_mode: boolean

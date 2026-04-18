@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { Search, ArrowUpRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAdminUsers } from '../hooks/useAdminUsers';
@@ -62,7 +62,7 @@ export function AdminUserDirectory({ onOpenWorkspace }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--tracker-line)' }}>
-                {['Email','Name','Merchant ID','Status','Registered','Deals','Profit',''].map((h, i) => (
+                {['Email','Name','Merchant ID','Status','Registered','Last Active','App Uses','Deals','Profit',''].map((h, i) => (
                   <th key={i} style={{
                     padding: '8px 12px', textAlign: i >= 5 ? 'right' : 'left',
                     fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
@@ -94,6 +94,19 @@ export function AdminUserDirectory({ onOpenWorkspace }: Props) {
                   </td>
                   <td style={{ padding: '10px 12px', color: 'var(--tracker-muted)', whiteSpace: 'nowrap' }}>
                     {format(new Date(u.created_at), 'MMM d, yyyy')}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--tracker-muted)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    {u.last_active_at ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <span>{format(new Date(u.last_active_at), 'MMM d, yyyy HH:mm')}</span>
+                        <span style={{ fontSize: 10, color: 'var(--tracker-muted)' }}>
+                          {formatDistanceToNow(new Date(u.last_active_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                    ) : '—'}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--lt-font-mono, monospace)' }}>
+                    {u.app_session_count}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--lt-font-mono, monospace)' }}>{u.deal_count}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--lt-font-mono, monospace)' }}>

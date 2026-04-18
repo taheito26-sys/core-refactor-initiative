@@ -15,6 +15,8 @@ export interface SystemStats {
   total_profit_amount: number;
   total_merchant_profiles: number;
   total_relationships: number;
+  total_app_sessions: number;
+  active_app_users_30d: number;
 }
 
 export function useAdminStats() {
