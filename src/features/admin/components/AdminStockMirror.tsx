@@ -92,10 +92,11 @@ export function AdminStockMirror({ trackerState }: Props) {
           <div className="empty"><div className="empty-t">{t('noBatchesShort')}</div><div className="empty-s">{t('addFirstPurchase')}</div></div>
         ) : (
           <div className="tableWrap"><table><thead><tr>
-            <th>{t('date')}</th><th>{t('source')}</th><th className="r">{t('total')}</th><th className="r">{t('buy')}</th><th className="r">{t('rem')}</th><th>{t('usage')}</th><th className="r">{t('profit')}</th><th>{t('statusEdit')}</th>
+            <th>{t('date')}</th><th>{t('source')}</th><th className="r">{t('total')}</th><th className="r">{t('buy')}</th><th className="r">{t('rem')}</th><th className="r">{t('batchConsumedQty')}</th><th>{t('usage')}</th><th className="r">{t('profit')}</th><th>{t('statusEdit')}</th>
           </tr></thead><tbody>
             {perf.map((b) => {
               const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
+              const consumed = Math.max(0, b.initialUSDT - rem);
               const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
               const prog = Math.max(0, Math.min(100, pct * 100));
               const ct = batchCycleTime(state, derived, b.id);
@@ -108,6 +109,7 @@ export function AdminStockMirror({ trackerState }: Props) {
                   <td className="mono r">{fmtU(b.initialUSDT)}</td>
                   <td className="mono r">{fmtP(b.buyPriceQAR)}</td>
                   <td className="mono r">{fmtU(rem)}</td>
+                  <td className="mono r">{new Intl.NumberFormat(t.lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 0 }).format(consumed)} USDT</td>
                   <td><div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div><div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div></td>
                   <td className="mono r" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtQ(b.profit || 0)}</td>
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}><span className={`pill ${stCls}`}>{st}</span>{ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}</div></td>

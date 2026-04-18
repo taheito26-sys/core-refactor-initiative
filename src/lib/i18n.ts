@@ -978,6 +978,7 @@ const translations = {
   batchDate: { en: 'Date', ar: 'التاريخ' },
   batchSource: { en: 'Source / Supplier', ar: 'المصدر / المورد' },
   batchQty: { en: 'Quantity', ar: 'الكمية' },
+  batchConsumedQty: { en: 'Consumed Quantity', ar: 'الكمية المستهلكة' },
   batchBuyPrice: { en: 'Buy Price', ar: 'سعر الشراء' },
   batchRemaining: { en: 'Remaining', ar: 'المتبقي' },
   batchUtilization: { en: 'Utilization', ar: 'الاستخدام' },

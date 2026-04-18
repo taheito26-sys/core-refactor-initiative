@@ -590,6 +590,7 @@ export default function StockPage() {
             <div className="orders-cards-list">
               {perf.map((b) => {
                 const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
+                const consumed = Math.max(0, b.initialUSDT - rem);
                 const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
                 const prog = Math.max(0, Math.min(100, pct * 100));
                 const ct = batchCycleTime(state, derived, b.id);
@@ -631,6 +632,7 @@ export default function StockPage() {
                           <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
                           <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
                           <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
+                          <div><span className="muted">{t('batchConsumedQty')}:</span> <strong className="mono">{new Intl.NumberFormat(t.lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 0 }).format(consumed)}</strong></div>
                           <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
                         </div>
                         <div style={{ marginBottom: 8 }}>
@@ -670,6 +672,7 @@ export default function StockPage() {
                 <tbody>
                   {perf.map((b) => {
                     const rem = Number.isFinite(b.remaining) ? b.remaining : b.initialUSDT;
+                    const consumed = Math.max(0, b.initialUSDT - rem);
                     const pct = b.initialUSDT > 0 ? rem / b.initialUSDT : 0;
                     const prog = Math.max(0, Math.min(100, pct * 100));
                     const ct = batchCycleTime(state, derived, b.id);
@@ -707,6 +710,7 @@ export default function StockPage() {
                               <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
                               <div><span className="muted">{t('batchSource')}:</span> <strong>{b.source || '—'}</strong></div>
                               <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
+                              <div><span className="muted">{t('batchConsumedQty')}:</span> <strong>{new Intl.NumberFormat(t.lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 0 }).format(consumed)} USDT</strong></div>
                               <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
                               <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
                               <div><span className="muted">{t('batchUtilization')}:</span> <strong>{(100 - prog).toFixed(0)}% {t('usage')}</strong></div>
