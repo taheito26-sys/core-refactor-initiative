@@ -10,6 +10,20 @@ export function toFiniteNumber(value: unknown): number | null {
   return null;
 }
 
+function pickSnapshotValue(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (key in source && source[key] !== undefined && source[key] !== null) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function toOfferList(source: Record<string, unknown>, keys: string[]) {
+  const value = pickSnapshotValue(source, keys);
+  return Array.isArray(value) ? value : [];
+}
+
 export function normalizeSnapshotTimestamp(rawTs: unknown, fetchedAt?: string): number {
   const fetchedAtMs = fetchedAt ? new Date(fetchedAt).getTime() : null;
   const hasValidFetchedAt = fetchedAtMs != null && Number.isFinite(fetchedAtMs);
@@ -126,26 +140,26 @@ export function toOffer(value: unknown): P2POffer | null {
 
 export function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const ts = normalizeSnapshotTimestamp(source.ts, fetchedAt);
+  const ts = normalizeSnapshotTimestamp(pickSnapshotValue(source, ['ts', 'timestamp']), fetchedAt);
 
-  const rawSellAvg = toFiniteNumber(source.sellAvg);
-  const rawBuyAvg = toFiniteNumber(source.buyAvg);
+  const rawSellAvg = toFiniteNumber(pickSnapshotValue(source, ['sellAvg', 'sell_avg']));
+  const rawBuyAvg = toFiniteNumber(pickSnapshotValue(source, ['buyAvg', 'buy_avg']));
   const isSwapped = rawSellAvg != null && rawBuyAvg != null && rawSellAvg < rawBuyAvg;
 
-  const sellOffersRaw = Array.isArray(source.sellOffers) ? source.sellOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [];
-  const buyOffersRaw = Array.isArray(source.buyOffers) ? source.buyOffers.map(toOffer).filter((o): o is P2POffer => o !== null) : [];
+  const sellOffersRaw = toOfferList(source, ['sellOffers', 'sell_offers']).map(toOffer).filter((o): o is P2POffer => o !== null);
+  const buyOffersRaw = toOfferList(source, ['buyOffers', 'buy_offers']).map(toOffer).filter((o): o is P2POffer => o !== null);
 
   if (isSwapped) {
     return {
       ts,
       sellAvg: rawBuyAvg,
       buyAvg: rawSellAvg,
-      bestSell: toFiniteNumber(source.bestBuy),
-      bestBuy: toFiniteNumber(source.bestSell),
+      bestSell: toFiniteNumber(pickSnapshotValue(source, ['bestBuy', 'best_buy'])),
+      bestBuy: toFiniteNumber(pickSnapshotValue(source, ['bestSell', 'best_sell'])),
       spread: rawBuyAvg != null && rawSellAvg != null ? rawBuyAvg - rawSellAvg : null,
       spreadPct: rawBuyAvg != null && rawSellAvg != null && rawSellAvg > 0 ? ((rawBuyAvg - rawSellAvg) / rawSellAvg) * 100 : null,
-      sellDepth: toFiniteNumber(source.buyDepth) ?? 0,
-      buyDepth: toFiniteNumber(source.sellDepth) ?? 0,
+      sellDepth: toFiniteNumber(pickSnapshotValue(source, ['buyDepth', 'buy_depth'])) ?? 0,
+      buyDepth: toFiniteNumber(pickSnapshotValue(source, ['sellDepth', 'sell_depth'])) ?? 0,
       sellOffers: buyOffersRaw.sort((a, b) => b.price - a.price),
       buyOffers: sellOffersRaw.sort((a, b) => a.price - b.price),
     };
@@ -155,15 +169,70 @@ export function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
     ts,
     sellAvg: rawSellAvg,
     buyAvg: rawBuyAvg,
-    bestSell: toFiniteNumber(source.bestSell),
-    bestBuy: toFiniteNumber(source.bestBuy),
-    spread: toFiniteNumber(source.spread),
-    spreadPct: toFiniteNumber(source.spreadPct),
-    sellDepth: toFiniteNumber(source.sellDepth) ?? 0,
-    buyDepth: toFiniteNumber(source.buyDepth) ?? 0,
+    bestSell: toFiniteNumber(pickSnapshotValue(source, ['bestSell', 'best_sell'])),
+    bestBuy: toFiniteNumber(pickSnapshotValue(source, ['bestBuy', 'best_buy'])),
+    spread: toFiniteNumber(pickSnapshotValue(source, ['spread', 'spread_val'])),
+    spreadPct: toFiniteNumber(pickSnapshotValue(source, ['spreadPct', 'spread_pct', 'spread_pct_val'])),
+    sellDepth: toFiniteNumber(pickSnapshotValue(source, ['sellDepth', 'sell_depth'])) ?? 0,
+    buyDepth: toFiniteNumber(pickSnapshotValue(source, ['buyDepth', 'buy_depth'])) ?? 0,
     sellOffers: sellOffersRaw,
     buyOffers: buyOffersRaw,
   };
+}
+
+export function buildP2PHistoryPoints(
+  rows: Array<{ data: unknown; fetched_at: string }>,
+): P2PHistoryPoint[] {
+  return rows.map((row) => {
+    const snapshot = toSnapshot(row.data, row.fetched_at);
+    return {
+      ts: snapshot.ts,
+      sellAvg: snapshot.sellAvg,
+      buyAvg: snapshot.buyAvg,
+      bestSell: snapshot.bestSell,
+      bestBuy: snapshot.bestBuy,
+      spread: snapshot.spread,
+      spreadPct: snapshot.spreadPct,
+    };
+  });
+}
+
+export function buildMerchantStats(
+  rows: Array<{ data: unknown; fetched_at: string }>,
+): { nick: string; appearances: number; availabilityRatio: number; avgAvailable: number; maxAvailable: number }[] {
+  const merchantMap = new Map<string, { appearances: number; totalAvailable: number; sampleCount: number; maxAvailable: number }>();
+  const marketPolls = Math.max(rows.length, 1);
+
+  for (const row of rows) {
+    const snapshot = toSnapshot(row.data, row.fetched_at);
+    const seenInSnapshot = new Set<string>();
+    const offers = [...snapshot.sellOffers, ...snapshot.buyOffers];
+
+    for (const offer of offers) {
+      const nick = offer.nick.trim();
+      if (!nick) continue;
+      let stat = merchantMap.get(nick);
+      if (!stat) {
+        stat = { appearances: 0, totalAvailable: 0, sampleCount: 0, maxAvailable: 0 };
+        merchantMap.set(nick, stat);
+      }
+      if (!seenInSnapshot.has(nick)) {
+        stat.appearances += 1;
+        seenInSnapshot.add(nick);
+      }
+      stat.totalAvailable += offer.available;
+      stat.sampleCount += 1;
+      stat.maxAvailable = Math.max(stat.maxAvailable, offer.available);
+    }
+  }
+
+  return Array.from(merchantMap.entries()).map(([nick, stat]) => ({
+    nick,
+    appearances: stat.appearances,
+    availabilityRatio: stat.appearances / marketPolls,
+    avgAvailable: stat.sampleCount > 0 ? stat.totalAvailable / stat.sampleCount : 0,
+    maxAvailable: stat.maxAvailable,
+  }));
 }
 
 export function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] {
