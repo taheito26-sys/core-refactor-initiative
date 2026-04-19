@@ -7,8 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RefreshCw, Search, Loader2, Zap, AlertTriangle, SlidersHorizontal, X } from 'lucide-react';
-import { format } from 'date-fns';
-
 import { MarketId, MARKETS, P2POffer } from '@/features/p2p/types';
 import { useP2PMarketData } from '@/features/p2p/hooks/useP2PMarketData';
 import { computeFIFO, totalStock, getWACOP, stockCostQAR, fmtU } from '@/lib/tracker-helpers';
@@ -21,6 +19,7 @@ import { P2POfferTable } from '@/features/p2p/components/P2POfferTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { DeepScanResults } from '@/features/p2p/components/DeepScanResults';
+import { computeDailySummaries } from '@/features/p2p/utils/converters';
 
 export default function P2PTrackerPage() {
   const t = useT();
@@ -44,17 +43,11 @@ export default function P2PTrackerPage() {
   const [scanError, setScanError] = useState<string | null>(null);
 
   const todaySummary = useMemo(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const todayPts = history.filter(h => format(new Date(h.ts), 'yyyy-MM-dd') === todayStr);
-    if (!todayPts.length) return null;
-    const sellPresent = todayPts.filter(p => p.sellAvg != null);
-    const buyPresent = todayPts.filter(p => p.buyAvg != null);
-    return {
-      highSell: sellPresent.length ? Math.max(...sellPresent.map(p => p.sellAvg!)) : null,
-      lowSell: sellPresent.length ? Math.min(...sellPresent.map(p => p.sellAvg!)) : null,
-      highBuy: buyPresent.length ? Math.max(...buyPresent.map(p => p.buyAvg!)) : null,
-      lowBuy: buyPresent.length ? Math.min(...buyPresent.map(p => p.buyAvg!)) : null,
-    };
+    const summaries = computeDailySummaries(history);
+    if (!summaries.length) return null;
+
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    return summaries.find(day => day.date === todayUtc) ?? summaries[summaries.length - 1] ?? null;
   }, [history]);
 
   // ── Egypt Cross-Rate KPIs ──

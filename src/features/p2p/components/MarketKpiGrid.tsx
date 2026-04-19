@@ -30,6 +30,10 @@ interface Props {
 
 export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, egyptKpis, t }: Props) {
   const isEgypt = market === 'egypt';
+  const highSell = todaySummary?.highSell ?? null;
+  const lowSell = todaySummary?.lowSell ?? null;
+  const highBuy = todaySummary?.highBuy ?? null;
+  const lowBuy = todaySummary?.lowBuy ?? null;
 
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
@@ -56,16 +60,16 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
 
         <div className="kpi-card">
           <div className="kpi-lbl">{t('p2pTodayHighSell')}</div>
-          <div className="kpi-val" style={{ color: 'var(--good)' }}>{todaySummary?.highSell ? fmtPrice(todaySummary.highSell) : '—'}</div>
-          <div className="kpi-sub">{t('p2pLow')} {todaySummary?.lowSell ? fmtPrice(todaySummary.lowSell) : '—'}</div>
+          <div className="kpi-val" style={{ color: 'var(--good)' }}>{highSell != null ? fmtPrice(highSell) : '—'}</div>
+          <div className="kpi-sub">{t('p2pLow')} {lowSell != null ? fmtPrice(lowSell) : '—'}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-lbl">{t('p2pTodayLowBuy')}</div>
-          <div className="kpi-val" style={{ color: 'var(--bad)' }}>{todaySummary?.lowBuy ? fmtPrice(todaySummary.lowBuy) : '—'}</div>
-          <div className="kpi-sub">{t('p2pHigh')} {todaySummary?.highBuy ? fmtPrice(todaySummary.highBuy) : '—'}</div>
+          <div className="kpi-val" style={{ color: 'var(--bad)' }}>{lowBuy != null ? fmtPrice(lowBuy) : '—'}</div>
+          <div className="kpi-sub">{t('p2pHigh')} {highBuy != null ? fmtPrice(highBuy) : '—'}</div>
         </div>
 
-        {/* Egypt KPI cards – displayed in EGP → QAR direction (~14.xxx EGP per QAR) */}
+        {/* Egypt KPI cards - displayed in EGP → QAR direction (~14.xxx EGP per QAR) */}
         {isEgypt && egyptKpis && (
           <>
             {/* VCash V1: EG VCash Buy avg ÷ QA Sell (or override) */}
