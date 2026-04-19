@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, Loader2, Plus, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, Loader2, Plus, ShoppingCart, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
