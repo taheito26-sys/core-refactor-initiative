@@ -181,9 +181,9 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
       if (!merchantProfile?.merchant_id) return [];
       const { data: connections, error } = await supabase
         .from('customer_merchant_connections')
-        .select('customer_user_id, created_at')
+        .select('customer_user_id, created_at, status, nickname')
         .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('status', 'active')
+        .in('status', ['pending', 'active'])
         .order('created_at', { ascending: false });
       if (error || !connections || connections.length === 0) return [];
 
@@ -196,7 +196,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
 
       return connections.map((row: any) => {
         const profile = profileMap.get(row.customer_user_id);
-        const displayName = (profile?.display_name ?? '').trim();
+        const displayName = (profile?.display_name ?? row.nickname ?? '').trim();
         if (!displayName) return null;
         return {
           id: row.customer_user_id,
