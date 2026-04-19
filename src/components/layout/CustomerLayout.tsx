@@ -18,6 +18,14 @@ const navItems = [
   { path: '/c/settings', icon: Settings, labelKey: 'settings' },
 ] as const;
 
+const mobilePrimaryNavPaths = new Set([
+  '/c/home',
+  '/c/orders',
+  '/c/merchants',
+  '/c/wallet',
+  '/c/chat',
+]);
+
 function NavButton({
   path,
   label,
@@ -63,7 +71,7 @@ function CustomerMobileBottomNav({
   onMoreClick: () => void;
   t: ReturnType<typeof useT>;
 }) {
-  const primaryItems = [items[0], items[1], items[2], items[3], items[5]].filter(Boolean);
+  const primaryItems = items.filter((item) => mobilePrimaryNavPaths.has(item.path));
 
   return (
     <nav className="flex h-16 items-stretch justify-around border-t border-border/60 bg-background/95 px-2 py-1 backdrop-blur">
@@ -78,6 +86,7 @@ function CustomerMobileBottomNav({
               'flex flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition-colors',
               active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
             )}
+            aria-current={active ? 'page' : undefined}
           >
             <item.icon className="h-4 w-4" />
             <span className="truncate">{t(item.labelKey as never)}</span>
@@ -89,6 +98,7 @@ function CustomerMobileBottomNav({
         type="button"
         onClick={onMoreClick}
         className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+        aria-haspopup="menu"
       >
         <Menu className="h-4 w-4" />
         <span className="truncate">{t('menu')}</span>
