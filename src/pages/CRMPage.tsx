@@ -196,9 +196,10 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
 
       return connections.map((row: any) => {
         const profile = profileMap.get(row.customer_user_id);
+        const displayName = (profile?.display_name ?? '').trim() || (profile?.phone ?? '').trim() || 'Connected customer';
         return {
           id: row.customer_user_id,
-          name: profile?.display_name || row.customer_user_id,
+          name: displayName,
           phone: profile?.phone || 'Connected',
           region: profile?.region || profile?.country || 'Connected',
           created_at: row.created_at,

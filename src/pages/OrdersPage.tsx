@@ -201,9 +201,10 @@ export default function OrdersPage() {
 
       return connections.map((row: any) => {
         const profile = profileMap.get(row.customer_user_id);
+        const displayName = (profile?.display_name ?? '').trim() || (profile?.phone ?? '').trim() || 'Connected customer';
         return {
           id: `connected:${row.customer_user_id}`,
-          name: profile?.display_name || row.customer_user_id,
+          name: displayName,
           phone: profile?.phone || '',
           tier: 'C',
           dailyLimitUSDT: 0,
