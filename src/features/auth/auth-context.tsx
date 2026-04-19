@@ -27,6 +27,7 @@ export interface CustomerProfile {
   display_name: string;
   phone: string | null;
   region: string | null;
+  country: string | null;
   preferred_currency: string;
   status: string;
   created_at: string;

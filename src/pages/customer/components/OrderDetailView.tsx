@@ -1,31 +1,46 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme-context';
 import {
-  ArrowLeft, Clock, Upload, CheckCircle2, XCircle,
-  AlertTriangle, FileImage, Loader2, Timer, CircleDot,
-  Circle, Ban
+  ArrowLeft,
+  ArrowRight,
+  Ban,
+  CheckCircle2,
+  Circle,
+  Clock,
+  FileImage,
+  Loader2,
+  Timer,
+  Upload,
+  type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import {
+  deriveCustomerOrderMeta,
+  formatCustomerDate,
+  formatCustomerNumber,
+  getCustomerOrderReceivedAmount,
+  getCustomerOrderSentAmount,
+  getCustomerOrder,
+  getCurrencyForCountry,
+  type CustomerOrderRow,
+} from '@/features/customer/customer-portal';
 
-/* ── status pipeline ─── */
-const STEPS = [
-  { key: 'pending', label: 'Created', icon: CircleDot },
-  { key: 'awaiting_payment', label: 'Awaiting Payment', icon: Clock },
-  { key: 'payment_sent', label: 'Payment Sent', icon: Upload },
-  { key: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
-  { key: 'completed', label: 'Completed', icon: CheckCircle2 },
-] as const;
-
-const stepIndex = (status: string) => {
-  const idx = STEPS.findIndex((s) => s.key === status);
-  return idx === -1 ? 0 : idx;
-};
+const STEPS: { key: string; labelKey: string; icon: LucideIcon }[] = [
+  { key: 'pending', labelKey: 'orderCreated', icon: Circle },
+  { key: 'awaiting_payment', labelKey: 'awaitingPayment', icon: Clock },
+  { key: 'payment_sent', labelKey: 'paymentSent', icon: Upload },
+  { key: 'confirmed', labelKey: 'confirmed', icon: CheckCircle2 },
+  { key: 'completed', labelKey: 'completed', icon: CheckCircle2 },
+];
 
 interface Props {
   orderId: string;
@@ -33,96 +48,107 @@ interface Props {
   onBack: () => void;
 }
 
+function Row({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-semibold text-right text-foreground">{value}</span>
+    </div>
+  );
+}
+
 export default function OrderDetailView({ orderId, merchantName, onBack }: Props) {
   const { userId } = useAuth();
-  const qc = useQueryClient();
+  const { settings } = useTheme();
+  const t = useT();
+  const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const language = settings.language === 'ar' ? 'ar' : 'en';
   const [uploading, setUploading] = useState(false);
 
-  /* ── order data ─── */
   const { data: order, isLoading } = useQuery({
-    queryKey: ['customer-order-detail', orderId],
+    queryKey: ['customer-order-detail', orderId, userId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('customer_orders')
-        .select('*')
-        .eq('id', orderId)
-        .single();
+      const { data, error } = await getCustomerOrder(orderId);
       if (error) throw error;
-      return data;
+      if (data?.customer_user_id !== userId) {
+        throw new Error(t('accessDenied'));
+      }
+      return data as CustomerOrderRow;
     },
+    enabled: !!orderId && !!userId,
   });
 
-  /* ── events timeline ─── */
   const { data: events = [] } = useQuery({
-    queryKey: ['customer-order-events', orderId],
+    queryKey: ['customer-order-events', orderId, userId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('customer_order_events')
         .select('*')
         .eq('order_id', orderId)
         .order('created_at', { ascending: true });
+      if (error) throw error;
       return data ?? [];
     },
+    enabled: !!order && !!userId,
   });
 
-  /* ── countdown timer ─── */
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  useEffect(() => {
-    if (!order?.expires_at) return;
-    const calc = () => {
-      const diff = new Date(order.expires_at!).getTime() - Date.now();
-      setTimeLeft(diff > 0 ? diff : 0);
-    };
-    calc();
-    const iv = setInterval(calc, 1000);
-    return () => clearInterval(iv);
+  const meta = useMemo(() => {
+    if (!order) return null;
+    return deriveCustomerOrderMeta(order, settings.language === 'ar' ? 'Qatar' : undefined);
+  }, [order, settings.language]);
+
+  const sendAmount = order ? getCustomerOrderSentAmount(order) : 0;
+  const receiveAmount = order ? getCustomerOrderReceivedAmount(order) : 0;
+  const sendCurrency = order?.send_currency ?? getCurrencyForCountry(meta?.sendCountry);
+  const receiveCurrency = order?.receive_currency ?? getCurrencyForCountry(meta?.receiveCountry);
+  const isQatarToEgypt =
+    meta?.sendCountry === 'Qatar' &&
+    meta?.receiveCountry === 'Egypt' &&
+    receiveCurrency === 'EGP';
+  const currentStep = order ? Math.max(0, STEPS.findIndex((item) => item.key === order.status)) : 0;
+
+  const timeLeft = useMemo(() => {
+    if (!order?.expires_at) return null;
+    const diff = new Date(order.expires_at).getTime() - Date.now();
+    return diff > 0 ? diff : 0;
   }, [order?.expires_at]);
 
-  const fmtTimer = (ms: number) => {
-    const m = Math.floor(ms / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  /* ── payment proof upload ─── */
-  const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleProofUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file || !userId) return;
+
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (!allowed.includes(file.type)) {
-      toast.error('Only images and PDF files are allowed');
+      toast.error(t('uploadImagesOrPdf'));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File must be under 5 MB');
+      toast.error(t('fileTooLarge'));
       return;
     }
+
     setUploading(true);
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
       const path = `${userId}/${orderId}.${ext}`;
-      const { error: upErr } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('payment-proofs')
         .upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
+      if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(path);
-
-      // Update order
-      const { error: updErr } = await supabase
+      const { data: urlData } = supabase.storage.from('payment-proofs').getPublicUrl(path);
+      const { error: updateError } = await supabase
         .from('customer_orders')
         .update({
           payment_proof_url: urlData.publicUrl,
           payment_proof_uploaded_at: new Date().toISOString(),
-          status: 'payment_sent' as any,
+          status: 'payment_sent',
         })
-        .eq('id', orderId);
-      if (updErr) throw updErr;
+        .eq('id', orderId)
+        .eq('customer_user_id', userId);
+      if (updateError) throw updateError;
 
-      // Log event
       await supabase.from('customer_order_events').insert({
         order_id: orderId,
         event_type: 'payment_uploaded',
@@ -130,25 +156,25 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
         metadata: { file_name: file.name, file_type: file.type },
       });
 
-      toast.success('Payment proof uploaded');
-      qc.invalidateQueries({ queryKey: ['customer-order-detail', orderId] });
-      qc.invalidateQueries({ queryKey: ['customer-order-events', orderId] });
-      qc.invalidateQueries({ queryKey: ['customer-orders'] });
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Upload failed');
+      toast.success(t('proofUploaded'));
+      queryClient.invalidateQueries({ queryKey: ['customer-order-detail', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-order-events', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+    } catch (error: any) {
+      toast.error(error?.message ?? t('uploadFailed'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
   };
 
-  /* ── cancel order ─── */
   const cancelOrder = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
         .from('customer_orders')
-        .update({ status: 'cancelled' as any })
-        .eq('id', orderId);
+        .update({ status: 'cancelled' })
+        .eq('id', orderId)
+        .eq('customer_user_id', userId!);
       if (error) throw error;
       await supabase.from('customer_order_events').insert({
         order_id: orderId,
@@ -157,18 +183,13 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
       });
     },
     onSuccess: () => {
-      toast.success('Order cancelled');
-      qc.invalidateQueries({ queryKey: ['customer-order-detail', orderId] });
-      qc.invalidateQueries({ queryKey: ['customer-order-events', orderId] });
-      qc.invalidateQueries({ queryKey: ['customer-orders'] });
+      toast.success(t('orderCancelled'));
+      queryClient.invalidateQueries({ queryKey: ['customer-order-detail', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-order-events', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
     },
-    onError: (err: any) => toast.error(err?.message ?? 'Cancel failed'),
+    onError: (error: any) => toast.error(error?.message ?? t('cancelFailed')),
   });
-
-  const canCancel = order && ['pending', 'awaiting_payment'].includes(order.status);
-  const canUploadProof = order && ['pending', 'awaiting_payment'].includes(order.status);
-  const isCancelled = order?.status === 'cancelled';
-  const currentStep = order ? stepIndex(order.status) : 0;
 
   if (isLoading) {
     return (
@@ -178,137 +199,139 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
     );
   }
 
-  if (!order) {
+  if (!order || !meta) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Order not found</p>
-        <Button variant="ghost" className="mt-4" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back
+      <div className="space-y-4 py-10 text-center">
+        <p className="text-muted-foreground">{t('orderNotFound')}</p>
+        <Button variant="ghost" onClick={onBack} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          {t('back')}
         </Button>
       </div>
     );
   }
 
+  const canCancel = ['pending', 'awaiting_payment'].includes(order.status);
+  const canUploadProof = ['pending', 'awaiting_payment'].includes(order.status);
+  const showCorridorCard = isQatarToEgypt || meta.sendCountry === 'Qatar' || meta.receiveCountry === 'Egypt';
+
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={onBack}>
+        <Button variant="ghost" size="icon" onClick={onBack} aria-label={t('back')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold capitalize truncate">
-            {order.order_type} · {order.amount} {order.currency}
-          </h2>
-          <p className="text-sm text-muted-foreground">{merchantName}</p>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-black text-foreground">
+            {meta.corridorLabel} · {formatCustomerNumber(sendAmount, language, 2)} {sendCurrency}
+          </div>
+          <div className="truncate text-sm text-muted-foreground">{merchantName}</div>
         </div>
-        {isCancelled ? (
-          <Badge variant="destructive">Cancelled</Badge>
-        ) : (
-          <Badge variant="secondary" className="capitalize">{order.status.replace('_', ' ')}</Badge>
-        )}
+        <Badge variant={order.status === 'completed' ? 'default' : order.status === 'cancelled' ? 'destructive' : 'secondary'} className="capitalize">
+          {order.status.replace(/_/g, ' ')}
+        </Badge>
       </div>
 
-      {/* Countdown timer */}
-      {order.expires_at && timeLeft !== null && !isCancelled && order.status !== 'completed' && (
-        <Card className={cn(
-          'border',
-          timeLeft === 0 ? 'border-destructive bg-destructive/5' : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10'
-        )}>
-          <CardContent className="flex items-center gap-3 p-3">
-            <Timer className={cn('h-5 w-5', timeLeft === 0 ? 'text-destructive' : 'text-amber-600')} />
-            {timeLeft === 0 ? (
-              <span className="text-sm font-medium text-destructive">
-                Merchant confirmation expired
-              </span>
-            ) : (
-              <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                Merchant must confirm in <span className="font-mono font-bold">{fmtTimer(timeLeft)}</span>
-              </span>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Status stepper */}
-      {!isCancelled && (
-        <Card>
+      {showCorridorCard && (
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Order Progress</CardTitle>
+            <CardTitle className="text-sm">{t('corridorCard')}</CardTitle>
           </CardHeader>
-          <CardContent className="pb-4">
-            <div className="space-y-0">
-              {STEPS.map((step, idx) => {
-                const done = idx <= currentStep;
-                const active = idx === currentStep;
-                const Icon = step.icon;
-                return (
-                  <div key={step.key} className="flex items-start gap-3">
-                    <div className="flex flex-col items-center">
-                      <div className={cn(
-                        'flex h-7 w-7 items-center justify-center rounded-full border-2 transition-colors',
-                        done
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-muted-foreground/30 text-muted-foreground/40'
-                      )}>
-                        <Icon className="h-3.5 w-3.5" />
-                      </div>
-                      {idx < STEPS.length - 1 && (
-                        <div className={cn(
-                          'w-0.5 h-6',
-                          idx < currentStep ? 'bg-primary' : 'bg-muted-foreground/20'
-                        )} />
-                      )}
-                    </div>
-                    <div className={cn('pt-0.5', active ? 'font-semibold' : '')}>
-                      <p className={cn('text-sm', done ? 'text-foreground' : 'text-muted-foreground')}>
-                        {step.label}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+          <CardContent className="space-y-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">
+              {meta.corridorLabel}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{meta.sendCountry}</div>
+                <div className="mt-1 text-lg font-black text-foreground">
+                  {formatCustomerNumber(sendAmount, language, 2)} {sendCurrency}
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              <div className="text-right">
+                <div className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{meta.receiveCountry}</div>
+                <div className="mt-1 text-lg font-black text-foreground">
+                  {formatCustomerNumber(receiveAmount, language, 2)} {receiveCurrency}
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-2 rounded-xl border border-border/60 bg-card/80 p-3 text-xs sm:grid-cols-2">
+              <Row label={t('payoutRail')} value={order.payout_rail ?? t('nA')} />
+              <Row label={t('receiveCurrency')} value={receiveCurrency} />
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Order details */}
+      {order.expires_at && timeLeft !== null && order.status !== 'completed' && order.status !== 'cancelled' && (
+        <Card className={cn('border', timeLeft === 0 ? 'border-destructive bg-destructive/5' : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10')}>
+          <CardContent className="flex items-center gap-3 p-3">
+            <Timer className={cn('h-5 w-5', timeLeft === 0 ? 'text-destructive' : 'text-amber-600')} />
+            <span className="text-sm font-medium">
+              {timeLeft === 0 ? t('confirmationExpired') : `${t('merchantConfirmIn')} ${Math.floor(timeLeft / 60000)}:${String(Math.floor((timeLeft % 60000) / 1000)).padStart(2, '0')}`}
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Details</CardTitle>
+          <CardTitle className="text-sm">{t('orderProgress')}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <Row label="Type" value={order.order_type.toUpperCase()} />
-          <Row label="Amount" value={`${order.amount} ${order.currency}`} />
-          {order.rate && <Row label="Rate" value={order.rate} />}
-          {order.total && <Row label="Total" value={Number(order.total).toLocaleString()} />}
-          <Row label="Created" value={new Date(order.created_at).toLocaleString()} />
-          {order.confirmed_at && <Row label="Confirmed" value={new Date(order.confirmed_at).toLocaleString()} />}
-          {order.note && <Row label="Note" value={order.note} />}
+        <CardContent className="space-y-2">
+          {STEPS.map((step, index) => {
+            const Icon = step.icon;
+            const done = index <= currentStep;
+            return (
+              <div key={step.key} className="flex items-start gap-3">
+                <div className="flex flex-col items-center">
+                  <div className={cn('flex h-7 w-7 items-center justify-center rounded-full border-2', done ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30 text-muted-foreground/40')}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  {index < STEPS.length - 1 && <div className={cn('h-6 w-0.5', index < currentStep ? 'bg-primary' : 'bg-muted-foreground/20')} />}
+                </div>
+                <div className={cn('pt-0.5', done ? 'font-semibold' : '')}>
+                  <p className={cn('text-sm', done ? 'text-foreground' : 'text-muted-foreground')}>
+                    {t(step.labelKey as never)}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
 
-      {/* Payment proof */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">{t('details')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Row label={t('merchant')} value={merchantName} />
+          <Row label={t('sendCountry')} value={meta.sendCountry} />
+          <Row label={t('receiveCountry')} value={meta.receiveCountry} />
+          <Row label={t('sendCurrency')} value={sendCurrency} />
+          <Row label={t('receiveCurrency')} value={receiveCurrency} />
+          <Row label={t('payoutRail')} value={order.payout_rail ?? t('nA')} />
+          <Row label={t('corridorLabel')} value={meta.corridorLabel} />
+          <Row label={t('amount')} value={`${formatCustomerNumber(sendAmount, language, 2)} ${sendCurrency}`} />
+          {order.rate !== null && <Row label={t('rate')} value={formatCustomerNumber(order.rate, language, 3)} />}
+          {order.total !== null && <Row label={t('total')} value={`${formatCustomerNumber(receiveAmount, language, 2)} ${receiveCurrency}`} />}
+          <Row label={t('created')} value={formatCustomerDate(order.created_at, language)} />
+          {order.confirmed_at && <Row label={t('confirmed')} value={formatCustomerDate(order.confirmed_at, language)} />}
+          {order.note && <Row label={t('note')} value={order.note} />}
+        </CardContent>
+      </Card>
+
       {canUploadProof && !order.payment_proof_url && (
         <Card className="border-dashed border-primary/30">
           <CardContent className="flex flex-col items-center gap-3 py-6">
             <FileImage className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground text-center">Upload payment proof (image or PDF)</p>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*,.pdf"
-              className="hidden"
-              onChange={handleProofUpload}
-            />
-            <Button
-              variant="outline"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-              {uploading ? 'Uploading…' : 'Choose File'}
+            <p className="text-center text-sm text-muted-foreground">{t('uploadPaymentProof')}</p>
+            <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleProofUpload} />
+            <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              {uploading ? t('uploading') : t('chooseFile')}
             </Button>
           </CardContent>
         </Card>
@@ -316,67 +339,43 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
 
       {order.payment_proof_url && (
         <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-              <span className="text-green-700 dark:text-green-400 font-medium">Payment proof uploaded</span>
-              <span className="text-xs text-muted-foreground ml-auto">
-                {order.payment_proof_uploaded_at
-                  ? new Date(order.payment_proof_uploaded_at).toLocaleString()
-                  : ''}
-              </span>
-            </div>
+          <CardContent className="flex items-center gap-2 p-3 text-sm">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <span className="font-medium text-green-700 dark:text-green-400">{t('proofUploaded')}</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {order.payment_proof_uploaded_at ? formatCustomerDate(order.payment_proof_uploaded_at, language) : ''}
+            </span>
           </CardContent>
         </Card>
       )}
 
-      {/* Actions */}
       {canCancel && (
-        <Button
-          variant="destructive"
-          className="w-full"
-          onClick={() => cancelOrder.mutate()}
-          disabled={cancelOrder.isPending}
-        >
-          {cancelOrder.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
-          Cancel Order
+        <Button variant="destructive" className="w-full gap-2" onClick={() => cancelOrder.mutate()} disabled={cancelOrder.isPending}>
+          {cancelOrder.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+          {t('cancelOrder')}
         </Button>
       )}
 
-      {/* Timeline */}
       {events.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Timeline</CardTitle>
+            <CardTitle className="text-sm">{t('timeline')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {events.map((ev: any) => (
-              <div key={ev.id} className="flex items-start gap-3">
+            {events.map((event: any) => (
+              <div key={event.id} className="flex items-start gap-3">
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted">
                   <Circle className="h-3 w-3 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium capitalize">
-                    {ev.event_type.replace(/_/g, ' ')}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(ev.created_at).toLocaleString()}
-                  </p>
+                  <p className="text-sm font-medium capitalize">{String(event.event_type).replace(/_/g, ' ')}</p>
+                  <p className="text-xs text-muted-foreground">{formatCustomerDate(event.created_at, language)}</p>
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
       )}
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{value}</span>
     </div>
   );
 }

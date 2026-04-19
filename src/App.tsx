@@ -31,6 +31,7 @@ import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
 import CustomerHomePage from "./pages/customer/CustomerHomePage";
 import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
 import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
+import CustomerNotificationsPage from "./pages/customer/CustomerNotificationsPage";
 import CustomerChatPage from "./pages/customer/CustomerChatPage";
 import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
 import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
@@ -237,9 +238,11 @@ const App = () => (
                   </AuthGuard>
                 }>
                   <Route path="/c/home" element={<CustomerHomePage />} />
+                  <Route path="/c/dashboard" element={<CustomerHomePage />} />
                   <Route path="/c/merchants" element={<CustomerMerchantsPage />} />
                   <Route path="/c/orders" element={<CustomerOrdersPage />} />
                   <Route path="/c/wallet" element={<CustomerWalletPage />} />
+                  <Route path="/c/notifications" element={<CustomerNotificationsPage />} />
                   <Route path="/c/chat" element={<CustomerChatPage />} />
                   <Route path="/c/settings" element={<CustomerSettingsPage />} />
                 </Route>

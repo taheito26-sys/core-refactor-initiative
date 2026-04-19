@@ -7,35 +7,49 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CUSTOMER_COUNTRIES } from '@/features/customer/customer-portal';
+import { useT } from '@/lib/i18n';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'merchant' | 'customer'>('merchant');
+  const [country, setCountry] = useState(CUSTOMER_COUNTRIES[0]);
   const [loading, setLoading] = useState(false);
   const { signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error(t('customerPasswordsMismatch'));
       return;
     }
     if (password.length < 8) {
-      toast.error('Password must be at least 8 characters');
+      toast.error(t('customerPasswordTooShort'));
+      return;
+    }
+    if (role === 'customer' && !country) {
+      toast.error(t('customerCountryRequired'));
       return;
     }
     setLoading(true);
     try {
       // Store chosen role so onboarding can use it after email verification
       localStorage.setItem('p2p_signup_role', role);
+      if (role === 'customer') {
+        localStorage.setItem('p2p_signup_country', country);
+      } else {
+        localStorage.removeItem('p2p_signup_country');
+      }
       await signup(email, password);
-      toast.success('Account created! Please check your email to verify your account.');
+      toast.success(t('customerSignupSuccess'));
       navigate('/verify-email');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Signup failed';
+      const message = err instanceof Error ? err.message : t('customerSignupFailed');
       toast.error(message);
     } finally {
       setLoading(false);
@@ -49,14 +63,14 @@ export default function SignupPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <TrendingUp className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Join the TRACKER merchant platform</CardDescription>
+          <CardTitle className="text-2xl">{t('customerSignupTitle')}</CardTitle>
+          <CardDescription>{t('customerSignupDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Role picker */}
             <div className="space-y-2">
-              <Label>I am a</Label>
+              <Label>{t('customerRoleLabel')}</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -68,8 +82,8 @@ export default function SignupPage() {
                   }`}
                 >
                   <TrendingUp className="h-5 w-5" />
-                  <span className="font-medium">Merchant</span>
-                  <span className="text-[11px]">Trade & manage stock</span>
+                  <span className="font-medium">{t('customerMerchantRoleTitle')}</span>
+                  <span className="text-[11px]">{t('customerMerchantRoleDesc')}</span>
                 </button>
                 <button
                   type="button"
@@ -81,14 +95,32 @@ export default function SignupPage() {
                   }`}
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
-                  <span className="font-medium">Customer</span>
-                  <span className="text-[11px]">Buy & sell with merchants</span>
+                  <span className="font-medium">{t('customerCustomerRoleTitle')}</span>
+                  <span className="text-[11px]">{t('customerCustomerRoleDesc')}</span>
                 </button>
               </div>
             </div>
 
+            {role === 'customer' && (
+              <div className="space-y-2">
+                <Label htmlFor="country">{t('country')}</Label>
+                <Select value={country} onValueChange={setCountry}>
+                  <SelectTrigger id="country">
+                    <SelectValue placeholder={t('customerSelectCountryPrompt')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CUSTOMER_COUNTRIES.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('customerEmail')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -99,7 +131,7 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('customerPassword')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -110,7 +142,7 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">{t('customerConfirmPassword')}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -122,7 +154,7 @@ export default function SignupPage() {
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Account
+              {t('customerCreateAccount')}
             </Button>
           </form>
 
@@ -131,7 +163,7 @@ export default function SignupPage() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">or</span>
+              <span className="bg-card px-2 text-muted-foreground">{t('or')}</span>
             </div>
           </div>
 
@@ -143,7 +175,7 @@ export default function SignupPage() {
               try {
                 await loginWithGoogle();
               } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : 'Google sign-up failed';
+                const message = err instanceof Error ? err.message : t('customerSignupFailed');
                 toast.error(message);
               }
             }}
@@ -158,9 +190,9 @@ export default function SignupPage() {
           </Button>
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
+            {t('customerAlreadyHaveAccount')}{' '}
             <Link to="/login" className="text-primary hover:underline">
-              Sign in
+              {t('customerSignIn')}
             </Link>
           </p>
         </CardContent>

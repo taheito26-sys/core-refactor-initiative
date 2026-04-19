@@ -1,42 +1,43 @@
 import { useState } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, LogOut, User, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import { CUSTOMER_COUNTRIES, updateCustomerProfile } from '@/features/customer/customer-portal';
+import { useT } from '@/lib/i18n';
 
 export default function CustomerSettingsPage() {
   const { customerProfile, userId, refreshProfile, logout, email } = useAuth();
   const [displayName, setDisplayName] = useState(customerProfile?.display_name ?? '');
   const [phone, setPhone] = useState(customerProfile?.phone ?? '');
   const [region, setRegion] = useState(customerProfile?.region ?? '');
+  const [country, setCountry] = useState(customerProfile?.country ?? CUSTOMER_COUNTRIES[0]);
   const [saving, setSaving] = useState(false);
+  const t = useT();
 
   const handleSave = async () => {
     if (!userId) return;
     if (!displayName.trim()) {
-      toast.error('Display name is required');
+      toast.error(t('customerDisplayNameRequired'));
       return;
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('customer_profiles')
-        .update({
-          display_name: displayName.trim(),
-          phone: phone.trim() || null,
-          region: region.trim() || null,
-        })
-        .eq('user_id', userId);
+      const { error } = await updateCustomerProfile(userId, {
+        display_name: displayName.trim(),
+        phone: phone.trim() || null,
+        region: region.trim() || null,
+        country,
+      });
       if (error) throw error;
       await refreshProfile();
-      toast.success('Profile updated');
+      toast.success(t('customerProfileUpdated'));
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to save');
+      toast.error(err?.message || t('customerSaveFailed'));
     } finally {
       setSaving(false);
     }
@@ -44,13 +45,13 @@ export default function CustomerSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+      <h1 className="text-2xl font-bold">{t('customerSettingsTitle')}</h1>
 
       {/* Account Info */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Shield className="h-4 w-4" /> Account
+            <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-4 w-4" /> {t('customerAccount')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -69,26 +70,41 @@ export default function CustomerSettingsPage() {
       {/* Profile Edit */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <User className="h-4 w-4" /> Profile
+            <CardTitle className="text-base flex items-center gap-2">
+            <User className="h-4 w-4" /> {t('customerProfileLabel')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Display Name</Label>
+            <Label>{t('displayName')}</Label>
             <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Phone</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" />
+            <Label>{t('phone')}</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t('optional')} />
           </div>
           <div className="space-y-2">
-            <Label>Region</Label>
-            <Input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Optional" />
+            <Label>{t('region')}</Label>
+            <Input value={region} onChange={(e) => setRegion(e.target.value)} placeholder={t('optional')} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t('country')}</Label>
+            <Select value={country} onValueChange={setCountry}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('customerSelectCountry')} />
+              </SelectTrigger>
+              <SelectContent>
+                {CUSTOMER_COUNTRIES.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Changes
+            {t('saveChanges')}
           </Button>
         </CardContent>
       </Card>
@@ -97,7 +113,7 @@ export default function CustomerSettingsPage() {
       <Card>
         <CardContent className="p-4">
           <Button variant="destructive" className="w-full gap-2" onClick={() => logout()}>
-            <LogOut className="h-4 w-4" /> Sign Out
+            <LogOut className="h-4 w-4" /> {t('signOut')}
           </Button>
         </CardContent>
       </Card>

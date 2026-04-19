@@ -1357,9 +1357,15 @@ export type Database = {
           merchant_id: string
           note: string | null
           order_type: string
+          corridor_label: string | null
           payment_proof_uploaded_at: string | null
           payment_proof_url: string | null
+          payout_rail: string | null
           rate: number | null
+          receive_country: string | null
+          receive_currency: string | null
+          send_country: string | null
+          send_currency: string | null
           status: string
           total: number | null
           updated_at: string
@@ -1376,9 +1382,15 @@ export type Database = {
           merchant_id: string
           note?: string | null
           order_type?: string
+          corridor_label?: string | null
           payment_proof_uploaded_at?: string | null
           payment_proof_url?: string | null
+          payout_rail?: string | null
           rate?: number | null
+          receive_country?: string | null
+          receive_currency?: string | null
+          send_country?: string | null
+          send_currency?: string | null
           status?: string
           total?: number | null
           updated_at?: string
@@ -1395,9 +1407,15 @@ export type Database = {
           merchant_id?: string
           note?: string | null
           order_type?: string
+          corridor_label?: string | null
           payment_proof_uploaded_at?: string | null
           payment_proof_url?: string | null
+          payout_rail?: string | null
           rate?: number | null
+          receive_country?: string | null
+          receive_currency?: string | null
+          send_country?: string | null
+          send_currency?: string | null
           status?: string
           total?: number | null
           updated_at?: string
@@ -1417,6 +1435,7 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
+          country: string | null
           phone: string | null
           preferred_currency: string
           region: string | null
@@ -1428,6 +1447,7 @@ export type Database = {
           created_at?: string
           display_name: string
           id?: string
+          country?: string | null
           phone?: string | null
           preferred_currency?: string
           region?: string | null
@@ -1439,6 +1459,7 @@ export type Database = {
           created_at?: string
           display_name?: string
           id?: string
+          country?: string | null
           phone?: string | null
           preferred_currency?: string
           region?: string | null
