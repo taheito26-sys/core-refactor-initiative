@@ -737,7 +737,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
           />
 
           {/* Inline action buttons */}
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 z-10">
+          <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 z-10 sm:flex">
             <button onClick={() => setWatermark((v) => !v)} title={watermark ? 'Watermark: ON' : 'Watermark: OFF'}
               className={cn('h-6.5 w-6.5 rounded-full flex items-center justify-center transition-all',
                 watermark ? 'bg-cyan-500/20 text-cyan-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
