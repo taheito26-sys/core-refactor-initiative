@@ -732,7 +732,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
             onPaste={handlePaste}
             placeholder="Type a message"
             rows={1}
-            className="w-full resize-none bg-muted/40 rounded-3xl border-none px-3.5 py-3 text-base sm:px-4 sm:py-2.5 sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50 max-h-44 overflow-y-auto pr-16 sm:pr-20 transition-[height,box-shadow] duration-200"
+            className="w-full resize-none bg-muted/40 rounded-3xl border-none px-3.5 py-3 text-base sm:px-4 sm:py-2.5 sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50 max-h-44 overflow-y-auto pr-24 sm:pr-24 transition-[height,box-shadow] duration-200"
             style={{ height: 'auto' }}
           />
 
