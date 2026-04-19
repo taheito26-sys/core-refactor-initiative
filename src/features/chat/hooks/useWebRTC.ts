@@ -375,6 +375,13 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         }
       }
       if (s === 'failed') {
+        peerConn.getStats().then((stats) => {
+          const pairs: unknown[] = [];
+          stats.forEach((r) => {
+            if (r.type === 'candidate-pair') pairs.push(r);
+          });
+          console.warn('[ICE_FAIL_DIAG] candidate-pairs:', JSON.stringify(pairs, null, 2));
+        }).catch(() => {});
         const cid = callIdRef.current;
         if (cid) signaling.publishCallEnd(cid, 'failed').catch(() => {});
         cleanup();
@@ -844,7 +851,13 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       // ── trickle ICE candidate ──────────────────────────────────────────
       onIceCandidate: (candidate) => {
         if (!pc.current) return;
-        pc.current.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => { /* stale */ });
+        const candStr = (candidate as RTCIceCandidateInit).candidate ?? '';
+        const typ = candStr.match(/typ (\w+)/)?.[1] ?? 'unknown';
+        const proto = candStr.match(/(?:udp|tcp)/i)?.[0] ?? '?';
+        console.log(`[ICE_REMOTE] type=${typ} protocol=${proto}`);
+        pc.current.addIceCandidate(new RTCIceCandidate(candidate))
+          .then(() => console.log(`[ICE_REMOTE_OK] type=${typ}`))
+          .catch((err) => console.warn(`[ICE_REMOTE_FAIL] type=${typ}`, err));
       },
 
       // ── remote ended / cancelled ───────────────────────────────────────
