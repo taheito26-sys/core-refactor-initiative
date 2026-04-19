@@ -147,6 +147,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const screenTrackRef  = useRef<MediaStreamTrack | null>(null);
   const prevBytesRef    = useRef<{ received: number; ts: number } | null>(null);
   const processedRemoteIceCounts = useRef<Map<string, number>>(new Map());
+  // Trickle-ICE candidates that arrive before setRemoteDescription completes
+  // are rejected by RTCPeerConnection with "remote description was null".
+  // Buffer them until remoteDescription is present, then flush in order.
+  const pendingRemoteIce = useRef<RTCIceCandidateInit[]>([]);
   // Group calls: map of peerId → RTCPeerConnection
   const groupPCs        = useRef<Map<string, RTCPeerConnection>>(new Map());
 
@@ -303,6 +307,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setCallDuration(0);
     prevBytesRef.current = null;
     processedRemoteIceCounts.current.clear();
+    pendingRemoteIce.current = [];
 
     if (ringTimer.current) { clearTimeout(ringTimer.current); ringTimer.current = null; }
     if (durationTimer.current) { clearInterval(durationTimer.current); durationTimer.current = null; }
@@ -323,8 +328,30 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     }, 1000);
   }, []);
 
+  // ── flush ICE candidates buffered during setRemoteDescription race ────
+  // Trickle-ICE delivers candidates over signaling independently of SDP.
+  // When a candidate arrives before pc.remoteDescription is set,
+  // addIceCandidate rejects with InvalidStateError and the candidate is
+  // lost. We buffer such candidates and apply them once remoteDescription
+  // is present.
+  const flushPendingRemoteIce = useCallback(() => {
+    const peerConn = pc.current;
+    if (!peerConn || !peerConn.remoteDescription) return;
+    const queued = pendingRemoteIce.current;
+    pendingRemoteIce.current = [];
+    if (queued.length === 0) return;
+    console.log(`[ICE_REMOTE_FLUSH] count=${queued.length}`);
+    for (const c of queued) {
+      peerConn.addIceCandidate(new RTCIceCandidate(c))
+        .then(() => console.log('[ICE_REMOTE_OK] type=buffered'))
+        .catch((err) => console.warn('[ICE_REMOTE_FAIL] type=buffered', err));
+    }
+  }, []);
+
   // ── build peer connection ─────────────────────────────────────────────
   const buildPC = useCallback((iceConfig: RTCConfiguration = DEFAULT_ICE_CONFIG) => {
+    // Fresh connection → discard any candidates buffered for a previous call.
+    pendingRemoteIce.current = [];
     let peerConn: RTCPeerConnection;
     try {
       peerConn = new RTCPeerConnection(iceConfig);
@@ -639,6 +666,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       stream.getTracks().forEach((t) => peerConn.addTrack(t, stream));
 
       await peerConn.setRemoteDescription({ type: 'offer', sdp: offerSdp });
+      flushPendingRemoteIce();
       const answer = await peerConn.createAnswer();
       await peerConn.setLocalDescription(answer);
 
@@ -661,7 +689,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', getMediaFailureReason(err, wantsVideo));
     }
-  }, [incomingCall, userId, roomId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, signaling]);
+  }, [incomingCall, userId, roomId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, signaling, flushPendingRemoteIce]);
 
   // ── DECLINE ───────────────────────────────────────────────────────────
   const declineIncoming = useCallback(async () => {
@@ -844,7 +872,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         if (!pc.current || pc.current.signalingState !== 'have-local-offer') return;
         pc.current
           .setRemoteDescription({ type: 'answer', sdp: sdpAnswer })
-          .then(() => setCallState('connecting'))
+          .then(() => {
+            flushPendingRemoteIce();
+            setCallState('connecting');
+          })
           .catch(() => { /* already set or closed */ });
       },
 
@@ -855,6 +886,14 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         const typ = candStr.match(/typ (\w+)/)?.[1] ?? 'unknown';
         const proto = candStr.match(/(?:udp|tcp)/i)?.[0] ?? '?';
         console.log(`[ICE_REMOTE] type=${typ} protocol=${proto}`);
+
+        // Remote description not set yet → buffer, flush later.
+        if (!pc.current.remoteDescription) {
+          pendingRemoteIce.current.push(candidate);
+          console.log(`[ICE_REMOTE_BUFFER] type=${typ} queued=${pendingRemoteIce.current.length}`);
+          return;
+        }
+
         pc.current.addIceCandidate(new RTCIceCandidate(candidate))
           .then(() => console.log(`[ICE_REMOTE_OK] type=${typ}`))
           .catch((err) => console.warn(`[ICE_REMOTE_FAIL] type=${typ}`, err));
@@ -883,7 +922,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     return () => {
       unsubscribe();
     };
-  }, [roomId, userId, cleanup, transitionToEnd]);
+  }, [roomId, userId, cleanup, transitionToEnd, flushPendingRemoteIce]);
 
   // ── beforeunload: cleanup on tab close ────────────────────────────────
   useEffect(() => {
