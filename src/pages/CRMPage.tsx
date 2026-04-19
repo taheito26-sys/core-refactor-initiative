@@ -196,15 +196,16 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
 
       return connections.map((row: any) => {
         const profile = profileMap.get(row.customer_user_id);
-        const displayName = (profile?.display_name ?? '').trim() || (profile?.phone ?? '').trim() || 'Connected customer';
+        const displayName = (profile?.display_name ?? '').trim();
+        if (!displayName) return null;
         return {
           id: row.customer_user_id,
           name: displayName,
-          phone: profile?.phone || 'Connected',
-          region: profile?.region || profile?.country || 'Connected',
+          phone: profile?.phone || '',
+          region: profile?.region || profile?.country || '',
           created_at: row.created_at,
         };
-      });
+      }).filter((customer: any): customer is { id: string; name: string; phone: string; region: string; created_at: string } => Boolean(customer));
     },
     enabled: !!merchantProfile?.merchant_id,
   });
@@ -459,7 +460,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
           <div style={{ flex: 1, minWidth: 0 }}>
             {connectedCustomers.length > 0 && (
               <div style={{ marginBottom: 10, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--surface)' }}>
-                <div style={{ fontSize: 11, fontWeight: 800, marginBottom: 6 }}>Connected Customers</div>
+                <div style={{ fontSize: 11, fontWeight: 800, marginBottom: 6 }}>Customer Connections</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {connectedCustomers.map((customer: any) => (
                     <span key={customer.id} className="pill good" style={{ fontSize: 10 }}>

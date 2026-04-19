@@ -201,19 +201,30 @@ export default function OrdersPage() {
 
       return connections.map((row: any) => {
         const profile = profileMap.get(row.customer_user_id);
-        const displayName = (profile?.display_name ?? '').trim() || (profile?.phone ?? '').trim() || 'Connected customer';
+        const displayName = (profile?.display_name ?? '').trim();
+        if (!displayName) return null;
         return {
           id: `connected:${row.customer_user_id}`,
           name: displayName,
           phone: profile?.phone || '',
           tier: 'C',
           dailyLimitUSDT: 0,
-          notes: profile?.region || profile?.country || 'Connected customer',
+          notes: profile?.region || profile?.country || '',
           createdAt: Date.now(),
           source: 'connected' as const,
           customerUserId: row.customer_user_id,
         };
-      });
+      }).filter((customer: any): customer is {
+        id: string;
+        name: string;
+        phone: string;
+        tier: string;
+        dailyLimitUSDT: number;
+        notes: string;
+        createdAt: number;
+        source: 'connected';
+        customerUserId: string;
+      } => Boolean(customer));
     },
     enabled: !!merchantProfile?.merchant_id,
   });
