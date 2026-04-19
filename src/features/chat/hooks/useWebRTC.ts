@@ -416,9 +416,27 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
               if (r.type === 'local-candidate') locals[r.id] = r;
               if (r.type === 'remote-candidate') remotes[r.id] = r;
             });
+            const localSdp = peerConn.localDescription?.sdp ?? '';
+            const remoteSdp = peerConn.remoteDescription?.sdp ?? '';
+            const localUfrag = localSdp.match(/a=ice-ufrag:(\S+)/)?.[1] ?? null;
+            const remoteUfrag = remoteSdp.match(/a=ice-ufrag:(\S+)/)?.[1] ?? null;
+            const signalingState = peerConn.signalingState;
+            const iceGatheringState = peerConn.iceGatheringState;
             console.warn(
               '[ICE_FAIL_DIAG]',
-              JSON.stringify({ pairs, locals, remotes }, null, 2),
+              JSON.stringify(
+                {
+                  signalingState,
+                  iceGatheringState,
+                  localUfrag,
+                  remoteUfrag,
+                  pairs,
+                  locals,
+                  remotes,
+                },
+                null,
+                2,
+              ),
             );
           } catch (err) {
             console.warn('[ICE_FAIL_DIAG] getStats threw', err);
@@ -686,6 +704,12 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       const answer = await peerConn.createAnswer();
       await peerConn.setLocalDescription(answer);
 
+      {
+        const remoteUfrag = offerSdp.match(/a=ice-ufrag:(\S+)/)?.[1] ?? '?';
+        const localUfrag = answer.sdp?.match(/a=ice-ufrag:(\S+)/)?.[1] ?? '?';
+        console.log(`[SDP_UFRAG] local=${localUfrag} remote=${remoteUfrag}`);
+      }
+
       await signaling.publishAnswer(callId, answer.sdp!);
       incomingCallRef.current = null;
       setIncomingCall(null);
@@ -889,6 +913,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         pc.current
           .setRemoteDescription({ type: 'answer', sdp: sdpAnswer })
           .then(() => {
+            const remoteUfrag = sdpAnswer.match(/a=ice-ufrag:(\S+)/)?.[1] ?? '?';
+            const localSdp = pc.current?.localDescription?.sdp ?? '';
+            const localUfrag = localSdp.match(/a=ice-ufrag:(\S+)/)?.[1] ?? '?';
+            console.log(`[SDP_UFRAG] local=${localUfrag} remote=${remoteUfrag}`);
             flushPendingRemoteIce();
             setCallState('connecting');
           })
@@ -901,7 +929,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         const candStr = (candidate as RTCIceCandidateInit).candidate ?? '';
         const typ = candStr.match(/typ (\w+)/)?.[1] ?? 'unknown';
         const proto = candStr.match(/(?:udp|tcp)/i)?.[0] ?? '?';
-        console.log(`[ICE_REMOTE] type=${typ} protocol=${proto}`);
+        const ufrag =
+          candStr.match(/ufrag (\S+)/)?.[1] ??
+          (candidate as RTCIceCandidateInit).usernameFragment ??
+          '?';
+        console.log(`[ICE_REMOTE] type=${typ} protocol=${proto} ufrag=${ufrag}`);
 
         // Remote description not set yet → buffer, flush later.
         if (!pc.current.remoteDescription) {
@@ -911,7 +943,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         }
 
         pc.current.addIceCandidate(new RTCIceCandidate(candidate))
-          .then(() => console.log(`[ICE_REMOTE_OK] type=${typ}`))
+          .then(() => console.log(`[ICE_REMOTE_OK] type=${typ} ufrag=${ufrag}`))
           .catch((err) => console.warn(`[ICE_REMOTE_FAIL] type=${typ}`, err));
       },
 
