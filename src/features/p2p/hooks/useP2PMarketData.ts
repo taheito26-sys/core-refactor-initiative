@@ -48,7 +48,7 @@ export function useP2PMarketData(market: MarketId) {
       const { data: histRowsDesc } = await (supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from('p2p_snapshots') as any)
-        .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
+        .select('fetched_at, ts_val:data->>ts, sell_avg:data->>sellAvg, buy_avg:data->>buyAvg, best_sell:data->>bestSell, best_buy:data->>bestBuy, spread_val:data->>spread, spread_pct_val:data->>spreadPct')
         .eq('market', market)
         .gte('fetched_at', cutoff)
         .order('fetched_at', { ascending: false })
@@ -62,6 +62,8 @@ export function useP2PMarketData(market: MarketId) {
           ts: ts < 1e12 ? ts * 1000 : ts,
           sellAvg: toFiniteNumber(row.sell_avg),
           buyAvg: toFiniteNumber(row.buy_avg),
+          bestSell: toFiniteNumber(row.best_sell),
+          bestBuy: toFiniteNumber(row.best_buy),
           spread: toFiniteNumber(row.spread_val),
           spreadPct: toFiniteNumber(row.spread_pct_val),
         }];

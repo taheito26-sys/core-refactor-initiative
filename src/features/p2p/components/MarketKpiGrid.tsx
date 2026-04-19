@@ -44,7 +44,7 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
           <div className="kpi-sub">{t('p2pTopSell')}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">{t(market === 'qatar' ? 'p2pSellAvgTop5' : 'p2pSellAvgTop10')}</div>
+          <div className="kpi-lbl">{t(market === 'qatar' ? 'p2pSellAvgTop5' : 'p2pSellAvgTop20')}</div>
           <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}</div>
           <div className="kpi-sub" style={{ color: 'var(--good)' }}>
             {snapshot.spreadPct ? `+${fmtPrice(snapshot.spreadPct)}% vs Buy Avg` : t('p2pLiveWeightedAvg')}
