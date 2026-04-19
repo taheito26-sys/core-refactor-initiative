@@ -9,11 +9,11 @@ import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import {
   formatCustomerNumber,
-  getQatarEgyptGuideRate,
   listCustomerConnections,
   listCustomerOrders,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
+import { getQatarEgyptGuideRate } from '@/features/customer/customer-market';
 
 function StatCard({
   label,
