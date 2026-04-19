@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/features/auth/auth-context';
 import { useTrackerState } from '@/lib/useTrackerState';
 import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, type Customer, type Supplier } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
+import { supabase } from '@/integrations/supabase/client';
 import '@/styles/tracker.css';
 
 // ── Blank customer factory ────────────────────────────────────────────
@@ -140,6 +143,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
+  const { merchantProfile } = useAuth();
   const isAdminWorkspace = Boolean(isAdminView);
   const { state, applyState } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
@@ -170,6 +174,39 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
 
   // ── Derived lists ─────────────────────────────────────────────────
   const customers = state.customers ?? [];
+
+  const { data: connectedCustomers = [] } = useQuery({
+    queryKey: ['crm-connected-customers', merchantProfile?.merchant_id],
+    queryFn: async () => {
+      if (!merchantProfile?.merchant_id) return [];
+      const { data: connections, error } = await supabase
+        .from('customer_merchant_connections')
+        .select('customer_user_id, created_at')
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error || !connections || connections.length === 0) return [];
+
+      const userIds = connections.map((row) => row.customer_user_id);
+      const { data: profiles } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name, phone, region, country')
+        .in('user_id', userIds);
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+
+      return connections.map((row: any) => {
+        const profile = profileMap.get(row.customer_user_id);
+        return {
+          id: row.customer_user_id,
+          name: profile?.display_name || row.customer_user_id,
+          phone: profile?.phone || 'Connected',
+          region: profile?.region || profile?.country || 'Connected',
+          created_at: row.created_at,
+        };
+      });
+    },
+    enabled: !!merchantProfile?.merchant_id,
+  });
 
   const filteredCustomers = useMemo(() => {
     if (!search) return customers;
@@ -419,6 +456,18 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
         <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>
           {/* Main table area */}
           <div style={{ flex: 1, minWidth: 0 }}>
+            {connectedCustomers.length > 0 && (
+              <div style={{ marginBottom: 10, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--surface)' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, marginBottom: 6 }}>Connected Customers</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {connectedCustomers.map((customer: any) => (
+                    <span key={customer.id} className="pill good" style={{ fontSize: 10 }}>
+                      {customer.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 800 }}>{t('customers')}</div>

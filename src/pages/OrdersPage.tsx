@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
@@ -179,6 +179,57 @@ export default function OrdersPage() {
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const { data: allAgreements = [] } = useProfitShareAgreements();
   const createAllocations = useCreateAllocations();
+
+  const { data: connectedCustomers = [] } = useQuery({
+    queryKey: ['merchant-connected-customers', merchantProfile?.merchant_id],
+    queryFn: async () => {
+      if (!merchantProfile?.merchant_id) return [];
+      const { data: connections, error } = await supabase
+        .from('customer_merchant_connections')
+        .select('customer_user_id, created_at')
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error || !connections || connections.length === 0) return [];
+
+      const userIds = connections.map((row) => row.customer_user_id);
+      const { data: profiles } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name, phone, region, country')
+        .in('user_id', userIds);
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+
+      return connections.map((row: any) => {
+        const profile = profileMap.get(row.customer_user_id);
+        return {
+          id: `connected:${row.customer_user_id}`,
+          name: profile?.display_name || row.customer_user_id,
+          phone: profile?.phone || '',
+          tier: 'C',
+          dailyLimitUSDT: 0,
+          notes: profile?.region || profile?.country || 'Connected customer',
+          createdAt: Date.now(),
+          source: 'connected' as const,
+          customerUserId: row.customer_user_id,
+        };
+      });
+    },
+    enabled: !!merchantProfile?.merchant_id,
+  });
+
+  const allBuyerOptions = useMemo(() => {
+    const local = state.customers ?? [];
+    const merged = [...connectedCustomers, ...local];
+    const deduped: typeof merged = [];
+    const seen = new Set<string>();
+    for (const customer of merged) {
+      const key = normalizeName(customer.name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(customer);
+    }
+    return deduped;
+  }, [connectedCustomers, state.customers]);
   const saleDraft = useMemo(() => deriveSaleDraft({
     saleEntryMode,
     saleMode,
@@ -710,9 +761,9 @@ export default function OrdersPage() {
 
   const filteredCustomers = useMemo(() => {
     const q = normalizeName(buyerName);
-    if (!q) return state.customers;
-    return state.customers.filter(c => normalizeName(c.name).includes(q) || c.phone.includes(buyerName));
-  }, [buyerName, state.customers]);
+    if (!q) return allBuyerOptions;
+    return allBuyerOptions.filter(c => normalizeName(c.name).includes(q) || c.phone.includes(buyerName));
+  }, [allBuyerOptions, buyerName]);
 
   const assertPreviewQuantityInvariant = useCallback((qty: number) => {
     let expectedQty = qty;
@@ -895,6 +946,8 @@ export default function OrdersPage() {
   const ensureCustomer = (name: string, phone = '', tier = 'C') => {
     const nm = name.trim();
     if (!nm) return { id: '', customers: state.customers };
+    const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
+    if (connected) return { id: connected.id, customers: state.customers };
     const existing = state.customers.find(c => normalizeName(c.name) === normalizeName(nm));
     if (existing) return { id: existing.id, customers: state.customers };
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
@@ -1068,11 +1121,17 @@ export default function OrdersPage() {
 
     let nextCustomers = state.customers;
     let customerId = buyerId;
-    if (buyerName.trim()) {
+    if (buyerId.startsWith('connected:')) {
+      const ensured = ensureCustomer(buyerName);
+      customerId = buyerId;
+      nextCustomers = ensured.customers;
+    } else if (buyerName.trim()) {
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
-    } else { customerId = ''; }
+    } else {
+      customerId = '';
+    }
 
     // Build trade with agreement fields if merchant-linked
     const tmpl = selectedTemplateId ? AGREEMENT_TEMPLATES.find(t => t.id === selectedTemplateId) : null;
