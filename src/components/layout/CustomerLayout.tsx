@@ -118,6 +118,7 @@ export function CustomerLayout() {
   const t = useT();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isRTL = settings.language === 'ar';
+  const isChatRoute = location.pathname.startsWith('/c/chat');
 
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`);
@@ -264,12 +265,18 @@ export function CustomerLayout() {
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto min-h-0">
-          <div className="app-page-shell">
-            <div className="app-page-content">
+        <main className={cn('flex-1 min-h-0', isChatRoute ? 'overflow-hidden' : 'overflow-y-auto')}>
+          {isChatRoute ? (
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
               <Outlet />
             </div>
-          </div>
+          ) : (
+            <div className="app-page-shell">
+              <div className="app-page-content">
+                <Outlet />
+              </div>
+            </div>
+          )}
         </main>
 
         {isMobile && (
