@@ -97,11 +97,30 @@ export default function CustomerMerchantsPage() {
 
   const connectMutation = useMutation({
     mutationFn: async (merchantId: string) => {
+      const { data: merchantProfile, error: merchantError } = await supabase
+        .from('merchant_profiles')
+        .select('merchant_id, user_id, display_name')
+        .eq('merchant_id', merchantId)
+        .maybeSingle();
+      if (merchantError) throw merchantError;
+
       const { error } = await supabase.from('customer_merchant_connections').insert({
         customer_user_id: userId!,
         merchant_id: merchantId,
       });
       if (error) throw error;
+
+      if (merchantProfile?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: merchantProfile.user_id,
+          title: 'New customer connection request',
+          body: 'Customer requested a connection',
+          category: 'customer_connection',
+          target_path: '/merchants?tab=clients',
+          target_entity_type: 'customer_merchant_connection',
+          target_entity_id: merchantId,
+        });
+      }
     },
     onSuccess: () => {
       toast.success(t('connectionSent'));
@@ -236,6 +255,21 @@ export default function CustomerMerchantsPage() {
                       <p className="truncate text-xs text-muted-foreground">
                         {connection.merchant?.region ?? t('nA')} · {connection.merchant?.merchant_code || connection.merchant_id}
                       </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant={connection.status === 'active' ? 'default' : connection.status === 'blocked' ? 'destructive' : 'secondary'}
+                          className="capitalize"
+                        >
+                          {connection.status}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground">
+                          {connection.status === 'pending'
+                            ? 'Pending customer connection'
+                            : connection.status === 'active'
+                              ? 'Active customer connection'
+                              : 'Blocked customer connection'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex shrink-0 items-center gap-1">

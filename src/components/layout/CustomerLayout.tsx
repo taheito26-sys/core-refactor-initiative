@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Store, Wallet, Bell, Settings, MessageCircle, LogOut, ChevronLeft, Menu, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Store, Wallet, Bell, Settings, MessageCircle, LogOut, ChevronLeft, Menu, TrendingUp, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
@@ -10,6 +10,7 @@ import '@/styles/tracker.css';
 
 const navItems = [
   { path: '/c/home', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { path: '/c/market', icon: TrendingUp, labelKey: 'market' },
   { path: '/c/orders', icon: ShoppingCart, labelKey: 'orders' },
   { path: '/c/merchants', icon: Store, labelKey: 'merchants' },
   { path: '/c/wallet', icon: Wallet, labelKey: 'customerWallet' },
@@ -20,6 +21,7 @@ const navItems = [
 
 const mobilePrimaryNavPaths = new Set([
   '/c/home',
+  '/c/market',
   '/c/orders',
   '/c/merchants',
   '/c/wallet',
@@ -53,8 +55,8 @@ function NavButton({
       data-path={path}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      <span className="truncate">{label}</span>
-    </button>
+            <span className="truncate">{label}</span>
+          </button>
   );
 }
 
@@ -160,7 +162,7 @@ export function CustomerLayout() {
             key={item.path}
             path={item.path}
             Icon={item.icon}
-            label={t(item.labelKey as never)}
+            label={item.path === '/c/market' ? (isRTL ? 'السوق' : 'Market') : t(item.labelKey as never)}
             active={isActive(item.path)}
             onClick={() => {
               navigate(item.path);

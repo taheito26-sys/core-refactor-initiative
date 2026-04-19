@@ -1,25 +1,67 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/features/auth/auth-context';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import {
+  cancelCustomerOrder,
+  completeCustomerOrder,
+  commitCustomerQuote,
+  deriveCustomerOrderMeta,
+  formatCustomerDate,
+  formatCustomerNumber,
+  getDisplayedCustomerRate,
+  getDisplayedCustomerTotal,
+  markCustomerOrderAwaitingPayment,
+  type CustomerOrderRow,
+} from '@/features/customer/customer-portal';
 
-type StatusFilter = 'all' | 'pending' | 'confirmed' | 'awaiting_payment' | 'payment_sent' | 'completed' | 'cancelled';
+type StatusFilter =
+  | 'all'
+  | 'pending_quote'
+  | 'quoted'
+  | 'quote_accepted'
+  | 'quote_rejected'
+  | 'awaiting_payment'
+  | 'payment_sent'
+  | 'completed'
+  | 'cancelled'
+  | 'pending'
+  | 'confirmed';
 
 interface Props {
   merchantId?: string | null;
   isAdminView?: boolean;
 }
 
+type QuoteDraft = {
+  final_rate: string;
+  final_total: string;
+  final_quote_note: string;
+  final_quote_expires_at: string;
+};
+
+function normalizeStatus(status: string) {
+  if (status === 'pending' || status === 'confirmed') return status;
+  return status as StatusFilter;
+}
+
 export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: Props = {}) {
-  const { merchantProfile } = useAuth();
+  const { merchantProfile, userId } = useAuth();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [quoteDrafts, setQuoteDrafts] = useState<Record<string, QuoteDraft>>({});
 
   const resolvedMerchantId = isAdminView ? merchantId ?? null : merchantProfile?.merchant_id;
 
-  // Fetch customer orders for this merchant
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['merchant-customer-orders', resolvedMerchantId],
     queryFn: async () => {
@@ -29,13 +71,12 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
         .eq('merchant_id', resolvedMerchantId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as CustomerOrderRow[];
     },
     enabled: !!resolvedMerchantId,
   });
 
-  // Fetch customer profiles for display names
-  const customerIds = useMemo(() => [...new Set(orders.map((o: any) => o.customer_user_id))], [orders]);
+  const customerIds = useMemo(() => [...new Set(orders.map((o) => o.customer_user_id))], [orders]);
   const { data: customerProfiles = [] } = useQuery({
     queryKey: ['merchant-customer-profiles', customerIds, resolvedMerchantId],
     queryFn: async () => {
@@ -50,230 +91,358 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   });
 
   const customerMap = useMemo(() => {
-    const m = new Map<string, any>();
-    customerProfiles.forEach((p: any) => m.set(p.user_id, p));
-    return m;
+    const map = new Map<string, any>();
+    customerProfiles.forEach((profile: any) => map.set(profile.user_id, profile));
+    return map;
   }, [customerProfiles]);
 
-  // Update order status
-  const updateStatus = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-      setActioningId(orderId);
-      const updates: any = { status };
-      if (status === 'confirmed') updates.confirmed_at = new Date().toISOString();
-      const { error } = await supabase
-        .from('customer_orders')
-        .update(updates)
-        .eq('id', orderId);
-      if (error) throw error;
-
-      // Log event
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('customer_order_events').insert({
-          order_id: orderId,
-          actor_user_id: user.id,
-          event_type: `merchant_${status}`,
-        });
+  useEffect(() => {
+    setQuoteDrafts((prev) => {
+      const next = { ...prev };
+      for (const order of orders) {
+        if (next[order.id]) continue;
+        next[order.id] = {
+          final_rate: order.final_rate != null ? String(order.final_rate) : order.rate != null ? String(order.rate) : '',
+          final_total: order.final_total != null ? String(order.final_total) : order.total != null ? String(order.total) : '',
+          final_quote_note: order.final_quote_note ?? '',
+          final_quote_expires_at: order.final_quote_expires_at ? new Date(order.final_quote_expires_at).toISOString().slice(0, 16) : '',
+        };
       }
+      return next;
+    });
+  }, [orders]);
+
+  const commitQuoteMutation = useMutation({
+    mutationFn: async ({ order }: { order: CustomerOrderRow }) => {
+      if (!userId) throw new Error('Missing merchant session');
+      const draft = quoteDrafts[order.id];
+      const finalRate = Number(draft?.final_rate);
+      const finalTotal = Number(draft?.final_total);
+      if (!Number.isFinite(finalRate) || finalRate <= 0) {
+        throw new Error('Enter a valid final rate');
+      }
+      const totalValue = Number.isFinite(finalTotal) && finalTotal > 0 ? finalTotal : Number((order.amount * finalRate).toFixed(6));
+      const { error } = await commitCustomerQuote(order, {
+        merchantUserId: userId,
+        finalRate,
+        finalTotal: totalValue,
+        finalQuoteNote: draft?.final_quote_note?.trim() || null,
+        finalQuoteExpiresAt: draft?.final_quote_expires_at ? new Date(draft.final_quote_expires_at).toISOString() : null,
+      });
+      if (error) throw error;
     },
-    onSuccess: (_, { status }) => {
-      toast.success(`Order ${status}`);
+    onMutate: async ({ order }) => {
+      setActioningId(order.id);
+    },
+    onSuccess: () => {
+      toast.success('Quote committed');
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
-      setActioningId(null);
+      queryClient.invalidateQueries({ queryKey: ['merchant-client-connections'] });
     },
-    onError: (err: any) => {
-      toast.error(err?.message || 'Failed to update order');
-      setActioningId(null);
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to commit quote');
     },
+    onSettled: () => setActioningId(null),
   });
 
-  const filtered = filter === 'all' ? orders : orders.filter((o: any) => o.status === filter);
+  const transitionMutation = useMutation({
+    mutationFn: async ({ order, nextStatus }: { order: CustomerOrderRow; nextStatus: 'awaiting_payment' | 'completed' | 'cancelled' }) => {
+      if (!userId) throw new Error('Missing merchant session');
+      if (nextStatus === 'awaiting_payment') {
+        const { error } = await markCustomerOrderAwaitingPayment(order, userId);
+        if (error) throw error;
+        return;
+      }
+      if (nextStatus === 'completed') {
+        const { error } = await completeCustomerOrder(order, userId);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await cancelCustomerOrder(order, userId);
+      if (error) throw error;
+    },
+    onMutate: async ({ order }) => {
+      setActioningId(order.id);
+    },
+    onSuccess: () => {
+      toast.success('Order updated');
+      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
+      queryClient.invalidateQueries({ queryKey: ['merchant-client-connections'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to update order');
+    },
+    onSettled: () => setActioningId(null),
+  });
 
-  const statusFilters: { key: StatusFilter; label: string; color: string }[] = [
-    { key: 'all', label: 'All', color: 'var(--muted)' },
-    { key: 'pending', label: 'Pending', color: 'var(--warn)' },
-    { key: 'confirmed', label: 'Confirmed', color: 'var(--brand)' },
-    { key: 'awaiting_payment', label: 'Awaiting Pay', color: '#e67e22' },
-    { key: 'payment_sent', label: 'Paid', color: '#3498db' },
-    { key: 'completed', label: 'Completed', color: 'var(--good)' },
-    { key: 'cancelled', label: 'Cancelled', color: 'var(--bad)' },
+  const filtered = filter === 'all'
+    ? orders
+    : orders.filter((order) => normalizeStatus(order.status) === filter);
+
+  const statusFilters: { key: StatusFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'pending_quote', label: 'Pending quote' },
+    { key: 'quoted', label: 'Quoted' },
+    { key: 'quote_accepted', label: 'Accepted' },
+    { key: 'awaiting_payment', label: 'Awaiting payment' },
+    { key: 'payment_sent', label: 'Payment sent' },
+    { key: 'completed', label: 'Completed' },
+    { key: 'cancelled', label: 'Cancelled' },
   ];
-
-  const statusPill = (status: string) => {
-    const map: Record<string, string> = {
-      pending: 'warn', confirmed: '', awaiting_payment: 'warn',
-      payment_sent: '', completed: 'good', cancelled: 'bad',
-    };
-    return <span className={`pill ${map[status] || ''}`}>{status.replace('_', ' ')}</span>;
-  };
-
-  const actionButtons = (order: any) => {
-    if (isAdminView) return null;
-    const isActioning = actioningId === order.id;
-    const btnStyle = (bg: string, color: string = '#fff') => ({
-      fontSize: 10, fontWeight: 700, padding: '5px 12px', borderRadius: 6,
-      border: 'none', cursor: 'pointer', background: bg, color,
-      opacity: isActioning ? 0.5 : 1,
-      minHeight: 34,
-    });
-
-    switch (order.status) {
-      case 'pending':
-        return (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button style={btnStyle('var(--good)')} disabled={isActioning}
-              onClick={() => updateStatus.mutate({ orderId: order.id, status: 'confirmed' })}>
-              ✓ Confirm
-            </button>
-            <button style={btnStyle('var(--bad)')} disabled={isActioning}
-              onClick={() => updateStatus.mutate({ orderId: order.id, status: 'cancelled' })}>
-              ✗ Reject
-            </button>
-          </div>
-        );
-      case 'confirmed':
-        return (
-          <button style={btnStyle('var(--brand)')} disabled={isActioning}
-            onClick={() => updateStatus.mutate({ orderId: order.id, status: 'awaiting_payment' })}>
-            💳 Request Payment
-          </button>
-        );
-      case 'payment_sent':
-        return (
-          <button style={btnStyle('var(--good)')} disabled={isActioning}
-            onClick={() => updateStatus.mutate({ orderId: order.id, status: 'completed' })}>
-            ✓ Complete
-          </button>
-        );
-      case 'awaiting_payment':
-        return (
-          <span style={{ fontSize: 10, color: 'var(--muted)' }}>Waiting for customer payment...</span>
-        );
-      default:
-        return null;
-    }
-  };
 
   if (isLoading) {
     return <div className="empty"><div className="empty-t">Loading customer orders...</div></div>;
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Filter bar */}
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
-        {statusFilters.map(f => (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2 border-b border-border/60 pb-3">
+        {statusFilters.map((item) => (
           <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            style={{
-              fontSize: 10, fontWeight: filter === f.key ? 700 : 500,
-              padding: '5px 12px', borderRadius: 20,
-              border: filter === f.key ? `1.5px solid ${f.color}` : '1px solid var(--line)',
-              background: filter === f.key ? `color-mix(in srgb, ${f.color} 12%, transparent)` : 'transparent',
-              color: filter === f.key ? f.color : 'var(--muted)',
-              cursor: 'pointer',
-              minHeight: 32,
-            }}
+            key={item.key}
+            onClick={() => setFilter(item.key)}
+            className={cn(
+              'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+              filter === item.key
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-muted-foreground hover:text-foreground',
+            )}
+            type="button"
           >
-            {f.label}
-            {f.key !== 'all' && (
-              <span style={{ marginLeft: 4, fontWeight: 700 }}>
-                {orders.filter((o: any) => o.status === f.key).length}
+            {item.label}
+            {item.key !== 'all' && (
+              <span className="ml-1 font-bold">
+                {orders.filter((order) => normalizeStatus(order.status) === item.key).length}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {/* Summary */}
-      <div style={{ display: 'flex', gap: 12, fontSize: 10, color: 'var(--muted)' }}>
-        <span>📦 {filtered.length} order{filtered.length !== 1 ? 's' : ''}</span>
-        <span>⏳ {orders.filter((o: any) => o.status === 'pending').length} pending</span>
-        <span>✅ {orders.filter((o: any) => o.status === 'completed').length} completed</span>
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        <span>Orders: {filtered.length}</span>
+        <span>Pending quotes: {orders.filter((order) => normalizeStatus(order.status) === 'pending_quote').length}</span>
+        <span>Quoted: {orders.filter((order) => normalizeStatus(order.status) === 'quoted').length}</span>
       </div>
 
-      {/* Order list */}
       {filtered.length === 0 ? (
         <div className="empty">
-          <div className="empty-t">No customer orders{filter !== 'all' ? ` with status "${filter}"` : ''}</div>
+          <div className="empty-t">No customer orders{filter !== 'all' ? ` for ${filter}` : ''}</div>
           <div className="empty-d">Customer orders will appear here when placed</div>
         </div>
       ) : (
-        filtered.map((order: any) => {
-          const customer = customerMap.get(order.customer_user_id);
-          return (
-            <div key={order.id} style={{
-              padding: '12px 14px', borderRadius: 8,
-              border: order.status === 'pending' ? '1.5px solid var(--warn)' : '1px solid var(--line)',
-              background: 'var(--cardBg)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  {/* Customer info */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: '50%',
-                      background: 'var(--brand)', color: '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 800,
-                    }}>
-                      {customer?.display_name?.[0]?.toUpperCase() ?? 'C'}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>
-                        {customer?.display_name ?? 'Unknown Customer'}
+        <div className="space-y-3">
+          {filtered.map((order) => {
+            const customer = customerMap.get(order.customer_user_id);
+            const meta = deriveCustomerOrderMeta(order);
+            const status = normalizeStatus(order.status);
+            const displayedRate = getDisplayedCustomerRate(order);
+            const displayedTotal = getDisplayedCustomerTotal(order);
+            const draft = quoteDrafts[order.id];
+            const canQuote = status === 'pending_quote' || status === 'pending';
+            const canMarkAwaiting = status === 'quote_accepted';
+            const canComplete = status === 'payment_sent';
+            const canCancel = ['pending_quote', 'quoted', 'payment_sent', 'pending'].includes(status);
+
+            return (
+              <Card key={order.id} className={cn('overflow-hidden', canQuote ? 'border-primary/30' : '')}>
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+                          {customer?.display_name?.[0]?.toUpperCase() ?? 'C'}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-foreground">
+                            {customer?.display_name ?? 'Unknown Customer'}
+                          </div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {meta.corridorLabel} - {formatCustomerNumber(order.amount, 'en', 2)} {meta.sendCurrency}
+                          </div>
+                        </div>
                       </div>
-                      {customer?.region && (
-                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>📍 {customer.region}</div>
+
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span className="rounded-full border border-border/60 px-2 py-1">{order.order_type.toUpperCase()}</span>
+                        <span className="rounded-full border border-border/60 px-2 py-1">{order.payout_rail ?? 'N/A'}</span>
+                        <span className="rounded-full border border-border/60 px-2 py-1">
+                          {order.receive_currency ?? meta.receiveCurrency}
+                        </span>
+                        <Badge variant={status === 'completed' ? 'default' : status === 'cancelled' || status === 'quote_rejected' ? 'destructive' : 'secondary'} className="capitalize">
+                          {status.replace(/_/g, ' ')}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                        <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Guide Rate</div>
+                          <div className="mt-1 font-semibold text-foreground">
+                            {order.guide_rate != null ? formatCustomerNumber(order.guide_rate, 'en', 4) : '-'}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {order.guide_source ?? 'INSTAPAY_V1'}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                            {status === 'pending_quote' ? 'Estimated You Receive' : 'Final Total'}
+                          </div>
+                          <div className="mt-1 font-semibold text-foreground">
+                            {displayedTotal != null
+                              ? `${formatCustomerNumber(displayedTotal, 'en', 2)} ${meta.receiveCurrency}`
+                              : '-'}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {displayedRate != null ? `Rate ${formatCustomerNumber(displayedRate, 'en', 4)}` : 'Awaiting quote'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {order.final_quote_note && (
+                        <div className="mt-3 rounded-lg border border-border/60 bg-card/80 p-3 text-sm text-muted-foreground">
+                          {order.final_quote_note}
+                        </div>
                       )}
+
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        Created {formatCustomerDate(order.created_at, 'en')}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-xs text-muted-foreground">
+                        {order.final_quote_expires_at ? formatCustomerDate(order.final_quote_expires_at, 'en') : ''}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Order details */}
-                  <div style={{ display: 'flex', gap: 12, fontSize: 11, flexWrap: 'wrap', marginBottom: 6 }}>
-                    <span style={{
-                      fontWeight: 700,
-                      color: order.order_type === 'buy' ? 'var(--good)' : 'var(--bad)',
-                    }}>
-                      {order.order_type === 'buy' ? '↓ BUY' : '↑ SELL'}
-                    </span>
-                    <span className="mono" style={{ fontWeight: 800 }}>
-                      {Number(order.amount).toLocaleString()} {order.currency}
-                    </span>
-                    {order.rate && (
-                      <span style={{ color: 'var(--muted)' }}>@ {Number(order.rate).toFixed(2)}</span>
-                    )}
-                    {order.total && (
-                      <span style={{ color: 'var(--muted)' }}>
-                        = {Number(order.total).toLocaleString()} QAR
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Meta */}
-                  <div style={{ display: 'flex', gap: 10, fontSize: 9, color: 'var(--muted)', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {statusPill(order.status)}
-                    <span>📅 {new Date(order.created_at).toLocaleDateString()}</span>
-                    <span>🕐 {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-
-                  {order.note && (
-                    <div style={{ fontSize: 10, color: 'var(--t2)', marginTop: 6, fontStyle: 'italic' }}>
-                      💬 "{order.note}"
+                  {canQuote && (
+                    <div className="space-y-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3">
+                      <div className="text-sm font-semibold text-foreground">Merchant quote form</div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Final rate</Label>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={draft?.final_rate ?? ''}
+                            onChange={(event) => setQuoteDrafts((prev) => ({
+                              ...prev,
+                              [order.id]: {
+                                ...(prev[order.id] ?? {
+                                  final_rate: '',
+                                  final_total: '',
+                                  final_quote_note: '',
+                                  final_quote_expires_at: '',
+                                }),
+                                final_rate: event.target.value,
+                              },
+                            }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Final total</Label>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={draft?.final_total ?? ''}
+                            onChange={(event) => setQuoteDrafts((prev) => ({
+                              ...prev,
+                              [order.id]: {
+                                ...(prev[order.id] ?? {
+                                  final_rate: '',
+                                  final_total: '',
+                                  final_quote_note: '',
+                                  final_quote_expires_at: '',
+                                }),
+                                final_total: event.target.value,
+                              },
+                            }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Final quote note</Label>
+                          <Textarea
+                            value={draft?.final_quote_note ?? ''}
+                            onChange={(event) => setQuoteDrafts((prev) => ({
+                              ...prev,
+                              [order.id]: {
+                                ...(prev[order.id] ?? {
+                                  final_rate: '',
+                                  final_total: '',
+                                  final_quote_note: '',
+                                  final_quote_expires_at: '',
+                                }),
+                                final_quote_note: event.target.value,
+                              },
+                            }))}
+                            rows={3}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Final quote expires at</Label>
+                          <Input
+                            type="datetime-local"
+                            value={draft?.final_quote_expires_at ?? ''}
+                            onChange={(event) => setQuoteDrafts((prev) => ({
+                              ...prev,
+                              [order.id]: {
+                                ...(prev[order.id] ?? {
+                                  final_rate: '',
+                                  final_total: '',
+                                  final_quote_note: '',
+                                  final_quote_expires_at: '',
+                                }),
+                                final_quote_expires_at: event.target.value,
+                              },
+                            }))}
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => commitQuoteMutation.mutate({ order })}
+                        disabled={commitQuoteMutation.isPending || actioningId === order.id}
+                      >
+                        Commit Quote
+                      </Button>
                     </div>
                   )}
-                </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                  {actionButtons(order)}
-                </div>
-              </div>
-            </div>
-          );
-        })
+                  <div className="flex flex-wrap gap-2">
+                    {canMarkAwaiting && (
+                      <Button
+                        onClick={() => transitionMutation.mutate({ order, nextStatus: 'awaiting_payment' })}
+                        disabled={transitionMutation.isPending || actioningId === order.id}
+                      >
+                        Mark Awaiting Payment
+                      </Button>
+                    )}
+                    {canComplete && (
+                      <Button
+                        onClick={() => transitionMutation.mutate({ order, nextStatus: 'completed' })}
+                        disabled={transitionMutation.isPending || actioningId === order.id}
+                      >
+                        Complete Order
+                      </Button>
+                    )}
+                    {canCancel && (
+                      <Button
+                        variant="outline"
+                        onClick={() => transitionMutation.mutate({ order, nextStatus: 'cancelled' })}
+                        disabled={transitionMutation.isPending || actioningId === order.id}
+                      >
+                        Cancel Order
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );

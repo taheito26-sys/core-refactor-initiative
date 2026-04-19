@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  acceptCustomerQuote,
+  cancelCustomerOrder,
   deriveCustomerOrderMeta,
   formatCustomerDate,
   formatCustomerNumber,
@@ -31,15 +33,32 @@ import {
   getCustomerOrderSentAmount,
   getCustomerOrder,
   getCurrencyForCountry,
+  getDisplayedCustomerRate,
+  getDisplayedCustomerTotal,
+  rejectCustomerQuote,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
 
-const STEPS: { key: string; labelKey: string; icon: LucideIcon }[] = [
-  { key: 'pending', labelKey: 'orderCreated', icon: Circle },
-  { key: 'awaiting_payment', labelKey: 'awaitingPayment', icon: Clock },
-  { key: 'payment_sent', labelKey: 'paymentSent', icon: Upload },
-  { key: 'confirmed', labelKey: 'confirmed', icon: CheckCircle2 },
-  { key: 'completed', labelKey: 'completed', icon: CheckCircle2 },
+const STEP_KEYS = [
+  'pending_quote',
+  'quoted',
+  'quote_accepted',
+  'awaiting_payment',
+  'payment_sent',
+  'completed',
+  'quote_rejected',
+  'cancelled',
+] as const;
+
+const STEPS: { key: (typeof STEP_KEYS)[number]; label: string; icon: LucideIcon }[] = [
+  { key: 'pending_quote', label: 'Order created', icon: Circle },
+  { key: 'quoted', label: 'Quote sent', icon: Clock },
+  { key: 'quote_accepted', label: 'Quote accepted', icon: CheckCircle2 },
+  { key: 'awaiting_payment', label: 'Awaiting payment', icon: Timer },
+  { key: 'payment_sent', label: 'Payment sent', icon: Upload },
+  { key: 'completed', label: 'Completed', icon: CheckCircle2 },
+  { key: 'quote_rejected', label: 'Quote rejected', icon: Ban },
+  { key: 'cancelled', label: 'Cancelled', icon: Ban },
 ];
 
 interface Props {
@@ -52,9 +71,19 @@ function Row({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold text-right text-foreground">{value}</span>
+      <span className="text-right font-semibold text-foreground">{value}</span>
     </div>
   );
+}
+
+function normalizeOrderStatus(status: string) {
+  if (status === 'pending' || status === 'confirmed') {
+    return status;
+  }
+  if (STEP_KEYS.includes(status as (typeof STEP_KEYS)[number])) {
+    return status;
+  }
+  return 'pending_quote';
 }
 
 export default function OrderDetailView({ orderId, merchantName, onBack }: Props) {
@@ -100,17 +129,19 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
   const receiveAmount = order ? getCustomerOrderReceivedAmount(order) : 0;
   const sendCurrency = order?.send_currency ?? getCurrencyForCountry(meta?.sendCountry);
   const receiveCurrency = order?.receive_currency ?? getCurrencyForCountry(meta?.receiveCountry);
-  const isQatarToEgypt =
-    meta?.sendCountry === 'Qatar' &&
-    meta?.receiveCountry === 'Egypt' &&
-    receiveCurrency === 'EGP';
-  const currentStep = order ? Math.max(0, STEPS.findIndex((item) => item.key === order.status)) : 0;
+  const currentStatus = normalizeOrderStatus(order?.status ?? 'pending_quote');
+  const currentStep = Math.max(0, STEPS.findIndex((item) => item.key === currentStatus));
 
   const timeLeft = useMemo(() => {
-    if (!order?.expires_at) return null;
-    const diff = new Date(order.expires_at).getTime() - Date.now();
+    if (!order?.final_quote_expires_at && !order?.expires_at) return null;
+    const target = order.final_quote_expires_at ?? order.expires_at;
+    if (!target) return null;
+    const diff = new Date(target).getTime() - Date.now();
     return diff > 0 ? diff : 0;
-  }, [order?.expires_at]);
+  }, [order?.expires_at, order?.final_quote_expires_at]);
+
+  const quoteRate = getDisplayedCustomerRate(order ?? {});
+  const quoteTotal = getDisplayedCustomerTotal(order ?? {});
 
   const handleProofUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -149,7 +180,7 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
 
       await supabase.from('customer_order_events').insert({
         order_id: orderId,
-        event_type: 'payment_uploaded',
+        event_type: 'customer_marked_payment_sent',
         actor_user_id: userId,
         metadata: { file_name: file.name, file_type: file.type },
       });
@@ -166,19 +197,42 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
     }
   };
 
+  const acceptQuote = useMutation({
+    mutationFn: async () => {
+      if (!order || !userId) return;
+      const { error } = await acceptCustomerQuote(order, userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Quote accepted');
+      queryClient.invalidateQueries({ queryKey: ['customer-order-detail', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-order-events', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+    },
+    onError: (error: any) => toast.error(error?.message ?? 'Failed to accept quote'),
+  });
+
+  const rejectQuote = useMutation({
+    mutationFn: async () => {
+      if (!order || !userId) return;
+      const reason = window.prompt('Optional rejection reason')?.trim() || null;
+      const { error } = await rejectCustomerQuote(order, userId, reason);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Quote rejected');
+      queryClient.invalidateQueries({ queryKey: ['customer-order-detail', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-order-events', orderId, userId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+    },
+    onError: (error: any) => toast.error(error?.message ?? 'Failed to reject quote'),
+  });
+
   const cancelOrder = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from('customer_orders')
-        .update({ status: 'cancelled' })
-        .eq('id', orderId)
-        .eq('customer_user_id', userId!);
+      if (!order || !userId) return;
+      const { error } = await cancelCustomerOrder(order, userId);
       if (error) throw error;
-      await supabase.from('customer_order_events').insert({
-        order_id: orderId,
-        event_type: 'order_cancelled',
-        actor_user_id: userId!,
-      });
     },
     onSuccess: () => {
       toast.success(t('orderCancelled'));
@@ -209,9 +263,10 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
     );
   }
 
-  const canCancel = ['pending', 'awaiting_payment'].includes(order.status);
-  const canUploadProof = ['pending', 'awaiting_payment'].includes(order.status);
-  const showCorridorCard = isQatarToEgypt || meta.sendCountry === 'Qatar' || meta.receiveCountry === 'Egypt';
+  const canCancel = ['pending_quote', 'quoted', 'payment_sent', 'pending'].includes(currentStatus);
+  const canUploadProof = ['awaiting_payment', 'pending'].includes(currentStatus);
+  const showGuideCard = currentStatus === 'pending_quote';
+  const showQuoteCard = ['quoted', 'quote_accepted', 'quote_rejected', 'awaiting_payment', 'payment_sent', 'completed'].includes(currentStatus);
 
   return (
     <div className="space-y-4">
@@ -221,61 +276,102 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
         </Button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-lg font-black text-foreground">
-            {meta.corridorLabel} · {formatCustomerNumber(sendAmount, language, 2)} {sendCurrency}
+            {meta.corridorLabel} - {formatCustomerNumber(sendAmount, language, 2)} {sendCurrency}
           </div>
           <div className="truncate text-sm text-muted-foreground">{merchantName}</div>
         </div>
-        <Badge variant={order.status === 'completed' ? 'default' : order.status === 'cancelled' ? 'destructive' : 'secondary'} className="capitalize">
-          {order.status.replace(/_/g, ' ')}
+        <Badge
+          variant={currentStatus === 'completed' ? 'default' : currentStatus === 'cancelled' || currentStatus === 'quote_rejected' ? 'destructive' : 'secondary'}
+          className="capitalize"
+        >
+          {currentStatus.replace(/_/g, ' ')}
         </Badge>
       </div>
 
-      {showCorridorCard && (
+      {showGuideCard && (
         <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t('corridorCard')}</CardTitle>
+            <CardTitle className="text-sm">Guide pricing</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">
               {meta.corridorLabel}
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{meta.sendCountry}</div>
-                <div className="mt-1 text-lg font-black text-foreground">
-                  {formatCustomerNumber(sendAmount, language, 2)} {sendCurrency}
-                </div>
-              </div>
-              <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              <div className="text-right">
-                <div className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{meta.receiveCountry}</div>
-                <div className="mt-1 text-lg font-black text-foreground">
-                  {formatCustomerNumber(receiveAmount, language, 2)} {receiveCurrency}
-                </div>
-              </div>
-            </div>
             <div className="grid gap-2 rounded-xl border border-border/60 bg-card/80 p-3 text-xs sm:grid-cols-2">
-              <Row label={t('payoutRail')} value={order.payout_rail ?? t('nA')} />
-              <Row label={t('receiveCurrency')} value={receiveCurrency} />
+              <Row label="Guide Rate" value={quoteRate != null ? formatCustomerNumber(quoteRate, language, 4) : '-'} />
+              <Row label="Estimated You Receive" value={quoteTotal != null ? `${formatCustomerNumber(quoteTotal, language, 2)} ${receiveCurrency}` : '-'} />
+              <Row label="Pricing Source" value={order.guide_source ?? 'INSTAPAY_V1'} />
+              <Row label="Final rate" value="Final rate will be confirmed by the merchant" />
             </div>
           </CardContent>
         </Card>
       )}
 
-      {order.expires_at && timeLeft !== null && order.status !== 'completed' && order.status !== 'cancelled' && (
+      {showQuoteCard && (
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Quote details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">
+              {meta.corridorLabel}
+            </div>
+            <div className="grid gap-2 rounded-xl border border-border/60 bg-card/80 p-3 text-xs sm:grid-cols-2">
+              <Row label="Final Rate" value={quoteRate != null ? formatCustomerNumber(quoteRate, language, 4) : '-'} />
+              <Row label="Final Total" value={quoteTotal != null ? `${formatCustomerNumber(quoteTotal, language, 2)} ${receiveCurrency}` : '-'} />
+              <Row label="Quote note" value={order.final_quote_note ?? '-'} />
+              <Row label="Expires at" value={order.final_quote_expires_at ? formatCustomerDate(order.final_quote_expires_at, language) : '-'} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {order.final_quote_note && currentStatus !== 'quoted' && (
+        <Card>
+          <CardContent className="p-3 text-sm text-muted-foreground">
+            {order.final_quote_note}
+          </CardContent>
+        </Card>
+      )}
+
+      {order.final_quote_expires_at && timeLeft !== null && currentStatus !== 'completed' && currentStatus !== 'cancelled' && (
         <Card className={cn('border', timeLeft === 0 ? 'border-destructive bg-destructive/5' : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10')}>
           <CardContent className="flex items-center gap-3 p-3">
             <Timer className={cn('h-5 w-5', timeLeft === 0 ? 'text-destructive' : 'text-amber-600')} />
             <span className="text-sm font-medium">
-              {timeLeft === 0 ? t('confirmationExpired') : `${t('merchantConfirmIn')} ${Math.floor(timeLeft / 60000)}:${String(Math.floor((timeLeft % 60000) / 1000)).padStart(2, '0')}`}
+              {timeLeft === 0 ? 'Quote expired' : `Quote expires in ${Math.floor(timeLeft / 60000)}:${String(Math.floor((timeLeft % 60000) / 1000)).padStart(2, '0')}`}
             </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {currentStatus === 'quoted' && (
+        <Card className="border-primary/20">
+          <CardContent className="flex flex-wrap gap-2 p-3">
+            <Button
+              onClick={() => acceptQuote.mutate()}
+              disabled={acceptQuote.isPending}
+              className="gap-2"
+            >
+              {acceptQuote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Accept Quote
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => rejectQuote.mutate()}
+              disabled={rejectQuote.isPending}
+              className="gap-2"
+            >
+              {rejectQuote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+              Reject Quote
+            </Button>
           </CardContent>
         </Card>
       )}
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">{t('orderProgress')}</CardTitle>
+          <CardTitle className="text-sm">Order progress</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {STEPS.map((step, index) => {
@@ -290,9 +386,7 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
                   {index < STEPS.length - 1 && <div className={cn('h-6 w-0.5', index < currentStep ? 'bg-primary' : 'bg-muted-foreground/20')} />}
                 </div>
                 <div className={cn('pt-0.5', done ? 'font-semibold' : '')}>
-                  <p className={cn('text-sm', done ? 'text-foreground' : 'text-muted-foreground')}>
-                    {t(step.labelKey as never)}
-                  </p>
+                  <p className={cn('text-sm', done ? 'text-foreground' : 'text-muted-foreground')}>{step.label}</p>
                 </div>
               </div>
             );
@@ -302,22 +396,27 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">{t('details')}</CardTitle>
+          <CardTitle className="text-sm">Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Row label={t('merchant')} value={merchantName} />
-          <Row label={t('sendCountry')} value={meta.sendCountry} />
-          <Row label={t('receiveCountry')} value={meta.receiveCountry} />
-          <Row label={t('sendCurrency')} value={sendCurrency} />
-          <Row label={t('receiveCurrency')} value={receiveCurrency} />
-          <Row label={t('payoutRail')} value={order.payout_rail ?? t('nA')} />
-          <Row label={t('corridorLabel')} value={meta.corridorLabel} />
-          <Row label={t('amount')} value={`${formatCustomerNumber(sendAmount, language, 2)} ${sendCurrency}`} />
-          {order.rate !== null && <Row label={t('rate')} value={formatCustomerNumber(order.rate, language, 3)} />}
-          {order.total !== null && <Row label={t('total')} value={`${formatCustomerNumber(receiveAmount, language, 2)} ${receiveCurrency}`} />}
-          <Row label={t('created')} value={formatCustomerDate(order.created_at, language)} />
-          {order.confirmed_at && <Row label={t('confirmed')} value={formatCustomerDate(order.confirmed_at, language)} />}
-          {order.note && <Row label={t('note')} value={order.note} />}
+          <Row label="Merchant" value={merchantName} />
+          <Row label="Send country" value={meta.sendCountry} />
+          <Row label="Receive country" value={meta.receiveCountry} />
+          <Row label="Send currency" value={sendCurrency} />
+          <Row label="Receive currency" value={receiveCurrency} />
+          <Row label="Payout rail" value={order.payout_rail ?? t('nA')} />
+          <Row label="Corridor" value={meta.corridorLabel} />
+          <Row label="Amount" value={`${formatCustomerNumber(sendAmount, language, 2)} ${sendCurrency}`} />
+          {quoteRate != null && <Row label={currentStatus === 'pending_quote' ? 'Guide Rate' : 'Final Rate'} value={formatCustomerNumber(quoteRate, language, 4)} />}
+          {quoteTotal != null && <Row label={currentStatus === 'pending_quote' ? 'Estimated You Receive' : 'Final Total'} value={`${formatCustomerNumber(receiveAmount || quoteTotal, language, 2)} ${receiveCurrency}`} />}
+          {order.note && <Row label="Note" value={order.note} />}
+          {order.final_quote_note && <Row label="Merchant quote note" value={order.final_quote_note} />}
+          {order.customer_accepted_quote_at && <Row label="Customer accepted" value={formatCustomerDate(order.customer_accepted_quote_at, language)} />}
+          {order.customer_rejected_quote_at && <Row label="Customer rejected" value={formatCustomerDate(order.customer_rejected_quote_at, language)} />}
+          {order.quote_rejection_reason && <Row label="Rejection reason" value={order.quote_rejection_reason} />}
+          {order.quoted_at && <Row label="Quoted at" value={formatCustomerDate(order.quoted_at, language)} />}
+          {order.quoted_by_user_id && <Row label="Quoted by" value={order.quoted_by_user_id} />}
+          <Row label="Created" value={formatCustomerDate(order.created_at, language)} />
         </CardContent>
       </Card>
 
@@ -325,7 +424,7 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
         <Card className="border-dashed border-primary/30">
           <CardContent className="flex flex-col items-center gap-3 py-6">
             <FileImage className="h-8 w-8 text-muted-foreground" />
-            <p className="text-center text-sm text-muted-foreground">{t('uploadPaymentProof')}</p>
+            <p className="text-center text-sm text-muted-foreground">Upload payment proof and mark payment sent</p>
             <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleProofUpload} />
             <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
               {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
@@ -357,7 +456,7 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
       {events.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t('timeline')}</CardTitle>
+            <CardTitle className="text-sm">Timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {events.map((event: any) => (

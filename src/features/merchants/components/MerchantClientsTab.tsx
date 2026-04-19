@@ -76,7 +76,7 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
       data.forEach((o) => {
         if (!counts[o.connection_id]) counts[o.connection_id] = { total: 0, pending: 0 };
         counts[o.connection_id].total++;
-        if (o.status === 'pending' || o.status === 'awaiting_payment' || o.status === 'payment_sent') {
+        if (['pending_quote', 'quoted', 'quote_accepted', 'awaiting_payment', 'payment_sent', 'pending'].includes(o.status)) {
           counts[o.connection_id].pending++;
         }
       });
@@ -206,26 +206,33 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
                 </div>
 
                 {/* Stats */}
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 10 }}>
-                  {counts && (
-                    <>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{counts.total}</div>
-                        <div style={{ color: 'var(--muted)' }}>Orders</div>
-                      </div>
-                      {counts.pending > 0 && (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 10 }}>
+                    {counts && (
+                      <>
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)' }}>{counts.pending}</div>
-                          <div style={{ color: 'var(--muted)' }}>Pending</div>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{counts.total}</div>
+                          <div style={{ color: 'var(--muted)' }}>Orders</div>
                         </div>
-                      )}
-                    </>
-                  )}
-                  {statusPill(conn.status)}
-                </div>
+                        {counts.pending > 0 && (
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--warn)' }}>{counts.pending}</div>
+                            <div style={{ color: 'var(--muted)' }}>Pending</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {statusPill(conn.status)}
+                  </div>
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 10, minHeight: 34, padding: '4px 12px' }}
+                    onClick={() => navigate('/merchants?tab=client-orders')}
+                  >
+                    View Orders
+                  </button>
                   {canMutate && conn.status === 'active' && (
                     <button
                       className="btn"

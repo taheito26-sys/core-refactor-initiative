@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, Loader2, Plus, ShoppingCart, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,27 +10,31 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, Loader2, Plus, ShoppingCart, X } from 'lucide-react';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme-context';
 import OrderDetailView from './components/OrderDetailView';
 import {
-  buildCustomerOrderPayload,
+  acceptCustomerQuote,
   createCustomerOrder,
+  createCustomerOrderWithGuide,
   deriveCustomerOrderMeta,
   formatCustomerDate,
   formatCustomerNumber,
   getCompatibleRails,
   getCorridorLabel,
   getCurrencyForCountry,
+  getDisplayedCustomerRate,
+  getDisplayedCustomerTotal,
+  getGuidePricingForCustomerOrder,
   listCustomerConnections,
   listCustomerOrders,
+  rejectCustomerQuote,
   type CustomerCountry,
   type CustomerOrderRow,
+  type GuidePricingResult,
 } from '@/features/customer/customer-portal';
 import { CUSTOMER_COUNTRIES } from '@/features/customer/customer-portal';
-import { useTheme } from '@/lib/theme-context';
 
 type OrderDraft = {
   orderType: 'buy' | 'sell';
@@ -41,40 +47,64 @@ type OrderDraft = {
   payoutRail: string;
 };
 
-function CorridorPreview({
-  sendCountry,
-  receiveCountry,
-  amount,
-  rate,
+function getStatusBadgeVariant(status: string) {
+  if (status === 'completed') return 'default';
+  if (status === 'cancelled' || status === 'quote_rejected') return 'destructive';
+  return 'secondary';
+}
+
+function formatQuoteStatus(status: string) {
+  return status.replace(/_/g, ' ');
+}
+
+function QuoteSummary({
+  guide,
   language,
+  corridorLabel,
+  receiveCurrency,
 }: {
-  sendCountry: CustomerCountry;
-  receiveCountry: CustomerCountry;
-  amount: number;
-  rate: number | null;
+  guide: GuidePricingResult | null;
   language: 'en' | 'ar';
+  corridorLabel: string;
+  receiveCurrency: string;
 }) {
-  const sendCurrency = getCurrencyForCountry(sendCountry);
-  const receiveCurrency = getCurrencyForCountry(receiveCountry);
-  const received = rate && rate > 0 ? amount * rate : null;
+  if (!guide || guide.guideRate == null || guide.guideTotal == null) {
+    return (
+      <div className="rounded-xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+        Guide unavailable. Merchant quote only.
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-border/60 bg-gradient-to-br from-primary/10 via-transparent to-transparent p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">{getCorridorLabel(sendCountry, receiveCountry)}</div>
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{sendCountry}</div>
+      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">
+        Based on current market guide pricing
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Guide Rate</div>
           <div className="mt-1 text-lg font-black text-foreground">
-            {formatCustomerNumber(amount, language, 2)} {sendCurrency}
+            {formatCustomerNumber(guide.guideRate, language, 4)}
           </div>
         </div>
-        <ArrowUpRight className="h-5 w-5 text-muted-foreground" />
-        <div className="text-right">
-          <div className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{receiveCountry}</div>
+        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Estimated You Receive</div>
           <div className="mt-1 text-lg font-black text-foreground">
-            {received !== null ? `${formatCustomerNumber(received, language, 2)} ${receiveCurrency}` : `— ${receiveCurrency}`}
+            {formatCustomerNumber(guide.guideTotal, language, 2)} {receiveCurrency}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Pricing Source</div>
+          <div className="mt-1 text-lg font-black text-foreground">
+            {guide.guideSource ?? 'INSTAPAY_V1'}
           </div>
         </div>
       </div>
+      <div className="mt-3 text-xs text-muted-foreground">
+        Final rate will be confirmed by the merchant.
+      </div>
+      <div className="mt-2 text-[11px] text-muted-foreground">{corridorLabel}</div>
     </div>
   );
 }
@@ -112,7 +142,12 @@ export default function CustomerOrdersPage() {
     if (repeatOrder) {
       localStorage.removeItem('customer_repeat_order');
       try {
-        const parsed = JSON.parse(repeatOrder) as Partial<OrderDraft> & { order_type?: 'buy' | 'sell'; send_country?: string; receive_country?: string; payout_rail?: string };
+        const parsed = JSON.parse(repeatOrder) as Partial<OrderDraft> & {
+          order_type?: 'buy' | 'sell';
+          send_country?: string;
+          receive_country?: string;
+          payout_rail?: string;
+        };
         setDraft((prev) => ({
           ...prev,
           orderType: parsed.order_type ?? parsed.orderType ?? 'buy',
@@ -158,7 +193,7 @@ export default function CustomerOrdersPage() {
     setDraft((prev) => ({
       ...prev,
       sendCountry: prev.sendCountry ?? fallback,
-      payoutRail: prev.payoutRail || (getCompatibleRails(prev.sendCountry ?? fallback, prev.receiveCountry)[0]?.value ?? ''),
+      payoutRail: prev.payoutRail || getCompatibleRails(prev.sendCountry ?? fallback, prev.receiveCountry)[0]?.value || '',
     }));
   }, [customerProfile?.country]);
 
@@ -171,15 +206,44 @@ export default function CustomerOrdersPage() {
     [draft.receiveCountry, draft.sendCountry],
   );
   const selectedRail = availableRails.find((item) => item.value === draft.payoutRail)?.value ?? availableRails[0]?.value ?? '';
-  const estimatedReceived = Number.isFinite(parsedAmount) && Number.isFinite(parsedRate) && parsedRate > 0
-    ? parsedAmount * parsedRate
-    : null;
+  const corridorLabel = getCorridorLabel(draft.sendCountry, draft.receiveCountry);
 
   useEffect(() => {
     if (!availableRails.some((rail) => rail.value === draft.payoutRail)) {
       setDraft((prev) => ({ ...prev, payoutRail: availableRails[0]?.value ?? '' }));
     }
   }, [availableRails, draft.payoutRail]);
+
+  useEffect(() => {
+    if (draft.orderType === 'buy') {
+      setDraft((prev) => (prev.rate ? { ...prev, rate: '' } : prev));
+    }
+  }, [draft.orderType]);
+
+  const guideQuery = useQuery({
+    queryKey: ['customer-guide-pricing', draft.amount, draft.sendCountry, draft.receiveCountry, selectedRail],
+    queryFn: async () => {
+      if (draft.orderType !== 'buy' || !Number.isFinite(parsedAmount) || parsedAmount <= 0) return null;
+      return getGuidePricingForCustomerOrder({
+        customerUserId: userId ?? '',
+        merchantId: draft.merchantId || '',
+        connectionId: '',
+        orderType: 'buy',
+        amount: parsedAmount,
+        rate: null,
+        note: draft.note.trim() || null,
+        sendCountry: draft.sendCountry,
+        receiveCountry: draft.receiveCountry,
+        sendCurrency,
+        receiveCurrency,
+        payoutRail: selectedRail || null,
+        corridorLabel,
+      });
+    },
+    enabled: draft.orderType === 'buy' && Number.isFinite(parsedAmount) && parsedAmount > 0,
+  });
+
+  const currentGuide = guideQuery.data ?? null;
 
   const placeOrder = useMutation({
     mutationFn: async () => {
@@ -189,11 +253,31 @@ export default function CustomerOrdersPage() {
       const conn = connections.find((item: any) => item.merchant_id === draft.merchantId);
       if (!conn) throw new Error(t('selectConnectedMerchant'));
 
+      if (draft.orderType === 'buy') {
+        const { data, error } = await createCustomerOrderWithGuide({
+          customerUserId: userId,
+          merchantId: draft.merchantId,
+          connectionId: conn.id,
+          orderType: 'buy',
+          amount: parsedAmount,
+          rate: null,
+          note: draft.note.trim() || null,
+          sendCountry: draft.sendCountry,
+          receiveCountry: draft.receiveCountry,
+          sendCurrency,
+          receiveCurrency,
+          payoutRail: selectedRail || null,
+          corridorLabel,
+        });
+        if (error) throw error;
+        return data;
+      }
+
       const { data, error } = await createCustomerOrder({
         customerUserId: userId,
         merchantId: draft.merchantId,
         connectionId: conn.id,
-        orderType: draft.orderType,
+        orderType: 'sell',
         amount: parsedAmount,
         rate: Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null,
         note: draft.note.trim() || null,
@@ -202,7 +286,7 @@ export default function CustomerOrdersPage() {
         sendCurrency,
         receiveCurrency,
         payoutRail: selectedRail || null,
-        corridorLabel: getCorridorLabel(draft.sendCountry, draft.receiveCountry),
+        corridorLabel,
       });
       if (error) throw error;
       return data;
@@ -226,6 +310,25 @@ export default function CustomerOrdersPage() {
     onError: (error: any) => {
       toast.error(error?.message ?? t('orderFailed'));
     },
+  });
+
+  const respondToQuote = useMutation({
+    mutationFn: async (payload: { order: CustomerOrderRow; kind: 'accept' | 'reject'; reason?: string | null }) => {
+      if (!userId) throw new Error('Missing user session');
+      if (payload.kind === 'accept') {
+        const { error } = await acceptCustomerQuote(payload.order, userId);
+        if (error) throw error;
+      } else {
+        const { error } = await rejectCustomerQuote(payload.order, userId, payload.reason ?? null);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success('Quote updated');
+      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-dashboard-orders'] });
+    },
+    onError: (error: any) => toast.error(error?.message ?? 'Failed to update quote'),
   });
 
   if (selectedOrderId) {
@@ -263,7 +366,7 @@ export default function CustomerOrdersPage() {
                 type="button"
                 variant={draft.orderType === 'buy' ? 'default' : 'outline'}
                 className="gap-2"
-                onClick={() => setDraft((prev) => ({ ...prev, orderType: 'buy' }))}
+                onClick={() => setDraft((prev) => ({ ...prev, orderType: 'buy', rate: '' }))}
               >
                 <ArrowDownLeft className="h-4 w-4" />
                 {t('buy')}
@@ -306,7 +409,14 @@ export default function CustomerOrdersPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>{t('sendCountry')}</Label>
-                <Select value={draft.sendCountry} onValueChange={(sendCountry) => setDraft((prev) => ({ ...prev, sendCountry: sendCountry as CustomerCountry, payoutRail: getCompatibleRails(sendCountry, prev.receiveCountry)[0]?.value ?? '' }))}>
+                <Select
+                  value={draft.sendCountry}
+                  onValueChange={(sendCountry) => setDraft((prev) => ({
+                    ...prev,
+                    sendCountry: sendCountry as CustomerCountry,
+                    payoutRail: getCompatibleRails(sendCountry, prev.receiveCountry)[0]?.value ?? '',
+                  }))}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -321,7 +431,14 @@ export default function CustomerOrdersPage() {
               </div>
               <div className="space-y-2">
                 <Label>{t('receiveCountry')}</Label>
-                <Select value={draft.receiveCountry} onValueChange={(receiveCountry) => setDraft((prev) => ({ ...prev, receiveCountry: receiveCountry as CustomerCountry, payoutRail: getCompatibleRails(prev.sendCountry, receiveCountry)[0]?.value ?? '' }))}>
+                <Select
+                  value={draft.receiveCountry}
+                  onValueChange={(receiveCountry) => setDraft((prev) => ({
+                    ...prev,
+                    receiveCountry: receiveCountry as CustomerCountry,
+                    payoutRail: getCompatibleRails(prev.sendCountry, receiveCountry)[0]?.value ?? '',
+                  }))}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -336,7 +453,7 @@ export default function CustomerOrdersPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={cn('grid gap-3', draft.orderType === 'buy' ? 'grid-cols-1' : 'grid-cols-2')}>
               <div className="space-y-2">
                 <Label>{t('amount')}</Label>
                 <Input
@@ -347,16 +464,18 @@ export default function CustomerOrdersPage() {
                   onChange={(event) => setDraft((prev) => ({ ...prev, amount: event.target.value }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>{t('rate')}</Label>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="0.000"
-                  value={draft.rate}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, rate: event.target.value }))}
-                />
-              </div>
+              {draft.orderType === 'sell' && (
+                <div className="space-y-2">
+                  <Label>{t('rate')}</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0.000"
+                    value={draft.rate}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, rate: event.target.value }))}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -387,23 +506,13 @@ export default function CustomerOrdersPage() {
               <div className="text-xs text-muted-foreground">{t('railsFilteredByCorridor')}</div>
             </div>
 
-            {Number.isFinite(parsedAmount) && parsedAmount > 0 && (
-              <CorridorPreview
-                sendCountry={draft.sendCountry}
-                receiveCountry={draft.receiveCountry}
-                amount={parsedAmount}
-                rate={Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null}
+            {draft.orderType === 'buy' && (
+              <QuoteSummary
+                guide={currentGuide}
                 language={language}
+                corridorLabel={corridorLabel}
+                receiveCurrency={receiveCurrency}
               />
-            )}
-
-            {Number.isFinite(parsedAmount) && Number.isFinite(parsedRate) && parsedAmount > 0 && parsedRate > 0 && (
-              <div className="rounded-lg bg-muted/50 p-3 text-center">
-                <p className="text-xs text-muted-foreground mb-1">{t('estimatedTotal')}</p>
-                <p className="text-lg font-black text-foreground">
-                  {formatCustomerNumber(estimatedReceived ?? 0, language, 2)} {receiveCurrency}
-                </p>
-              </div>
             )}
 
             <div className="space-y-2">
@@ -439,39 +548,89 @@ export default function CustomerOrdersPage() {
         <div className="space-y-2">
           {orders.map((order) => {
             const meta = deriveCustomerOrderMeta(order, customerProfile?.country);
+            const displayedRate = getDisplayedCustomerRate(order);
+            const displayedTotal = getDisplayedCustomerTotal(order);
+            const isGuideOrder = order.status === 'pending_quote';
+            const isQuotedOrLater = ['quoted', 'quote_accepted', 'quote_rejected', 'awaiting_payment', 'payment_sent', 'completed'].includes(order.status);
+
             return (
               <Card
                 key={order.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
+                className="cursor-pointer transition-shadow hover:shadow-md"
                 onClick={() => setSelectedOrderId(order.id)}
               >
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className={cn(
-                        'flex h-9 w-9 items-center justify-center rounded-full shrink-0',
-                        order.order_type === 'buy' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive',
-                      )}>
+                      <div
+                        className={cn(
+                          'flex h-9 w-9 items-center justify-center rounded-full shrink-0',
+                          order.order_type === 'buy' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive',
+                        )}
+                      >
                         {order.order_type === 'buy' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">
-                          {meta.corridorLabel} · {formatCustomerNumber(order.amount, language, 2)} {meta.sendCurrency}
+                          {meta.corridorLabel} - {formatCustomerNumber(order.amount, language, 2)} {meta.sendCurrency}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {order.payout_rail ?? t('nA')} · {order.rate ? `${t('rate')} ${formatCustomerNumber(order.rate, language, 3)}` : t('marketRate')}
-                          {order.total ? ` · ${t('total')}: ${formatCustomerNumber(order.total, language, 2)} ${meta.receiveCurrency}` : ''}
+                          {order.payout_rail ?? t('nA')}
+                          {' - '}
+                          {isGuideOrder
+                            ? `Guide Rate ${displayedRate != null ? formatCustomerNumber(displayedRate, language, 4) : '-'}`
+                            : `Final Rate ${displayedRate != null ? formatCustomerNumber(displayedRate, language, 4) : '-'}`}
+                          {displayedTotal != null
+                            ? ` - ${isGuideOrder ? 'Estimated You Receive' : isQuotedOrLater ? 'Final Total' : 'Total'}: ${formatCustomerNumber(displayedTotal, language, 2)} ${meta.receiveCurrency}`
+                            : ''}
                         </p>
                         <p className="text-xs text-muted-foreground">{formatCustomerDate(order.created_at, language)}</p>
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant={order.status === 'completed' ? 'default' : order.status === 'cancelled' ? 'destructive' : 'secondary'} className="text-xs capitalize">
-                        {order.status.replace(/_/g, ' ')}
+                      <Badge variant={getStatusBadgeVariant(order.status)} className="text-xs capitalize">
+                        {formatQuoteStatus(order.status)}
                       </Badge>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
+
+                  {isGuideOrder && (
+                    <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+                      <div className="font-semibold text-foreground">Guide Rate</div>
+                      <div className="mt-1">Source: {order.guide_source ?? 'INSTAPAY_V1'}</div>
+                      <div>Based on current market guide pricing</div>
+                    </div>
+                  )}
+
+                  {order.status === 'quoted' && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          respondToQuote.mutate({ order, kind: 'accept' });
+                        }}
+                        disabled={respondToQuote.isPending}
+                      >
+                        Accept Quote
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          const reason = window.prompt('Optional rejection reason')?.trim() || null;
+                          respondToQuote.mutate({ order, kind: 'reject', reason });
+                        }}
+                        disabled={respondToQuote.isPending}
+                      >
+                        Reject Quote
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

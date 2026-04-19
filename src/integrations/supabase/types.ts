@@ -1344,79 +1344,130 @@ export type Database = {
           },
         ]
       }
-      customer_orders: {
-        Row: {
-          amount: number
-          confirmed_at: string | null
-          connection_id: string
-          created_at: string
-          currency: string
-          customer_user_id: string
-          expires_at: string | null
-          id: string
-          merchant_id: string
-          note: string | null
-          order_type: string
-          corridor_label: string | null
-          payment_proof_uploaded_at: string | null
-          payment_proof_url: string | null
-          payout_rail: string | null
-          rate: number | null
-          receive_country: string | null
-          receive_currency: string | null
-          send_country: string | null
-          send_currency: string | null
-          status: string
+        customer_orders: {
+          Row: {
+            amount: number
+            confirmed_at: string | null
+            connection_id: string
+            created_at: string
+            currency: string
+            customer_user_id: string
+            expires_at: string | null
+            customer_accepted_quote_at: string | null
+            customer_rejected_quote_at: string | null
+            final_quote_expires_at: string | null
+            final_quote_note: string | null
+            final_rate: number | null
+            final_total: number | null
+            guide_generated_at: string | null
+            guide_rate: number | null
+            guide_snapshot: Json | null
+            guide_source: string | null
+            guide_total: number | null
+            id: string
+            market_pair: string | null
+            merchant_id: string
+            note: string | null
+            order_type: string
+            corridor_label: string | null
+            pricing_mode: string
+            pricing_version: string | null
+            payment_proof_uploaded_at: string | null
+            payment_proof_url: string | null
+            payout_rail: string | null
+            rate: number | null
+            quoted_at: string | null
+            quoted_by_user_id: string | null
+            quote_rejection_reason: string | null
+            receive_country: string | null
+            receive_currency: string | null
+            send_country: string | null
+            send_currency: string | null
+            status: string
           total: number | null
           updated_at: string
         }
         Insert: {
-          amount: number
-          confirmed_at?: string | null
-          connection_id: string
-          created_at?: string
-          currency?: string
-          customer_user_id: string
-          expires_at?: string | null
-          id?: string
-          merchant_id: string
-          note?: string | null
-          order_type?: string
-          corridor_label?: string | null
-          payment_proof_uploaded_at?: string | null
-          payment_proof_url?: string | null
-          payout_rail?: string | null
-          rate?: number | null
-          receive_country?: string | null
-          receive_currency?: string | null
-          send_country?: string | null
-          send_currency?: string | null
-          status?: string
+            amount: number
+            confirmed_at?: string | null
+            connection_id: string
+            created_at?: string
+            currency?: string
+            customer_user_id: string
+            expires_at?: string | null
+            customer_accepted_quote_at?: string | null
+            customer_rejected_quote_at?: string | null
+            final_quote_expires_at?: string | null
+            final_quote_note?: string | null
+            final_rate?: number | null
+            final_total?: number | null
+            guide_generated_at?: string | null
+            guide_rate?: number | null
+            guide_snapshot?: Json | null
+            guide_source?: string | null
+            guide_total?: number | null
+            id?: string
+            market_pair?: string | null
+            merchant_id: string
+            note?: string | null
+            order_type?: string
+            corridor_label?: string | null
+            pricing_mode?: string
+            pricing_version?: string | null
+            payment_proof_uploaded_at?: string | null
+            payment_proof_url?: string | null
+            payout_rail?: string | null
+            rate?: number | null
+            quoted_at?: string | null
+            quoted_by_user_id?: string | null
+            quote_rejection_reason?: string | null
+            receive_country?: string | null
+            receive_currency?: string | null
+            send_country?: string | null
+            send_currency?: string | null
+            status?: string
           total?: number | null
           updated_at?: string
         }
         Update: {
-          amount?: number
-          confirmed_at?: string | null
-          connection_id?: string
-          created_at?: string
-          currency?: string
-          customer_user_id?: string
-          expires_at?: string | null
-          id?: string
-          merchant_id?: string
-          note?: string | null
-          order_type?: string
-          corridor_label?: string | null
-          payment_proof_uploaded_at?: string | null
-          payment_proof_url?: string | null
-          payout_rail?: string | null
-          rate?: number | null
-          receive_country?: string | null
-          receive_currency?: string | null
-          send_country?: string | null
-          send_currency?: string | null
-          status?: string
+            amount?: number
+            confirmed_at?: string | null
+            connection_id?: string
+            created_at?: string
+            currency?: string
+            customer_user_id?: string
+            expires_at?: string | null
+            customer_accepted_quote_at?: string | null
+            customer_rejected_quote_at?: string | null
+            final_quote_expires_at?: string | null
+            final_quote_note?: string | null
+            final_rate?: number | null
+            final_total?: number | null
+            guide_generated_at?: string | null
+            guide_rate?: number | null
+            guide_snapshot?: Json | null
+            guide_source?: string | null
+            guide_total?: number | null
+            id?: string
+            market_pair?: string | null
+            merchant_id?: string
+            note?: string | null
+            order_type?: string
+            corridor_label?: string | null
+            pricing_mode?: string
+            pricing_version?: string | null
+            payment_proof_uploaded_at?: string | null
+            payment_proof_url?: string | null
+            payout_rail?: string | null
+            rate?: number | null
+            quoted_at?: string | null
+            quoted_by_user_id?: string | null
+            quote_rejection_reason?: string | null
+            receive_country?: string | null
+            receive_currency?: string | null
+            send_country?: string | null
+            send_currency?: string | null
+            status?: string
           total?: number | null
           updated_at?: string
         }

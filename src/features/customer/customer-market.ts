@@ -1,0 +1,129 @@
+import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
+
+type MarketSnapshotRow = {
+  market: string;
+  fetched_at: string | null;
+  data: Record<string, unknown> | null;
+};
+
+export type CustomerMarketCard = {
+  market: 'qatar' | 'egypt';
+  label: 'Qatar' | 'Egypt';
+  buyAvg: number | null;
+  sellAvg: number | null;
+  bestBuy: number | null;
+  bestSell: number | null;
+  spreadPct: number | null;
+  fetchedAt: string | null;
+  snapshot: Json | null;
+};
+
+export type QatarEgyptGuideRate = {
+  source: 'INSTAPAY_V1' | null;
+  rate: number | null;
+  timestamp: string | null;
+  snapshot: Json | null;
+  marketPair: 'QAR/EGP';
+};
+
+export type CustomerMarketKpis = {
+  qatar: CustomerMarketCard | null;
+  egypt: CustomerMarketCard | null;
+  guide: QatarEgyptGuideRate;
+};
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+async function fetchLatestSnapshot(market: 'qatar' | 'egypt'): Promise<MarketSnapshotRow | null> {
+  const { data, error } = await supabase
+    .from('p2p_snapshots')
+    .select('market, fetched_at, data')
+    .eq('market', market)
+    .order('fetched_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as MarketSnapshotRow;
+}
+
+function toMarketCard(row: MarketSnapshotRow | null, label: 'Qatar' | 'Egypt'): CustomerMarketCard | null {
+  if (!row?.data) return null;
+  const buyAvg = toFiniteNumber(row.data.buyAvg);
+  const sellAvg = toFiniteNumber(row.data.sellAvg);
+  const bestBuy = toFiniteNumber(row.data.bestBuy);
+  const bestSell = toFiniteNumber(row.data.bestSell);
+  const spreadPct = toFiniteNumber(row.data.spreadPct);
+
+  return {
+    market: row.market as 'qatar' | 'egypt',
+    label,
+    buyAvg,
+    sellAvg,
+    bestBuy,
+    bestSell,
+    spreadPct,
+    fetchedAt: row.fetched_at,
+    snapshot: row.data as Json,
+  };
+}
+
+export async function getQatarEgyptGuideRate(): Promise<QatarEgyptGuideRate> {
+  const [qatarRow, egyptRow] = await Promise.all([
+    fetchLatestSnapshot('qatar'),
+    fetchLatestSnapshot('egypt'),
+  ]);
+
+  const qatarSellAvg = toFiniteNumber(qatarRow?.data?.sellAvg);
+  const egyptBuyAvg = toFiniteNumber(egyptRow?.data?.buyAvg);
+  const rate = qatarSellAvg && egyptBuyAvg && qatarSellAvg > 0 && egyptBuyAvg > 0
+    ? egyptBuyAvg / qatarSellAvg
+    : null;
+  const source: QatarEgyptGuideRate['source'] = 'INSTAPAY_V1';
+
+  const timestamp = [qatarRow?.fetched_at, egyptRow?.fetched_at]
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+
+  return {
+    source,
+    rate,
+    timestamp,
+    snapshot: {
+      source,
+      marketPair: 'QAR/EGP',
+      qatar: qatarRow ? { fetched_at: qatarRow.fetched_at, data: qatarRow.data } : null,
+      egypt: egyptRow ? { fetched_at: egyptRow.fetched_at, data: egyptRow.data } : null,
+      qatarSellAvg,
+      egyptBuyAvg,
+      rate,
+      formula: 'egypt.buyAvg / qatar.sellAvg',
+    } as Json,
+    marketPair: 'QAR/EGP',
+  };
+}
+
+export async function getCustomerMarketKpis(): Promise<CustomerMarketKpis> {
+  const [qatarRow, egyptRow, guide] = await Promise.all([
+    fetchLatestSnapshot('qatar'),
+    fetchLatestSnapshot('egypt'),
+    getQatarEgyptGuideRate(),
+  ]);
+
+  return {
+    qatar: toMarketCard(qatarRow, 'Qatar'),
+    egypt: toMarketCard(egyptRow, 'Egypt'),
+    guide,
+  };
+}
