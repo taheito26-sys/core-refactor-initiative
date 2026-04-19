@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MarketId, P2PSnapshot, P2PHistoryPoint, MerchantStat, EMPTY_SNAPSHOT } from '../types';
 import { buildMerchantStats, buildP2PHistoryPoints, toSnapshot } from '../utils/converters';
+import { refreshP2PSnapshotsIfStale } from '@/features/customer/customer-market';
 
 export function useP2PMarketData(market: MarketId) {
   const [snapshot, setSnapshot] = useState<P2PSnapshot | null>(null);
@@ -14,6 +15,8 @@ export function useP2PMarketData(market: MarketId) {
 
   const loadFromDb = useCallback(async () => {
     try {
+      await refreshP2PSnapshotsIfStale();
+
       const { data: latestRow } = await supabase
         .from('p2p_snapshots')
         .select('data, fetched_at')

@@ -7,6 +7,9 @@ type MarketSnapshotRow = {
   data: Record<string, unknown> | null;
 };
 
+const LIVE_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
+let liveRefreshPromise: Promise<void> | null = null;
+
 export type CustomerMarketCard = {
   market: 'qatar' | 'egypt';
   label: 'Qatar' | 'Egypt';
@@ -40,6 +43,44 @@ function toFiniteNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function getSnapshotAgeMs(row: MarketSnapshotRow | null) {
+  if (!row?.fetched_at) return Number.POSITIVE_INFINITY;
+  const fetchedAtMs = new Date(row.fetched_at).getTime();
+  if (!Number.isFinite(fetchedAtMs)) return Number.POSITIVE_INFINITY;
+  return Date.now() - fetchedAtMs;
+}
+
+export async function refreshP2PSnapshotsIfStale() {
+  if (liveRefreshPromise) {
+    return liveRefreshPromise;
+  }
+
+  liveRefreshPromise = (async () => {
+    const [qatarRow, egyptRow] = await Promise.all([
+      fetchLatestSnapshot('qatar'),
+      fetchLatestSnapshot('egypt'),
+    ]);
+
+    const qatarStale = getSnapshotAgeMs(qatarRow) > LIVE_SNAPSHOT_MAX_AGE_MS;
+    const egyptStale = getSnapshotAgeMs(egyptRow) > LIVE_SNAPSHOT_MAX_AGE_MS;
+
+    if (!qatarStale && !egyptStale) {
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session?.access_token) {
+      return;
+    }
+
+    await supabase.functions.invoke('p2p-cron');
+  })().finally(() => {
+    liveRefreshPromise = null;
+  });
+
+  return liveRefreshPromise;
 }
 
 async function fetchLatestSnapshot(market: 'qatar' | 'egypt'): Promise<MarketSnapshotRow | null> {
@@ -80,6 +121,8 @@ function toMarketCard(row: MarketSnapshotRow | null, label: 'Qatar' | 'Egypt'): 
 }
 
 export async function getQatarEgyptGuideRate(): Promise<QatarEgyptGuideRate> {
+  await refreshP2PSnapshotsIfStale();
+
   const [qatarRow, egyptRow] = await Promise.all([
     fetchLatestSnapshot('qatar'),
     fetchLatestSnapshot('egypt'),
@@ -115,6 +158,8 @@ export async function getQatarEgyptGuideRate(): Promise<QatarEgyptGuideRate> {
 }
 
 export async function getCustomerMarketKpis(): Promise<CustomerMarketKpis> {
+  await refreshP2PSnapshotsIfStale();
+
   const [qatarRow, egyptRow, guide] = await Promise.all([
     fetchLatestSnapshot('qatar'),
     fetchLatestSnapshot('egypt'),
