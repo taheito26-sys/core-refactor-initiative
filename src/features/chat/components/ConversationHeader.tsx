@@ -107,10 +107,10 @@ export function ConversationHeader({
   const onlineCount = onlineQuery.data ?? 0;
 
   return (
-    <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
+    <header className="sticky top-0 z-30 h-[54px] border-b border-border flex items-center justify-between px-2.5 sm:px-3 md:px-4 bg-background/90 backdrop-blur-md shrink-0 gap-1.5 sm:gap-2">
 
       {/* ── Left: toggle/back + avatar + name ────────────────────────────── */}
-      <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+      <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 min-w-0 flex-1 pr-1">
 
         {onToggleSidebar && (
           <button
@@ -133,10 +133,10 @@ export function ConversationHeader({
             <img
               src={avatarUrl}
               alt={displayName}
-              className="w-9 h-9 rounded-xl object-cover"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover"
             />
           ) : (
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-[11px] font-black shadow-lg shadow-primary/20 select-none">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-[11px] font-black shadow-lg shadow-primary/20 select-none">
               {initials(displayName)}
             </div>
           )}
@@ -177,16 +177,16 @@ export function ConversationHeader({
       </div>
 
       {/* ── Right: actions ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-0.5 shrink-0">
+      <div className="flex items-center justify-end gap-0 shrink-0">
 
         {/* Voice call */}
         {onStartCall && canStartCalls && (
           <button
             onClick={onStartCall}
-            className="w-9 h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
             title="Voice call"
           >
-            <Phone size={16} />
+            <Phone size={15} className="sm:h-4 sm:w-4" />
           </button>
         )}
 
@@ -194,10 +194,10 @@ export function ConversationHeader({
         {onStartVideoCall && canStartCalls && (
           <button
             onClick={onStartVideoCall}
-            className="w-9 h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-primary hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
             title="Video call"
           >
-            <Video size={16} />
+            <Video size={15} className="sm:h-4 sm:w-4" />
           </button>
         )}
 
@@ -205,10 +205,10 @@ export function ConversationHeader({
         {onToggleCallHistory && (
           <button
             onClick={onToggleCallHistory}
-            className="w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
             title="Call history"
           >
-            <History size={16} />
+            <History size={15} className="sm:h-4 sm:w-4" />
           </button>
         )}
 
@@ -216,10 +216,10 @@ export function ConversationHeader({
         {onSearchToggle && (
           <button
             onClick={onSearchToggle}
-            className="w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
+            className="w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center"
             title="Search messages"
           >
-            <Search size={16} />
+            <Search size={15} className="sm:h-4 sm:w-4" />
           </button>
         )}
 
@@ -228,7 +228,7 @@ export function ConversationHeader({
           <button
             onClick={() => setMenuOpen((v) => !v)}
             className={cn(
-              'w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center',
+              'w-8 h-8 sm:w-9 sm:h-9 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all inline-flex items-center justify-center',
               menuOpen && 'text-foreground bg-accent',
             )}
             title="More options"
