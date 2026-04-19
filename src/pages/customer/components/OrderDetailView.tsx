@@ -71,9 +71,7 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
     queryFn: async () => {
       const { data, error } = await getCustomerOrder(orderId);
       if (error) throw error;
-      if (data?.customer_user_id !== userId) {
-        throw new Error(t('accessDenied'));
-      }
+      if (data?.customer_user_id !== userId) return null;
       return data as CustomerOrderRow;
     },
     enabled: !!orderId && !!userId,

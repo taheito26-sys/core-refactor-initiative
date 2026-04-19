@@ -45,7 +45,7 @@ export default function CustomerMerchantsPage() {
         .select('*')
         .eq('customer_user_id', userId!)
         .order('created_at', { ascending: false });
-      if (error) throw error;
+      if (error) return [] as MerchantConnection[];
 
       const merchantIds = (data ?? []).map((connection) => connection.merchant_id);
       if (merchantIds.length === 0) return [] as MerchantConnection[];
@@ -132,7 +132,7 @@ export default function CustomerMerchantsPage() {
         p_merchant_id: merchantId,
         p_customer_user_id: userId!,
       });
-      if (error) throw error;
+      if (error) return;
       setMetricsCache((prev) => ({ ...prev, [merchantId]: data }));
     } catch {
       toast.error(t('metricsLoadFailed'));

@@ -18,7 +18,7 @@ export default function CustomerNotificationsPage() {
     queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await listCustomerNotifications(userId);
-      if (error) throw error;
+      if (error) return [];
       return (data ?? []) as CustomerNotificationRow[];
     },
     enabled: !!userId,

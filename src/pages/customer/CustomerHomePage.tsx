@@ -108,7 +108,7 @@ export default function CustomerHomePage() {
     queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await listCustomerOrders(userId);
-      if (error) throw error;
+      if (error) return [];
       return (data ?? []) as CustomerOrderRow[];
     },
     enabled: !!userId,
@@ -119,7 +119,7 @@ export default function CustomerHomePage() {
     queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await listCustomerConnections(userId);
-      if (error) throw error;
+      if (error) return [];
       return data ?? [];
     },
     enabled: !!userId,
@@ -130,7 +130,7 @@ export default function CustomerHomePage() {
     queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await listCustomerNotifications(userId);
-      if (error) throw error;
+      if (error) return [];
       return data ?? [];
     },
     enabled: !!userId,
