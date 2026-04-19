@@ -29,22 +29,15 @@ import type { IceConfig } from '../types';
 // Grouped so the browser sends parallel binding requests to all of them.
 // Diversity: Google, Cloudflare, Mozilla, German telcos, Canadian VoIP,
 //            independent operators, open-source projects, French/Dutch ISPs.
+// Every STUN URL has an explicit :port — modern Chrome rejects entries
+// without a port as "Invalid hostname format" when constructing RTCPeerConnection.
 const STUN_SERVERS: RTCIceServer[] = [
   // Tier-1 CDNs (widely reachable, also widely targeted by censors)
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: ['stun:stun.cloudflare.com:3478'] },
 
-  // Mozilla (non-commercial, different infra from Google/CF)
-  { urls: ['stun:stun.services.mozilla.com'] },
-
   // sipgate.de — Deutsche Telekom AG network, Germany
-  { urls: ['stun:stun.sipgate.net:3478', 'stun:stun.sipgate.net:10000'] },
-
-  // schlund.de / 1&1 IONOS — Germany, separate ASN from sipgate
-  { urls: ['stun:stun.schlund.de'] },
-
-  // ekiga.net — Canada, independent open-source VoIP project
-  { urls: ['stun:stun.ekiga.net'] },
+  { urls: ['stun:stun.sipgate.net:3478'] },
 
   // stunprotocol.org — community-maintained, anycast nodes
   { urls: ['stun:stun.stunprotocol.org:3478'] },
@@ -52,27 +45,13 @@ const STUN_SERVERS: RTCIceServer[] = [
   // Nextcloud — EU-based open-source, hosted independently
   { urls: ['stun:stun.nextcloud.com:443'] },
 
-  // voiparound.com — EU multi-carrier VoIP provider
-  { urls: ['stun:stun.voiparound.com'] },
-
-  // FreeSWITCH — open-source telco stack, US-hosted
-  { urls: ['stun:stun.freeswitch.org'] },
-
-  // CounterPath — Vancouver, commercial SIP/VoIP
-  { urls: ['stun:stun.counterpath.net'] },
-
-  // ideasip.com — independent US VoIP
-  { urls: ['stun:stun.ideasip.com'] },
-
-  // ipshka.com — Eastern Europe
-  { urls: ['stun:stun.ipshka.com'] },
-
-  // voys.nl — Netherlands, small regional ISP
-  { urls: ['stun:stun.voys.nl'] },
-
   // ippi.fr — France, independent VoIP operator
   { urls: ['stun:stun.ippi.fr:3478'] },
 ];
+
+// Hostname regex: RFC 1123 subset — labels of [A-Za-z0-9-], separated by dots.
+// Rejects entries containing spaces, newlines, or other junk from bad env vars.
+const HOSTNAME_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
 
 // ── TURN multi-transport builder ──────────────────────────────────────────────
 // For each TURN hostname, emit three RTCIceServer entries covering:
@@ -106,39 +85,69 @@ function buildTurnEntries(
 //
 // All TURN traffic is tunnelled through the Hysteria2 QUIC relay if the
 // Capacitor native app has the Hysteria client plugin installed.
+function extractHost(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const host = trimmed.replace(/^turns?:/i, '').replace(/[:?].*$/, '').trim();
+  if (!host || !HOSTNAME_RE.test(host)) return null;
+  return host;
+}
+
+function pushTurn(
+  out: RTCIceServer[],
+  urlEnv: string | undefined,
+  userEnv: string | undefined,
+  credEnv: string | undefined,
+): void {
+  const host = extractHost(urlEnv);
+  const user = userEnv?.trim();
+  const cred = credEnv?.trim();
+  if (!host || !user || !cred) return;
+  out.push(...buildTurnEntries(host, user, cred));
+}
+
 function loadTurnServers(): RTCIceServer[] {
   const out: RTCIceServer[] = [];
 
-  // Primary (backwards-compatible with existing VITE_TURN_URL)
-  const url1 = import.meta.env.VITE_TURN_URL as string | undefined;
-  if (url1) {
-    const host = url1.replace(/^turns?:/, '').replace(/[:?].*$/, '');
-    out.push(
-      ...buildTurnEntries(
-        host,
-        import.meta.env.VITE_TURN_USERNAME as string,
-        import.meta.env.VITE_TURN_CREDENTIAL as string,
-      ),
-    );
-  }
+  pushTurn(
+    out,
+    import.meta.env.VITE_TURN_URL as string | undefined,
+    import.meta.env.VITE_TURN_USERNAME as string | undefined,
+    import.meta.env.VITE_TURN_CREDENTIAL as string | undefined,
+  );
 
-  // Additional TURN servers (VITE_TURN_URL_2 … VITE_TURN_URL_4)
   for (const n of [2, 3, 4] as const) {
-    const urlN  = import.meta.env[`VITE_TURN_URL_${n}`]            as string | undefined;
-    const userN = import.meta.env[`VITE_TURN_URL_${n}_USERNAME`]   as string | undefined;
-    const credN = import.meta.env[`VITE_TURN_URL_${n}_CREDENTIAL`] as string | undefined;
-    if (urlN && userN && credN) {
-      const host = urlN.replace(/^turns?:/, '').replace(/[:?].*$/, '');
-      out.push(...buildTurnEntries(host, userN, credN));
-    }
+    pushTurn(
+      out,
+      import.meta.env[`VITE_TURN_URL_${n}`] as string | undefined,
+      import.meta.env[`VITE_TURN_URL_${n}_USERNAME`] as string | undefined,
+      import.meta.env[`VITE_TURN_URL_${n}_CREDENTIAL`] as string | undefined,
+    );
   }
 
   return out;
 }
 
+// Strict URL sanity check so a malformed entry from env vars or the edge
+// function can never reach RTCPeerConnection and trigger a full-construction
+// SyntaxError that kills the whole call.
+const ICE_URL_RE = /^(stun|stuns|turn|turns):[a-z0-9.-]+:\d{1,5}(\?transport=(udp|tcp))?$/i;
+
+function sanitizeIceServers(servers: RTCIceServer[]): RTCIceServer[] {
+  return servers
+    .map((s) => {
+      const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+      const valid = urls.filter((u): u is string => typeof u === 'string' && ICE_URL_RE.test(u.trim()));
+      if (valid.length === 0) return null;
+      return { ...s, urls: valid.length === 1 ? valid[0] : valid };
+    })
+    .filter((s): s is RTCIceServer => s !== null);
+}
+
 // ── Exported config ───────────────────────────────────────────────────────────
 export const RESILIENT_ICE_CONFIG: IceConfig = {
-  iceServers: [...STUN_SERVERS, ...loadTurnServers()],
+  iceServers: sanitizeIceServers([...STUN_SERVERS, ...loadTurnServers()]),
   // 'all' = attempt direct P2P first (lowest latency), fall through STUN
   // reflexive candidates, then TURN relay as last resort.
   // Switch to 'relay' only in environments where you know direct P2P is

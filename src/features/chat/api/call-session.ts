@@ -25,11 +25,15 @@ export interface CallSessionEndResult {
 }
 
 async function invokeCallSession<T>(body: Record<string, unknown>): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('call-session: not authenticated');
+  }
   const { data, error } = await supabase.functions.invoke('call-session', {
     body,
+    headers: { Authorization: `Bearer ${session.access_token}` },
   });
   if (error) {
-    // Try to extract error message from response
     const msg = typeof error === 'object' && 'message' in error
       ? (error as { message: string }).message
       : String(error);
