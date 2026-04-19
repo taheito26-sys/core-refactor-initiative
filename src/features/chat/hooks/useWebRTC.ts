@@ -402,17 +402,33 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         }
       }
       if (s === 'failed') {
-        peerConn.getStats().then((stats) => {
-          const pairs: unknown[] = [];
-          stats.forEach((r) => {
-            if (r.type === 'candidate-pair') pairs.push(r);
-          });
-          console.warn('[ICE_FAIL_DIAG] candidate-pairs:', JSON.stringify(pairs, null, 2));
-        }).catch(() => {});
-        const cid = callIdRef.current;
-        if (cid) signaling.publishCallEnd(cid, 'failed').catch(() => {});
-        cleanup();
-        transitionToEnd('failed', 'ice_failed');
+        // Collect stats BEFORE cleanup so the PC is still alive. Chrome's
+        // RTCPeerConnection.getStats() returns empty results for closed PCs
+        // even if the Promise was started pre-close. Await explicitly.
+        (async () => {
+          try {
+            const stats = await peerConn.getStats();
+            const pairs: unknown[] = [];
+            const locals: Record<string, unknown> = {};
+            const remotes: Record<string, unknown> = {};
+            stats.forEach((r) => {
+              if (r.type === 'candidate-pair') pairs.push(r);
+              if (r.type === 'local-candidate') locals[r.id] = r;
+              if (r.type === 'remote-candidate') remotes[r.id] = r;
+            });
+            console.warn(
+              '[ICE_FAIL_DIAG]',
+              JSON.stringify({ pairs, locals, remotes }, null, 2),
+            );
+          } catch (err) {
+            console.warn('[ICE_FAIL_DIAG] getStats threw', err);
+          } finally {
+            const cid = callIdRef.current;
+            if (cid) signaling.publishCallEnd(cid, 'failed').catch(() => {});
+            cleanup();
+            transitionToEnd('failed', 'ice_failed');
+          }
+        })();
       }
     };
 
