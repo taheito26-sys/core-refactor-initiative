@@ -20,10 +20,11 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
   const priceBarData = useMemo(() => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const last24h = history.filter(h => h.ts >= cutoff);
-    if (!last24h.length) return { sellBars: [], buyBars: [], sellValues: [], buyValues: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0, timestamps: [], spreads: [] };
+    const sourceHistory = last24h.length ? last24h : history;
+    if (!sourceHistory.length) return { sellBars: [], buyBars: [], sellValues: [], buyValues: [], sellLatest: 0, buyLatest: 0, sellChange: 0, buyChange: 0, timestamps: [], spreads: [], usingFallbackWindow: false };
     
-    const sellPts = last24h.filter(p => p.sellAvg != null).map(p => ({ val: p.sellAvg!, ts: p.ts, spread: p.spread, buyAvg: p.buyAvg }));
-    const buyPts = last24h.filter(p => p.buyAvg != null).map(p => ({ val: p.buyAvg!, ts: p.ts, spread: p.spread, sellAvg: p.sellAvg }));
+    const sellPts = sourceHistory.filter(p => p.sellAvg != null).map(p => ({ val: p.sellAvg!, ts: p.ts, spread: p.spread, buyAvg: p.buyAvg }));
+    const buyPts = sourceHistory.filter(p => p.buyAvg != null).map(p => ({ val: p.buyAvg!, ts: p.ts, spread: p.spread, sellAvg: p.sellAvg }));
     const sellLatest = sellPts.length ? sellPts[sellPts.length - 1].val : 0;
     const buyLatest = buyPts.length ? buyPts[buyPts.length - 1].val : 0;
     const sellFirst = sellPts.length ? sellPts[0].val : sellLatest;
@@ -72,6 +73,7 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
       }),
       sellBuckets,
       buyBuckets,
+      usingFallbackWindow: !last24h.length,
     };
   }, [history]);
 
@@ -193,6 +195,11 @@ export function PriceHistorySparklines({ history, dataAgeLabel, t }: Props) {
           <span className="pill" style={{ fontSize: 9 }}>{t('sell')} {priceBarData.sellChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.sellChange)}</span>
           <span className="pill" style={{ fontSize: 9 }}>{t('buy')} {priceBarData.buyChange >= 0 ? '+' : ''}{fmtPrice(priceBarData.buyChange)}</span>
         </div>
+        {priceBarData.usingFallbackWindow && (
+          <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Showing the latest available history because no 24h points are present yet.
+          </div>
+        )}
       </div>
     </div>
   );
