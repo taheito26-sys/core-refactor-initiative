@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import type { Json } from '@/integrations/supabase/types';
 
 type MarketSnapshotRow = {
@@ -9,6 +9,17 @@ type MarketSnapshotRow = {
 
 const LIVE_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 let liveRefreshPromise: Promise<void> | null = null;
+const publicSupabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  },
+);
 
 export type CustomerMarketCard = {
   market: 'qatar' | 'egypt';
@@ -70,12 +81,32 @@ export async function refreshP2PSnapshotsIfStale() {
       return;
     }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session?.access_token) {
-      return;
-    }
+    const marketsToRefresh: Array<'qatar' | 'egypt'> = [];
+    if (qatarStale) marketsToRefresh.push('qatar');
+    if (egyptStale) marketsToRefresh.push('egypt');
 
-    await supabase.functions.invoke('p2p-cron');
+    const staleBefore = Math.max(getSnapshotAgeMs(qatarRow), getSnapshotAgeMs(egyptRow));
+    await Promise.allSettled(
+      marketsToRefresh.map((market) =>
+        publicSupabase.functions.invoke('p2p-scraper', {
+          body: { market },
+        }),
+      ),
+    );
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const [freshQatarRow, freshEgyptRow] = await Promise.all([
+        fetchLatestSnapshot('qatar'),
+        fetchLatestSnapshot('egypt'),
+      ]);
+
+      const freshAge = Math.max(getSnapshotAgeMs(freshQatarRow), getSnapshotAgeMs(freshEgyptRow));
+      if (freshAge < staleBefore) {
+        break;
+      }
+    }
   })().finally(() => {
     liveRefreshPromise = null;
   });
@@ -84,7 +115,7 @@ export async function refreshP2PSnapshotsIfStale() {
 }
 
 async function fetchLatestSnapshot(market: 'qatar' | 'egypt'): Promise<MarketSnapshotRow | null> {
-  const { data, error } = await supabase
+  const { data, error } = await publicSupabase
     .from('p2p_snapshots')
     .select('market, fetched_at, data')
     .eq('market', market)

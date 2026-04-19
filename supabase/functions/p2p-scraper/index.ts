@@ -147,7 +147,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const marketParam = url.searchParams.get("market");
+    const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+    const marketParam = url.searchParams.get("market") ?? body.market ?? null;
     const marketsToScrape = marketParam
       ? MARKETS.filter((m) => m.id === marketParam)
       : MARKETS;

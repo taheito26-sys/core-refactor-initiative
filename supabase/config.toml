@@ -4,3 +4,6 @@ project_id = "uqinpckirpatvkxyizqf"
 # so we skip the gateway-level verify to avoid brittle JWT_SECRET coupling.
 [functions.call-session]
 verify_jwt = false
+
+[functions.p2p-scraper]
+verify_jwt = false
