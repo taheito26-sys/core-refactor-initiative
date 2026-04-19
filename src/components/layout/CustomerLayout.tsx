@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, Store, Wallet, Bell, Settings, MessageCircle, LogOut, ChevronLeft, Menu, type LucideIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
@@ -50,6 +50,53 @@ function NavButton({
   );
 }
 
+function CustomerMobileBottomNav({
+  items,
+  isActive,
+  navigate,
+  onMoreClick,
+  t,
+}: {
+  items: typeof navItems;
+  isActive: (path: string) => boolean;
+  navigate: (path: string) => void;
+  onMoreClick: () => void;
+  t: ReturnType<typeof useT>;
+}) {
+  const primaryItems = [items[0], items[1], items[2], items[3], items[5]].filter(Boolean);
+
+  return (
+    <nav className="flex h-16 items-stretch justify-around border-t border-border/60 bg-background/95 px-2 py-1 backdrop-blur">
+      {primaryItems.map((item) => {
+        const active = isActive(item.path);
+        return (
+          <button
+            key={item.path}
+            type="button"
+            onClick={() => navigate(item.path)}
+            className={cn(
+              'flex flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition-colors',
+              active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <item.icon className="h-4 w-4" />
+            <span className="truncate">{t(item.labelKey as never)}</span>
+          </button>
+        );
+      })}
+
+      <button
+        type="button"
+        onClick={onMoreClick}
+        className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <Menu className="h-4 w-4" />
+        <span className="truncate">{t('menu')}</span>
+      </button>
+    </nav>
+  );
+}
+
 export function CustomerLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -62,6 +109,14 @@ export function CustomerLayout() {
 
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`);
+
+  useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+
+    setMobileMenuOpen(false);
+  }, [isMobile, location.pathname]);
 
   const shell = (
     <aside className="flex h-full w-[268px] shrink-0 flex-col border-r border-border/60 bg-background/95 backdrop-blur">
@@ -97,7 +152,10 @@ export function CustomerLayout() {
             Icon={item.icon}
             label={t(item.labelKey as never)}
             active={isActive(item.path)}
-            onClick={() => navigate(item.path)}
+            onClick={() => {
+              navigate(item.path);
+              setMobileMenuOpen(false);
+            }}
           />
         ))}
       </nav>
@@ -135,7 +193,7 @@ export function CustomerLayout() {
         </div>
       )}
 
-      <div className="main-shell flex min-w-0 flex-1 flex-col">
+      <div className="main-shell flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border/60 bg-background/95 px-3 py-2.5 backdrop-blur">
           {isMobile && (
             <button
@@ -194,7 +252,7 @@ export function CustomerLayout() {
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto min-h-0">
           <div className="app-page-shell">
             <div className="app-page-content">
               <Outlet />
@@ -203,25 +261,13 @@ export function CustomerLayout() {
         </main>
 
         {isMobile && (
-          <nav className="flex h-16 items-stretch justify-around border-t border-border/60 bg-background/95 px-2 py-1 backdrop-blur">
-            {navItems.slice(0, 5).map((item) => {
-              const active = isActive(item.path);
-              return (
-                <button
-                  key={item.path}
-                  type="button"
-                  onClick={() => navigate(item.path)}
-                  className={cn(
-                    'flex flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition-colors',
-                    active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span className="truncate">{t(item.labelKey as never)}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <CustomerMobileBottomNav
+            items={navItems}
+            isActive={isActive}
+            navigate={navigate}
+            onMoreClick={() => setMobileMenuOpen(true)}
+            t={t}
+          />
         )}
       </div>
     </div>
