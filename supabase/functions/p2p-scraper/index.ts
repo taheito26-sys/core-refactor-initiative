@@ -99,7 +99,7 @@ function buildSnapshot(
   const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);
   const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);
 
-  const topNForAvg = marketId === "qatar" ? 5 : 10;
+  const topNForAvg = marketId === "qatar" ? 5 : 20;
   const topSell = sellOffers.slice(0, topNForAvg);
   const topBuy = buyOffers.slice(0, topNForAvg);
 

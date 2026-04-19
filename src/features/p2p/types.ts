@@ -43,6 +43,8 @@ export interface P2PHistoryPoint {
   ts: number;
   sellAvg: number | null;
   buyAvg: number | null;
+  bestSell?: number | null;
+  bestBuy?: number | null;
   spread: number | null;
   spreadPct: number | null;
 }

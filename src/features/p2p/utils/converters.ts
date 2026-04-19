@@ -175,13 +175,15 @@ export function computeDailySummaries(history: P2PHistoryPoint[]): DaySummary[] 
       day = { date, highSell: 0, lowSell: null, highBuy: 0, lowBuy: null, polls: 0 };
       byDate.set(date, day);
     }
-    if (pt.sellAvg != null) {
-      day.highSell = Math.max(day.highSell, pt.sellAvg);
-      day.lowSell = day.lowSell === null ? pt.sellAvg : Math.min(day.lowSell, pt.sellAvg);
+    const sellRef = pt.bestSell ?? pt.sellAvg;
+    if (sellRef != null) {
+      day.highSell = Math.max(day.highSell, sellRef);
+      day.lowSell = day.lowSell === null ? sellRef : Math.min(day.lowSell, sellRef);
     }
-    if (pt.buyAvg != null) {
-      day.highBuy = Math.max(day.highBuy, pt.buyAvg);
-      day.lowBuy = day.lowBuy === null ? pt.buyAvg : Math.min(day.lowBuy, pt.buyAvg);
+    const buyRef = pt.bestBuy ?? pt.buyAvg;
+    if (buyRef != null) {
+      day.highBuy = Math.max(day.highBuy, buyRef);
+      day.lowBuy = day.lowBuy === null ? buyRef : Math.min(day.lowBuy, buyRef);
     }
     day.polls++;
   }
