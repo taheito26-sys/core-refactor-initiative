@@ -30,10 +30,26 @@ interface Props {
 
 export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, roundTripSim, egyptKpis, t }: Props) {
   const isEgypt = market === 'egypt';
+  const avgTopN = market === 'qatar' ? 5 : 20;
+  const sellTop = (snapshot.sellOffers || []).slice(0, avgTopN);
+  const buyTop = (snapshot.buyOffers || []).slice(0, avgTopN);
+  const uiSellAvg = sellTop.length > 0
+    ? sellTop.reduce((sum, offer) => sum + offer.price, 0) / sellTop.length
+    : snapshot.sellAvg;
+  const uiBuyAvg = buyTop.length > 0
+    ? buyTop.reduce((sum, offer) => sum + offer.price, 0) / buyTop.length
+    : snapshot.buyAvg;
+  const uiSpreadPct = uiSellAvg != null && uiBuyAvg != null && uiBuyAvg > 0
+    ? ((uiSellAvg - uiBuyAvg) / uiBuyAvg) * 100
+    : snapshot.spreadPct;
+
   const highSell = todaySummary?.highSell ?? null;
   const lowSell = todaySummary?.lowSell ?? null;
   const highBuy = todaySummary?.highBuy ?? null;
   const lowBuy = todaySummary?.lowBuy ?? null;
+  const hasSellRange = highSell != null && lowSell != null && Math.abs(highSell - lowSell) > 0.0001;
+  const hasBuyRange = highBuy != null && lowBuy != null && Math.abs(highBuy - lowBuy) > 0.0001;
+  const hasIntradayRange = (todaySummary?.polls ?? 0) > 1;
 
   return (
     <div className="tracker-root" style={{ background: 'transparent' }}>
@@ -44,10 +60,10 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
           <div className="kpi-sub">{t('p2pTopSell')}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-lbl">{t(market === 'qatar' ? 'p2pSellAvgTop5' : 'p2pSellAvgTop10')}</div>
-          <div className="kpi-val" style={{ color: 'var(--good)' }}>{snapshot.sellAvg ? fmtPrice(snapshot.sellAvg) : '—'}</div>
+          <div className="kpi-lbl">{t(market === 'qatar' ? 'p2pSellAvgTop5' : 'p2pSellAvgTop20')}</div>
+          <div className="kpi-val" style={{ color: 'var(--good)' }}>{uiSellAvg ? fmtPrice(uiSellAvg) : '—'}</div>
           <div className="kpi-sub" style={{ color: 'var(--good)' }}>
-            {snapshot.spreadPct ? `+${fmtPrice(snapshot.spreadPct)}% vs Buy Avg` : t('p2pLiveWeightedAvg')}
+            {uiSpreadPct ? `+${fmtPrice(uiSpreadPct)}% vs Buy Avg` : t('p2pLiveWeightedAvg')}
           </div>
         </div>
         <div className="kpi-card">
@@ -61,12 +77,16 @@ export function MarketKpiGrid({ snapshot, market, todaySummary, profitIfSold, ro
         <div className="kpi-card">
           <div className="kpi-lbl">{t('p2pTodayHighSell')}</div>
           <div className="kpi-val" style={{ color: 'var(--good)' }}>{highSell != null ? fmtPrice(highSell) : '—'}</div>
-          <div className="kpi-sub">{t('p2pLow')} {lowSell != null ? fmtPrice(lowSell) : '—'}</div>
+          <div className="kpi-sub">
+            {hasIntradayRange && hasSellRange ? `${t('p2pLow')} ${fmtPrice(lowSell!)}` : t('p2pNoRangeYet')}
+          </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-lbl">{t('p2pTodayLowBuy')}</div>
           <div className="kpi-val" style={{ color: 'var(--bad)' }}>{lowBuy != null ? fmtPrice(lowBuy) : '—'}</div>
-          <div className="kpi-sub">{t('p2pHigh')} {highBuy != null ? fmtPrice(highBuy) : '—'}</div>
+          <div className="kpi-sub">
+            {hasIntradayRange && hasBuyRange ? `${t('p2pHigh')} ${fmtPrice(highBuy!)}` : t('p2pNoRangeYet')}
+          </div>
         </div>
 
         {/* Egypt KPI cards - displayed in EGP → QAR direction (~14.xxx EGP per QAR) */}
