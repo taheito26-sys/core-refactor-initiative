@@ -136,7 +136,7 @@ export default function CustomerOrdersPage() {
     queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await listCustomerConnections(userId);
-      if (error) throw error;
+      if (error) return [];
       return (data ?? []).filter((conn) => conn.status === 'active');
     },
     enabled: !!userId,
@@ -147,7 +147,7 @@ export default function CustomerOrdersPage() {
     queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await listCustomerOrders(userId);
-      if (error) throw error;
+      if (error) return [];
       return (data ?? []) as CustomerOrderRow[];
     },
     enabled: !!userId,
