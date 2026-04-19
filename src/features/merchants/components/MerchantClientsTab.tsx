@@ -63,6 +63,28 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
     enabled: !!merchantId,
   });
 
+  useEffect(() => {
+    if (!merchantId) return;
+
+    const channel = supabase
+      .channel(`merchant-client-connections-${merchantId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'customer_merchant_connections',
+        filter: `merchant_id=eq.${merchantId}`,
+      }, () => {
+        qc.invalidateQueries({ queryKey: ['merchant-client-connections', merchantId] });
+        qc.invalidateQueries({ queryKey: ['merchant-client-order-counts', merchantId] });
+        qc.invalidateQueries({ queryKey: ['merchant-client-unread', merchantId, resolvedUserId] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [merchantId, qc, resolvedUserId]);
+
   // Orders count per connection
   const { data: orderCounts = {} } = useQuery({
     queryKey: ['merchant-client-order-counts', merchantId],
@@ -113,7 +135,7 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['merchant-client-connections'] });
+      qc.invalidateQueries({ queryKey: ['merchant-client-connections', merchantId] });
       toast.success('Connection updated');
     },
     onError: (err: any) => toast.error(err?.message ?? 'Update failed'),
