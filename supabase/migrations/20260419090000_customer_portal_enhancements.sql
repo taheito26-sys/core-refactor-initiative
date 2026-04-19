@@ -71,3 +71,6 @@ CREATE INDEX IF NOT EXISTS customer_orders_customer_user_created_at_idx
 
 CREATE INDEX IF NOT EXISTS customer_orders_customer_user_status_created_at_idx
   ON public.customer_orders (customer_user_id, status, created_at DESC);
+
+-- Refresh PostgREST so the new customer_profiles.country column is immediately visible.
+NOTIFY pgrst, 'reload schema';
