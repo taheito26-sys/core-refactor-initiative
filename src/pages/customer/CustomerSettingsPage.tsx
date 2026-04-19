@@ -12,10 +12,14 @@ import { useT } from '@/lib/i18n';
 
 export default function CustomerSettingsPage() {
   const { customerProfile, userId, refreshProfile, logout, email } = useAuth();
+  const countryStorageKey = userId ? `p2p_customer_country_${userId}` : 'p2p_customer_country';
   const [displayName, setDisplayName] = useState(customerProfile?.display_name ?? '');
   const [phone, setPhone] = useState(customerProfile?.phone ?? '');
   const [region, setRegion] = useState(customerProfile?.region ?? '');
-  const [country, setCountry] = useState(customerProfile?.country ?? CUSTOMER_COUNTRIES[0]);
+  const [country, setCountry] = useState(() => {
+    const storedCountry = localStorage.getItem(countryStorageKey);
+    return customerProfile?.country ?? storedCountry ?? CUSTOMER_COUNTRIES[0];
+  });
   const [saving, setSaving] = useState(false);
   const t = useT();
 
@@ -34,6 +38,7 @@ export default function CustomerSettingsPage() {
         country,
       });
       if (error) throw error;
+      localStorage.setItem(countryStorageKey, country);
       await refreshProfile();
       toast.success(t('customerProfileUpdated'));
     } catch (err: any) {

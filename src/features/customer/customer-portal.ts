@@ -821,11 +821,31 @@ export async function listCustomerNotifications(userId: string) {
 }
 
 export async function createCustomerProfile(payload: Omit<CustomerProfileRow, 'id' | 'created_at' | 'updated_at' | 'status'> & { status?: string }) {
-  return supabase.from('customer_profiles').insert(payload);
+  const insertProfile = async (nextPayload: typeof payload) => supabase.from('customer_profiles').insert(nextPayload);
+  const primary = await insertProfile(payload);
+  if (!primary.error) return primary;
+
+  const message = primary.error.message.toLowerCase();
+  const isCountrySchemaError = message.includes('country') && (message.includes('schema cache') || message.includes('column'));
+  if (!isCountrySchemaError) return primary;
+
+  const { country: _country, ...fallbackPayload } = payload as Record<string, unknown>;
+  return insertProfile(fallbackPayload as typeof payload);
 }
 
 export async function updateCustomerProfile(userId: string, payload: Partial<CustomerProfileRow>) {
-  return supabase.from('customer_profiles').update(payload).eq('user_id', userId);
+  const updateProfile = async (nextPayload: Partial<CustomerProfileRow> | Record<string, unknown>) =>
+    supabase.from('customer_profiles').update(nextPayload).eq('user_id', userId);
+
+  const primary = await updateProfile(payload);
+  if (!primary.error) return primary;
+
+  const message = primary.error.message.toLowerCase();
+  const isCountrySchemaError = message.includes('country') && (message.includes('schema cache') || message.includes('column'));
+  if (!isCountrySchemaError) return primary;
+
+  const { country: _country, ...fallbackPayload } = payload as Record<string, unknown>;
+  return updateProfile(fallbackPayload);
 }
 
 export async function createCustomerOrder(input: CustomerOrderInput) {

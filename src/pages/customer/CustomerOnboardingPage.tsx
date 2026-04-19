@@ -47,6 +47,7 @@ export default function CustomerOnboardingPage() {
         preferred_currency: currency,
       });
       if (cpError) throw cpError;
+      localStorage.setItem('p2p_customer_country', country);
 
       // Update profiles.role to customer
       const { error: pError } = await supabase
