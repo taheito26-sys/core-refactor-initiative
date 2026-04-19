@@ -352,7 +352,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
     onTyping();
     const ta = e.target;
     ta.style.height = 'auto';
-    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+    ta.style.height = `${Math.min(ta.scrollHeight, 176)}px`;
   }, [onTyping]);
 
   // Phase 22: Paste-image support
@@ -715,7 +715,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
         {onPrivacyDashboard && (
           <button
             onClick={onPrivacyDashboard}
-            className="hidden h-9 w-9 rounded-full items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shrink-0 sm:flex"
+            className="h-9 w-9 rounded-full inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shrink-0"
             title="Privacy & Security"
           >
             <Shield className="h-4.5 w-4.5" />
@@ -732,27 +732,27 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
             onPaste={handlePaste}
             placeholder="Type a message"
             rows={1}
-            className="w-full resize-none bg-muted/40 rounded-3xl border-none px-3.5 py-3 text-base sm:px-4 sm:py-2.5 sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50 max-h-44 overflow-y-auto pr-3 sm:pr-20 transition-[height,box-shadow] duration-200"
+            className="w-full resize-none bg-muted/40 rounded-3xl border-none px-3.5 py-3 text-base sm:px-4 sm:py-2.5 sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50 max-h-44 overflow-y-auto pr-16 sm:pr-20 transition-[height,box-shadow] duration-200"
             style={{ height: 'auto' }}
           />
 
           {/* Inline action buttons */}
           <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 z-10 sm:flex">
             <button onClick={() => setWatermark((v) => !v)} title={watermark ? 'Watermark: ON' : 'Watermark: OFF'}
-              className={cn('h-7 w-7 rounded-full flex items-center justify-center transition-all',
+              className={cn('h-6.5 w-6.5 rounded-full flex items-center justify-center transition-all',
                 watermark ? 'bg-cyan-500/20 text-cyan-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
-              <Droplets className="h-3.5 w-3.5" />
+              <Droplets className="h-3 w-3" />
             </button>
             <button onClick={() => setViewOnce((v) => !v)} title={viewOnce ? 'View once: ON' : 'View once: OFF'}
-              className={cn('h-7 w-7 rounded-full flex items-center justify-center transition-all',
+              className={cn('h-6.5 w-6.5 rounded-full flex items-center justify-center transition-all',
                 viewOnce ? 'bg-violet-500/20 text-violet-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
-              {viewOnce ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              {viewOnce ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
             </button>
             <div className="relative">
               <button onClick={() => { setShowTimerPicker((v) => !v); setShowAttachMenu(false); setShowEmojiPicker(false); }} title="Disappearing message"
-                className={cn('h-7 w-7 rounded-full flex items-center justify-center transition-all',
+                className={cn('h-6.5 w-6.5 rounded-full flex items-center justify-center transition-all',
                   expiresSec ? 'bg-amber-500/20 text-amber-500' : 'text-muted-foreground/40 hover:text-muted-foreground/70 hover:bg-muted/60')}>
-                <Timer className="h-3.5 w-3.5" />
+                <Timer className="h-3 w-3" />
               </button>
               {showTimerPicker && (
                 <>
@@ -801,7 +801,7 @@ export function MessageComposer({ roomId, roomType, roomPolicy, onSend, onTyping
               'h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground transition-colors shrink-0',
               canSendVoiceNotes ? 'hover:text-foreground hover:bg-muted/50' : 'opacity-40 cursor-not-allowed',
             )}>
-            <Mic className="h-5 w-5" />
+            <Mic className="h-4.5 w-4.5" />
           </button>
         )}
       </div>
