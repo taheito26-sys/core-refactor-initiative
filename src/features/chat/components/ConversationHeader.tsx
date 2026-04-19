@@ -107,7 +107,7 @@ export function ConversationHeader({
   const onlineCount = onlineQuery.data ?? 0;
 
   return (
-    <header className="h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/80 backdrop-blur-md shrink-0 relative z-30 gap-2">
+    <header className="sticky top-0 h-[54px] border-b border-border flex items-center justify-between px-3 md:px-4 bg-background/90 backdrop-blur-md shrink-0 relative z-30 gap-2">
 
       {/* ── Left: toggle/back + avatar + name ────────────────────────────── */}
       <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
