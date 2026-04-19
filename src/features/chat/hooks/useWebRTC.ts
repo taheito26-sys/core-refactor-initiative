@@ -325,7 +325,18 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   // ── build peer connection ─────────────────────────────────────────────
   const buildPC = useCallback((iceConfig: RTCConfiguration = DEFAULT_ICE_CONFIG) => {
-    const peerConn = new RTCPeerConnection(iceConfig);
+    let peerConn: RTCPeerConnection;
+    try {
+      peerConn = new RTCPeerConnection(iceConfig);
+    } catch (err) {
+      console.error('[WebRTC] RTCPeerConnection construction failed, retrying with minimal config', {
+        error: (err as Error).message,
+        iceServers: iceConfig.iceServers,
+      });
+      peerConn = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+    }
 
     peerConn.onicecandidate = (e) => {
       if (e.candidate && callIdRef.current) {

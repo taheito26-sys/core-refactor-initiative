@@ -1,1 +1,6 @@
 project_id = "uqinpckirpatvkxyizqf"
+
+# call-session does its own JWT verification (with a fallback decode path)
+# so we skip the gateway-level verify to avoid brittle JWT_SECRET coupling.
+[functions.call-session]
+verify_jwt = false
