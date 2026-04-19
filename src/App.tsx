@@ -36,7 +36,6 @@ import CustomerNotificationsPage from "./pages/customer/CustomerNotificationsPag
 import CustomerChatPage from "./pages/customer/CustomerChatPage";
 import CustomerSettingsPage from "./pages/customer/CustomerSettingsPage";
 import CustomerWalletPage from "./pages/customer/CustomerWalletPage";
-import CustomerMarketPage from "./pages/customer/CustomerMarketPage";
 
 // Admin
 import AdminApprovalsPage from "./pages/admin/AdminApprovalsPage";
@@ -248,7 +247,6 @@ const App = () => (
                   <Route path="/c/notifications" element={<CustomerNotificationsPage />} />
                   <Route path="/c/chat" element={<CustomerChatPage />} />
                   <Route path="/c/settings" element={<CustomerSettingsPage />} />
-                  <Route path="/c/market" element={<CustomerMarketPage />} />
                 </Route>
 
                 {/* App Shell — requires auth + approved profile + merchant profile */}
