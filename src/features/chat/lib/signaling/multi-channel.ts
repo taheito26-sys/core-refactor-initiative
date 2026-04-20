@@ -83,6 +83,20 @@ export class MultiSignalingChannel implements SignalingChannel {
   }
 
   /**
+   * Update the active callId in the current subscription.
+   * Must be called after call-session returns a callId so the WS channel
+   * connects with the correct callId in the query string (used by the relay
+   * to verify the token's call claim and group sockets correctly).
+   */
+  updateActiveCallId(callId: string): void {
+    if (this.currentSubscription) {
+      this.currentSubscription.callId = callId;
+    }
+    // Propagate to the WS channel so it filters incoming messages correctly
+    this.wsChannel?.updateCallId(callId);
+  }
+
+  /**
    * The edge function can return a per-call signaling relay URL.
    * If the app wasn't booted with static relay URLs, mount the WS channel lazily.
    */

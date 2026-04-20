@@ -91,6 +91,9 @@ export class SupabaseSignalingChannel implements SignalingChannel {
   ): () => void {
     let cancelled = false;
     const processedIceCounts = new Map<string, number>();
+    // Tracks the active callId so we can filter ICE/SDP to the current call only.
+    // Declared here so both CDC channels share the same reference.
+    let activeCallId: string | null = null;
 
     // Initial probe for an already-ringing call (mirrors lines 538–548)
     (async () => {
@@ -98,6 +101,7 @@ export class SupabaseSignalingChannel implements SignalingChannel {
         const call = await getActiveCall(roomId);
         if (cancelled || !call) return;
         if (call.status === 'ringing' && call.initiated_by !== userId) {
+          activeCallId = call.id;
           handlers.onIncomingCall(call.id, '', call.initiated_by);
         }
       } catch { /* non-fatal */ }
@@ -120,10 +124,15 @@ export class SupabaseSignalingChannel implements SignalingChannel {
           if (!row) return;
 
           if (row.status === 'ringing' && row.initiated_by !== userId) {
+            activeCallId = row.id as string;
             handlers.onIncomingCall(row.id, '', row.initiated_by);
           }
 
           if (['ended', 'missed', 'declined', 'failed', 'no_answer'].includes(row.status)) {
+            // Clear the active call so the next call starts fresh
+            if (!activeCallId || activeCallId === row.id) {
+              activeCallId = null;
+            }
             handlers.onCallEnd(row.end_reason ?? row.status);
           }
         },
@@ -131,6 +140,12 @@ export class SupabaseSignalingChannel implements SignalingChannel {
       .subscribe();
 
     // CDC channel 2: ICE candidates + SDP answer (mirrors lines 596–635)
+    // IMPORTANT: filter by call_id once we have one, to prevent stale candidates
+    // from a previous call's participant row being delivered into the new PC.
+    // We start without a callId (waiting for incoming), then the onIncomingCall
+    // handler fires and we get the callId — but we can't re-subscribe mid-call.
+    // Instead we track the active callId and gate delivery in the handler.
+
     const iceCh = supabase
       .channel(`chat-ice-${userId}-${roomId}`)
       .on(
@@ -141,7 +156,16 @@ export class SupabaseSignalingChannel implements SignalingChannel {
           const row = payload.new as any;
           if (!row) return;
 
+          // Gate all ICE/SDP delivery to the active call only.
+          // Without this, stale rows from previous calls deliver candidates
+          // with a different ice-ufrag into the new RTCPeerConnection, which
+          // accepts them via addIceCandidate but never forms valid pairs
+          // (ufrag mismatch → STUN binding requests silently dropped).
+          if (activeCallId && row.call_id !== activeCallId) return;
+
           if (row.user_id !== userId && row.sdp_offer) {
+            // Latch the callId as soon as we see an offer
+            if (!activeCallId) activeCallId = row.call_id as string;
             handlers.onIncomingCall(row.call_id, row.sdp_offer as string, row.user_id);
           }
 

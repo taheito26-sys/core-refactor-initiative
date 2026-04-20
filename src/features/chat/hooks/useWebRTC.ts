@@ -576,6 +576,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
             console.warn('[WebRTC] startCall: ICE config has no TURN servers — cross-network calls behind symmetric NAT may fail. Configure CLOUDFLARE_TURN_TOKEN or TURN_URL on the call-session edge function.');
           }
 
+          // Propagate callId to signaling channels BEFORE setting relay URLs
+          // so the WS channel connects with the correct callId in the query string.
+          signaling.updateActiveCallId(callId);
+
           // If relay URL + token provided, configure WS channel
           if (creds.token) {
             signaling.setRelayAuthToken(creds.token);
@@ -672,6 +676,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
               console.warn('[WebRTC] answerIncoming: ICE config has no TURN servers — cross-network calls behind symmetric NAT may fail');
             }
           }
+          // Propagate callId to signaling channels BEFORE setting relay URLs
+          signaling.updateActiveCallId(callId);
           if (creds.token) {
             signaling.setRelayAuthToken(creds.token);
           }
