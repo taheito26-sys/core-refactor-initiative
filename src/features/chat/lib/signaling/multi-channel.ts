@@ -210,14 +210,25 @@ export class MultiSignalingChannel implements SignalingChannel {
       // checked by the caller; pass through without deduplication.
       onAnswer: (sdp) => handlers.onAnswer(sdp),
 
-      // ICE candidates are fine to arrive multiple times; RTCPeerConnection
-      // deduplicates them internally.
-      onIceCandidate: (c) => handlers.onIceCandidate(c),
+      // Deduplicate ICE candidates — Chrome does NOT deduplicate addIceCandidate
+      // calls internally. Duplicate candidates trigger redundant ICE checks
+      // which cause connected→disconnected→connected flapping.
+      onIceCandidate: (c) => {
+        const key = `ice:${(c as RTCIceCandidateInit).candidate ?? JSON.stringify(c)}`;
+        if (this.seenKeys.has(key)) return;
+        this.seenKeys.add(key);
+        handlers.onIceCandidate(c);
+      },
 
       onCallEnd: (reason) => {
         const key = `end:${reason}`;
         if (this.seenKeys.has(key)) return;
         this.seenKeys.add(key);
+        // Clear ICE dedup set so the next call gets fresh candidates
+        // (keep only the end key itself to prevent duplicate end events)
+        const endKey = key;
+        this.seenKeys.clear();
+        this.seenKeys.add(endKey);
         handlers.onCallEnd(reason);
       },
     };
