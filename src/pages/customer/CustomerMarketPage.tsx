@@ -1,113 +1,91 @@
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { RefreshCw } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
-import { useT } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 import { formatCustomerNumber } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 
-function MarketCard({
-  label,
-  buyAvg,
-  sellAvg,
-  bestBuy,
-  bestSell,
-  spreadPct,
-  fetchedAt,
-  language,
-}: {
-  label: 'Qatar' | 'Egypt';
-  buyAvg: number | null;
-  sellAvg: number | null;
-  bestBuy: number | null;
-  bestSell: number | null;
-  spreadPct: number | null;
-  fetchedAt: string | null;
-  language: 'en' | 'ar';
-}) {
+function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <Card className="border-border/60 bg-card/80">
-      <CardContent className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">Market</div>
-            <h2 className="mt-1 text-xl font-black text-foreground">{label}</h2>
-          </div>
-          <TrendingUp className="h-5 w-5 text-primary" />
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Metric label="Buy Avg" value={buyAvg != null ? formatCustomerNumber(buyAvg, language, 4) : '-'} />
-          <Metric label="Sell Avg" value={sellAvg != null ? formatCustomerNumber(sellAvg, language, 4) : '-'} />
-          <Metric label="Best Buy" value={bestBuy != null ? formatCustomerNumber(bestBuy, language, 4) : '-'} />
-          <Metric label="Best Sell" value={bestSell != null ? formatCustomerNumber(bestSell, language, 4) : '-'} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="rounded-full border border-border/60 px-2 py-1">
-            Spread {spreadPct != null ? `${formatCustomerNumber(spreadPct, language, 2)}%` : '-'}
-          </span>
-          <span className="rounded-full border border-border/60 px-2 py-1">
-            Updated {fetchedAt ? new Date(fetchedAt).toLocaleString() : '-'}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
-      <div className="mt-1 text-base font-black text-foreground">{value}</div>
+    <div className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className={cn('text-sm font-semibold tabular-nums', highlight && 'text-primary')}>{value}</span>
     </div>
   );
 }
 
 export default function CustomerMarketPage() {
   const { settings } = useTheme();
-  const t = useT();
-  const language = settings.language === 'ar' ? 'ar' : 'en';
+  const lang = settings.language === 'ar' ? 'ar' : 'en';
 
-  const { data } = useQuery({
-    queryKey: ['customer-market-kpis'],
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ['c-market-kpis'],
     queryFn: getCustomerMarketKpis,
+    staleTime: 5 * 60_000,
   });
+
+  const fmt = (v: number | null) => v != null ? formatCustomerNumber(v, lang, 4) : '—';
+
+  const markets = [
+    { key: 'qatar', label: lang === 'ar' ? 'قطر' : 'Qatar',  data: data?.qatar },
+    { key: 'egypt', label: lang === 'ar' ? 'مصر'  : 'Egypt',  data: data?.egypt },
+  ];
 
   return (
     <div className="space-y-4">
-      <section className="panel overflow-hidden">
-        <div className="relative border-b border-border/60 px-4 py-4">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent" />
-          <div className="relative">
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">{t('customerPortal')}</div>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-foreground">Customer Market</h1>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <MarketCard
-          label="Qatar"
-          buyAvg={data?.qatar?.buyAvg ?? null}
-          sellAvg={data?.qatar?.sellAvg ?? null}
-          bestBuy={data?.qatar?.bestBuy ?? null}
-          bestSell={data?.qatar?.bestSell ?? null}
-          spreadPct={data?.qatar?.spreadPct ?? null}
-          fetchedAt={data?.qatar?.fetchedAt ?? null}
-          language={language}
-        />
-        <MarketCard
-          label="Egypt"
-          buyAvg={data?.egypt?.buyAvg ?? null}
-          sellAvg={data?.egypt?.sellAvg ?? null}
-          bestBuy={data?.egypt?.bestBuy ?? null}
-          bestSell={data?.egypt?.bestSell ?? null}
-          spreadPct={data?.egypt?.spreadPct ?? null}
-          fetchedAt={data?.egypt?.fetchedAt ?? null}
-          language={language}
-        />
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">{lang === 'ar' ? 'السوق' : 'Market'}</h1>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="rounded-lg p-2 text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+        </button>
       </div>
 
+      {/* Guide rate banner */}
+      {data?.guide?.rate != null && (
+        <div className="rounded-2xl bg-primary/10 border border-primary/20 px-4 py-3">
+          <p className="text-[11px] text-primary/70 font-medium uppercase tracking-wide">
+            {lang === 'ar' ? 'سعر الدليل QAR/EGP' : 'Guide Rate QAR/EGP'}
+          </p>
+          <p className="text-2xl font-black text-primary tabular-nums">
+            {formatCustomerNumber(data.guide.rate, lang, 4)}
+          </p>
+        </div>
+      )}
+
+      {/* Market cards */}
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        markets.map(({ key, label, data: m }) => (
+          <div key={key} className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border/40">
+              <p className="text-sm font-bold text-foreground">{label}</p>
+              {m?.fetchedAt && (
+                <p className="text-[10px] text-muted-foreground">
+                  {new Date(m.fetchedAt).toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+            <div className="px-4">
+              <Row label={lang === 'ar' ? 'متوسط الشراء' : 'Buy Avg'}   value={fmt(m?.buyAvg ?? null)} />
+              <Row label={lang === 'ar' ? 'متوسط البيع' : 'Sell Avg'}  value={fmt(m?.sellAvg ?? null)} />
+              <Row label={lang === 'ar' ? 'أفضل شراء'  : 'Best Buy'}   value={fmt(m?.bestBuy ?? null)} highlight />
+              <Row label={lang === 'ar' ? 'أفضل بيع'   : 'Best Sell'}  value={fmt(m?.bestSell ?? null)} highlight />
+              <Row
+                label={lang === 'ar' ? 'الفارق' : 'Spread'}
+                value={m?.spreadPct != null ? `${formatCustomerNumber(m.spreadPct, lang, 2)}%` : '—'}
+              />
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

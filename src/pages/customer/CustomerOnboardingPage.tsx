@@ -2,65 +2,37 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, UserCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CUSTOMER_COUNTRIES } from '@/features/customer/customer-portal';
-import { useT } from '@/lib/i18n';
 
 export default function CustomerOnboardingPage() {
   const { userId, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [region, setRegion] = useState('');
-  const [country, setCountry] = useState(() => localStorage.getItem('p2p_signup_country') ?? CUSTOMER_COUNTRIES[0]);
-  const [currency, setCurrency] = useState('USDT');
-  const [loading, setLoading] = useState(false);
-  const t = useT();
+  const [country,     setCountry]     = useState(CUSTOMER_COUNTRIES[0]);
+  const [phone,       setPhone]       = useState('');
+  const [loading,     setLoading]     = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!displayName.trim()) {
-      toast.error(t('customerDisplayNameRequired'));
-      return;
-    }
-    if (!country) {
-      toast.error(t('customerCountryRequired'));
-      return;
-    }
+    if (!displayName.trim()) { toast.error('Name is required'); return; }
     if (!userId) return;
-
     setLoading(true);
     try {
-      // Insert customer profile
-      const { error: cpError } = await supabase.from('customer_profiles').insert({
+      const { error: cpErr } = await supabase.from('customer_profiles').insert({
         user_id: userId,
         display_name: displayName.trim(),
         phone: phone.trim() || null,
-        region: region.trim() || null,
-        preferred_currency: currency,
+        preferred_currency: 'USDT',
       });
-      if (cpError) throw cpError;
+      if (cpErr) throw cpErr;
       localStorage.setItem('p2p_customer_country', country);
-
-      // Update profiles.role to customer
-      const { error: pError } = await supabase
-        .from('profiles')
-        .update({ role: 'customer' })
-        .eq('user_id', userId);
-      if (pError) throw pError;
-
+      await supabase.from('profiles').update({ role: 'customer' }).eq('user_id', userId);
       await refreshProfile();
-      toast.success(t('customerWelcomeReady'));
       navigate('/c/home', { replace: true });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : t('customerSaveFailed');
-      toast.error(message);
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Setup failed');
     } finally {
       setLoading(false);
     }
@@ -68,79 +40,62 @@ export default function CustomerOnboardingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <UserCircle className="h-6 w-6 text-primary" />
+      <div className="w-full max-w-sm space-y-6">
+        {/* Logo */}
+        <div className="text-center">
+          <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Tracker</p>
+          <h1 className="mt-1 text-2xl font-black text-foreground">Set up your account</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Takes 30 seconds</p>
+        </div>
+
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Your name</label>
+            <input
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              placeholder="e.g. Ahmed"
+              required
+              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            />
           </div>
-          <CardTitle className="text-2xl">{t('customerSetupTitle')}</CardTitle>
-          <CardDescription>{t('customerSetupDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="displayName">{t('displayName')} *</Label>
-              <Input
-                id="displayName"
-                placeholder={t('displayName')}
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="country">{t('country')} *</Label>
-              <Select value={country} onValueChange={setCountry}>
-                <SelectTrigger id="country">
-                  <SelectValue placeholder={t('customerSelectCountry')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {CUSTOMER_COUNTRIES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">{t('phone')}</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder={t('phone')}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="region">{t('region')}</Label>
-              <Input
-                id="region"
-                placeholder={t('region')}
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('customerPreferredCurrency')}</Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USDT">USDT</SelectItem>
-                  <SelectItem value="QAR">QAR</SelectItem>
-                  <SelectItem value="EGP">EGP</SelectItem>
-                  <SelectItem value="USD">USD</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('completeSetup')}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Country</label>
+            <select
+              value={country}
+              onChange={e => setCountry(e.target.value as any)}
+              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {CUSTOMER_COUNTRIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Phone <span className="text-muted-foreground/60">(optional)</span>
+            </label>
+            <input
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              type="tel"
+              placeholder="+974…"
+              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            Get started
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -1,332 +1,185 @@
-import { useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, Star, StarOff, UserPlus, CheckCircle, Clock, XCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Search, UserPlus, Store, Loader2, Star, StarOff, ChevronDown, ChevronUp, CheckCircle2, Clock, XCircle, TrendingUp } from 'lucide-react';
-import { toast } from 'sonner';
-import { useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme-context';
+import { cn } from '@/lib/utils';
 
-type MerchantConnection = {
+type Connection = {
   id: string;
-  customer_user_id: string;
   merchant_id: string;
   status: string;
   is_preferred: boolean;
-  created_at: string;
-  merchant?: {
-    merchant_id: string;
-    display_name: string;
-    region: string | null;
-    merchant_code: string | null;
-  } | null;
+  merchant?: { merchant_id: string; display_name: string; region: string | null; merchant_code: string | null } | null;
+};
+
+const STATUS_ICON: Record<string, React.ReactNode> = {
+  active:  <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />,
+  pending: <Clock className="h-3.5 w-3.5 text-amber-500" />,
+  blocked: <XCircle className="h-3.5 w-3.5 text-red-500" />,
 };
 
 export default function CustomerMerchantsPage() {
   const { userId } = useAuth();
-  const t = useT();
-  const queryClient = useQueryClient();
-  const [searchCode, setSearchCode] = useState('');
-  const [searchResult, setSearchResult] = useState<any>(null);
+  const { settings } = useTheme();
+  const lang = settings.language === 'ar' ? 'ar' : 'en';
+  const qc = useQueryClient();
+  const [code, setCode] = useState('');
+  const [result, setResult] = useState<any>(null);
   const [searching, setSearching] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [metricsCache, setMetricsCache] = useState<Record<string, any>>({});
-  const [metricsLoading, setMetricsLoading] = useState<string | null>(null);
 
-  const { data: connections = [] } = useQuery({
-    queryKey: ['customer-connections', userId],
+  const { data: connections = [] } = useQuery<Connection[]>({
+    queryKey: ['c-connections', userId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('customer_merchant_connections')
         .select('*')
         .eq('customer_user_id', userId!)
         .order('created_at', { ascending: false });
-      if (error) return [] as MerchantConnection[];
-
-      const merchantIds = (data ?? []).map((connection) => connection.merchant_id);
-      if (merchantIds.length === 0) return [] as MerchantConnection[];
-
+      const ids = (data ?? []).map(c => c.merchant_id);
+      if (!ids.length) return [];
       const { data: profiles } = await supabase
         .from('merchant_profiles')
         .select('merchant_id, display_name, region, merchant_code')
-        .in('merchant_id', merchantIds);
-      const profileMap = new Map((profiles ?? []).map((profile) => [profile.merchant_id, profile]));
-
-      return (data ?? []).map((connection) => ({
-        ...connection,
-        merchant: profileMap.get(connection.merchant_id) ?? null,
-      })) as MerchantConnection[];
+        .in('merchant_id', ids);
+      const map = new Map((profiles ?? []).map(p => [p.merchant_id, p]));
+      return (data ?? []).map(c => ({ ...c, merchant: map.get(c.merchant_id) ?? null }));
     },
     enabled: !!userId,
   });
 
-  const sorted = useMemo(
-    () => [...connections].sort((a, b) => {
-      if (a.is_preferred && !b.is_preferred) return -1;
-      if (!a.is_preferred && b.is_preferred) return 1;
-      return (a.merchant?.display_name ?? '').localeCompare(b.merchant?.display_name ?? '');
-    }),
-    [connections],
-  );
+  const isConnected = (id: string) => connections.some(c => c.merchant_id === id);
 
-  const isAlreadyConnected = (merchantId: string) => connections.some((connection) => connection.merchant_id === merchantId);
-
-  const handleSearch = async () => {
-    if (!searchCode.trim()) return;
-    setSearching(true);
-    setSearchResult(null);
+  const search = async () => {
+    if (!code.trim()) return;
+    setSearching(true); setResult(null);
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('merchant_profiles')
         .select('merchant_id, display_name, region, merchant_code')
-        .or(`merchant_code.eq.${searchCode.trim()},merchant_id.eq.${searchCode.trim()}`)
+        .or(`merchant_code.ilike.${code.trim()},merchant_id.ilike.${code.trim()}`)
         .limit(1)
         .maybeSingle();
-      if (error) throw error;
-      setSearchResult(data);
-    } catch {
-      toast.error(t('merchantNotFound'));
-    } finally {
-      setSearching(false);
-    }
+      setResult(data ?? null);
+      if (!data) toast.error(lang === 'ar' ? 'لم يُعثر على تاجر' : 'Merchant not found');
+    } finally { setSearching(false); }
   };
 
-  const connectMutation = useMutation({
+  const connect = useMutation({
     mutationFn: async (merchantId: string) => {
-      const { data: merchantProfile, error: merchantError } = await supabase
-        .from('merchant_profiles')
-        .select('merchant_id, user_id, display_name')
-        .eq('merchant_id', merchantId)
-        .maybeSingle();
-      if (merchantError) throw merchantError;
-
       const { error } = await supabase.from('customer_merchant_connections').insert({
-        customer_user_id: userId!,
+        customer_user_id: userId,
         merchant_id: merchantId,
+        status: 'pending',
+        is_preferred: false,
       });
       if (error) throw error;
-
-      if (merchantProfile?.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: merchantProfile.user_id,
-          title: 'New customer connection request',
-          body: 'Customer requested a connection',
-          category: 'customer_connection',
-          target_path: '/merchants?tab=clients',
-          target_entity_type: 'customer_merchant_connection',
-          target_entity_id: merchantId,
-        });
-      }
     },
     onSuccess: () => {
-      toast.success(t('connectionSent'));
-      setSearchResult(null);
-      setSearchCode('');
-      queryClient.invalidateQueries({ queryKey: ['customer-connections'] });
+      toast.success(lang === 'ar' ? 'تم إرسال الطلب' : 'Request sent');
+      qc.invalidateQueries({ queryKey: ['c-connections', userId] });
+      setResult(null); setCode('');
     },
-    onError: (error: any) => toast.error(error?.message ?? t('connectFailed')),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const togglePreferred = useMutation({
-    mutationFn: async ({ connId, value }: { connId: string; value: boolean }) => {
+    mutationFn: async ({ id, val }: { id: string; val: boolean }) => {
       const { error } = await supabase
         .from('customer_merchant_connections')
-        .update({ is_preferred: value })
-        .eq('id', connId);
+        .update({ is_preferred: val })
+        .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customer-connections'] }),
-    onError: () => toast.error(t('updatePreferredFailed')),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['c-connections', userId] }),
   });
 
-  const loadMetrics = async (merchantId: string) => {
-    if (metricsCache[merchantId]) return;
-    setMetricsLoading(merchantId);
-    try {
-      const { data, error } = await supabase.rpc('merchant_trust_metrics', {
-        p_merchant_id: merchantId,
-        p_customer_user_id: userId!,
-      });
-      if (error) return;
-      setMetricsCache((prev) => ({ ...prev, [merchantId]: data }));
-    } catch {
-      toast.error(t('metricsLoadFailed'));
-    } finally {
-      setMetricsLoading(null);
-    }
-  };
-
-  const handleExpand = (connection: MerchantConnection) => {
-    if (expandedId === connection.id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(connection.id);
-    void loadMetrics(connection.merchant_id);
-  };
+  const sorted = [...connections].sort((a, b) => {
+    if (a.is_preferred && !b.is_preferred) return -1;
+    if (!a.is_preferred && b.is_preferred) return 1;
+    return (a.merchant?.display_name ?? '').localeCompare(b.merchant?.display_name ?? '');
+  });
 
   return (
     <div className="space-y-4">
-      <section className="panel overflow-hidden">
-        <div className="relative border-b border-border/60 px-4 py-4">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent" />
-          <div className="relative">
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">{t('customerMerchants')}</div>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-foreground">{t('myMerchants')}</h1>
-            <p className="text-sm text-muted-foreground">{t('merchantConnectionSubtitle')}</p>
-          </div>
+      <h1 className="text-lg font-bold">{lang === 'ar' ? 'التجار' : 'Merchants'}</h1>
+
+      {/* Search */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={code}
+            onChange={e => setCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && search()}
+            placeholder={lang === 'ar' ? 'رمز التاجر…' : 'Merchant code…'}
+            className="h-10 w-full rounded-xl border border-border/50 bg-card ps-9 pe-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
         </div>
-      </section>
+        <button
+          onClick={search}
+          disabled={searching}
+          className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : (lang === 'ar' ? 'بحث' : 'Search')}
+        </button>
+      </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Search className="h-4 w-4" /> {t('findMerchant')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder={t('merchantSearchPlaceholder')}
-              value={searchCode}
-              onChange={(event) => setSearchCode(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && void handleSearch()}
-            />
-            <Button onClick={() => void handleSearch()} disabled={searching}>
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : t('search')}
-            </Button>
+      {/* Search result */}
+      {result && (
+        <div className="flex items-center justify-between rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">{result.display_name}</p>
+            <p className="text-xs text-muted-foreground">{result.merchant_code} · {result.region}</p>
           </div>
-
-          {searchResult && (
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border p-3">
-              <div className="min-w-0">
-                <p className="font-medium text-foreground">{searchResult.display_name}</p>
-                <p className="truncate text-sm text-muted-foreground">
-                  {searchResult.region ?? t('nA')} · {searchResult.merchant_code || searchResult.merchant_id}
-                </p>
-              </div>
-              {isAlreadyConnected(searchResult.merchant_id) ? (
-                <Badge variant="secondary">{t('connected')}</Badge>
-              ) : (
-                <Button size="sm" onClick={() => connectMutation.mutate(searchResult.merchant_id)} disabled={connectMutation.isPending}>
-                  <UserPlus className="mr-1 h-4 w-4" /> {t('connect')}
-                </Button>
-              )}
-            </div>
+          {isConnected(result.merchant_id) ? (
+            <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'مرتبط' : 'Connected'}</span>
+          ) : (
+            <button
+              onClick={() => connect.mutate(result.merchant_id)}
+              disabled={connect.isPending}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              {lang === 'ar' ? 'ربط' : 'Connect'}
+            </button>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
-      <div className="space-y-2">
-        {sorted.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <Store className="mb-3 h-12 w-12 text-muted-foreground/40" />
-              <p className="text-muted-foreground">{t('noMerchantsConnected')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('merchantSearchHelp')}</p>
-            </CardContent>
-          </Card>
-        ) : (
-          sorted.map((connection) => {
-            const expanded = expandedId === connection.id;
-            const metrics = metricsCache[connection.merchant_id];
-            const loading = metricsLoading === connection.merchant_id;
-
-            return (
-              <Card key={connection.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <button type="button" className="flex w-full items-center gap-3 p-3 text-left" onClick={() => handleExpand(connection)}>
-                    <div className="relative">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
-                        {connection.merchant?.display_name?.[0]?.toUpperCase() ?? 'M'}
-                      </div>
-                      {connection.status === 'active' && <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-emerald-500" />}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className="truncate font-medium text-foreground">{connection.merchant?.display_name ?? connection.merchant_id}</p>
-                        {connection.is_preferred && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-500 text-amber-500" />}
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {connection.merchant?.region ?? t('nA')} · {connection.merchant?.merchant_code || connection.merchant_id}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Badge
-                          variant={connection.status === 'active' ? 'default' : connection.status === 'blocked' ? 'destructive' : 'secondary'}
-                          className="capitalize"
-                        >
-                          {connection.status}
-                        </Badge>
-                        <span className="text-[11px] text-muted-foreground">
-                          {connection.status === 'pending'
-                            ? 'Pending customer connection'
-                            : connection.status === 'active'
-                              ? 'Active customer connection'
-                              : 'Blocked customer connection'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          togglePreferred.mutate({ connId: connection.id, value: !connection.is_preferred });
-                        }}
-                      >
-                        {connection.is_preferred ? <StarOff className="h-4 w-4 text-amber-500" /> : <Star className="h-4 w-4 text-muted-foreground" />}
-                      </Button>
-                      {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                  </button>
-
-                  {expanded && (
-                    <div className="space-y-3 border-t bg-muted/30 p-3">
-                      {loading ? (
-                        <div className="flex justify-center py-4">
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        </div>
-                      ) : metrics ? (
-                        <>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('trustMetrics')}</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <MetricCard icon={<CheckCircle2 className="h-4 w-4 text-primary" />} label={t('completionRate')} value={`${metrics.completion_rate}%`} />
-                            <MetricCard icon={<Clock className="h-4 w-4 text-amber-500" />} label={t('avgResponse')} value={metrics.avg_response_minutes > 0 ? `${metrics.avg_response_minutes} ${t('minutesShort')}` : '—'} />
-                            <MetricCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label={t('totalTrades')} value={metrics.total_trades} />
-                            <MetricCard icon={<XCircle className="h-4 w-4 text-destructive" />} label={t('failedTrades')} value={metrics.cancelled_trades} />
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-center text-sm text-muted-foreground">{t('noDataAvailable')}</p>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
-  return (
-    <div className="flex items-center gap-2 rounded-lg border bg-background p-2.5">
-      {icon}
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-sm font-bold text-foreground">{value}</p>
-      </div>
+      {/* Connection list */}
+      {sorted.length === 0 ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          {lang === 'ar' ? 'لا يوجد تجار مرتبطون' : 'No merchants yet'}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {sorted.map(c => (
+            <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-sm font-bold text-foreground">
+                {(c.merchant?.display_name?.[0] ?? '?').toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{c.merchant?.display_name ?? c.merchant_id}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {STATUS_ICON[c.status] ?? null}
+                  <span className="text-[11px] text-muted-foreground">{c.merchant?.region ?? ''}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => togglePreferred.mutate({ id: c.id, val: !c.is_preferred })}
+                className="shrink-0 p-1 text-muted-foreground hover:text-amber-500 transition-colors"
+              >
+                {c.is_preferred
+                  ? <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  : <StarOff className="h-4 w-4" />}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

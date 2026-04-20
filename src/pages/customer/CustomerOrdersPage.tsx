@@ -1,650 +1,382 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, Loader2, Plus, ShoppingCart, X } from 'lucide-react';
+import { Plus, X, ChevronRight, Check, Loader2, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme-context';
-import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
+import { cn } from '@/lib/utils';
 import OrderDetailView from './components/OrderDetailView';
 import {
-  acceptCustomerQuote,
-  createCustomerOrder,
-  createCustomerOrderWithGuide,
-  deriveCustomerOrderMeta,
-  formatCustomerDate,
-  formatCustomerNumber,
-  getCompatibleRails,
-  getCorridorLabel,
-  getCurrencyForCountry,
-  getDisplayedCustomerRate,
-  getDisplayedCustomerTotal,
-  getGuidePricingForCustomerOrder,
-  listCustomerConnections,
-  listCustomerOrders,
-  rejectCustomerQuote,
-  type CustomerCountry,
-  type CustomerOrderRow,
-  type GuidePricingResult,
+  acceptCustomerQuote, createCustomerOrder, createCustomerOrderWithGuide,
+  deriveCustomerOrderMeta, formatCustomerDate, formatCustomerNumber,
+  getCompatibleRails, getCurrencyForCountry, getDisplayedCustomerRate,
+  getDisplayedCustomerTotal, getGuidePricingForCustomerOrder,
+  listCustomerConnections, listCustomerOrders, rejectCustomerQuote,
+  CUSTOMER_COUNTRIES, type CustomerCountry, type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
-import { CUSTOMER_COUNTRIES } from '@/features/customer/customer-portal';
 
-type OrderDraft = {
-  orderType: 'buy' | 'sell';
-  merchantId: string;
-  amount: string;
-  rate: string;
-  note: string;
-  sendCountry: CustomerCountry;
-  receiveCountry: CustomerCountry;
-  payoutRail: string;
+const STATUS_COLOR: Record<string, string> = {
+  completed:      'bg-emerald-500/10 text-emerald-600',
+  cancelled:      'bg-red-500/10 text-red-600',
+  quote_rejected: 'bg-red-500/10 text-red-600',
+  quoted:         'bg-blue-500/10 text-blue-600',
+  default:        'bg-amber-500/10 text-amber-600',
 };
 
-function getStatusBadgeVariant(status: string) {
-  if (status === 'completed') return 'default';
-  if (status === 'cancelled' || status === 'quote_rejected') return 'destructive';
-  return 'secondary';
-}
-
-function formatQuoteStatus(status: string) {
-  return status.replace(/_/g, ' ');
-}
-
-function QuoteSummary({
-  guide,
-  language,
-  corridorLabel,
-  receiveCurrency,
-}: {
-  guide: GuidePricingResult | null;
-  language: 'en' | 'ar';
-  corridorLabel: string;
-  receiveCurrency: string;
-}) {
-  if (!guide || guide.guideRate == null || guide.guideTotal == null) {
-    return (
-      <div className="rounded-xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-        Guide unavailable. Merchant quote only.
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-xl border border-border/60 bg-gradient-to-br from-primary/10 via-transparent to-transparent p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">
-        Based on current market guide pricing
-      </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Guide Rate</div>
-          <div className="mt-1 text-lg font-black text-foreground">
-            {formatCustomerNumber(guide.guideRate, language, 4)}
-          </div>
-        </div>
-        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Estimated You Receive</div>
-          <div className="mt-1 text-lg font-black text-foreground">
-            {formatCustomerNumber(guide.guideTotal, language, 2)} {receiveCurrency}
-          </div>
-        </div>
-        <div className="rounded-lg border border-border/60 bg-background/60 p-3">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Pricing Source</div>
-          <div className="mt-1 text-lg font-black text-foreground">
-            {guide.guideSource ?? 'INSTAPAY_V1'}
-          </div>
-        </div>
-      </div>
-      <div className="mt-3 text-xs text-muted-foreground">
-        Final rate will be confirmed by the merchant.
-      </div>
-      <div className="mt-2 text-[11px] text-muted-foreground">{corridorLabel}</div>
-    </div>
-  );
+function statusColor(s: string) {
+  return STATUS_COLOR[s] ?? STATUS_COLOR.default;
 }
 
 export default function CustomerOrdersPage() {
   const { userId, customerProfile } = useAuth();
-  const navigate = useNavigate();
   const { settings } = useTheme();
-  const t = useT();
-  const queryClient = useQueryClient();
-  const language = settings.language === 'ar' ? 'ar' : 'en';
+  const lang = settings.language === 'ar' ? 'ar' : 'en';
+  const qc = useQueryClient();
+  const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
 
   const [showForm, setShowForm] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<OrderDraft>({
-    orderType: 'buy',
-    merchantId: '',
-    amount: '',
-    rate: '',
-    note: '',
-    sendCountry: (customerProfile?.country as CustomerCountry) ?? CUSTOMER_COUNTRIES[0],
-    receiveCountry: 'Egypt',
-    payoutRail: '',
-  });
+  const [detailId, setDetailId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const quickOrder = localStorage.getItem('customer_quick_order');
-    if (quickOrder === 'buy' || quickOrder === 'sell') {
-      localStorage.removeItem('customer_quick_order');
-      setDraft((prev) => ({ ...prev, orderType: quickOrder }));
-      setShowForm(true);
-    }
+  // Form state
+  const [orderType,     setOrderType]     = useState<'buy' | 'sell'>('buy');
+  const [merchantId,    setMerchantId]    = useState('');
+  const [amount,        setAmount]        = useState('');
+  const [rate,          setRate]          = useState('');
+  const [note,          setNote]          = useState('');
+  const [sendCountry,   setSendCountry]   = useState<CustomerCountry>(customerProfile?.country as CustomerCountry ?? CUSTOMER_COUNTRIES[0]);
+  const [receiveCountry,setReceiveCountry]= useState<CustomerCountry>(CUSTOMER_COUNTRIES[1]);
+  const [payoutRail,    setPayoutRail]    = useState('bank_transfer');
 
-    const repeatOrder = localStorage.getItem('customer_repeat_order');
-    if (repeatOrder) {
-      localStorage.removeItem('customer_repeat_order');
-      try {
-        const parsed = JSON.parse(repeatOrder) as Partial<OrderDraft> & {
-          order_type?: 'buy' | 'sell';
-          send_country?: string;
-          receive_country?: string;
-          payout_rail?: string;
-        };
-        setDraft((prev) => ({
-          ...prev,
-          orderType: parsed.order_type ?? parsed.orderType ?? 'buy',
-          merchantId: parsed.merchantId ?? '',
-          amount: String((parsed as any).amount ?? ''),
-          rate: String(parsed.rate ?? ''),
-          note: parsed.note ?? '',
-          sendCountry: (parsed.send_country as CustomerCountry) ?? prev.sendCountry,
-          receiveCountry: (parsed.receive_country as CustomerCountry) ?? prev.receiveCountry,
-          payoutRail: parsed.payout_rail ?? '',
-        }));
-        setShowForm(true);
-      } catch {
-        // best effort
-      }
-    }
-  }, []);
+  const sendCurrency    = getCurrencyForCountry(sendCountry);
+  const receiveCurrency = getCurrencyForCountry(receiveCountry);
 
-  const { data: connections = [] } = useQuery({
-    queryKey: ['customer-active-connections', userId],
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['c-orders', userId],
     queryFn: async () => {
       if (!userId) return [];
-      const { data, error } = await listCustomerConnections(userId);
-      if (error) return [];
-      return (data ?? []).filter((conn) => conn.status === 'active');
-    },
-    enabled: !!userId,
-  });
-
-  const { data: orders = [] } = useQuery({
-    queryKey: ['customer-orders', userId],
-    queryFn: async () => {
-      if (!userId) return [];
-      const { data, error } = await listCustomerOrders(userId);
-      if (error) return [];
+      const { data } = await listCustomerOrders(userId);
       return (data ?? []) as CustomerOrderRow[];
     },
     enabled: !!userId,
   });
 
-  useEffect(() => {
-    const fallback = (customerProfile?.country as CustomerCountry) ?? CUSTOMER_COUNTRIES[0];
-    setDraft((prev) => ({
-      ...prev,
-      sendCountry: prev.sendCountry ?? fallback,
-      payoutRail: prev.payoutRail || getCompatibleRails(prev.sendCountry ?? fallback, prev.receiveCountry)[0]?.value || '',
-    }));
-  }, [customerProfile?.country]);
-
-  const parsedAmount = Number(draft.amount);
-  const parsedRate = Number(draft.rate);
-  const sendCurrency = getCurrencyForCountry(draft.sendCountry);
-  const receiveCurrency = getCurrencyForCountry(draft.receiveCountry);
-  const availableRails = useMemo(
-    () => getCompatibleRails(draft.sendCountry, draft.receiveCountry),
-    [draft.receiveCountry, draft.sendCountry],
-  );
-  const selectedRail = availableRails.find((item) => item.value === draft.payoutRail)?.value ?? availableRails[0]?.value ?? '';
-  const corridorLabel = getCorridorLabel(draft.sendCountry, draft.receiveCountry);
-
-  useEffect(() => {
-    if (!availableRails.some((rail) => rail.value === draft.payoutRail)) {
-      setDraft((prev) => ({ ...prev, payoutRail: availableRails[0]?.value ?? '' }));
-    }
-  }, [availableRails, draft.payoutRail]);
-
-  useEffect(() => {
-    if (draft.orderType === 'buy') {
-      setDraft((prev) => (prev.rate ? { ...prev, rate: '' } : prev));
-    }
-  }, [draft.orderType]);
-
-  const guideQuery = useQuery({
-    queryKey: ['customer-guide-pricing', draft.amount, draft.sendCountry, draft.receiveCountry, selectedRail],
+  const { data: connections = [] } = useQuery({
+    queryKey: ['c-connections-orders', userId],
     queryFn: async () => {
-      if (draft.orderType !== 'buy' || !Number.isFinite(parsedAmount) || parsedAmount <= 0) return null;
-      return getGuidePricingForCustomerOrder({
-        customerUserId: userId ?? '',
-        merchantId: draft.merchantId || '',
-        connectionId: '',
-        orderType: 'buy',
-        amount: parsedAmount,
-        rate: null,
-        note: draft.note.trim() || null,
-        sendCountry: draft.sendCountry,
-        receiveCountry: draft.receiveCountry,
-        sendCurrency,
-        receiveCurrency,
-        payoutRail: selectedRail || null,
-        corridorLabel,
-      });
+      if (!userId) return [];
+      const { data } = await listCustomerConnections(userId);
+      return (data ?? []).filter((c: any) => c.status === 'active');
     },
-    enabled: draft.orderType === 'buy' && Number.isFinite(parsedAmount) && parsedAmount > 0,
+    enabled: !!userId,
   });
 
-  const currentGuide = guideQuery.data ?? null;
+  const { data: guide } = useQuery({
+    queryKey: ['c-guide', sendCountry, receiveCountry, amount, orderType],
+    queryFn: () => getGuidePricingForCustomerOrder({ orderType, sendCountry, receiveCountry, amount: parseFloat(amount) || 0 }),
+    enabled: showForm && orderType === 'buy' && !!amount && parseFloat(amount) > 0,
+    staleTime: 60_000,
+  });
 
-  const placeOrder = useMutation({
+  const rails = useMemo(() => getCompatibleRails(sendCountry, receiveCountry), [sendCountry, receiveCountry]);
+
+  useEffect(() => {
+    if (rails.length > 0 && !rails.find(r => r.value === payoutRail)) {
+      setPayoutRail(rails[0].value);
+    }
+  }, [rails, payoutRail]);
+
+  // Open form from localStorage flag
+  useEffect(() => {
+    if (localStorage.getItem('c_open_order_form') === '1') {
+      localStorage.removeItem('c_open_order_form');
+      setShowForm(true);
+    }
+  }, []);
+
+  const createOrder = useMutation({
     mutationFn: async () => {
-      if (!userId) throw new Error('Missing user session');
-      if (!draft.merchantId) throw new Error(t('selectMerchant'));
-      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error(t('enterValidAmount'));
-      const conn = connections.find((item: any) => item.merchant_id === draft.merchantId);
-      if (!conn) throw new Error(t('selectConnectedMerchant'));
-
-      if (draft.orderType === 'buy') {
-        const { data, error } = await createCustomerOrderWithGuide({
-          customerUserId: userId,
-          merchantId: draft.merchantId,
-          connectionId: conn.id,
-          orderType: 'buy',
-          amount: parsedAmount,
-          rate: null,
-          note: draft.note.trim() || null,
-          sendCountry: draft.sendCountry,
-          receiveCountry: draft.receiveCountry,
-          sendCurrency,
-          receiveCurrency,
-          payoutRail: selectedRail || null,
-          corridorLabel,
-        });
-        if (error) throw error;
-        return data;
-      }
-
-      const { data, error } = await createCustomerOrder({
-        customerUserId: userId,
-        merchantId: draft.merchantId,
-        connectionId: conn.id,
-        orderType: 'sell',
-        amount: parsedAmount,
-        rate: Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null,
-        note: draft.note.trim() || null,
-        sendCountry: draft.sendCountry,
-        receiveCountry: draft.receiveCountry,
-        sendCurrency,
-        receiveCurrency,
-        payoutRail: selectedRail || null,
-        corridorLabel,
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast.success(t('orderPlaced'));
-      setShowForm(false);
-      setDraft({
-        orderType: 'buy',
-        merchantId: '',
-        amount: '',
-        rate: '',
-        note: '',
-        sendCountry: (customerProfile?.country as CustomerCountry) ?? CUSTOMER_COUNTRIES[0],
-        receiveCountry: 'Egypt',
-        payoutRail: '',
-      });
-      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['customer-dashboard-orders'] });
-    },
-    onError: (error: any) => {
-      toast.error(error?.message ?? t('orderFailed'));
-    },
-  });
-
-  const respondToQuote = useMutation({
-    mutationFn: async (payload: { order: CustomerOrderRow; kind: 'accept' | 'reject'; reason?: string | null }) => {
-      if (!userId) throw new Error('Missing user session');
-      if (payload.kind === 'accept') {
-        const { error } = await acceptCustomerQuote(payload.order, userId);
-        if (error) throw error;
+      if (!userId || !merchantId || !amount) throw new Error(L('Fill all fields', 'أكمل الحقول'));
+      const connection = (connections as any[]).find((c: any) => c.merchant_id === merchantId);
+      if (!connection) throw new Error(L('Merchant not found', 'التاجر غير موجود'));
+      const base = {
+        userId, merchantId, connectionId: connection.id,
+        orderType, amount: parseFloat(amount),
+        currency: sendCurrency, sendCountry, receiveCountry,
+        payoutRail, note: note.trim() || null,
+      };
+      if (orderType === 'buy') {
+        await createCustomerOrderWithGuide(base);
       } else {
-        const { error } = await rejectCustomerQuote(payload.order, userId, payload.reason ?? null);
-        if (error) throw error;
+        await createCustomerOrder({ ...base, rate: parseFloat(rate) || null });
       }
     },
     onSuccess: () => {
-      toast.success('Quote updated');
-      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['customer-dashboard-orders'] });
+      toast.success(L('Order created', 'تم إنشاء الطلب'));
+      qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+      setShowForm(false);
+      setAmount(''); setRate(''); setNote('');
     },
-    onError: (error: any) => toast.error(error?.message ?? 'Failed to update quote'),
+    onError: (e: any) => toast.error(e.message),
   });
 
-  if (selectedOrderId) {
-    const order = orders.find((item) => item.id === selectedOrderId);
-    const selectedConnection = connections.find((item: any) => item.merchant_id === order?.merchant_id);
-    return (
-      <OrderDetailView
-        orderId={selectedOrderId}
-        merchantName={resolveCustomerLabel({
-          displayName: selectedConnection?.merchant?.display_name,
-          name: selectedConnection?.merchant?.nickname,
-          nickname: null,
-          customerUserId: order?.merchant_id ?? 'merchant',
-        })}
-        onBack={() => setSelectedOrderId(null)}
-      />
-    );
+  const acceptQuote = useMutation({
+    mutationFn: (order: CustomerOrderRow) => acceptCustomerQuote(order, userId!),
+    onSuccess: () => { toast.success(L('Quote accepted', 'تم قبول العرض')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const rejectQuote = useMutation({
+    mutationFn: (order: CustomerOrderRow) => rejectCustomerQuote(order, userId!, ''),
+    onSuccess: () => { toast.success(L('Quote rejected', 'تم رفض العرض')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const detailOrder = orders.find(o => o.id === detailId) ?? null;
+  if (detailOrder) {
+    return <OrderDetailView order={detailOrder} onBack={() => setDetailId(null)} />;
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">{t('orders')}</h1>
-          <p className="text-sm text-muted-foreground">{t('customerOrdersSubtitle')}</p>
-        </div>
-        <Button onClick={() => setShowForm((value) => !value)} className="gap-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">{L('Orders', 'الطلبات')}</h1>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className={cn(
+            'flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors',
+            showForm ? 'bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground',
+          )}
+        >
           {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showForm ? t('close') : t('newOrder')}
-        </Button>
+          {showForm ? L('Cancel', 'إلغاء') : L('New', 'جديد')}
+        </button>
       </div>
 
+      {/* New order form */}
       {showForm && (
-        <Card className="border-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">{t('placeOrder')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={draft.orderType === 'buy' ? 'default' : 'outline'}
-                className="gap-2"
-                onClick={() => setDraft((prev) => ({ ...prev, orderType: 'buy', rate: '' }))}
-              >
-                <ArrowDownLeft className="h-4 w-4" />
-                {t('buy')}
-              </Button>
-              <Button
-                type="button"
-                variant={draft.orderType === 'sell' ? 'default' : 'outline'}
-                className="gap-2"
-                onClick={() => setDraft((prev) => ({ ...prev, orderType: 'sell' }))}
-              >
-                <ArrowUpRight className="h-4 w-4" />
-                {t('sell')}
-              </Button>
+        <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border/40">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              {L('New Order', 'طلب جديد')}
+            </p>
+          </div>
+          <div className="px-4 py-4 space-y-4">
+            {/* Buy / Sell toggle */}
+            <div className="flex rounded-xl bg-muted p-1 gap-1">
+              {(['buy', 'sell'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setOrderType(t)}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-colors',
+                    orderType === t ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+                  )}
+                >
+                  {t === 'buy'
+                    ? <><ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" />{L('Buy', 'شراء')}</>
+                    : <><ArrowUpRight className="h-3.5 w-3.5 text-blue-500" />{L('Sell', 'بيع')}</>}
+                </button>
+              ))}
             </div>
 
-            <div className="space-y-2">
-              <Label>{t('merchant')}</Label>
-              <Select value={draft.merchantId} onValueChange={(merchantId) => setDraft((prev) => ({ ...prev, merchantId }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('selectMerchant')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {connections.map((conn: any) => (
-                    <SelectItem key={conn.merchant_id} value={conn.merchant_id}>
-                      {resolveCustomerLabel({
-                        displayName: conn.merchant?.display_name,
-                        name: conn.merchant?.nickname,
-                        nickname: null,
-                        customerUserId: conn.merchant_id,
-                      })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {connections.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {t('noConnectedMerchants')}{' '}
-                  <button type="button" className="font-semibold text-primary" onClick={() => navigate('/c/merchants')}>
-                    {t('connectOneFirst')}
-                  </button>
-                </p>
-              )}
+            {/* Merchant */}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Merchant', 'التاجر')}</label>
+              <select
+                value={merchantId}
+                onChange={e => setMerchantId(e.target.value)}
+                className="h-10 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">{L('Select…', 'اختر…')}</option>
+                {(connections as any[]).map((c: any) => (
+                  <option key={c.merchant_id} value={c.merchant_id}>
+                    {c.merchant?.display_name ?? c.merchant_id}
+                  </option>
+                ))}
+              </select>
             </div>
 
+            {/* Countries */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>{t('sendCountry')}</Label>
-                <Select
-                  value={draft.sendCountry}
-                  onValueChange={(sendCountry) => setDraft((prev) => ({
-                    ...prev,
-                    sendCountry: sendCountry as CustomerCountry,
-                    payoutRail: getCompatibleRails(sendCountry, prev.receiveCountry)[0]?.value ?? '',
-                  }))}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('From', 'من')}</label>
+                <select
+                  value={sendCountry}
+                  onChange={e => setSendCountry(e.target.value as CustomerCountry)}
+                  className="h-10 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CUSTOMER_COUNTRIES.map((country) => (
-                      <SelectItem key={country} value={country}>
-                        {country}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {CUSTOMER_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
-              <div className="space-y-2">
-                <Label>{t('receiveCountry')}</Label>
-                <Select
-                  value={draft.receiveCountry}
-                  onValueChange={(receiveCountry) => setDraft((prev) => ({
-                    ...prev,
-                    receiveCountry: receiveCountry as CustomerCountry,
-                    payoutRail: getCompatibleRails(prev.sendCountry, receiveCountry)[0]?.value ?? '',
-                  }))}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('To', 'إلى')}</label>
+                <select
+                  value={receiveCountry}
+                  onChange={e => setReceiveCountry(e.target.value as CustomerCountry)}
+                  className="h-10 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CUSTOMER_COUNTRIES.map((country) => (
-                      <SelectItem key={country} value={country}>
-                        {country}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {CUSTOMER_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
             </div>
 
-            <div className={cn('grid gap-3', draft.orderType === 'buy' ? 'grid-cols-1' : 'grid-cols-2')}>
-              <div className="space-y-2">
-                <Label>{t('amount')}</Label>
-                <Input
+            {/* Amount */}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                {L('Amount', 'المبلغ')} ({sendCurrency})
+              </label>
+              <input
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                type="number"
+                min="0"
+                placeholder="0"
+                className="h-10 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            {/* Rate (sell only) */}
+            {orderType === 'sell' && (
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Rate', 'السعر')}</label>
+                <input
+                  value={rate}
+                  onChange={e => setRate(e.target.value)}
                   type="number"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={draft.amount}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, amount: event.target.value }))}
+                  min="0"
+                  step="0.0001"
+                  placeholder="0.0000"
+                  className="h-10 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
-              {draft.orderType === 'sell' && (
-                <div className="space-y-2">
-                  <Label>{t('rate')}</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="0.000"
-                    value={draft.rate}
-                    onChange={(event) => setDraft((prev) => ({ ...prev, rate: event.target.value }))}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>{t('sendCurrency')}</Label>
-                <Input value={sendCurrency} disabled />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('receiveCurrency')}</Label>
-                <Input value={receiveCurrency} disabled />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t('payoutRail')}</Label>
-              <Select value={selectedRail} onValueChange={(payoutRail) => setDraft((prev) => ({ ...prev, payoutRail }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('selectRail')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableRails.map((rail) => (
-                    <SelectItem key={rail.value} value={rail.value}>
-                      {t(rail.labelKey as never)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="text-xs text-muted-foreground">{t('railsFilteredByCorridor')}</div>
-            </div>
-
-            {draft.orderType === 'buy' && (
-              <QuoteSummary
-                guide={currentGuide}
-                language={language}
-                corridorLabel={corridorLabel}
-                receiveCurrency={receiveCurrency}
-              />
             )}
 
-            <div className="space-y-2">
-              <Label>{t('noteOptional')}</Label>
-              <Input
-                placeholder={t('addNote')}
-                value={draft.note}
-                onChange={(event) => setDraft((prev) => ({ ...prev, note: event.target.value }))}
+            {/* Guide pricing (buy only) */}
+            {orderType === 'buy' && guide?.guideRate != null && (
+              <div className="rounded-xl bg-primary/5 border border-primary/20 px-3 py-2.5 space-y-1">
+                <p className="text-[10px] font-semibold text-primary/70 uppercase tracking-wide">
+                  {L('Guide pricing', 'التسعير الإرشادي')}
+                </p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{L('Rate', 'السعر')}</span>
+                  <span className="font-semibold tabular-nums">{formatCustomerNumber(guide.guideRate, lang, 4)}</span>
+                </div>
+                {guide.guideTotal != null && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{L('You receive', 'تستلم')}</span>
+                    <span className="font-semibold tabular-nums text-emerald-600">
+                      {formatCustomerNumber(guide.guideTotal, lang, 2)} {receiveCurrency}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Rail */}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Payout method', 'طريقة الدفع')}</label>
+              <select
+                value={payoutRail}
+                onChange={e => setPayoutRail(e.target.value)}
+                className="h-10 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {rails.map(r => <option key={r.value} value={r.value}>{r.value.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+
+            {/* Note */}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                {L('Note', 'ملاحظة')} <span className="text-muted-foreground/60">({L('optional', 'اختياري')})</span>
+              </label>
+              <input
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                className="h-10 w-full rounded-xl border border-border/50 bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
-            <Button
-              onClick={() => placeOrder.mutate()}
-              disabled={!draft.amount || !draft.merchantId || !selectedRail || placeOrder.isPending}
-              className="w-full"
+            <button
+              onClick={() => createOrder.mutate()}
+              disabled={createOrder.isPending || !merchantId || !amount}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
-              {placeOrder.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('placeOrder')}
-            </Button>
-          </CardContent>
-        </Card>
+              {createOrder.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {L('Place order', 'تقديم الطلب')}
+            </button>
+          </div>
+        </div>
       )}
 
-      {orders.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <ShoppingCart className="mb-3 h-12 w-12 text-muted-foreground/40" />
-            <p className="text-muted-foreground">{t('noOrdersYet')}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{t('connectMerchantPrompt')}</p>
-          </CardContent>
-        </Card>
+      {/* Order list */}
+      {isLoading ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">…</div>
+      ) : orders.length === 0 ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          {L('No orders yet', 'لا توجد طلبات')}
+        </div>
       ) : (
         <div className="space-y-2">
-          {orders.map((order) => {
-            const meta = deriveCustomerOrderMeta(order, customerProfile?.country);
-            const displayedRate = getDisplayedCustomerRate(order);
-            const displayedTotal = getDisplayedCustomerTotal(order);
-            const isGuideOrder = order.status === 'pending_quote';
-            const isQuotedOrLater = ['quoted', 'quote_accepted', 'quote_rejected', 'awaiting_payment', 'payment_sent', 'completed'].includes(order.status);
-
+          {orders.map(o => {
+            const meta = deriveCustomerOrderMeta(o, customerProfile?.country);
+            const rate = getDisplayedCustomerRate(o);
+            const isQuoted = o.status === 'quoted';
             return (
-              <Card
-                key={order.id}
-                className="cursor-pointer transition-shadow hover:shadow-md"
-                onClick={() => setSelectedOrderId(order.id)}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div
-                        className={cn(
-                          'flex h-9 w-9 items-center justify-center rounded-full shrink-0',
-                          order.order_type === 'buy' ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive',
-                        )}
-                      >
-                        {order.order_type === 'buy' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {meta.corridorLabel} - {formatCustomerNumber(order.amount, language, 2)} {meta.sendCurrency}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {order.payout_rail ?? t('nA')}
-                          {' - '}
-                          {isGuideOrder
-                            ? `Guide Rate ${displayedRate != null ? formatCustomerNumber(displayedRate, language, 4) : '-'}`
-                            : `Final Rate ${displayedRate != null ? formatCustomerNumber(displayedRate, language, 4) : '-'}`}
-                          {displayedTotal != null
-                            ? ` - ${isGuideOrder ? 'Estimated You Receive' : isQuotedOrLater ? 'Final Total' : 'Total'}: ${formatCustomerNumber(displayedTotal, language, 2)} ${meta.receiveCurrency}`
-                            : ''}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{formatCustomerDate(order.created_at, language)}</p>
-                      </div>
+              <div key={o.id} className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+                <button
+                  onClick={() => setDetailId(o.id)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">
+                        {meta.sendCurrency} → {meta.receiveCurrency}
+                      </span>
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', statusColor(o.status))}>
+                        {o.status.replace(/_/g, ' ')}
+                      </span>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge variant={getStatusBadgeVariant(order.status)} className="text-xs capitalize">
-                        {formatQuoteStatus(order.status)}
-                      </Badge>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {o.amount} {o.currency}
+                      {rate != null && ` · ${formatCustomerNumber(rate, lang, 4)}`}
+                      {' · '}{formatCustomerDate(o.created_at, lang)}
+                    </p>
                   </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
 
-                  {isGuideOrder && (
-                    <div className="mt-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
-                      <div className="font-semibold text-foreground">Guide Rate</div>
-                      <div className="mt-1">Source: {order.guide_source ?? 'INSTAPAY_V1'}</div>
-                      <div>Based on current market guide pricing</div>
+                {/* Quote actions */}
+                {isQuoted && (
+                  <div className="flex gap-2 border-t border-border/40 px-4 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      {o.final_rate != null && (
+                        <p className="text-xs text-muted-foreground">
+                          {L('Quoted rate', 'السعر المعروض')}: <span className="font-semibold text-foreground">{formatCustomerNumber(o.final_rate, lang, 4)}</span>
+                        </p>
+                      )}
+                      {o.final_quote_note && (
+                        <p className="text-xs text-muted-foreground truncate">{o.final_quote_note}</p>
+                      )}
                     </div>
-                  )}
-
-                  {order.status === 'quoted' && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          respondToQuote.mutate({ order, kind: 'accept' });
-                        }}
-                        disabled={respondToQuote.isPending}
-                      >
-                        Accept Quote
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          const reason = window.prompt('Optional rejection reason')?.trim() || null;
-                          respondToQuote.mutate({ order, kind: 'reject', reason });
-                        }}
-                        disabled={respondToQuote.isPending}
-                      >
-                        Reject Quote
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <button
+                      onClick={() => rejectQuote.mutate(o)}
+                      disabled={rejectQuote.isPending}
+                      className="rounded-lg border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive"
+                    >
+                      {L('Reject', 'رفض')}
+                    </button>
+                    <button
+                      onClick={() => acceptQuote.mutate(o)}
+                      disabled={acceptQuote.isPending}
+                      className="flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      {L('Accept', 'قبول')}
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
