@@ -79,7 +79,6 @@ export type CustomerOrderRow = {
   final_rate: number | null;
   final_total: number | null;
   final_quote_note: string | null;
-  final_quote_expires_at: string | null;
   quoted_at: string | null;
   quoted_by_user_id: string | null;
   customer_accepted_quote_at?: string | null;
@@ -255,6 +254,38 @@ export function getDisplayedCustomerTotal(order: Partial<CustomerOrderRow>) {
   }
 
   return order.final_total ?? order.total ?? order.guide_total ?? null;
+}
+
+export function deriveFinalQuoteValues(amount: number, input: { finalRate?: number | null; finalTotal?: number | null }) {
+  const numericAmount = Number(amount);
+  const finalRate = toFiniteNumber(input.finalRate);
+  const finalTotal = toFiniteNumber(input.finalTotal);
+
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return {
+      finalRate,
+      finalTotal,
+    };
+  }
+
+  if (finalRate != null && finalTotal == null) {
+    return {
+      finalRate,
+      finalTotal: Number((numericAmount * finalRate).toFixed(6)),
+    };
+  }
+
+  if (finalTotal != null && finalRate == null) {
+    return {
+      finalRate: Number((finalTotal / numericAmount).toFixed(6)),
+      finalTotal,
+    };
+  }
+
+  return {
+    finalRate,
+    finalTotal,
+  };
 }
 
 export function getCustomerOrderSentAmount(order: Partial<CustomerOrderRow>) {
@@ -460,7 +491,6 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
     final_rate: null,
     final_total: null,
     final_quote_note: null,
-    final_quote_expires_at: null,
     quoted_at: null,
     quoted_by_user_id: null,
     market_pair: pricing.marketPair,
@@ -612,7 +642,6 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
     final_rate: null,
     final_total: null,
     final_quote_note: null,
-    final_quote_expires_at: null,
     quoted_at: null,
     quoted_by_user_id: null,
     market_pair: pricing.marketPair,
@@ -654,7 +683,6 @@ export async function commitCustomerQuote(
     finalRate: number;
     finalTotal: number;
     finalQuoteNote: string | null;
-    finalQuoteExpiresAt: string | null;
   },
 ) {
   if (!canMerchantQuoteOrder(order.status)) {
@@ -668,7 +696,6 @@ export async function commitCustomerQuote(
     final_rate: input.finalRate,
     final_total: input.finalTotal,
     final_quote_note: input.finalQuoteNote,
-    final_quote_expires_at: input.finalQuoteExpiresAt,
     quoted_at: nowIso(),
     quoted_by_user_id: input.merchantUserId,
   };

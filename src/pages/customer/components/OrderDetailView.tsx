@@ -18,7 +18,6 @@ import {
   Clock,
   FileImage,
   Loader2,
-  Timer,
   Upload,
   type LucideIcon,
 } from 'lucide-react';
@@ -131,14 +130,6 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
   const receiveCurrency = order?.receive_currency ?? getCurrencyForCountry(meta?.receiveCountry);
   const currentStatus = normalizeOrderStatus(order?.status ?? 'pending_quote');
   const currentStep = Math.max(0, STEPS.findIndex((item) => item.key === currentStatus));
-
-  const timeLeft = useMemo(() => {
-    if (!order?.final_quote_expires_at && !order?.expires_at) return null;
-    const target = order.final_quote_expires_at ?? order.expires_at;
-    if (!target) return null;
-    const diff = new Date(target).getTime() - Date.now();
-    return diff > 0 ? diff : 0;
-  }, [order?.expires_at, order?.final_quote_expires_at]);
 
   const quoteRate = getDisplayedCustomerRate(order ?? {});
   const quoteTotal = getDisplayedCustomerTotal(order ?? {});
@@ -320,7 +311,6 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
               <Row label="Final Rate" value={quoteRate != null ? formatCustomerNumber(quoteRate, language, 4) : '-'} />
               <Row label="Final Total" value={quoteTotal != null ? `${formatCustomerNumber(quoteTotal, language, 2)} ${receiveCurrency}` : '-'} />
               <Row label="Quote note" value={order.final_quote_note ?? '-'} />
-              <Row label="Expires at" value={order.final_quote_expires_at ? formatCustomerDate(order.final_quote_expires_at, language) : '-'} />
             </div>
           </CardContent>
         </Card>
@@ -330,17 +320,6 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
         <Card>
           <CardContent className="p-3 text-sm text-muted-foreground">
             {order.final_quote_note}
-          </CardContent>
-        </Card>
-      )}
-
-      {order.final_quote_expires_at && timeLeft !== null && currentStatus !== 'completed' && currentStatus !== 'cancelled' && (
-        <Card className={cn('border', timeLeft === 0 ? 'border-destructive bg-destructive/5' : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-900/10')}>
-          <CardContent className="flex items-center gap-3 p-3">
-            <Timer className={cn('h-5 w-5', timeLeft === 0 ? 'text-destructive' : 'text-amber-600')} />
-            <span className="text-sm font-medium">
-              {timeLeft === 0 ? 'Quote expired' : `Quote expires in ${Math.floor(timeLeft / 60000)}:${String(Math.floor((timeLeft % 60000) / 1000)).padStart(2, '0')}`}
-            </span>
           </CardContent>
         </Card>
       )}

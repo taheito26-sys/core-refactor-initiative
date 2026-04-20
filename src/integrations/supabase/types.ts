@@ -1355,7 +1355,6 @@ export type Database = {
             expires_at: string | null
             customer_accepted_quote_at: string | null
             customer_rejected_quote_at: string | null
-            final_quote_expires_at: string | null
             final_quote_note: string | null
             final_rate: number | null
             final_total: number | null
@@ -1397,7 +1396,6 @@ export type Database = {
             expires_at?: string | null
             customer_accepted_quote_at?: string | null
             customer_rejected_quote_at?: string | null
-            final_quote_expires_at?: string | null
             final_quote_note?: string | null
             final_rate?: number | null
             final_total?: number | null
@@ -1439,7 +1437,6 @@ export type Database = {
             expires_at?: string | null
             customer_accepted_quote_at?: string | null
             customer_rejected_quote_at?: string | null
-            final_quote_expires_at?: string | null
             final_quote_note?: string | null
             final_rate?: number | null
             final_total?: number | null

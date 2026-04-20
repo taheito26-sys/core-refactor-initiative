@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCustomerOrderPayload, extractMissingCustomerOrderColumn } from './customer-portal';
+import { buildCustomerOrderPayload, deriveFinalQuoteValues, extractMissingCustomerOrderColumn } from './customer-portal';
 
 describe('customer portal order payload', () => {
   it('does not write corridor_label to customer_orders', () => {
@@ -36,5 +36,17 @@ describe('customer portal order payload', () => {
         message: "Could not find the 'receive_country' column of 'customer_orders' in the schema cache",
       }),
     ).toBe('receive_country');
+  });
+
+  it('derives the missing quote value from the order amount', () => {
+    expect(deriveFinalQuoteValues(52000, { finalRate: 13.8, finalTotal: null })).toEqual({
+      finalRate: 13.8,
+      finalTotal: 717600,
+    });
+
+    expect(deriveFinalQuoteValues(52000, { finalRate: null, finalTotal: 717600 })).toEqual({
+      finalRate: 13.8,
+      finalTotal: 717600,
+    });
   });
 });

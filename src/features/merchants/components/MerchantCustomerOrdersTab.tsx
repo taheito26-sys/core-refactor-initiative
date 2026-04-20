@@ -15,6 +15,7 @@ import {
   completeCustomerOrder,
   commitCustomerQuote,
   deriveCustomerOrderMeta,
+  deriveFinalQuoteValues,
   formatCustomerDate,
   formatCustomerNumber,
   getDisplayedCustomerRate,
@@ -46,7 +47,12 @@ type QuoteDraft = {
   final_rate: string;
   final_total: string;
   final_quote_note: string;
-  final_quote_expires_at: string;
+};
+
+const EMPTY_QUOTE_DRAFT: QuoteDraft = {
+  final_rate: '',
+  final_total: '',
+  final_quote_note: '',
 };
 
 function normalizeStatus(status: string) {
@@ -110,6 +116,40 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     return map;
   }, [customerConnections]);
 
+  const updateQuoteDraft = (order: CustomerOrderRow, field: keyof QuoteDraft, value: string) => {
+    setQuoteDrafts((prev) => {
+      const current = prev[order.id] ?? EMPTY_QUOTE_DRAFT;
+      const next = { ...current, [field]: value };
+      const trimmed = value.trim();
+
+      if (trimmed === '') {
+        if (field === 'final_rate') {
+          next.final_total = '';
+        }
+        if (field === 'final_total') {
+          next.final_rate = '';
+        }
+      } else if (field === 'final_rate') {
+        const derived = deriveFinalQuoteValues(order.amount, {
+          finalRate: Number(value),
+          finalTotal: null,
+        });
+        next.final_total = derived.finalTotal != null ? String(derived.finalTotal) : '';
+      } else if (field === 'final_total') {
+        const derived = deriveFinalQuoteValues(order.amount, {
+          finalRate: null,
+          finalTotal: Number(value),
+        });
+        next.final_rate = derived.finalRate != null ? String(derived.finalRate) : '';
+      }
+
+      return {
+        ...prev,
+        [order.id]: next,
+      };
+    });
+  };
+
   useEffect(() => {
     setQuoteDrafts((prev) => {
       const next = { ...prev };
@@ -119,7 +159,6 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
           final_rate: order.final_rate != null ? String(order.final_rate) : order.rate != null ? String(order.rate) : '',
           final_total: order.final_total != null ? String(order.final_total) : order.total != null ? String(order.total) : '',
           final_quote_note: order.final_quote_note ?? '',
-          final_quote_expires_at: order.final_quote_expires_at ? new Date(order.final_quote_expires_at).toISOString().slice(0, 16) : '',
         };
       }
       return next;
@@ -130,18 +169,20 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     mutationFn: async ({ order }: { order: CustomerOrderRow }) => {
       if (!userId) throw new Error('Missing merchant session');
       const draft = quoteDrafts[order.id];
-      const finalRate = Number(draft?.final_rate);
-      const finalTotal = Number(draft?.final_total);
-      if (!Number.isFinite(finalRate) || finalRate <= 0) {
-        throw new Error('Enter a valid final rate');
+      const derived = deriveFinalQuoteValues(order.amount, {
+        finalRate: draft?.final_rate?.trim() ? Number(draft.final_rate) : null,
+        finalTotal: draft?.final_total?.trim() ? Number(draft.final_total) : null,
+      });
+      if (!derived.finalRate || !Number.isFinite(derived.finalRate) || derived.finalRate <= 0) {
+        throw new Error('Enter a valid final rate or final total');
       }
-      const totalValue = Number.isFinite(finalTotal) && finalTotal > 0 ? finalTotal : Number((order.amount * finalRate).toFixed(6));
+      const finalRate = derived.finalRate;
+      const finalTotal = derived.finalTotal ?? Number((order.amount * finalRate).toFixed(6));
       const { error } = await commitCustomerQuote(order, {
         merchantUserId: userId,
         finalRate,
-        finalTotal: totalValue,
+        finalTotal,
         finalQuoteNote: draft?.final_quote_note?.trim() || null,
-        finalQuoteExpiresAt: draft?.final_quote_expires_at ? new Date(draft.final_quote_expires_at).toISOString() : null,
       });
       if (error) throw error;
     },
@@ -330,11 +371,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="text-xs text-muted-foreground">
-                        {order.final_quote_expires_at ? formatCustomerDate(order.final_quote_expires_at, 'en') : ''}
-                      </div>
-                    </div>
+                    <div className="flex flex-col items-end gap-2" />
                   </div>
 
                   {canQuote && (
@@ -347,18 +384,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                             type="number"
                             inputMode="decimal"
                             value={draft?.final_rate ?? ''}
-                            onChange={(event) => setQuoteDrafts((prev) => ({
-                              ...prev,
-                              [order.id]: {
-                                ...(prev[order.id] ?? {
-                                  final_rate: '',
-                                  final_total: '',
-                                  final_quote_note: '',
-                                  final_quote_expires_at: '',
-                                }),
-                                final_rate: event.target.value,
-                              },
-                            }))}
+                            onChange={(event) => updateQuoteDraft(order, 'final_rate', event.target.value)}
                           />
                         </div>
                         <div className="space-y-2">
@@ -367,18 +393,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                             type="number"
                             inputMode="decimal"
                             value={draft?.final_total ?? ''}
-                            onChange={(event) => setQuoteDrafts((prev) => ({
-                              ...prev,
-                              [order.id]: {
-                                ...(prev[order.id] ?? {
-                                  final_rate: '',
-                                  final_total: '',
-                                  final_quote_note: '',
-                                  final_quote_expires_at: '',
-                                }),
-                                final_total: event.target.value,
-                              },
-                            }))}
+                            onChange={(event) => updateQuoteDraft(order, 'final_total', event.target.value)}
                           />
                         </div>
                       </div>
@@ -390,35 +405,11 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                             onChange={(event) => setQuoteDrafts((prev) => ({
                               ...prev,
                               [order.id]: {
-                                ...(prev[order.id] ?? {
-                                  final_rate: '',
-                                  final_total: '',
-                                  final_quote_note: '',
-                                  final_quote_expires_at: '',
-                                }),
+                                ...(prev[order.id] ?? EMPTY_QUOTE_DRAFT),
                                 final_quote_note: event.target.value,
                               },
                             }))}
                             rows={3}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Final quote expires at</Label>
-                          <Input
-                            type="datetime-local"
-                            value={draft?.final_quote_expires_at ?? ''}
-                            onChange={(event) => setQuoteDrafts((prev) => ({
-                              ...prev,
-                              [order.id]: {
-                                ...(prev[order.id] ?? {
-                                  final_rate: '',
-                                  final_total: '',
-                                  final_quote_note: '',
-                                  final_quote_expires_at: '',
-                                }),
-                                final_quote_expires_at: event.target.value,
-                              },
-                            }))}
                           />
                         </div>
                       </div>
