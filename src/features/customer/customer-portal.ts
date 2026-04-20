@@ -24,6 +24,14 @@ export const CUSTOMER_CURRENCY_BY_COUNTRY: Record<CustomerCountry, string> = {
   Oman: 'OMR',
 };
 
+export const CUSTOMER_COUNTRY_BY_CURRENCY: Record<string, CustomerCountry> = Object.entries(CUSTOMER_CURRENCY_BY_COUNTRY).reduce(
+  (acc, [country, currency]) => {
+    acc[currency] = country as CustomerCountry;
+    return acc;
+  },
+  {} as Record<string, CustomerCountry>,
+);
+
 export const CUSTOMER_RAILS = [
   { value: 'bank_transfer', labelKey: 'bankTransfer', corridors: ['*'] as const },
   { value: 'cash_pickup', labelKey: 'cashPickup', corridors: ['Qatar->Egypt', 'Qatar->Saudi Arabia', 'United Arab Emirates->Egypt'] as const },
@@ -64,10 +72,10 @@ export type CustomerOrderRow = {
   expires_at: string | null;
   payment_proof_url: string | null;
   payment_proof_uploaded_at: string | null;
-  send_country: string | null;
-  receive_country: string | null;
-  send_currency: string | null;
-  receive_currency: string | null;
+  send_country?: string | null;
+  receive_country?: string | null;
+  send_currency?: string | null;
+  receive_currency?: string | null;
   payout_rail: string | null;
   corridor_label?: string | null;
   pricing_mode: string | null;
@@ -79,7 +87,6 @@ export type CustomerOrderRow = {
   final_rate: number | null;
   final_total: number | null;
   final_quote_note: string | null;
-  quoted_at: string | null;
   quoted_by_user_id: string | null;
   customer_accepted_quote_at?: string | null;
   customer_rejected_quote_at?: string | null;
@@ -143,7 +150,7 @@ export interface GuidePricingResult {
   pricingVersion: string | null;
 }
 
-const ORDER_SELECT_FIELDS = [
+export const ORDER_SELECT_FIELDS = [
   'id',
   'customer_user_id',
   'merchant_id',
@@ -157,12 +164,10 @@ const ORDER_SELECT_FIELDS = [
   'note',
   'created_at',
   'updated_at',
+  'confirmed_at',
+  'expires_at',
   'payment_proof_url',
   'payment_proof_uploaded_at',
-  'send_country',
-  'receive_country',
-  'send_currency',
-  'receive_currency',
 ];
 
 const ORDER_INSERT_SELECT = 'id';
@@ -231,10 +236,6 @@ export function buildCustomerOrderPayload(input: CustomerOrderInput) {
     rate: input.rate,
     total: input.rate && Number.isFinite(input.rate) ? input.amount * input.rate : null,
     note: input.note,
-    send_country: input.sendCountry,
-    receive_country: input.receiveCountry,
-    send_currency: input.sendCurrency,
-    receive_currency: input.receiveCurrency,
   };
 }
 
@@ -299,8 +300,11 @@ export function getCustomerOrderReceivedAmount(order: Partial<CustomerOrderRow>)
 }
 
 export function deriveCustomerOrderMeta(order: Partial<CustomerOrderRow>, fallbackCountry?: string | null) {
-  const sendCountry = order.send_country ?? fallbackCountry ?? 'Qatar';
-  const receiveCountry = order.receive_country ?? (order.receive_currency === 'EGP' ? 'Egypt' : sendCountry);
+  const inferredSendCountry = order.send_currency ? CUSTOMER_COUNTRY_BY_CURRENCY[order.send_currency] : null;
+  const inferredReceiveCountry = order.receive_currency ? CUSTOMER_COUNTRY_BY_CURRENCY[order.receive_currency] : null;
+  const inferredCurrencyCountry = order.currency ? CUSTOMER_COUNTRY_BY_CURRENCY[order.currency] : null;
+  const sendCountry = fallbackCountry ?? inferredSendCountry ?? inferredCurrencyCountry ?? 'Qatar';
+  const receiveCountry = inferredReceiveCountry ?? (order.market_pair?.includes('/') ? CUSTOMER_COUNTRY_BY_CURRENCY[order.market_pair.split('/')[1]?.trim() ?? ''] : null) ?? sendCountry;
   const sendCurrency = order.send_currency ?? order.currency ?? getCurrencyForCountry(sendCountry);
   const receiveCurrency = order.receive_currency ?? getCurrencyForCountry(receiveCountry);
   const corridorLabel = order.corridor_label ?? getCorridorLabel(sendCountry, receiveCountry);
@@ -385,9 +389,7 @@ async function insertCustomerNotification(payload: {
 }
 
 function buildOrderEventMetadata(order: Partial<CustomerOrderRow>, extra?: Json) {
-  const sendCountry = order.send_country ?? null;
-  const receiveCountry = order.receive_country ?? null;
-  const corridorLabel = order.corridor_label ?? (sendCountry && receiveCountry ? getCorridorLabel(sendCountry, receiveCountry) : null);
+  const meta = deriveCustomerOrderMeta(order);
 
   return {
     guide_rate: order.guide_rate ?? null,
@@ -396,9 +398,9 @@ function buildOrderEventMetadata(order: Partial<CustomerOrderRow>, extra?: Json)
     final_rate: order.final_rate ?? null,
     final_total: order.final_total ?? null,
     send_amount: order.amount ?? null,
-    send_currency: order.send_currency ?? order.currency ?? null,
-    receive_currency: order.receive_currency ?? null,
-    corridor_label: corridorLabel,
+    send_currency: meta.sendCurrency,
+    receive_currency: meta.receiveCurrency,
+    corridor_label: meta.corridorLabel,
     payout_rail: order.payout_rail ?? null,
     ...extra,
   } as Json;
@@ -472,10 +474,6 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
     rate: input.orderType === 'sell' ? input.rate : null,
     total: input.orderType === 'sell' && input.rate && Number.isFinite(input.rate) ? input.amount * input.rate : null,
     note: input.note,
-    send_country: input.sendCountry,
-    receive_country: input.receiveCountry,
-    send_currency: input.sendCurrency,
-    receive_currency: input.receiveCurrency,
   };
 
   if (!pricing) return basePayload;
@@ -488,8 +486,6 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
     guide_source: pricing.guideSource,
     guide_snapshot: pricing.guideSnapshot,
     guide_generated_at: pricing.guideGeneratedAt,
-    quoted_at: null,
-    quoted_by_user_id: null,
     market_pair: pricing.marketPair,
     pricing_version: pricing.pricingVersion,
   };
@@ -534,10 +530,7 @@ export function buildGuidePricingSnapshot(input: CustomerOrderInput, pricing: Gu
     market_pair: pricing.marketPair,
     pricing_version: pricing.pricingVersion,
     corridor_label: input.corridorLabel,
-    payout_rail: input.payoutRail,
     send_amount: input.amount,
-    send_currency: input.sendCurrency,
-    receive_currency: input.receiveCurrency,
     guide_snapshot: pricing.guideSnapshot,
   } as Json;
 }
@@ -636,9 +629,6 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
     guide_source: pricing.guideSource,
     guide_snapshot: guideSnapshot,
     guide_generated_at: pricing.guideGeneratedAt ?? createdAt,
-    final_quote_note: null,
-    quoted_at: null,
-    quoted_by_user_id: null,
     market_pair: pricing.marketPair,
     pricing_version: pricing.pricingVersion,
   };
@@ -688,8 +678,6 @@ export async function commitCustomerQuote(
     status: 'quoted',
     rate: input.finalRate,
     total: input.finalTotal,
-    quoted_at: nowIso(),
-    quoted_by_user_id: input.merchantUserId,
   };
 
   const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>

@@ -394,7 +394,6 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
           {order.customer_accepted_quote_at && <Row label="Customer accepted" value={formatCustomerDate(order.customer_accepted_quote_at, language)} />}
           {order.customer_rejected_quote_at && <Row label="Customer rejected" value={formatCustomerDate(order.customer_rejected_quote_at, language)} />}
           {order.quote_rejection_reason && <Row label="Rejection reason" value={order.quote_rejection_reason} />}
-          {order.quoted_at && <Row label="Quoted at" value={formatCustomerDate(order.quoted_at, language)} />}
           {order.quoted_by_user_id && <Row label="Quoted by" value={order.quoted_by_user_id} />}
           <Row label="Created" value={formatCustomerDate(order.created_at, language)} />
         </CardContent>

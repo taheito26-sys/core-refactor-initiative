@@ -43,7 +43,6 @@ export default function CustomerOnboardingPage() {
         display_name: displayName.trim(),
         phone: phone.trim() || null,
         region: region.trim() || null,
-        country,
         preferred_currency: currency,
       });
       if (cpError) throw cpError;

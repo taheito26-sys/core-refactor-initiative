@@ -21,6 +21,7 @@ import {
   getDisplayedCustomerRate,
   getDisplayedCustomerTotal,
   markCustomerOrderAwaitingPayment,
+  ORDER_SELECT_FIELDS,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
 import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
@@ -74,7 +75,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customer_orders')
-        .select('*')
+        .select(ORDER_SELECT_FIELDS.join(', '))
         .eq('merchant_id', resolvedMerchantId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -153,15 +154,17 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   useEffect(() => {
     setQuoteDrafts((prev) => {
       const next = { ...prev };
+      let changed = false;
       for (const order of orders) {
         if (next[order.id]) continue;
+        changed = true;
         next[order.id] = {
           final_rate: order.final_rate != null ? String(order.final_rate) : order.rate != null ? String(order.rate) : '',
           final_total: order.final_total != null ? String(order.final_total) : order.total != null ? String(order.total) : '',
           final_quote_note: order.final_quote_note ?? '',
         };
       }
-      return next;
+      return changed ? next : prev;
     });
   }, [orders]);
 
