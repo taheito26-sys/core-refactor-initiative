@@ -55,7 +55,21 @@ export function useRoomMessages(roomId: string | null) {
     if (!roomId || !userId) return;
     markRoomRead(roomId).catch(() => {});
     clearUnread(roomId);
-  }, [roomId, userId, clearUnread]);
+    // Also mark message-category notifications for this room as read.
+    // The notification badge counts unread rows in the notifications table.
+    // Chat message notifications are never cleared by markRoomRead alone.
+    supabase
+      .from('notifications' as never)
+      .update({ read_at: new Date().toISOString() } as never)
+      .is('read_at', null)
+      .eq('user_id', userId)
+      .eq('category', 'message')
+      .eq('conversation_id', roomId)
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ['notifications'] });
+      })
+      .catch(() => {});
+  }, [roomId, userId, clearUnread, qc]);
 
   // ── realtime subscription (messages + receipts) ───────────────────────────
   useEffect(() => {
