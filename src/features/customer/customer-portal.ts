@@ -490,7 +490,6 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
     guide_generated_at: pricing.guideGeneratedAt,
     final_rate: null,
     final_total: null,
-    final_quote_note: null,
     quoted_at: null,
     quoted_by_user_id: null,
     market_pair: pricing.marketPair,
@@ -695,7 +694,6 @@ export async function commitCustomerQuote(
     total: input.finalTotal,
     final_rate: input.finalRate,
     final_total: input.finalTotal,
-    final_quote_note: input.finalQuoteNote,
     quoted_at: nowIso(),
     quoted_by_user_id: input.merchantUserId,
   };
