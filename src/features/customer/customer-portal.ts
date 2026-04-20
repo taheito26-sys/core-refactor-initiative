@@ -82,9 +82,9 @@ export type CustomerOrderRow = {
   final_quote_expires_at: string | null;
   quoted_at: string | null;
   quoted_by_user_id: string | null;
-  customer_accepted_quote_at: string | null;
-  customer_rejected_quote_at: string | null;
-  quote_rejection_reason: string | null;
+  customer_accepted_quote_at?: string | null;
+  customer_rejected_quote_at?: string | null;
+  quote_rejection_reason?: string | null;
   market_pair: string | null;
   pricing_version: string | null;
 };
@@ -179,9 +179,6 @@ const ORDER_SELECT = [
   'final_quote_expires_at',
   'quoted_at',
   'quoted_by_user_id',
-  'customer_accepted_quote_at',
-  'customer_rejected_quote_at',
-  'quote_rejection_reason',
   'market_pair',
   'pricing_version',
 ].join(', ');
@@ -617,9 +614,6 @@ export async function acceptCustomerQuote(order: CustomerOrderRow, customerUserI
     .from('customer_orders')
     .update({
       status: 'quote_accepted',
-      customer_accepted_quote_at: nowIso(),
-      customer_rejected_quote_at: null,
-      quote_rejection_reason: null,
     })
     .eq('id', order.id)
     .select(ORDER_SELECT)
@@ -659,9 +653,6 @@ export async function rejectCustomerQuote(order: CustomerOrderRow, customerUserI
     .from('customer_orders')
     .update({
       status: 'quote_rejected',
-      customer_rejected_quote_at: nowIso(),
-      customer_accepted_quote_at: null,
-      quote_rejection_reason: reason?.trim() || null,
     })
     .eq('id', order.id)
     .select(ORDER_SELECT)
