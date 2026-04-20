@@ -144,7 +144,7 @@ export interface GuidePricingResult {
   pricingVersion: string | null;
 }
 
-const ORDER_SELECT = [
+const ORDER_SELECT_FIELDS = [
   'id',
   'customer_user_id',
   'merchant_id',
@@ -164,7 +164,7 @@ const ORDER_SELECT = [
   'receive_country',
   'send_currency',
   'receive_currency',
-].join(', ');
+];
 
 const ORDER_INSERT_SELECT = 'id';
 
@@ -311,12 +311,15 @@ async function getMerchantUserId(merchantId: string) {
 }
 
 async function getCurrentOrderById(orderId: string) {
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .select(ORDER_SELECT)
-    .eq('id', orderId)
-    .maybeSingle();
-  return { data: data as CustomerOrderRow | null, error };
+  const result = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .select(selectClause)
+      .eq('id', orderId)
+      .maybeSingle(),
+  );
+
+  return { data: result.data as CustomerOrderRow | null, error: result.error };
 }
 
 async function insertCustomerOrderEvent(orderId: string, actorUserId: string, eventType: string, metadata: Json) {
@@ -370,9 +373,61 @@ function buildOrderEventMetadata(order: Partial<CustomerOrderRow>, extra?: Json)
   } as Json;
 }
 
-function isSchemaCacheColumnError(error: { message?: string } | null | undefined) {
-  const message = (error?.message ?? '').toLowerCase();
-  return message.includes('schema cache') || message.includes('could not find the') || message.includes('column');
+export function extractMissingCustomerOrderColumn(error: { message?: string } | null | undefined) {
+  const message = error?.message ?? '';
+  const patterns = [
+    /could not find the '([^']+)' column of 'customer_orders' in the schema cache/i,
+    /could not find the "([^"]+)" column of "customer_orders" in the schema cache/i,
+    /column "([^"]+)" does not exist/i,
+    /column '([^']+)' does not exist/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return null;
+}
+
+function removeCustomerOrderField(payload: Record<string, unknown>, field: string) {
+  if (!(field in payload)) {
+    return null;
+  }
+
+  const nextPayload = { ...payload };
+  delete nextPayload[field];
+  return nextPayload;
+}
+
+async function runCustomerOrderQueryWithFallback<T>(
+  buildQuery: (selectClause: string) => Promise<{ data: T; error: { message?: string } | null }>,
+  initialFields: string[] = [...ORDER_SELECT_FIELDS],
+) {
+  const remainingFields = [...initialFields];
+  const attemptedFields = new Set<string>();
+
+  while (remainingFields.length > 0) {
+    const result = await buildQuery(remainingFields.join(', '));
+    if (!result.error) {
+      return result;
+    }
+
+    const missingColumn = extractMissingCustomerOrderColumn(result.error);
+    if (!missingColumn || attemptedFields.has(missingColumn)) {
+      return result;
+    }
+
+    const fieldIndex = remainingFields.indexOf(missingColumn);
+    if (fieldIndex === -1) {
+      return result;
+    }
+
+    attemptedFields.add(missingColumn);
+    remainingFields.splice(fieldIndex, 1);
+  }
+
+  return buildQuery('id');
 }
 
 function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: GuidePricingResult | null) {
@@ -414,33 +469,28 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
 }
 
 async function insertCustomerOrderWithFallback(payload: Record<string, unknown>) {
-  const primary = await supabase.from('customer_orders').insert(payload).select(ORDER_INSERT_SELECT).single();
-  if (!primary.error) return primary;
+  let remainingPayload = { ...payload };
+  const attemptedFields = new Set<string>();
 
-  if (!isSchemaCacheColumnError(primary.error)) {
-    return primary;
+  while (Object.keys(remainingPayload).length > 0) {
+    const primary = await supabase.from('customer_orders').insert(remainingPayload).select(ORDER_INSERT_SELECT).single();
+    if (!primary.error) return primary;
+
+    const missingColumn = extractMissingCustomerOrderColumn(primary.error);
+    if (!missingColumn || attemptedFields.has(missingColumn)) {
+      return primary;
+    }
+
+    const nextPayload = removeCustomerOrderField(remainingPayload, missingColumn);
+    if (!nextPayload) {
+      return primary;
+    }
+
+    attemptedFields.add(missingColumn);
+    remainingPayload = nextPayload;
   }
 
-  const {
-    pricing_mode: _pricingMode,
-    guide_rate: _guideRate,
-    guide_total: _guideTotal,
-    guide_source: _guideSource,
-    guide_snapshot: _guideSnapshot,
-    guide_generated_at: _guideGeneratedAt,
-    final_rate: _finalRate,
-    final_total: _finalTotal,
-    final_quote_note: _finalQuoteNote,
-    final_quote_expires_at: _finalQuoteExpiresAt,
-    quoted_at: _quotedAt,
-    quoted_by_user_id: _quotedByUserId,
-    market_pair: _marketPair,
-    pricing_version: _pricingVersion,
-    payout_rail: _payoutRail,
-    ...fallbackPayload
-  } = payload;
-
-  return supabase.from('customer_orders').insert(fallbackPayload).select(ORDER_INSERT_SELECT).single();
+  return supabase.from('customer_orders').insert({}).select(ORDER_INSERT_SELECT).single();
 }
 
 export function buildGuidePricingSnapshot(input: CustomerOrderInput, pricing: GuidePricingResult | null) {
@@ -623,12 +673,14 @@ export async function commitCustomerQuote(
     quoted_by_user_id: input.merchantUserId,
   };
 
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .update(updates)
-    .eq('id', order.id)
-    .select(ORDER_SELECT)
-    .single();
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update(updates)
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
 
   if (error) return { data: null, error };
 
@@ -662,14 +714,16 @@ export async function acceptCustomerQuote(order: CustomerOrderRow, customerUserI
     return { data: null, error: new Error('Order is not in quoted state') };
   }
 
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .update({
-      status: 'quote_accepted',
-    })
-    .eq('id', order.id)
-    .select(ORDER_SELECT)
-    .single();
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update({
+        status: 'quote_accepted',
+      })
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
 
   if (error) return { data: null, error };
 
@@ -701,14 +755,16 @@ export async function rejectCustomerQuote(order: CustomerOrderRow, customerUserI
     return { data: null, error: new Error('Order is not in quoted state') };
   }
 
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .update({
-      status: 'quote_rejected',
-    })
-    .eq('id', order.id)
-    .select(ORDER_SELECT)
-    .single();
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update({
+        status: 'quote_rejected',
+      })
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
 
   if (error) return { data: null, error };
 
@@ -741,12 +797,14 @@ export async function markCustomerOrderAwaitingPayment(order: CustomerOrderRow, 
     return { data: null, error: new Error('Order is not quote accepted') };
   }
 
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .update({ status: 'awaiting_payment' })
-    .eq('id', order.id)
-    .select(ORDER_SELECT)
-    .single();
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update({ status: 'awaiting_payment' })
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
 
   if (error) return { data: null, error };
 
@@ -762,15 +820,17 @@ export async function markCustomerOrderPaymentSent(order: CustomerOrderRow, cust
     return { data: null, error: new Error('Order is not awaiting payment') };
   }
 
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .update({
-      status: 'payment_sent',
-      payment_proof_uploaded_at: nowIso(),
-    })
-    .eq('id', order.id)
-    .select(ORDER_SELECT)
-    .single();
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update({
+        status: 'payment_sent',
+        payment_proof_uploaded_at: nowIso(),
+      })
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
 
   if (error) return { data: null, error };
 
@@ -786,12 +846,14 @@ export async function completeCustomerOrder(order: CustomerOrderRow, merchantUse
     return { data: null, error: new Error('Order is not payment sent') };
   }
 
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .update({ status: 'completed' })
-    .eq('id', order.id)
-    .select(ORDER_SELECT)
-    .single();
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update({ status: 'completed' })
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
 
   if (error) return { data: null, error };
 
@@ -808,12 +870,14 @@ export async function cancelCustomerOrder(order: CustomerOrderRow, actorUserId: 
     return { data: null, error: new Error('Order cannot be cancelled in its current state') };
   }
 
-  const { data, error } = await supabase
-    .from('customer_orders')
-    .update({ status: 'cancelled' })
-    .eq('id', order.id)
-    .select(ORDER_SELECT)
-    .single();
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update({ status: 'cancelled' })
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
 
   if (error) return { data: null, error };
 
@@ -859,19 +923,23 @@ export async function listCustomerConnections(userId: string) {
 }
 
 export async function listCustomerOrders(userId: string) {
-  return supabase
-    .from('customer_orders')
-    .select(ORDER_SELECT)
-    .eq('customer_user_id', userId)
-    .order('created_at', { ascending: false });
+  return runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .select(selectClause)
+      .eq('customer_user_id', userId)
+      .order('created_at', { ascending: false }),
+  );
 }
 
 export async function getCustomerOrder(orderId: string) {
-  return supabase
-    .from('customer_orders')
-    .select(ORDER_SELECT)
-    .eq('id', orderId)
-    .single();
+  return runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .select(selectClause)
+      .eq('id', orderId)
+      .single(),
+  );
 }
 
 export async function listCustomerNotifications(userId: string) {

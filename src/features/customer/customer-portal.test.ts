@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCustomerOrderPayload } from './customer-portal';
+import { buildCustomerOrderPayload, extractMissingCustomerOrderColumn } from './customer-portal';
 
 describe('customer portal order payload', () => {
   it('does not write corridor_label to customer_orders', () => {
@@ -28,5 +28,13 @@ describe('customer portal order payload', () => {
       send_country: 'Qatar',
       receive_country: 'Egypt',
     });
+  });
+
+  it('extracts missing customer-order columns from schema-cache errors', () => {
+    expect(
+      extractMissingCustomerOrderColumn({
+        message: "Could not find the 'receive_country' column of 'customer_orders' in the schema cache",
+      }),
+    ).toBe('receive_country');
   });
 });
