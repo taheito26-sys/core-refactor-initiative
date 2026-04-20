@@ -69,7 +69,7 @@ export type CustomerOrderRow = {
   send_currency: string | null;
   receive_currency: string | null;
   payout_rail: string | null;
-  corridor_label: string | null;
+  corridor_label?: string | null;
   pricing_mode: string | null;
   guide_rate: number | null;
   guide_total: number | null;
@@ -167,7 +167,6 @@ const ORDER_SELECT = [
   'send_currency',
   'receive_currency',
   'payout_rail',
-  'corridor_label',
   'pricing_mode',
   'guide_rate',
   'guide_total',
@@ -256,7 +255,6 @@ export function buildCustomerOrderPayload(input: CustomerOrderInput) {
     send_currency: input.sendCurrency,
     receive_currency: input.receiveCurrency,
     payout_rail: input.payoutRail,
-    corridor_label: input.corridorLabel,
     pricing_mode: 'merchant_quote',
     status: 'pending',
     pricing_version: PRICING_VERSION,
@@ -375,6 +373,10 @@ async function insertCustomerNotification(payload: {
 }
 
 function buildOrderEventMetadata(order: Partial<CustomerOrderRow>, extra?: Json) {
+  const sendCountry = order.send_country ?? null;
+  const receiveCountry = order.receive_country ?? null;
+  const corridorLabel = order.corridor_label ?? (sendCountry && receiveCountry ? getCorridorLabel(sendCountry, receiveCountry) : null);
+
   return {
     guide_rate: order.guide_rate ?? null,
     guide_total: order.guide_total ?? null,
@@ -384,7 +386,7 @@ function buildOrderEventMetadata(order: Partial<CustomerOrderRow>, extra?: Json)
     send_amount: order.amount ?? null,
     send_currency: order.send_currency ?? order.currency ?? null,
     receive_currency: order.receive_currency ?? null,
-    corridor_label: order.corridor_label ?? null,
+    corridor_label: corridorLabel,
     payout_rail: order.payout_rail ?? null,
     ...extra,
   } as Json;
@@ -499,7 +501,6 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
     send_currency: input.sendCurrency,
     receive_currency: input.receiveCurrency,
     payout_rail: input.payoutRail,
-    corridor_label: input.corridorLabel,
     pricing_mode: pricing.pricingMode,
     guide_rate: pricing.guideRate,
     guide_total: pricing.guideTotal,
