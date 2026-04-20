@@ -152,6 +152,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const processedRemoteIceCounts = useRef<Map<string, number>>(new Map());
   // Exposed to CallOverlay so it can resume playback after screen lock
   const remoteAudioRef  = useRef<HTMLAudioElement | null>(null);
+  // AudioContext for background-resilient audio routing (must be declared
+  // before cleanup and getMedia which reference these refs)
+  const audioCtxRef     = useRef<AudioContext | null>(null);
+  const audioSourceRef  = useRef<MediaStreamAudioSourceNode | null>(null);
   // Trickle-ICE candidates that arrive before setRemoteDescription completes
   // are rejected by RTCPeerConnection with "remote description was null".
   // Buffer them until remoteDescription is present, then flush in order.
@@ -165,6 +169,16 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     signalingRef.current = MultiSignalingChannel.create();
   }
   const signaling = signalingRef.current;
+
+  // ── AudioContext init — must be called during a user gesture ─────────
+  // Declared here (before cleanup/getMedia) so the refs are in scope.
+  const initAudioContext = useCallback(() => {
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContext();
+      }
+    } catch { /* not available */ }
+  }, []);
 
   // Keep WS channel auth token in sync with session
   useEffect(() => {
@@ -1093,19 +1107,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // startCall/answerIncoming — both triggered by user taps.
   //
   // On visibility restore: resume AudioContext + replay <audio> + check mic.
-
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-
-  // Called from getMedia() (inside startCall/answerIncoming user gesture)
-  // to create the AudioContext while we still have gesture context.
-  const initAudioContext = useCallback(() => {
-    try {
-      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-        audioCtxRef.current = new AudioContext();
-      }
-    } catch { /* not available */ }
-  }, []);
 
   // Wire remote stream through AudioContext for background-resilient playback.
   // Called after remoteStream is set (ontrack fires).
