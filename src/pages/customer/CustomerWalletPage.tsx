@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Download, ArrowDownLeft, ArrowUpRight, Loader2, Receipt, Wallet, TrendingUp } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
+import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 import {
   deriveCustomerOrderMeta,
   formatCustomerDate,
@@ -24,6 +25,12 @@ export default function CustomerWalletPage() {
   const t = useT();
   const language = settings.language === 'ar' ? 'ar' : 'en';
   const [receiptOrderId, setReceiptOrderId] = useState<string | null>(null);
+  const customerLabel = resolveCustomerLabel({
+    displayName: customerProfile?.display_name,
+    name: null,
+    nickname: null,
+    customerUserId: customerProfile?.user_id ?? userId ?? 'Customer',
+  });
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['customer-wallet-orders', userId],
@@ -102,7 +109,7 @@ export default function CustomerWalletPage() {
               <p className="text-sm text-muted-foreground">{t('customerWalletSubtitle')}</p>
             </div>
             <div className="rounded-xl border border-border/60 bg-card px-4 py-3 text-sm shadow-sm">
-              <div className="font-semibold text-foreground">{customerProfile?.display_name ?? t('customer')}</div>
+              <div className="font-semibold text-foreground">{customerLabel}</div>
               <div className="text-xs text-muted-foreground">{customerProfile?.country ?? t('country')}</div>
             </div>
           </div>

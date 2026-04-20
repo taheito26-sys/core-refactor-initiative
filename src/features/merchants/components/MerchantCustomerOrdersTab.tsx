@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 import {
   cancelCustomerOrder,
   completeCustomerOrder,
@@ -22,7 +23,6 @@ import {
   markCustomerOrderAwaitingPayment,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
-import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 
 type StatusFilter =
   | 'all'
@@ -82,14 +82,26 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     queryKey: ['merchant-customer-connections', customerIds, resolvedMerchantId],
     queryFn: async () => {
       if (customerIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from('customer_merchant_connections')
-        .select('customer_user_id, nickname, created_at, status')
-        .eq('merchant_id', resolvedMerchantId!)
-        .neq('status', 'blocked')
-        .in('customer_user_id', customerIds);
-      if (error) throw error;
-      return data ?? [];
+      const [profilesResult, connectionsResult] = await Promise.all([
+        supabase
+          .from('customer_profiles')
+          .select('user_id, display_name, name, phone, region, country')
+          .in('user_id', customerIds),
+        supabase
+          .from('customer_merchant_connections')
+          .select('customer_user_id, nickname')
+          .eq('merchant_id', resolvedMerchantId!)
+          .in('customer_user_id', customerIds),
+      ]);
+
+      const profileMap = new Map((profilesResult.data ?? []).map((profile: any) => [profile.user_id, profile]));
+      const nicknameMap = new Map((connectionsResult.data ?? []).map((connection: any) => [connection.customer_user_id, connection.nickname]));
+
+      return customerIds.map((userId) => ({
+        ...profileMap.get(userId),
+        user_id: userId,
+        nickname: nicknameMap.get(userId) ?? null,
+      }));
     },
     enabled: customerIds.length > 0,
   });

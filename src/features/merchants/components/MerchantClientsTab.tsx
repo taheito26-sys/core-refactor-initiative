@@ -49,11 +49,17 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
+      const userIds = data.map((c) => c.customer_user_id);
+      const { data: profiles } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name, name, phone, region, country')
+        .in('user_id', userIds);
+      const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
       return data.map((c) => ({
         ...c,
         customerName: resolveCustomerLabel({
-          displayName: null,
-          name: null,
+          displayName: profileMap.get(c.customer_user_id)?.display_name ?? null,
+          name: profileMap.get(c.customer_user_id)?.name ?? null,
           nickname: c.nickname,
           customerUserId: c.customer_user_id,
         }),
@@ -190,6 +196,12 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
           {filtered.map((conn: any) => {
             const counts = orderCounts[conn.id];
             const unread = unreadCounts[conn.id] || 0;
+            const customerLabel = resolveCustomerLabel({
+              displayName: conn.customer?.display_name,
+              name: conn.customer?.name,
+              nickname: conn.nickname,
+              customerUserId: conn.customer_user_id,
+            });
             return (
               <div
                 key={conn.id}

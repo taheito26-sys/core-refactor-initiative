@@ -192,7 +192,13 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
         .order('created_at', { ascending: false });
       if (error || !connections || connections.length === 0) return [];
 
-      return mapConnectedCustomers(connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null }>);
+      const userIds = [...new Set(connections.map((row) => row.customer_user_id))];
+      const { data: profiles } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name, name, phone, region, country')
+        .in('user_id', userIds);
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+      return mapConnectedCustomers(connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null }>, profileMap);
     },
     enabled: !!merchantProfile?.merchant_id,
   });

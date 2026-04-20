@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, LogOut, User, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { CUSTOMER_COUNTRIES, updateCustomerProfile } from '@/features/customer/customer-portal';
+import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 import { useT } from '@/lib/i18n';
 
 export default function CustomerSettingsPage() {
@@ -22,6 +23,12 @@ export default function CustomerSettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const t = useT();
+  const customerLabel = resolveCustomerLabel({
+    displayName: customerProfile?.display_name,
+    name: null,
+    nickname: null,
+    customerUserId: email ?? userId ?? 'Customer',
+  });
 
   const handleSave = async () => {
     if (!userId) return;
@@ -62,10 +69,10 @@ export default function CustomerSettingsPage() {
         <CardContent>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
-              {customerProfile?.display_name?.[0]?.toUpperCase() ?? 'C'}
+              {customerLabel[0]?.toUpperCase() ?? 'C'}
             </div>
             <div>
-              <p className="font-medium">{customerProfile?.display_name}</p>
+              <p className="font-medium">{customerLabel}</p>
               <p className="text-sm text-muted-foreground">{email}</p>
             </div>
           </div>

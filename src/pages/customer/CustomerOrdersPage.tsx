@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme-context';
+import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 import OrderDetailView from './components/OrderDetailView';
 import {
   acceptCustomerQuote,
@@ -333,10 +334,16 @@ export default function CustomerOrdersPage() {
 
   if (selectedOrderId) {
     const order = orders.find((item) => item.id === selectedOrderId);
+    const selectedConnection = connections.find((item: any) => item.merchant_id === order?.merchant_id);
     return (
       <OrderDetailView
         orderId={selectedOrderId}
-        merchantName={connections.find((item: any) => item.merchant_id === order?.merchant_id)?.merchant_id ?? order?.merchant_id ?? t('merchant')}
+        merchantName={resolveCustomerLabel({
+          displayName: selectedConnection?.merchant?.display_name,
+          name: selectedConnection?.merchant?.nickname,
+          nickname: null,
+          customerUserId: order?.merchant_id ?? 'merchant',
+        })}
         onBack={() => setSelectedOrderId(null)}
       />
     );
@@ -391,7 +398,12 @@ export default function CustomerOrdersPage() {
                 <SelectContent>
                   {connections.map((conn: any) => (
                     <SelectItem key={conn.merchant_id} value={conn.merchant_id}>
-                      {conn.merchantName ?? conn.merchant_id}
+                      {resolveCustomerLabel({
+                        displayName: conn.merchant?.display_name,
+                        name: conn.merchant?.nickname,
+                        nickname: null,
+                        customerUserId: conn.merchant_id,
+                      })}
                     </SelectItem>
                   ))}
                 </SelectContent>

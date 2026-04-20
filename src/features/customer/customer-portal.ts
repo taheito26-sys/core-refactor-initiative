@@ -789,11 +789,29 @@ export async function listCustomerProfiles(userId: string) {
 }
 
 export async function listCustomerConnections(userId: string) {
-  return supabase
+  const { data: connections, error } = await supabase
     .from('customer_merchant_connections')
     .select('id, customer_user_id, merchant_id, status, nickname, is_preferred, created_at, updated_at')
     .eq('customer_user_id', userId)
     .order('created_at', { ascending: false });
+  if (error || !connections || connections.length === 0) {
+    return { data: connections ?? [], error };
+  }
+
+  const merchantIds = [...new Set(connections.map((connection) => connection.merchant_id))];
+  const { data: merchants } = await supabase
+    .from('merchant_profiles')
+    .select('merchant_id, display_name, nickname, merchant_code, region')
+    .in('merchant_id', merchantIds);
+  const merchantMap = new Map((merchants ?? []).map((merchant: any) => [merchant.merchant_id, merchant]));
+
+  return {
+    data: connections.map((connection: any) => ({
+      ...connection,
+      merchant: merchantMap.get(connection.merchant_id) ?? null,
+    })),
+    error: null,
+  };
 }
 
 export async function listCustomerOrders(userId: string) {

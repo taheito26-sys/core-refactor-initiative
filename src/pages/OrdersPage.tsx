@@ -192,7 +192,13 @@ export default function OrdersPage() {
         .neq('status', 'blocked')
         .order('created_at', { ascending: false });
       if (error || !connections || connections.length === 0) return [];
-      return mapConnectedCustomers(connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null }>);
+      const userIds = [...new Set(connections.map((row) => row.customer_user_id))];
+      const { data: profiles } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name, name, phone, region, country')
+        .in('user_id', userIds);
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+      return mapConnectedCustomers(connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null }>, profileMap);
     },
     enabled: !!merchantProfile?.merchant_id,
   });
@@ -1089,6 +1095,7 @@ export default function OrdersPage() {
 
     let nextCustomers = state.customers;
     let customerId = buyerId;
+    const connectedCustomerUserId = buyerId.startsWith('connected:') ? buyerId.slice('connected:'.length) : null;
     if (buyerId.startsWith('connected:')) {
       const ensured = ensureCustomer(buyerName);
       customerId = buyerId;
@@ -1443,6 +1450,60 @@ export default function OrdersPage() {
       };
       applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
+
+      if (connectedCustomerUserId && merchantProfile?.merchant_id) {
+        try {
+          const { data: connection } = await supabase
+            .from('customer_merchant_connections')
+            .select('id')
+            .eq('merchant_id', merchantProfile.merchant_id)
+            .eq('customer_user_id', connectedCustomerUserId)
+            .maybeSingle();
+
+          if (connection?.id) {
+            const sendAmount = Number((baseTrade.amountUSDT * sell).toFixed(6));
+            const receiveAmount = Number(baseTrade.amountUSDT.toFixed(6));
+            const syncRate = sendAmount > 0 ? Number((receiveAmount / sendAmount).toFixed(8)) : null;
+
+            await supabase.rpc('mirror_merchant_customer_order', {
+              p_connection_id: connection.id,
+              p_status: 'completed',
+              p_order_type: 'buy',
+              p_amount: sendAmount,
+              p_currency: baseFiat,
+              p_rate: syncRate,
+              p_total: receiveAmount,
+              p_note: baseTrade.note || null,
+              p_send_country: null,
+              p_receive_country: null,
+              p_send_currency: baseFiat,
+              p_receive_currency: 'USDT',
+              p_payout_rail: null,
+              p_corridor_label: null,
+              p_pricing_mode: 'merchant_quote',
+              p_guide_rate: null,
+              p_guide_total: null,
+              p_guide_source: null,
+              p_guide_snapshot: null,
+              p_guide_generated_at: null,
+              p_final_rate: syncRate,
+              p_final_total: receiveAmount,
+              p_final_quote_note: null,
+              p_final_quote_expires_at: null,
+              p_quoted_at: new Date().toISOString(),
+              p_quoted_by_user_id: userId,
+              p_customer_accepted_quote_at: new Date().toISOString(),
+              p_customer_rejected_quote_at: null,
+              p_quote_rejection_reason: null,
+              p_market_pair: `${baseFiat}/USDT`,
+              p_pricing_version: 'merchant-sale-sync-v1',
+            });
+            queryClient.invalidateQueries({ queryKey: ['customer-orders', connectedCustomerUserId] });
+          }
+        } catch (error) {
+          console.warn('[OrdersPage] failed to mirror connected customer order', error);
+        }
+      }
     }
 
     // Reset form
