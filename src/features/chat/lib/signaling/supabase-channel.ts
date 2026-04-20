@@ -129,10 +129,11 @@ export class SupabaseSignalingChannel implements SignalingChannel {
           }
 
           if (['ended', 'missed', 'declined', 'failed', 'no_answer'].includes(row.status)) {
-            // Clear the active call so the next call starts fresh
-            if (!activeCallId || activeCallId === row.id) {
-              activeCallId = null;
-            }
+            // Clear the active call so the next call starts fresh.
+            // Always reset regardless of which call ended — a stale activeCallId
+            // from a previous call blocks ICE candidates for the next call.
+            activeCallId = null;
+            processedIceCounts.clear();
             handlers.onCallEnd(row.end_reason ?? row.status);
           }
         },

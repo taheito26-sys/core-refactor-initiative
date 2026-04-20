@@ -300,6 +300,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     signaling.setRelayAuthToken(null);
     setLocalStream(null);
     setRemoteStream(null);
+    // Disconnect AudioContext source when call ends
+    audioSourceRef.current?.disconnect();
+    audioSourceRef.current = null;
     setActiveCallId(null);
     callIdRef.current = null;
     localStreamRef.current = null;
@@ -512,6 +515,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // ── get media (audio, optionally video) ───────────────────────────────
   const getMedia = useCallback(async (video = false) => {
     await requestNativePermissions(video);
+    // Create AudioContext HERE — inside the user gesture (startCall/answerIncoming tap)
+    // so it's not immediately suspended by the browser's autoplay policy.
+    initAudioContext();
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: video ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false,
@@ -520,7 +526,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     setIsVideoEnabled(video);
     setIsVideoCall(video);
     return stream;
-  }, [requestNativePermissions]);
+  }, [requestNativePermissions, initAudioContext]);
 
   // ── wait for ICE gathering to complete (or timeout) ───────────────────
   // Ensures relay candidates are allocated before publishing the offer.
@@ -1005,7 +1011,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
       // ── SDP answer from callee ─────────────────────────────────────────
       onAnswer: (sdpAnswer) => {
-        if (!pc.current || pc.current.signalingState !== 'have-local-offer') return;
+        if (!pc.current) return;
+        // Accept answers in both have-local-offer (initial) and stable (renegotiation)
+        const sigState = pc.current.signalingState;
+        if (sigState !== 'have-local-offer' && sigState !== 'stable') return;
+        const isRenegotiation = sigState === 'stable';
         pc.current
           .setRemoteDescription({ type: 'answer', sdp: sdpAnswer })
           .then(() => {
@@ -1014,7 +1024,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
             const localUfrag = localSdp.match(/a=ice-ufrag:(\S+)/)?.[1] ?? '?';
             console.log(`[SDP_UFRAG] local=${localUfrag} remote=${remoteUfrag}`);
             flushPendingRemoteIce();
-            setCallState('connecting');
+            // Only transition to 'connecting' for the initial call setup.
+            // Renegotiation answers (e.g. adding video) must not reset state.
+            if (!isRenegotiation) {
+              setCallState('connecting');
+            }
           })
           .catch(() => { /* already set or closed */ });
       },
@@ -1074,47 +1088,48 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   //   - Android Chrome: AudioContext suspends, <audio> pauses
   //   - iOS Safari: everything stops, no background audio for web apps
   //
-  // Strategy:
-  //   1. Route remote audio through AudioContext (keeps playing on Android
-  //      Chrome in background — treated as media playback, not a web page)
-  //   2. On visibility restore: resume AudioContext + replay <audio> element
-  //   3. On visibility restore: check if local mic tracks are still live;
-  //      if the OS killed them, restart getUserMedia and replace the sender
-  //      track in the peer connection so the mic comes back
-  //   4. On freeze/resume (Page Lifecycle API): same recovery
+  // AudioContext MUST be created during a user gesture (tap) to avoid being
+  // immediately suspended. We create it in getMedia() which is called from
+  // startCall/answerIncoming — both triggered by user taps.
   //
-  // iOS Safari limitation: background audio for web apps is blocked by the OS.
-  // The only solution is a native Capacitor app with background audio entitlement.
-  // We show a warning toast when the page goes hidden during a call.
+  // On visibility restore: resume AudioContext + replay <audio> + check mic.
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-  // Wire remote stream through AudioContext for background-resilient playback
-  useEffect(() => {
-    const el = remoteAudioRef.current;
-    if (!remoteStream || !el) return;
-
-    // Keep the <audio> element as fallback
-    if (el.srcObject !== remoteStream) {
-      el.srcObject = remoteStream;
-      el.play().catch(() => {});
-    }
-
-    // Also route through AudioContext — survives Android Chrome backgrounding
+  // Called from getMedia() (inside startCall/answerIncoming user gesture)
+  // to create the AudioContext while we still have gesture context.
+  const initAudioContext = useCallback(() => {
     try {
       if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
         audioCtxRef.current = new AudioContext();
       }
-      const ctx = audioCtxRef.current;
-      // Disconnect previous source
-      audioSourceRef.current?.disconnect();
+    } catch { /* not available */ }
+  }, []);
+
+  // Wire remote stream through AudioContext for background-resilient playback.
+  // Called after remoteStream is set (ontrack fires).
+  useEffect(() => {
+    const el = remoteAudioRef.current;
+    if (!remoteStream) return;
+
+    // <audio> element — fallback and for browsers without AudioContext
+    if (el && el.srcObject !== remoteStream) {
+      el.srcObject = remoteStream;
+      el.play().catch(() => {});
+    }
+
+    // AudioContext routing — survives Android Chrome backgrounding
+    const ctx = audioCtxRef.current;
+    if (!ctx || ctx.state === 'closed') return;
+
+    audioSourceRef.current?.disconnect();
+    try {
       const source = ctx.createMediaStreamSource(remoteStream);
       source.connect(ctx.destination);
       audioSourceRef.current = source;
-      // Resume if suspended
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    } catch { /* AudioContext not available */ }
+    } catch { /* non-fatal */ }
 
     return () => {
       audioSourceRef.current?.disconnect();
@@ -1137,60 +1152,53 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         el.play().catch(() => {});
       }
 
-      // 3. Check if local mic tracks are still alive after screen lock
-      // The OS may have killed them at the hardware level even though
-      // readyState is still 'live'. We detect this by checking enabled+muted.
+      // 3. Re-wire AudioContext source in case it was disconnected
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state === 'running' && remoteStream && !audioSourceRef.current) {
+        try {
+          const source = ctx.createMediaStreamSource(remoteStream);
+          source.connect(ctx.destination);
+          audioSourceRef.current = source;
+        } catch { /**/ }
+      }
+
+      // 4. Check if local mic tracks are still alive after screen lock.
+      // On Android Chrome the tracks stay 'live' but stop sending audio.
+      // We restart them unconditionally on resume to be safe.
       const stream = localStreamRef.current;
       if (!stream || !pc.current || !callIdRef.current) return;
 
       const audioTracks = stream.getAudioTracks();
-      const tracksNeedRestart = audioTracks.length === 0 ||
+      const needsRestart = audioTracks.length === 0 ||
         audioTracks.some(t => t.readyState === 'ended');
 
-      if (tracksNeedRestart) {
-        console.log('[WebRTC] mic tracks ended after screen lock — restarting');
+      if (needsRestart) {
+        console.log('[WebRTC] mic tracks ended — restarting');
         try {
           const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
           const newTrack = newStream.getAudioTracks()[0];
-
-          // Replace in peer connection
           const sender = pc.current.getSenders().find(s => s.track?.kind === 'audio');
-          if (sender) {
-            await sender.replaceTrack(newTrack);
-          }
-
-          // Replace in local stream
+          if (sender) await sender.replaceTrack(newTrack);
           audioTracks.forEach(t => { t.stop(); stream.removeTrack(t); });
           stream.addTrack(newTrack);
-
-          // Restore mute state
           newTrack.enabled = !isMuted;
-          console.log('[WebRTC] mic restarted after screen lock');
+          console.log('[WebRTC] mic restarted');
         } catch (err) {
           console.warn('[WebRTC] mic restart failed', err);
         }
       } else {
-        // Tracks still live — just make sure they're enabled
-        audioTracks.forEach(t => {
-          if (t.readyState === 'live') t.enabled = !isMuted;
-        });
+        // Re-enable tracks in case OS muted them at hardware level
+        audioTracks.forEach(t => { if (t.readyState === 'live') t.enabled = !isMuted; });
       }
     };
 
     const onVisibilityChange = () => {
-      if (!document.hidden) {
-        // Delay slightly — browser needs a tick to fully restore
-        setTimeout(() => void resumeAll(), 150);
-      }
+      if (!document.hidden) setTimeout(() => void resumeAll(), 200);
     };
-
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) setTimeout(() => void resumeAll(), 150);
+      if (e.persisted) setTimeout(() => void resumeAll(), 200);
     };
-
-    const onResume = () => {
-      setTimeout(() => void resumeAll(), 150);
-    };
+    const onResume = () => setTimeout(() => void resumeAll(), 200);
 
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('pageshow', onPageShow);
@@ -1201,9 +1209,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       window.removeEventListener('pageshow', onPageShow);
       document.removeEventListener('resume', onResume);
     };
-  // isMuted intentionally in deps so the track.enabled restoration is correct
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remoteAudioRef, isMuted]);
+  }, [remoteAudioRef, isMuted, remoteStream]);
 
   // Cleanup AudioContext on unmount
   useEffect(() => {
