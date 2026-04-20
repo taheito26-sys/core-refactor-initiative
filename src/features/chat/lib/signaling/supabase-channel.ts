@@ -66,7 +66,21 @@ export class SupabaseSignalingChannel implements SignalingChannel {
   }
 
   async publishAnswer(callId: string, sdp: string): Promise<void> {
-    await answerCall(callId, sdp);
+    // Write directly to chat_call_participants so renegotiation answers
+    // (mid-call video toggle) work even when the call is already 'active'.
+    // The chat_answer_call RPC checks for 'ringing' status and rejects
+    // updates on active calls.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { await answerCall(callId, sdp); return; }
+    const { error } = await supabase
+      .from('chat_call_participants' as never)
+      .update({ sdp_answer: sdp } as never)
+      .eq('call_id', callId)
+      .eq('user_id', user.id);
+    if (error) {
+      // Fallback to RPC if direct update fails (e.g. row doesn't exist yet)
+      await answerCall(callId, sdp);
+    }
   }
 
   async publishIceCandidate(

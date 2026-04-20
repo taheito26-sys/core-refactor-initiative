@@ -239,9 +239,14 @@ export function CallOverlay({ webrtc }: Props) {
       const bt = devices.find(d => /bluetooth|bt\b/i.test(d.label));
       await setSinkSafe(el, bt?.deviceId ?? 'default');
     } else {
-      // Earpiece: '' or specific earpiece device ID
+      // Earpiece: 'communications' is the Chrome sink ID for the earpiece/
+      // in-call audio device. Falls back to a labeled earpiece device if found,
+      // then to empty string (which Chrome treats as the default communications device).
       const ear = devices.find(d => /earpiece|receiver/i.test(d.label));
-      await setSinkSafe(el, ear?.deviceId ?? '');
+      const earId = ear?.deviceId ?? 'communications';
+      const ok = await setSinkSafe(el, earId);
+      // If 'communications' isn't supported, try empty string
+      if (!ok) await setSinkSafe(el, '');
     }
 
     setSpeakerMode(next);
