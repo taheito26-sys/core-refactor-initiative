@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getOrCreateDirectRoom } from '@/features/chat/api/chat';
+import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 
 interface Props {
   merchantId: string;
@@ -42,22 +43,20 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customer_merchant_connections')
-        .select('*')
+        .select('id, customer_user_id, merchant_id, status, nickname, created_at, updated_at')
         .eq('merchant_id', merchantId)
         .order('created_at', { ascending: false });
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
-      const userIds = data.map((c) => c.customer_user_id);
-      const { data: profiles } = await supabase
-        .from('customer_profiles')
-        .select('user_id, display_name, phone, region')
-        .in('user_id', userIds);
-      const profileMap = new Map((profiles ?? []).map((p) => [p.user_id, p]));
-
       return data.map((c) => ({
         ...c,
-        customer: profileMap.get(c.customer_user_id),
+        customerName: resolveCustomerLabel({
+          displayName: null,
+          name: null,
+          nickname: c.nickname,
+          customerUserId: c.customer_user_id,
+        }),
       }));
     },
     enabled: !!merchantId,
@@ -204,7 +203,7 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
                   border: conn.status === 'pending' ? '2px solid var(--warn)' : undefined,
                 }}
               >
-                {/* Customer info */}
+                                {/* Customer info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{
@@ -213,15 +212,14 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontWeight: 700, fontSize: 13, flexShrink: 0,
                     }}>
-                      {conn.customer?.display_name?.[0]?.toUpperCase() ?? '?'}
+                      {conn.customerName?.[0]?.toUpperCase() ?? '?'}
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {conn.customer?.display_name ?? 'Unknown Customer'}
+                        {conn.customerName}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                        {conn.customer?.region ?? '—'}
-                        {conn.customer?.phone ? ` · ${conn.customer.phone}` : ''}
+                        {conn.nickname ? `@${conn.nickname}` : 'Connected customer'}
                       </div>
                     </div>
                   </div>
@@ -265,7 +263,7 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
                       disabled={openingChat === conn.customer_user_id}
                       onClick={() => handleOpenClientChat(
                         conn.customer_user_id,
-                        conn.customer?.display_name ?? 'Customer',
+                        conn.customerName,
                       )}
                     >
                       💬 Chat

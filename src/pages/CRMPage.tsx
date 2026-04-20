@@ -6,6 +6,7 @@ import { useTrackerState } from '@/lib/useTrackerState';
 import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, type Customer, type Supplier } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
+import { mapConnectedCustomers, mergeListedCustomers } from '@/features/merchants/lib/customer-listing';
 import { supabase } from '@/integrations/supabase/client';
 import '@/styles/tracker.css';
 
@@ -139,6 +140,10 @@ interface CRMPageProps {
   isAdminView?: boolean;
 }
 
+type CRMCustomerRow = Customer & {
+  source?: 'local' | 'connected';
+};
+
 export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps = {}) {
   const { settings } = useTheme();
   const t = useT();
@@ -183,40 +188,27 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
         .from('customer_merchant_connections')
         .select('customer_user_id, created_at, status, nickname')
         .eq('merchant_id', merchantProfile.merchant_id)
-        .in('status', ['pending', 'active'])
+        .neq('status', 'blocked')
         .order('created_at', { ascending: false });
       if (error || !connections || connections.length === 0) return [];
 
-      const userIds = connections.map((row) => row.customer_user_id);
-      const { data: profiles } = await supabase
-        .from('customer_profiles')
-        .select('user_id, display_name, phone, region, country')
-        .in('user_id', userIds);
-      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
-
-      return connections.map((row: any) => {
-        const profile = profileMap.get(row.customer_user_id);
-        const displayName = (profile?.display_name ?? row.nickname ?? '').trim();
-        if (!displayName) return null;
-        return {
-          id: row.customer_user_id,
-          name: displayName,
-          phone: profile?.phone || '',
-          region: profile?.region || profile?.country || '',
-          created_at: row.created_at,
-        };
-      }).filter((customer: any): customer is { id: string; name: string; phone: string; region: string; created_at: string } => Boolean(customer));
+      return mapConnectedCustomers(connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null }>);
     },
     enabled: !!merchantProfile?.merchant_id,
   });
 
+  const mergedCustomers = useMemo<CRMCustomerRow[]>(
+    () => mergeListedCustomers(customers, connectedCustomers) as CRMCustomerRow[],
+    [connectedCustomers, customers],
+  );
+
   const filteredCustomers = useMemo(() => {
-    if (!search) return customers;
+    if (!search) return mergedCustomers;
     const q = search.toLowerCase();
-    return customers.filter(c =>
+    return mergedCustomers.filter(c =>
       c.name.toLowerCase().includes(q) || c.phone.includes(q),
     );
-  }, [customers, search]);
+  }, [mergedCustomers, search]);
 
   const supplierMaster = state.suppliers ?? [];
 
@@ -458,18 +450,6 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
         <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>
           {/* Main table area */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {connectedCustomers.length > 0 && (
-              <div style={{ marginBottom: 10, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--surface)' }}>
-                <div style={{ fontSize: 11, fontWeight: 800, marginBottom: 6 }}>Customer Connections</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {connectedCustomers.map((customer: any) => (
-                    <span key={customer.id} className="pill good" style={{ fontSize: 10 }}>
-                      {customer.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 800 }}>{t('customers')}</div>
@@ -502,7 +482,14 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                       const s = customerStats(c.id);
                       return (
                         <tr key={c.id}>
-                          <td style={{ fontWeight: 700 }}>{c.name}</td>
+                          <td style={{ fontWeight: 700 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span>{c.name}</span>
+                              {c.source === 'connected' && (
+                                <span className="pill good" style={{ fontSize: 10 }}>Connected</span>
+                              )}
+                            </div>
+                          </td>
                           <td>
                             <span className={`pill ${c.tier === 'A' ? 'good' : c.tier === 'B' ? 'warn' : ''}`}
                               style={{
@@ -522,8 +509,14 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: 4 }}>
-                              <button className="rowBtn" onClick={() => openEditCustomer(c)}>Edit</button>
-                              <button className="rowBtn" style={{ color: 'var(--bad)', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: '2px 6px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
+                              {c.source !== 'connected' ? (
+                                <>
+                                  <button className="rowBtn" onClick={() => openEditCustomer(c)}>Edit</button>
+                                  <button className="rowBtn" style={{ color: 'var(--bad)', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: '2px 6px', border: '1px solid var(--bad)', borderRadius: 4 }} onClick={() => deleteCustomer(c.id)}>✕</button>
+                                </>
+                              ) : (
+                                <span style={{ fontSize: 10, color: 'var(--muted)' }}>Synced from merchant connection</span>
+                              )}
                             </div>
                           </td>
                         </tr>

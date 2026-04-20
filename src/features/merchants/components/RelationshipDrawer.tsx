@@ -89,12 +89,12 @@ export function RelationshipDrawer({ relationship, agreements, onClose, trackerT
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <button className="rowBtn" onClick={onClose} style={{ fontSize: 14 }}>←</button>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>{relationship.counterparty_name}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-              @{relationship.counterparty_nickname} · {t('code') || 'Code'}: <span className="mono" style={{ fontWeight: 700 }}>{relationship.counterparty_code || '—'}</span>
-            </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{relationship.counterparty_name}</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+              @{relationship.counterparty_nickname || relationship.counterparty_name} · {t('code') || 'Code'}: <span className="mono" style={{ fontWeight: 700 }}>{relationship.counterparty_code || '—'}</span>
           </div>
+        </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
             <span className={`pill ${relationship.status === 'active' ? 'good' : 'warn'}`}>{relationship.status}</span>
             <span style={{ fontSize: 9, color: 'var(--muted)' }}>

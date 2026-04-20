@@ -22,6 +22,7 @@ import {
   markCustomerOrderAwaitingPayment,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
+import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 
 type StatusFilter =
   | 'all'
@@ -77,14 +78,17 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   });
 
   const customerIds = useMemo(() => [...new Set(orders.map((o) => o.customer_user_id))], [orders]);
-  const { data: customerProfiles = [] } = useQuery({
-    queryKey: ['merchant-customer-profiles', customerIds, resolvedMerchantId],
+  const { data: customerConnections = [] } = useQuery({
+    queryKey: ['merchant-customer-connections', customerIds, resolvedMerchantId],
     queryFn: async () => {
       if (customerIds.length === 0) return [];
-      const { data } = await supabase
-        .from('customer_profiles')
-        .select('user_id, display_name, phone, region')
-        .in('user_id', customerIds);
+      const { data, error } = await supabase
+        .from('customer_merchant_connections')
+        .select('customer_user_id, nickname, created_at, status')
+        .eq('merchant_id', resolvedMerchantId!)
+        .neq('status', 'blocked')
+        .in('customer_user_id', customerIds);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: customerIds.length > 0,
@@ -92,9 +96,9 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
 
   const customerMap = useMemo(() => {
     const map = new Map<string, any>();
-    customerProfiles.forEach((profile: any) => map.set(profile.user_id, profile));
+    customerConnections.forEach((connection: any) => map.set(connection.customer_user_id, connection));
     return map;
-  }, [customerProfiles]);
+  }, [customerConnections]);
 
   useEffect(() => {
     setQuoteDrafts((prev) => {
@@ -234,6 +238,12 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
         <div className="space-y-3">
           {filtered.map((order) => {
             const customer = customerMap.get(order.customer_user_id);
+            const customerName = resolveCustomerLabel({
+              displayName: null,
+              name: null,
+              nickname: customer?.nickname,
+              customerUserId: order.customer_user_id,
+            });
             const meta = deriveCustomerOrderMeta(order);
             const status = normalizeStatus(order.status);
             const displayedRate = getDisplayedCustomerRate(order);
@@ -251,11 +261,11 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
-                          {customer?.display_name?.[0]?.toUpperCase() ?? 'C'}
+                          {customerName[0]?.toUpperCase() ?? 'C'}
                         </div>
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-foreground">
-                            {customer?.display_name ?? 'Unknown Customer'}
+                            {customerName}
                           </div>
                           <div className="truncate text-xs text-muted-foreground">
                             {meta.corridorLabel} - {formatCustomerNumber(order.amount, 'en', 2)} {meta.sendCurrency}
