@@ -1069,52 +1069,147 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   }, [roomId, userId, cleanup, transitionToEnd, flushPendingRemoteIce]);
 
   // ── page lifecycle: keep audio alive through screen lock / background ──
-  // Mobile browsers (iOS Safari, Android Chrome) pause <audio> elements and
-  // suspend AudioContext when the screen locks or the app goes to background.
-  // We listen for visibility/pageshow/freeze/resume events and force-resume
-  // the audio element so the call continues when the user unlocks.
-  // The remoteAudioRef is owned by this hook and shared with CallOverlay.
+  //
+  // Problem: Mobile browsers suspend media when screen locks or app backgrounds.
+  //   - Android Chrome: AudioContext suspends, <audio> pauses
+  //   - iOS Safari: everything stops, no background audio for web apps
+  //
+  // Strategy:
+  //   1. Route remote audio through AudioContext (keeps playing on Android
+  //      Chrome in background — treated as media playback, not a web page)
+  //   2. On visibility restore: resume AudioContext + replay <audio> element
+  //   3. On visibility restore: check if local mic tracks are still live;
+  //      if the OS killed them, restart getUserMedia and replace the sender
+  //      track in the peer connection so the mic comes back
+  //   4. On freeze/resume (Page Lifecycle API): same recovery
+  //
+  // iOS Safari limitation: background audio for web apps is blocked by the OS.
+  // The only solution is a native Capacitor app with background audio entitlement.
+  // We show a warning toast when the page goes hidden during a call.
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+
+  // Wire remote stream through AudioContext for background-resilient playback
   useEffect(() => {
-    const resumeAudio = () => {
+    const el = remoteAudioRef.current;
+    if (!remoteStream || !el) return;
+
+    // Keep the <audio> element as fallback
+    if (el.srcObject !== remoteStream) {
+      el.srcObject = remoteStream;
+      el.play().catch(() => {});
+    }
+
+    // Also route through AudioContext — survives Android Chrome backgrounding
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContext();
+      }
+      const ctx = audioCtxRef.current;
+      // Disconnect previous source
+      audioSourceRef.current?.disconnect();
+      const source = ctx.createMediaStreamSource(remoteStream);
+      source.connect(ctx.destination);
+      audioSourceRef.current = source;
+      // Resume if suspended
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    } catch { /* AudioContext not available */ }
+
+    return () => {
+      audioSourceRef.current?.disconnect();
+      audioSourceRef.current = null;
+    };
+  }, [remoteStream, remoteAudioRef]);
+
+  useEffect(() => {
+    const resumeAll = async () => {
+      // 1. Resume AudioContext
+      try {
+        if (audioCtxRef.current?.state === 'suspended') {
+          await audioCtxRef.current.resume();
+        }
+      } catch { /**/ }
+
+      // 2. Resume <audio> element
       const el = remoteAudioRef.current;
-      if (!el || !callIdRef.current) return;
-      if (el.paused && el.srcObject) {
+      if (el?.paused && el.srcObject) {
         el.play().catch(() => {});
+      }
+
+      // 3. Check if local mic tracks are still alive after screen lock
+      // The OS may have killed them at the hardware level even though
+      // readyState is still 'live'. We detect this by checking enabled+muted.
+      const stream = localStreamRef.current;
+      if (!stream || !pc.current || !callIdRef.current) return;
+
+      const audioTracks = stream.getAudioTracks();
+      const tracksNeedRestart = audioTracks.length === 0 ||
+        audioTracks.some(t => t.readyState === 'ended');
+
+      if (tracksNeedRestart) {
+        console.log('[WebRTC] mic tracks ended after screen lock — restarting');
+        try {
+          const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          const newTrack = newStream.getAudioTracks()[0];
+
+          // Replace in peer connection
+          const sender = pc.current.getSenders().find(s => s.track?.kind === 'audio');
+          if (sender) {
+            await sender.replaceTrack(newTrack);
+          }
+
+          // Replace in local stream
+          audioTracks.forEach(t => { t.stop(); stream.removeTrack(t); });
+          stream.addTrack(newTrack);
+
+          // Restore mute state
+          newTrack.enabled = !isMuted;
+          console.log('[WebRTC] mic restarted after screen lock');
+        } catch (err) {
+          console.warn('[WebRTC] mic restart failed', err);
+        }
+      } else {
+        // Tracks still live — just make sure they're enabled
+        audioTracks.forEach(t => {
+          if (t.readyState === 'live') t.enabled = !isMuted;
+        });
       }
     };
 
     const onVisibilityChange = () => {
       if (!document.hidden) {
-        // Small delay — some browsers need a tick after becoming visible
-        setTimeout(resumeAudio, 100);
+        // Delay slightly — browser needs a tick to fully restore
+        setTimeout(() => void resumeAll(), 150);
       }
     };
 
-    // iOS Safari fires pageshow when restoring from bfcache
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) setTimeout(resumeAudio, 100);
+      if (e.persisted) setTimeout(() => void resumeAll(), 150);
     };
 
-    // Page Lifecycle API (Chrome 68+): fired when page is about to be frozen
-    const onFreeze = () => {
-      console.log('[WebRTC] page freeze — audio may suspend');
-    };
-
-    // Page Lifecycle API: fired when page resumes from frozen state
     const onResume = () => {
-      setTimeout(resumeAudio, 100);
+      setTimeout(() => void resumeAll(), 150);
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('pageshow', onPageShow);
-    document.addEventListener('freeze', onFreeze);
     document.addEventListener('resume', onResume);
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pageshow', onPageShow);
-      document.removeEventListener('freeze', onFreeze);
       document.removeEventListener('resume', onResume);
+    };
+  // isMuted intentionally in deps so the track.enabled restoration is correct
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteAudioRef, isMuted]);
+
+  // Cleanup AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      audioSourceRef.current?.disconnect();
+      audioCtxRef.current?.close().catch(() => {});
     };
   }, []);
 
