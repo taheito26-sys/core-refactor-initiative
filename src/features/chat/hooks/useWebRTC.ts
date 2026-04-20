@@ -1163,7 +1163,12 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   }, [remoteStream, remoteAudioRef]);
 
   useEffect(() => {
+    let hiddenAt = 0; // timestamp when page went hidden
+
     const resumeAll = async () => {
+      const hiddenDurationMs = hiddenAt > 0 ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+
       // 1. Resume AudioContext
       try {
         if (audioCtxRef.current?.state === 'suspended') {
@@ -1187,50 +1192,36 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         } catch { /**/ }
       }
 
-      // 4. Restart local mic on every visibility restore when a call is active.
-      //
-      // On Android Chrome, the OS suspends the microphone hardware when the
-      // screen locks or the browser goes to background. The track readyState
-      // stays 'live' but audio stops flowing — setting track.enabled = true
-      // does nothing because the OS muted it at hardware level, not via the
-      // WebRTC enabled flag.
-      //
-      // replaceTrack() on an existing RTCRtpSender does NOT trigger ICE
-      // renegotiation — it only swaps the media source. So it is safe to
-      // always restart the mic on resume without disrupting the call.
+      // 4. Restart mic ONLY if the page was hidden for >3 seconds (screen lock
+      // or app backgrounded). Skipping on brief tab switches prevents unnecessary
+      // track replacement that causes audio glitches.
       const stream = localStreamRef.current;
       if (!stream || !pc.current || !callIdRef.current) return;
+      if (hiddenDurationMs < 3000) return; // brief focus change — skip mic restart
 
       const audioTracks = stream.getAudioTracks();
-
-      console.log('[WebRTC] resumeAll: restarting mic after screen lock/background');
+      console.log(`[WebRTC] resumeAll: restarting mic after ${Math.round(hiddenDurationMs/1000)}s background`);
       try {
         const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         const newTrack = newStream.getAudioTracks()[0];
-
-        // Replace in peer connection — no ICE renegotiation
         const sender = pc.current.getSenders().find(s => s.track?.kind === 'audio');
-        if (sender) {
-          await sender.replaceTrack(newTrack);
-        }
-
-        // Replace in local stream
+        if (sender) await sender.replaceTrack(newTrack);
         audioTracks.forEach(t => { t.stop(); stream.removeTrack(t); });
         stream.addTrack(newTrack);
-
-        // Restore mute state
         newTrack.enabled = !isMuted;
         console.log('[WebRTC] mic restarted after screen lock/background');
       } catch (err) {
-        // getUserMedia may fail if the user hasn't re-granted permission.
-        // Fall back to just re-enabling the existing tracks.
-        console.warn('[WebRTC] mic restart failed, re-enabling existing tracks:', (err as Error).message);
+        console.warn('[WebRTC] mic restart failed:', (err as Error).message);
         audioTracks.forEach(t => { t.enabled = !isMuted; });
       }
     };
 
     const onVisibilityChange = () => {
-      if (!document.hidden) setTimeout(() => void resumeAll(), 200);
+      if (document.hidden) {
+        hiddenAt = Date.now(); // record when we went hidden
+      } else {
+        setTimeout(() => void resumeAll(), 200);
+      }
     };
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) setTimeout(() => void resumeAll(), 200);
@@ -1300,6 +1291,103 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
+
+  // ── ringtone + vibration ──────────────────────────────────────────────
+  // Play a repeating ringtone and vibration pattern when:
+  //   - callState === 'ringing'  → incoming call (callee side)
+  //   - callState === 'calling'  → outgoing ring (caller side, softer tone)
+  // Stop immediately when the call is answered, declined, or ends.
+  useEffect(() => {
+    const isRinging = callState === 'ringing';
+    const isCalling = callState === 'calling';
+    if (!isRinging && !isCalling) return;
+
+    let stopped = false;
+    let vibrateInterval: ReturnType<typeof setInterval> | null = null;
+    let ringInterval: ReturnType<typeof setInterval> | null = null;
+    let ringCtx: AudioContext | null = null;
+
+    // ── Vibration ──────────────────────────────────────────────────────
+    // Incoming: strong pulse pattern. Outgoing: single short pulse.
+    const vibratePattern = isRinging
+      ? [400, 200, 400, 600]   // buzz-pause-buzz-pause (repeating)
+      : [100, 900];             // short tick every second
+
+    const startVibration = () => {
+      if (!('vibrate' in navigator)) return;
+      navigator.vibrate(vibratePattern);
+      vibrateInterval = setInterval(() => {
+        if (stopped) return;
+        navigator.vibrate(vibratePattern);
+      }, vibratePattern.reduce((a, b) => a + b, 0));
+    };
+
+    // ── Ringtone via Web Audio API ─────────────────────────────────────
+    // Incoming: classic phone ring (two-tone, repeating every 3s)
+    // Outgoing: soft single beep every 3s (like a dial tone)
+    const playRingTone = () => {
+      try {
+        ringCtx = new AudioContext();
+        const ctx = ringCtx;
+
+        const playBurst = (startTime: number) => {
+          if (isRinging) {
+            // Two-tone ring: 480Hz + 440Hz, two bursts of 0.4s with 0.2s gap
+            [0, 0.6].forEach(offset => {
+              const osc1 = ctx.createOscillator();
+              const osc2 = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc1.frequency.value = 480;
+              osc2.frequency.value = 440;
+              osc1.type = 'sine';
+              osc2.type = 'sine';
+              gain.gain.setValueAtTime(0.25, startTime + offset);
+              gain.gain.exponentialRampToValueAtTime(0.001, startTime + offset + 0.4);
+              osc1.connect(gain);
+              osc2.connect(gain);
+              gain.connect(ctx.destination);
+              osc1.start(startTime + offset);
+              osc1.stop(startTime + offset + 0.4);
+              osc2.start(startTime + offset);
+              osc2.stop(startTime + offset + 0.4);
+            });
+          } else {
+            // Outgoing: soft 440Hz beep
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.value = 440;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.1, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(startTime);
+            osc.stop(startTime + 0.3);
+          }
+        };
+
+        // Play first burst immediately, then repeat every 3s
+        playBurst(ctx.currentTime);
+        ringInterval = setInterval(() => {
+          if (stopped || !ringCtx) return;
+          playBurst(ringCtx.currentTime);
+        }, 3000);
+      } catch { /* AudioContext not available */ }
+    };
+
+    startVibration();
+    playRingTone();
+
+    return () => {
+      stopped = true;
+      if (vibrateInterval) clearInterval(vibrateInterval);
+      if (ringInterval) clearInterval(ringInterval);
+      // Stop vibration immediately
+      try { if ('vibrate' in navigator) navigator.vibrate(0); } catch { /**/ }
+      // Close AudioContext to stop all sound
+      ringCtx?.close().catch(() => {});
+    };
+  }, [callState]);
 
   // ── cleanup on unmount ────────────────────────────────────────────────
   useEffect(() => {
