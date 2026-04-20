@@ -186,12 +186,18 @@ async function buildIceConfig() {
   const totalIce = STUN_SERVERS.length + turnServers.length;
   console.log(`[TURN-diag] buildIceConfig: source=${source} stunCount=${STUN_SERVERS.length} turnCount=${turnServers.length} totalIceServers=${totalIce}`);
 
+  // Graceful degradation: if no TURN servers are available, return STUN-only config.
+  // The frontend's resilient-ice.ts has its own STUN list; cross-network calls will
+  // still work if both peers are behind full-cone or port-restricted NAT.
+  // Symmetric NAT (carrier-grade NAT, some mobile networks) requires TURN to relay.
   if (turnServers.length === 0) {
-    throw new Error("TURN_UNAVAILABLE: No TURN servers configured. Set CLOUDFLARE_TURN_TOKEN+CLOUDFLARE_TURN_KEY_ID or TURN_URL+TURN_USERNAME+TURN_CREDENTIAL.");
+    console.warn("[TURN-diag] No TURN servers available — returning STUN-only config. Cross-network calls behind symmetric NAT will fail.");
   }
 
   return {
-    iceServers: [...STUN_SERVERS, ...turnServers],
+    iceServers: turnServers.length > 0
+      ? [...STUN_SERVERS, ...turnServers]
+      : STUN_SERVERS,
     iceTransportPolicy: "all",
     iceCandidatePoolSize: 4,
   };

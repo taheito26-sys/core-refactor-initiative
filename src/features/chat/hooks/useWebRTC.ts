@@ -567,6 +567,15 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           callId = creds.call_id;
           if (creds.ice_config) iceConfig = creds.ice_config as typeof DEFAULT_ICE_CONFIG;
 
+          // Warn if no TURN servers — cross-network calls behind symmetric NAT will fail
+          const hasTurn = (iceConfig.iceServers ?? []).some((s) => {
+            const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+            return urls.some((u) => typeof u === 'string' && u.startsWith('turn'));
+          });
+          if (!hasTurn) {
+            console.warn('[WebRTC] startCall: ICE config has no TURN servers — cross-network calls behind symmetric NAT may fail. Configure CLOUDFLARE_TURN_TOKEN or TURN_URL on the call-session edge function.');
+          }
+
           // If relay URL + token provided, configure WS channel
           if (creds.token) {
             signaling.setRelayAuthToken(creds.token);
@@ -576,7 +585,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           }
         } catch (edgeFnErr) {
           console.warn('[WebRTC] call-session edge fn failed, falling back to RPC', edgeFnErr);
-          // Fallback: use existing RPC path
+          // Fallback: use existing RPC path.
+          // Keep iceConfig as DEFAULT_ICE_CONFIG (resilient-ice.ts STUN list).
+          // TURN credentials won't be available in this path, but STUN will work
+          // for non-symmetric NAT. Cross-network calls behind symmetric NAT require
+          // TURN — configure CLOUDFLARE_TURN_TOKEN or TURN_URL on the edge function.
           callId = await signaling.initiateCall(roomId);
         }
       } else {
@@ -651,12 +664,16 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           const creds = await joinCallSession(roomId, callId);
           if (creds.ice_config) {
             iceConfig = creds.ice_config as RTCConfiguration;
+            const hasTurn = (iceConfig.iceServers ?? []).some((s) => {
+              const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+              return urls.some((u) => typeof u === 'string' && u.startsWith('turn'));
+            });
+            if (!hasTurn) {
+              console.warn('[WebRTC] answerIncoming: ICE config has no TURN servers — cross-network calls behind symmetric NAT may fail');
+            }
           }
           if (creds.token) {
             signaling.setRelayAuthToken(creds.token);
-          }
-          if (creds.signaling_url) {
-            signaling.setRelayUrls([creds.signaling_url]);
           }
           if (creds.signaling_url) {
             signaling.setRelayUrls([creds.signaling_url]);
