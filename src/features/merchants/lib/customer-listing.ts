@@ -28,8 +28,45 @@ export type LocalCustomerRow = Customer & {
 
 export type ListedCustomer = LocalCustomerRow | ConnectedCustomerRow;
 
+export type CustomerProfileSummary = {
+  user_id: string;
+  display_name?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  region?: string | null;
+  country?: string | null;
+};
+
 function normalizeCustomerKey(value: string) {
   return value.trim().toLowerCase();
+}
+
+function hasText(value?: string | null) {
+  return Boolean(value && value.trim());
+}
+
+function mergeCustomerRows(base: ListedCustomer, extra: ListedCustomer): ListedCustomer {
+  if (base.source === 'connected' && extra.source === 'local') {
+    return {
+      ...base,
+      phone: hasText(base.phone) ? base.phone : extra.phone,
+      tier: base.tier !== 'C' ? base.tier : extra.tier,
+      dailyLimitUSDT: base.dailyLimitUSDT > 0 ? base.dailyLimitUSDT : extra.dailyLimitUSDT,
+      notes: hasText(base.notes) ? base.notes : extra.notes,
+    };
+  }
+
+  if (base.source === 'local' && extra.source === 'connected') {
+    return {
+      ...extra,
+      phone: hasText(extra.phone) ? extra.phone : base.phone,
+      tier: extra.tier !== 'C' ? extra.tier : base.tier,
+      dailyLimitUSDT: extra.dailyLimitUSDT > 0 ? extra.dailyLimitUSDT : base.dailyLimitUSDT,
+      notes: hasText(extra.notes) ? extra.notes : base.notes,
+    };
+  }
+
+  return base;
 }
 
 export function mapConnectedCustomers(
@@ -65,12 +102,14 @@ export function mapConnectedCustomers(
 export function mergeListedCustomers(local: LocalCustomerRow[], connected: ConnectedCustomerRow[]) {
   const merged: ListedCustomer[] = [...connected, ...local.map((customer) => ({ ...customer, source: 'local' as const }))];
   const deduped: ListedCustomer[] = [];
-  const seen = new Set<string>();
 
   for (const customer of merged) {
     const key = normalizeCustomerKey(customer.name) || normalizeCustomerKey(customer.id);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const existingIndex = deduped.findIndex((item) => normalizeCustomerKey(item.name) === key || normalizeCustomerKey(item.id) === key);
+    if (existingIndex >= 0) {
+      deduped[existingIndex] = mergeCustomerRows(deduped[existingIndex], customer);
+      continue;
+    }
     deduped.push(customer);
   }
 

@@ -16,7 +16,7 @@ export function resolveCustomerLabel(params: {
     if (label) return label;
   }
 
-  return params.customerUserId.trim();
+  return params.customerUserId.trim() || 'Customer';
 }
 
 export function resolveCustomerDisplayName(
