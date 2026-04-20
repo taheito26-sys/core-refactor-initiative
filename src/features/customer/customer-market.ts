@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 type MarketSnapshotRow = {
@@ -9,18 +9,6 @@ type MarketSnapshotRow = {
 
 const LIVE_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 let liveRefreshPromise: Promise<void> | null = null;
-const publicSupabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  },
-);
-
 export type CustomerMarketCard = {
   market: 'qatar' | 'egypt';
   label: 'Qatar' | 'Egypt';
@@ -88,7 +76,7 @@ export async function refreshP2PSnapshotsIfStale() {
     const staleBefore = Math.max(getSnapshotAgeMs(qatarRow), getSnapshotAgeMs(egyptRow));
     await Promise.allSettled(
       marketsToRefresh.map((market) =>
-        publicSupabase.functions.invoke('p2p-scraper', {
+        supabase.functions.invoke('p2p-scraper', {
           body: { market },
         }),
       ),
@@ -115,7 +103,7 @@ export async function refreshP2PSnapshotsIfStale() {
 }
 
 async function fetchLatestSnapshot(market: 'qatar' | 'egypt'): Promise<MarketSnapshotRow | null> {
-  const { data, error } = await publicSupabase
+  const { data, error } = await supabase
     .from('p2p_snapshots')
     .select('market, fetched_at, data')
     .eq('market', market)

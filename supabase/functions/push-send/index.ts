@@ -75,6 +75,14 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const fcmJson = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON');
     if (!fcmJson) {
       // FCM not configured — silently succeed (push is optional)
@@ -97,6 +105,15 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData.user) {
+      return new Response(JSON.stringify({ error: 'invalid session' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const { data: tokens } = await supabase
       .from('push_device_tokens')

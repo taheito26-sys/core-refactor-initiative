@@ -28,17 +28,13 @@ function getPlatformLabel(): string {
 
 async function pingAppUsage(userId: string, sessionId: string): Promise<void> {
   const timestamp = new Date().toISOString();
-  const { error } = await supabase
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from('app_usage_sessions' as any)
-    .upsert({
-      user_id: userId,
-      session_id: sessionId,
-      platform: getPlatformLabel(),
-      app_version: import.meta.env.VITE_APP_VERSION ?? null,
-      last_seen_at: timestamp,
-      updated_at: timestamp,
-    }, { onConflict: 'session_id' });
+  const { error } = await supabase.rpc('record_app_usage_session' as never, {
+    p_user_id: userId,
+    p_session_id: sessionId,
+    p_platform: getPlatformLabel(),
+    p_app_version: import.meta.env.VITE_APP_VERSION ?? null,
+    p_last_seen_at: timestamp,
+  } as never);
 
   if (error) {
     console.warn('[app-activity] failed to record usage session:', error.message);
