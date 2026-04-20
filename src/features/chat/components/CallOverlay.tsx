@@ -1,16 +1,8 @@
 ﻿// ─── CallOverlay ─────────────────────────────────────────────────────────────
-// Fixes:
-//   1. Screen lock kills audio → use remoteAudioRef from hook (hook owns the
-//      audio element and has visibilitychange/pageshow/resume handlers that
-//      call el.play() when the screen unlocks).
-//   2. Video calls not working → always mount video elements in the DOM;
-//      only toggle visibility. Avoids the ref-not-attached race where
-//      remoteStream arrives before the video branch renders.
-//   3. Full mobile controls: Speaker/Earpiece, Hold, DTMF Keypad,
-//      Flip Camera, Screen Share, Quality Stats, Add Call placeholder.
-//
-// Uses createPortal(…, document.body) so fixed positioning is never clipped
-// by overflow:hidden on parent layout containers.
+// iPhone-style full-screen mobile call UI with full controls.
+// RTL-aware: reads language from theme context, applies dir="rtl" to portal
+// roots, translates all strings, and flips directional layouts.
+// Uses createPortal(…, document.body) so fixed positioning is never clipped.
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -22,11 +14,52 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTheme } from '@/lib/theme-context';
 import type { UseWebRTCReturn, CallQualityStats } from '../hooks/useWebRTC';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Props { webrtc: UseWebRTCReturn }
 type SpeakerMode = 'earpiece' | 'speaker' | 'bluetooth';
+
+// ── Translations ──────────────────────────────────────────────────────────────
+const T = {
+  en: {
+    incomingCall: 'Incoming Call', ringing: 'Ringing…',
+    calling: 'Calling…', connecting: 'Connecting…', pleaseWait: 'Please wait',
+    inCall: 'In Call', reconnecting: 'Reconnecting…',
+    decline: 'Decline', accept: 'Accept',
+    mute: 'Mute', unmute: 'Unmute',
+    speaker: 'Speaker', earpiece: 'Earpiece', bluetooth: 'Bluetooth',
+    video: 'Video', flip: 'Flip', hold: 'Hold', resume: 'Resume',
+    keypad: 'Keypad', stats: 'Stats', endCall: 'End call',
+    muted: 'Muted', onHold: 'On Hold',
+    callQuality: 'Call Quality',
+    bitrate: 'Bitrate', packetLoss: 'Packet Loss', jitter: 'Jitter',
+    rtt: 'RTT', quality: 'Quality',
+    end: 'End',
+    callEnded: 'Call ended', callFailed: 'Call failed',
+    missedCall: 'Missed call', callDeclined: 'Call declined',
+  },
+  ar: {
+    incomingCall: 'مكالمة واردة', ringing: 'يرن…',
+    calling: 'جارٍ الاتصال…', connecting: 'جارٍ الاتصال…', pleaseWait: 'يرجى الانتظار',
+    inCall: 'في مكالمة', reconnecting: 'إعادة الاتصال…',
+    decline: 'رفض', accept: 'قبول',
+    mute: 'كتم', unmute: 'إلغاء الكتم',
+    speaker: 'مكبر الصوت', earpiece: 'السماعة', bluetooth: 'بلوتوث',
+    video: 'فيديو', flip: 'قلب', hold: 'تعليق', resume: 'استئناف',
+    keypad: 'لوحة المفاتيح', stats: 'الجودة', endCall: 'إنهاء المكالمة',
+    muted: 'مكتوم', onHold: 'معلق',
+    callQuality: 'جودة المكالمة',
+    bitrate: 'معدل البيانات', packetLoss: 'فقدان الحزم', jitter: 'الاهتزاز',
+    rtt: 'زمن الاستجابة', quality: 'الجودة',
+    end: 'إنهاء',
+    callEnded: 'انتهت المكالمة', callFailed: 'فشلت المكالمة',
+    missedCall: 'مكالمة فائتة', callDeclined: 'تم رفض المكالمة',
+  },
+} as const;
+
+type Lang = keyof typeof T;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(s: number) {
@@ -34,10 +67,17 @@ function fmt(s: number) {
   return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
-const LABELS: Record<string, string> = {
-  idle:'', calling:'Calling…', ringing:'Incoming call', connecting:'Connecting…',
-  connected:'In call', reconnecting:'Reconnecting…', ended:'Call ended',
-  failed:'Call failed', missed:'Missed call', declined:'Call declined',
+const LABELS: Record<string, { en: string; ar: string }> = {
+  idle:         { en: '',                  ar: '' },
+  calling:      { en: 'Calling…',          ar: 'جارٍ الاتصال…' },
+  ringing:      { en: 'Incoming call',     ar: 'مكالمة واردة' },
+  connecting:   { en: 'Connecting…',       ar: 'جارٍ الاتصال…' },
+  connected:    { en: 'In call',           ar: 'في مكالمة' },
+  reconnecting: { en: 'Reconnecting…',     ar: 'إعادة الاتصال…' },
+  ended:        { en: 'Call ended',        ar: 'انتهت المكالمة' },
+  failed:       { en: 'Call failed',       ar: 'فشلت المكالمة' },
+  missed:       { en: 'Missed call',       ar: 'مكالمة فائتة' },
+  declined:     { en: 'Call declined',     ar: 'تم رفض المكالمة' },
 };
 
 const DTMF_FREQS: Record<string, [number,number]> = {
@@ -112,6 +152,12 @@ export function CallOverlay({ webrtc }: Props) {
     remoteAudioRef,
   } = webrtc;
   const isMobile = useIsMobile();
+  const { settings } = useTheme();
+  const lang: Lang = settings.language === 'ar' ? 'ar' : 'en';
+  const t = T[lang];
+  const isRTL = lang === 'ar';
+  // dir attribute applied to every portal root so text/layout is correct
+  const dir = isRTL ? 'rtl' : 'ltr';
 
   // ── local UI state ────────────────────────────────────────────────────
   const [speakerMode, setSpeakerMode] = useState<SpeakerMode>('earpiece');
@@ -259,14 +305,14 @@ export function CallOverlay({ webrtc }: Props) {
   const SpeakerIcon = speakerMode === 'bluetooth' ? Bluetooth
     : speakerMode === 'speaker' ? Volume2
     : Signal;
-  const speakerLabel = speakerMode === 'bluetooth' ? 'Bluetooth'
-    : speakerMode === 'speaker' ? 'Speaker'
-    : 'Earpiece';
+  const speakerLabel = speakerMode === 'bluetooth' ? t.bluetooth
+    : speakerMode === 'speaker' ? t.speaker
+    : t.earpiece;
 
   // ── VIDEO CALL ────────────────────────────────────────────────────────
   if (showVideo) {
     return createPortal(
-      <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+      <div dir={dir} className="fixed inset-0 z-[9999] bg-black flex flex-col">
         <audio ref={remoteAudioRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />
         <div className="flex-1 relative overflow-hidden">
           {remoteStream
@@ -275,8 +321,12 @@ export function CallOverlay({ webrtc }: Props) {
                 <div className="h-8 w-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
               </div>
           }
+          {/* PiP — position flips in RTL */}
           {localStream && (isVideoEnabled || isScreenSharing) && (
-            <div className="absolute bottom-28 right-3 w-24 h-32 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl">
+            <div className={cn(
+              'absolute bottom-28 w-24 h-32 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl',
+              isRTL ? 'left-3' : 'right-3',
+            )}>
               <video ref={localVideoRef} autoPlay playsInline muted
                 className="w-full h-full object-cover"
                 style={{ transform: isScreenSharing ? 'none' : 'scaleX(-1)' }} />
@@ -286,7 +336,7 @@ export function CallOverlay({ webrtc }: Props) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {isActive && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
-                <span className="text-white text-sm font-semibold">{LABELS[callState]}</span>
+                <span className="text-white text-sm font-semibold">{LABELS[callState]?.[lang]}</span>
               </div>
               <div className="flex items-center gap-3">
                 <QualityBadge stats={qualityStats} />
@@ -297,13 +347,13 @@ export function CallOverlay({ webrtc }: Props) {
         </div>
         <div className="bg-black/90 backdrop-blur-md px-6 py-5 pb-10 flex items-center justify-center gap-5">
           <Btn icon={isMuted ? <MicOff className="h-6 w-6"/> : <Mic className="h-6 w-6"/>}
-            label={isMuted?'Unmute':'Mute'} on={isMuted} onClick={toggleMute} />
+            label={isMuted ? t.unmute : t.mute} on={isMuted} onClick={toggleMute} />
           <Btn icon={isVideoEnabled ? <Video className="h-6 w-6"/> : <VideoOff className="h-6 w-6"/>}
-            label="Video" on={!isVideoEnabled} onClick={toggleVideo} />
-          <Btn icon={<FlipHorizontal className="h-6 w-6"/>} label="Flip" onClick={flipCamera} />
+            label={t.video} on={!isVideoEnabled} onClick={toggleVideo} />
+          <Btn icon={<FlipHorizontal className="h-6 w-6"/>} label={t.flip} onClick={flipCamera} />
           <Btn icon={<SpeakerIcon className="h-6 w-6"/>} label={speakerLabel}
             on={speakerMode!=='earpiece'} onClick={cycleSpeaker} />
-          <Btn icon={<PhoneOff className="h-7 w-7"/>} label="End" danger lg onClick={hangUp} />
+          <Btn icon={<PhoneOff className="h-7 w-7"/>} label={t.end} danger lg onClick={hangUp} />
         </div>
       </div>,
       document.body,
@@ -313,10 +363,10 @@ export function CallOverlay({ webrtc }: Props) {
   // ── MOBILE: INCOMING ──────────────────────────────────────────────────
   if (isMobile && isRinging) {
     return createPortal(
-      <div className="fixed inset-0 z-[9999] bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-between">
+      <div dir={dir} className="fixed inset-0 z-[9999] bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-between">
         <audio ref={remoteAudioRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />
         <div className="w-full pt-14 px-6 text-center">
-          <p className="text-slate-400 text-sm font-medium tracking-widest uppercase">Incoming Call</p>
+          <p className="text-slate-400 text-sm font-medium tracking-widest uppercase">{t.incomingCall}</p>
         </div>
         <div className="flex flex-col items-center">
           <div className="relative mb-6">
@@ -326,22 +376,23 @@ export function CallOverlay({ webrtc }: Props) {
               <User strokeWidth={1.5} style={{width:72,height:72,color:'white'}} />
             </div>
           </div>
-          <h2 className="text-white text-3xl font-semibold mb-1">Incoming Call</h2>
-          <p className="text-emerald-400 text-base">Ringing…</p>
+          <h2 className="text-white text-3xl font-semibold mb-1">{t.incomingCall}</h2>
+          <p className="text-emerald-400 text-base">{t.ringing}</p>
         </div>
+        {/* In RTL: Accept on the left (start), Decline on the right (end) */}
         <div className="w-full px-10 pb-16">
-          <div className="flex items-end justify-center gap-20">
+          <div className={cn('flex items-end justify-center gap-20', isRTL && 'flex-row-reverse')}>
             <div className="flex flex-col items-center gap-3">
               <button onClick={declineIncoming} className="h-16 w-16 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-500/40 active:scale-90 transition-transform">
                 <PhoneOff className="h-7 w-7" />
               </button>
-              <span className="text-sm text-red-400 font-medium">Decline</span>
+              <span className="text-sm text-red-400 font-medium">{t.decline}</span>
             </div>
             <div className="flex flex-col items-center gap-3">
               <button onClick={answerIncoming} className="h-20 w-20 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xl shadow-emerald-500/50 active:scale-90 transition-transform">
                 <Phone className="h-9 w-9" />
               </button>
-              <span className="text-sm text-emerald-400 font-medium">Accept</span>
+              <span className="text-sm text-emerald-400 font-medium">{t.accept}</span>
             </div>
           </div>
         </div>
@@ -353,10 +404,10 @@ export function CallOverlay({ webrtc }: Props) {
   // ── MOBILE: CALLING / CONNECTING ──────────────────────────────────────
   if (isMobile && (isCalling || isConnecting)) {
     return createPortal(
-      <div className="fixed inset-0 z-[9999] bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-between">
+      <div dir={dir} className="fixed inset-0 z-[9999] bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-between">
         <audio ref={remoteAudioRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />
         <div className="w-full pt-14 px-6 text-center">
-          <p className="text-slate-400 text-sm font-medium tracking-widest uppercase">{isCalling?'Calling…':'Connecting…'}</p>
+          <p className="text-slate-400 text-sm font-medium tracking-widest uppercase">{isCalling ? t.calling : t.connecting}</p>
         </div>
         <div className="flex flex-col items-center">
           <div className="relative mb-8">
@@ -365,8 +416,8 @@ export function CallOverlay({ webrtc }: Props) {
               <User strokeWidth={1.5} style={{width:72,height:72,color:'white'}} />
             </div>
           </div>
-          <h2 className="text-white text-3xl font-semibold mb-2">Calling…</h2>
-          <p className="text-blue-400 text-base mb-8">Please wait</p>
+          <h2 className="text-white text-3xl font-semibold mb-2">{t.calling}</h2>
+          <p className="text-blue-400 text-base mb-8">{t.pleaseWait}</p>
           <div className="h-6 w-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
         </div>
         <div className="w-full px-8 pb-16 flex justify-center">
@@ -382,7 +433,7 @@ export function CallOverlay({ webrtc }: Props) {
   // ── MOBILE: ACTIVE AUDIO CALL — full controls ─────────────────────────
   if (isMobile && isActive && !showVideo) {
     return createPortal(
-      <div className="fixed inset-0 z-[9999] bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+      <div dir={dir} className="fixed inset-0 z-[9999] bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col">
         <audio ref={remoteAudioRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />
         <video ref={remoteVideoRef} autoPlay playsInline muted style={{display:'none'}} />
         <video ref={localVideoRef}  autoPlay playsInline muted style={{display:'none'}} />
@@ -393,7 +444,7 @@ export function CallOverlay({ webrtc }: Props) {
             {callState==='reconnecting'
               ? <div className="h-4 w-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"/>
               : <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse"/>}
-            <span className="text-slate-300 text-sm font-medium">{callState==='reconnecting'?'Reconnecting…':'In Call'}</span>
+            <span className="text-slate-300 text-sm font-medium">{callState==='reconnecting' ? t.reconnecting : t.inCall}</span>
           </div>
           <QualityBadge stats={qualityStats} />
         </div>
@@ -406,23 +457,23 @@ export function CallOverlay({ webrtc }: Props) {
             </div>
             <div className="absolute bottom-2 right-2 h-6 w-6 rounded-full bg-emerald-400 border-4 border-slate-900 animate-pulse" />
           </div>
-          <h2 className="text-white text-3xl font-semibold mb-2">In Call</h2>
-          <p className="text-emerald-400 text-2xl font-mono tabular-nums">{fmt(callDuration)}</p>
+          <h2 className="text-white text-3xl font-semibold mb-2">{t.inCall}</h2>
+          <p className="text-emerald-400 text-2xl font-mono tabular-nums" dir="ltr">{fmt(callDuration)}</p>
           {isMuted && (
             <div className="mt-4 flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/20 border border-red-500/30">
-              <MicOff className="h-4 w-4 text-red-400"/><span className="text-red-400 text-sm font-medium">Muted</span>
+              <MicOff className="h-4 w-4 text-red-400"/><span className="text-red-400 text-sm font-medium">{t.muted}</span>
             </div>
           )}
           {isOnHold && (
             <div className="mt-2 flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30">
-              <PauseCircle className="h-4 w-4 text-amber-400"/><span className="text-amber-400 text-sm font-medium">On Hold</span>
+              <PauseCircle className="h-4 w-4 text-amber-400"/><span className="text-amber-400 text-sm font-medium">{t.onHold}</span>
             </div>
           )}
         </div>
 
-        {/* DTMF Keypad overlay */}
+        {/* DTMF Keypad overlay — always LTR (digits are universal) */}
         {showKeypad && (
-          <div className="absolute inset-0 z-10 bg-slate-900/98 flex flex-col items-center justify-center">
+          <div className="absolute inset-0 z-10 bg-slate-900/98 flex flex-col items-center justify-center" dir="ltr">
             <div className="w-full px-8 mb-4">
               <div className="bg-slate-800 rounded-2xl px-4 py-3 text-center">
                 <span className="text-white text-2xl font-mono tracking-widest min-h-[2rem] block">
@@ -450,33 +501,39 @@ export function CallOverlay({ webrtc }: Props) {
         {showStats && qualityStats && (
           <div className="absolute top-24 inset-x-4 z-10 bg-slate-800/95 rounded-2xl p-4 border border-slate-700">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-white text-sm font-semibold">Call Quality</span>
+              <span className="text-white text-sm font-semibold">{t.callQuality}</span>
               <button onClick={() => setShowStats(false)} className="text-slate-400"><X className="h-4 w-4"/></button>
             </div>
-            {([['Bitrate',`${qualityStats.bitrate} kbps`],['Packet Loss',`${qualityStats.packetLoss.toFixed(1)}%`],['Jitter',`${qualityStats.jitter} ms`],['RTT',`${qualityStats.roundTripTime} ms`],['Quality',qualityStats.level]] as [string,string][]).map(([k,v]) => (
+            {([
+              [t.bitrate,     `${qualityStats.bitrate} kbps`],
+              [t.packetLoss,  `${qualityStats.packetLoss.toFixed(1)}%`],
+              [t.jitter,      `${qualityStats.jitter} ms`],
+              [t.rtt,         `${qualityStats.roundTripTime} ms`],
+              [t.quality,     qualityStats.level],
+            ] as [string,string][]).map(([k,v]) => (
               <div key={k} className="flex justify-between py-1 border-b border-slate-700/50 last:border-0">
                 <span className="text-slate-400 text-xs">{k}</span>
-                <span className="text-white text-xs font-mono">{v}</span>
+                <span className="text-white text-xs font-mono" dir="ltr">{v}</span>
               </div>
             ))}
           </div>
         )}
 
-        {/* Controls grid */}
+        {/* Controls grid — grid-cols-3 is direction-agnostic, items flow RTL automatically */}
         <div className="px-6 pb-12">
           <div className="grid grid-cols-3 gap-y-6 gap-x-4 mb-6 place-items-center">
             <Btn icon={isMuted ? <MicOff className="h-6 w-6"/> : <Mic className="h-6 w-6"/>}
-              label={isMuted?'Unmute':'Mute'} on={isMuted} onClick={toggleMute} />
+              label={isMuted ? t.unmute : t.mute} on={isMuted} onClick={toggleMute} />
             <Btn icon={<SpeakerIcon className="h-6 w-6"/>} label={speakerLabel}
               on={speakerMode!=='earpiece'} onClick={cycleSpeaker} />
-            <Btn icon={<Video className="h-6 w-6"/>} label="Video" onClick={toggleVideo} />
+            <Btn icon={<Video className="h-6 w-6"/>} label={t.video} onClick={toggleVideo} />
             <Btn icon={isOnHold ? <PlayCircle className="h-6 w-6"/> : <PauseCircle className="h-6 w-6"/>}
-              label={isOnHold?'Resume':'Hold'} on={isOnHold} onClick={toggleHold} />
-            <Btn icon={<Hash className="h-6 w-6"/>} label="Keypad" on={showKeypad} onClick={() => setShowKeypad(k => !k)} />
-            <Btn icon={<Signal className="h-6 w-6"/>} label="Stats" on={showStats} onClick={() => setShowStats(s => !s)} />
+              label={isOnHold ? t.resume : t.hold} on={isOnHold} onClick={toggleHold} />
+            <Btn icon={<Hash className="h-6 w-6"/>} label={t.keypad} on={showKeypad} onClick={() => setShowKeypad(k => !k)} />
+            <Btn icon={<Signal className="h-6 w-6"/>} label={t.stats} on={showStats} onClick={() => setShowStats(s => !s)} />
           </div>
           <div className="flex justify-center">
-            <Btn icon={<PhoneOff className="h-7 w-7"/>} label="End call" danger lg onClick={hangUp} />
+            <Btn icon={<PhoneOff className="h-7 w-7"/>} label={t.endCall} danger lg onClick={hangUp} />
           </div>
         </div>
       </div>,
@@ -486,7 +543,7 @@ export function CallOverlay({ webrtc }: Props) {
 
   // ── DESKTOP + TERMINAL — compact bar ─────────────────────────────────
   return createPortal(
-    <div className={cn('fixed inset-x-0 z-[9999] flex justify-center pointer-events-none',
+    <div dir={dir} className={cn('fixed inset-x-0 z-[9999] flex justify-center pointer-events-none',
       isMobile?'top-0 px-2 pt-2':'top-0 px-4 pt-4')}>
       <audio ref={remoteAudioRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />
       <video ref={remoteVideoRef} autoPlay playsInline muted style={{display:'none'}} />
@@ -506,8 +563,8 @@ export function CallOverlay({ webrtc }: Props) {
           {(isCalling||isConnecting) && <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin"/>}
         </div>
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-sm font-bold truncate">{LABELS[callState]||callState}</span>
-          {isActive && <div className="flex items-center gap-2"><span className="text-xs font-mono opacity-80">{fmt(callDuration)}</span><QualityBadge stats={qualityStats}/></div>}
+          <span className="text-sm font-bold truncate">{LABELS[callState]?.[lang] || callState}</span>
+          {isActive && <div className="flex items-center gap-2"><span className="text-xs font-mono opacity-80" dir="ltr">{fmt(callDuration)}</span><QualityBadge stats={qualityStats}/></div>}
           {isTerminal && endReason && endReason!==callState && <span className="text-[10px] opacity-60 truncate">{endReason.replace(/_/g,' ')}</span>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
