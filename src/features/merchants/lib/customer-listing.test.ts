@@ -125,4 +125,74 @@ describe('customer listing helpers', () => {
       notes: 'Cairo',
     });
   });
+
+  it('preserves local metadata when a connected customer shares the same name', () => {
+    const merged = mergeListedCustomers(
+      [
+        {
+          id: 'local-1',
+          name: 'Rakan',
+          phone: '555-0101',
+          tier: 'A',
+          dailyLimitUSDT: 250,
+          notes: 'VIP',
+          createdAt: 1,
+          source: 'local',
+        },
+      ],
+      [
+        {
+          id: 'connected:user-123',
+          name: 'Rakan',
+          phone: '',
+          tier: 'C',
+          dailyLimitUSDT: 0,
+          notes: '',
+          createdAt: 3,
+          source: 'connected',
+          customerUserId: 'user-123',
+        },
+      ],
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      id: 'connected:user-123',
+      name: 'Rakan',
+      source: 'connected',
+      phone: '555-0101',
+      tier: 'A',
+      dailyLimitUSDT: 250,
+      notes: 'VIP',
+    });
+  });
+
+  it('uses profile metadata when mapping connected customers', () => {
+    const [row] = mapConnectedCustomers(
+      [
+        {
+          customer_user_id: 'user-789',
+          nickname: 'Rakan',
+          created_at: '2026-04-20T00:00:00.000Z',
+        },
+      ],
+      new Map([
+        ['user-789', {
+          user_id: 'user-789',
+          display_name: 'Rakan Abd',
+          name: 'Rakan',
+          phone: '555-2222',
+          region: 'Cairo',
+          country: 'Egypt',
+        }],
+      ]),
+    );
+
+    expect(row).toMatchObject({
+      id: 'connected:user-789',
+      name: 'Rakan Abd',
+      phone: '555-2222',
+      notes: 'Cairo',
+    });
+  });
 });
