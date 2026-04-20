@@ -866,9 +866,11 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     const stream = localStreamRef.current;
     // Capture pc ref synchronously before any await
     const peerConn = pc.current;
+    console.log('[toggleVideo] stream:', !!stream, 'pc:', !!peerConn, 'callId:', callIdRef.current);
     if (!stream || !peerConn) return;
 
     const videoTracks = stream.getVideoTracks().filter((t) => t !== screenTrackRef.current);
+    console.log('[toggleVideo] videoTracks:', videoTracks.length, 'senders:', peerConn.getSenders().map(s => s.track?.kind ?? 'null'));
 
     if (videoTracks.length > 0) {
       // Turn video OFF
@@ -876,29 +878,30 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       const sender = peerConn.getSenders().find((s) => s.track?.kind === 'video' && s.track !== screenTrackRef.current);
       if (sender) await sender.replaceTrack(null);
       setIsVideoEnabled(false);
+      console.log('[toggleVideo] video OFF');
     } else {
       // Turn video ON
-      // initAudioContext first (synchronous, before any await)
       initAudioContext();
       try {
+        console.log('[toggleVideo] requesting camera...');
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false,
         });
         const videoTrack = videoStream.getVideoTracks()[0];
+        console.log('[toggleVideo] got track:', videoTrack?.label);
         if (!videoTrack) return;
         stream.addTrack(videoTrack);
 
-        // Look for an existing video sender (null track or video kind)
         const videoSender = peerConn.getSenders().find(
           (s) => s.track?.kind === 'video' || s.track === null
         );
+        console.log('[toggleVideo] videoSender:', !!videoSender);
 
         if (videoSender) {
-          // Replace existing sender — no renegotiation needed
           await videoSender.replaceTrack(videoTrack);
+          console.log('[toggleVideo] replaceTrack done');
         } else {
-          // No video sender exists (audio-only call) — add track and renegotiate
           peerConn.addTrack(videoTrack, stream);
           const offer = await peerConn.createOffer();
           await peerConn.setLocalDescription(offer);
