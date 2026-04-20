@@ -18,6 +18,7 @@ import {
   Clock,
   FileImage,
   Loader2,
+  Timer,
   Upload,
   type LucideIcon,
 } from 'lucide-react';
