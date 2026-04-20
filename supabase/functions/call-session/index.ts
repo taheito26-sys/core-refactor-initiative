@@ -199,7 +199,9 @@ async function buildIceConfig() {
       ? [...STUN_SERVERS, ...turnServers]
       : STUN_SERVERS,
     iceTransportPolicy: "all",
-    iceCandidatePoolSize: 4,
+    iceCandidatePoolSize: 8,
+    bundlePolicy: "max-bundle",
+    rtcpMuxPolicy: "require",
   };
 }
 

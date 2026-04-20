@@ -270,6 +270,8 @@ export interface IceConfig {
   iceServers: RTCIceServer[];
   iceTransportPolicy?: RTCIceTransportPolicy;
   iceCandidatePoolSize?: number;
+  bundlePolicy?: RTCBundlePolicy;
+  rtcpMuxPolicy?: RTCRtcpMuxPolicy;
 }
 
 // ── Presence ───────────────────────────────────────────────────────────────

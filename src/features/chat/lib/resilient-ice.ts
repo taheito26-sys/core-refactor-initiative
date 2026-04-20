@@ -150,13 +150,17 @@ export const RESILIENT_ICE_CONFIG: IceConfig = {
   iceServers: sanitizeIceServers([...STUN_SERVERS, ...loadTurnServers()]),
   // 'all' = attempt direct P2P first (lowest latency), fall through STUN
   // reflexive candidates, then TURN relay as last resort.
-  // Switch to 'relay' only in environments where you know direct P2P is
-  // impossible (e.g. symmetric NAT behind a carrier-grade NAT).
   iceTransportPolicy: 'all',
-  // Pre-gather 4 candidates immediately when the RTCPeerConnection is created,
-  // so they are ready to publish the moment setLocalDescription() returns.
-  // Matches the value returned by the call-session edge function.
-  iceCandidatePoolSize: 4,
+  // Pre-gather 8 candidates immediately when the RTCPeerConnection is created.
+  // A larger pool ensures relay candidates are allocated at the TURN server
+  // before setLocalDescription() is called, so they're ready to publish
+  // immediately rather than arriving late and racing the ICE timeout.
+  iceCandidatePoolSize: 8,
+  // Force all media through a single ICE transport (audio + video share one
+  // DTLS connection). Reduces the number of candidate pairs ICE must check
+  // and avoids the case where one component connects but the other doesn't.
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require',
 };
 
 // ── Selector used by chat.ts DEFAULT_ICE_CONFIG ────────────────────────────

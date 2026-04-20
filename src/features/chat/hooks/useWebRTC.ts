@@ -517,6 +517,32 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     return stream;
   }, [requestNativePermissions]);
 
+  // ── wait for ICE gathering to complete (or timeout) ───────────────────
+  // Ensures relay candidates are allocated before publishing the offer.
+  // Without this, the offer contains only host/srflx candidates; relay
+  // candidates arrive late via trickle ICE, and if the remote peer's ICE
+  // agent times out before they arrive, no pairs form → ICE fails.
+  const waitForIceGathering = useCallback((peerConn: RTCPeerConnection, timeoutMs = 3000): Promise<void> => {
+    return new Promise((resolve) => {
+      if (peerConn.iceGatheringState === 'complete') {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(() => {
+        console.warn('[ICE_GATHER] timeout — proceeding with partial candidates');
+        resolve();
+      }, timeoutMs);
+      peerConn.addEventListener('icegatheringstatechange', function onGather() {
+        if (peerConn.iceGatheringState === 'complete') {
+          clearTimeout(timer);
+          peerConn.removeEventListener('icegatheringstatechange', onGather);
+          console.log('[ICE_GATHER] complete');
+          resolve();
+        }
+      });
+    });
+  }, []);
+
   // ── fire push notification for incoming call ──────────────────────────
   const sendCallPush = useCallback(async (callId: string, targetRoomId: string) => {
     try {
@@ -617,8 +643,18 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       });
       await peerConn.setLocalDescription(offer);
 
+      // Wait for ICE gathering to complete (or timeout after 3s).
+      // This ensures relay candidates are included in the offer SDP,
+      // rather than arriving late via trickle ICE and racing the remote
+      // peer's ICE timeout.
+      await waitForIceGathering(peerConn);
+
+      // Use the final local description SDP (includes all gathered candidates)
+      // rather than the initial offer.sdp (which may lack relay candidates).
+      const finalOfferSdp = peerConn.localDescription?.sdp ?? offer.sdp!;
+
       // Broadcast SDP offer on all available channels simultaneously
-      await signaling.publishOffer(callId, roomId, offer.sdp!, userId);
+      await signaling.publishOffer(callId, roomId, finalOfferSdp, userId);
 
       // Send push notification
       sendCallPush(callId, roomId);
@@ -646,7 +682,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', getMediaFailureReason(err, video));
     }
-  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallPush, signaling]);
+  }, [roomId, userId, callState, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, sendCallPush, signaling, waitForIceGathering]);
 
   // ── ANSWER INCOMING ───────────────────────────────────────────────────
   const answerIncoming = useCallback(async () => {
@@ -733,7 +769,12 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         console.log(`[SDP_UFRAG] local=${localUfrag} remote=${remoteUfrag}`);
       }
 
-      await signaling.publishAnswer(callId, answer.sdp!);
+      // Wait for ICE gathering before publishing the answer so relay
+      // candidates are included in the answer SDP.
+      await waitForIceGathering(peerConn);
+      const finalAnswerSdp = peerConn.localDescription?.sdp ?? answer.sdp!;
+
+      await signaling.publishAnswer(callId, finalAnswerSdp);
       incomingCallRef.current = null;
       setIncomingCall(null);
       useChatStore.getState().setIncomingCall(null, null);
@@ -752,7 +793,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
       cleanup();
       transitionToEnd('failed', getMediaFailureReason(err, wantsVideo));
     }
-  }, [incomingCall, userId, roomId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, signaling, flushPendingRemoteIce]);
+  }, [incomingCall, userId, roomId, getMedia, buildPC, setActiveCallId, cleanup, transitionToEnd, signaling, flushPendingRemoteIce, waitForIceGathering]);
 
   // ── DECLINE ───────────────────────────────────────────────────────────
   const declineIncoming = useCallback(async () => {
