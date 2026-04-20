@@ -1184,32 +1184,44 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         } catch { /**/ }
       }
 
-      // 4. Check if local mic tracks ended (OS killed them during screen lock).
-      // ONLY restart if readyState === 'ended'. Do NOT restart live tracks —
-      // replaceTrack() triggers ICE renegotiation which disrupts the call.
+      // 4. Restart local mic on every visibility restore when a call is active.
+      //
+      // On Android Chrome, the OS suspends the microphone hardware when the
+      // screen locks or the browser goes to background. The track readyState
+      // stays 'live' but audio stops flowing — setting track.enabled = true
+      // does nothing because the OS muted it at hardware level, not via the
+      // WebRTC enabled flag.
+      //
+      // replaceTrack() on an existing RTCRtpSender does NOT trigger ICE
+      // renegotiation — it only swaps the media source. So it is safe to
+      // always restart the mic on resume without disrupting the call.
       const stream = localStreamRef.current;
       if (!stream || !pc.current || !callIdRef.current) return;
 
       const audioTracks = stream.getAudioTracks();
-      const endedTracks = audioTracks.filter(t => t.readyState === 'ended');
 
-      if (audioTracks.length === 0 || endedTracks.length > 0) {
-        console.log('[WebRTC] mic tracks ended — restarting');
-        try {
-          const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-          const newTrack = newStream.getAudioTracks()[0];
-          const sender = pc.current.getSenders().find(s => s.track?.kind === 'audio');
-          if (sender) await sender.replaceTrack(newTrack);
-          audioTracks.forEach(t => { t.stop(); stream.removeTrack(t); });
-          stream.addTrack(newTrack);
-          newTrack.enabled = !isMuted;
-          console.log('[WebRTC] mic restarted');
-        } catch (err) {
-          console.warn('[WebRTC] mic restart failed', err);
+      console.log('[WebRTC] resumeAll: restarting mic after screen lock/background');
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const newTrack = newStream.getAudioTracks()[0];
+
+        // Replace in peer connection — no ICE renegotiation
+        const sender = pc.current.getSenders().find(s => s.track?.kind === 'audio');
+        if (sender) {
+          await sender.replaceTrack(newTrack);
         }
-      } else {
-        // Tracks are live — just ensure enabled state matches mute setting.
-        // Do NOT call replaceTrack here — it triggers ICE renegotiation.
+
+        // Replace in local stream
+        audioTracks.forEach(t => { t.stop(); stream.removeTrack(t); });
+        stream.addTrack(newTrack);
+
+        // Restore mute state
+        newTrack.enabled = !isMuted;
+        console.log('[WebRTC] mic restarted after screen lock/background');
+      } catch (err) {
+        // getUserMedia may fail if the user hasn't re-granted permission.
+        // Fall back to just re-enabling the existing tracks.
+        console.warn('[WebRTC] mic restart failed, re-enabling existing tracks:', (err as Error).message);
         audioTracks.forEach(t => { t.enabled = !isMuted; });
       }
     };
