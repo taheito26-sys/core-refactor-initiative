@@ -89,7 +89,17 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
         .neq('status', 'blocked')
         .in('customer_user_id', customerIds);
       if (error) throw error;
-      return data ?? [];
+      const userIds = [...new Set((data ?? []).map((row) => row.customer_user_id))];
+      const { data: profiles, error: profileError } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name, name, phone, region, country')
+        .in('user_id', userIds);
+      if (profileError) throw profileError;
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+      return (data ?? []).map((row) => ({
+        ...row,
+        profile: profileMap.get(row.customer_user_id) ?? null,
+      }));
     },
     enabled: customerIds.length > 0,
   });
@@ -239,8 +249,8 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
           {filtered.map((order) => {
             const customer = customerMap.get(order.customer_user_id);
             const customerName = resolveCustomerLabel({
-              displayName: null,
-              name: null,
+              displayName: customer?.profile?.display_name ?? null,
+              name: customer?.profile?.name ?? null,
               nickname: customer?.nickname,
               customerUserId: order.customer_user_id,
             });

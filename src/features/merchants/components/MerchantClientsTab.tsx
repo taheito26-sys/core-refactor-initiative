@@ -49,11 +49,19 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
+      const userIds = [...new Set(data.map((c) => c.customer_user_id))];
+      const { data: profiles, error: profileError } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name, name, phone, region, country')
+        .in('user_id', userIds);
+      if (profileError) throw profileError;
+      const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
+
       return data.map((c) => ({
         ...c,
         customerName: resolveCustomerLabel({
-          displayName: null,
-          name: null,
+          displayName: profileMap.get(c.customer_user_id)?.display_name ?? null,
+          name: profileMap.get(c.customer_user_id)?.name ?? null,
           nickname: c.nickname,
           customerUserId: c.customer_user_id,
         }),
@@ -190,6 +198,11 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
           {filtered.map((conn: any) => {
             const counts = orderCounts[conn.id];
             const unread = unreadCounts[conn.id] || 0;
+            const resolvedName = String(conn.customerName ?? '').trim();
+            const nickname = String(conn.nickname ?? '').trim();
+            const nicknameLabel = nickname && nickname.toLowerCase() !== resolvedName.toLowerCase()
+              ? `@${nickname}`
+              : 'Connected customer';
             return (
               <div
                 key={conn.id}
@@ -216,10 +229,10 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {conn.customerName}
+                        {resolvedName}
                       </div>
                       <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                        {conn.nickname ? `@${conn.nickname}` : 'Connected customer'}
+                        {nicknameLabel}
                       </div>
                     </div>
                   </div>

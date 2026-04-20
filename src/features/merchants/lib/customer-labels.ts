@@ -4,13 +4,19 @@ export function resolveCustomerLabel(params: {
   nickname?: string | null;
   customerUserId: string;
 }): string {
-  const label =
-    params.displayName ??
-    params.name ??
-    params.nickname ??
-    params.customerUserId;
+  const candidates = [
+    params.displayName,
+    params.name,
+    params.nickname,
+    params.customerUserId,
+  ];
 
-  return label.trim();
+  for (const candidate of candidates) {
+    const label = candidate?.trim();
+    if (label) return label;
+  }
+
+  return params.customerUserId.trim() || 'Customer';
 }
 
 export function resolveCustomerDisplayName(
