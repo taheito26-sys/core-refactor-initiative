@@ -37,6 +37,10 @@ async function pingAppUsage(userId: string, sessionId: string): Promise<void> {
   } as never);
 
   if (error) {
+    const message = error.message.toLowerCase();
+    if (message.includes('record_app_usage_session') || message.includes('schema cache') || message.includes('404')) {
+      return;
+    }
     console.warn('[app-activity] failed to record usage session:', error.message);
   }
 }

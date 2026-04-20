@@ -144,44 +144,7 @@ export interface GuidePricingResult {
   pricingVersion: string | null;
 }
 
-const ORDER_SELECT = [
-  'id',
-  'customer_user_id',
-  'merchant_id',
-  'connection_id',
-  'order_type',
-  'amount',
-  'currency',
-  'rate',
-  'total',
-  'status',
-  'note',
-  'created_at',
-  'updated_at',
-  'confirmed_at',
-  'expires_at',
-  'payment_proof_url',
-  'payment_proof_uploaded_at',
-  'send_country',
-  'receive_country',
-  'send_currency',
-  'receive_currency',
-  'payout_rail',
-  'pricing_mode',
-  'guide_rate',
-  'guide_total',
-  'guide_source',
-  'guide_snapshot',
-  'guide_generated_at',
-  'final_rate',
-  'final_total',
-  'final_quote_note',
-  'final_quote_expires_at',
-  'quoted_at',
-  'quoted_by_user_id',
-  'market_pair',
-  'pricing_version',
-].join(', ');
+const ORDER_SELECT = '*';
 
 const PRICING_VERSION = 'quote-flow-v1';
 
