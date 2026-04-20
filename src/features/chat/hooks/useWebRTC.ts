@@ -62,6 +62,9 @@ export interface UseWebRTCReturn {
   // Group calls
   remoteStreams:      Map<string, MediaStream>;
   participantCount:  number;
+  // Audio element ref — exposed so CallOverlay can resume playback after
+  // screen lock / page visibility restore without re-mounting the element.
+  remoteAudioRef:    React.RefObject<HTMLAudioElement | null>;
 }
 
 const RECONNECT_DELAY_MS  = 2_000;
@@ -147,6 +150,8 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   const screenTrackRef  = useRef<MediaStreamTrack | null>(null);
   const prevBytesRef    = useRef<{ received: number; ts: number } | null>(null);
   const processedRemoteIceCounts = useRef<Map<string, number>>(new Map());
+  // Exposed to CallOverlay so it can resume playback after screen lock
+  const remoteAudioRef  = useRef<HTMLAudioElement | null>(null);
   // Trickle-ICE candidates that arrive before setRemoteDescription completes
   // are rejected by RTCPeerConnection with "remote description was null".
   // Buffer them until remoteDescription is present, then flush in order.
@@ -1036,6 +1041,56 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     };
   }, [roomId, userId, cleanup, transitionToEnd, flushPendingRemoteIce]);
 
+  // ── page lifecycle: keep audio alive through screen lock / background ──
+  // Mobile browsers (iOS Safari, Android Chrome) pause <audio> elements and
+  // suspend AudioContext when the screen locks or the app goes to background.
+  // We listen for visibility/pageshow/freeze/resume events and force-resume
+  // the audio element so the call continues when the user unlocks.
+  // The remoteAudioRef is owned by this hook and shared with CallOverlay.
+  useEffect(() => {
+    const resumeAudio = () => {
+      const el = remoteAudioRef.current;
+      if (!el || !callIdRef.current) return;
+      if (el.paused && el.srcObject) {
+        el.play().catch(() => {});
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        // Small delay — some browsers need a tick after becoming visible
+        setTimeout(resumeAudio, 100);
+      }
+    };
+
+    // iOS Safari fires pageshow when restoring from bfcache
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setTimeout(resumeAudio, 100);
+    };
+
+    // Page Lifecycle API (Chrome 68+): fired when page is about to be frozen
+    const onFreeze = () => {
+      console.log('[WebRTC] page freeze — audio may suspend');
+    };
+
+    // Page Lifecycle API: fired when page resumes from frozen state
+    const onResume = () => {
+      setTimeout(resumeAudio, 100);
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pageshow', onPageShow);
+    document.addEventListener('freeze', onFreeze);
+    document.addEventListener('resume', onResume);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pageshow', onPageShow);
+      document.removeEventListener('freeze', onFreeze);
+      document.removeEventListener('resume', onResume);
+    };
+  }, []);
+
   // ── beforeunload: cleanup on tab close ────────────────────────────────
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -1134,5 +1189,6 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     qualityStats,
     remoteStreams,
     participantCount,
+    remoteAudioRef,
   };
 }
