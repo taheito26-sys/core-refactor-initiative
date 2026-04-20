@@ -164,7 +164,6 @@ const ORDER_SELECT = [
   'receive_country',
   'send_currency',
   'receive_currency',
-  'payout_rail',
 ].join(', ');
 
 const ORDER_INSERT_SELECT = 'id';
@@ -237,7 +236,6 @@ export function buildCustomerOrderPayload(input: CustomerOrderInput) {
     receive_country: input.receiveCountry,
     send_currency: input.sendCurrency,
     receive_currency: input.receiveCurrency,
-    payout_rail: input.payoutRail,
   };
 }
 
@@ -392,7 +390,6 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
     receive_country: input.receiveCountry,
     send_currency: input.sendCurrency,
     receive_currency: input.receiveCurrency,
-    payout_rail: input.payoutRail,
   };
 
   if (!pricing) return basePayload;
@@ -439,6 +436,7 @@ async function insertCustomerOrderWithFallback(payload: Record<string, unknown>)
     quoted_by_user_id: _quotedByUserId,
     market_pair: _marketPair,
     pricing_version: _pricingVersion,
+    payout_rail: _payoutRail,
     ...fallbackPayload
   } = payload;
 

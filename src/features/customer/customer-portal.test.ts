@@ -20,6 +20,7 @@ describe('customer portal order payload', () => {
     });
 
     expect(payload).not.toHaveProperty('corridor_label');
+    expect(payload).not.toHaveProperty('payout_rail');
     expect(payload).toMatchObject({
       customer_user_id: 'user-1',
       merchant_id: 'merchant-1',
