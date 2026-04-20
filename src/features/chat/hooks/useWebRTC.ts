@@ -170,12 +170,18 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   }
   const signaling = signalingRef.current;
 
-  // ── AudioContext init — must be called during a user gesture ─────────
+  // ── AudioContext init — must be called SYNCHRONOUSLY in a user gesture ──
   // Declared here (before cleanup/getMedia) so the refs are in scope.
+  // IMPORTANT: call this synchronously at the start of a click handler,
+  // before any await — the browser revokes gesture context on the first await.
   const initAudioContext = useCallback(() => {
     try {
       if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
         audioCtxRef.current = new AudioContext();
+        // Immediately resume — some browsers start in suspended state
+        audioCtxRef.current.resume().catch(() => {});
+      } else if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
       }
     } catch { /* not available */ }
   }, []);
@@ -528,10 +534,10 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   // ── get media (audio, optionally video) ───────────────────────────────
   const getMedia = useCallback(async (video = false) => {
-    await requestNativePermissions(video);
-    // Create AudioContext HERE — inside the user gesture (startCall/answerIncoming tap)
-    // so it's not immediately suspended by the browser's autoplay policy.
+    // initAudioContext MUST be first — before any await — to stay in the
+    // user gesture stack. Any await breaks the gesture context on mobile.
     initAudioContext();
+    await requestNativePermissions(video);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: video ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false,
@@ -858,45 +864,60 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
   // ── VIDEO TOGGLE ──────────────────────────────────────────────────────
   const toggleVideo = useCallback(async () => {
     const stream = localStreamRef.current;
-    if (!stream || !pc.current) return;
+    // Capture pc ref synchronously before any await
+    const peerConn = pc.current;
+    if (!stream || !peerConn) return;
 
     const videoTracks = stream.getVideoTracks().filter((t) => t !== screenTrackRef.current);
 
     if (videoTracks.length > 0) {
-      // Turn video OFF — stop tracks and null out the sender
+      // Turn video OFF
       videoTracks.forEach((t) => { t.stop(); stream.removeTrack(t); });
-      const sender = pc.current.getSenders().find((s) => s.track?.kind === 'video' && s.track !== screenTrackRef.current);
+      const sender = peerConn.getSenders().find((s) => s.track?.kind === 'video' && s.track !== screenTrackRef.current);
       if (sender) await sender.replaceTrack(null);
       setIsVideoEnabled(false);
     } else {
-      // Turn video ON — get camera and renegotiate
+      // Turn video ON
+      // initAudioContext first (synchronous, before any await)
+      initAudioContext();
       try {
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false,
         });
         const videoTrack = videoStream.getVideoTracks()[0];
+        if (!videoTrack) return;
         stream.addTrack(videoTrack);
 
-        // Find an existing null/video sender to replace, or add a new track
-        const sender = pc.current.getSenders().find((s) => s.track === null || s.track?.kind === 'video');
-        if (sender) {
-          await sender.replaceTrack(videoTrack);
+        // Look for an existing video sender (null track or video kind)
+        const videoSender = peerConn.getSenders().find(
+          (s) => s.track?.kind === 'video' || s.track === null
+        );
+
+        if (videoSender) {
+          // Replace existing sender — no renegotiation needed
+          await videoSender.replaceTrack(videoTrack);
         } else {
-          // New track — must renegotiate so remote peer gets video
-          pc.current.addTrack(videoTrack, stream);
-          const offer = await pc.current.createOffer();
-          await pc.current.setLocalDescription(offer);
+          // No video sender exists (audio-only call) — add track and renegotiate
+          peerConn.addTrack(videoTrack, stream);
+          const offer = await peerConn.createOffer();
+          await peerConn.setLocalDescription(offer);
           if (callIdRef.current && roomIdRef.current && userId) {
-            signaling.publishOffer(callIdRef.current, roomIdRef.current, offer.sdp!, userId).catch(() => {});
+            signaling.publishOffer(
+              callIdRef.current,
+              roomIdRef.current,
+              peerConn.localDescription?.sdp ?? offer.sdp!,
+              userId,
+            ).catch(() => {});
           }
         }
         setIsVideoEnabled(true);
         setIsVideoCall(true);
       } catch (err) {
-        console.warn('[WebRTC] toggleVideo: camera access failed', err);
+        console.warn('[WebRTC] toggleVideo failed:', (err as Error).message);
       }
     }
-  }, [signaling, userId]);
+  }, [signaling, userId, initAudioContext]);
 
   // ── SCREEN SHARE TOGGLE ───────────────────────────────────────────────
   const toggleScreenShare = useCallback(async () => {

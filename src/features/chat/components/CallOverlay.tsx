@@ -152,49 +152,40 @@ export function CallOverlay({ webrtc }: Props) {
   }, [localStream]);
 
   // ── speaker routing ───────────────────────────────────────────────────
-  // setSinkId is only supported on Chrome desktop. On mobile we use
-  // selectAudioOutput() where available (Chrome 116+ Android), and fall
-  // back to a user-facing message on iOS Safari which has no API for this.
+  // ── speaker routing ───────────────────────────────────────────────────
+  // Android Chrome: setSinkId() works once mic permission is granted.
+  //   Mic grant also unlocks audiooutput device enumeration with real IDs.
+  //   'default' → loudspeaker, '' → earpiece on Android Chrome.
+  // iOS Chrome/Safari: setSinkId not supported — visual toggle only.
   const cycleSpeaker = useCallback(async () => {
     const el = remoteAudioRef.current;
-    const hasBT = audioDevs.some(d => /bluetooth|bt\b/i.test(d.label));
-    const modes: SpeakerMode[] = hasBT
-      ? ['earpiece','speaker','bluetooth']
-      : ['earpiece','speaker'];
-    const next = modes[(modes.indexOf(speakerMode)+1) % modes.length];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const nav = navigator as any;
+    // Re-enumerate — mic permission may have been granted since mount
+    let devices = audioDevs;
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      const outputs = all.filter(d => d.kind === 'audiooutput');
+      if (outputs.length > 0) { devices = outputs; setAudioDevs(outputs); }
+    } catch { /**/ }
+
+    const hasBT = devices.some(d => /bluetooth|bt\b/i.test(d.label));
+    const modes: SpeakerMode[] = hasBT
+      ? ['earpiece', 'speaker', 'bluetooth']
+      : ['earpiece', 'speaker'];
+    const next = modes[(modes.indexOf(speakerMode) + 1) % modes.length];
 
     if (next === 'speaker') {
-      // Try selectAudioOutput (Chrome 116+ Android) — prompts user to pick output
-      if (typeof nav.mediaDevices?.selectAudioOutput === 'function') {
-        try {
-          const device = await nav.mediaDevices.selectAudioOutput();
-          await setSinkSafe(el, device.deviceId);
-        } catch { /* user cancelled or not supported */ }
-      } else {
-        // Fallback: setSinkId with 'default' (Chrome desktop)
-        const ok = await setSinkSafe(el, 'default');
-        if (!ok) {
-          // iOS Safari — no API. Reconnect the audio element to force
-          // the browser to re-evaluate the output route.
-          if (el && el.srcObject) {
-            const src = el.srcObject;
-            el.srcObject = null;
-            el.srcObject = src;
-            el.play().catch(() => {});
-          }
-        }
-      }
+      // 'default' routes to loudspeaker on Android Chrome
+      await setSinkSafe(el, 'default');
     } else if (next === 'bluetooth') {
-      const bt = audioDevs.find(d => /bluetooth|bt\b/i.test(d.label));
-      if (bt) await setSinkSafe(el, bt.deviceId);
+      const bt = devices.find(d => /bluetooth|bt\b/i.test(d.label));
+      await setSinkSafe(el, bt?.deviceId ?? 'default');
     } else {
-      // Earpiece — setSinkId with the earpiece device or empty string (default)
-      const ear = audioDevs.find(d => /earpiece|receiver/i.test(d.label));
+      // Earpiece: '' or specific earpiece device ID
+      const ear = devices.find(d => /earpiece|receiver/i.test(d.label));
       await setSinkSafe(el, ear?.deviceId ?? '');
     }
+
     setSpeakerMode(next);
   }, [speakerMode, audioDevs, remoteAudioRef]);
 
