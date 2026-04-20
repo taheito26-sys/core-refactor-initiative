@@ -144,7 +144,30 @@ export interface GuidePricingResult {
   pricingVersion: string | null;
 }
 
-const ORDER_SELECT = '*';
+const ORDER_SELECT = [
+  'id',
+  'customer_user_id',
+  'merchant_id',
+  'connection_id',
+  'order_type',
+  'amount',
+  'currency',
+  'rate',
+  'total',
+  'status',
+  'note',
+  'created_at',
+  'updated_at',
+  'payment_proof_url',
+  'payment_proof_uploaded_at',
+  'send_country',
+  'receive_country',
+  'send_currency',
+  'receive_currency',
+  'payout_rail',
+].join(', ');
+
+const ORDER_INSERT_SELECT = 'id';
 
 const PRICING_VERSION = 'quote-flow-v1';
 
@@ -215,9 +238,6 @@ export function buildCustomerOrderPayload(input: CustomerOrderInput) {
     send_currency: input.sendCurrency,
     receive_currency: input.receiveCurrency,
     payout_rail: input.payoutRail,
-    pricing_mode: 'merchant_quote',
-    status: 'pending',
-    pricing_version: PRICING_VERSION,
   };
 }
 
@@ -352,6 +372,79 @@ function buildOrderEventMetadata(order: Partial<CustomerOrderRow>, extra?: Json)
   } as Json;
 }
 
+function isSchemaCacheColumnError(error: { message?: string } | null | undefined) {
+  const message = (error?.message ?? '').toLowerCase();
+  return message.includes('schema cache') || message.includes('could not find the') || message.includes('column');
+}
+
+function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: GuidePricingResult | null) {
+  const basePayload = {
+    customer_user_id: input.customerUserId,
+    merchant_id: input.merchantId,
+    connection_id: input.connectionId,
+    order_type: input.orderType,
+    amount: input.amount,
+    currency: input.sendCurrency,
+    rate: input.orderType === 'sell' ? input.rate : null,
+    total: input.orderType === 'sell' && input.rate && Number.isFinite(input.rate) ? input.amount * input.rate : null,
+    note: input.note,
+    send_country: input.sendCountry,
+    receive_country: input.receiveCountry,
+    send_currency: input.sendCurrency,
+    receive_currency: input.receiveCurrency,
+    payout_rail: input.payoutRail,
+  };
+
+  if (!pricing) return basePayload;
+
+  return {
+    ...basePayload,
+    pricing_mode: pricing.pricingMode,
+    guide_rate: pricing.guideRate,
+    guide_total: pricing.guideTotal,
+    guide_source: pricing.guideSource,
+    guide_snapshot: pricing.guideSnapshot,
+    guide_generated_at: pricing.guideGeneratedAt,
+    final_rate: null,
+    final_total: null,
+    final_quote_note: null,
+    final_quote_expires_at: null,
+    quoted_at: null,
+    quoted_by_user_id: null,
+    market_pair: pricing.marketPair,
+    pricing_version: pricing.pricingVersion,
+  };
+}
+
+async function insertCustomerOrderWithFallback(payload: Record<string, unknown>) {
+  const primary = await supabase.from('customer_orders').insert(payload).select(ORDER_INSERT_SELECT).single();
+  if (!primary.error) return primary;
+
+  if (!isSchemaCacheColumnError(primary.error)) {
+    return primary;
+  }
+
+  const {
+    pricing_mode: _pricingMode,
+    guide_rate: _guideRate,
+    guide_total: _guideTotal,
+    guide_source: _guideSource,
+    guide_snapshot: _guideSnapshot,
+    guide_generated_at: _guideGeneratedAt,
+    final_rate: _finalRate,
+    final_total: _finalTotal,
+    final_quote_note: _finalQuoteNote,
+    final_quote_expires_at: _finalQuoteExpiresAt,
+    quoted_at: _quotedAt,
+    quoted_by_user_id: _quotedByUserId,
+    market_pair: _marketPair,
+    pricing_version: _pricingVersion,
+    ...fallbackPayload
+  } = payload;
+
+  return supabase.from('customer_orders').insert(fallbackPayload).select(ORDER_INSERT_SELECT).single();
+}
+
 export function buildGuidePricingSnapshot(input: CustomerOrderInput, pricing: GuidePricingResult | null) {
   if (!pricing) {
     return null;
@@ -446,21 +539,22 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
   const guideSnapshot = buildGuidePricingSnapshot(input, pricing);
   const createdAt = nowIso();
   const payload = {
-    customer_user_id: input.customerUserId,
-    merchant_id: input.merchantId,
-    connection_id: input.connectionId,
-    order_type: input.orderType,
-    amount: input.amount,
-    currency: input.sendCurrency,
-    rate: null,
-    total: null,
+    ...buildCustomerOrderPayload({
+      customerUserId: input.customerUserId,
+      merchantId: input.merchantId,
+      connectionId: input.connectionId,
+      orderType: input.orderType,
+      amount: input.amount,
+      rate: null,
+      note: input.note,
+      sendCountry: input.sendCountry,
+      receiveCountry: input.receiveCountry,
+      sendCurrency: input.sendCurrency,
+      receiveCurrency: input.receiveCurrency,
+      payoutRail: input.payoutRail,
+      corridorLabel: input.corridorLabel,
+    }),
     status: 'pending_quote',
-    note: input.note,
-    send_country: input.sendCountry,
-    receive_country: input.receiveCountry,
-    send_currency: input.sendCurrency,
-    receive_currency: input.receiveCurrency,
-    payout_rail: input.payoutRail,
     pricing_mode: pricing.pricingMode,
     guide_rate: pricing.guideRate,
     guide_total: pricing.guideTotal,
@@ -473,14 +567,11 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
     final_quote_expires_at: null,
     quoted_at: null,
     quoted_by_user_id: null,
-    customer_accepted_quote_at: null,
-    customer_rejected_quote_at: null,
-    quote_rejection_reason: null,
     market_pair: pricing.marketPair,
     pricing_version: pricing.pricingVersion,
   };
 
-  const { data, error } = await supabase.from('customer_orders').insert(payload).select(ORDER_SELECT).single();
+  const { data, error } = await insertCustomerOrderWithFallback(payload);
   if (error) return { data: null, error };
 
   const order = data as CustomerOrderRow;
@@ -822,5 +913,12 @@ export async function updateCustomerProfile(userId: string, payload: Partial<Cus
 }
 
 export async function createCustomerOrder(input: CustomerOrderInput) {
-  return supabase.from('customer_orders').insert(buildCustomerOrderPayload(input)).select(ORDER_SELECT).single();
+  const payload = {
+    ...buildCustomerOrderPayload(input),
+    status: 'pending',
+    pricing_mode: 'merchant_quote',
+    pricing_version: PRICING_VERSION,
+  };
+
+  return insertCustomerOrderWithFallback(payload);
 }
