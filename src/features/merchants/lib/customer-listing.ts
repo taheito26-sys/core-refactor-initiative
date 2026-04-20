@@ -69,6 +69,41 @@ function mergeCustomerRows(base: ListedCustomer, extra: ListedCustomer): ListedC
   return base;
 }
 
+export function materializeListedCustomer(
+  customer: ListedCustomer,
+  existingCustomers: Customer[],
+): { id: string; customers: Customer[] } {
+  const normalizedId = customer.source === 'connected' ? customer.customerUserId : customer.id;
+  const normalizedCustomer: Customer = {
+    id: normalizedId,
+    name: customer.name,
+    phone: customer.phone,
+    tier: customer.tier,
+    dailyLimitUSDT: customer.dailyLimitUSDT,
+    notes: customer.notes,
+    createdAt: customer.createdAt,
+  };
+
+  const existingIndex = existingCustomers.findIndex((item) => item.id === normalizedId);
+  if (existingIndex === -1) {
+    return {
+      id: normalizedId,
+      customers: [...existingCustomers, normalizedCustomer],
+    };
+  }
+
+  const nextCustomers = [...existingCustomers];
+  nextCustomers[existingIndex] = {
+    ...nextCustomers[existingIndex],
+    ...normalizedCustomer,
+  };
+
+  return {
+    id: normalizedId,
+    customers: nextCustomers,
+  };
+}
+
 export function mapConnectedCustomers(
   connections: Array<{
     customer_user_id: string;
@@ -81,7 +116,7 @@ export function mapConnectedCustomers(
   return connections.map((row) => {
     const profile = profilesByUserId.get(row.customer_user_id);
     return {
-      id: `connected:${row.customer_user_id}`,
+      id: row.customer_user_id,
       name: resolveCustomerLabel({
         displayName: profile?.display_name ?? null,
         name: profile?.name ?? null,

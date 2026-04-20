@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveCustomerLabel } from './customer-labels';
-import { mapConnectedCustomers, mergeListedCustomers } from './customer-listing';
+import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers } from './customer-listing';
 
 describe('customer listing helpers', () => {
   it('uses customer profile display name before nickname and uid', () => {
@@ -12,7 +12,7 @@ describe('customer listing helpers', () => {
     );
 
     expect(rows[0]).toMatchObject({
-      id: 'connected:abc-123',
+      id: 'abc-123',
       name: 'Mohamed Taha',
       phone: '+974 5555 5555',
       customerUserId: 'abc-123',
@@ -49,11 +49,11 @@ describe('customer listing helpers', () => {
   it('keeps connected customers when merging and dedupes by name', () => {
     const merged = mergeListedCustomers(
       [{ id: 'local-1', name: 'Mohamed Taha', phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '', createdAt: 1 }],
-      [{ id: 'connected:user-123', name: 'Mohamed Taha', phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '', createdAt: 2, source: 'connected', customerUserId: 'user-123' }],
+      [{ id: 'user-123', name: 'Mohamed Taha', phone: '', tier: 'C', dailyLimitUSDT: 0, notes: '', createdAt: 2, source: 'connected', customerUserId: 'user-123' }],
     );
 
     expect(merged).toHaveLength(1);
-    expect(merged[0].id).toBe('connected:user-123');
+    expect(merged[0].id).toBe('user-123');
   });
 
   it('preserves local metadata when a connected customer shares the same name', () => {
@@ -72,7 +72,7 @@ describe('customer listing helpers', () => {
       ],
       [
         {
-          id: 'connected:user-123',
+          id: 'user-123',
           name: 'Rakan',
           phone: '',
           tier: 'C',
@@ -87,13 +87,45 @@ describe('customer listing helpers', () => {
 
     expect(merged).toHaveLength(1);
     expect(merged[0]).toMatchObject({
-      id: 'connected:user-123',
+      id: 'user-123',
       name: 'Rakan',
       source: 'connected',
       phone: '555-0101',
       tier: 'A',
       dailyLimitUSDT: 250,
       notes: 'VIP',
+    });
+  });
+
+  it('materializes connected customers into the same normal customer shape', () => {
+    const result = materializeListedCustomer(
+      {
+        id: 'user-123',
+        name: 'Connected Buyer',
+        phone: '+974 5555',
+        tier: 'C',
+        dailyLimitUSDT: 0,
+        notes: 'Doha',
+        createdAt: 123,
+        source: 'connected',
+        customerUserId: 'user-123',
+      },
+      [],
+    );
+
+    expect(result).toEqual({
+      id: 'user-123',
+      customers: [
+        {
+          id: 'user-123',
+          name: 'Connected Buyer',
+          phone: '+974 5555',
+          tier: 'C',
+          dailyLimitUSDT: 0,
+          notes: 'Doha',
+          createdAt: 123,
+        },
+      ],
     });
   });
 
@@ -119,7 +151,7 @@ describe('customer listing helpers', () => {
     );
 
     expect(row).toMatchObject({
-      id: 'connected:user-789',
+      id: 'user-789',
       name: 'Rakan Abd',
       phone: '555-2222',
       notes: 'Cairo',
@@ -189,7 +221,7 @@ describe('customer listing helpers', () => {
     );
 
     expect(row).toMatchObject({
-      id: 'connected:user-789',
+      id: 'user-789',
       name: 'Rakan Abd',
       phone: '555-2222',
       notes: 'Cairo',

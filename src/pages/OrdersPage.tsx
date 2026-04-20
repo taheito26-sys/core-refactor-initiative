@@ -23,7 +23,7 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { mapConnectedCustomers, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
+import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
@@ -926,7 +926,7 @@ export default function OrdersPage() {
     const nm = name.trim();
     if (!nm) return { id: '', customers: state.customers };
     const connected = connectedCustomers.find(c => normalizeName(c.name) === normalizeName(nm));
-    if (connected) return { id: connected.id, customers: state.customers };
+    if (connected) return materializeListedCustomer(connected, state.customers);
     const existing = state.customers.find(c => normalizeName(c.name) === normalizeName(nm));
     if (existing) return { id: existing.id, customers: state.customers };
     const nextCustomer: Customer = { id: uid(), name: nm, phone, tier, dailyLimitUSDT: 0, notes: '', createdAt: Date.now() };
@@ -1099,17 +1099,11 @@ export default function OrdersPage() {
     }
 
     let nextCustomers = state.customers;
-    let customerId = buyerId;
-    if (buyerId.startsWith('connected:')) {
-      const ensured = ensureCustomer(buyerName);
-      customerId = buyerId;
-      nextCustomers = ensured.customers;
-    } else if (buyerName.trim()) {
+    let customerId = '';
+    if (buyerName.trim()) {
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
-    } else {
-      customerId = '';
     }
 
     // Build trade with agreement fields if merchant-linked
@@ -3328,7 +3322,7 @@ export default function OrdersPage() {
                     {buyerMenuOpen && (
                       <div className="lookupMenu" style={isMobile ? { maxHeight: 220 } : undefined}>
                         {filteredCustomers.length ? filteredCustomers.map(c => (
-                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
+                          <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.source === 'connected' ? c.customerUserId : c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
                             <span>{c.name}</span><span className="lookupMeta">{c.source === 'connected' ? 'Connected customer' : c.phone || c.tier}</span>
                           </button>
                         )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}

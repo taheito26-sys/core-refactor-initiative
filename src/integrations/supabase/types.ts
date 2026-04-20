@@ -1375,7 +1375,6 @@ export type Database = {
             payment_proof_url: string | null
             payout_rail: string | null
             rate: number | null
-            quoted_at: string | null
             quoted_by_user_id: string | null
             quote_rejection_reason: string | null
             receive_country: string | null
@@ -1416,7 +1415,6 @@ export type Database = {
             payment_proof_url?: string | null
             payout_rail?: string | null
             rate?: number | null
-            quoted_at?: string | null
             quoted_by_user_id?: string | null
             quote_rejection_reason?: string | null
             receive_country?: string | null
@@ -1457,7 +1455,6 @@ export type Database = {
             payment_proof_url?: string | null
             payout_rail?: string | null
             rate?: number | null
-            quoted_at?: string | null
             quoted_by_user_id?: string | null
             quote_rejection_reason?: string | null
             receive_country?: string | null
