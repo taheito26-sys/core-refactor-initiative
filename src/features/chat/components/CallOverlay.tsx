@@ -51,8 +51,20 @@ async function setSinkSafe(el: HTMLAudioElement | null, id: string): Promise<boo
   if (!el) return false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const a = el as any;
-  if (typeof a.setSinkId !== 'function') return false;
-  try { await a.setSinkId(id); return true; } catch { return false; }
+  if (typeof a.setSinkId !== 'function') {
+    console.log('[Speaker] setSinkId not supported on this browser');
+    return false;
+  }
+  try {
+    // Ensure element is playing before routing — setSinkId fails on paused elements
+    if (el.paused && el.srcObject) el.play().catch(() => {});
+    await a.setSinkId(id);
+    console.log('[Speaker] setSinkId succeeded, deviceId:', id || '(earpiece)');
+    return true;
+  } catch (e) {
+    console.warn('[Speaker] setSinkId failed:', (e as Error).message);
+    return false;
+  }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────

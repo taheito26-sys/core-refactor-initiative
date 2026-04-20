@@ -1184,17 +1184,16 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         } catch { /**/ }
       }
 
-      // 4. Check if local mic tracks are still alive after screen lock.
-      // On Android Chrome the tracks stay 'live' but stop sending audio.
-      // We restart them unconditionally on resume to be safe.
+      // 4. Check if local mic tracks ended (OS killed them during screen lock).
+      // ONLY restart if readyState === 'ended'. Do NOT restart live tracks —
+      // replaceTrack() triggers ICE renegotiation which disrupts the call.
       const stream = localStreamRef.current;
       if (!stream || !pc.current || !callIdRef.current) return;
 
       const audioTracks = stream.getAudioTracks();
-      const needsRestart = audioTracks.length === 0 ||
-        audioTracks.some(t => t.readyState === 'ended');
+      const endedTracks = audioTracks.filter(t => t.readyState === 'ended');
 
-      if (needsRestart) {
+      if (audioTracks.length === 0 || endedTracks.length > 0) {
         console.log('[WebRTC] mic tracks ended — restarting');
         try {
           const newStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -1209,8 +1208,9 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
           console.warn('[WebRTC] mic restart failed', err);
         }
       } else {
-        // Re-enable tracks in case OS muted them at hardware level
-        audioTracks.forEach(t => { if (t.readyState === 'live') t.enabled = !isMuted; });
+        // Tracks are live — just ensure enabled state matches mute setting.
+        // Do NOT call replaceTrack here — it triggers ICE renegotiation.
+        audioTracks.forEach(t => { t.enabled = !isMuted; });
       }
     };
 
