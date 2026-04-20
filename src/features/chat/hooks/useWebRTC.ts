@@ -827,36 +827,48 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
 
   // ── MUTE ──────────────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
-    if (!localStream) return;
+    // Use localStreamRef (always current) not localStream (may be stale closure)
+    const stream = localStreamRef.current;
+    if (!stream) return;
     const newMuted = !isMuted;
-    localStream.getAudioTracks().forEach((t) => { t.enabled = !newMuted; });
+    stream.getAudioTracks().forEach((t) => { t.enabled = !newMuted; });
     setIsMuted(newMuted);
-  }, [localStream, isMuted]);
+  }, [isMuted]);
 
   // ── VIDEO TOGGLE ──────────────────────────────────────────────────────
   const toggleVideo = useCallback(async () => {
-    if (!localStream || !pc.current) return;
+    const stream = localStreamRef.current;
+    if (!stream || !pc.current) return;
 
-    const videoTracks = localStream.getVideoTracks().filter((t) => t !== screenTrackRef.current);
+    const videoTracks = stream.getVideoTracks().filter((t) => t !== screenTrackRef.current);
 
     if (videoTracks.length > 0) {
-      videoTracks.forEach((t) => { t.stop(); localStream.removeTrack(t); });
+      // Turn video OFF — stop tracks and null out the sender
+      videoTracks.forEach((t) => { t.stop(); stream.removeTrack(t); });
       const sender = pc.current.getSenders().find((s) => s.track?.kind === 'video' && s.track !== screenTrackRef.current);
       if (sender) await sender.replaceTrack(null);
       setIsVideoEnabled(false);
     } else {
+      // Turn video ON — get camera and renegotiate
       try {
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         });
         const videoTrack = videoStream.getVideoTracks()[0];
-        localStream.addTrack(videoTrack);
+        stream.addTrack(videoTrack);
 
+        // Find an existing null/video sender to replace, or add a new track
         const sender = pc.current.getSenders().find((s) => s.track === null || s.track?.kind === 'video');
         if (sender) {
           await sender.replaceTrack(videoTrack);
         } else {
-          pc.current.addTrack(videoTrack, localStream);
+          // New track — must renegotiate so remote peer gets video
+          pc.current.addTrack(videoTrack, stream);
+          const offer = await pc.current.createOffer();
+          await pc.current.setLocalDescription(offer);
+          if (callIdRef.current && roomIdRef.current && userId) {
+            signaling.publishOffer(callIdRef.current, roomIdRef.current, offer.sdp!, userId).catch(() => {});
+          }
         }
         setIsVideoEnabled(true);
         setIsVideoCall(true);
@@ -864,7 +876,7 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
         console.warn('[WebRTC] toggleVideo: camera access failed', err);
       }
     }
-  }, [localStream]);
+  }, [signaling, userId]);
 
   // ── SCREEN SHARE TOGGLE ───────────────────────────────────────────────
   const toggleScreenShare = useCallback(async () => {
@@ -935,8 +947,23 @@ export function useWebRTC(roomId: string | null): UseWebRTCReturn {
     sig.isAvailable().catch(() => {});
 
     const handlers: SignalingHandlers = {
-      // ── incoming call ──────────────────────────────────────────────────
+      // ── incoming call OR renegotiation offer ──────────────────────────
       onIncomingCall: (callId, sdpOffer, initiatedBy) => {
+        // If we're already in a connected call and receive an offer with the
+        // same callId, it's a renegotiation (e.g. remote peer added video).
+        if (callIdRef.current === callId && pc.current && sdpOffer) {
+          const sigState = pc.current.signalingState;
+          if (sigState === 'stable' || sigState === 'have-remote-offer') {
+            pc.current.setRemoteDescription({ type: 'offer', sdp: sdpOffer })
+              .then(() => pc.current!.createAnswer())
+              .then(async (answer) => {
+                await pc.current!.setLocalDescription(answer);
+                signaling.publishAnswer(callId, answer.sdp!).catch(() => {});
+              })
+              .catch(() => {});
+          }
+          return;
+        }
         if (callIdRef.current && callIdRef.current !== callId) return; // already in another call
         if (incomingCallRef.current?.id === callId) {
           if (sdpOffer) {
