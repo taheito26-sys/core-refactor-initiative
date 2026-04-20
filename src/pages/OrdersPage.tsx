@@ -23,6 +23,7 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { mapConnectedCustomers, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
@@ -188,60 +189,15 @@ export default function OrdersPage() {
         .from('customer_merchant_connections')
         .select('customer_user_id, created_at, status, nickname')
         .eq('merchant_id', merchantProfile.merchant_id)
-        .in('status', ['pending', 'active'])
+        .neq('status', 'blocked')
         .order('created_at', { ascending: false });
       if (error || !connections || connections.length === 0) return [];
-
-      const userIds = connections.map((row) => row.customer_user_id);
-      const { data: profiles } = await supabase
-        .from('customer_profiles')
-        .select('user_id, display_name, phone, region, country')
-        .in('user_id', userIds);
-      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
-
-      return connections.map((row: any) => {
-        const profile = profileMap.get(row.customer_user_id);
-        const displayName = (profile?.display_name ?? row.nickname ?? '').trim();
-        if (!displayName) return null;
-        return {
-          id: `connected:${row.customer_user_id}`,
-          name: displayName,
-          phone: profile?.phone || '',
-          tier: 'C',
-          dailyLimitUSDT: 0,
-          notes: profile?.region || profile?.country || '',
-          createdAt: Date.now(),
-          source: 'connected' as const,
-          customerUserId: row.customer_user_id,
-        };
-      }).filter((customer: any): customer is {
-        id: string;
-        name: string;
-        phone: string;
-        tier: string;
-        dailyLimitUSDT: number;
-        notes: string;
-        createdAt: number;
-        source: 'connected';
-        customerUserId: string;
-      } => Boolean(customer));
+      return mapConnectedCustomers(connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null }>);
     },
     enabled: !!merchantProfile?.merchant_id,
   });
 
-  const allBuyerOptions = useMemo(() => {
-    const local = state.customers ?? [];
-    const merged = [...connectedCustomers, ...local];
-    const deduped: typeof merged = [];
-    const seen = new Set<string>();
-    for (const customer of merged) {
-      const key = normalizeName(customer.name);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      deduped.push(customer);
-    }
-    return deduped;
-  }, [connectedCustomers, state.customers]);
+  const allBuyerOptions = useMemo<ListedCustomer[]>(() => mergeListedCustomers(state.customers ?? [], connectedCustomers), [connectedCustomers, state.customers]);
   const saleDraft = useMemo(() => deriveSaleDraft({
     saleEntryMode,
     saleMode,
@@ -3362,7 +3318,7 @@ export default function OrdersPage() {
                       <div className="lookupMenu" style={isMobile ? { maxHeight: 220 } : undefined}>
                         {filteredCustomers.length ? filteredCustomers.map(c => (
                           <button key={c.id} className="lookupItem" type="button" onClick={() => { setBuyerName(c.name); setBuyerId(c.id); setBuyerMenuOpen(false); }} style={isMobile ? { minHeight: 44 } : undefined}>
-                            <span>{c.name}</span><span className="lookupMeta">{c.phone || c.tier}</span>
+                            <span>{c.name}</span><span className="lookupMeta">{c.source === 'connected' ? 'Connected customer' : c.phone || c.tier}</span>
                           </button>
                         )) : <div className="lookupItem" style={{ cursor: 'default' }}><span>{t('noBuyersYet')}</span></div>}
                       </div>

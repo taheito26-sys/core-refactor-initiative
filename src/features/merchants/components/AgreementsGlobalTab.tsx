@@ -375,7 +375,7 @@ export function AgreementsGlobalTab({ relationships, allAgreements, activeAgreem
               {allAgreements.map(a => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const rel = relationships.find((r: any) => r.id === a.relationship_id);
-                const cpName = rel?.counterparty_name || '—';
+                const cpName = rel?.counterparty_name || rel?.counterparty_nickname || t('partner');
                 const active = a.status === 'approved' && isAgreementActive(a);
                 const isPending = a.status === 'pending';
                 const isCreator = a.created_by === userId;
