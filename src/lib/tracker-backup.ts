@@ -35,6 +35,16 @@ export const AUTO_BACKUP_KEYS = ['gasAutoSave', 'trackerAutoBackup', 'taheitoAut
 
 export type TrackerState = Record<string, unknown>;
 
+const TRACKER_DATA_KEYS = [
+  'batches',
+  'trades',
+  'customers',
+  'suppliers',
+  'cashAccounts',
+  'cashLedger',
+  'cashHistory',
+] as const;
+
 function storageKeys(storage: Storage): string[] {
   const keys: string[] = [];
   for (let i = 0; i < storage.length; i += 1) {
@@ -48,10 +58,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function looksLikeTrackerState(value: unknown): value is TrackerState {
+export function hasMeaningfulTrackerData(value: unknown): value is TrackerState {
   if (!isObject(value)) return false;
-  if (Array.isArray(value.trades) || Array.isArray(value.batches) || Array.isArray(value.customers)) return true;
-  return false;
+  return TRACKER_DATA_KEYS.some((key) => Array.isArray(value[key]));
+}
+
+function looksLikeTrackerState(value: unknown): value is TrackerState {
+  return hasMeaningfulTrackerData(value);
 }
 
 function extractFromSnapshots(value: Record<string, unknown>): TrackerState | null {

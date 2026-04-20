@@ -16,12 +16,14 @@ import {
   clearTrackerStorage,
   findTrackerStorageKey,
   getCurrentTrackerState,
+  hasMeaningfulTrackerData,
   loadAutoBackupFromStorage,
   normalizeImportedTrackerState,
   saveAutoBackupToStorage,
 } from '@/lib/tracker-backup';
-import { saveTrackerStateNow } from '@/lib/tracker-sync';
+import { saveTrackerStateNow, loadTrackerStateFromCloud } from '@/lib/tracker-sync';
 import type { TrackerState } from '@/lib/tracker-helpers';
+import { mergeLocalAndCloud } from '@/lib/tracker-state';
 import {
   gasLoadConfig, gasSaveConfig, gasPost, getGasUrl,
   getGasLastSync, setGasLastSync, fmtBytes,
@@ -136,6 +138,27 @@ function getCurrentState(): Record<string, unknown> {
   return getCurrentTrackerState(localStorage);
 }
 
+async function resolveVaultState(): Promise<Record<string, unknown>> {
+  const local = getCurrentState();
+  if (hasMeaningfulTrackerData(local)) return local;
+
+  try {
+    const cloud = await loadTrackerStateFromCloud();
+    const merged = mergeLocalAndCloud(local as Partial<TrackerState> | null, cloud);
+    if (merged && hasMeaningfulTrackerData(merged)) return merged;
+    if (cloud && hasMeaningfulTrackerData(cloud)) return cloud;
+  } catch {
+    // Fall through to the local-only state below.
+  }
+
+  return local;
+}
+
+function countVaultItems(state: Record<string, unknown>): number {
+  const collections = ['batches', 'trades', 'customers', 'suppliers', 'cashAccounts', 'cashLedger', 'cashHistory'] as const;
+  return collections.reduce((sum, key) => sum + (Array.isArray(state[key]) ? state[key].length : 0), 0);
+}
+
 async function clearTrackerVaultDb(): Promise<void> {
   await new Promise<void>((resolve) => {
     const req = indexedDB.deleteDatabase('p2p_tracker_vault');
@@ -218,7 +241,7 @@ export default function VaultPage() {
     }
     setLoading(true);
     try {
-      const state = getCurrentState();
+      const state = await resolveVaultState();
       await idbSave(state, snapDesc.trim());
       setSnapDesc('');
       toast.success(t.lang === 'ar' ? '📸 تم حفظ النسخة' : '📸 Snapshot saved');
@@ -286,7 +309,7 @@ export default function VaultPage() {
     if (!getGasUrl()) { toast.error('Cloud URL is missing'); return; }
     setCloudLoading(true);
     try {
-      const state = getCurrentState();
+      const state = await resolveVaultState();
       const res = await gasPost({
         action: 'backup',
         exportedAt: new Date().toISOString(),
@@ -368,16 +391,13 @@ export default function VaultPage() {
       try {
         const data = JSON.parse(reader.result as string);
         const normalized = normalizeImportedTrackerState(data);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tradeCount = Array.isArray(normalized.trades) ? (normalized.trades as any[]).length : 0;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const batchCount = Array.isArray(normalized.batches) ? (normalized.batches as any[]).length : 0;
-        if (!confirm(`Import this file? (${tradeCount} trades, ${batchCount} batches)\nThis will replace your current state.`)) return;
+        const itemCount = countVaultItems(normalized);
+        if (!confirm(`Import this file? (${itemCount} records)\nThis will replace your current state.`)) return;
         const sk = findTrackerStorageKey(localStorage);
         localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
         void saveTrackerStateNow(normalized as unknown as TrackerState);
-        toast.success('Data imported — reloading…');
+        toast.success(`Data imported (${itemCount} records) — reloading…`);
         setTimeout(() => window.location.reload(), 1000);
       } catch {
         toast.error('Invalid JSON file');
@@ -418,8 +438,8 @@ export default function VaultPage() {
 
 
   // Data export helpers
-  const exportJSON = () => {
-    const state = getCurrentState();
+  const exportJSON = async () => {
+    const state = await resolveVaultState();
     const fname = `p2p-tracker-${new Date().toISOString().slice(0, 10)}.json`;
     downloadBlob(JSON.stringify(state, null, 2), fname);
     setExportStatus('success');
@@ -427,53 +447,226 @@ export default function VaultPage() {
     setTimeout(() => setExportStatus('idle'), 3000);
   };
 
-  const exportCSV = () => {
+  const exportCSV = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const state = getCurrentState() as any;
-    const trades = state.trades || [];
-    if (!trades.length) { toast.error(t.lang === 'ar' ? 'لا توجد صفقات للتصدير' : 'No trades to export'); return; }
-    const headers = ['id', 'ts', 'amountUSDT', `sellPrice${baseFiat}`, `fee${baseFiat}`, 'note', 'voided'];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = trades.map((trade: any) => ([
-      trade.id ?? '',
-      trade.ts ?? trade.created_at ?? '',
-      trade.amountUSDT ?? trade.quantity ?? '',
-      trade.sellPriceQAR ?? trade.unit_price ?? '',
-      trade.feeQAR ?? trade.fee ?? '',
-      trade.note ?? trade.notes ?? '',
-      trade.voided ?? trade.status ?? '',
-    ]).map((cell) => JSON.stringify(cell ?? '')).join(','));
-    downloadBlob([headers.join(','), ...rows].join('\n'), `trades-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
+    const state = await resolveVaultState() as any;
+    const trades = Array.isArray(state.trades) ? state.trades : [];
+    const batches = Array.isArray(state.batches) ? state.batches : [];
+    const customers = Array.isArray(state.customers) ? state.customers : [];
+    const suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
+    const cashAccounts = Array.isArray(state.cashAccounts) ? state.cashAccounts : [];
+    const cashLedger = Array.isArray(state.cashLedger) ? state.cashLedger : [];
+    const cashHistory = Array.isArray(state.cashHistory) ? state.cashHistory : [];
+
+    const hasData =
+      trades.length > 0 ||
+      batches.length > 0 ||
+      customers.length > 0 ||
+      suppliers.length > 0 ||
+      cashAccounts.length > 0 ||
+      cashLedger.length > 0 ||
+      cashHistory.length > 0;
+
+    if (!hasData) {
+      toast.error(t.lang === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+      return;
+    }
+
+    const headers = ['collection', 'id', 'ts', 'label', 'amount_or_qty', 'rate_or_type', 'fee_or_direction', 'note', 'status', 'payload'];
+    const rows: string[] = [];
+
+    if (trades.length > 0) {
+      trades.forEach((trade: any) => {
+        rows.push([
+          'trades',
+          trade.id ?? '',
+          trade.ts ?? trade.created_at ?? '',
+          trade.customerId ?? trade.customer_id ?? '',
+          trade.amountUSDT ?? trade.quantity ?? '',
+          trade.sellPriceQAR ?? trade.unit_price ?? '',
+          trade.feeQAR ?? trade.fee ?? '',
+          trade.note ?? trade.notes ?? '',
+          trade.voided ?? trade.status ?? '',
+          JSON.stringify({ linkedDealId: trade.linkedDealId ?? null, linkedRelId: trade.linkedRelId ?? null }),
+        ].map((cell) => JSON.stringify(cell ?? '')).join(','));
+      });
+    } else {
+      const addRows = (collection: string, items: any[], mapper: (item: any) => string[]) => {
+        items.forEach((item) => {
+          rows.push([collection, ...mapper(item)].map((cell) => JSON.stringify(cell ?? '')).join(','));
+        });
+      };
+
+      addRows('batches', batches, (b) => [
+        b.id ?? '',
+        b.ts ?? b.acquired_at ?? b.created_at ?? '',
+        b.source ?? b.supplier ?? '',
+        b.buyPriceQAR ?? b.priceQAR ?? b.price ?? b.unit_cost ?? '',
+        b.initialUSDT ?? b.qty ?? b.quantity ?? '',
+        b.note ?? b.notes ?? '',
+        JSON.stringify({ custodyType: b.custodyType ?? null, custodyMerchantId: b.custodyMerchantId ?? null }),
+      ]);
+      addRows('customers', customers, (c) => [
+        c.id ?? '',
+        c.createdAt ?? c.created_at ?? '',
+        c.name ?? '',
+        c.phone ?? '',
+        c.tier ?? '',
+        c.dailyLimitUSDT ?? '',
+        c.notes ?? '',
+        JSON.stringify(c),
+      ]);
+      addRows('suppliers', suppliers, (s) => [
+        s.id ?? '',
+        s.createdAt ?? s.created_at ?? '',
+        s.name ?? '',
+        s.phone ?? '',
+        s.notes ?? '',
+        JSON.stringify(s),
+      ]);
+      addRows('cashAccounts', cashAccounts, (a) => [
+        a.id ?? '',
+        a.createdAt ?? a.created_at ?? '',
+        a.name ?? '',
+        a.type ?? '',
+        a.currency ?? '',
+        a.status ?? '',
+        a.nickname ?? '',
+        JSON.stringify({ merchantId: a.merchantId ?? null, relationshipId: a.relationshipId ?? null, purpose: a.purpose ?? null }),
+      ]);
+      addRows('cashLedger', cashLedger, (l) => [
+        l.id ?? '',
+        l.ts ?? '',
+        l.type ?? '',
+        l.accountId ?? '',
+        l.direction ?? '',
+        l.amount ?? '',
+        l.currency ?? '',
+        l.note ?? '',
+        JSON.stringify({ merchantId: l.merchantId ?? null, tradeId: l.tradeId ?? null, orderId: l.orderId ?? null, batchId: l.batchId ?? null }),
+      ]);
+      addRows('cashHistory', cashHistory, (h) => [
+        h.id ?? '',
+        h.ts ?? '',
+        h.type ?? '',
+        h.amount ?? '',
+        h.balanceAfter ?? '',
+        h.owner ?? '',
+        h.bankAccount ?? '',
+        h.note ?? '',
+        JSON.stringify(h),
+      ]);
+    }
+
+    downloadBlob([headers.join(','), ...rows].join('\n'), `p2p-tracker-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
     setExportStatus('success');
     toast.success(t.lang === 'ar' ? 'تم تصدير CSV' : 'CSV exported');
     setTimeout(() => setExportStatus('idle'), 3000);
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const state = getCurrentState() as any;
-    const trades = state.trades || [];
-    const batches = state.batches || [];
-    if (!trades.length && !batches.length) {
+    const state = await resolveVaultState() as any;
+    const trades = Array.isArray(state.trades) ? state.trades : [];
+    const batches = Array.isArray(state.batches) ? state.batches : [];
+    const customers = Array.isArray(state.customers) ? state.customers : [];
+    const suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
+    const cashAccounts = Array.isArray(state.cashAccounts) ? state.cashAccounts : [];
+    const cashLedger = Array.isArray(state.cashLedger) ? state.cashLedger : [];
+    const cashHistory = Array.isArray(state.cashHistory) ? state.cashHistory : [];
+
+    const hasData =
+      trades.length > 0 ||
+      batches.length > 0 ||
+      customers.length > 0 ||
+      suppliers.length > 0 ||
+      cashAccounts.length > 0 ||
+      cashLedger.length > 0 ||
+      cashHistory.length > 0;
+
+    if (!hasData) {
       toast.error(t.lang === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
       return;
     }
-    const tradeHeaders = ['ID', 'Date', 'Amount USDT', `Sell Price ${baseFiat}`, `Fee ${baseFiat}`, 'Note', 'Voided'];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tradeRows = trades.map((tr: any) => [
-      tr.id || '', new Date(tr.ts || tr.created_at || 0).toLocaleString(),
-      tr.amountUSDT ?? tr.quantity ?? '', tr.sellPriceQAR ?? tr.unit_price ?? '',
-      tr.feeQAR ?? tr.fee ?? '', tr.note ?? tr.notes ?? '', tr.voided ?? tr.status ?? ''
-    ].join('\t'));
-    const batchHeaders = ['ID', 'Date', 'Quantity USDT', `Buy Price ${baseFiat}`, 'Source', 'Note'];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const batchRows = batches.map((b: any) => [
-      b.id || '', new Date(b.ts || b.acquired_at || b.created_at || 0).toLocaleString(),
-      b.initialUSDT ?? b.qty ?? b.quantity ?? '', b.buyPriceQAR ?? b.priceQAR ?? b.price ?? b.unit_cost ?? '',
-      b.source ?? b.supplier ?? b.notes ?? '', b.note ?? ''
-    ].join('\t'));
-    const content = `TRADES\n${tradeHeaders.join('\t')}\n${tradeRows.join('\n')}\n\nBATCHES\n${batchHeaders.join('\t')}\n${batchRows.join('\n')}`;
-    downloadBlob(content, `p2p-tracker-${new Date().toISOString().slice(0, 10)}.tsv`, 'text/tab-separated-values');
+
+    if (trades.length || batches.length) {
+      const tradeHeaders = ['ID', 'Date', 'Amount USDT', `Sell Price ${baseFiat}`, `Fee ${baseFiat}`, 'Note', 'Voided'];
+      const tradeRows = trades.map((tr: any) => [
+        tr.id || '', new Date(tr.ts || tr.created_at || 0).toLocaleString(),
+        tr.amountUSDT ?? tr.quantity ?? '', tr.sellPriceQAR ?? tr.unit_price ?? '',
+        tr.feeQAR ?? tr.fee ?? '', tr.note ?? tr.notes ?? '', tr.voided ?? tr.status ?? ''
+      ].join('\t'));
+      const batchHeaders = ['ID', 'Date', 'Quantity USDT', `Buy Price ${baseFiat}`, 'Source', 'Note'];
+      const batchRows = batches.map((b: any) => [
+        b.id || '', new Date(b.ts || b.acquired_at || b.created_at || 0).toLocaleString(),
+        b.initialUSDT ?? b.qty ?? b.quantity ?? '', b.buyPriceQAR ?? b.priceQAR ?? b.price ?? b.unit_cost ?? '',
+        b.source ?? b.supplier ?? b.notes ?? '', b.note ?? ''
+      ].join('\t'));
+      const content = `TRADES\n${tradeHeaders.join('\t')}\n${tradeRows.join('\n')}\n\nBATCHES\n${batchHeaders.join('\t')}\n${batchRows.join('\n')}`;
+      downloadBlob(content, `p2p-tracker-${new Date().toISOString().slice(0, 10)}.tsv`, 'text/tab-separated-values');
+    } else {
+      const headers = ['collection', 'id', 'ts', 'label', 'amount_or_qty', 'rate_or_type', 'fee_or_direction', 'note', 'status', 'payload'];
+      const rows: string[] = [];
+      const addRows = (collection: string, items: any[], mapper: (item: any) => string[]) => {
+        items.forEach((item) => {
+          rows.push([collection, ...mapper(item)].map((cell) => String(cell ?? '').replace(/\t/g, ' ')).join('\t'));
+        });
+      };
+
+      addRows('customers', customers, (c) => [
+        c.id ?? '',
+        c.createdAt ?? c.created_at ?? '',
+        c.name ?? '',
+        c.phone ?? '',
+        c.tier ?? '',
+        c.dailyLimitUSDT ?? '',
+        c.notes ?? '',
+        JSON.stringify(c),
+      ]);
+      addRows('suppliers', suppliers, (s) => [
+        s.id ?? '',
+        s.createdAt ?? s.created_at ?? '',
+        s.name ?? '',
+        s.phone ?? '',
+        s.notes ?? '',
+        JSON.stringify(s),
+      ]);
+      addRows('cashAccounts', cashAccounts, (a) => [
+        a.id ?? '',
+        a.createdAt ?? a.created_at ?? '',
+        a.name ?? '',
+        a.type ?? '',
+        a.currency ?? '',
+        a.status ?? '',
+        a.nickname ?? '',
+        JSON.stringify({ merchantId: a.merchantId ?? null, relationshipId: a.relationshipId ?? null, purpose: a.purpose ?? null }),
+      ]);
+      addRows('cashLedger', cashLedger, (l) => [
+        l.id ?? '',
+        l.ts ?? '',
+        l.type ?? '',
+        l.accountId ?? '',
+        l.direction ?? '',
+        l.amount ?? '',
+        l.currency ?? '',
+        l.note ?? '',
+        JSON.stringify({ merchantId: l.merchantId ?? null, tradeId: l.tradeId ?? null, orderId: l.orderId ?? null, batchId: l.batchId ?? null }),
+      ]);
+      addRows('cashHistory', cashHistory, (h) => [
+        h.id ?? '',
+        h.ts ?? '',
+        h.type ?? '',
+        h.amount ?? '',
+        h.balanceAfter ?? '',
+        h.owner ?? '',
+        h.bankAccount ?? '',
+        h.note ?? '',
+        JSON.stringify(h),
+      ]);
+
+      const content = [headers.join('\t'), ...rows].join('\n');
+      downloadBlob(content, `p2p-tracker-${new Date().toISOString().slice(0, 10)}.tsv`, 'text/tab-separated-values');
+    }
     setExportStatus('success');
     toast.success(t.lang === 'ar' ? 'تم تصدير Excel (TSV)' : 'Excel (TSV) exported');
     setTimeout(() => setExportStatus('idle'), 3000);
@@ -489,15 +682,12 @@ export default function VaultPage() {
       try {
         const data = JSON.parse(reader.result as string);
         const normalized = normalizeImportedTrackerState(data);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tradeCount = Array.isArray(normalized.trades) ? (normalized.trades as any[]).length : 0;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const batchCount = Array.isArray(normalized.batches) ? (normalized.batches as any[]).length : 0;
+        const itemCount = countVaultItems(normalized);
         
         if (!confirm(
           t.lang === 'ar' 
-            ? `استيراد هذه البيانات؟ (${tradeCount} صفقة، ${batchCount} دفعة)\nسيتم استبدال البيانات الحالية.`
-            : `Import this data? (${tradeCount} trades, ${batchCount} batches)\nThis will replace your current state.`
+            ? `استيراد هذه البيانات؟ (${itemCount} سجل)\nسيتم استبدال البيانات الحالية.`
+            : `Import this data? (${itemCount} records)\nThis will replace your current state.`
         )) {
           setImportStatus('idle');
           return;
@@ -508,9 +698,9 @@ export default function VaultPage() {
         void saveTrackerStateNow(normalized as unknown as TrackerState);
         setImportStatus('success');
         setImportMsg(t.lang === 'ar' 
-          ? `✓ تم الاستيراد: ${tradeCount} صفقة، ${batchCount} دفعة` 
-          : `✓ Imported: ${tradeCount} trades, ${batchCount} batches`);
-        toast.success(t.lang === 'ar' ? 'تم استيراد البيانات — جاري إعادة التحميل…' : 'Data imported — reloading…');
+          ? `✓ تم الاستيراد: ${itemCount} سجل`
+          : `✓ Imported: ${itemCount} records`);
+        toast.success(t.lang === 'ar' ? 'تم استيراد البيانات — جاري إعادة التحميل…' : `Data imported (${itemCount} records) — reloading…`);
         setTimeout(() => window.location.reload(), 1000);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
@@ -532,7 +722,7 @@ export default function VaultPage() {
     clearTrackerStorage(localStorage);
     localStorage.setItem('tracker_data_cleared', 'true');
     await clearTrackerVaultDb();
-    const emptyState = { batches: [], trades: [], customers: [], cashQAR: 0, cashOwner: '', currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } };
+    const emptyState = { batches: [], trades: [], customers: [], suppliers: [], cashQAR: 0, cashOwner: '', cashHistory: [], cashAccounts: [], cashLedger: [], currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } };
     void saveTrackerStateNow(emptyState as unknown as TrackerState);
     toast.success(t.lang === 'ar' ? 'تم مسح البيانات — جاري إعادة التحميل…' : 'Data cleared — reloading…');
     setTimeout(() => window.location.reload(), 500);

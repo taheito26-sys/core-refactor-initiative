@@ -1,6 +1,6 @@
 // Production-ready tracker state bootstrap — loads imported/local state first, then cloud
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
-import { getCurrentTrackerState } from './tracker-backup';
+import { getCurrentTrackerState, hasMeaningfulTrackerData } from './tracker-backup';
 
 interface StateOverrides {
   lowStockThreshold?: number;
@@ -20,7 +20,7 @@ function loadStoredTrackerState(): Partial<TrackerState> | null {
   if (!stored || typeof stored !== 'object') return null;
 
   const candidate = stored as Partial<TrackerState>;
-  if (!Array.isArray(candidate.batches) && !Array.isArray(candidate.trades) && !Array.isArray(candidate.customers)) {
+  if (!hasMeaningfulTrackerData(candidate)) {
     return null;
   }
 
@@ -71,10 +71,12 @@ export function mergeLocalAndCloud(
   if (!local) return cloud;
 
   const localCount = (local.trades?.length ?? 0) + (local.batches?.length ?? 0) + (local.customers?.length ?? 0) + (local.suppliers?.length ?? 0);
+  const localCashCount = (local.cashAccounts?.length ?? 0) + (local.cashLedger?.length ?? 0) + (local.cashHistory?.length ?? 0);
   const cloudCount = (cloud.trades?.length ?? 0) + (cloud.batches?.length ?? 0) + (cloud.customers?.length ?? 0) + (cloud.suppliers?.length ?? 0);
+  const cloudCashCount = (cloud.cashAccounts?.length ?? 0) + (cloud.cashLedger?.length ?? 0) + (cloud.cashHistory?.length ?? 0);
 
   // Use whichever has more data
-  return cloudCount >= localCount ? cloud : local;
+  return (cloudCount + cloudCashCount) >= (localCount + localCashCount) ? cloud : local;
 }
 
 export function createEmptyState(overrides?: StateOverrides): { state: TrackerState; derived: DerivedState } {

@@ -1,6 +1,7 @@
 // Cross-device tracker state & preferences sync via Supabase
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
+import { hasMeaningfulTrackerData } from './tracker-backup';
 import type { TrackerState } from './tracker-helpers';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -179,7 +180,7 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
   if (!cloudState || typeof cloudState !== 'object') return null;
 
   // Validate it looks like tracker state
-  if (!Array.isArray(cloudState.batches) && !Array.isArray(cloudState.trades) && !Array.isArray(cloudState.customers)) {
+  if (!hasMeaningfulTrackerData(cloudState)) {
     return null;
   }
 
