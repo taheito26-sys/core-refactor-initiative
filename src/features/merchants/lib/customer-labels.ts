@@ -8,7 +8,6 @@ export function resolveCustomerLabel(params: {
     params.displayName,
     params.name,
     params.nickname,
-    params.customerUserId,
   ];
 
   for (const candidate of candidates) {
@@ -16,7 +15,12 @@ export function resolveCustomerLabel(params: {
     if (label) return label;
   }
 
-  return params.customerUserId.trim() || 'Customer';
+  // Fall back to a shortened UUID rather than the full raw ID
+  const uid = params.customerUserId?.trim();
+  if (!uid) return 'Customer';
+  // If it looks like a UUID, show first 8 chars prefixed with #
+  if (/^[0-9a-f]{8}-/i.test(uid)) return `Client #${uid.slice(0, 8).toUpperCase()}`;
+  return uid;
 }
 
 export function resolveCustomerDisplayName(
