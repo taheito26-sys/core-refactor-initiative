@@ -307,7 +307,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
         .from('customer_profiles')
         .select('user_id, display_name, name, phone, region, country')
         .in('user_id', userIds);
-      if (profileError) throw profileError;
+      if (profileError) console.warn('customer_profiles fetch failed:', profileError);
       const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
       return (data ?? []).map((row) => ({
         ...row,
@@ -455,7 +455,29 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   ];
 
   if (isLoading) {
-    return <div className="empty"><div className="empty-t">Loading customer orders...</div></div>;
+    return (
+      <div className="space-y-3">
+        {!isAdminView && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowPlaceOrder(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" /> Place Order for Client
+            </button>
+          </div>
+        )}
+        <div className="empty"><div className="empty-t">Loading customer orders...</div></div>
+        {showPlaceOrder && (
+          <PlaceOrderForClientModal
+            merchantId={resolvedMerchantId ?? ''}
+            userId={userId ?? ''}
+            onClose={() => setShowPlaceOrder(false)}
+            onCreated={() => setShowPlaceOrder(false)}
+          />
+        )}
+      </div>
+    );
   }
 
   return (
