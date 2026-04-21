@@ -399,6 +399,24 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     enabled: !!resolvedMerchantId,
   });
 
+  useEffect(() => {
+    if (!resolvedMerchantId) return;
+    const channel = supabase
+      .channel(`merchant-customer-orders-${resolvedMerchantId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customer_orders', filter: `merchant_id=eq.${resolvedMerchantId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient, resolvedMerchantId]);
+
   const customerIds = useMemo(() => [...new Set(orders.map((o) => o.customer_user_id))], [orders]);
   const { data: customerConnections = [] } = useQuery({
     queryKey: ['merchant-customer-connections', customerIds, resolvedMerchantId],

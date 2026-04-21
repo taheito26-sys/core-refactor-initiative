@@ -103,7 +103,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
       const conn = connections.find((c: any) => c.merchant_id === merchantId);
       if (!conn) throw new Error(L('Merchant not found', 'التاجر غير موجود'));
       const selectedAccount = cashAccounts.find((account: any) => account.id === customerCashAccountId);
-      const { error } = await createCustomerOrderWithGuide({
+      const { data: order, error } = await createCustomerOrderWithGuide({
         customerUserId: userId,
         merchantId,
         connectionId: conn.id,
@@ -121,8 +121,20 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
         customerCashAccountName: selectedAccount?.name ?? null,
       });
       if (error) throw error;
+      return { order, merchantId };
     },
-    onSuccess: () => { toast.success(L('Order placed', 'تم تقديم الطلب')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onCreated(); },
+    onSuccess: (result) => {
+      if (result?.order) {
+        qc.setQueryData<CustomerOrderRow[]>(
+          ['c-orders', userId],
+          (current = []) => [result.order, ...current.filter((existing) => existing.id !== result.order.id)],
+        );
+        qc.invalidateQueries({ queryKey: ['merchant-customer-orders', result.merchantId] });
+      }
+      toast.success(L('Order placed', 'تم تقديم الطلب'));
+      qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+      onCreated();
+    },
     onError: (e: any) => toast.error(e.message),
   });
 

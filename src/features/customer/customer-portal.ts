@@ -683,6 +683,8 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
   if (error) return { data: null, error };
 
   const order = data as CustomerOrderRow;
+  const fullOrderResult = await getCustomerOrder(order.id);
+  const fullOrder = (fullOrderResult.data ?? order) as CustomerOrderRow;
   const eventMetadata = buildOrderEventMetadata(order, {
     event_type: 'customer_order_created',
     status: order.status,
@@ -691,7 +693,7 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
   await insertCustomerOrderEvent(order.id, input.customerUserId, 'customer_order_created', eventMetadata);
   await insertCustomerOrderEvent(order.id, input.customerUserId, 'guide_price_generated', eventMetadata);
 
-  if (merchantUserId) {
+  if (false && merchantUserId) {
     await insertCustomerNotification({
       userId: merchantUserId,
       title: 'New customer order request',
@@ -704,7 +706,7 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
     });
   }
 
-  return { data: order, error: null };
+  return { data: fullOrder, error: null };
 }
 
 export async function commitCustomerQuote(
