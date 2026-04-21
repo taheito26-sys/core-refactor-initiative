@@ -1451,6 +1451,47 @@ export default function OrdersPage() {
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
     }
 
+    // ─── Sync to customer_orders when buyer is a connected customer ──────────
+    // This makes the trade visible on the customer portal side.
+    try {
+      const connectedBuyer = connectedCustomers.find(c => c.customerUserId === buyerId || c.id === buyerId);
+      if (connectedBuyer?.customerUserId && merchantProfile?.merchant_id) {
+        // Find the connection row for this buyer
+        const { data: connRow } = await supabase
+          .from('customer_merchant_connections')
+          .select('id')
+          .eq('merchant_id', merchantProfile.merchant_id)
+          .eq('customer_user_id', connectedBuyer.customerUserId)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (connRow?.id) {
+          await supabase.from('customer_orders').insert({
+            customer_user_id: connectedBuyer.customerUserId,
+            merchant_id: merchantProfile.merchant_id,
+            connection_id: connRow.id,
+            order_type: 'buy',
+            amount: baseTrade.amountUSDT,
+            currency: 'USDT',
+            rate: baseTrade.sellPriceQAR,
+            total: baseTrade.amountUSDT * baseTrade.sellPriceQAR,
+            status: 'completed',
+            note: baseTrade.note || null,
+            send_currency: 'USDT',
+            receive_currency: settings.baseFiatCurrency || 'QAR',
+            final_rate: baseTrade.sellPriceQAR,
+            final_total: baseTrade.amountUSDT * baseTrade.sellPriceQAR,
+            pricing_mode: 'merchant_quote',
+            pricing_version: 'tracker-sync-v1',
+            market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
+          });
+        }
+      }
+    } catch (syncErr) {
+      // Non-fatal — local trade is already saved
+      console.warn('customer_orders sync failed:', syncErr);
+    }
+
     // Reset form
     setSaleAmount('');
     setMerchantOrderEnabled(false);

@@ -71,7 +71,136 @@ Rules:
 - Update after every completed step
 - Use this for: multi-file implementations, spec task execution, debugging sessions, any work with 3+ distinct steps
 
-## Tool Call Rate Limit Rule — NEVER produce "Too many requests"
+---
+
+## KIRO RATE-LIMIT PROTECTION PROTOCOL — Non-Negotiable Operational Rules
+
+### OBJECTIVE
+Prevent "Too many requests" and rate-limit failures by enforcing disciplined, minimal, and batched tool usage. Stability takes priority over speed.
+
+---
+
+### RULE 1 — PLAN BEFORE ANY TOOL CALL
+Never call a tool immediately after reasoning. First build a compact execution plan listing:
+- required inputs
+- expected outputs
+- number of tool calls required
+
+If the plan requires more than 3 tool calls, you MUST redesign the plan to reduce the count.
+**No planning = no tool execution.**
+
+---
+
+### RULE 2 — HARD TOOL CALL LIMIT
+Within a single response cycle:
+- Maximum allowed tool calls: **3**
+- Preferred target: **1**
+- Absolute maximum burst: **5**
+
+If the task appears to require more than this:
+1. STOP
+2. Consolidate operations
+3. Batch work into larger actions
+4. Proceed only after reduction
+
+---
+
+### RULE 3 — BATCH OPERATIONS BY TYPE
+Never perform micro-operations. Combine:
+- Multiple reads → **one read** (`readMultipleFiles`)
+- Multiple writes → **one write** (full file via `fsWrite` or single `strReplace`)
+- Multiple checks → **one verification**
+
+**Forbidden pattern:**
+```
+read → write → read → write → read → write
+```
+**Required pattern:**
+```
+read everything → process locally → write once → verify once
+```
+
+---
+
+### RULE 4 — NO RETRY LOOPS
+If a tool call fails:
+- Do not retry immediately
+- Do not loop
+- Do not escalate call frequency
+
+Instead:
+1. Pause reasoning
+2. Analyze cause
+3. Adjust strategy
+4. Attempt only one controlled retry
+
+**Maximum retries allowed: 1**
+
+---
+
+### RULE 5 — RATE-LIMIT DETECTION
+If any of the following occurs:
+- "Too many requests"
+- Rate limit / 429 response
+- Quota exceeded
+- Tool throttled
+
+**Immediately switch to SAFE MODE.**
+
+---
+
+### RULE 6 — SAFE MODE BEHAVIOR
+When SAFE MODE is triggered:
+- Stop all non-essential tool calls
+- Reduce call frequency
+- Increase batching
+- Prefer reasoning over execution
+- Delay further tool usage until necessary
+
+**Only one tool call is allowed while in SAFE MODE.**
+
+---
+
+### RULE 7 — COOLDOWN ENFORCEMENT
+After a rate-limit event:
+- Do not issue another tool call until:
+  - You have redesigned the execution plan AND
+  - Reduced expected tool calls
+
+**Never continue the same call pattern.**
+
+---
+
+### RULE 8 — VERIFY ONLY ONCE
+After completing changes:
+- Perform exactly **one** verification step
+- Never verify repeatedly unless a critical failure is detected
+
+---
+
+### RULE 9 — TOOL CALL EFFICIENCY PRINCIPLE
+Every tool call must deliver significant progress.
+If a call produces only minor information: **do not make it.**
+
+---
+
+### RULE 10 — STABILITY PRIORITY
+Operational stability overrides: speed, completeness, curiosity, perfection.
+
+If a choice exists between more calls or fewer calls — **always choose fewer calls.**
+
+---
+
+### MANDATORY BEHAVIOR SUMMARY
+```
+Plan first → Batch work → Execute once → Verify once → Retry once → Never loop
+```
+
+**Violation of these rules is considered a system error.**
+
+---
+
+## Tool Call Rate Limit Rule (Quick Reference)
 
 Root cause: too many tool calls in rapid succession within one response.
 
