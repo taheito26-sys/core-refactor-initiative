@@ -88,6 +88,8 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
     enabled: !!userId,
   });
 
+  const selectedCashAccount = cashAccounts.find((account: any) => account.id === merchantCashAccountId) ?? null;
+
   useEffect(() => {
     if (merchantCashAccountId || cashAccounts.length === 0) return;
     setMerchantCashAccountId(cashAccounts[0].id);
@@ -121,7 +123,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
       if (!connId || !amount || parseFloat(amount) <= 0)
         throw new Error('Select a client and enter an amount');
       const numAmount = parseFloat(amount);
-      const { error } = await supabase.rpc('mirror_merchant_customer_order', {
+      const { data, error } = await supabase.rpc('mirror_merchant_customer_order', {
         p_connection_id: connId,
         p_amount: numAmount,
         p_currency: sendCurrency,
@@ -130,8 +132,6 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
         p_rate: null,
         p_total: null,
         p_note: note.trim() || null,
-        p_merchant_cash_account_id: merchantCashAccountId || null,
-        p_merchant_cash_account_name: cashAccounts.find((account: any) => account.id === merchantCashAccountId)?.name ?? null,
         p_send_country: sendCountry,
         p_receive_country: receiveCountry,
         p_send_currency: sendCurrency,
@@ -155,6 +155,20 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
         p_pricing_version: guide?.pricingVersion ?? 'merchant-placed-v1',
       });
       if (error) throw error;
+
+      if (selectedCashAccount?.id) {
+        const { error: cashLinkError } = await supabase
+          .from('customer_orders')
+          .update({
+            merchant_cash_account_id: selectedCashAccount.id,
+            merchant_cash_account_name: selectedCashAccount.name,
+          })
+          .eq('id', (data as any)?.id);
+
+        if (cashLinkError) {
+          console.warn('[merchant-customer-orders] cash account link skipped:', cashLinkError.message);
+        }
+      }
     },
     onSuccess: () => {
       toast.success('Order placed for client');
