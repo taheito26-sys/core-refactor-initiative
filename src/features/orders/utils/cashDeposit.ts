@@ -8,6 +8,7 @@ export interface ApplyOrderCashDepositInput {
   sell: number;
   amountUSDT: number;
   note: string;
+  tradeId?: string;
   baseFiatCurrency?: 'QAR' | 'EGP';
   now?: number;
 }
@@ -20,6 +21,7 @@ export function applyOrderCashDeposit({
   sell,
   amountUSDT,
   note,
+  tradeId,
   baseFiatCurrency = 'QAR',
   now = Date.now(),
 }: ApplyOrderCashDepositInput): TrackerState {
@@ -46,6 +48,9 @@ export function applyOrderCashDeposit({
       amount: depositAmt,
       currency: targetAccount.currency,
       note,
+      linkedEntityType: tradeId ? 'trade' : undefined,
+      linkedEntityId: tradeId,
+      tradeId,
     };
     const updatedLedger = [...(nextState.cashLedger || []), ledgerEntry];
     const nextCashQAR = deriveCashQAR(nextState.cashAccounts, updatedLedger);
@@ -97,6 +102,9 @@ export function applyOrderCashDeposit({
     amount: depositAmt,
     currency: baseFiatCurrency ?? 'QAR',
     note,
+    linkedEntityType: tradeId ? 'trade' : undefined,
+    linkedEntityId: tradeId,
+    tradeId,
   };
   const nextAccounts = [...(nextState.cashAccounts || []), autoAccount];
   const nextLedger = [...(nextState.cashLedger || []), ...(openingEntry ? [openingEntry] : []), ledgerEntry];
