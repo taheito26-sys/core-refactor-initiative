@@ -121,6 +121,7 @@ export function mapConnectedCustomers(
         displayName: profile?.display_name ?? null,
         name: profile?.name ?? null,
         nickname: row.nickname,
+        phone: profile?.phone ?? null,
         customerUserId: row.customer_user_id,
       }),
       phone: profile?.phone ?? '',

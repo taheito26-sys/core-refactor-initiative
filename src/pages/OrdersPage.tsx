@@ -1055,6 +1055,75 @@ export default function OrdersPage() {
     }
   };
 
+  // ─── Manual backfill: push an existing trade to the client portal ──
+  const pushTradeToClient = async (trade: Trade) => {
+    try {
+      const connectedBuyer = connectedCustomers.find(
+        c => c.customerUserId === trade.customerId || c.id === trade.customerId,
+      );
+      if (!connectedBuyer?.customerUserId || !merchantProfile?.merchant_id) {
+        toast.error('No connected customer found for this trade');
+        return;
+      }
+
+      const { data: connRow } = await supabase
+        .from('customer_merchant_connections')
+        .select('id')
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('customer_user_id', connectedBuyer.customerUserId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!connRow?.id) {
+        toast.error('Active connection not found');
+        return;
+      }
+
+      // Check if already synced (avoid duplicates)
+      const { data: existing } = await supabase
+        .from('customer_orders')
+        .select('id')
+        .eq('customer_user_id', connectedBuyer.customerUserId)
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('amount', trade.amountUSDT)
+        .eq('rate', trade.sellPriceQAR)
+        .gte('created_at', new Date(trade.ts - 60000).toISOString())
+        .lte('created_at', new Date(trade.ts + 60000).toISOString())
+        .maybeSingle();
+
+      if (existing?.id) {
+        toast.info('Already synced to client portal');
+        return;
+      }
+
+      const { error } = await supabase.from('customer_orders').insert({
+        customer_user_id: connectedBuyer.customerUserId,
+        merchant_id: merchantProfile.merchant_id,
+        connection_id: connRow.id,
+        order_type: 'buy',
+        amount: trade.amountUSDT,
+        currency: 'USDT',
+        rate: trade.sellPriceQAR,
+        total: trade.amountUSDT * trade.sellPriceQAR,
+        status: 'completed',
+        note: trade.note || null,
+        send_currency: 'USDT',
+        receive_currency: settings.baseFiatCurrency || 'QAR',
+        final_rate: trade.sellPriceQAR,
+        final_total: trade.amountUSDT * trade.sellPriceQAR,
+        pricing_mode: 'merchant_quote',
+        pricing_version: 'tracker-sync-v1',
+        market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
+        created_at: new Date(trade.ts).toISOString(),
+      });
+
+      if (error) throw error;
+      toast.success(`Order pushed to ${connectedBuyer.name}'s portal`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to push order');
+    }
+  };
+
   // ─── ADD TRADE (Trade-Centric) ────────────────────────────────────
   const addTrade = async () => {
     // Capital transfers are handled separately via handleCapitalTransfer
@@ -2265,6 +2334,16 @@ export default function OrdersPage() {
               {tr.approvalStatus === 'approved' && (
                 <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
               )}
+              {/* Push to client portal — visible when buyer is a connected customer */}
+              {connectedCustomers.some(c => c.customerUserId === tr.customerId || c.id === tr.customerId) && (
+                <button
+                  className="rowBtn"
+                  style={{ minHeight: 40, gridColumn: '1 / -1', color: 'var(--brand)' }}
+                  onClick={() => pushTradeToClient(tr)}
+                >
+                  📤 Push to client portal
+                </button>
+              )}
             </div>
             {detailsOpen[tr.id] && (
               <div style={{ marginTop: 8 }}>
@@ -2275,7 +2354,7 @@ export default function OrdersPage() {
         )}
       </div>
     );
-  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, fmtC, fmtU, fmtP]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, pushTradeToClient, connectedCustomers, fmtC, fmtU, fmtP]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
