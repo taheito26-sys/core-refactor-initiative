@@ -24,6 +24,7 @@ import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPr
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
+import { insertCustomerOrderWithFallback } from '@/features/customer/customer-portal';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
@@ -1047,10 +1048,9 @@ export default function OrdersPage() {
 
       if (!connRow?.id) return;
 
-      // Use only the core columns that are guaranteed to exist.
-      // Extra columns (send_currency, final_rate, etc.) are stripped if missing
-      // by the fallback insert logic below.
-      const basePayload: Record<string, unknown> = {
+      // Use the battle-tested fallback inserter from customer-portal.ts
+      // which strips unknown columns one by one until the insert succeeds
+      const { error } = await insertCustomerOrderWithFallback({
         customer_user_id: customerUserId,
         merchant_id: merchantProfile.merchant_id,
         connection_id: connRow.id,
@@ -1061,10 +1061,6 @@ export default function OrdersPage() {
         total: trade.amountUSDT * trade.sellPriceQAR,
         status: 'completed',
         note: trade.note || null,
-      };
-
-      // Attempt insert, stripping unknown columns on failure
-      const optionalFields: Record<string, unknown> = {
         send_currency: 'USDT',
         receive_currency: settings.baseFiatCurrency || 'QAR',
         final_rate: trade.sellPriceQAR,
@@ -1072,33 +1068,15 @@ export default function OrdersPage() {
         pricing_mode: 'merchant_quote',
         pricing_version: 'tracker-sync-v1',
         market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
-      };
+      });
 
-      let payload = { ...basePayload, ...optionalFields };
-      let inserted = false;
-
-      // Try with all fields first, then strip unknown columns one by one
-      for (let attempt = 0; attempt < 10 && !inserted; attempt++) {
-        const { error } = await supabase.from('customer_orders').insert(payload).select('id').single();
-        if (!error) { inserted = true; break; }
-
-        // Check if error is a missing column — strip it and retry
-        const missingCol = error.message?.match(
-          /could not find the ['"]?(\w+)['"]? column|column ['"]?(\w+)['"]? does not exist/i
-        );
-        const col = missingCol?.[1] ?? missingCol?.[2];
-        if (col && col in payload) {
-          const next = { ...payload };
-          delete next[col];
-          payload = next;
-        } else {
-          // Non-column error — surface it
-          console.error('customer_orders sync error:', error.message);
-          break;
-        }
+      if (error) {
+        console.error('customer_orders sync error:', error);
+        toast.error(`Sync failed: ${(error as any)?.message ?? 'unknown error'}`);
       }
-    } catch (syncErr) {
-      console.warn('customer_orders sync failed:', syncErr);
+    } catch (syncErr: any) {
+      console.error('customer_orders sync exception:', syncErr);
+      toast.error(`Sync exception: ${syncErr?.message ?? 'unknown'}`);
     }
   };
 
@@ -1143,7 +1121,7 @@ export default function OrdersPage() {
         return;
       }
 
-      const basePayload: Record<string, unknown> = {
+      const { error: insertErr } = await insertCustomerOrderWithFallback({
         customer_user_id: connectedBuyer.customerUserId,
         merchant_id: merchantProfile.merchant_id,
         connection_id: connRow.id,
@@ -1155,9 +1133,6 @@ export default function OrdersPage() {
         status: 'completed',
         note: trade.note || null,
         created_at: new Date(trade.ts).toISOString(),
-      };
-
-      const optionalFields: Record<string, unknown> = {
         send_currency: 'USDT',
         receive_currency: settings.baseFiatCurrency || 'QAR',
         final_rate: trade.sellPriceQAR,
@@ -1165,30 +1140,9 @@ export default function OrdersPage() {
         pricing_mode: 'merchant_quote',
         pricing_version: 'tracker-sync-v1',
         market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
-      };
+      });
 
-      let payload = { ...basePayload, ...optionalFields };
-      let lastError: string | null = null;
-
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const { error } = await supabase.from('customer_orders').insert(payload).select('id').single();
-        if (!error) { lastError = null; break; }
-
-        const missingCol = error.message?.match(
-          /could not find the ['"]?(\w+)['"]? column|column ['"]?(\w+)['"]? does not exist/i
-        );
-        const col = missingCol?.[1] ?? missingCol?.[2];
-        if (col && col in payload) {
-          const next = { ...payload };
-          delete next[col];
-          payload = next;
-        } else {
-          lastError = error.message;
-          break;
-        }
-      }
-
-      if (lastError) throw new Error(lastError);
+      if (insertErr) throw insertErr;
       toast.success(`Order pushed to ${connectedBuyer.name}'s portal`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to push order');

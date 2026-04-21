@@ -491,7 +491,7 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
   };
 }
 
-async function insertCustomerOrderWithFallback(payload: Record<string, unknown>) {
+export async function insertCustomerOrderWithFallback(payload: Record<string, unknown>) {
   let remainingPayload = { ...payload };
   const attemptedFields = new Set<string>();
 
