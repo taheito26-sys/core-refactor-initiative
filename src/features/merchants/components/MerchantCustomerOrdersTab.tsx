@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Loader2, Plus, X } from 'lucide-react';
 import {
   cancelCustomerOrder,
   completeCustomerOrder,
@@ -18,13 +19,217 @@ import {
   deriveFinalQuoteValues,
   formatCustomerDate,
   formatCustomerNumber,
+  getCompatibleRails,
+  getCurrencyForCountry,
+  getGuidePricingForCustomerOrder,
   getDisplayedCustomerRate,
   getDisplayedCustomerTotal,
   markCustomerOrderAwaitingPayment,
   ORDER_SELECT_FIELDS,
+  type CustomerCountry,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
 import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
+
+// ── Place Order for Client Modal (mirrors the customer NewOrderForm exactly) ──
+function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
+  merchantId: string; userId: string; onClose: () => void; onCreated: () => void;
+}) {
+  const qc = useQueryClient();
+  const sendCountry: CustomerCountry = 'Qatar';
+  const receiveCountry: CustomerCountry = 'Egypt';
+  const sendCurrency = getCurrencyForCountry(sendCountry);   // QAR
+  const receiveCurrency = getCurrencyForCountry(receiveCountry); // EGP
+  const rails = getCompatibleRails(sendCountry, receiveCountry);
+
+  const [connId, setConnId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [payoutRail, setPayoutRail] = useState('bank_transfer');
+  const [note, setNote] = useState('');
+
+  // Load connected clients — only use connection row data (customer_profiles blocked by RLS for merchants)
+  const { data: connections = [] } = useQuery({
+    queryKey: ['merchant-active-connections', merchantId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('customer_merchant_connections')
+        .select('id, customer_user_id, nickname, status')
+        .eq('merchant_id', merchantId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (!data || data.length === 0) return [];
+      return data.map((r: any) => ({
+        id: r.id,
+        customer_user_id: r.customer_user_id,
+        label: resolveCustomerLabel({
+          displayName: null,
+          name: null,
+          nickname: r.nickname ?? null,
+          phone: null,
+          customerUserId: r.customer_user_id,
+        }),
+      }));
+    },
+  });
+
+  // Guide pricing preview (same as customer form)
+  const selectedConn = connections.find((c: any) => c.id === connId);
+  const { data: guide } = useQuery({
+    queryKey: ['merchant-guide-form', amount, connId],
+    queryFn: () => getGuidePricingForCustomerOrder({
+      customerUserId: selectedConn?.customer_user_id ?? '',
+      merchantId,
+      connectionId: connId,
+      orderType: 'buy',
+      amount: parseFloat(amount) || 0,
+      rate: null,
+      note: null,
+      sendCountry,
+      receiveCountry,
+      sendCurrency,
+      receiveCurrency,
+      payoutRail,
+      corridorLabel: 'Qatar -> Egypt',
+    }),
+    enabled: !!connId && !!amount && parseFloat(amount) > 0,
+    staleTime: 60_000,
+  });
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (!connId || !amount || parseFloat(amount) <= 0)
+        throw new Error('Select a client and enter an amount');
+      const numAmount = parseFloat(amount);
+      const { error } = await supabase.rpc('mirror_merchant_customer_order', {
+        p_connection_id: connId,
+        p_amount: numAmount,
+        p_currency: sendCurrency,
+        p_status: 'pending_quote',
+        p_order_type: 'buy',
+        p_rate: null,
+        p_total: null,
+        p_note: note.trim() || null,
+        p_send_country: sendCountry,
+        p_receive_country: receiveCountry,
+        p_send_currency: sendCurrency,
+        p_receive_currency: receiveCurrency,
+        p_payout_rail: payoutRail,
+        p_corridor_label: 'Qatar -> Egypt',
+        p_pricing_mode: 'merchant_quote',
+        p_guide_rate: guide?.guideRate ?? null,
+        p_guide_total: guide?.guideTotal ?? null,
+        p_guide_source: guide?.guideSource ?? null,
+        p_guide_snapshot: guide?.guideSnapshot ?? null,
+        p_guide_generated_at: guide?.guideGeneratedAt ?? null,
+        p_final_rate: null,
+        p_final_total: null,
+        p_final_quote_note: null,
+        p_quoted_by_user_id: null,
+        p_customer_accepted_quote_at: null,
+        p_customer_rejected_quote_at: null,
+        p_quote_rejection_reason: null,
+        p_market_pair: guide?.marketPair ?? null,
+        p_pricing_version: guide?.pricingVersion ?? 'merchant-placed-v1',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Order placed for client');
+      qc.invalidateQueries({ queryKey: ['merchant-customer-orders'] });
+      onCreated();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-3xl bg-background p-5 pb-8 space-y-4" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold">New Order</h2>
+          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+
+        {/* Corridor badge */}
+        <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2">
+          <span className="text-sm font-bold text-primary">QAR → EGP</span>
+          <span className="text-xs text-muted-foreground">Qatar to Egypt</span>
+        </div>
+
+        {/* Client selector */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Client</label>
+          <select value={connId} onChange={e => setConnId(e.target.value)}
+            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+            <option value="">Select client…</option>
+            {connections.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </div>
+
+        {/* Amount */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Amount to send (QAR)</label>
+          <div className="relative">
+            <input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" placeholder="0"
+              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-16 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">QAR</span>
+          </div>
+        </div>
+
+        {/* Guide pricing preview */}
+        {guide?.guideRate != null && parseFloat(amount) > 0 && (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Guide pricing</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Rate</span>
+              <span className="font-bold tabular-nums">{formatCustomerNumber(guide.guideRate, 'en', 4)} EGP/QAR</span>
+            </div>
+            {guide.guideTotal != null && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Client receives (est.)</span>
+                <span className="font-bold tabular-nums text-emerald-600">{formatCustomerNumber(guide.guideTotal, 'en', 0)} EGP</span>
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground">Final rate set by you when quoting</p>
+          </div>
+        )}
+
+        {/* Receive via */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Receive via</label>
+          <select value={payoutRail} onChange={e => setPayoutRail(e.target.value)}
+            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+            {rails.map(r => (
+              <option key={r.value} value={r.value}>
+                {r.value === 'bank_transfer' ? 'Bank Transfer'
+                  : r.value === 'mobile_wallet' ? 'Mobile Wallet (InstaPay/VCash)'
+                  : r.value === 'cash_pickup' ? 'Cash Pickup'
+                  : r.value}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Note */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            Note <span className="text-muted-foreground/60">(optional)</span>
+          </label>
+          <input value={note} onChange={e => setNote(e.target.value)}
+            placeholder="e.g. InstaPay: 01xxxxxxxxx"
+            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+
+        {/* Submit */}
+        <button onClick={() => create.mutate()} disabled={create.isPending || !connId || !amount}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50">
+          {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Place Order
+        </button>
+      </div>
+    </div>
+  );
+}
 
 type StatusFilter =
   | 'all'
@@ -67,6 +272,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [quoteDrafts, setQuoteDrafts] = useState<Record<string, QuoteDraft>>({});
+  const [showPlaceOrder, setShowPlaceOrder] = useState(false);
 
   const resolvedMerchantId = isAdminView ? merchantId ?? null : merchantProfile?.merchant_id;
 
@@ -254,6 +460,18 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
 
   return (
     <div className="space-y-3">
+      {/* Place Order button */}
+      {!isAdminView && resolvedMerchantId && userId && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowPlaceOrder(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" /> Place Order for Client
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 border-b border-border/60 pb-3">
         {statusFilters.map((item) => (
           <button
@@ -457,6 +675,17 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
             );
           })}
         </div>
+      )}
+    </div>
+
+      {/* Place Order modal */}
+      {showPlaceOrder && resolvedMerchantId && userId && (
+        <PlaceOrderForClientModal
+          merchantId={resolvedMerchantId}
+          userId={userId}
+          onClose={() => setShowPlaceOrder(false)}
+          onCreated={() => setShowPlaceOrder(false)}
+        />
       )}
     </div>
   );
