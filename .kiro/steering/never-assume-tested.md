@@ -213,3 +213,52 @@ Root cause: too many tool calls in rapid succession within one response.
 6. **No redundant checks** — do not run both `tsc --noEmit` and `getDiagnostics` in the same response
 7. **Write large files via PowerShell** — use `Set-Content` for files >100 lines rather than multiple `strReplace` anchors
 8. **Never loop tool calls** — if a pattern requires calling the same tool 3+ times, restructure the approach
+
+---
+
+## KIRO MUST TEST BEFORE SAYING IT'S DONE — Non-Negotiable
+
+### Core Rule
+**Kiro Dev must verify every change actually works before reporting it as complete.**
+
+Saying "done", "fixed", "pushed", or "working" without running a verification step is a violation.
+
+### What "tested" means for Kiro Dev
+
+Before closing any task, Kiro must run at least ONE of:
+
+| Change type | Required verification |
+|---|---|
+| TypeScript / logic change | `tsc --noEmit` passes with zero errors |
+| UI component change | Build succeeds (`npm run build` or equivalent) |
+| API / data change | Query or function call traced through to confirm correct output |
+| Config / routing change | Build succeeds and route resolves |
+| Multi-file refactor | Full build + grep to confirm no broken imports |
+
+### Forbidden closing phrases (never use without proof)
+- "Done!"
+- "This is now fixed"
+- "It should work now"
+- "The issue is resolved"
+- "I've implemented the fix"
+
+### Required closing format
+Always end with the verification result + what the user must do next:
+
+```
+Build: ✅ tsc --noEmit passed, 0 errors
+Pushed to main — wait for Vercel, then test [specific action] and confirm.
+```
+
+### If verification is impossible (no build env, missing deps)
+State it explicitly:
+```
+Could not run build verification (reason: ...).
+Pushed — please test [specific action] on your device and report back.
+```
+
+### Escalation rule
+If the user reports something still doesn't work after a "tested" fix:
+1. Do NOT patch on top of the previous fix
+2. Treat it as a fresh diagnosis — read the actual code, trace the actual data flow
+3. State what the previous fix got wrong before proposing the next one
