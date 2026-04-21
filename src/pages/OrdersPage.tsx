@@ -1022,12 +1022,9 @@ export default function OrdersPage() {
         c => c.customerUserId === resolvedBuyerId || c.id === resolvedBuyerId,
       );
 
-      // If not found in memory, query DB directly — handles cases where
-      // connectedCustomers hasn't loaded yet or buyerId is a local UUID
-      // that was materialized from a connected customer
+      // Fallback: query DB directly in case in-memory list isn't loaded yet
       let customerUserId = connectedBuyer?.customerUserId ?? null;
       if (!customerUserId) {
-        // resolvedBuyerId might already be a customerUserId — check DB directly
         const { data: connCheck } = await supabase
           .from('customer_merchant_connections')
           .select('customer_user_id')
@@ -1050,7 +1047,10 @@ export default function OrdersPage() {
 
       if (!connRow?.id) return;
 
-      await supabase.from('customer_orders').insert({
+      // Use only the core columns that are guaranteed to exist.
+      // Extra columns (send_currency, final_rate, etc.) are stripped if missing
+      // by the fallback insert logic below.
+      const basePayload: Record<string, unknown> = {
         customer_user_id: customerUserId,
         merchant_id: merchantProfile.merchant_id,
         connection_id: connRow.id,
@@ -1061,6 +1061,10 @@ export default function OrdersPage() {
         total: trade.amountUSDT * trade.sellPriceQAR,
         status: 'completed',
         note: trade.note || null,
+      };
+
+      // Attempt insert, stripping unknown columns on failure
+      const optionalFields: Record<string, unknown> = {
         send_currency: 'USDT',
         receive_currency: settings.baseFiatCurrency || 'QAR',
         final_rate: trade.sellPriceQAR,
@@ -1068,9 +1072,32 @@ export default function OrdersPage() {
         pricing_mode: 'merchant_quote',
         pricing_version: 'tracker-sync-v1',
         market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
-      });
+      };
+
+      let payload = { ...basePayload, ...optionalFields };
+      let inserted = false;
+
+      // Try with all fields first, then strip unknown columns one by one
+      for (let attempt = 0; attempt < 10 && !inserted; attempt++) {
+        const { error } = await supabase.from('customer_orders').insert(payload).select('id').single();
+        if (!error) { inserted = true; break; }
+
+        // Check if error is a missing column — strip it and retry
+        const missingCol = error.message?.match(
+          /could not find the ['"]?(\w+)['"]? column|column ['"]?(\w+)['"]? does not exist/i
+        );
+        const col = missingCol?.[1] ?? missingCol?.[2];
+        if (col && col in payload) {
+          const next = { ...payload };
+          delete next[col];
+          payload = next;
+        } else {
+          // Non-column error — surface it
+          console.error('customer_orders sync error:', error.message);
+          break;
+        }
+      }
     } catch (syncErr) {
-      // Non-fatal — local trade is already saved
       console.warn('customer_orders sync failed:', syncErr);
     }
   };
@@ -1116,7 +1143,7 @@ export default function OrdersPage() {
         return;
       }
 
-      const { error } = await supabase.from('customer_orders').insert({
+      const basePayload: Record<string, unknown> = {
         customer_user_id: connectedBuyer.customerUserId,
         merchant_id: merchantProfile.merchant_id,
         connection_id: connRow.id,
@@ -1127,6 +1154,10 @@ export default function OrdersPage() {
         total: trade.amountUSDT * trade.sellPriceQAR,
         status: 'completed',
         note: trade.note || null,
+        created_at: new Date(trade.ts).toISOString(),
+      };
+
+      const optionalFields: Record<string, unknown> = {
         send_currency: 'USDT',
         receive_currency: settings.baseFiatCurrency || 'QAR',
         final_rate: trade.sellPriceQAR,
@@ -1134,10 +1165,30 @@ export default function OrdersPage() {
         pricing_mode: 'merchant_quote',
         pricing_version: 'tracker-sync-v1',
         market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
-        created_at: new Date(trade.ts).toISOString(),
-      });
+      };
 
-      if (error) throw error;
+      let payload = { ...basePayload, ...optionalFields };
+      let lastError: string | null = null;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const { error } = await supabase.from('customer_orders').insert(payload).select('id').single();
+        if (!error) { lastError = null; break; }
+
+        const missingCol = error.message?.match(
+          /could not find the ['"]?(\w+)['"]? column|column ['"]?(\w+)['"]? does not exist/i
+        );
+        const col = missingCol?.[1] ?? missingCol?.[2];
+        if (col && col in payload) {
+          const next = { ...payload };
+          delete next[col];
+          payload = next;
+        } else {
+          lastError = error.message;
+          break;
+        }
+      }
+
+      if (lastError) throw new Error(lastError);
       toast.success(`Order pushed to ${connectedBuyer.name}'s portal`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to push order');
