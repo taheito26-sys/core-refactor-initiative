@@ -1013,70 +1013,57 @@ export default function OrdersPage() {
     });
   };
 
-  // ─── Sync helper: write a customer_orders row when buyer is a connected customer ──
+  // ─── Sync helper: mirror a trade to customer_orders via the security-definer RPC ──
+  // Direct INSERT on customer_orders is blocked by RLS for merchant users.
+  // The mirror_merchant_customer_order RPC runs as security definer and handles auth.
   const syncTradeToCustomerOrders = async (trade: Trade, resolvedBuyerId: string) => {
     try {
       if (!resolvedBuyerId || !merchantProfile?.merchant_id) return;
 
-      // First try in-memory connected customers list
+      // Find the connection_id — the RPC needs this, not customer_user_id directly
+      let connectionId: string | null = null;
+
       const connectedBuyer = connectedCustomers.find(
         c => c.customerUserId === resolvedBuyerId || c.id === resolvedBuyerId,
       );
-
-      // Fallback: query DB directly in case in-memory list isn't loaded yet
-      let customerUserId = connectedBuyer?.customerUserId ?? null;
-      if (!customerUserId) {
-        const { data: connCheck } = await supabase
-          .from('customer_merchant_connections')
-          .select('customer_user_id')
-          .eq('merchant_id', merchantProfile.merchant_id)
-          .eq('customer_user_id', resolvedBuyerId)
-          .eq('status', 'active')
-          .maybeSingle();
-        customerUserId = connCheck?.customer_user_id ?? null;
-      }
-
-      if (!customerUserId) return; // not a connected customer, skip
+      const customerUserId = connectedBuyer?.customerUserId ?? resolvedBuyerId;
 
       const { data: connRow } = await supabase
         .from('customer_merchant_connections')
         .select('id')
         .eq('merchant_id', merchantProfile.merchant_id)
         .eq('customer_user_id', customerUserId)
-        .eq('status', 'active')
+        .in('status', ['active', 'pending'])
         .maybeSingle();
 
-      if (!connRow?.id) return;
+      connectionId = connRow?.id ?? null;
+      if (!connectionId) return; // not a connected customer
 
-      // Use the battle-tested fallback inserter from customer-portal.ts
-      // which strips unknown columns one by one until the insert succeeds
-      const { error } = await insertCustomerOrderWithFallback({
-        customer_user_id: customerUserId,
-        merchant_id: merchantProfile.merchant_id,
-        connection_id: connRow.id,
-        order_type: 'buy',
-        amount: trade.amountUSDT,
-        currency: 'USDT',
-        rate: trade.sellPriceQAR,
-        total: trade.amountUSDT * trade.sellPriceQAR,
-        status: 'completed',
-        note: trade.note || null,
-        send_currency: 'USDT',
-        receive_currency: settings.baseFiatCurrency || 'QAR',
-        final_rate: trade.sellPriceQAR,
-        final_total: trade.amountUSDT * trade.sellPriceQAR,
-        pricing_mode: 'merchant_quote',
-        pricing_version: 'tracker-sync-v1',
-        market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
+      const { error } = await supabase.rpc('mirror_merchant_customer_order', {
+        p_connection_id: connectionId,
+        p_status: 'completed',
+        p_order_type: 'buy',
+        p_amount: trade.amountUSDT,
+        p_currency: 'USDT',
+        p_rate: trade.sellPriceQAR,
+        p_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_note: trade.note || null,
+        p_send_currency: 'USDT',
+        p_receive_currency: settings.baseFiatCurrency || 'QAR',
+        p_final_rate: trade.sellPriceQAR,
+        p_final_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_pricing_mode: 'merchant_quote',
+        p_pricing_version: 'tracker-sync-v1',
+        p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
       });
 
       if (error) {
-        console.error('customer_orders sync error:', error);
-        toast.error(`Sync failed: ${(error as any)?.message ?? 'unknown error'}`);
+        console.error('mirror_merchant_customer_order error:', error);
+        toast.error(`Sync failed: ${error.message}`);
       }
     } catch (syncErr: any) {
       console.error('customer_orders sync exception:', syncErr);
-      toast.error(`Sync exception: ${syncErr?.message ?? 'unknown'}`);
+      toast.error(`Sync error: ${syncErr?.message ?? 'unknown'}`);
     }
   };
 
@@ -1121,25 +1108,22 @@ export default function OrdersPage() {
         return;
       }
 
-      const { error: insertErr } = await insertCustomerOrderWithFallback({
-        customer_user_id: connectedBuyer.customerUserId,
-        merchant_id: merchantProfile.merchant_id,
-        connection_id: connRow.id,
-        order_type: 'buy',
-        amount: trade.amountUSDT,
-        currency: 'USDT',
-        rate: trade.sellPriceQAR,
-        total: trade.amountUSDT * trade.sellPriceQAR,
-        status: 'completed',
-        note: trade.note || null,
-        created_at: new Date(trade.ts).toISOString(),
-        send_currency: 'USDT',
-        receive_currency: settings.baseFiatCurrency || 'QAR',
-        final_rate: trade.sellPriceQAR,
-        final_total: trade.amountUSDT * trade.sellPriceQAR,
-        pricing_mode: 'merchant_quote',
-        pricing_version: 'tracker-sync-v1',
-        market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
+      const { error: insertErr } = await supabase.rpc('mirror_merchant_customer_order', {
+        p_connection_id: connRow.id,
+        p_status: 'completed',
+        p_order_type: 'buy',
+        p_amount: trade.amountUSDT,
+        p_currency: 'USDT',
+        p_rate: trade.sellPriceQAR,
+        p_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_note: trade.note || null,
+        p_send_currency: 'USDT',
+        p_receive_currency: settings.baseFiatCurrency || 'QAR',
+        p_final_rate: trade.sellPriceQAR,
+        p_final_total: trade.amountUSDT * trade.sellPriceQAR,
+        p_pricing_mode: 'merchant_quote',
+        p_pricing_version: 'tracker-sync-v1',
+        p_market_pair: `USDT/${settings.baseFiatCurrency || 'QAR'}`,
       });
 
       if (insertErr) throw insertErr;
