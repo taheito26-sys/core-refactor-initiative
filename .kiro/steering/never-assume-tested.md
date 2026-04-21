@@ -50,7 +50,7 @@ This applies to every change — UI, logic, API, infrastructure, configuration.
 ## Workflow
 
 1. Make the change
-2. Run diagnostics / typecheck
+2. Run diagnostics / typecheck then test it yourself
 3. Commit and push to main
 4. Tell the user: "Pushed — wait for Vercel to deploy, then hard refresh and test"
 5. Wait for user confirmation before marking anything as resolved
