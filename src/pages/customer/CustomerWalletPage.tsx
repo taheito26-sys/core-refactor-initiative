@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Plus, X, Loader2, ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, CheckCircle2, ChevronRight } from "lucide-react";
@@ -90,7 +90,7 @@ export default function CustomerWalletPage() {
   });
 
   // Sync completed orders into movements (order inflows)
-  useMemo(() => {
+  useEffect(() => {
     if (!userId || orders.length === 0) return;
     const existing = new Set(movements.filter(m => m.sourceType === "order_inflow").map(m => m.relatedOrderId));
     const newMoves: CashMovement[] = [];
@@ -116,7 +116,7 @@ export default function CustomerWalletPage() {
       setMovements(updated);
       saveMovements(userId, updated);
     }
-  }, [orders, userId]);
+  }, [accounts, movements, orders, userId, customerProfile?.country]);
 
   const summary = useMemo(() => {
     const completed = orders.filter(o => o.status === "completed");

@@ -72,6 +72,10 @@ export type CustomerOrderRow = {
   expires_at: string | null;
   payment_proof_url: string | null;
   payment_proof_uploaded_at: string | null;
+  merchant_cash_account_id?: string | null;
+  merchant_cash_account_name?: string | null;
+  customer_cash_account_id?: string | null;
+  customer_cash_account_name?: string | null;
   send_country?: string | null;
   receive_country?: string | null;
   send_currency?: string | null;
@@ -137,6 +141,10 @@ export interface CustomerOrderInput {
   receiveCurrency: string;
   payoutRail: string | null;
   corridorLabel: string;
+  merchantCashAccountId?: string | null;
+  merchantCashAccountName?: string | null;
+  customerCashAccountId?: string | null;
+  customerCashAccountName?: string | null;
 }
 
 export interface GuidePricingResult {
@@ -168,6 +176,32 @@ export const ORDER_SELECT_FIELDS = [
   'expires_at',
   'payment_proof_url',
   'payment_proof_uploaded_at',
+  'send_country',
+  'receive_country',
+  'send_currency',
+  'receive_currency',
+  'payout_rail',
+  'corridor_label',
+  'pricing_mode',
+  'guide_rate',
+  'guide_total',
+  'guide_source',
+  'guide_snapshot',
+  'guide_generated_at',
+  'final_rate',
+  'final_total',
+  'final_quote_note',
+  'quoted_at',
+  'quoted_by_user_id',
+  'customer_accepted_quote_at',
+  'customer_rejected_quote_at',
+  'quote_rejection_reason',
+  'merchant_cash_account_id',
+  'merchant_cash_account_name',
+  'customer_cash_account_id',
+  'customer_cash_account_name',
+  'market_pair',
+  'pricing_version',
 ];
 
 const ORDER_INSERT_SELECT = 'id';
@@ -236,6 +270,10 @@ export function buildCustomerOrderPayload(input: CustomerOrderInput) {
     rate: input.rate,
     total: input.rate && Number.isFinite(input.rate) ? input.amount * input.rate : null,
     note: input.note,
+    merchant_cash_account_id: input.merchantCashAccountId ?? null,
+    merchant_cash_account_name: input.merchantCashAccountName ?? null,
+    customer_cash_account_id: input.customerCashAccountId ?? null,
+    customer_cash_account_name: input.customerCashAccountName ?? null,
   };
 }
 
@@ -474,6 +512,10 @@ function buildCustomerOrderInsertPayload(input: CustomerOrderInput, pricing?: Gu
     rate: input.orderType === 'sell' ? input.rate : null,
     total: input.orderType === 'sell' && input.rate && Number.isFinite(input.rate) ? input.amount * input.rate : null,
     note: input.note,
+    merchant_cash_account_id: input.merchantCashAccountId ?? null,
+    merchant_cash_account_name: input.merchantCashAccountName ?? null,
+    customer_cash_account_id: input.customerCashAccountId ?? null,
+    customer_cash_account_name: input.customerCashAccountName ?? null,
   };
 
   if (!pricing) return basePayload;
@@ -617,11 +659,15 @@ export async function createCustomerOrderWithGuide(input: CustomerOrderInput) {
       note: input.note,
       sendCountry: input.sendCountry,
       receiveCountry: input.receiveCountry,
-      sendCurrency: input.sendCurrency,
-      receiveCurrency: input.receiveCurrency,
-      payoutRail: input.payoutRail,
-      corridorLabel: input.corridorLabel,
-    }),
+    sendCurrency: input.sendCurrency,
+    receiveCurrency: input.receiveCurrency,
+    payoutRail: input.payoutRail,
+    corridorLabel: input.corridorLabel,
+    merchantCashAccountId: input.merchantCashAccountId,
+    merchantCashAccountName: input.merchantCashAccountName,
+    customerCashAccountId: input.customerCashAccountId,
+    customerCashAccountName: input.customerCashAccountName,
+  }),
     status: 'pending_quote',
     pricing_mode: pricing.pricingMode,
     guide_rate: pricing.guideRate,
@@ -678,6 +724,11 @@ export async function commitCustomerQuote(
     status: 'quoted',
     rate: input.finalRate,
     total: input.finalTotal,
+    final_rate: input.finalRate,
+    final_total: input.finalTotal,
+    final_quote_note: input.finalQuoteNote,
+    quoted_at: nowIso(),
+    quoted_by_user_id: input.merchantUserId,
   };
 
   const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
@@ -700,11 +751,11 @@ export async function commitCustomerQuote(
 
   const customerNotificationBody = input.finalQuoteNote
     ? `${updated.corridor_label ?? updated.id} · ${input.finalRate} / ${input.finalTotal}`
-    : `${updated.corridor_label ?? updated.id} · quote ready`;
+    : `${updated.corridor_label ?? updated.id} · approval requested`;
 
   await insertCustomerNotification({
     userId: updated.customer_user_id,
-    title: 'Merchant sent final quote',
+    title: 'Merchant sent order for approval',
     body: customerNotificationBody,
     category: 'customer_order_quote',
     targetPath: '/c/orders',
@@ -712,6 +763,32 @@ export async function commitCustomerQuote(
     targetEntityId: updated.id,
     actorId: input.merchantUserId,
   });
+
+  return { data: updated, error: null };
+}
+
+export async function reopenCustomerOrderForApproval(order: CustomerOrderRow, merchantUserId: string) {
+  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
+    supabase
+      .from('customer_orders')
+      .update({
+        status: 'pending_quote',
+        quoted_by_user_id: merchantUserId,
+        customer_accepted_quote_at: null,
+        customer_rejected_quote_at: null,
+        quote_rejection_reason: null,
+      })
+      .eq('id', order.id)
+      .select(selectClause)
+      .single(),
+  );
+
+  if (error) return { data: null, error };
+
+  const updated = data as CustomerOrderRow;
+  await insertCustomerOrderEvent(updated.id, merchantUserId, 'merchant_reopened_for_approval', buildOrderEventMetadata(updated, {
+    event_type: 'merchant_reopened_for_approval',
+  } as Json));
 
   return { data: updated, error: null };
 }
@@ -725,7 +802,8 @@ export async function acceptCustomerQuote(order: CustomerOrderRow, customerUserI
     supabase
       .from('customer_orders')
       .update({
-        status: 'quote_accepted',
+        status: 'completed',
+        customer_accepted_quote_at: nowIso(),
       })
       .eq('id', order.id)
       .select(selectClause)
@@ -800,79 +878,19 @@ export async function rejectCustomerQuote(order: CustomerOrderRow, customerUserI
 }
 
 export async function markCustomerOrderAwaitingPayment(order: CustomerOrderRow, merchantUserId: string) {
-  if (normalizeStatus(order.status) !== 'quote_accepted') {
-    return { data: null, error: new Error('Order is not quote accepted') };
-  }
-
-  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
-    supabase
-      .from('customer_orders')
-      .update({ status: 'awaiting_payment' })
-      .eq('id', order.id)
-      .select(selectClause)
-      .single(),
-  );
-
-  if (error) return { data: null, error };
-
-  const updated = data as CustomerOrderRow;
-  await insertCustomerOrderEvent(updated.id, merchantUserId, 'merchant_marked_awaiting_payment', buildOrderEventMetadata(updated, {
-    event_type: 'merchant_marked_awaiting_payment',
-  } as Json));
-  return { data: updated, error: null };
+  return { data: null, error: new Error('The order flow no longer uses payment phases') };
 }
 
 export async function markCustomerOrderPaymentSent(order: CustomerOrderRow, customerUserId: string) {
-  if (normalizeStatus(order.status) !== 'awaiting_payment') {
-    return { data: null, error: new Error('Order is not awaiting payment') };
-  }
-
-  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
-    supabase
-      .from('customer_orders')
-      .update({
-        status: 'payment_sent',
-        payment_proof_uploaded_at: nowIso(),
-      })
-      .eq('id', order.id)
-      .select(selectClause)
-      .single(),
-  );
-
-  if (error) return { data: null, error };
-
-  const updated = data as CustomerOrderRow;
-  await insertCustomerOrderEvent(updated.id, customerUserId, 'customer_marked_payment_sent', buildOrderEventMetadata(updated, {
-    event_type: 'customer_marked_payment_sent',
-  } as Json));
-  return { data: updated, error: null };
+  return { data: null, error: new Error('The order flow no longer uses payment phases') };
 }
 
 export async function completeCustomerOrder(order: CustomerOrderRow, merchantUserId: string) {
-  if (normalizeStatus(order.status) !== 'payment_sent') {
-    return { data: null, error: new Error('Order is not payment sent') };
-  }
-
-  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
-    supabase
-      .from('customer_orders')
-      .update({ status: 'completed' })
-      .eq('id', order.id)
-      .select(selectClause)
-      .single(),
-  );
-
-  if (error) return { data: null, error };
-
-  const updated = data as CustomerOrderRow;
-  await insertCustomerOrderEvent(updated.id, merchantUserId, 'merchant_completed_order', buildOrderEventMetadata(updated, {
-    event_type: 'merchant_completed_order',
-  } as Json));
-  return { data: updated, error: null };
+  return { data: null, error: new Error('The order flow no longer uses completion phases') };
 }
 
 export async function cancelCustomerOrder(order: CustomerOrderRow, actorUserId: string) {
-  const allowed = ['pending_quote', 'quoted', 'payment_sent', 'pending'] as const;
+  const allowed = ['pending_quote', 'quoted', 'pending'] as const;
   if (!allowed.includes(normalizeStatus(order.status) as typeof allowed[number])) {
     return { data: null, error: new Error('Order cannot be cancelled in its current state') };
   }

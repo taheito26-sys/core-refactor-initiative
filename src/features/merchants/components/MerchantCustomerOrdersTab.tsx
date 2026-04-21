@@ -13,7 +13,6 @@ import { toast } from 'sonner';
 import { Loader2, Plus, X } from 'lucide-react';
 import {
   cancelCustomerOrder,
-  completeCustomerOrder,
   commitCustomerQuote,
   deriveCustomerOrderMeta,
   deriveFinalQuoteValues,
@@ -24,8 +23,8 @@ import {
   getGuidePricingForCustomerOrder,
   getDisplayedCustomerRate,
   getDisplayedCustomerTotal,
-  markCustomerOrderAwaitingPayment,
   ORDER_SELECT_FIELDS,
+  reopenCustomerOrderForApproval,
   type CustomerCountry,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
@@ -46,6 +45,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
   const [amount, setAmount] = useState('');
   const [payoutRail, setPayoutRail] = useState('bank_transfer');
   const [note, setNote] = useState('');
+  const [merchantCashAccountId, setMerchantCashAccountId] = useState('');
 
   // Load connected clients — only use connection row data (customer_profiles blocked by RLS for merchants)
   const { data: connections = [] } = useQuery({
@@ -71,6 +71,27 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
       }));
     },
   });
+
+  const { data: cashAccounts = [] } = useQuery({
+    queryKey: ['merchant-cash-accounts', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase
+        .from('cash_accounts')
+        .select('id, name, currency, type, status')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!userId,
+  });
+
+  useEffect(() => {
+    if (merchantCashAccountId || cashAccounts.length === 0) return;
+    setMerchantCashAccountId(cashAccounts[0].id);
+  }, [cashAccounts, merchantCashAccountId]);
 
   // Guide pricing preview (same as customer form)
   const selectedConn = connections.find((c: any) => c.id === connId);
@@ -109,6 +130,8 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
         p_rate: null,
         p_total: null,
         p_note: note.trim() || null,
+        p_merchant_cash_account_id: merchantCashAccountId || null,
+        p_merchant_cash_account_name: cashAccounts.find((account: any) => account.id === merchantCashAccountId)?.name ?? null,
         p_send_country: sendCountry,
         p_receive_country: receiveCountry,
         p_send_currency: sendCurrency,
@@ -176,6 +199,22 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
           </div>
         </div>
 
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Merchant cash account</label>
+          <select
+            value={merchantCashAccountId}
+            onChange={(e) => setMerchantCashAccountId(e.target.value)}
+            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="">Select cash account…</option>
+            {cashAccounts.map((account: any) => (
+              <option key={account.id} value={account.id}>
+                {account.name} · {account.currency}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Guide pricing preview */}
         {guide?.guideRate != null && parseFloat(amount) > 0 && (
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-1.5">
@@ -235,10 +274,6 @@ type StatusFilter =
   | 'all'
   | 'pending_quote'
   | 'quoted'
-  | 'quote_accepted'
-  | 'quote_rejected'
-  | 'awaiting_payment'
-  | 'payment_sent'
   | 'completed'
   | 'cancelled'
   | 'pending'
@@ -263,6 +298,8 @@ const EMPTY_QUOTE_DRAFT: QuoteDraft = {
 
 function normalizeStatus(status: string) {
   if (status === 'pending' || status === 'confirmed') return status;
+  if (status === 'quote_accepted' || status === 'awaiting_payment' || status === 'payment_sent') return 'completed';
+  if (status === 'quote_rejected') return 'cancelled';
   return status as StatusFilter;
 }
 
@@ -409,19 +446,29 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     onSettled: () => setActioningId(null),
   });
 
-  const transitionMutation = useMutation({
-    mutationFn: async ({ order, nextStatus }: { order: CustomerOrderRow; nextStatus: 'awaiting_payment' | 'completed' | 'cancelled' }) => {
+  const reopenMutation = useMutation({
+    mutationFn: async ({ order }: { order: CustomerOrderRow }) => {
       if (!userId) throw new Error('Missing merchant session');
-      if (nextStatus === 'awaiting_payment') {
-        const { error } = await markCustomerOrderAwaitingPayment(order, userId);
-        if (error) throw error;
-        return;
-      }
-      if (nextStatus === 'completed') {
-        const { error } = await completeCustomerOrder(order, userId);
-        if (error) throw error;
-        return;
-      }
+      const { error } = await reopenCustomerOrderForApproval(order, userId);
+      if (error) throw error;
+    },
+    onMutate: async ({ order }) => {
+      setActioningId(order.id);
+    },
+    onSuccess: () => {
+      toast.success('Order reopened for approval');
+      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
+      queryClient.invalidateQueries({ queryKey: ['merchant-client-connections'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to reopen order');
+    },
+    onSettled: () => setActioningId(null),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async ({ order }: { order: CustomerOrderRow }) => {
+      if (!userId) throw new Error('Missing merchant session');
       const { error } = await cancelCustomerOrder(order, userId);
       if (error) throw error;
     },
@@ -429,12 +476,12 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       setActioningId(order.id);
     },
     onSuccess: () => {
-      toast.success('Order updated');
+      toast.success('Order cancelled');
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       queryClient.invalidateQueries({ queryKey: ['merchant-client-connections'] });
     },
     onError: (error: any) => {
-      toast.error(error?.message ?? 'Failed to update order');
+      toast.error(error?.message ?? 'Failed to cancel order');
     },
     onSettled: () => setActioningId(null),
   });
@@ -447,10 +494,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     { key: 'all', label: 'All' },
     { key: 'pending_quote', label: 'Pending quote' },
     { key: 'quoted', label: 'Quoted' },
-    { key: 'quote_accepted', label: 'Accepted' },
-    { key: 'awaiting_payment', label: 'Awaiting payment' },
-    { key: 'payment_sent', label: 'Payment sent' },
-    { key: 'completed', label: 'Completed' },
+    { key: 'completed', label: 'Approved' },
     { key: 'cancelled', label: 'Cancelled' },
   ];
 
@@ -544,9 +588,8 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
             const displayedTotal = getDisplayedCustomerTotal(order);
             const draft = quoteDrafts[order.id];
             const canQuote = status === 'pending_quote' || status === 'pending';
-            const canMarkAwaiting = status === 'quote_accepted';
-            const canComplete = status === 'payment_sent';
-            const canCancel = ['pending_quote', 'quoted', 'payment_sent', 'pending'].includes(status);
+            const canReopen = status === 'completed';
+            const canCancel = ['pending_quote', 'quoted', 'completed', 'pending'].includes(status);
 
             return (
               <Card key={order.id} className={cn('overflow-hidden', canQuote ? 'border-primary/30' : '')}>
@@ -573,9 +616,19 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                         <span className="rounded-full border border-border/60 px-2 py-1">
                           {order.receive_currency ?? meta.receiveCurrency}
                         </span>
-                        <Badge variant={status === 'completed' ? 'default' : status === 'cancelled' || status === 'quote_rejected' ? 'destructive' : 'secondary'} className="capitalize">
-                          {status.replace(/_/g, ' ')}
+                        <Badge variant={status === 'completed' ? 'default' : status === 'cancelled' ? 'destructive' : 'secondary'} className="capitalize">
+                          {status === 'completed' ? 'approved' : status.replace(/_/g, ' ')}
                         </Badge>
+                        {order.merchant_cash_account_name && (
+                          <span className="rounded-full border border-border/60 px-2 py-1">
+                            Merchant cash: {order.merchant_cash_account_name}
+                          </span>
+                        )}
+                        {order.customer_cash_account_name && (
+                          <span className="rounded-full border border-border/60 px-2 py-1">
+                            Client cash: {order.customer_cash_account_name}
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -603,7 +656,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                         </div>
                       </div>
 
-                      {order.final_quote_note && (
+                      {order.status !== 'pending_quote' && order.final_quote_note && (
                         <div className="mt-3 rounded-lg border border-border/60 bg-card/80 p-3 text-sm text-muted-foreground">
                           {order.final_quote_note}
                         </div>
@@ -666,27 +719,20 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                   )}
 
                   <div className="flex flex-wrap gap-2">
-                    {canMarkAwaiting && (
+                    {canReopen && (
                       <Button
-                        onClick={() => transitionMutation.mutate({ order, nextStatus: 'awaiting_payment' })}
-                        disabled={transitionMutation.isPending || actioningId === order.id}
+                        variant="outline"
+                        onClick={() => reopenMutation.mutate({ order })}
+                        disabled={reopenMutation.isPending || actioningId === order.id}
                       >
-                        Mark Awaiting Payment
-                      </Button>
-                    )}
-                    {canComplete && (
-                      <Button
-                        onClick={() => transitionMutation.mutate({ order, nextStatus: 'completed' })}
-                        disabled={transitionMutation.isPending || actioningId === order.id}
-                      >
-                        Complete Order
+                        Edit & resend
                       </Button>
                     )}
                     {canCancel && (
                       <Button
                         variant="outline"
-                        onClick={() => transitionMutation.mutate({ order, nextStatus: 'cancelled' })}
-                        disabled={transitionMutation.isPending || actioningId === order.id}
+                        onClick={() => cancelMutation.mutate({ order })}
+                        disabled={cancelMutation.isPending || actioningId === order.id}
                       >
                         Cancel Order
                       </Button>
@@ -698,8 +744,6 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
           })}
         </div>
       )}
-    </div>
-
       {/* Place Order modal */}
       {showPlaceOrder && (
         <PlaceOrderForClientModal

@@ -1355,6 +1355,8 @@ export type Database = {
             expires_at: string | null
             customer_accepted_quote_at: string | null
             customer_rejected_quote_at: string | null
+            customer_cash_account_id: string | null
+            customer_cash_account_name: string | null
             final_quote_note: string | null
             final_rate: number | null
             final_total: number | null
@@ -1368,6 +1370,8 @@ export type Database = {
             merchant_id: string
             note: string | null
             order_type: string
+            merchant_cash_account_id: string | null
+            merchant_cash_account_name: string | null
             corridor_label: string | null
             pricing_mode: string
             pricing_version: string | null
@@ -1395,6 +1399,8 @@ export type Database = {
             expires_at?: string | null
             customer_accepted_quote_at?: string | null
             customer_rejected_quote_at?: string | null
+            customer_cash_account_id?: string | null
+            customer_cash_account_name?: string | null
             final_quote_note?: string | null
             final_rate?: number | null
             final_total?: number | null
@@ -1408,6 +1414,8 @@ export type Database = {
             merchant_id: string
             note?: string | null
             order_type?: string
+            merchant_cash_account_id?: string | null
+            merchant_cash_account_name?: string | null
             corridor_label?: string | null
             pricing_mode?: string
             pricing_version?: string | null

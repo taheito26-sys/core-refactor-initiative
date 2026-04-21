@@ -22,11 +22,17 @@ describe('customer portal order payload', () => {
       receiveCurrency: 'EGP',
       payoutRail: 'cash_pickup',
       corridorLabel: 'Qatar -> Egypt',
+      merchantCashAccountId: 'cash-merchant-1',
+      merchantCashAccountName: 'Main merchant cash',
+      customerCashAccountId: 'cash-customer-1',
+      customerCashAccountName: 'Client wallet',
     });
 
     expect(payload).not.toHaveProperty('corridor_label');
-    expect(payload).not.toHaveProperty('payout_rail');
-    expect(payload).not.toHaveProperty('quoted_at');
+    expect(payload).toHaveProperty('merchant_cash_account_id', 'cash-merchant-1');
+    expect(payload).toHaveProperty('merchant_cash_account_name', 'Main merchant cash');
+    expect(payload).toHaveProperty('customer_cash_account_id', 'cash-customer-1');
+    expect(payload).toHaveProperty('customer_cash_account_name', 'Client wallet');
     expect(payload).toMatchObject({
       customer_user_id: 'user-1',
       merchant_id: 'merchant-1',
@@ -46,7 +52,7 @@ describe('customer portal order payload', () => {
   });
 
   it('keeps the shared customer-order select list on stable core fields only', () => {
-    const disallowed = [
+    const expected = [
       'send_country',
       'receive_country',
       'send_currency',
@@ -67,12 +73,16 @@ describe('customer portal order payload', () => {
       'customer_accepted_quote_at',
       'customer_rejected_quote_at',
       'quote_rejection_reason',
+      'merchant_cash_account_id',
+      'merchant_cash_account_name',
+      'customer_cash_account_id',
+      'customer_cash_account_name',
       'market_pair',
       'pricing_version',
     ];
 
-    for (const field of disallowed) {
-      expect(ORDER_SELECT_FIELDS).not.toContain(field);
+    for (const field of expected) {
+      expect(ORDER_SELECT_FIELDS).toContain(field);
     }
   });
 

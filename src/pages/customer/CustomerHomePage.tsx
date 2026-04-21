@@ -33,14 +33,14 @@ function weightedAvgFx(orders: CustomerOrderRow[]): number | null {
 
 // ── Status map (customer vocabulary) ─────────────────────────────────────────
 const STATUS: Record<string, { en: string; ar: string; cls: string }> = {
-  pending_quote:    { en: 'Pending',   ar: 'قيد الانتظار', cls: 'bg-amber-500/10 text-amber-600' },
-  quoted:           { en: 'Quoted',    ar: 'معروض',        cls: 'bg-blue-500/10 text-blue-600' },
-  quote_accepted:   { en: 'Accepted',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
-  awaiting_payment: { en: 'Sent',      ar: 'مُرسَل',       cls: 'bg-orange-500/10 text-orange-600' },
-  payment_sent:     { en: 'Sent',      ar: 'مُرسَل',       cls: 'bg-blue-500/10 text-blue-600' },
-  completed:        { en: 'Accepted',  ar: 'مكتمل',        cls: 'bg-emerald-500/10 text-emerald-600' },
+  pending_quote:    { en: 'Pending approval', ar: 'بانتظار الموافقة', cls: 'bg-amber-500/10 text-amber-600' },
+  quoted:           { en: 'Awaiting approval', ar: 'بانتظار الموافقة', cls: 'bg-blue-500/10 text-blue-600' },
+  quote_accepted:   { en: 'Approved',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
+  awaiting_payment: { en: 'Approved',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
+  payment_sent:     { en: 'Approved',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
+  completed:        { en: 'Approved',  ar: 'مكتمل',        cls: 'bg-emerald-500/10 text-emerald-600' },
   cancelled:        { en: 'Cancelled', ar: 'ملغي',         cls: 'bg-muted text-muted-foreground' },
-  quote_rejected:   { en: 'Cancelled', ar: 'ملغي',         cls: 'bg-muted text-muted-foreground' },
+  quote_rejected:   { en: 'Rejected', ar: 'مرفوض',         cls: 'bg-muted text-muted-foreground' },
 };
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ export default function CustomerHomePage() {
 
     const completed = orders.filter(o => o.status === 'completed');
     const active    = orders.filter(o => !['completed','cancelled','quote_rejected'].includes(o.status));
-    const needsAction = orders.filter(o => ['quoted','awaiting_payment'].includes(o.status));
+    const needsAction = orders.filter(o => o.status === 'quoted');
 
     const thisMonth  = orders.filter(o => new Date(o.created_at).getTime() >= monthStart);
     const lastMonth  = orders.filter(o => { const t = new Date(o.created_at).getTime(); return t >= lastMonthStart && t < monthStart; });
@@ -188,8 +188,7 @@ export default function CustomerHomePage() {
           <div className="flex-1">
             <p className="text-sm font-semibold">{metrics.needsAction.length} {L('order(s) need action', 'طلب/طلبات تحتاج إجراء')}</p>
             <p className="text-xs text-muted-foreground">
-              {metrics.needsAction.filter(o => o.status === 'quoted').length > 0 && L('Review quotes · ', 'راجع العروض · ')}
-              {metrics.needsAction.filter(o => o.status === 'awaiting_payment').length > 0 && L('Send payment', 'أرسل الدفعة')}
+              {metrics.needsAction.length > 0 && L('Review quotes', 'راجع العروض')}
             </p>
           </div>
         </button>

@@ -1,7 +1,7 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, Loader2, Plus, Upload, X, AlertCircle } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Plus, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
@@ -12,21 +12,21 @@ import {
   deriveCustomerOrderMeta, formatCustomerDate, formatCustomerNumber,
   getCompatibleRails, getCurrencyForCountry, getDisplayedCustomerRate,
   getDisplayedCustomerTotal, getGuidePricingForCustomerOrder,
-  listCustomerConnections, listCustomerOrders, markCustomerOrderPaymentSent,
+  listCustomerConnections, listCustomerOrders,
   rejectCustomerQuote, type CustomerCountry, type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
 
-// ── Customer vocabulary: only Sent / Accepted ─────────────────────────────────
+// ── Customer vocabulary: approval-first lifecycle ───────────────────────────
 function customerStatus(status: string, lang: 'en' | 'ar'): { label: string; cls: string } {
   const map: Record<string, { en: string; ar: string; cls: string }> = {
-    pending_quote:    { en: 'Pending',   ar: 'قيد الانتظار', cls: 'bg-amber-500/10 text-amber-600' },
-    quoted:           { en: 'Quoted',    ar: 'معروض',        cls: 'bg-blue-500/10 text-blue-600' },
-    quote_accepted:   { en: 'Accepted',  ar: 'مقبول',        cls: 'bg-emerald-500/10 text-emerald-600' },
-    awaiting_payment: { en: 'Sent',      ar: 'مُرسَل',       cls: 'bg-orange-500/10 text-orange-600' },
-    payment_sent:     { en: 'Sent',      ar: 'مُرسَل',       cls: 'bg-blue-500/10 text-blue-600' },
-    completed:        { en: 'Accepted',  ar: 'مكتمل',        cls: 'bg-emerald-500/10 text-emerald-600' },
-    cancelled:        { en: 'Cancelled', ar: 'ملغي',         cls: 'bg-muted text-muted-foreground' },
-    quote_rejected:   { en: 'Cancelled', ar: 'ملغي',         cls: 'bg-muted text-muted-foreground' },
+    pending_quote:    { en: 'Pending approval', ar: 'بانتظار الموافقة', cls: 'bg-amber-500/10 text-amber-600' },
+    quoted:           { en: 'Awaiting approval', ar: 'بانتظار الموافقة', cls: 'bg-blue-500/10 text-blue-600' },
+    quote_accepted:   { en: 'Approved', ar: 'مقبول', cls: 'bg-emerald-500/10 text-emerald-600' },
+    awaiting_payment: { en: 'Approved', ar: 'مقبول', cls: 'bg-emerald-500/10 text-emerald-600' },
+    payment_sent:     { en: 'Approved', ar: 'مقبول', cls: 'bg-emerald-500/10 text-emerald-600' },
+    completed:        { en: 'Approved', ar: 'مكتمل', cls: 'bg-emerald-500/10 text-emerald-600' },
+    cancelled:        { en: 'Cancelled', ar: 'ملغي', cls: 'bg-muted text-muted-foreground' },
+    quote_rejected:   { en: 'Rejected', ar: 'مرفوض', cls: 'bg-muted text-muted-foreground' },
   };
   const cfg = map[status] ?? map.pending_quote;
   return { label: lang === 'ar' ? cfg.ar : cfg.en, cls: cfg.cls };
@@ -65,12 +65,34 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
   const [amount, setAmount] = useState('');
   const [payoutRail, setPayoutRail] = useState('bank_transfer');
   const [note, setNote] = useState('');
+  const [customerCashAccountId, setCustomerCashAccountId] = useState('');
   const sendCountry: CustomerCountry = 'Qatar';
   const receiveCountry: CustomerCountry = 'Egypt';
   const sendCurrency = getCurrencyForCountry(sendCountry);
   const receiveCurrency = getCurrencyForCountry(receiveCountry);
   const rails = getCompatibleRails(sendCountry, receiveCountry);
   const qc = useQueryClient();
+
+  const { data: cashAccounts = [] } = useQuery({
+    queryKey: ['c-cash-accounts', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase
+        .from('cash_accounts')
+        .select('id, name, currency, type, status')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!userId,
+  });
+
+  useEffect(() => {
+    if (customerCashAccountId || cashAccounts.length === 0) return;
+    setCustomerCashAccountId(cashAccounts[0].id);
+  }, [cashAccounts, customerCashAccountId]);
 
   const { data: guide } = useQuery({
     queryKey: ['c-guide-form', amount],
@@ -83,7 +105,24 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
       if (!merchantId || !amount || parseFloat(amount) <= 0) throw new Error(L('Enter amount and select merchant', 'أدخل المبلغ واختر التاجر'));
       const conn = connections.find((c: any) => c.merchant_id === merchantId);
       if (!conn) throw new Error(L('Merchant not found', 'التاجر غير موجود'));
-      const { error } = await createCustomerOrderWithGuide({ customerUserId: userId, merchantId, connectionId: conn.id, orderType: 'buy', amount: parseFloat(amount), rate: null, note: note.trim() || null, sendCountry, receiveCountry, sendCurrency, receiveCurrency, payoutRail, corridorLabel: 'Qatar -> Egypt' });
+      const selectedAccount = cashAccounts.find((account: any) => account.id === customerCashAccountId);
+      const { error } = await createCustomerOrderWithGuide({
+        customerUserId: userId,
+        merchantId,
+        connectionId: conn.id,
+        orderType: 'buy',
+        amount: parseFloat(amount),
+        rate: null,
+        note: note.trim() || null,
+        sendCountry,
+        receiveCountry,
+        sendCurrency,
+        receiveCurrency,
+        payoutRail,
+        corridorLabel: 'Qatar -> Egypt',
+        customerCashAccountId: selectedAccount?.id ?? null,
+        customerCashAccountName: selectedAccount?.name ?? null,
+      });
       if (error) throw error;
     },
     onSuccess: () => { toast.success(L('Order placed', 'تم تقديم الطلب')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onCreated(); },
@@ -105,6 +144,14 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Merchant', 'التاجر')}</label>
           <select value={merchantId} onChange={e => setMerchantId(e.target.value)} className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
             {connections.map((c: any) => <option key={c.merchant_id} value={c.merchant_id}>{c.merchant?.display_name ?? c.merchant_id}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Cash account', 'حساب النقد')}</label>
+          <select value={customerCashAccountId} onChange={e => setCustomerCashAccountId(e.target.value)} className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+            <option value="">{L('Select account…', 'اختر حساباً…')}</option>
+            {cashAccounts.map((account: any) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
           </select>
         </div>
         <div>
@@ -149,45 +196,29 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
   const rate = getDisplayedCustomerRate(order);
   const total = getDisplayedCustomerTotal(order);
   const { label: statusLabel, cls: statusCls } = customerStatus(order.status, lang);
-  const [uploading, setUploading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
 
-  const accept = useMutation({ mutationFn: () => acceptCustomerQuote(order, userId), onSuccess: () => { toast.success(L('Quote accepted', 'تم قبول العرض')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated(); }, onError: (e: any) => toast.error(e.message) });
-  const reject = useMutation({ mutationFn: () => rejectCustomerQuote(order, userId, rejectReason), onSuccess: () => { toast.success(L('Quote rejected', 'تم رفض العرض')); setShowReject(false); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated(); }, onError: (e: any) => toast.error(e.message) });
-  const markSent = useMutation({ mutationFn: () => markCustomerOrderPaymentSent(order, userId), onSuccess: () => { toast.success(L('Payment marked sent', 'تم تحديد الدفعة كمُرسَلة')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated(); }, onError: (e: any) => toast.error(e.message) });
+  const accept = useMutation({ mutationFn: () => acceptCustomerQuote(order, userId), onSuccess: () => { toast.success(L('Approved', 'تمت الموافقة')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated(); }, onError: (e: any) => toast.error(e.message) });
+  const reject = useMutation({ mutationFn: () => rejectCustomerQuote(order, userId, rejectReason), onSuccess: () => { toast.success(L('Rejected', 'تم الرفض')); setShowReject(false); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated(); }, onError: (e: any) => toast.error(e.message) });
   const cancel = useMutation({ mutationFn: () => cancelCustomerOrder(order, userId), onSuccess: () => { toast.success(L('Order cancelled', 'تم إلغاء الطلب')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onClose(); }, onError: (e: any) => toast.error(e.message) });
 
-  const uploadProof = async (file: File) => {
-    setUploading(true);
-    try {
-      const path = `${userId}/${order.id}/${Date.now()}_${file.name}`;
-      const { error: upErr } = await supabase.storage.from('customer-payment-proofs').upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = supabase.storage.from('customer-payment-proofs').getPublicUrl(path);
-      const { error: updErr } = await supabase.from('customer_orders').update({ payment_proof_url: publicUrl }).eq('id', order.id);
-      if (updErr) throw updErr;
-      toast.success(L('Proof uploaded', 'تم رفع الإثبات'));
-      qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated();
-    } catch (e: any) { toast.error(e.message ?? L('Upload failed', 'فشل الرفع')); }
-    finally { setUploading(false); }
-  };
-
-  const isCancelled = ['cancelled','quote_rejected'].includes(order.status);
-  const canCancel = ['pending_quote','quoted','quote_rejected'].includes(order.status);
+  const approved = ['completed', 'quote_accepted', 'awaiting_payment', 'payment_sent'].includes(order.status);
+  const canCancel = ['pending_quote', 'quoted'].includes(order.status);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <button onClick={onClose} className="rounded-xl border border-border/50 p-2 hover:bg-muted"><X className="h-4 w-4" /></button>
-        <div><h2 className="text-base font-bold">{meta.sendCurrency} → {meta.receiveCurrency}</h2><p className="text-xs text-muted-foreground">#{order.id.slice(0,8).toUpperCase()}</p></div>
+        <div>
+          <h2 className="text-base font-bold">{meta.sendCurrency} → {meta.receiveCurrency}</h2>
+          <p className="text-xs text-muted-foreground">#{order.id.slice(0, 8).toUpperCase()}</p>
+        </div>
         <span className={cn('ms-auto rounded-full px-3 py-1 text-xs font-semibold', statusCls)}>{statusLabel}</span>
       </div>
 
-      {/* Amounts — QAR leads to EGP */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl border border-border/50 bg-card p-4">
           <p className="text-[11px] text-muted-foreground">{L('You sent (QAR)', 'أرسلت (QAR)')}</p>
@@ -201,7 +232,6 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
         </div>
       </div>
 
-      {/* FX rate */}
       {rate != null && (
         <div className="rounded-2xl border border-border/50 bg-card px-4 py-3 flex justify-between items-center">
           <span className="text-sm text-muted-foreground">{L('FX Rate', 'سعر الصرف')}</span>
@@ -209,34 +239,75 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
         </div>
       )}
 
-      {/* Quote details */}
-      {order.status === 'quoted' && order.final_rate != null && (
-        <div className="rounded-2xl border border-blue-500/30 bg-blue-500/5 px-4 py-3 space-y-2">
-          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">{L('Merchant Quote', 'عرض التاجر')}</p>
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">{L('Rate', 'السعر')}</span><span className="font-bold tabular-nums">{fmt(order.final_rate, 4)} EGP/QAR</span></div>
-          {order.final_total != null && <div className="flex justify-between text-sm"><span className="text-muted-foreground">{L('You receive', 'ستستلم')}</span><span className="font-bold tabular-nums text-emerald-600">{fmt(order.final_total)} EGP</span></div>}
+      {approved ? (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">{L('Approved order', 'طلب معتمد')}</p>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">{L('Final rate', 'السعر النهائي')}</span>
+            <span className="font-bold tabular-nums">{order.final_rate != null ? fmt(order.final_rate, 4) : rate != null ? fmt(rate, 4) : '—'}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">{L('Final total', 'الإجمالي النهائي')}</span>
+            <span className="font-bold tabular-nums text-emerald-600">{order.final_total != null ? fmt(order.final_total) : total != null ? fmt(total) : '—'}</span>
+          </div>
           {order.final_quote_note && <p className="text-xs text-muted-foreground border-t border-border/40 pt-2">{order.final_quote_note}</p>}
         </div>
+      ) : (
+        order.status === 'quoted' && (
+          <div className="rounded-2xl border border-blue-500/30 bg-blue-500/5 px-4 py-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{L('Merchant approval request', 'طلب موافقة التاجر')}</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{L('Rate', 'السعر')}</span>
+              <span className="font-bold tabular-nums">{order.final_rate != null ? fmt(order.final_rate, 4) : '—'}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{L('Total', 'الإجمالي')}</span>
+              <span className="font-bold tabular-nums text-emerald-600">{order.final_total != null ? fmt(order.final_total) : '—'}</span>
+            </div>
+            {order.final_quote_note && <p className="text-xs text-muted-foreground border-t border-border/40 pt-2">{order.final_quote_note}</p>}
+          </div>
+        )
       )}
 
-      {/* Payment instructions */}
-      {order.status === 'awaiting_payment' && (
-        <div className="rounded-2xl border border-orange-500/30 bg-orange-500/5 px-4 py-3 space-y-2">
-          <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide">{L('Payment Instructions', 'تعليمات الدفع')}</p>
-          <p className="text-sm">{L(`Send ${fmt(order.amount)} QAR via ${order.payout_rail?.replace(/_/g,' ') ?? 'agreed method'}, then upload proof.`, `أرسل ${fmt(order.amount)} QAR عبر ${order.payout_rail?.replace(/_/g,' ') ?? 'الطريقة المتفق عليها'}، ثم ارفع الإثبات.`)}</p>
-          {order.note && <p className="text-xs text-muted-foreground">{order.note}</p>}
+      <div className="rounded-2xl border border-border/50 bg-card px-4 py-3 space-y-1.5">
+        <div className="flex justify-between text-xs">
+          <span className="text-muted-foreground">{L('Created', 'تاريخ الإنشاء')}</span>
+          <span>{formatCustomerDate(order.created_at, lang)}</span>
         </div>
-      )}
+        {order.payout_rail && (
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">{L('Receive via', 'استلام عبر')}</span>
+            <span>{order.payout_rail.replace(/_/g, ' ')}</span>
+          </div>
+        )}
+        {order.customer_cash_account_name && (
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">{L('Cash account', 'حساب النقد')}</span>
+            <span>{order.customer_cash_account_name}</span>
+          </div>
+        )}
+        {order.merchant_cash_account_name && (
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">{L('Merchant cash', 'نقد التاجر')}</span>
+            <span>{order.merchant_cash_account_name}</span>
+          </div>
+        )}
+        {order.note && (
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">{L('Note', 'ملاحظة')}</span>
+            <span className="max-w-[60%] text-right">{order.note}</span>
+          </div>
+        )}
+      </div>
 
-      {/* Actions */}
       <div className="space-y-2">
         {order.status === 'quoted' && (
           <>
             <button onClick={() => accept.mutate()} disabled={accept.isPending} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-sm font-bold text-white disabled:opacity-50">
-              {accept.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{L('Accept Quote', 'قبول العرض')}
+              {accept.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{L('Approve', 'موافقة')}
             </button>
             {!showReject ? (
-              <button onClick={() => setShowReject(true)} className="flex h-11 w-full items-center justify-center rounded-xl border border-destructive/30 text-sm font-semibold text-destructive">{L('Reject Quote', 'رفض العرض')}</button>
+              <button onClick={() => setShowReject(true)} className="flex h-11 w-full items-center justify-center rounded-xl border border-destructive/30 text-sm font-semibold text-destructive">{L('Reject', 'رفض')}</button>
             ) : (
               <div className="space-y-2">
                 <input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder={L('Reason (optional)', 'السبب (اختياري)')} className="h-10 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none" />
@@ -248,24 +319,7 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
             )}
           </>
         )}
-        {order.status === 'awaiting_payment' && (
-          <>
-            <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadProof(f); }} />
-            <button onClick={() => fileRef.current?.click()} disabled={uploading} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border/50 bg-card text-sm font-semibold disabled:opacity-50">
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{order.payment_proof_url ? L('Replace proof', 'استبدال الإثبات') : L('Upload payment proof', 'رفع إثبات الدفع')}
-            </button>
-            {order.payment_proof_url && <a href={order.payment_proof_url} target="_blank" rel="noopener noreferrer" className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-sm font-medium text-emerald-600">{L('View proof', 'عرض الإثبات')}</a>}
-            <button onClick={() => markSent.mutate()} disabled={markSent.isPending} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50">
-              {markSent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{L('I have sent the payment', 'لقد أرسلت الدفعة')}
-            </button>
-          </>
-        )}
         {canCancel && <button onClick={() => cancel.mutate()} disabled={cancel.isPending} className="flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium text-muted-foreground hover:text-destructive transition-colors">{cancel.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : L('Cancel order', 'إلغاء الطلب')}</button>}
-      </div>
-
-      <div className="rounded-2xl border border-border/50 bg-card px-4 py-3 space-y-1.5">
-        <div className="flex justify-between text-xs"><span className="text-muted-foreground">{L('Created', 'تاريخ الإنشاء')}</span><span>{formatCustomerDate(order.created_at, lang)}</span></div>
-        {order.payout_rail && <div className="flex justify-between text-xs"><span className="text-muted-foreground">{L('Receive via', 'استلام عبر')}</span><span>{order.payout_rail.replace(/_/g,' ')}</span></div>}
       </div>
     </div>
   );
@@ -312,7 +366,7 @@ export default function CustomerOrdersPage() {
     return { totalQar, totalEgp, avgFx };
   }, [orders]);
 
-  const needsAction = orders.filter(o => ['quoted','awaiting_payment'].includes(o.status));
+  const needsAction = orders.filter(o => o.status === 'quoted');
   const dayGroups = useMemo(() => groupByDay(orders, lang), [orders, lang]);
   const selectedOrder = orders.find(o => o.id === selectedId) ?? null;
 
@@ -348,8 +402,7 @@ export default function CustomerOrdersPage() {
           <div>
             <p className="text-sm font-semibold">{needsAction.length} {L('order(s) need action', 'طلب/طلبات تحتاج إجراء')}</p>
             <p className="text-xs text-muted-foreground">
-              {needsAction.filter(o => o.status === 'quoted').length > 0 && L('Review quotes · ', 'راجع العروض · ')}
-              {needsAction.filter(o => o.status === 'awaiting_payment').length > 0 && L('Send payment', 'أرسل الدفعة')}
+              {needsAction.length > 0 && L('Review quotes', 'راجع العروض')}
             </p>
           </div>
         </div>
@@ -379,7 +432,7 @@ export default function CustomerOrdersPage() {
                   const total = getDisplayedCustomerTotal(o);
                   const rate  = getDisplayedCustomerRate(o);
                   const { label: sLabel, cls: sCls } = customerStatus(o.status, lang);
-                  const isActionable = ['quoted','awaiting_payment'].includes(o.status);
+                  const isActionable = o.status === 'quoted';
                   return (
                     <button key={o.id} onClick={() => setSelectedId(o.id)}
                       className={cn('flex w-full items-center gap-3 rounded-2xl border bg-card px-4 py-3 text-left active:scale-[0.99]', isActionable ? 'border-amber-500/30' : 'border-border/50')}>
@@ -393,6 +446,7 @@ export default function CustomerOrdersPage() {
                         <div className="mt-0.5 flex items-center gap-2">
                           <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', sCls)}>{sLabel}</span>
                           {isActionable && <AlertCircle className="h-3 w-3 text-amber-500" />}
+                          {o.customer_cash_account_name && <span className="text-[11px] text-muted-foreground">{o.customer_cash_account_name}</span>}
                         </div>
                       </div>
                       <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
