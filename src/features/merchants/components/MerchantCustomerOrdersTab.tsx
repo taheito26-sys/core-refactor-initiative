@@ -460,8 +460,8 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
 
   return (
     <div className="space-y-3">
-      {/* Place Order button */}
-      {!isAdminView && resolvedMerchantId && (
+      {/* Place Order button — always visible on this tab */}
+      {!isAdminView && (
         <div className="flex justify-end">
           <button
             onClick={() => setShowPlaceOrder(true)}
@@ -679,9 +679,9 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     </div>
 
       {/* Place Order modal */}
-      {showPlaceOrder && resolvedMerchantId && (
+      {showPlaceOrder && (
         <PlaceOrderForClientModal
-          merchantId={resolvedMerchantId}
+          merchantId={resolvedMerchantId ?? ''}
           userId={userId ?? ''}
           onClose={() => setShowPlaceOrder(false)}
           onCreated={() => setShowPlaceOrder(false)}
