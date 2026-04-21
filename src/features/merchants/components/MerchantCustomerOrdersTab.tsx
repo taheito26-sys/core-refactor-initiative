@@ -274,7 +274,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   const [quoteDrafts, setQuoteDrafts] = useState<Record<string, QuoteDraft>>({});
   const [showPlaceOrder, setShowPlaceOrder] = useState(false);
 
-  const resolvedMerchantId = isAdminView ? merchantId ?? null : merchantProfile?.merchant_id;
+  const resolvedMerchantId = isAdminView ? merchantId ?? null : (merchantProfile?.merchant_id ?? merchantId ?? null);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['merchant-customer-orders', resolvedMerchantId],
@@ -461,7 +461,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   return (
     <div className="space-y-3">
       {/* Place Order button */}
-      {!isAdminView && resolvedMerchantId && userId && (
+      {!isAdminView && resolvedMerchantId && (
         <div className="flex justify-end">
           <button
             onClick={() => setShowPlaceOrder(true)}
@@ -679,10 +679,10 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     </div>
 
       {/* Place Order modal */}
-      {showPlaceOrder && resolvedMerchantId && userId && (
+      {showPlaceOrder && resolvedMerchantId && (
         <PlaceOrderForClientModal
           merchantId={resolvedMerchantId}
-          userId={userId}
+          userId={userId ?? ''}
           onClose={() => setShowPlaceOrder(false)}
           onCreated={() => setShowPlaceOrder(false)}
         />
