@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal,
+  fmtPrice, fmtTotal, deriveCashQAR,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
@@ -946,7 +946,7 @@ export default function OrdersPage() {
   };
 
   // Helper: apply cash deposit to state if enabled
-  const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number): TrackerState => {
+  const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number, tradeId?: string): TrackerState => {
     return applyOrderCashDeposit({
       nextState,
       cashDepositMode,
@@ -954,6 +954,7 @@ export default function OrdersPage() {
       cashDepositAccountId,
       sell,
       amountUSDT,
+      tradeId,
       baseFiatCurrency: baseFiat,
       note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
     });
@@ -1287,7 +1288,7 @@ export default function OrdersPage() {
           trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
-        applyState(applyCashDeposit(next, sell, amountUSDT));
+        applyState(applyCashDeposit(next, sell, amountUSDT, persistedTrade.id));
         await reloadMerchantData();
         const _allocPartner = allocations[0]?.merchantName || relationships.find(r => r.id === allocations[0]?.relationshipId)?.counterparty?.display_name;
         showSaleToast({ amountUSDT, sell, net: salePreview?.net, partnerName: _allocPartner, isApproval: true });
@@ -1429,7 +1430,7 @@ export default function OrdersPage() {
           trades: [...state.trades, persistedTrade],
           range: inRange(ts, state.range) ? state.range : 'all'
         };
-        applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
+        applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT, persistedTrade.id));
 
         await reloadMerchantData();
         const _legacyPartner = relationships.find(r => r.id === linkedRelId)?.counterparty?.display_name;
@@ -1446,7 +1447,7 @@ export default function OrdersPage() {
         trades: [...state.trades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
       };
-      applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT));
+      applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT, baseTrade.id));
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
     }
 
@@ -1702,10 +1703,52 @@ export default function OrdersPage() {
       cashDepositAccountId: editCashDepositAccountId,
       sell,
       amountUSDT: qty,
+      tradeId: editingTradeId,
       baseFiatCurrency: baseFiat,
       note: `${t('saleProceeds')}: ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
     });
-    applyState(stateWithEditDeposit);
+
+    const previousRevenue = existingTrade.amountUSDT * existingTrade.sellPriceQAR;
+    const nextRevenue = qty * sell;
+    const tradeSaleDeposits = (stateWithEditDeposit.cashLedger || [])
+      .filter(e =>
+        e.type === 'sale_deposit'
+        && e.direction === 'in'
+        && (
+          e.tradeId === editingTradeId
+          || (e.linkedEntityType === 'trade' && e.linkedEntityId === editingTradeId)
+        )
+      );
+    let finalState = stateWithEditDeposit;
+    if (previousRevenue > 0 && tradeSaleDeposits.length > 0) {
+      const previousDeposited = tradeSaleDeposits.reduce((sum, entry) => sum + entry.amount, 0);
+      const depositRatio = Math.max(0, Math.min(1, previousDeposited / previousRevenue));
+      const targetDeposited = nextRevenue * depositRatio;
+      const adjustment = targetDeposited - previousDeposited;
+      if (Math.abs(adjustment) >= 0.01) {
+        const latestDeposit = [...tradeSaleDeposits].sort((a, b) => b.ts - a.ts)[0];
+        const adjustmentEntry = {
+          id: uid(),
+          ts: Date.now(),
+          type: 'stock_edit_adjust' as const,
+          accountId: latestDeposit.accountId,
+          direction: adjustment > 0 ? 'in' as const : 'out' as const,
+          amount: Math.abs(adjustment),
+          currency: latestDeposit.currency,
+          linkedEntityType: 'trade' as const,
+          linkedEntityId: editingTradeId,
+          tradeId: editingTradeId,
+          note: `${t('ledgerEditAdjust') || 'Order edit adjustment'}: ${fmtU(existingTrade.amountUSDT)}→${fmtU(qty)} USDT, ${fmtP(existingTrade.sellPriceQAR)}→${fmtP(sell)}`,
+        };
+        const adjustedLedger = [...(stateWithEditDeposit.cashLedger || []), adjustmentEntry];
+        finalState = {
+          ...stateWithEditDeposit,
+          cashLedger: adjustedLedger,
+          cashQAR: deriveCashQAR(stateWithEditDeposit.cashAccounts, adjustedLedger),
+        };
+      }
+    }
+    applyState(finalState);
 
     // Propagate edits to linked server deal and trigger re-approval
     if (existingTrade.linkedDealId && !editLinkEnabled) {
@@ -1737,7 +1780,7 @@ export default function OrdersPage() {
         const resetTrades = nextTrades.map(tr =>
           tr.id === editingTradeId ? { ...tr, approvalStatus: 'pending_approval' as LinkedTradeStatus } : tr
         );
-        applyState({ ...stateWithEditDeposit, trades: resetTrades });
+        applyState({ ...finalState, trades: resetTrades });
         await reloadMerchantData();
         // Invalidate dashboard deal KPIs so they reflect the updated quantities immediately
         void queryClient.invalidateQueries({ queryKey: ['dashboard-merchant-deals'] });
