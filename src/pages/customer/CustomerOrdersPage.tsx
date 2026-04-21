@@ -176,16 +176,6 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
     finally { setUploading(false); }
   };
 
-  const STEPS = [
-    { key: 'pending_quote',    en: 'Order placed',   ar: 'تم تقديم الطلب' },
-    { key: 'quoted',           en: 'Quote received', ar: 'تم استلام العرض' },
-    { key: 'quote_accepted',   en: 'Accepted',       ar: 'مقبول' },
-    { key: 'awaiting_payment', en: 'Send payment',   ar: 'أرسل الدفعة' },
-    { key: 'payment_sent',     en: 'Payment sent',   ar: 'تم إرسال الدفعة' },
-    { key: 'completed',        en: 'Completed',      ar: 'مكتمل' },
-  ];
-  const stepOrder = STEPS.map(s => s.key);
-  const currentStep = Math.max(0, stepOrder.indexOf(order.status));
   const isCancelled = ['cancelled','quote_rejected'].includes(order.status);
   const canCancel = ['pending_quote','quoted','quote_rejected'].includes(order.status);
 
@@ -237,25 +227,6 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
           {order.note && <p className="text-xs text-muted-foreground">{order.note}</p>}
         </div>
       )}
-
-      {/* Progress timeline */}
-      <div className="rounded-2xl border border-border/50 bg-card px-4 py-3">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Progress', 'التقدم')}</p>
-        <div className="space-y-2">
-          {STEPS.map((step, i) => {
-            const done = !isCancelled && i <= currentStep;
-            return (
-              <div key={step.key} className="flex items-center gap-3">
-                <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold', done ? 'bg-emerald-500 text-white' : 'bg-muted text-muted-foreground')}>
-                  {done ? <Check className="h-3 w-3" /> : i + 1}
-                </div>
-                <span className={cn('text-sm', done ? 'text-foreground font-medium' : 'text-muted-foreground')}>{lang === 'ar' ? step.ar : step.en}</span>
-              </div>
-            );
-          })}
-          {isCancelled && <div className="flex items-center gap-3"><div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold">✕</div><span className="text-sm text-red-500">{statusLabel}</span></div>}
-        </div>
-      </div>
 
       {/* Actions */}
       <div className="space-y-2">
