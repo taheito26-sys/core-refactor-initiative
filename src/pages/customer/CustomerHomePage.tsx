@@ -1,7 +1,7 @@
-﻿import { useMemo } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Calculator } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ import {
   getDisplayedCustomerRate, getDisplayedCustomerTotal,
   deriveCustomerOrderMeta, type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
-import { getQatarEgyptGuideRate } from '@/features/customer/customer-market';
+import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function startOfWeek(): Date {
@@ -61,6 +61,7 @@ export default function CustomerHomePage() {
   const lang = settings.language === 'ar' ? 'ar' : 'en';
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
+  const [calcAmount, setCalcAmount] = useState('');
 
   const { data: orders = [] } = useQuery<CustomerOrderRow[]>({
     queryKey: ['c-dash-orders', userId],
@@ -74,7 +75,9 @@ export default function CustomerHomePage() {
     enabled: !!userId,
   });
 
-  const { data: guide } = useQuery({ queryKey: ['c-guide-rate'], queryFn: getQatarEgyptGuideRate, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000 });
+  const { data: marketData } = useQuery({ queryKey: ['c-market-kpis'], queryFn: getCustomerMarketKpis, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000 });
+  const guideRate = marketData?.guide?.rate ?? null;
+  const egyptBuyAvg = marketData?.egypt?.buyAvg ?? null;
 
   const metrics = useMemo(() => {
     const now = Date.now();
@@ -117,23 +120,65 @@ export default function CustomerHomePage() {
     };
   }, [orders, lang]);
 
+  const calcResult = guideRate && calcAmount && parseFloat(calcAmount) > 0
+    ? parseFloat(calcAmount) * guideRate
+    : null;
+
   return (
     <div className="space-y-5">
-      {/* Hero: live rate */}
-      <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-primary-foreground">
-        <p className="text-sm opacity-80">{L('Welcome back', 'مرحباً')}</p>
-        <h1 className="mt-0.5 text-xl font-bold">{customerProfile?.display_name ?? '—'}</h1>
-        {guide?.rate != null && (
-          <div className="mt-4 flex items-end justify-between">
-            <div>
-              <p className="text-xs opacity-70">QAR → EGP</p>
-              <p className="text-3xl font-black tabular-nums">{fmt(guide.rate, 4)}</p>
-            </div>
-            <button onClick={() => navigate('/c/market')} className="flex items-center gap-1 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-semibold hover:bg-white/30">
-              {L('Market', 'السوق')} <ArrowRight className="h-3 w-3" />
-            </button>
+      {/* Hero: rates + calculator */}
+      <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-primary-foreground space-y-4">
+        <div>
+          <p className="text-sm opacity-80">{L('Welcome back', 'مرحباً')}</p>
+          <h1 className="mt-0.5 text-xl font-bold">{customerProfile?.display_name ?? '—'}</h1>
+        </div>
+
+        {/* Rate row */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-white/10 px-3 py-2.5">
+            <p className="text-[10px] opacity-70 uppercase tracking-wide">QAR/EGP {L('Guide', 'دليل')}</p>
+            <p className="text-xl font-black tabular-nums mt-0.5">
+              {guideRate != null ? fmt(guideRate, 4) : '—'}
+            </p>
           </div>
-        )}
+          <div className="rounded-xl bg-white/10 px-3 py-2.5">
+            <p className="text-[10px] opacity-70 uppercase tracking-wide">{L('Egypt Buy Avg', 'متوسط شراء مصر')}</p>
+            <p className="text-xl font-black tabular-nums mt-0.5">
+              {egyptBuyAvg != null ? fmt(egyptBuyAvg, 4) : '—'}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Calculator */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Calculator className="h-3.5 w-3.5 opacity-70" />
+            <p className="text-xs opacity-70 font-medium">{L('Quick Calculator', 'حاسبة سريعة')}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input
+                value={calcAmount}
+                onChange={e => setCalcAmount(e.target.value)}
+                type="number"
+                min="0"
+                placeholder="0"
+                className="h-10 w-full rounded-xl bg-white/20 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/40 outline-none focus:bg-white/25"
+              />
+              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">QAR</span>
+            </div>
+            <span className="text-white/60 font-bold">→</span>
+            <div className="relative flex-1">
+              <input
+                value={calcResult != null ? fmt(calcResult, 0) : ''}
+                readOnly
+                placeholder="0"
+                className="h-10 w-full rounded-xl bg-white/10 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/30 outline-none tabular-nums"
+              />
+              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">EGP</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Action needed */}
@@ -147,7 +192,6 @@ export default function CustomerHomePage() {
               {metrics.needsAction.filter(o => o.status === 'awaiting_payment').length > 0 && L('Send payment', 'أرسل الدفعة')}
             </p>
           </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground" />
         </button>
       )}
 

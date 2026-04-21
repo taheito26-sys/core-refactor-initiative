@@ -30,7 +30,6 @@ import { CustomerLayout } from "@/components/layout/CustomerLayout";
 import CustomerOnboardingPage from "./pages/customer/CustomerOnboardingPage";
 import CustomerHomePage from "./pages/customer/CustomerHomePage";
 import CustomerMerchantsPage from "./pages/customer/CustomerMerchantsPage";
-import CustomerMarketPage from "./pages/customer/CustomerMarketPage";
 import CustomerOrdersPage from "./pages/customer/CustomerOrdersPage";
 import CustomerNotificationsPage from "./pages/customer/CustomerNotificationsPage";
 import CustomerChatPage from "./pages/customer/CustomerChatPage";
@@ -241,7 +240,7 @@ const App = () => (
                   <Route path="/c/home" element={<CustomerHomePage />} />
                   <Route path="/c/dashboard" element={<CustomerHomePage />} />
                   <Route path="/c/merchants" element={<CustomerMerchantsPage />} />
-                  <Route path="/c/market" element={<CustomerMarketPage />} />
+                  <Route path="/c/market" element={<Navigate to="/c/home" replace />} />
                   <Route path="/c/orders" element={<CustomerOrdersPage />} />
                   <Route path="/c/wallet" element={<CustomerWalletPage />} />
                   <Route path="/c/notifications" element={<CustomerNotificationsPage />} />
