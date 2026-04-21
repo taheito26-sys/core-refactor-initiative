@@ -1723,7 +1723,7 @@ export default function OrdersPage() {
     const previousRevenue = existingTrade.amountUSDT * existingTrade.sellPriceQAR;
     const nextRevenue = qty * sell;
     let finalState = stateWithEditDeposit;
-    if (previousRevenue > 0 && previousDeposited > 0 && previousDepositAccount) {
+    if (editCashDepositMode === 'none' && previousRevenue > 0 && previousDeposited > 0 && previousDepositAccount) {
       const depositRatio = Math.max(0, Math.min(1, previousDeposited / previousRevenue));
       const targetDeposited = nextRevenue * depositRatio;
       const adjustment = targetDeposited - previousDeposited;
@@ -1788,7 +1788,8 @@ export default function OrdersPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Failed to update linked deal:', err);
-        applyState(finalState);
+        toast.error(t('dealUpdateFailed') || t('dealUpdatedReapprovalFailed') || 'Failed to update linked deal');
+        return;
       }
     } else {
       applyState(finalState);
