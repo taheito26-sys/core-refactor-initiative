@@ -1696,6 +1696,18 @@ export default function OrdersPage() {
       };
     });
     const baseNextState = { ...state, trades: nextTrades };
+    const existingTradeDeposits = (state.cashLedger || [])
+      .filter(e =>
+        e.type === 'sale_deposit'
+        && e.direction === 'in'
+        && (
+          e.tradeId === editingTradeId
+          || (e.linkedEntityType === 'trade' && e.linkedEntityId === editingTradeId)
+        )
+      );
+    const previousDeposited = existingTradeDeposits.reduce((sum, entry) => sum + entry.amount, 0);
+    const previousDepositAccount = [...existingTradeDeposits].sort((a, b) => b.ts - a.ts)[0];
+
     const stateWithEditDeposit = applyOrderCashDeposit({
       nextState: baseNextState,
       cashDepositMode: editCashDepositMode,
@@ -1710,31 +1722,20 @@ export default function OrdersPage() {
 
     const previousRevenue = existingTrade.amountUSDT * existingTrade.sellPriceQAR;
     const nextRevenue = qty * sell;
-    const tradeSaleDeposits = (stateWithEditDeposit.cashLedger || [])
-      .filter(e =>
-        e.type === 'sale_deposit'
-        && e.direction === 'in'
-        && (
-          e.tradeId === editingTradeId
-          || (e.linkedEntityType === 'trade' && e.linkedEntityId === editingTradeId)
-        )
-      );
     let finalState = stateWithEditDeposit;
-    if (previousRevenue > 0 && tradeSaleDeposits.length > 0) {
-      const previousDeposited = tradeSaleDeposits.reduce((sum, entry) => sum + entry.amount, 0);
+    if (previousRevenue > 0 && previousDeposited > 0 && previousDepositAccount) {
       const depositRatio = Math.max(0, Math.min(1, previousDeposited / previousRevenue));
       const targetDeposited = nextRevenue * depositRatio;
       const adjustment = targetDeposited - previousDeposited;
       if (Math.abs(adjustment) >= 0.01) {
-        const latestDeposit = [...tradeSaleDeposits].sort((a, b) => b.ts - a.ts)[0];
         const adjustmentEntry = {
           id: uid(),
           ts: Date.now(),
           type: 'stock_edit_adjust' as const,
-          accountId: latestDeposit.accountId,
+          accountId: previousDepositAccount.accountId,
           direction: adjustment > 0 ? 'in' as const : 'out' as const,
           amount: Math.abs(adjustment),
-          currency: latestDeposit.currency,
+          currency: previousDepositAccount.currency,
           linkedEntityType: 'trade' as const,
           linkedEntityId: editingTradeId,
           tradeId: editingTradeId,
@@ -1748,7 +1749,6 @@ export default function OrdersPage() {
         };
       }
     }
-    applyState(finalState);
 
     // Propagate edits to linked server deal and trigger re-approval
     if (existingTrade.linkedDealId && !editLinkEnabled) {
@@ -1788,7 +1788,10 @@ export default function OrdersPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Failed to update linked deal:', err);
+        applyState(finalState);
       }
+    } else {
+      applyState(finalState);
     }
 
     setEditingTradeId(null);
