@@ -31,8 +31,8 @@ import {
 import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 
 // ── Place Order for Client Modal (mirrors the customer NewOrderForm exactly) ──
-function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
-  merchantId: string; userId: string; onClose: () => void; onCreated: () => void;
+function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
+  merchantId: string; userId: string; onClose: () => void;
 }) {
   const qc = useQueryClient();
   const sendCountry: CustomerCountry = 'Qatar';
@@ -46,6 +46,11 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
   const [payoutRail, setPayoutRail] = useState('bank_transfer');
   const [note, setNote] = useState('');
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('');
+  const [submitResult, setSubmitResult] = useState<{
+    kind: 'success' | 'warning';
+    title: string;
+    message: string;
+  } | null>(null);
 
   // Load connected clients — only use connection row data (customer_profiles blocked by RLS for merchants)
   const { data: connections = [] } = useQuery({
@@ -156,6 +161,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
       });
       if (error) throw error;
 
+      let cashLinkOutcome: 'saved' | 'skipped' | 'not_selected' = 'not_selected';
       if (selectedCashAccount?.id) {
         const { error: cashLinkError } = await supabase
           .from('customer_orders')
@@ -167,13 +173,41 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
 
         if (cashLinkError) {
           console.warn('[merchant-customer-orders] cash account link skipped:', cashLinkError.message);
+          cashLinkOutcome = 'skipped';
+        } else {
+          cashLinkOutcome = 'saved';
         }
       }
+
+      return {
+        cashLinkOutcome,
+        cashAccountName: selectedCashAccount?.name ?? null,
+      };
     },
-    onSuccess: () => {
-      toast.success('Order placed for client');
+    onSuccess: (result) => {
+      if (result.cashLinkOutcome === 'saved') {
+        setSubmitResult({
+          kind: 'success',
+          title: 'Order placed',
+          message: `Cash account "${result.cashAccountName}" was linked to the order.`,
+        });
+        toast.success('Order placed and cash account linked');
+      } else if (result.cashLinkOutcome === 'skipped') {
+        setSubmitResult({
+          kind: 'warning',
+          title: 'Order placed',
+          message: 'The order was created, but the cash-account link could not be saved. Please check Supabase migrations and try again.',
+        });
+        toast.warning('Order placed, but cash account link was skipped');
+      } else {
+        setSubmitResult({
+          kind: 'warning',
+          title: 'Order placed',
+          message: 'The order was created without a cash-account link because none was selected.',
+        });
+        toast.success('Order placed for client');
+      }
       qc.invalidateQueries({ queryKey: ['merchant-customer-orders'] });
-      onCreated();
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -273,11 +307,28 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose, onCreated }: {
             className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
 
+        {submitResult && (
+          <div
+            className={cn(
+              'rounded-xl border px-4 py-3 text-sm',
+              submitResult.kind === 'success'
+                ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700'
+                : 'border-amber-500/30 bg-amber-500/5 text-amber-700',
+            )}
+          >
+            <p className="font-semibold">{submitResult.title}</p>
+            <p className="mt-1 text-xs leading-5 opacity-90">{submitResult.message}</p>
+          </div>
+        )}
+
         {/* Submit */}
-        <button onClick={() => create.mutate()} disabled={create.isPending || !connId || !amount}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50">
+        <button
+          onClick={() => submitResult ? onClose() : create.mutate()}
+          disabled={create.isPending || (!submitResult && (!connId || !amount))}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
+        >
           {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          Place Order
+          {submitResult ? 'Close' : 'Place Order'}
         </button>
       </div>
     </div>
@@ -527,12 +578,11 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
         )}
         <div className="empty"><div className="empty-t">Loading customer orders...</div></div>
         {showPlaceOrder && (
-          <PlaceOrderForClientModal
-            merchantId={resolvedMerchantId ?? ''}
-            userId={userId ?? ''}
-            onClose={() => setShowPlaceOrder(false)}
-            onCreated={() => setShowPlaceOrder(false)}
-          />
+            <PlaceOrderForClientModal
+              merchantId={resolvedMerchantId ?? ''}
+              userId={userId ?? ''}
+              onClose={() => setShowPlaceOrder(false)}
+            />
         )}
       </div>
     );
@@ -764,7 +814,6 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
           merchantId={resolvedMerchantId ?? ''}
           userId={userId ?? ''}
           onClose={() => setShowPlaceOrder(false)}
-          onCreated={() => setShowPlaceOrder(false)}
         />
       )}
     </div>
