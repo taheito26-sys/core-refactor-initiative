@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, Loader2, Plus, X, AlertCircle } from 'lucide-react';
+import { ArrowRight, Loader2, Plus, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  acceptCustomerQuote, cancelCustomerOrder, createCustomerOrderWithGuide,
+  cancelCustomerOrder, createCustomerOrderWithGuide,
   deriveCustomerOrderMeta, formatCustomerDate, formatCustomerNumber,
   getCompatibleRails, getCurrencyForCountry, getDisplayedCustomerRate,
   getDisplayedCustomerTotal, getGuidePricingForCustomerOrder,
@@ -201,7 +201,6 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
   const qc = useQueryClient();
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
 
-  const accept = useMutation({ mutationFn: () => acceptCustomerQuote(order, userId), onSuccess: () => { toast.success(L('Approved', 'تمت الموافقة')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated(); }, onError: (e: any) => toast.error(e.message) });
   const reject = useMutation({ mutationFn: () => rejectCustomerQuote(order, userId, rejectReason), onSuccess: () => { toast.success(L('Rejected', 'تم الرفض')); setShowReject(false); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onUpdated(); }, onError: (e: any) => toast.error(e.message) });
   const cancel = useMutation({ mutationFn: () => cancelCustomerOrder(order, userId), onSuccess: () => { toast.success(L('Order cancelled', 'تم إلغاء الطلب')); qc.invalidateQueries({ queryKey: ['c-orders', userId] }); onClose(); }, onError: (e: any) => toast.error(e.message) });
 
@@ -274,28 +273,10 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
           <span className="text-muted-foreground">{L('Created', 'تاريخ الإنشاء')}</span>
           <span>{formatCustomerDate(order.created_at, lang)}</span>
         </div>
-        {order.payout_rail && (
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">{L('Receive via', 'استلام عبر')}</span>
-            <span>{order.payout_rail.replace(/_/g, ' ')}</span>
-          </div>
-        )}
         {order.customer_cash_account_name && (
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">{L('Cash account', 'حساب النقد')}</span>
             <span>{order.customer_cash_account_name}</span>
-          </div>
-        )}
-        {order.merchant_cash_account_name && (
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">{L('Merchant cash', 'نقد التاجر')}</span>
-            <span>{order.merchant_cash_account_name}</span>
-          </div>
-        )}
-        {order.note && (
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">{L('Note', 'ملاحظة')}</span>
-            <span className="max-w-[60%] text-right">{order.note}</span>
           </div>
         )}
       </div>
@@ -303,9 +284,6 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
       <div className="space-y-2">
         {order.status === 'quoted' && (
           <>
-            <button onClick={() => accept.mutate()} disabled={accept.isPending} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-sm font-bold text-white disabled:opacity-50">
-              {accept.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}{L('Approve', 'موافقة')}
-            </button>
             {!showReject ? (
               <button onClick={() => setShowReject(true)} className="flex h-11 w-full items-center justify-center rounded-xl border border-destructive/30 text-sm font-semibold text-destructive">{L('Reject', 'رفض')}</button>
             ) : (

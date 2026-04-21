@@ -18,7 +18,6 @@ import {
   deriveFinalQuoteValues,
   formatCustomerDate,
   formatCustomerNumber,
-  getCompatibleRails,
   getCurrencyForCountry,
   getGuidePricingForCustomerOrder,
   getDisplayedCustomerRate,
@@ -39,12 +38,9 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   const receiveCountry: CustomerCountry = 'Egypt';
   const sendCurrency = getCurrencyForCountry(sendCountry);   // QAR
   const receiveCurrency = getCurrencyForCountry(receiveCountry); // EGP
-  const rails = getCompatibleRails(sendCountry, receiveCountry);
 
   const [connId, setConnId] = useState('');
   const [amount, setAmount] = useState('');
-  const [payoutRail, setPayoutRail] = useState('bank_transfer');
-  const [note, setNote] = useState('');
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('');
   const [submitResult, setSubmitResult] = useState<{
     kind: 'success' | 'warning';
@@ -94,6 +90,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   });
 
   const selectedCashAccount = cashAccounts.find((account: any) => account.id === merchantCashAccountId) ?? null;
+  const activeCashAccounts = cashAccounts.filter((account: any) => account.status === 'active');
 
   useEffect(() => {
     if (merchantCashAccountId || cashAccounts.length === 0) return;
@@ -116,7 +113,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
       receiveCountry,
       sendCurrency,
       receiveCurrency,
-      payoutRail,
+      payoutRail: 'bank_transfer',
       corridorLabel: 'Qatar -> Egypt',
     }),
     enabled: !!connId && !!amount && parseFloat(amount) > 0,
@@ -136,12 +133,12 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         p_order_type: 'buy',
         p_rate: null,
         p_total: null,
-        p_note: note.trim() || null,
+        p_note: null,
         p_send_country: sendCountry,
         p_receive_country: receiveCountry,
         p_send_currency: sendCurrency,
         p_receive_currency: receiveCurrency,
-        p_payout_rail: payoutRail,
+        p_payout_rail: 'bank_transfer',
         p_corridor_label: 'Qatar -> Egypt',
         p_pricing_mode: 'merchant_quote',
         p_guide_rate: guide?.guideRate ?? null,
@@ -180,11 +177,21 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
       }
 
       return {
+        createdOrder: data as CustomerOrderRow,
         cashLinkOutcome,
         cashAccountName: selectedCashAccount?.name ?? null,
       };
     },
     onSuccess: (result) => {
+      if (result.createdOrder) {
+        queryClient.setQueryData<CustomerOrderRow[]>(
+          ['merchant-customer-orders', merchantId],
+          (current = []) => {
+            const next = [result.createdOrder, ...current.filter((order) => order.id !== result.createdOrder.id)];
+            return next;
+          },
+        );
+      }
       if (result.cashLinkOutcome === 'saved') {
         setSubmitResult({
           kind: 'success',
@@ -207,7 +214,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         });
         toast.success('Order placed for client');
       }
-      qc.invalidateQueries({ queryKey: ['merchant-customer-orders'] });
+      qc.invalidateQueries({ queryKey: ['merchant-customer-orders', merchantId], exact: true });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -247,20 +254,33 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
           </div>
         </div>
 
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Merchant cash account</label>
-          <select
-            value={merchantCashAccountId}
-            onChange={(e) => setMerchantCashAccountId(e.target.value)}
-            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            <option value="">Select cash account…</option>
-            {cashAccounts.map((account: any) => (
-              <option key={account.id} value={account.id}>
-                {account.name} · {account.currency}
-              </option>
-            ))}
-          </select>
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+            💰 Merchant cash account
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {activeCashAccounts.length === 0 ? (
+              <div className="text-xs text-muted-foreground">No active cash accounts found</div>
+            ) : activeCashAccounts.map((account: any) => {
+              const isSelected = merchantCashAccountId === account.id;
+              return (
+                <button
+                  key={account.id}
+                  type="button"
+                  onClick={() => setMerchantCashAccountId(account.id)}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700'
+                      : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
+                  )}
+                >
+                  <div className="font-semibold text-foreground">{account.name}</div>
+                  <div className="text-[11px] opacity-80">{account.currency}</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Guide pricing preview */}
@@ -280,32 +300,6 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             <p className="text-[10px] text-muted-foreground">Final rate set by you when quoting</p>
           </div>
         )}
-
-        {/* Receive via */}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Receive via</label>
-          <select value={payoutRail} onChange={e => setPayoutRail(e.target.value)}
-            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
-            {rails.map(r => (
-              <option key={r.value} value={r.value}>
-                {r.value === 'bank_transfer' ? 'Bank Transfer'
-                  : r.value === 'mobile_wallet' ? 'Mobile Wallet (InstaPay/VCash)'
-                  : r.value === 'cash_pickup' ? 'Cash Pickup'
-                  : r.value}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Note */}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            Note <span className="text-muted-foreground/60">(optional)</span>
-          </label>
-          <input value={note} onChange={e => setNote(e.target.value)}
-            placeholder="e.g. InstaPay: 01xxxxxxxxx"
-            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-        </div>
 
         {submitResult && (
           <div
