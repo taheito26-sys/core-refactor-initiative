@@ -55,3 +55,18 @@ This applies to every change — UI, logic, API, infrastructure, configuration.
 4. Tell the user: "Pushed — wait for Vercel to deploy, then hard refresh and test"
 5. Wait for user confirmation before marking anything as resolved
 6. If user says it still doesn't work — do NOT assume the old fix was correct and patch on top. Diagnose from scratch.
+
+## Progress Bar Rule
+
+**Always show a progress bar when doing multi-step work (3+ steps).**
+
+Format:
+```
+Progress: [████████░░] 8/10 — Writing CustomerOrdersPage
+```
+
+Rules:
+- Filled block `█` for completed steps, empty block `░` for remaining
+- Show current step label after the fraction
+- Update after every completed step
+- Use this for: multi-file implementations, spec task execution, debugging sessions, any work with 3+ distinct steps
