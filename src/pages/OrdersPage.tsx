@@ -1015,23 +1015,43 @@ export default function OrdersPage() {
   // ─── Sync helper: write a customer_orders row when buyer is a connected customer ──
   const syncTradeToCustomerOrders = async (trade: Trade, resolvedBuyerId: string) => {
     try {
+      if (!resolvedBuyerId || !merchantProfile?.merchant_id) return;
+
+      // First try in-memory connected customers list
       const connectedBuyer = connectedCustomers.find(
         c => c.customerUserId === resolvedBuyerId || c.id === resolvedBuyerId,
       );
-      if (!connectedBuyer?.customerUserId || !merchantProfile?.merchant_id) return;
+
+      // If not found in memory, query DB directly — handles cases where
+      // connectedCustomers hasn't loaded yet or buyerId is a local UUID
+      // that was materialized from a connected customer
+      let customerUserId = connectedBuyer?.customerUserId ?? null;
+      if (!customerUserId) {
+        // resolvedBuyerId might already be a customerUserId — check DB directly
+        const { data: connCheck } = await supabase
+          .from('customer_merchant_connections')
+          .select('customer_user_id')
+          .eq('merchant_id', merchantProfile.merchant_id)
+          .eq('customer_user_id', resolvedBuyerId)
+          .eq('status', 'active')
+          .maybeSingle();
+        customerUserId = connCheck?.customer_user_id ?? null;
+      }
+
+      if (!customerUserId) return; // not a connected customer, skip
 
       const { data: connRow } = await supabase
         .from('customer_merchant_connections')
         .select('id')
         .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('customer_user_id', connectedBuyer.customerUserId)
+        .eq('customer_user_id', customerUserId)
         .eq('status', 'active')
         .maybeSingle();
 
       if (!connRow?.id) return;
 
       await supabase.from('customer_orders').insert({
-        customer_user_id: connectedBuyer.customerUserId,
+        customer_user_id: customerUserId,
         merchant_id: merchantProfile.merchant_id,
         connection_id: connRow.id,
         order_type: 'buy',
@@ -1406,7 +1426,7 @@ export default function OrdersPage() {
         showSaleToast({ amountUSDT, sell, net: salePreview?.net, partnerName: _allocPartner, isApproval: true });
 
         // Sync to customer portal
-        await syncTradeToCustomerOrders(baseTrade, buyerId);
+        await syncTradeToCustomerOrders(baseTrade, customerId);
 
         // Reset
         setSaleAmount('');
@@ -1568,7 +1588,7 @@ export default function OrdersPage() {
 
     // ─── Sync to customer_orders when buyer is a connected customer ──────────
     // This makes the trade visible on the customer portal side.
-    await syncTradeToCustomerOrders(baseTrade, buyerId);
+    await syncTradeToCustomerOrders(baseTrade, customerId);
 
     // Reset form
     setSaleAmount('');
