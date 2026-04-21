@@ -41,6 +41,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
   const [connId, setConnId] = useState('');
   const [amount, setAmount] = useState('');
+  const [fxRateInput, setFxRateInput] = useState('');
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('');
   const [submitResult, setSubmitResult] = useState<{
     kind: 'success' | 'warning';
@@ -120,6 +121,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
     staleTime: 60_000,
   });
 
+  const liveFxRate = guide?.guideRate ?? null;
+  const chosenFxRate = Number(fxRateInput);
+  const fxRate = Number.isFinite(chosenFxRate) && chosenFxRate > 0 ? chosenFxRate : liveFxRate;
+  const fxTotal = fxRate != null && Number.isFinite(fxRate) && parseFloat(amount) > 0
+    ? Number((parseFloat(amount) * fxRate).toFixed(6))
+    : null;
+
   const create = useMutation({
     mutationFn: async () => {
       if (!connId || !amount || parseFloat(amount) <= 0)
@@ -131,8 +139,8 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         p_currency: sendCurrency,
         p_status: 'pending_quote',
         p_order_type: 'buy',
-        p_rate: null,
-        p_total: null,
+        p_rate: fxRate,
+        p_total: fxRate != null ? Number((numAmount * fxRate).toFixed(6)) : null,
         p_note: null,
         p_send_country: sendCountry,
         p_receive_country: receiveCountry,
@@ -141,8 +149,8 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         p_payout_rail: 'bank_transfer',
         p_corridor_label: 'Qatar -> Egypt',
         p_pricing_mode: 'merchant_quote',
-        p_guide_rate: guide?.guideRate ?? null,
-        p_guide_total: guide?.guideTotal ?? null,
+        p_guide_rate: fxRate,
+        p_guide_total: fxRate != null ? Number((numAmount * fxRate).toFixed(6)) : null,
         p_guide_source: guide?.guideSource ?? null,
         p_guide_snapshot: guide?.guideSnapshot ?? null,
         p_guide_generated_at: guide?.guideGeneratedAt ?? null,
@@ -184,7 +192,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
     },
     onSuccess: (result) => {
       if (result.createdOrder) {
-        queryClient.setQueryData<CustomerOrderRow[]>(
+        qc.setQueryData<CustomerOrderRow[]>(
           ['merchant-customer-orders', merchantId],
           (current = []) => {
             const next = [result.createdOrder, ...current.filter((order) => order.id !== result.createdOrder.id)];
@@ -255,6 +263,29 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         </div>
 
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">FX Rate</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">QAR → EGP</div>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2">
+            <span className="text-sm font-bold text-primary">QAR → EGP</span>
+            <input
+              value={fxRateInput}
+              onChange={(e) => setFxRateInput(e.target.value)}
+              inputMode="decimal"
+              placeholder={liveFxRate != null ? String(liveFxRate) : '0.0000'}
+              className="ml-auto w-32 bg-transparent text-right text-sm font-bold outline-none"
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{guide?.guideSource ? `Live ${guide.guideSource}` : 'Custom rate'}</span>
+            <span className="font-semibold text-foreground">
+              {fxTotal != null ? `${formatCustomerNumber(fxTotal, 'en', 0)} EGP` : '—'}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-2">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
             💰 Merchant cash account
           </div>
@@ -282,24 +313,6 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             })}
           </div>
         </div>
-
-        {/* Guide pricing preview */}
-        {guide?.guideRate != null && parseFloat(amount) > 0 && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Guide pricing</p>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Rate</span>
-              <span className="font-bold tabular-nums">{formatCustomerNumber(guide.guideRate, 'en', 4)} EGP/QAR</span>
-            </div>
-            {guide.guideTotal != null && (
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Client receives (est.)</span>
-                <span className="font-bold tabular-nums text-emerald-600">{formatCustomerNumber(guide.guideTotal, 'en', 0)} EGP</span>
-              </div>
-            )}
-            <p className="text-[10px] text-muted-foreground">Final rate set by you when quoting</p>
-          </div>
-        )}
 
         {submitResult && (
           <div

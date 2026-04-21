@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   cancelCustomerOrder, createCustomerOrderWithGuide,
   deriveCustomerOrderMeta, formatCustomerDate, formatCustomerNumber,
-  getCompatibleRails, getCurrencyForCountry, getDisplayedCustomerRate,
+  getCurrencyForCountry, getDisplayedCustomerRate,
   getDisplayedCustomerTotal, getGuidePricingForCustomerOrder,
   listCustomerConnections, listCustomerOrders,
   rejectCustomerQuote, type CustomerCountry, type CustomerOrderRow,
@@ -63,14 +63,11 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const [merchantId, setMerchantId] = useState(connections[0]?.merchant_id ?? '');
   const [amount, setAmount] = useState('');
-  const [payoutRail, setPayoutRail] = useState('bank_transfer');
-  const [note, setNote] = useState('');
   const [customerCashAccountId, setCustomerCashAccountId] = useState('');
   const sendCountry: CustomerCountry = 'Qatar';
   const receiveCountry: CustomerCountry = 'Egypt';
   const sendCurrency = getCurrencyForCountry(sendCountry);
   const receiveCurrency = getCurrencyForCountry(receiveCountry);
-  const rails = getCompatibleRails(sendCountry, receiveCountry);
   const qc = useQueryClient();
 
   const { data: cashAccounts = [] } = useQuery({
@@ -96,7 +93,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
 
   const { data: guide } = useQuery({
     queryKey: ['c-guide-form', amount],
-    queryFn: () => getGuidePricingForCustomerOrder({ customerUserId: userId, merchantId, connectionId: '', orderType: 'buy', amount: parseFloat(amount) || 0, rate: null, note: null, sendCountry, receiveCountry, sendCurrency, receiveCurrency, payoutRail, corridorLabel: 'Qatar -> Egypt' }),
+    queryFn: () => getGuidePricingForCustomerOrder({ customerUserId: userId, merchantId, connectionId: '', orderType: 'buy', amount: parseFloat(amount) || 0, rate: null, note: null, sendCountry, receiveCountry, sendCurrency, receiveCurrency, payoutRail: 'bank_transfer', corridorLabel: 'Qatar -> Egypt' }),
     enabled: !!amount && parseFloat(amount) > 0, staleTime: 60_000,
   });
 
@@ -113,12 +110,12 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
         orderType: 'buy',
         amount: parseFloat(amount),
         rate: null,
-        note: note.trim() || null,
+        note: null,
         sendCountry,
         receiveCountry,
         sendCurrency,
         receiveCurrency,
-        payoutRail,
+        payoutRail: 'bank_transfer',
         corridorLabel: 'Qatar -> Egypt',
         customerCashAccountId: selectedAccount?.id ?? null,
         customerCashAccountName: selectedAccount?.name ?? null,
@@ -154,6 +151,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
             {cashAccounts.map((account: any) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}
           </select>
         </div>
+
         <div>
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Amount to send (QAR)', 'المبلغ المُرسَل (QAR)')}</label>
           <div className="relative">
@@ -169,16 +167,6 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
             <p className="text-[10px] text-muted-foreground">{L('Final rate set by merchant', 'السعر النهائي يحدده التاجر')}</p>
           </div>
         )}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Receive via', 'استلام عبر')}</label>
-          <select value={payoutRail} onChange={e => setPayoutRail(e.target.value)} className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
-            {rails.map(r => <option key={r.value} value={r.value}>{r.value === 'bank_transfer' ? L('Bank Transfer', 'تحويل بنكي') : r.value === 'mobile_wallet' ? L('Mobile Wallet (InstaPay/VCash)', 'محفظة موبايل') : r.value === 'cash_pickup' ? L('Cash Pickup', 'استلام نقدي') : r.value}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Note', 'ملاحظة')} <span className="text-muted-foreground/60">({L('optional', 'اختياري')})</span></label>
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder={L('e.g. InstaPay: 01xxxxxxxxx', 'مثال: InstaPay: 01xxxxxxxxx')} className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-        </div>
         <button onClick={() => create.mutate()} disabled={create.isPending || !merchantId || !amount} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50">
           {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{L('Place Order', 'تقديم الطلب')}
         </button>
@@ -246,6 +234,13 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
           </p>
         </div>
       </div>
+
+      {rate != null && (
+        <div className="rounded-2xl border border-border/50 bg-card px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm text-muted-foreground">{L('FX Rate', 'سعر الصرف')}</span>
+          <span className="text-sm font-bold tabular-nums">{fmt(rate, 4)} EGP/QAR</span>
+        </div>
+      )}
 
       {approved ? (
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 space-y-2">
