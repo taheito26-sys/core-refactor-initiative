@@ -70,3 +70,17 @@ Rules:
 - Show current step label after the fraction
 - Update after every completed step
 - Use this for: multi-file implementations, spec task execution, debugging sessions, any work with 3+ distinct steps
+
+## Tool Call Rate Limit Rule — NEVER produce "Too many requests"
+
+Root cause: too many tool calls in rapid succession within one response.
+
+**Prevention rules (follow strictly):**
+1. **Batch reads** — use `readMultipleFiles` for 2+ files, never multiple `readFile` calls
+2. **Batch writes** — write all content for a file in ONE `strReplace`, not many small anchored calls
+3. **No sequential probing** — do not chain `grepSearch` → `readFile` → `grepSearch` → `readFile`; read the full file once
+4. **Max 5 tool calls per response** — if more are needed, stop and tell the user "continuing in next message"
+5. **Combine git at the end** — `git add` + `git commit` + `git push` = 3 calls; always do them last, together
+6. **No redundant checks** — do not run both `tsc --noEmit` and `getDiagnostics` in the same response
+7. **Write large files via PowerShell** — use `Set-Content` for files >100 lines rather than multiple `strReplace` anchors
+8. **Never loop tool calls** — if a pattern requires calling the same tool 3+ times, restructure the approach

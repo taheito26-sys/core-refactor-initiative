@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Calculator } from 'lucide-react';
+import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Calculator, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
