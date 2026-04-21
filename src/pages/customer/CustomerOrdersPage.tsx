@@ -210,12 +210,28 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <button onClick={onClose} className="rounded-xl border border-border/50 p-2 hover:bg-muted"><X className="h-4 w-4" /></button>
-        <div>
-          <h2 className="text-base font-bold">{meta.sendCurrency} → {meta.receiveCurrency}</h2>
-          <p className="text-xs text-muted-foreground">#{order.id.slice(0, 8).toUpperCase()}</p>
+        <button onClick={onClose} className="rounded-xl border border-border/50 p-2 hover:bg-muted">
+          <X className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-base font-bold">{meta.sendCurrency} → {meta.receiveCurrency}</h2>
+          <p className="truncate text-xs text-muted-foreground">#{order.id.slice(0, 8).toUpperCase()}</p>
         </div>
-        <span className={cn('ms-auto rounded-full px-3 py-1 text-xs font-semibold', statusCls)}>{statusLabel}</span>
+        <span className={cn('ms-auto shrink-0 rounded-full px-3 py-1 text-xs font-semibold', statusCls)}>{statusLabel}</span>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <span className="rounded-full border border-border/60 px-2 py-1">{order.order_type.toUpperCase()}</span>
+        {order.customer_cash_account_name && (
+          <span className="rounded-full border border-border/60 px-2 py-1">
+            Cash: {order.customer_cash_account_name}
+          </span>
+        )}
+        {rate != null && (
+          <span className="rounded-full border border-border/60 px-2 py-1">
+            Rate {fmt(rate, 4)}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -230,13 +246,6 @@ function OrderDetail({ order, userId, lang, onClose, onUpdated }: {
           </p>
         </div>
       </div>
-
-      {rate != null && (
-        <div className="rounded-2xl border border-border/50 bg-card px-4 py-3 flex justify-between items-center">
-          <span className="text-sm text-muted-foreground">{L('FX Rate', 'سعر الصرف')}</span>
-          <span className="text-sm font-bold tabular-nums">{fmt(rate, 4)} EGP/QAR</span>
-        </div>
-      )}
 
       {approved ? (
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 space-y-2">
