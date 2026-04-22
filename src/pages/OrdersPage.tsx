@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
@@ -271,6 +271,7 @@ export default function OrdersPage() {
   const [editDealFee, setEditDealFee] = useState('0');
   const [editDealNote, setEditDealNote] = useState('');
   const [deleteDealConfirm, setDeleteDealConfirm] = useState<string | null>(null);
+  const backfillAttemptedTradeIdsRef = useRef(new Set<string>());
 
   const linkedRelationship = useMemo(
     () => relationships.find(r => r.id === linkedRelId),
@@ -1016,9 +1017,14 @@ export default function OrdersPage() {
   // ─── Sync helper: mirror a trade to customer_orders via the security-definer RPC ──
   // Direct INSERT on customer_orders is blocked by RLS for merchant users.
   // The mirror_merchant_customer_order RPC runs as security definer and handles auth.
-  const syncTradeToCustomerOrders = async (trade: Trade, resolvedBuyerId: string) => {
+  const syncTradeToCustomerOrders = useCallback(async (trade: Trade, resolvedBuyerId: string) => {
     try {
-      if (!resolvedBuyerId || !merchantProfile?.merchant_id) return;
+      if (!resolvedBuyerId || !merchantProfile?.merchant_id) {
+        const message = 'Customer order could not be mirrored: merchant session or buyer reference is missing.';
+        console.error(message, { resolvedBuyerId, merchantId: merchantProfile?.merchant_id ?? null, tradeId: trade.id });
+        toast.error(message);
+        return false;
+      }
 
       // Find the connection_id — the RPC needs this, not customer_user_id directly
       let connectionId: string | null = null;
@@ -1026,7 +1032,33 @@ export default function OrdersPage() {
       const connectedBuyer = connectedCustomers.find(
         c => c.customerUserId === resolvedBuyerId || c.id === resolvedBuyerId,
       );
-      const customerUserId = connectedBuyer?.customerUserId ?? resolvedBuyerId;
+      const localBuyer = state.customers.find((c) => c.id === resolvedBuyerId);
+      const namedConnectedBuyer = !connectedBuyer && localBuyer
+        ? connectedCustomers.find((c) => normalizeName(c.name) === normalizeName(localBuyer.name))
+        : null;
+      const customerUserId = (connectedBuyer ?? namedConnectedBuyer)?.customerUserId ?? resolvedBuyerId;
+
+      const { data: existingOrder, error: existingError } = await supabase
+        .from('customer_orders')
+        .select('id')
+        .eq('merchant_id', merchantProfile.merchant_id)
+        .eq('customer_user_id', customerUserId)
+        .eq('amount', trade.amountUSDT)
+        .eq('rate', trade.sellPriceQAR)
+        .gte('created_at', new Date(trade.ts - 60_000).toISOString())
+        .lte('created_at', new Date(trade.ts + 60_000).toISOString())
+        .maybeSingle();
+
+      if (existingError) {
+        const message = `Customer order mirror failed: ${existingError.message}`;
+        console.error(message, existingError);
+        toast.error(message);
+        return false;
+      }
+
+      if (existingOrder?.id) {
+        return false;
+      }
 
       const { data: connRow } = await supabase
         .from('customer_merchant_connections')
@@ -1037,7 +1069,16 @@ export default function OrdersPage() {
         .maybeSingle();
 
       connectionId = connRow?.id ?? null;
-      if (!connectionId) return; // not a connected customer
+      if (!connectionId) {
+        const message = 'Customer order could not be mirrored: no active or pending customer connection was found for this buyer.';
+        console.error(message, {
+          merchantId: merchantProfile.merchant_id,
+          customerUserId,
+          tradeId: trade.id,
+        });
+        toast.error(message);
+        return false;
+      }
 
       const { error } = await supabase.rpc('mirror_merchant_customer_order', {
         p_connection_id: connectionId,
@@ -1072,14 +1113,55 @@ export default function OrdersPage() {
       });
 
       if (error) {
-        console.error('mirror_merchant_customer_order error:', error);
-        toast.error(`Sync failed: ${error.message}`);
+        const message = `Customer order mirror failed: ${error.message}`;
+        console.error(message, error);
+        toast.error(message);
+        return false;
       }
+      return true;
     } catch (syncErr: any) {
-      console.error('customer_orders sync exception:', syncErr);
-      toast.error(`Sync error: ${syncErr?.message ?? 'unknown'}`);
+      const message = `Customer order mirror failed: ${syncErr?.message ?? 'unknown error'}`;
+      console.error(message, syncErr);
+      toast.error(message);
+      return false;
     }
-  };
+  }, [connectedCustomers, merchantProfile?.merchant_id, state.customers]);
+
+  useEffect(() => {
+    if (!merchantProfile?.merchant_id) return;
+    if (state.trades.length === 0) return;
+
+    let cancelled = false;
+
+    const restoreMissingMirrors = async () => {
+      let restoredCount = 0;
+
+      for (const trade of state.trades) {
+        if (cancelled) return;
+        if (trade.voided) continue;
+        if (!trade.customerId) continue;
+        if (backfillAttemptedTradeIdsRef.current.has(trade.id)) continue;
+
+        backfillAttemptedTradeIdsRef.current.add(trade.id);
+        const restored = await syncTradeToCustomerOrders(trade, trade.customerId);
+        if (restored) restoredCount += 1;
+      }
+
+      if (!cancelled && restoredCount > 0) {
+        toast.success(
+          restoredCount === 1
+            ? 'Restored 1 missing customer order'
+            : `Restored ${restoredCount} missing customer orders`,
+        );
+      }
+    };
+
+    void restoreMissingMirrors();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [merchantProfile?.merchant_id, state.trades, syncTradeToCustomerOrders]);
 
   // ─── Manual backfill: push an existing trade to the client portal ──
   const pushTradeToClient = async (trade: Trade) => {

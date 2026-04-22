@@ -62,7 +62,7 @@ begin
   limit 1;
 
   if v_customer_user_id is null then
-    raise exception 'Connection not found';
+    raise exception 'Customer order could not be mirrored: no active or pending customer connection was found for the current merchant';
   end if;
 
   insert into public.customer_orders (
