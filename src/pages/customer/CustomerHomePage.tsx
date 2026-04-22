@@ -7,11 +7,10 @@ import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import {
   formatCustomerNumber, formatCustomerDate,
-  listCustomerConnections, listCustomerOrders,
-  getDisplayedCustomerRate, getDisplayedCustomerTotal,
-  deriveCustomerOrderMeta, type CustomerOrderRow,
+  listCustomerConnections,
 } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
+import { listSharedOrdersForActor, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function startOfWeek(): Date {
@@ -22,13 +21,6 @@ function startOfWeek(): Date {
 function startOfMonth(offset = 0): Date {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth() + offset, 1);
-}
-function weightedAvgFx(orders: CustomerOrderRow[]): number | null {
-  const closed = orders.filter(o => o.status === 'completed');
-  const totalQar = closed.reduce((s, o) => s + (o.amount ?? 0), 0);
-  const totalEgp = closed.reduce((s, o) => s + (Number(getDisplayedCustomerTotal(o)) || 0), 0);
-  if (totalQar <= 0) return null;
-  return totalEgp / totalQar;
 }
 
 // ── Status map (customer vocabulary) ─────────────────────────────────────────
@@ -63,9 +55,9 @@ export default function CustomerHomePage() {
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
   const [calcAmount, setCalcAmount] = useState('');
 
-  const { data: orders = [] } = useQuery<CustomerOrderRow[]>({
+  const { data: orders = [] } = useQuery<WorkflowOrder[]>({
     queryKey: ['c-dash-orders', userId],
-    queryFn: async () => { if (!userId) return []; const { data } = await listCustomerOrders(userId); return (data ?? []) as CustomerOrderRow[]; },
+    queryFn: async () => { if (!userId) return []; return await listSharedOrdersForActor({ customerUserId: userId }); },
     enabled: !!userId, refetchInterval: 60_000,
   });
 
@@ -85,18 +77,25 @@ export default function CustomerHomePage() {
     const monthStart = startOfMonth().getTime();
     const lastMonthStart = startOfMonth(-1).getTime();
 
-    const completed = orders.filter(o => o.status === 'completed');
-    const active    = orders.filter(o => !['completed','cancelled','quote_rejected'].includes(o.status));
-    const needsAction = orders.filter(o => o.status === 'quoted');
+    // For new workflow system: completed = approved, active = pending approval, needsAction = pending customer approval
+    const completed = orders.filter(o => o.workflow_status === 'approved');
+    const active    = orders.filter(o => o.workflow_status && ['pending_customer_approval', 'pending_merchant_approval'].includes(o.workflow_status));
+    const needsAction = orders.filter(o => o.workflow_status === 'pending_customer_approval');
 
     const thisMonth  = orders.filter(o => new Date(o.created_at).getTime() >= monthStart);
     const lastMonth  = orders.filter(o => { const t = new Date(o.created_at).getTime(); return t >= lastMonthStart && t < monthStart; });
     const thisWeek   = orders.filter(o => new Date(o.created_at).getTime() >= weekStart);
 
+    // Calculate totals using fx_rate from new workflow
     const totalQar = completed.reduce((s, o) => s + (o.amount ?? 0), 0);
-    const totalEgp = completed.reduce((s, o) => s + (Number(getDisplayedCustomerTotal(o)) || 0), 0);
-    const avgFx    = weightedAvgFx(orders);
-    const weekFx   = weightedAvgFx(thisWeek);
+    const totalEgp = completed.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0);
+
+    // Average FX rate from completed orders
+    const avgFx = completed.length > 0 ? totalEgp / totalQar : null;
+    const weekCompleted = thisWeek.filter(o => o.workflow_status === 'approved');
+    const weekQar = weekCompleted.reduce((s, o) => s + (o.amount ?? 0), 0);
+    const weekEgp = weekCompleted.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0);
+    const weekFx = weekCompleted.length > 0 ? weekEgp / weekQar : null;
 
     // Trend: last 14 days grouped by day
     const trend: { date: string; qar: number }[] = [];
@@ -261,16 +260,22 @@ export default function CustomerHomePage() {
           </div>
           <div className="space-y-2">
             {orders.slice(0, 5).map(o => {
-              const meta = deriveCustomerOrderMeta(o, customerProfile?.country);
-              const total = getDisplayedCustomerTotal(o);
-              const rate  = getDisplayedCustomerRate(o);
-              const cfg   = STATUS[o.status] ?? STATUS.pending_quote;
+              const total = o.fx_rate ? o.amount * o.fx_rate : null;
+              const rate  = o.fx_rate;
+
+              // Map workflow_status to status config for display
+              let cfg = STATUS.pending_quote;
+              if (o.workflow_status === 'approved') cfg = STATUS.quote_accepted;
+              else if (o.workflow_status === 'rejected') cfg = STATUS.quote_rejected;
+              else if (o.workflow_status === 'pending_customer_approval' || o.workflow_status === 'pending_merchant_approval') cfg = STATUS.quoted;
+              else if (o.workflow_status === 'cancelled') cfg = STATUS.cancelled;
+
               return (
                 <button key={o.id} onClick={() => navigate(`/c/orders?id=${o.id}`)} className="flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3 text-left active:scale-[0.99]">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold">{fmt(o.amount)} QAR</span>
-                      {total != null && <span className="text-sm font-bold text-emerald-600">→ {fmt(total)} EGP</span>}
+                      <span className="text-sm font-bold">{fmt(o.amount)} {o.send_currency ?? 'QAR'}</span>
+                      {total != null && <span className="text-sm font-bold text-emerald-600">→ {fmt(total)} {o.receive_currency ?? 'EGP'}</span>}
                       {rate != null && <span className="text-[11px] text-muted-foreground tabular-nums">@ {fmt(rate, 4)}</span>}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2">
