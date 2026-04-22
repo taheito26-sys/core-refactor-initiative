@@ -326,6 +326,28 @@ export async function getMerchantCashAccounts(merchantId: string): Promise<CashA
   return (data ?? []) as CashAccount[];
 }
 
+/**
+ * Get current live FX rate for currency pair
+ */
+export async function getFxRate(sourceCurrency: string, targetCurrency: string): Promise<{
+  rate: number;
+  fetchedAt: string;
+  isEstimate: boolean;
+}> {
+  const { data, error } = await supabase.rpc('get_fx_rate', {
+    p_source_currency: sourceCurrency,
+    p_target_currency: targetCurrency,
+  });
+
+  if (error) throw error;
+
+  return {
+    rate: data?.[0]?.rate ?? 0.27,
+    fetchedAt: data?.[0]?.fetched_at ?? new Date().toISOString(),
+    isEstimate: data?.[0]?.is_estimate ?? true,
+  };
+}
+
 // ── Workflow status helpers ──
 
 export function getCounterpartRole(role: ActorRole): ActorRole {

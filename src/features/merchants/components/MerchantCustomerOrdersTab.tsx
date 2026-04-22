@@ -39,6 +39,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   const [connId, setConnId] = useState('');
   const [amount, setAmount] = useState('');
   const [fxRate, setFxRate] = useState('');
+  const [customFxRate, setCustomFxRate] = useState(false);
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('none');
   const [note, setNote] = useState('');
   const [submitResult, setSubmitResult] = useState<{
@@ -46,6 +47,23 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
     title: string;
     message: string;
   } | null>(null);
+
+  // Load live FX rate
+  const { data: liveRate, isLoading: isRateLoading } = useQuery({
+    queryKey: ['live-fx-rate', sendCurrency, receiveCurrency],
+    queryFn: async () => {
+      const { getFxRate } = await import('@/features/orders/shared-order-workflow');
+      return getFxRate(sendCurrency, receiveCurrency);
+    },
+    staleTime: 60000, // 1 minute
+  });
+
+  // Auto-set FX rate on load
+  useEffect(() => {
+    if (liveRate && !fxRate && !customFxRate) {
+      setFxRate(liveRate.rate.toFixed(4));
+    }
+  }, [liveRate, fxRate, customFxRate]);
 
   // Load connected clients
   const { data: connections = [] } = useQuery({
@@ -169,15 +187,58 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
           </div>
         </div>
 
-        {/* FX Rate */}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">FX Rate (QAR → EGP) *</label>
-          <div className="relative">
-            <input value={fxRate} onChange={e => setFxRate(e.target.value)} type="number" min="0" step="0.01" placeholder="0.27"
-              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-32 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">1 QAR = ? EGP</span>
+        {/* FX Rate with Live Market Data */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-muted-foreground">FX Rate (قطري → مصري) *</label>
+            <button
+              type="button"
+              onClick={() => setCustomFxRate(!customFxRate)}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              {customFxRate ? '📌 Use Market Rate' : '✏️ Edit Rate'}
+            </button>
           </div>
+
+          {isRateLoading ? (
+            <div className="flex items-center gap-2 h-11 px-3 rounded-xl border border-border/50 bg-card">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Loading market rate...</span>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <input
+                  value={fxRate}
+                  onChange={e => setFxRate(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  placeholder={liveRate?.rate.toFixed(4) ?? '0.27'}
+                  disabled={!customFxRate}
+                  className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-default"
+                />
+                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">1 QAR = ? EGP</span>
+              </div>
+              {liveRate && !customFxRate && (
+                <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+                  📈 Market Rate: 1 QAR = {liveRate.rate.toFixed(4)} EGP {liveRate.isEstimate ? '(estimated)' : ''}
+                </div>
+              )}
+            </>
+          )}
         </div>
+
+        {/* Calculated EGP Amount */}
+        {amount && fxRate && (
+          <div className="rounded-lg bg-blue-500/10 px-3 py-3 space-y-1">
+            <div className="text-xs font-medium text-blue-700">Estimated Delivery</div>
+            <div className="text-lg font-bold text-blue-700">
+              {(parseFloat(amount) * parseFloat(fxRate)).toFixed(2)} EGP
+            </div>
+            <div className="text-[11px] text-blue-600">Based on {fxRate} rate • Final amount may vary</div>
+          </div>
+        )}
 
         {/* Note */}
         <div>

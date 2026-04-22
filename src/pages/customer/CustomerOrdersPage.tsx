@@ -12,6 +12,7 @@ import {
   editSharedOrder,
   listSharedOrdersForActor,
   getCashAccountsForUser,
+  getFxRate,
   getWorkflowStatusLabel,
   canApproveOrder,
   canRejectOrder,
@@ -50,7 +51,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
   const [merchantId, setMerchantId] = useState(connections[0]?.merchant_id ?? '');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [customerCashAccountId, setCustomerCashAccountId] = useState('');
+  const [customerCashAccountId, setCustomerCashAccountId] = useState('none');
   const qc = useQueryClient();
 
   const { data: cashAccounts = [] } = useQuery({
@@ -59,14 +60,18 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
     enabled: !!userId,
   });
 
-  useEffect(() => {
-    if (customerCashAccountId || cashAccounts.length === 0) return;
-    setCustomerCashAccountId(cashAccounts[0].id);
-  }, [cashAccounts, customerCashAccountId]);
+  // Load live FX rate
+  const { data: liveRate, isLoading: isRateLoading } = useQuery({
+    queryKey: ['live-fx-rate', 'QAR', 'EGP'],
+    queryFn: async () => getFxRate('QAR', 'EGP'),
+    staleTime: 60000, // 1 minute
+  });
 
   const create = useMutation({
     mutationFn: async () => {
       if (!merchantId || !amount || parseFloat(amount) <= 0) throw new Error(L('Enter amount and select merchant', 'أدخل المبلغ واختر التاجر'));
+      if (!liveRate) throw new Error(L('Unable to load exchange rate', 'لا يمكن تحميل سعر الصرف'));
+
       const conn = connections.find((c: any) => c.merchant_id === merchantId);
       if (!conn) throw new Error(L('Merchant not found', 'التاجر غير موجود'));
 
@@ -80,8 +85,9 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
         sendCurrency: 'QAR',
         receiveCurrency: 'EGP',
         payoutRail: 'bank_transfer',
+        fxRate: liveRate.rate,
         note: note || null,
-        customerCashAccountId: customerCashAccountId || null,
+        customerCashAccountId: customerCashAccountId === 'none' ? null : customerCashAccountId,
       });
 
       return { order, merchantId };
@@ -122,13 +128,37 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Amount (QAR)', 'المبلغ (QAR)')}</label>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Amount (قطري)', 'المبلغ (قطري)')}</label>
           <div className="relative">
             <input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" placeholder="0"
               className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-16 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">QAR</span>
+            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">قطري</span>
           </div>
         </div>
+
+        {/* Live FX Rate Display */}
+        {isRateLoading ? (
+          <div className="flex items-center gap-2 h-11 px-3 rounded-xl border border-border/50 bg-card">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">{L('Loading rate...', 'جاري تحميل السعر...')}</span>
+          </div>
+        ) : liveRate ? (
+          <div className="rounded-lg bg-blue-500/10 px-3 py-3 space-y-2 border border-blue-500/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-blue-700">{L('Market Rate', 'سعر السوق')}</span>
+              <span className="text-sm font-bold text-blue-700">1 قطري = {liveRate.rate.toFixed(4)} مصري</span>
+            </div>
+            {amount && (
+              <div className="pt-2 border-t border-blue-500/20">
+                <div className="text-[11px] text-blue-600 mb-1">{L('Estimated delivery (may change)', 'التسليم المتوقع (قد يتغير)')}</div>
+                <div className="text-lg font-bold text-blue-700">
+                  {(parseFloat(amount) * liveRate.rate).toFixed(2)} مصري
+                </div>
+                <div className="text-[10px] text-blue-600 mt-1">{L('Merchant sets final rate', 'التاجر يحدد السعر النهائي')}</div>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Note (optional)', 'ملاحظة (اختياري)')}</label>
@@ -138,37 +168,60 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
 
         <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 space-y-2">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">💰 {L('Your Cash Account', 'حسابك')}</div>
-          <div className="flex flex-wrap gap-2">
-            {cashAccounts.length === 0 ? (
-              <div className="text-xs text-muted-foreground">{L('No active cash accounts', 'لا توجد حسابات نشطة')}</div>
-            ) : cashAccounts.map((account: any) => {
-              const isSelected = customerCashAccountId === account.id;
-              return (
-                <button
-                  key={account.id}
-                  type="button"
-                  onClick={() => setCustomerCashAccountId(account.id)}
-                  className={cn(
-                    'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
-                    isSelected
-                      ? 'border-blue-500 bg-blue-500/10 text-blue-700'
-                      : 'border-border/50 bg-card text-muted-foreground hover:border-blue-500/40',
-                  )}
-                >
-                  <div className="font-semibold text-foreground">{account.name}</div>
-                  <div className="text-[11px] opacity-80">{account.currency}</div>
-                </button>
-              );
-            })}
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {/* No Account Option */}
+              <button
+                type="button"
+                onClick={() => setCustomerCashAccountId('none')}
+                className={cn(
+                  'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                  customerCashAccountId === 'none'
+                    ? 'border-blue-500 bg-blue-500/10 text-blue-700'
+                    : 'border-border/50 bg-card text-muted-foreground hover:border-blue-500/40',
+                )}
+              >
+                <div className="font-semibold text-foreground">{L('No Account', 'بدون حساب')}</div>
+                <div className="text-[11px] opacity-80">{L('Skip account linking', 'تخطي ربط الحساب')}</div>
+              </button>
+
+              {/* Cash Accounts */}
+              {cashAccounts.map((account: any) => {
+                const isSelected = customerCashAccountId === account.id;
+                return (
+                  <button
+                    key={account.id}
+                    type="button"
+                    onClick={() => setCustomerCashAccountId(account.id)}
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                      isSelected
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-700'
+                        : 'border-border/50 bg-card text-muted-foreground hover:border-blue-500/40',
+                    )}
+                  >
+                    <div className="font-semibold text-foreground">{account.name}</div>
+                    <div className="text-[11px] opacity-80">{account.currency}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {cashAccounts.length === 0 && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                <p className="text-xs text-amber-700">
+                  {L('No active cash accounts found. Select "No Account" above or add one in Wallet.', 'لا توجد حسابات نشطة. اختر "بدون حساب" أعلاه أو أضف حسابًا في المحفظة.')}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
         <button
           onClick={() => create.mutate()}
-          disabled={create.isPending || !merchantId || !amount}
+          disabled={create.isPending || isRateLoading || !merchantId || !amount}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
         >
-          {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          {(create.isPending || isRateLoading) && <Loader2 className="h-4 w-4 animate-spin" />}
           {L('Place Order', 'تقديم الطلب')}
         </button>
       </div>
