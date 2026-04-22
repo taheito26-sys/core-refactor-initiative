@@ -327,7 +327,7 @@ export async function getMerchantCashAccounts(merchantId: string): Promise<CashA
 }
 
 /**
- * Get current live FX rate for currency pair
+ * Get current live FX rate from INSTAPAY V1 market
  */
 export async function getFxRate(sourceCurrency: string, targetCurrency: string): Promise<{
   rate: number;
@@ -335,14 +335,20 @@ export async function getFxRate(sourceCurrency: string, targetCurrency: string):
   isEstimate: boolean;
 }> {
   try {
-    const { data, error } = await supabase.rpc('get_fx_rate', {
-      p_source_currency: sourceCurrency,
-      p_target_currency: targetCurrency,
-    });
+    // Call Supabase Edge Function to fetch live INSTAPAY rates
+    const response = await fetch(
+      `${supabase.functions.url}/fetch-fx-rate`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.auth.session()?.access_token || ''}`,
+        },
+      }
+    );
 
-    if (error) {
-      console.warn('FX rate fetch error:', error);
-      // Return default rate on error
+    if (!response.ok) {
+      console.warn('FX rate endpoint error:', response.status);
       return {
         rate: 0.27,
         fetchedAt: new Date().toISOString(),
@@ -350,12 +356,14 @@ export async function getFxRate(sourceCurrency: string, targetCurrency: string):
       };
     }
 
-    // data is an array of results from the TABLE return type
-    if (Array.isArray(data) && data.length > 0) {
+    const data = await response.json();
+
+    // Check if we got a valid rate
+    if (data?.rate && !isNaN(parseFloat(data.rate))) {
       return {
-        rate: parseFloat(data[0].rate),
-        fetchedAt: data[0].fetched_at,
-        isEstimate: data[0].is_estimate,
+        rate: parseFloat(data.rate),
+        fetchedAt: data.timestamp || new Date().toISOString(),
+        isEstimate: data.source !== 'instapay_v1', // Only instapay_v1 is not an estimate
       };
     }
 
