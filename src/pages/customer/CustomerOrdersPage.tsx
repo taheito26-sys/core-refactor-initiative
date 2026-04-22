@@ -20,6 +20,8 @@ import {
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/customer-portal';
 import { getP2PRates } from '@/lib/p2p-rates';
+import { ParentOrderCard } from '@/features/parent-order-fulfillment/components/ParentOrderCard';
+import { MobileInstallBanner } from '@/features/parent-order-fulfillment/components/MobileInstallBanner';
 
 function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string; date: string; orders: WorkflowOrder[] }[] {
   const map = new Map<string, WorkflowOrder[]>();
@@ -394,6 +396,9 @@ export default function CustomerOrdersPage() {
 
   return (
     <div className="space-y-6 pb-16">
+      {/* Mobile install banner — rendered once at page level (Req 9.1) */}
+      <MobileInstallBanner />
+
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/40 px-4 py-4 -mx-4">
         <div className="flex items-center justify-between">
@@ -507,8 +512,8 @@ export default function CustomerOrdersPage() {
                       : null;
 
                   return (
+                    <div key={order.id} className="space-y-2">
                     <div
-                      key={order.id}
                       dir={lang === 'ar' ? 'rtl' : 'ltr'}
                       className={cn(
                         'overflow-hidden rounded-[20px] border px-3 py-2.5 text-[12px] text-slate-100',
@@ -611,11 +616,15 @@ export default function CustomerOrdersPage() {
                         </div>
                       )}
                     </div>
+                    {/* Parent order fulfillment card — realtime subscription handled inside hook (Req 6.1, 6.6, 6.7) */}
+                    <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} />
+                    </div>
                   );
                 }
 
                 return (
-                  <div key={order.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
+                  <div key={order.id} className="space-y-2">
+                  <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
                     <div className="p-3 sm:p-4">
                       {/* Status Badge */}
                       <div className="mb-3">
@@ -738,6 +747,9 @@ export default function CustomerOrdersPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                  {/* Parent order fulfillment card — realtime subscription handled inside hook (Req 6.1, 6.6, 6.7) */}
+                  <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} />
                   </div>
                 );
               })}
