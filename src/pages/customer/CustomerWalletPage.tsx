@@ -22,9 +22,9 @@ const CURRENCIES = ["QAR", "EGP", "SAR", "AED", "KWD", "BHD", "OMR", "USD", "EUR
 
 export default function CustomerWalletPage() {
   const { userId } = useAuth();
-  const { theme } = useTheme();
+  const { settings } = useTheme();
   const qc = useQueryClient();
-  const lang = theme.lang;
+  const lang = settings.language;
   const L = (en: string, ar: string) => lang === "ar" ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
 

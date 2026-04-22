@@ -178,8 +178,8 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
 
 export default function CustomerOrdersPage() {
   const { customerProfile, userId } = useAuth();
-  const { theme } = useTheme();
-  const lang = theme.lang;
+  const { settings } = useTheme();
+  const lang = settings.language;
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const qc = useQueryClient();
   const [showNewOrder, setShowNewOrder] = useState(false);
