@@ -60,20 +60,23 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
     enabled: !!userId,
   });
 
-  // Load live FX rate
-  const { data: liveRate, isLoading: isRateLoading } = useQuery({
+  // Load live FX rate with error handling
+  const { data: liveRate, isLoading: isRateLoading, isError: isRateError } = useQuery({
     queryKey: ['live-fx-rate', 'QAR', 'EGP'],
     queryFn: async () => getFxRate('QAR', 'EGP'),
     staleTime: 60000, // 1 minute
+    retry: 2,
   });
 
   const create = useMutation({
     mutationFn: async () => {
       if (!merchantId || !amount || parseFloat(amount) <= 0) throw new Error(L('Enter amount and select merchant', 'أدخل المبلغ واختر التاجر'));
-      if (!liveRate) throw new Error(L('Unable to load exchange rate', 'لا يمكن تحميل سعر الصرف'));
 
       const conn = connections.find((c: any) => c.merchant_id === merchantId);
       if (!conn) throw new Error(L('Merchant not found', 'التاجر غير موجود'));
+
+      // Use live rate or fallback to 0.27
+      const fxRateToUse = liveRate ? (typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate))) : 0.27;
 
       const order = await createSharedOrderRequest({
         connectionId: conn.id,
@@ -85,7 +88,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
         sendCurrency: 'QAR',
         receiveCurrency: 'EGP',
         payoutRail: 'bank_transfer',
-        fxRate: liveRate.rate,
+        fxRate: fxRateToUse,
         note: note || null,
         customerCashAccountId: customerCashAccountId === 'none' ? null : customerCashAccountId,
       });
@@ -142,17 +145,31 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             <span className="text-sm text-muted-foreground">{L('Loading rate...', 'جاري تحميل السعر...')}</span>
           </div>
+        ) : isRateError || !liveRate ? (
+          <div className="rounded-lg bg-amber-500/10 px-3 py-3 space-y-2 border border-amber-500/20">
+            <div className="text-xs font-medium text-amber-700">{L('Using default rate', 'استخدام السعر الافتراضي')}</div>
+            <div className="text-sm font-bold text-amber-700">1 قطري = 0.27 مصري</div>
+            {amount && (
+              <div className="pt-2 border-t border-amber-500/20">
+                <div className="text-[11px] text-amber-600 mb-1">{L('Estimated delivery (may change)', 'التسليم المتوقع (قد يتغير)')}</div>
+                <div className="text-lg font-bold text-amber-700">
+                  {(parseFloat(amount) * 0.27).toFixed(2)} مصري
+                </div>
+                <div className="text-[10px] text-amber-600 mt-1">{L('Merchant sets final rate', 'التاجر يحدد السعر النهائي')}</div>
+              </div>
+            )}
+          </div>
         ) : liveRate ? (
           <div className="rounded-lg bg-blue-500/10 px-3 py-3 space-y-2 border border-blue-500/20">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-700">{L('Market Rate', 'سعر السوق')}</span>
-              <span className="text-sm font-bold text-blue-700">1 قطري = {liveRate.rate.toFixed(4)} مصري</span>
+              <span className="text-sm font-bold text-blue-700">1 قطري = {typeof liveRate.rate === 'number' ? liveRate.rate.toFixed(4) : parseFloat(String(liveRate.rate)).toFixed(4)} مصري</span>
             </div>
             {amount && (
               <div className="pt-2 border-t border-blue-500/20">
                 <div className="text-[11px] text-blue-600 mb-1">{L('Estimated delivery (may change)', 'التسليم المتوقع (قد يتغير)')}</div>
                 <div className="text-lg font-bold text-blue-700">
-                  {(parseFloat(amount) * liveRate.rate).toFixed(2)} مصري
+                  {amount && liveRate ? (parseFloat(amount) * (typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate)))).toFixed(2) : '0.00'} مصري
                 </div>
                 <div className="text-[10px] text-blue-600 mt-1">{L('Merchant sets final rate', 'التاجر يحدد السعر النهائي')}</div>
               </div>
@@ -218,10 +235,10 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
 
         <button
           onClick={() => create.mutate()}
-          disabled={create.isPending || isRateLoading || !merchantId || !amount}
+          disabled={create.isPending || !merchantId || !amount}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
         >
-          {(create.isPending || isRateLoading) && <Loader2 className="h-4 w-4 animate-spin" />}
+          {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
           {L('Place Order', 'تقديم الطلب')}
         </button>
       </div>

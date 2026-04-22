@@ -334,18 +334,46 @@ export async function getFxRate(sourceCurrency: string, targetCurrency: string):
   fetchedAt: string;
   isEstimate: boolean;
 }> {
-  const { data, error } = await supabase.rpc('get_fx_rate', {
-    p_source_currency: sourceCurrency,
-    p_target_currency: targetCurrency,
-  });
+  try {
+    const { data, error } = await supabase.rpc('get_fx_rate', {
+      p_source_currency: sourceCurrency,
+      p_target_currency: targetCurrency,
+    });
 
-  if (error) throw error;
+    if (error) {
+      console.warn('FX rate fetch error:', error);
+      // Return default rate on error
+      return {
+        rate: 0.27,
+        fetchedAt: new Date().toISOString(),
+        isEstimate: true,
+      };
+    }
 
-  return {
-    rate: data?.[0]?.rate ?? 0.27,
-    fetchedAt: data?.[0]?.fetched_at ?? new Date().toISOString(),
-    isEstimate: data?.[0]?.is_estimate ?? true,
-  };
+    // data is an array of results from the TABLE return type
+    if (Array.isArray(data) && data.length > 0) {
+      return {
+        rate: parseFloat(data[0].rate),
+        fetchedAt: data[0].fetched_at,
+        isEstimate: data[0].is_estimate,
+      };
+    }
+
+    // Fallback to default
+    return {
+      rate: 0.27,
+      fetchedAt: new Date().toISOString(),
+      isEstimate: true,
+    };
+  } catch (error) {
+    console.warn('FX rate fetch exception:', error);
+    // Return default rate on error
+    return {
+      rate: 0.27,
+      fetchedAt: new Date().toISOString(),
+      isEstimate: true,
+    };
+  }
 }
 
 // ── Workflow status helpers ──

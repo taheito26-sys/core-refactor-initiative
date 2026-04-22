@@ -48,20 +48,22 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
     message: string;
   } | null>(null);
 
-  // Load live FX rate
-  const { data: liveRate, isLoading: isRateLoading } = useQuery({
+  // Load live FX rate with proper error handling
+  const { data: liveRate, isLoading: isRateLoading, isError: isRateError } = useQuery({
     queryKey: ['live-fx-rate', sendCurrency, receiveCurrency],
     queryFn: async () => {
       const { getFxRate } = await import('@/features/orders/shared-order-workflow');
       return getFxRate(sendCurrency, receiveCurrency);
     },
     staleTime: 60000, // 1 minute
+    retry: 2,
   });
 
   // Auto-set FX rate on load
   useEffect(() => {
     if (liveRate && !fxRate && !customFxRate) {
-      setFxRate(liveRate.rate.toFixed(4));
+      const rateValue = typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate));
+      setFxRate(rateValue.toFixed(4));
     }
   }, [liveRate, fxRate, customFxRate]);
 
@@ -108,10 +110,23 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
     mutationFn: async () => {
       if (!connId || !amount || parseFloat(amount) <= 0)
         throw new Error('Select a client and enter an amount');
-      if (!fxRate || parseFloat(fxRate) <= 0)
-        throw new Error('Enter FX rate (QAR → EGP)');
+
+      let numFxRate = 0.27; // default
+
+      if (customFxRate && fxRate) {
+        // User edited the rate
+        if (parseFloat(fxRate) <= 0)
+          throw new Error('Enter valid FX rate (QAR → EGP)');
+        numFxRate = parseFloat(fxRate);
+      } else if (fxRate) {
+        // Use whatever FX rate we have (from market or previously set)
+        numFxRate = parseFloat(fxRate);
+      } else if (liveRate) {
+        // Use live market rate if available
+        numFxRate = typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate));
+      }
+
       const numAmount = parseFloat(amount);
-      const numFxRate = parseFloat(fxRate);
 
       const order = await createSharedOrderRequest({
         connectionId: connId,
@@ -205,6 +220,19 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Loading market rate...</span>
             </div>
+          ) : isRateError || !liveRate ? (
+            <div className="relative">
+              <input
+                value={fxRate}
+                onChange={e => setFxRate(e.target.value)}
+                type="number"
+                min="0"
+                step="0.0001"
+                placeholder="0.27"
+                className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">1 QAR = ? EGP</span>
+            </div>
           ) : (
             <>
               <div className="relative">
@@ -214,7 +242,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                   type="number"
                   min="0"
                   step="0.0001"
-                  placeholder={liveRate?.rate.toFixed(4) ?? '0.27'}
+                  placeholder={'0.27'}
                   disabled={!customFxRate}
                   className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-default"
                 />
@@ -222,7 +250,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               </div>
               {liveRate && !customFxRate && (
                 <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
-                  📈 Market Rate: 1 QAR = {liveRate.rate.toFixed(4)} EGP {liveRate.isEstimate ? '(estimated)' : ''}
+                  📈 Market Rate: 1 QAR = {typeof liveRate.rate === 'number' ? liveRate.rate.toFixed(4) : parseFloat(String(liveRate.rate)).toFixed(4)} EGP {liveRate.isEstimate ? '(estimated)' : ''}
                 </div>
               )}
             </>
@@ -325,6 +353,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               setConnId('');
               setAmount('');
               setFxRate('');
+              setCustomFxRate(false);
               setMerchantCashAccountId('none');
               setNote('');
               setSubmitResult(null);
@@ -333,7 +362,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               create.mutate();
             }
           }}
-          disabled={create.isPending || (!submitResult && (!connId || !amount || !fxRate))}
+          disabled={create.isPending || (!submitResult && (!connId || !amount))}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
         >
           {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
