@@ -10,46 +10,42 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Loader2, Plus, X, Check, XCircle } from 'lucide-react';
 import {
-  cancelCustomerOrder,
-  commitCustomerQuote,
-  deriveCustomerOrderMeta,
-  deriveFinalQuoteValues,
-  formatCustomerDate,
-  formatCustomerNumber,
-  getCurrencyForCountry,
-  getGuidePricingForCustomerOrder,
-  getDisplayedCustomerRate,
-  getDisplayedCustomerTotal,
-  ORDER_SELECT_FIELDS,
-  reopenCustomerOrderForApproval,
-  type CustomerCountry,
-  type CustomerOrderRow,
-} from '@/features/customer/customer-portal';
+  createSharedOrderRequest,
+  respondSharedOrder,
+  editSharedOrder,
+  getCashAccountsForUser,
+  listSharedOrdersForActor,
+  getWorkflowStatusLabel,
+  canApproveOrder,
+  canRejectOrder,
+  canEditOrder,
+  type WorkflowOrder,
+} from '@/features/orders/shared-order-workflow';
 import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 
-// ── Place Order for Client Modal (mirrors the customer NewOrderForm exactly) ──
+// ── Place Order for Client Modal ──
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   merchantId: string; userId: string; onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const sendCountry: CustomerCountry = 'Qatar';
-  const receiveCountry: CustomerCountry = 'Egypt';
-  const sendCurrency = getCurrencyForCountry(sendCountry);   // QAR
-  const receiveCurrency = getCurrencyForCountry(receiveCountry); // EGP
+  const sendCountry = 'Qatar';
+  const receiveCountry = 'Egypt';
+  const sendCurrency = 'QAR';
+  const receiveCurrency = 'EGP';
 
   const [connId, setConnId] = useState('');
   const [amount, setAmount] = useState('');
-  const [fxRateInput, setFxRateInput] = useState('');
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('');
+  const [note, setNote] = useState('');
   const [submitResult, setSubmitResult] = useState<{
-    kind: 'success' | 'warning';
+    kind: 'success' | 'error';
     title: string;
     message: string;
   } | null>(null);
 
-  // Load connected clients — only use connection row data (customer_profiles blocked by RLS for merchants)
+  // Load connected clients
   const { data: connections = [] } = useQuery({
     queryKey: ['merchant-active-connections', merchantId],
     queryFn: async () => {
@@ -77,20 +73,11 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   const { data: cashAccounts = [] } = useQuery({
     queryKey: ['merchant-cash-accounts', userId],
     queryFn: async () => {
-      if (!userId) return [];
-      const { data, error } = await supabase
-        .from('cash_accounts')
-        .select('id, name, currency, type, status')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      return getCashAccountsForUser(userId);
     },
     enabled: !!userId,
   });
 
-  const selectedCashAccount = cashAccounts.find((account: any) => account.id === merchantCashAccountId) ?? null;
   const activeCashAccounts = cashAccounts.filter((account: any) => account.status === 'active');
 
   useEffect(() => {
@@ -98,133 +85,48 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
     setMerchantCashAccountId(cashAccounts[0].id);
   }, [cashAccounts, merchantCashAccountId]);
 
-  // Guide pricing preview (same as customer form)
-  const selectedConn = connections.find((c: any) => c.id === connId);
-  const { data: guide } = useQuery({
-    queryKey: ['merchant-guide-form', amount, connId],
-    queryFn: () => getGuidePricingForCustomerOrder({
-      customerUserId: selectedConn?.customer_user_id ?? '',
-      merchantId,
-      connectionId: connId,
-      orderType: 'buy',
-      amount: parseFloat(amount) || 0,
-      rate: null,
-      note: null,
-      sendCountry,
-      receiveCountry,
-      sendCurrency,
-      receiveCurrency,
-      payoutRail: 'bank_transfer',
-      corridorLabel: 'Qatar -> Egypt',
-    }),
-    enabled: !!connId && !!amount && parseFloat(amount) > 0,
-    staleTime: 60_000,
-  });
-
-  const liveFxRate = guide?.guideRate ?? null;
-  const chosenFxRate = Number(fxRateInput);
-  const fxRate = Number.isFinite(chosenFxRate) && chosenFxRate > 0 ? chosenFxRate : liveFxRate;
-  const fxTotal = fxRate != null && Number.isFinite(fxRate) && parseFloat(amount) > 0
-    ? Number((parseFloat(amount) * fxRate).toFixed(6))
-    : null;
-
   const create = useMutation({
     mutationFn: async () => {
       if (!connId || !amount || parseFloat(amount) <= 0)
         throw new Error('Select a client and enter an amount');
       const numAmount = parseFloat(amount);
-      const { data, error } = await supabase.rpc('mirror_merchant_customer_order', {
-        p_connection_id: connId,
-        p_amount: numAmount,
-        p_currency: sendCurrency,
-        p_status: 'pending_quote',
-        p_order_type: 'buy',
-        p_rate: fxRate,
-        p_total: fxRate != null ? Number((numAmount * fxRate).toFixed(6)) : null,
-        p_note: null,
-        p_send_country: sendCountry,
-        p_receive_country: receiveCountry,
-        p_send_currency: sendCurrency,
-        p_receive_currency: receiveCurrency,
-        p_payout_rail: 'bank_transfer',
-        p_corridor_label: 'Qatar -> Egypt',
-        p_pricing_mode: 'merchant_quote',
-        p_guide_rate: fxRate,
-        p_guide_total: fxRate != null ? Number((numAmount * fxRate).toFixed(6)) : null,
-        p_guide_source: guide?.guideSource ?? null,
-        p_guide_snapshot: guide?.guideSnapshot ?? null,
-        p_guide_generated_at: guide?.guideGeneratedAt ?? null,
-        p_final_rate: null,
-        p_final_total: null,
-        p_final_quote_note: null,
-        p_quoted_by_user_id: null,
-        p_customer_accepted_quote_at: null,
-        p_customer_rejected_quote_at: null,
-        p_quote_rejection_reason: null,
-        p_market_pair: guide?.marketPair ?? null,
-        p_pricing_version: guide?.pricingVersion ?? 'merchant-placed-v1',
+
+      const order = await createSharedOrderRequest({
+        connectionId: connId,
+        placedByRole: 'merchant',
+        amount: numAmount,
+        orderType: 'buy',
+        sendCountry,
+        receiveCountry,
+        sendCurrency,
+        receiveCurrency,
+        payoutRail: 'bank_transfer',
+        note: note || null,
+        merchantCashAccountId: merchantCashAccountId || null,
       });
-      if (error) throw error;
 
-      let cashLinkOutcome: 'saved' | 'skipped' | 'not_selected' = 'not_selected';
-      if (selectedCashAccount?.id) {
-        const { error: cashLinkError } = await supabase
-          .from('customer_orders')
-          .update({
-            merchant_cash_account_id: selectedCashAccount.id,
-            merchant_cash_account_name: selectedCashAccount.name,
-          })
-          .eq('id', (data as any)?.id);
-
-        if (cashLinkError) {
-          console.warn('[merchant-customer-orders] cash account link skipped:', cashLinkError.message);
-          cashLinkOutcome = 'skipped';
-        } else {
-          cashLinkOutcome = 'saved';
-        }
-      }
-
-      return {
-        createdOrder: data as CustomerOrderRow,
-        cashLinkOutcome,
-        cashAccountName: selectedCashAccount?.name ?? null,
-      };
+      return order;
     },
-    onSuccess: (result) => {
-      if (result.createdOrder) {
-        qc.setQueryData<CustomerOrderRow[]>(
-          ['merchant-customer-orders', merchantId],
-          (current = []) => {
-            const next = [result.createdOrder, ...current.filter((order) => order.id !== result.createdOrder.id)];
-            return next;
-          },
-        );
-      }
-      if (result.cashLinkOutcome === 'saved') {
-        setSubmitResult({
-          kind: 'success',
-          title: 'Order placed',
-          message: `Cash account "${result.cashAccountName}" was linked to the order.`,
-        });
-        toast.success('Order placed and cash account linked');
-      } else if (result.cashLinkOutcome === 'skipped') {
-        setSubmitResult({
-          kind: 'warning',
-          title: 'Order placed',
-          message: 'The order was created, but the cash-account link could not be saved. Please check Supabase migrations and try again.',
-        });
-        toast.warning('Order placed, but cash account link was skipped');
-      } else {
-        setSubmitResult({
-          kind: 'warning',
-          title: 'Order placed',
-          message: 'The order was created without a cash-account link because none was selected.',
-        });
-        toast.success('Order placed for client');
-      }
-      qc.invalidateQueries({ queryKey: ['merchant-customer-orders', merchantId], exact: true });
+    onSuccess: (order) => {
+      qc.setQueryData<WorkflowOrder[]>(
+        ['merchant-customer-orders', merchantId],
+        (current = []) => [order, ...current.filter((o) => o.id !== order.id)],
+      );
+      setSubmitResult({
+        kind: 'success',
+        title: 'Order placed',
+        message: 'Order sent to customer for approval',
+      });
+      toast.success('Order placed and sent to customer');
+      qc.invalidateQueries({ queryKey: ['merchant-customer-orders', merchantId] });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => {
+      setSubmitResult({
+        kind: 'error',
+        title: 'Failed',
+        message: e.message || 'Could not place order',
+      });
+    },
   });
 
   return (
@@ -232,7 +134,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
       <div className="w-full max-w-lg rounded-t-3xl bg-background p-5 pb-8 space-y-4" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">New Order</h2>
+          <h2 className="text-base font-bold">New Order for Client</h2>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
 
@@ -262,29 +164,18 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
           </div>
         </div>
 
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">FX Rate</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">QAR → EGP</div>
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2">
-            <span className="text-sm font-bold text-primary">QAR → EGP</span>
-            <input
-              value={fxRateInput}
-              onChange={(e) => setFxRateInput(e.target.value)}
-              inputMode="decimal"
-              placeholder={liveFxRate != null ? String(liveFxRate) : '0.0000'}
-              className="ml-auto w-32 bg-transparent text-right text-sm font-bold outline-none"
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{guide?.guideSource ? `Live ${guide.guideSource}` : 'Custom rate'}</span>
-            <span className="font-semibold text-foreground">
-              {fxTotal != null ? `${formatCustomerNumber(fxTotal, 'en', 0)} EGP` : '—'}
-            </span>
-          </div>
+        {/* Note */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Note (optional)</label>
+          <Textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="Add a note about this order…"
+            className="min-h-20 text-sm"
+          />
         </div>
 
+        {/* Cash Account */}
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-2">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
             💰 Merchant cash account
@@ -320,7 +211,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               'rounded-xl border px-4 py-3 text-sm',
               submitResult.kind === 'success'
                 ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700'
-                : 'border-amber-500/30 bg-amber-500/5 text-amber-700',
+                : 'border-red-500/30 bg-red-500/5 text-red-700',
             )}
           >
             <p className="font-semibold">{submitResult.title}</p>
@@ -342,59 +233,26 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   );
 }
 
-type StatusFilter =
-  | 'all'
-  | 'pending_quote'
-  | 'quoted'
-  | 'completed'
-  | 'cancelled'
-  | 'pending'
-  | 'confirmed';
-
 interface Props {
   merchantId?: string | null;
   isAdminView?: boolean;
 }
 
-type QuoteDraft = {
-  final_rate: string;
-  final_total: string;
-  final_quote_note: string;
-};
-
-const EMPTY_QUOTE_DRAFT: QuoteDraft = {
-  final_rate: '',
-  final_total: '',
-  final_quote_note: '',
-};
-
-function normalizeStatus(status: string) {
-  if (status === 'pending' || status === 'confirmed') return status;
-  if (status === 'quote_accepted' || status === 'awaiting_payment' || status === 'payment_sent') return 'completed';
-  if (status === 'quote_rejected') return 'cancelled';
-  return status as StatusFilter;
-}
-
 export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: Props = {}) {
   const { merchantProfile, userId } = useAuth();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<StatusFilter>('all');
-  const [actioningId, setActioningId] = useState<string | null>(null);
-  const [quoteDrafts, setQuoteDrafts] = useState<Record<string, QuoteDraft>>({});
   const [showPlaceOrder, setShowPlaceOrder] = useState(false);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState('');
 
   const resolvedMerchantId = isAdminView ? merchantId ?? null : (merchantProfile?.merchant_id ?? merchantId ?? null);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['merchant-customer-orders', resolvedMerchantId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('customer_orders')
-        .select(ORDER_SELECT_FIELDS.join(', '))
-        .eq('merchant_id', resolvedMerchantId!)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as CustomerOrderRow[];
+      if (!resolvedMerchantId) return [];
+      return listSharedOrdersForActor({ merchantId: resolvedMerchantId });
     },
     enabled: !!resolvedMerchantId,
   });
@@ -421,20 +279,19 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   const { data: customerConnections = [] } = useQuery({
     queryKey: ['merchant-customer-connections', customerIds, resolvedMerchantId],
     queryFn: async () => {
-      if (customerIds.length === 0) return [];
+      if (customerIds.length === 0 || !resolvedMerchantId) return [];
       const { data, error } = await supabase
         .from('customer_merchant_connections')
         .select('customer_user_id, nickname, created_at, status')
-        .eq('merchant_id', resolvedMerchantId!)
+        .eq('merchant_id', resolvedMerchantId)
         .neq('status', 'blocked')
         .in('customer_user_id', customerIds);
       if (error) throw error;
       const userIds = [...new Set((data ?? []).map((row) => row.customer_user_id))];
-      const { data: profiles, error: profileError } = await supabase
+      const { data: profiles } = await supabase
         .from('customer_profiles')
         .select('user_id, display_name, name, phone, region, country')
         .in('user_id', userIds);
-      if (profileError) console.warn('customer_profiles fetch failed:', profileError);
       const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
       return (data ?? []).map((row) => ({
         ...row,
@@ -450,396 +307,204 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     return map;
   }, [customerConnections]);
 
-  const updateQuoteDraft = (order: CustomerOrderRow, field: keyof QuoteDraft, value: string) => {
-    setQuoteDrafts((prev) => {
-      const current = prev[order.id] ?? EMPTY_QUOTE_DRAFT;
-      const next = { ...current, [field]: value };
-      const trimmed = value.trim();
-
-      if (trimmed === '') {
-        if (field === 'final_rate') {
-          next.final_total = '';
-        }
-        if (field === 'final_total') {
-          next.final_rate = '';
-        }
-      } else if (field === 'final_rate') {
-        const derived = deriveFinalQuoteValues(order.amount, {
-          finalRate: Number(value),
-          finalTotal: null,
-        });
-        next.final_total = derived.finalTotal != null ? String(derived.finalTotal) : '';
-      } else if (field === 'final_total') {
-        const derived = deriveFinalQuoteValues(order.amount, {
-          finalRate: null,
-          finalTotal: Number(value),
-        });
-        next.final_rate = derived.finalRate != null ? String(derived.finalRate) : '';
-      }
-
-      return {
-        ...prev,
-        [order.id]: next,
-      };
-    });
-  };
-
-  useEffect(() => {
-    setQuoteDrafts((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const order of orders) {
-        if (next[order.id]) continue;
-        changed = true;
-        next[order.id] = {
-          final_rate: order.final_rate != null ? String(order.final_rate) : order.rate != null ? String(order.rate) : '',
-          final_total: order.final_total != null ? String(order.final_total) : order.total != null ? String(order.total) : '',
-          final_quote_note: order.final_quote_note ?? '',
-        };
-      }
-      return changed ? next : prev;
-    });
-  }, [orders]);
-
-  const commitQuoteMutation = useMutation({
-    mutationFn: async ({ order }: { order: CustomerOrderRow }) => {
-      if (!userId) throw new Error('Missing merchant session');
-      const draft = quoteDrafts[order.id];
-      const derived = deriveFinalQuoteValues(order.amount, {
-        finalRate: draft?.final_rate?.trim() ? Number(draft.final_rate) : null,
-        finalTotal: draft?.final_total?.trim() ? Number(draft.final_total) : null,
+  const approveMutation = useMutation({
+    mutationFn: async ({ order }: { order: WorkflowOrder }) => {
+      if (!resolvedMerchantId) throw new Error('Merchant not found');
+      const result = await respondSharedOrder({
+        orderId: order.id,
+        actorRole: 'merchant',
+        action: 'approve',
       });
-      if (!derived.finalRate || !Number.isFinite(derived.finalRate) || derived.finalRate <= 0) {
-        throw new Error('Enter a valid final rate or final total');
-      }
-      const finalRate = derived.finalRate;
-      const finalTotal = derived.finalTotal ?? Number((order.amount * finalRate).toFixed(6));
-      const { error } = await commitCustomerQuote(order, {
-        merchantUserId: userId,
-        finalRate,
-        finalTotal,
-        finalQuoteNote: draft?.final_quote_note?.trim() || null,
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Order approved');
+      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Failed to approve order');
+    },
+    onSettled: () => setActioningId(null),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ order, reason }: { order: WorkflowOrder; reason?: string }) => {
+      if (!resolvedMerchantId) throw new Error('Merchant not found');
+      const result = await respondSharedOrder({
+        orderId: order.id,
+        actorRole: 'merchant',
+        action: 'reject',
+        reason,
       });
-      if (error) throw error;
-    },
-    onMutate: async ({ order }) => {
-      setActioningId(order.id);
+      return result;
     },
     onSuccess: () => {
-      toast.success('Quote committed');
+      toast.success('Order rejected');
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
-      queryClient.invalidateQueries({ queryKey: ['merchant-client-connections'] });
     },
     onError: (error: any) => {
-      toast.error(error?.message ?? 'Failed to commit quote');
+      toast.error(error?.message ?? 'Failed to reject order');
     },
     onSettled: () => setActioningId(null),
   });
 
-  const reopenMutation = useMutation({
-    mutationFn: async ({ order }: { order: CustomerOrderRow }) => {
-      if (!userId) throw new Error('Missing merchant session');
-      const { error } = await reopenCustomerOrderForApproval(order, userId);
-      if (error) throw error;
-    },
-    onMutate: async ({ order }) => {
-      setActioningId(order.id);
-    },
-    onSuccess: () => {
-      toast.success('Order reopened for approval');
-      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
-      queryClient.invalidateQueries({ queryKey: ['merchant-client-connections'] });
-    },
-    onError: (error: any) => {
-      toast.error(error?.message ?? 'Failed to reopen order');
-    },
-    onSettled: () => setActioningId(null),
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: async ({ order }: { order: CustomerOrderRow }) => {
-      if (!userId) throw new Error('Missing merchant session');
-      const { error } = await cancelCustomerOrder(order, userId);
-      if (error) throw error;
-    },
-    onMutate: async ({ order }) => {
-      setActioningId(order.id);
+  const editMutation = useMutation({
+    mutationFn: async ({ order }: { order: WorkflowOrder }) => {
+      if (!userId) throw new Error('Merchant session missing');
+      const editedAmount = editAmount.trim() ? parseFloat(editAmount) : undefined;
+      const result = await editSharedOrder({
+        orderId: order.id,
+        actorRole: 'merchant',
+        amount: editedAmount,
+      });
+      return result;
     },
     onSuccess: () => {
-      toast.success('Order cancelled');
+      toast.success('Order updated and sent back to customer');
+      setEditingId(null);
+      setEditAmount('');
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
-      queryClient.invalidateQueries({ queryKey: ['merchant-client-connections'] });
     },
     onError: (error: any) => {
-      toast.error(error?.message ?? 'Failed to cancel order');
+      toast.error(error?.message ?? 'Failed to update order');
     },
-    onSettled: () => setActioningId(null),
   });
-
-  const filtered = filter === 'all'
-    ? orders
-    : orders.filter((order) => normalizeStatus(order.status) === filter);
-
-  const statusFilters: { key: StatusFilter; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'pending_quote', label: 'Pending quote' },
-    { key: 'quoted', label: 'Quoted' },
-    { key: 'completed', label: 'Approved' },
-    { key: 'cancelled', label: 'Cancelled' },
-  ];
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        {!isAdminView && (
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowPlaceOrder(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
-            >
-              <Plus className="h-3.5 w-3.5" /> Place Order for Client
-            </button>
-          </div>
-        )}
-        <div className="empty"><div className="empty-t">Loading customer orders...</div></div>
-        {showPlaceOrder && (
-            <PlaceOrderForClientModal
-              merchantId={resolvedMerchantId ?? ''}
-              userId={userId ?? ''}
-              onClose={() => setShowPlaceOrder(false)}
-            />
-        )}
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-3">
-      {/* Place Order button — always visible on this tab */}
-      {!isAdminView && (
-        <div className="flex justify-end">
-          <button
-            onClick={() => setShowPlaceOrder(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
-          >
-            <Plus className="h-3.5 w-3.5" /> Place Order for Client
-          </button>
-        </div>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Customer Orders</h2>
+        <button
+          onClick={() => setShowPlaceOrder(true)}
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" />
+          New Order
+        </button>
+      </div>
+
+      {showPlaceOrder && resolvedMerchantId && userId && (
+        <PlaceOrderForClientModal
+          merchantId={resolvedMerchantId}
+          userId={userId}
+          onClose={() => setShowPlaceOrder(false)}
+        />
       )}
 
-      <div className="flex flex-wrap gap-2 border-b border-border/60 pb-3">
-        {statusFilters.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => setFilter(item.key)}
-            className={cn(
-              'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
-              filter === item.key
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border text-muted-foreground hover:text-foreground',
-            )}
-            type="button"
-          >
-            {item.label}
-            {item.key !== 'all' && (
-              <span className="ml-1 font-bold">
-                {orders.filter((order) => normalizeStatus(order.status) === item.key).length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <span>Orders: {filtered.length}</span>
-        <span>Pending quotes: {orders.filter((order) => normalizeStatus(order.status) === 'pending_quote').length}</span>
-        <span>Quoted: {orders.filter((order) => normalizeStatus(order.status) === 'quoted').length}</span>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="empty">
-          <div className="empty-t">No customer orders{filter !== 'all' ? ` for ${filter}` : ''}</div>
-          <div className="empty-d">Customer orders will appear here when placed</div>
-        </div>
+      {isLoading ? (
+        <Card><CardContent className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></CardContent></Card>
+      ) : orders.length === 0 ? (
+        <Card><CardContent className="flex h-32 items-center justify-center text-muted-foreground">No orders yet</CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map((order) => {
+          {orders.map((order) => {
             const customer = customerMap.get(order.customer_user_id);
-            const customerName = resolveCustomerLabel({
-              displayName: customer?.profile?.display_name ?? null,
-              name: customer?.profile?.name ?? null,
-              nickname: customer?.nickname,
-              customerUserId: order.customer_user_id,
-            });
-            const meta = deriveCustomerOrderMeta(order);
-            const status = normalizeStatus(order.status);
-            const displayedRate = getDisplayedCustomerRate(order);
-            const displayedTotal = getDisplayedCustomerTotal(order);
-            const draft = quoteDrafts[order.id];
-            const canQuote = status === 'pending_quote' || status === 'pending';
-            const canReopen = status === 'completed';
-            const canCancel = ['pending_quote', 'quoted', 'completed', 'pending'].includes(status);
+            const isActioning = actioningId === order.id;
+            const isEditing = editingId === order.id;
+            const canApprove = canApproveOrder(order, 'merchant');
+            const canReject = canRejectOrder(order, 'merchant');
+            const canEdit = canEditOrder(order, 'merchant');
 
             return (
-              <Card key={order.id} className={cn('overflow-hidden', canQuote ? 'border-primary/30' : '')}>
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
-                          {customerName[0]?.toUpperCase() ?? 'C'}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-foreground">
-                            {customerName}
-                          </div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {meta.corridorLabel} - {formatCustomerNumber(order.amount, 'en', 2)} {meta.sendCurrency}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <span className="rounded-full border border-border/60 px-2 py-1">{order.order_type.toUpperCase()}</span>
-                        <span className="rounded-full border border-border/60 px-2 py-1">{order.payout_rail ?? 'N/A'}</span>
-                        <span className="rounded-full border border-border/60 px-2 py-1">
-                          {order.receive_currency ?? meta.receiveCurrency}
+              <Card key={order.id} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">
+                          {customer?.profile?.display_name || customer?.nickname || 'Customer'}
                         </span>
-                        <Badge variant={status === 'completed' ? 'default' : status === 'cancelled' ? 'destructive' : 'secondary'} className="capitalize">
-                          {status === 'completed' ? 'approved' : status.replace(/_/g, ' ')}
+                        <Badge variant="outline">{order.order_type.toUpperCase()}</Badge>
+                        <Badge variant={order.workflow_status === 'approved' ? 'default' : order.workflow_status === 'rejected' ? 'destructive' : 'secondary'}>
+                          {getWorkflowStatusLabel(order.workflow_status)}
                         </Badge>
-                        {order.merchant_cash_account_name && (
-                          <span className="rounded-full border border-border/60 px-2 py-1">
-                            Merchant cash: {order.merchant_cash_account_name}
-                          </span>
-                        )}
-                        {order.customer_cash_account_name && (
-                          <span className="rounded-full border border-border/60 px-2 py-1">
-                            Client cash: {order.customer_cash_account_name}
-                          </span>
-                        )}
                       </div>
+                      <div className="text-sm text-muted-foreground">
+                        {order.amount} {order.send_currency} {order.receive_country && `→ ${order.receive_country}`}
+                      </div>
+                      {order.note && <div className="text-xs text-muted-foreground italic">"{order.note}"</div>}
+                      {order.revision_no > 1 && (
+                        <div className="text-xs text-amber-600">Revision {order.revision_no}</div>
+                      )}
+                    </div>
 
-                      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                        <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Guide Rate</div>
-                          <div className="mt-1 font-semibold text-foreground">
-                            {order.guide_rate != null ? formatCustomerNumber(order.guide_rate, 'en', 4) : '-'}
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {order.guide_source ?? 'INSTAPAY_V1'}
+                    <div className="flex flex-col gap-2">
+                      {isEditing ? (
+                        <div className="w-32 space-y-1">
+                          <Input
+                            type="number"
+                            value={editAmount}
+                            onChange={e => setEditAmount(e.target.value)}
+                            placeholder={String(order.amount)}
+                            className="h-8 text-xs"
+                          />
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => editMutation.mutate({ order })}
+                              disabled={editMutation.isPending}
+                              className="h-7 flex-1 text-xs"
+                            >
+                              {editMutation.isPending ? <Loader2 className="h-3 w-3" /> : 'Update'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setEditingId(null); setEditAmount(''); }}
+                              className="h-7 px-2"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                            {status === 'pending_quote' ? 'Estimated You Receive' : 'Final Total'}
-                          </div>
-                          <div className="mt-1 font-semibold text-foreground">
-                            {displayedTotal != null
-                              ? `${formatCustomerNumber(displayedTotal, 'en', 2)} ${meta.receiveCurrency}`
-                              : '-'}
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {displayedRate != null ? `Rate ${formatCustomerNumber(displayedRate, 'en', 4)}` : 'Awaiting quote'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {order.status !== 'pending_quote' && order.final_quote_note && (
-                        <div className="mt-3 rounded-lg border border-border/60 bg-card/80 p-3 text-sm text-muted-foreground">
-                          {order.final_quote_note}
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {canApprove && (
+                            <Button
+                              size="sm"
+                              onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                              disabled={isActioning}
+                              className="h-8 gap-1 text-xs"
+                            >
+                              {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
+                              <Check className="h-3 w-3" />
+                              Approve
+                            </Button>
+                          )}
+                          {canReject && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
+                              disabled={isActioning}
+                              className="h-8 gap-1 text-xs"
+                            >
+                              {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
+                              <XCircle className="h-3 w-3" />
+                              Reject
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
+                              className="h-8 text-xs"
+                            >
+                              Edit
+                            </Button>
+                          )}
                         </div>
                       )}
-
-                      <div className="mt-3 text-xs text-muted-foreground">
-                        Created {formatCustomerDate(order.created_at, 'en')}
-                      </div>
                     </div>
-
-                    <div className="flex flex-col items-end gap-2" />
-                  </div>
-
-                  {canQuote && (
-                    <div className="space-y-3 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3">
-                      <div className="text-sm font-semibold text-foreground">Merchant quote form</div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Final rate</Label>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            value={draft?.final_rate ?? ''}
-                            onChange={(event) => updateQuoteDraft(order, 'final_rate', event.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Final total</Label>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            value={draft?.final_total ?? ''}
-                            onChange={(event) => updateQuoteDraft(order, 'final_total', event.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Final quote note</Label>
-                          <Textarea
-                            value={draft?.final_quote_note ?? ''}
-                            onChange={(event) => setQuoteDrafts((prev) => ({
-                              ...prev,
-                              [order.id]: {
-                                ...(prev[order.id] ?? EMPTY_QUOTE_DRAFT),
-                                final_quote_note: event.target.value,
-                              },
-                            }))}
-                            rows={3}
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        onClick={() => commitQuoteMutation.mutate({ order })}
-                        disabled={commitQuoteMutation.isPending || actioningId === order.id}
-                      >
-                        Commit Quote
-                      </Button>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    {canReopen && (
-                      <Button
-                        variant="outline"
-                        onClick={() => reopenMutation.mutate({ order })}
-                        disabled={reopenMutation.isPending || actioningId === order.id}
-                      >
-                        Edit & resend
-                      </Button>
-                    )}
-                    {canCancel && (
-                      <Button
-                        variant="outline"
-                        onClick={() => cancelMutation.mutate({ order })}
-                        disabled={cancelMutation.isPending || actioningId === order.id}
-                      >
-                        Cancel Order
-                      </Button>
-                    )}
                   </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
-      )}
-      {/* Place Order modal */}
-      {showPlaceOrder && (
-        <PlaceOrderForClientModal
-          merchantId={resolvedMerchantId ?? ''}
-          userId={userId ?? ''}
-          onClose={() => setShowPlaceOrder(false)}
-        />
       )}
     </div>
   );
