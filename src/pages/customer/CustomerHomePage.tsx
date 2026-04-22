@@ -11,6 +11,7 @@ import {
 } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
+import { getLocalizedCurrencyName, type CurrencyCode } from '@/lib/currency-locale';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function startOfWeek(): Date {
@@ -274,8 +275,8 @@ export default function CustomerHomePage() {
                 <button key={o.id} onClick={() => navigate(`/c/orders?id=${o.id}`)} className="flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3 text-left active:scale-[0.99]">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold">{fmt(o.amount)} {o.send_currency ?? 'QAR'}</span>
-                      {total != null && <span className="text-sm font-bold text-emerald-600">→ {fmt(total)} {o.receive_currency ?? 'EGP'}</span>}
+                      <span className="text-sm font-bold">{fmt(o.amount)} {getLocalizedCurrencyName((o.send_currency ?? 'QAR') as CurrencyCode, lang === 'ar' ? 'ar' : 'en')}</span>
+                      {total != null && <span className="text-sm font-bold text-emerald-600">→ {fmt(total)} {getLocalizedCurrencyName((o.receive_currency ?? 'EGP') as CurrencyCode, lang === 'ar' ? 'ar' : 'en')}</span>}
                       {rate != null && <span className="text-[11px] text-muted-foreground tabular-nums">@ {fmt(rate, 4)}</span>}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2">
