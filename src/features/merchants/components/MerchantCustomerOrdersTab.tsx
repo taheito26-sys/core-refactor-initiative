@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Loader2, Plus, X, Check, XCircle } from 'lucide-react';
+import { Loader2, Plus, X, Check, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   createSharedOrderRequest,
   respondSharedOrder,
@@ -28,6 +28,9 @@ import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 import { useTheme } from '@/lib/theme-context';
 import { formatFxRateDisplay } from '@/lib/currency-locale';
 import { getQatarEgyptGuideRate } from '@/features/customer/customer-market';
+import { MerchantAddExecutionForm } from '@/features/parent-order-fulfillment/components/MerchantAddExecutionForm';
+import { MerchantExecutionList } from '@/features/parent-order-fulfillment/components/MerchantExecutionList';
+import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
 
 // ── Place Order for Client Modal ──
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
@@ -46,6 +49,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   const [fxRate, setFxRate] = useState('');
   const [customFxRate, setCustomFxRate] = useState(false);
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('none');
+  const [fulfillmentMode, setFulfillmentMode] = useState<'complete' | 'phased'>('complete');
   const [note, setNote] = useState('');
   const [submitResult, setSubmitResult] = useState<{
     kind: 'success' | 'error';
@@ -153,6 +157,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         fxRate: numFxRate,
         note: note || null,
         merchantCashAccountId: merchantCashAccountId === 'none' ? null : merchantCashAccountId,
+        fulfillmentMode,
       });
 
       return order;
@@ -211,6 +216,41 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             <input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" placeholder="0"
               className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-16 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
             <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">QAR</span>
+          </div>
+        </div>
+
+        {/* Fulfillment Mode */}
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 space-y-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
+            📦 Fulfillment Mode
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setFulfillmentMode('complete')}
+              className={cn(
+                'flex-1 rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                fulfillmentMode === 'complete'
+                  ? 'border-blue-500 bg-blue-500/10 text-blue-700'
+                  : 'border-border/50 bg-card text-muted-foreground hover:border-blue-500/40',
+              )}
+            >
+              <div className="font-semibold text-foreground">Complete Order</div>
+              <div className="text-[11px] opacity-80">Fulfill entire amount at once</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFulfillmentMode('phased')}
+              className={cn(
+                'flex-1 rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                fulfillmentMode === 'phased'
+                  ? 'border-blue-500 bg-blue-500/10 text-blue-700'
+                  : 'border-border/50 bg-card text-muted-foreground hover:border-blue-500/40',
+              )}
+            >
+              <div className="font-semibold text-foreground">Phased Delivery</div>
+              <div className="text-[11px] opacity-80">Add executions incrementally</div>
+            </button>
           </div>
         </div>
 
@@ -385,6 +425,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               setFxRate('');
               setCustomFxRate(false);
               setMerchantCashAccountId('none');
+              setFulfillmentMode('complete');
               setNote('');
               setSubmitResult(null);
               onClose();
@@ -408,6 +449,34 @@ interface Props {
   isAdminView?: boolean;
 }
 
+// Helper component for phased order execution section
+function PhasedOrderExecutionSection({ orderId }: { orderId: string }) {
+  const { data: summary } = useParentOrderSummary(orderId);
+
+  return (
+    <div className="space-y-3">
+      <div className="text-sm font-semibold text-foreground">Execution Management</div>
+      
+      {/* Execution List */}
+      <MerchantExecutionList parentOrderId={orderId} />
+
+      {/* Add Execution Form */}
+      {summary && summary.remaining_qar > 0 && (
+        <MerchantAddExecutionForm
+          parentOrderId={orderId}
+          remainingQar={summary.remaining_qar}
+        />
+      )}
+
+      {summary && summary.remaining_qar === 0 && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center text-sm font-medium text-emerald-700">
+          ✓ Order fully fulfilled
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: Props = {}) {
   const { merchantProfile, userId } = useAuth();
   const queryClient = useQueryClient();
@@ -415,6 +484,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const resolvedMerchantId = isAdminView ? merchantId ?? null : (merchantProfile?.merchant_id ?? merchantId ?? null);
 
@@ -575,6 +645,8 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
             const canApprove = canApproveOrder(order, 'merchant');
             const canReject = canRejectOrder(order, 'merchant');
             const canEdit = canEditOrder(order, 'merchant');
+            const isExpanded = expandedOrderId === order.id;
+            const isPhasedOrder = order.fulfillment_mode === 'phased';
 
             return (
               <Card key={order.id} className="overflow-hidden">
@@ -589,6 +661,11 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                         <Badge variant={order.workflow_status === 'approved' ? 'default' : order.workflow_status === 'rejected' ? 'destructive' : 'secondary'}>
                           {getWorkflowStatusLabel(order.workflow_status)}
                         </Badge>
+                        {isPhasedOrder && (
+                          <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-500/30">
+                            📦 Phased
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {order.amount} {order.send_currency} {order.receive_country && `→ ${order.receive_country}`}
@@ -666,10 +743,28 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                               Edit
                             </Button>
                           )}
+                          {isPhasedOrder && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                              className="h-8 gap-1 text-xs"
+                            >
+                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {isExpanded ? 'Hide' : 'Show'} Executions
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
                   </div>
+
+                  {/* Phased Order Execution Management */}
+                  {isPhasedOrder && isExpanded && (
+                    <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+                      <PhasedOrderExecutionSection orderId={order.id} />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

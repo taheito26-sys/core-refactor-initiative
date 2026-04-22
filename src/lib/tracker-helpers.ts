@@ -248,6 +248,9 @@ export type SettlementMode =
   | 'merchant_buys_for_me'
   | 'merchant_holds_inventory';
 
+export type BuyerType = 'connected_customer' | 'manual_contact' | 'merchant' | 'external';
+export type MirrorStatus = 'pending' | 'mirrored' | 'skipped_not_connected' | 'failed';
+
 export interface Trade {
   id: string;
   ts: number;
@@ -261,6 +264,12 @@ export interface Trade {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   revisions: any[];
   customerId: string;
+  /** Buyer category: connected_customer | manual_contact | merchant | external */
+  buyerType?: BuyerType;
+  /** Connected customer user ID (only populated when buyerType === 'connected_customer') */
+  connectedCustomerId?: string;
+  /** Mirror status: tracks whether this trade has been mirrored to customer_orders */
+  mirrorStatus?: MirrorStatus;
   /** Manual buy price (QAR per USDT) — used when usesStock is false */
   manualBuyPrice?: number;
   /** Linked merchant deal ID (if this is a merchant order — legacy, kept for old data) */

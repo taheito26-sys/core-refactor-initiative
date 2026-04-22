@@ -18,6 +18,8 @@ export type WorkflowStatus =
 export type ActorRole = 'merchant' | 'customer';
 export type ApprovalAction = 'approve' | 'reject';
 
+export type FulfillmentMode = 'complete' | 'phased';
+
 export interface WorkflowOrder {
   id: string;
   customer_user_id: string;
@@ -42,6 +44,7 @@ export interface WorkflowOrder {
   revision_no: number;
   edited_from_order_id: string | null;
   fx_rate: number | null;
+  fulfillment_mode: FulfillmentMode | null;
 
   // Location fields
   send_country: string | null;
@@ -119,6 +122,7 @@ export const ORDER_SELECT_FIELDS = [
  * - Customer-placed orders require merchant approval
  * - Cash account links are created atomically with the order
  * - FX rate is mandatory and tracks the currency conversion
+ * - Fulfillment mode determines if order is complete or phased delivery
  */
 export async function createSharedOrderRequest({
   connectionId,
@@ -134,6 +138,7 @@ export async function createSharedOrderRequest({
   note,
   merchantCashAccountId,
   customerCashAccountId,
+  fulfillmentMode,
 }: {
   connectionId: string;
   placedByRole: ActorRole;
@@ -148,6 +153,7 @@ export async function createSharedOrderRequest({
   note?: string | null;
   merchantCashAccountId?: string | null; // text, not uuid
   customerCashAccountId?: string | null; // text, not uuid (null = no account)
+  fulfillmentMode?: FulfillmentMode; // 'complete' | 'phased'
 }): Promise<WorkflowOrder> {
   const { data, error } = await supabase.rpc('create_customer_order_request', {
     p_connection_id: connectionId,
@@ -163,6 +169,7 @@ export async function createSharedOrderRequest({
     p_note: note ?? null,
     p_merchant_cash_account_id: merchantCashAccountId ?? null,
     p_customer_cash_account_id: customerCashAccountId ?? null,
+    p_fulfillment_mode: fulfillmentMode ?? 'complete',
   });
 
   if (error) throw error;
