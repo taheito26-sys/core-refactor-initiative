@@ -947,6 +947,40 @@ export default function OrdersPage() {
     setNewBuyerName(''); setNewBuyerPhone(''); setNewBuyerTier('C');
   };
 
+  const isUuidLike = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+
+  const resolveMirrorCustomerUserId = useCallback((buyerRef: string) => {
+    const directConnected = connectedCustomers.find(
+      (customer) => customer.customerUserId === buyerRef || customer.id === buyerRef,
+    );
+    if (directConnected) {
+      if (!isUuidLike(directConnected.customerUserId)) return null;
+      return {
+        customerUserId: directConnected.customerUserId,
+        displayName: directConnected.name,
+      };
+    }
+
+    const localBuyer = state.customers.find(
+      (customer) => customer.id === buyerRef || normalizeName(customer.name) === normalizeName(buyerRef),
+    );
+    if (localBuyer) {
+      const connectedByName = connectedCustomers.find(
+        (customer) => normalizeName(customer.name) === normalizeName(localBuyer.name),
+      );
+      if (connectedByName) {
+        if (!isUuidLike(connectedByName.customerUserId)) return null;
+        return {
+          customerUserId: connectedByName.customerUserId,
+          displayName: connectedByName.name,
+        };
+      }
+    }
+
+    return null;
+  }, [connectedCustomers, state.customers]);
+
   // Helper: apply cash deposit to state if enabled
   const applyCashDeposit = (nextState: TrackerState, sell: number, amountUSDT: number, tradeId?: string): TrackerState => {
     return applyOrderCashDeposit({
@@ -1029,14 +1063,29 @@ export default function OrdersPage() {
       // Find the connection_id — the RPC needs this, not customer_user_id directly
       let connectionId: string | null = null;
 
-      const connectedBuyer = connectedCustomers.find(
-        c => c.customerUserId === resolvedBuyerId || c.id === resolvedBuyerId,
-      );
-      const localBuyer = state.customers.find((c) => c.id === resolvedBuyerId);
-      const namedConnectedBuyer = !connectedBuyer && localBuyer
-        ? connectedCustomers.find((c) => normalizeName(c.name) === normalizeName(localBuyer.name))
-        : null;
-      const customerUserId = (connectedBuyer ?? namedConnectedBuyer)?.customerUserId ?? resolvedBuyerId;
+      const resolvedCustomer = resolveMirrorCustomerUserId(resolvedBuyerId);
+      if (!resolvedCustomer) {
+        const message = 'Customer order could not be mirrored: the selected buyer is not a connected customer.';
+        console.error(message, {
+          merchantId: merchantProfile.merchant_id,
+          buyerRef: resolvedBuyerId,
+          tradeId: trade.id,
+        });
+        toast.error(message);
+        return false;
+      }
+      const { customerUserId } = resolvedCustomer;
+      if (!isUuidLike(customerUserId)) {
+        const message = 'Customer order could not be mirrored: resolved customer id is not a valid UUID.';
+        console.error(message, {
+          merchantId: merchantProfile.merchant_id,
+          buyerRef: resolvedBuyerId,
+          customerUserId,
+          tradeId: trade.id,
+        });
+        toast.error(message);
+        return false;
+      }
 
       const { data: existingOrder, error: existingError } = await supabase
         .from('customer_orders')
@@ -1125,7 +1174,7 @@ export default function OrdersPage() {
       toast.error(message);
       return false;
     }
-  }, [connectedCustomers, merchantProfile?.merchant_id, state.customers]);
+  }, [merchantProfile?.merchant_id, resolveMirrorCustomerUserId, settings.baseFiatCurrency]);
 
   useEffect(() => {
     if (!merchantProfile?.merchant_id) return;
@@ -1166,10 +1215,18 @@ export default function OrdersPage() {
   // ─── Manual backfill: push an existing trade to the client portal ──
   const pushTradeToClient = async (trade: Trade) => {
     try {
-      const connectedBuyer = connectedCustomers.find(
-        c => c.customerUserId === trade.customerId || c.id === trade.customerId,
-      );
-      if (!connectedBuyer?.customerUserId || !merchantProfile?.merchant_id) {
+      if (!merchantProfile?.merchant_id) {
+        toast.error('No connected customer found for this trade');
+        return;
+      }
+
+      const resolvedBuyer = resolveMirrorCustomerUserId(trade.customerId);
+      if (!resolvedBuyer) {
+        toast.error('No connected customer found for this trade');
+        return;
+      }
+      const { customerUserId } = resolvedBuyer;
+      if (!isUuidLike(customerUserId)) {
         toast.error('No connected customer found for this trade');
         return;
       }
@@ -1178,7 +1235,7 @@ export default function OrdersPage() {
         .from('customer_merchant_connections')
         .select('id')
         .eq('merchant_id', merchantProfile.merchant_id)
-        .eq('customer_user_id', connectedBuyer.customerUserId)
+        .eq('customer_user_id', customerUserId)
         .eq('status', 'active')
         .maybeSingle();
 
@@ -1191,7 +1248,7 @@ export default function OrdersPage() {
       const { data: existing } = await supabase
         .from('customer_orders')
         .select('id')
-        .eq('customer_user_id', connectedBuyer.customerUserId)
+        .eq('customer_user_id', customerUserId)
         .eq('merchant_id', merchantProfile.merchant_id)
         .eq('amount', trade.amountUSDT)
         .eq('rate', trade.sellPriceQAR)
