@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Loader2, Plus, X, Check, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -249,6 +250,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
 
 export default function CustomerOrdersPage() {
   const { customerProfile, userId } = useAuth();
+  const isMobile = useIsMobile();
   const { settings } = useTheme();
   const lang = settings.language;
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
@@ -437,6 +439,157 @@ export default function CustomerOrdersPage() {
                   };
                   return labels[cur] ? (lang === 'ar' ? labels[cur].ar : labels[cur].en) : cur;
                 };
+
+                if (isMobile) {
+                  const merchantDisplayName = (order as any).merchant_display_name || order.merchant_id;
+                  const statusTone = {
+                    pending_customer_approval: {
+                      card: 'border-amber-500/18 bg-[#0d1730] shadow-[0_0_0_1px_rgba(245,158,11,0.08)]',
+                      badge: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
+                      amount: 'text-amber-300',
+                    },
+                    pending_merchant_approval: {
+                      card: 'border-sky-500/18 bg-[#0d1730] shadow-[0_0_0_1px_rgba(59,130,246,0.08)]',
+                      badge: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
+                      amount: 'text-sky-300',
+                    },
+                    approved: {
+                      card: 'border-emerald-500/18 bg-[#0d1730] shadow-[0_0_0_1px_rgba(16,185,129,0.08)]',
+                      badge: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+                      amount: 'text-emerald-400',
+                    },
+                    rejected: {
+                      card: 'border-rose-500/18 bg-[#0d1730] shadow-[0_0_0_1px_rgba(244,63,94,0.08)]',
+                      badge: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
+                      amount: 'text-rose-400',
+                    },
+                    cancelled: {
+                      card: 'border-slate-500/18 bg-[#0d1730] shadow-[0_0_0_1px_rgba(148,163,184,0.08)]',
+                      badge: 'border-slate-500/25 bg-slate-500/10 text-slate-300',
+                      amount: 'text-slate-300',
+                    },
+                  }[order.workflow_status || 'cancelled'] || {
+                    card: 'border-slate-500/18 bg-[#0d1730] shadow-[0_0_0_1px_rgba(148,163,184,0.08)]',
+                    badge: 'border-slate-500/25 bg-slate-500/10 text-slate-300',
+                    amount: 'text-slate-300',
+                  };
+                  const fxRateLabel = order.fx_rate != null ? formatCustomerNumber(order.fx_rate, lang, 4) : '—';
+                  const sendAmountLabel = `${formatCustomerNumber(order.amount, lang, 0)} ${order.send_currency}`;
+                  const receiveAmountLabel = deliveredAmount != null
+                    ? `${formatCustomerNumber(deliveredAmount, lang, 0)} ${order.receive_currency}`
+                    : '—';
+                  const detailLine = order.note
+                    ? order.note
+                    : `1 ${order.send_currency} = ${fxRateLabel} ${order.receive_currency}`;
+
+                  return (
+                    <div
+                      key={order.id}
+                      className={cn(
+                        'overflow-hidden rounded-[24px] border px-4 py-4 text-[15px] text-slate-100',
+                        statusTone.card,
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-[22px] font-black tracking-tight text-slate-50">
+                            {merchantDisplayName}
+                          </div>
+                        </div>
+                        <span className={cn('shrink-0 rounded-full border px-4 py-2 text-[16px] font-medium leading-none', statusTone.badge)}>
+                          {getWorkflowStatusLabel(order.workflow_status)}
+                        </span>
+                      </div>
+
+                      <div className="mt-6 font-mono text-[18px] font-semibold tracking-[0.02em] text-slate-400">
+                        {formatCustomerDate(order.created_at, lang)}
+                      </div>
+
+                      <div className="mt-5 flex items-baseline justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="text-[17px] text-slate-400">
+                            Amount:{' '}
+                            <span className={cn('font-mono font-bold tabular-nums', statusTone.amount)}>
+                              -{sendAmountLabel}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right text-[17px] text-slate-400">
+                          Balance: <span className="font-black text-slate-50">{receiveAmountLabel}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 text-[17px] leading-7 text-slate-400">
+                        {detailLine}
+                      </div>
+
+                      {(canApprove || canReject || canEdit) && (
+                        <div className="mt-5 space-y-3 border-t border-white/5 pt-4">
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                                {L('New amount (QAR)', 'المبلغ الجديد')}
+                              </label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="number"
+                                  value={editAmount}
+                                  onChange={e => setEditAmount(e.target.value)}
+                                  placeholder={String(order.amount)}
+                                  className="h-10 flex-1 rounded-xl border border-white/10 bg-[#0b1224] px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/30"
+                                />
+                                <button
+                                  onClick={() => editMutation.mutate({ order })}
+                                  disabled={editMutation.isPending}
+                                  className="flex h-10 items-center justify-center rounded-xl bg-sky-500/15 px-4 text-sm font-semibold text-sky-300 disabled:opacity-50"
+                                >
+                                  {editMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : L('Update', 'تحديث')}
+                                </button>
+                                <button
+                                  onClick={() => { setEditingId(null); setEditAmount(''); }}
+                                  className="flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/0 px-4 text-sm font-semibold text-slate-300"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {canApprove && (
+                                <button
+                                  onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                                  disabled={isActioning}
+                                  className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50"
+                                >
+                                  {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                  {L('Approve', 'موافقة')}
+                                </button>
+                              )}
+                              {canReject && (
+                                <button
+                                  onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
+                                  disabled={isActioning}
+                                  className="flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 disabled:opacity-50"
+                                >
+                                  {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                                  {L('Reject', 'رفض')}
+                                </button>
+                              )}
+                              {canEdit && (
+                                <button
+                                  onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
+                                  className="rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300"
+                                >
+                                  {L('Edit', 'تعديل')}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
 
                 return (
                   <div key={order.id} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
