@@ -41,6 +41,7 @@ export interface WorkflowOrder {
   rejection_reason: string | null;
   revision_no: number;
   edited_from_order_id: string | null;
+  fx_rate: number | null;
 
   // Location fields
   send_country: string | null;
@@ -99,6 +100,7 @@ export const ORDER_SELECT_FIELDS = [
   'rejection_reason',
   'revision_no',
   'edited_from_order_id',
+  'fx_rate',
   'send_country',
   'receive_country',
   'send_currency',
@@ -116,6 +118,7 @@ export const ORDER_SELECT_FIELDS = [
  * - Merchant-placed orders require customer approval
  * - Customer-placed orders require merchant approval
  * - Cash account links are created atomically with the order
+ * - FX rate is mandatory and tracks the currency conversion
  */
 export async function createSharedOrderRequest({
   connectionId,
@@ -127,6 +130,7 @@ export async function createSharedOrderRequest({
   sendCurrency,
   receiveCurrency,
   payoutRail,
+  fxRate,
   note,
   merchantCashAccountId,
   customerCashAccountId,
@@ -140,9 +144,10 @@ export async function createSharedOrderRequest({
   sendCurrency: string;
   receiveCurrency: string;
   payoutRail: string;
+  fxRate: number;
   note?: string | null;
   merchantCashAccountId?: string | null; // text, not uuid
-  customerCashAccountId?: string | null; // text, not uuid
+  customerCashAccountId?: string | null; // text, not uuid (null = no account)
 }): Promise<WorkflowOrder> {
   const { data, error } = await supabase.rpc('create_customer_order_request', {
     p_connection_id: connectionId,
@@ -154,6 +159,7 @@ export async function createSharedOrderRequest({
     p_send_currency: sendCurrency,
     p_receive_currency: receiveCurrency,
     p_payout_rail: payoutRail,
+    p_fx_rate: fxRate,
     p_note: note ?? null,
     p_merchant_cash_account_id: merchantCashAccountId ?? null,
     p_customer_cash_account_id: customerCashAccountId ?? null,
@@ -194,11 +200,13 @@ export async function respondSharedOrder({
  * - Increments revision number
  * - Resets workflow to counterpart approval
  * - Updates cash links atomically
+ * - Can update amount and FX rate
  */
 export async function editSharedOrder({
   orderId,
   actorRole,
   amount,
+  fxRate,
   note,
   merchantCashAccountId,
   customerCashAccountId,
@@ -206,14 +214,16 @@ export async function editSharedOrder({
   orderId: string;
   actorRole: ActorRole;
   amount?: number | null;
+  fxRate?: number | null;
   note?: string | null;
   merchantCashAccountId?: string | null; // text, not uuid
-  customerCashAccountId?: string | null; // text, not uuid
+  customerCashAccountId?: string | null; // text, not uuid (null = no account)
 }): Promise<WorkflowOrder> {
   const { data, error } = await supabase.rpc('edit_customer_order_request', {
     p_order_id: orderId,
     p_actor_role: actorRole,
     p_amount: amount ?? null,
+    p_fx_rate: fxRate ?? null,
     p_note: note ?? null,
     p_merchant_cash_account_id: merchantCashAccountId ?? null,
     p_customer_cash_account_id: customerCashAccountId ?? null,
@@ -299,6 +309,18 @@ export async function getCashAccountsForUser(userId: string): Promise<CashAccoun
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as CashAccount[];
+}
+
+/**
+ * Get cash accounts for a merchant.
+ */
+export async function getMerchantCashAccounts(merchantId: string): Promise<CashAccount[]> {
+  const { data, error } = await supabase.rpc('get_merchant_cash_accounts', {
+    p_merchant_id: merchantId,
+  });
 
   if (error) throw error;
   return (data ?? []) as CashAccount[];

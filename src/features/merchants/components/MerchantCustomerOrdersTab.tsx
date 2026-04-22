@@ -16,6 +16,7 @@ import {
   respondSharedOrder,
   editSharedOrder,
   getCashAccountsForUser,
+  getMerchantCashAccounts,
   listSharedOrdersForActor,
   getWorkflowStatusLabel,
   canApproveOrder,
@@ -37,7 +38,8 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
   const [connId, setConnId] = useState('');
   const [amount, setAmount] = useState('');
-  const [merchantCashAccountId, setMerchantCashAccountId] = useState('');
+  const [fxRate, setFxRate] = useState('');
+  const [merchantCashAccountId, setMerchantCashAccountId] = useState('none');
   const [note, setNote] = useState('');
   const [submitResult, setSubmitResult] = useState<{
     kind: 'success' | 'error';
@@ -71,25 +73,27 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   });
 
   const { data: cashAccounts = [] } = useQuery({
-    queryKey: ['merchant-cash-accounts', userId],
+    queryKey: ['merchant-cash-accounts', merchantId],
     queryFn: async () => {
-      return getCashAccountsForUser(userId);
+      if (!merchantId) return [];
+      return getMerchantCashAccounts(merchantId);
     },
-    enabled: !!userId,
+    enabled: !!merchantId,
   });
 
-  const activeCashAccounts = cashAccounts.filter((account: any) => account.status === 'active');
-
-  useEffect(() => {
-    if (merchantCashAccountId || cashAccounts.length === 0) return;
-    setMerchantCashAccountId(cashAccounts[0].id);
-  }, [cashAccounts, merchantCashAccountId]);
+  const activeCashAccounts = useMemo(() =>
+    cashAccounts.filter((account: any) => account.status === 'active'),
+    [cashAccounts]
+  );
 
   const create = useMutation({
     mutationFn: async () => {
       if (!connId || !amount || parseFloat(amount) <= 0)
         throw new Error('Select a client and enter an amount');
+      if (!fxRate || parseFloat(fxRate) <= 0)
+        throw new Error('Enter FX rate (QAR → EGP)');
       const numAmount = parseFloat(amount);
+      const numFxRate = parseFloat(fxRate);
 
       const order = await createSharedOrderRequest({
         connectionId: connId,
@@ -101,8 +105,9 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         sendCurrency,
         receiveCurrency,
         payoutRail: 'bank_transfer',
+        fxRate: numFxRate,
         note: note || null,
-        merchantCashAccountId: merchantCashAccountId || null,
+        merchantCashAccountId: merchantCashAccountId === 'none' ? null : merchantCashAccountId,
       });
 
       return order;
@@ -164,6 +169,16 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
           </div>
         </div>
 
+        {/* FX Rate */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">FX Rate (QAR → EGP) *</label>
+          <div className="relative">
+            <input value={fxRate} onChange={e => setFxRate(e.target.value)} type="number" min="0" step="0.01" placeholder="0.27"
+              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-32 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">1 QAR = ? EGP</span>
+          </div>
+        </div>
+
         {/* Note */}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Note (optional)</label>
@@ -180,28 +195,51 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
           <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
             💰 Merchant cash account
           </div>
-          <div className="flex flex-wrap gap-2">
-            {activeCashAccounts.length === 0 ? (
-              <div className="text-xs text-muted-foreground">No active cash accounts found</div>
-            ) : activeCashAccounts.map((account: any) => {
-              const isSelected = merchantCashAccountId === account.id;
-              return (
-                <button
-                  key={account.id}
-                  type="button"
-                  onClick={() => setMerchantCashAccountId(account.id)}
-                  className={cn(
-                    'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
-                    isSelected
-                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700'
-                      : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
-                  )}
-                >
-                  <div className="font-semibold text-foreground">{account.name}</div>
-                  <div className="text-[11px] opacity-80">{account.currency}</div>
-                </button>
-              );
-            })}
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {/* No Account Option */}
+              <button
+                type="button"
+                onClick={() => setMerchantCashAccountId('none')}
+                className={cn(
+                  'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                  merchantCashAccountId === 'none'
+                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700'
+                    : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
+                )}
+              >
+                <div className="font-semibold text-foreground">No Account</div>
+                <div className="text-[11px] opacity-80">Skip account linking</div>
+              </button>
+
+              {/* Cash Accounts */}
+              {activeCashAccounts.map((account: any) => {
+                const isSelected = merchantCashAccountId === account.id;
+                return (
+                  <button
+                    key={account.id}
+                    type="button"
+                    onClick={() => setMerchantCashAccountId(account.id)}
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                      isSelected
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700'
+                        : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
+                    )}
+                  >
+                    <div className="font-semibold text-foreground">{account.name}</div>
+                    <div className="text-[11px] opacity-80">{account.currency}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {activeCashAccounts.length === 0 && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                <p className="text-xs text-amber-700">
+                  No active cash accounts found. Go to Wallet to create one, or select "No Account" above.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -221,8 +259,20 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
         {/* Submit */}
         <button
-          onClick={() => submitResult ? onClose() : create.mutate()}
-          disabled={create.isPending || (!submitResult && (!connId || !amount))}
+          onClick={() => {
+            if (submitResult) {
+              setConnId('');
+              setAmount('');
+              setFxRate('');
+              setMerchantCashAccountId('none');
+              setNote('');
+              setSubmitResult(null);
+              onClose();
+            } else {
+              create.mutate();
+            }
+          }}
+          disabled={create.isPending || (!submitResult && (!connId || !amount || !fxRate))}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
         >
           {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
