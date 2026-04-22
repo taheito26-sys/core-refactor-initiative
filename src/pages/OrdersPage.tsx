@@ -194,15 +194,26 @@ export default function OrdersPage() {
         .order('created_at', { ascending: false });
       if (error || !connections || connections.length === 0) return [];
 
-      const userIds = [...new Set(connections.map((row) => row.customer_user_id))];
-      const { data: profiles } = await supabase
-        .from('customer_profiles')
-        .select('user_id, display_name, name, phone, region, country')
-        .in('user_id', userIds);
+      const validConnections = connections.filter((row) => isUuidLike(row.customer_user_id));
+      const droppedConnections = connections.length - validConnections.length;
+      if (droppedConnections > 0) {
+        console.warn('Skipped non-UUID customer connections while loading connected customers', {
+          merchantId: merchantProfile.merchant_id,
+          droppedConnections,
+        });
+      }
+
+      const userIds = [...new Set(validConnections.map((row) => row.customer_user_id))];
+      const { data: profiles } = userIds.length > 0
+        ? await supabase
+            .from('customer_profiles')
+            .select('user_id, display_name, name, phone, region, country')
+            .in('user_id', userIds)
+        : { data: [] as Array<{ user_id: string; display_name?: string | null; name?: string | null; phone?: string | null; region?: string | null; country?: string | null }> };
       const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
 
       return mapConnectedCustomers(
-        connections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null }>,
+        validConnections as Array<{ customer_user_id: string; nickname?: string | null; created_at?: string | null; status?: string | null }>,
         profileMap,
       );
     },
