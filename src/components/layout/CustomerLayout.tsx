@@ -72,7 +72,7 @@ export function CustomerLayout() {
   );
 
   return (
-    <div className={cn('tracker-root app-shell flex h-dvh overflow-hidden', isChatRoute && isRTL && 'flex-row-reverse')} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="tracker-root app-shell flex h-dvh overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
       {!isMobile && sidebar}
       {isMobile && drawerOpen && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setDrawerOpen(false)} />}
       {isMobile && drawerOpen && <div className={cn('fixed top-0 z-50 h-full', isRTL ? 'right-0' : 'left-0')}>{sidebar}</div>}
