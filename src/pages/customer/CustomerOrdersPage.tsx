@@ -501,48 +501,53 @@ export default function CustomerOrdersPage() {
                     month: 'long',
                     day: 'numeric',
                   }).format(new Date(order.created_at));
+                  const approvalBadge =
+                    order.workflow_status === 'approved'
+                      ? <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/15 text-[11px] leading-none text-emerald-400">✓</span>
+                      : null;
 
                   return (
                     <div
                       key={order.id}
                       dir={lang === 'ar' ? 'rtl' : 'ltr'}
                       className={cn(
-                        'overflow-hidden rounded-[22px] border px-3 py-3 text-[12px] text-slate-100',
+                        'overflow-hidden rounded-[20px] border px-3 py-2.5 text-[12px] text-slate-100',
                         statusTone.card,
                         lang === 'ar' && 'text-right',
                       )}
                     >
                       <div className={cn('flex items-start justify-between gap-2', lang === 'ar' && 'flex-row-reverse')}>
                         <div className="min-w-0">
-                          <div className="text-[22px] font-black tracking-tight text-slate-50">
-                            -{sendAmountLabel} {sendCurrencyLabel}
-                          </div>
+                          {approvalBadge}
                         </div>
-                        <span className={cn('shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium leading-none', statusTone.badge)}>
-                          {statusLabel}
-                        </span>
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-slate-300">
+                          <span>{dateLabel}</span>
+                        </div>
                       </div>
 
-                      <div className={cn('mt-2 font-mono text-[11px] font-semibold tracking-[0.02em] text-slate-400', lang === 'ar' && 'text-right')}>
-                        {dateLabel}
+                      <div className={cn('mt-2 grid grid-cols-2 gap-2', lang === 'ar' && 'text-right')}>
+                        <div className="rounded-xl bg-white/[0.03] px-2 py-1.5">
+                          <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400">{lang === 'ar' ? 'المستلم' : 'Received'}</div>
+                          <div className="mt-1 text-[17px] font-black leading-none text-slate-50">
+                            {sendAmountLabel}
+                          </div>
+                          <div className="mt-0.5 text-[10px] font-semibold text-slate-300">{sendCurrencyLabel}</div>
+                        </div>
+                        <div className="rounded-xl bg-white/[0.03] px-2 py-1.5 text-right">
+                          <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400">{lang === 'ar' ? 'المرسل' : 'Sent'}</div>
+                          <div className="mt-1 text-[17px] font-black leading-none text-slate-50">
+                            {receiveAmountLabel}
+                          </div>
+                          <div className="mt-0.5 text-[10px] font-semibold text-slate-300">{receiveCurrencyLabel}</div>
+                        </div>
                       </div>
 
-                      <div className={cn('mt-3 flex items-baseline justify-between gap-3', lang === 'ar' && 'flex-row-reverse')}>
-                        <div className="min-w-0">
-                          <div className="text-[11px] text-slate-400">
-                            {lang === 'ar' ? 'الصرف' : 'FX'} 
-                            <span className={cn('font-mono font-semibold tabular-nums', statusTone.amount)}>
-                              1 {sendCurrencyLabel} = {fxRateLabel} {receiveCurrencyLabel}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="shrink-0 text-right text-[11px] text-slate-400">
-                          {lang === 'ar' ? 'الإجمالي' : 'Total'}: <span className="font-semibold text-slate-50">{receiveAmountLabel} {receiveCurrencyLabel}</span>
-                        </div>
+                      <div className={cn('mt-2 text-[10px] leading-4 text-slate-400', lang === 'ar' && 'text-right')}>
+                        1 {sendCurrencyLabel} = {fxRateLabel} {receiveCurrencyLabel}
                       </div>
 
                       {(canApprove || canReject || canEdit) && (
-                        <div className="mt-3 space-y-2 border-t border-white/5 pt-3">
+                        <div className="mt-2 space-y-1.5 border-t border-white/5 pt-2.5">
                           {isEditing ? (
                             <div className="space-y-2">
                               <label className="block text-[10px] font-medium tracking-wide text-slate-400">
