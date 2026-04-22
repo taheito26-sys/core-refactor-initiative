@@ -59,9 +59,10 @@ async function fetchFromInstapay(sourceCurrency: string = "qar", targetCurrency:
       return null;
     }
 
-    // Ensure rate is reasonable (QAR to EGP should be around 0.25-0.30)
-    if (rate < 0.1 || rate > 1) {
-      console.warn("Unusual FX rate detected:", rate, "- may need to reverse direction or verify API");
+    // Ensure rate is reasonable (QAR to EGP should be around 13-14)
+    // Correct rate: 1 QAR ≈ 13.9253 EGP
+    if (rate < 5 || rate > 20) {
+      console.warn("Unusual FX rate detected:", rate, "- expected range is ~13-14 for QAR→EGP");
     }
 
     return {
@@ -94,7 +95,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: "Failed to fetch rate",
-          rate: 0.27, // fallback
+          rate: 13.9253, // fallback (1 QAR = 13.9253 EGP from QAR/EGP market guide)
           source: "default",
           timestamp: new Date().toISOString(),
         }),
@@ -114,7 +115,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: "Server error",
-        rate: 0.27, // fallback
+        rate: 13.9253, // fallback (1 QAR = 13.9253 EGP from QAR/EGP market guide)
         source: "default",
         timestamp: new Date().toISOString(),
       }),

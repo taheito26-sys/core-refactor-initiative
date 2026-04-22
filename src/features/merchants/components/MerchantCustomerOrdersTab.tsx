@@ -25,12 +25,16 @@ import {
   type WorkflowOrder,
 } from '@/features/orders/shared-order-workflow';
 import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
+import { useTheme } from '@/lib/theme-context';
+import { formatFxRateDisplay } from '@/lib/currency-locale';
 
 // ── Place Order for Client Modal ──
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   merchantId: string; userId: string; onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { settings } = useTheme();
+  const lang = settings.language === 'ar' ? 'ar' : 'en';
   const sendCountry = 'Qatar';
   const receiveCountry = 'Egypt';
   const sendCurrency = 'QAR';
@@ -242,15 +246,15 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                   type="number"
                   min="0"
                   step="0.0001"
-                  placeholder={'0.27'}
+                  placeholder={'13.9253'}
                   disabled={!customFxRate}
                   className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-default"
                 />
-                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">1 QAR = ? EGP</span>
+                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">{formatFxRateDisplay(0, 'QAR', 'EGP', lang).replace(' 0.0000', ' ?')}</span>
               </div>
               {liveRate && !customFxRate && (
                 <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
-                  📈 Market Rate: 1 QAR = {typeof liveRate.rate === 'number' ? liveRate.rate.toFixed(4) : parseFloat(String(liveRate.rate)).toFixed(4)} EGP {liveRate.isEstimate ? '(estimated)' : ''}
+                  📈 {lang === 'ar' ? 'سعر السوق: ' : 'Market Rate: '}{formatFxRateDisplay(typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate)), 'QAR', 'EGP', lang)} {liveRate.isEstimate ? (lang === 'ar' ? '(تقديري)' : '(estimated)') : ''}
                 </div>
               )}
             </>

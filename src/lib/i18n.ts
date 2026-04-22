@@ -2040,6 +2040,13 @@ const translations = {
   chatEdit:                     { en: 'Edit',                                             ar: 'تعديل' },
   chatCopy:                     { en: 'Copy',                                             ar: 'نسخ' },
   attachFile:                   { en: 'Attach file',                                      ar: 'إرفاق ملف' },
+
+  // ── Currency Names (Localized) ──
+  currencyQAR:                  { en: 'QAR',                                              ar: 'قطري' },
+  currencyEGP:                  { en: 'EGP',                                              ar: 'مصري' },
+  currencyUSDT:                 { en: 'USDT',                                             ar: 'USDT' },
+  currencyUSD:                  { en: 'USD',                                              ar: 'دولار أمريكي' },
+  fxRateFormat:                 { en: '1 QAR = {rate} EGP',                               ar: '1 قطري = {rate} مصري' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

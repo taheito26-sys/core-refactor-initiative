@@ -1,5 +1,19 @@
 -- Enhance customer order notification system to notify both merchants and customers
 
+-- Helper function to localize currency names
+CREATE OR REPLACE FUNCTION public.localize_currency(currency_code TEXT)
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE
+AS $$
+BEGIN
+  CASE WHEN currency_code = 'QAR' THEN RETURN 'قطري';
+    WHEN currency_code = 'EGP' THEN RETURN 'مصري';
+    WHEN currency_code = 'USD' THEN RETURN 'دولار';
+    WHEN currency_code = 'USDT' THEN RETURN 'USDT';
+    ELSE RETURN currency_code;
+  END CASE;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.fn_notify_customer_order_workflow()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -9,6 +23,8 @@ DECLARE
   _merchant_name TEXT;
   _notification_title TEXT;
   _notification_body TEXT;
+  _send_currency_ar TEXT;
+  _receive_currency_ar TEXT;
 BEGIN
   -- Get merchant and customer info
   SELECT user_id INTO _merchant_user_id
@@ -26,8 +42,10 @@ BEGIN
 
     -- Notify merchant when customer places an order (requires merchant approval)
     IF NEW.placed_by_role = 'customer' AND _merchant_user_id IS NOT NULL THEN
+      _send_currency_ar := localize_currency(NEW.send_currency);
+      _receive_currency_ar := localize_currency(NEW.receive_currency);
       _notification_title := COALESCE(_customer_name, 'A customer') || ' placed an order';
-      _notification_body := NEW.amount || ' ' || NEW.send_currency || ' → ' || NEW.receive_currency;
+      _notification_body := NEW.amount || ' ' || _send_currency_ar || ' → ' || _receive_currency_ar;
 
       INSERT INTO public.notifications (user_id, category, title, body, entity_type, entity_id, target_path, target_entity_type, target_entity_id)
       VALUES (
@@ -41,8 +59,10 @@ BEGIN
 
     -- Notify customer when merchant places an order (requires customer approval)
     IF NEW.placed_by_role = 'merchant' THEN
+      _send_currency_ar := localize_currency(NEW.send_currency);
+      _receive_currency_ar := localize_currency(NEW.receive_currency);
       _notification_title := COALESCE(_merchant_name, 'A merchant') || ' placed an order for you';
-      _notification_body := NEW.amount || ' ' || NEW.send_currency || ' → ' || NEW.receive_currency;
+      _notification_body := NEW.amount || ' ' || _send_currency_ar || ' → ' || _receive_currency_ar;
 
       INSERT INTO public.notifications (user_id, category, title, body, entity_type, entity_id, target_path, target_entity_type, target_entity_id)
       VALUES (
@@ -60,7 +80,7 @@ BEGIN
     -- Notify customer that order was approved (by merchant)
     IF NEW.placed_by_role = 'customer' THEN
       _notification_title := COALESCE(_merchant_name, 'The merchant') || ' approved your order';
-      _notification_body := NEW.amount || ' ' || NEW.send_currency;
+      _notification_body := NEW.amount || ' ' || localize_currency(NEW.send_currency);
 
       INSERT INTO public.notifications (user_id, category, title, body, entity_type, entity_id, target_path, target_entity_type, target_entity_id)
       VALUES (
@@ -75,7 +95,7 @@ BEGIN
     -- Notify merchant that order was approved (by customer)
     IF NEW.placed_by_role = 'merchant' AND _merchant_user_id IS NOT NULL THEN
       _notification_title := COALESCE(_customer_name, 'The customer') || ' approved your order';
-      _notification_body := NEW.amount || ' ' || NEW.send_currency;
+      _notification_body := NEW.amount || ' ' || localize_currency(NEW.send_currency);
 
       INSERT INTO public.notifications (user_id, category, title, body, entity_type, entity_id, target_path, target_entity_type, target_entity_id)
       VALUES (
@@ -129,7 +149,7 @@ BEGIN
     -- Notify merchant that customer edited and re-submitted
     IF NEW.placed_by_role = 'customer' AND _merchant_user_id IS NOT NULL THEN
       _notification_title := COALESCE(_customer_name, 'The customer') || ' updated the order';
-      _notification_body := 'Revision ' || NEW.revision_no || ' - ' || NEW.amount || ' ' || NEW.send_currency;
+      _notification_body := 'Revision ' || NEW.revision_no || ' - ' || NEW.amount || ' ' || localize_currency(NEW.send_currency);
 
       INSERT INTO public.notifications (user_id, category, title, body, entity_type, entity_id, target_path, target_entity_type, target_entity_id)
       VALUES (
@@ -144,7 +164,7 @@ BEGIN
     -- Notify customer that merchant edited and re-submitted
     IF NEW.placed_by_role = 'merchant' THEN
       _notification_title := COALESCE(_merchant_name, 'The merchant') || ' updated the order';
-      _notification_body := 'Revision ' || NEW.revision_no || ' - ' || NEW.amount || ' ' || NEW.send_currency;
+      _notification_body := 'Revision ' || NEW.revision_no || ' - ' || NEW.amount || ' ' || localize_currency(NEW.send_currency);
 
       INSERT INTO public.notifications (user_id, category, title, body, entity_type, entity_id, target_path, target_entity_type, target_entity_id)
       VALUES (
