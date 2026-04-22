@@ -52,7 +52,7 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
       const userIds = [...new Set(data.map((c) => c.customer_user_id))];
       const { data: profiles, error: profileError } = await supabase
         .from('customer_profiles')
-        .select('user_id, display_name, name, phone, region, country')
+        .select('user_id, display_name, phone, region, country')
         .in('user_id', userIds);
       if (profileError) throw profileError;
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
@@ -61,7 +61,6 @@ export default function MerchantClientsTab({ merchantId, userId, isAdminView }: 
         ...c,
         customerName: resolveCustomerLabel({
           displayName: profileMap.get(c.customer_user_id)?.display_name ?? null,
-          name: profileMap.get(c.customer_user_id)?.name ?? null,
           nickname: c.nickname,
           customerUserId: c.customer_user_id,
         }),

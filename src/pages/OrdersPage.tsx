@@ -204,11 +204,11 @@ export default function OrdersPage() {
       }
 
       const userIds = [...new Set(validConnections.map((row) => row.customer_user_id))];
-      let profiles: Array<{ user_id: string; display_name?: string | null; name?: string | null; phone?: string | null; region?: string | null; country?: string | null }> = [];
+      let profiles: Array<{ user_id: string; display_name?: string | null; phone?: string | null; region?: string | null; country?: string | null }> = [];
       if (userIds.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
           .from('customer_profiles')
-          .select('user_id, display_name, name, phone, region, country')
+          .select('user_id, display_name, phone, region, country')
           .in('user_id', userIds);
         if (profilesError) {
           console.warn('Loaded connected customers without profile enrichment', {
