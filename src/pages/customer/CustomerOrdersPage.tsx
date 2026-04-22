@@ -12,7 +12,6 @@ import {
   editSharedOrder,
   listSharedOrdersForActor,
   getCashAccountsForUser,
-  getFxRate,
   getWorkflowStatusLabel,
   canApproveOrder,
   canRejectOrder,
@@ -20,6 +19,7 @@ import {
   type WorkflowOrder,
 } from '@/features/orders/shared-order-workflow';
 import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/customer-portal';
+import { getP2PRates } from '@/lib/p2p-rates';
 
 function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string; date: string; orders: WorkflowOrder[] }[] {
   const map = new Map<string, WorkflowOrder[]>();
@@ -60,10 +60,17 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
     enabled: !!userId,
   });
 
-  // Load live FX rate with error handling
+  // Load live QAR -> EGP FX from the P2P rates store for this customer flow.
   const { data: liveRate, isLoading: isRateLoading, isError: isRateError } = useQuery({
     queryKey: ['live-fx-rate', 'QAR', 'EGP'],
-    queryFn: async () => getFxRate('QAR', 'EGP'),
+    queryFn: async () => {
+      const rates = await getP2PRates();
+      return {
+        rate: rates.qarToEgp,
+        fetchedAt: new Date(rates.timestamp).toISOString(),
+        isEstimate: false,
+      };
+    },
     staleTime: 60000, // 1 minute
     retry: 2,
   });
@@ -75,8 +82,11 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
       const conn = connections.find((c: any) => c.merchant_id === merchantId);
       if (!conn) throw new Error(L('Merchant not found', 'التاجر غير موجود'));
 
-      // Use live rate or fallback to 0.27
-      const fxRateToUse = liveRate ? (typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate))) : 0.27;
+      // Use exact InstaPay V1 market rate (no transformation)
+      if (!liveRate || liveRate.rate == null || !Number.isFinite(liveRate.rate) || liveRate.rate <= 0) {
+        throw new Error(L('Live market rate unavailable', 'سعر السوق غير متوفر'));
+      }
+      const fxRateToUse = liveRate.rate;
 
       const order = await createSharedOrderRequest({
         connectionId: conn.id,
@@ -139,43 +149,34 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
           </div>
         </div>
 
-        {/* Live FX Rate Display */}
+        {/* Live FX Rate Display — exact InstaPay V1 value, no transformation */}
         {isRateLoading ? (
           <div className="flex items-center gap-2 h-11 px-3 rounded-xl border border-border/50 bg-card">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             <span className="text-sm text-muted-foreground">{L('Loading rate...', 'جاري تحميل السعر...')}</span>
           </div>
-        ) : isRateError || !liveRate ? (
+        ) : isRateError || !liveRate || liveRate.rate == null || !Number.isFinite(liveRate.rate) ? (
           <div className="rounded-lg bg-amber-500/10 px-3 py-3 space-y-2 border border-amber-500/20">
-            <div className="text-xs font-medium text-amber-700">{L('Using default rate', 'استخدام السعر الافتراضي')}</div>
-            <div className="text-sm font-bold text-amber-700">1 قطري = 0.27 مصري</div>
-            {amount && (
-              <div className="pt-2 border-t border-amber-500/20">
-                <div className="text-[11px] text-amber-600 mb-1">{L('Estimated delivery (may change)', 'التسليم المتوقع (قد يتغير)')}</div>
-                <div className="text-lg font-bold text-amber-700">
-                  {(parseFloat(amount) * 0.27).toFixed(2)} مصري
-                </div>
-                <div className="text-[10px] text-amber-600 mt-1">{L('Merchant sets final rate', 'التاجر يحدد السعر النهائي')}</div>
-              </div>
-            )}
+            <div className="text-xs font-medium text-amber-700">{L('Market rate unavailable', 'سعر السوق غير متوفر')}</div>
+            <div className="text-[11px] text-amber-600">{L('Please try again shortly.', 'يرجى المحاولة لاحقاً.')}</div>
           </div>
-        ) : liveRate ? (
+        ) : (
           <div className="rounded-lg bg-blue-500/10 px-3 py-3 space-y-2 border border-blue-500/20">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-blue-700">{L('Market Rate', 'سعر السوق')}</span>
-              <span className="text-sm font-bold text-blue-700">1 قطري = {typeof liveRate.rate === 'number' ? liveRate.rate.toFixed(4) : parseFloat(String(liveRate.rate)).toFixed(4)} مصري</span>
+              <span className="text-xs font-medium text-blue-700">{L('Market Rate (InstaPay V1)', 'سعر السوق (InstaPay V1)')}</span>
+              <span className="text-sm font-bold text-blue-700">1 قطري = {liveRate.rate.toFixed(4)} مصري</span>
             </div>
             {amount && (
               <div className="pt-2 border-t border-blue-500/20">
                 <div className="text-[11px] text-blue-600 mb-1">{L('Estimated delivery (may change)', 'التسليم المتوقع (قد يتغير)')}</div>
                 <div className="text-lg font-bold text-blue-700">
-                  {amount && liveRate ? (parseFloat(amount) * (typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate)))).toFixed(2) : '0.00'} مصري
+                  {(parseFloat(amount) * liveRate.rate).toFixed(2)} مصري
                 </div>
                 <div className="text-[10px] text-blue-600 mt-1">{L('Merchant sets final rate', 'التاجر يحدد السعر النهائي')}</div>
               </div>
             )}
           </div>
-        ) : null}
+        )}
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Note (optional)', 'ملاحظة (اختياري)')}</label>

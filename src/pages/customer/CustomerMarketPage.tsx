@@ -5,6 +5,7 @@ import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { formatCustomerNumber } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
+import { getP2PRates } from '@/lib/p2p-rates';
 
 export default function CustomerMarketPage() {
   const { settings } = useTheme();
@@ -19,8 +20,15 @@ export default function CustomerMarketPage() {
     refetchInterval: 5 * 60_000,
   });
 
+  const { data: liveRates } = useQuery({
+    queryKey: ['c-market-guide-rate'],
+    queryFn: getP2PRates,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
   const fmt = (v: number | null, d = 4) => v != null ? formatCustomerNumber(v, lang, d) : '—';
-  const guideRate = data?.guide?.rate ?? null;
+  const guideRate = liveRates?.qarToEgp ?? null;
   const calcResult = guideRate && calcAmount && parseFloat(calcAmount) > 0
     ? parseFloat(calcAmount) * guideRate
     : null;
