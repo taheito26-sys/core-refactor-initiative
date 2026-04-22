@@ -460,7 +460,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       const userIds = [...new Set((data ?? []).map((row) => row.customer_user_id))];
       const { data: profiles } = await supabase
         .from('customer_profiles')
-        .select('user_id, display_name, name, phone, region, country')
+        .select('user_id, display_name, phone, region, country')
         .in('user_id', userIds);
       const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
       return (data ?? []).map((row) => ({
