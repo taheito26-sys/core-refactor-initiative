@@ -15,10 +15,11 @@ interface FxRateResponse {
   timestamp: string;
 }
 
-async function fetchFromInstapay(): Promise<FxRateResponse | null> {
+async function fetchFromInstapay(sourceCurrency: string = "qar", targetCurrency: string = "egp"): Promise<FxRateResponse | null> {
   try {
-    // INSTAPAY V1 market rates endpoint for QAR to EGP conversion
-    const endpoint = `${INSTAPAY_API_BASE}/rates/qar-egp`;
+    // INSTAPAY V1 market rates endpoint
+    const currencyPair = `${sourceCurrency}-${targetCurrency}`;
+    const endpoint = `${INSTAPAY_API_BASE}/rates/${currencyPair}`;
     console.log("Fetching from INSTAPAY:", endpoint);
 
     const response = await fetch(endpoint, {
@@ -81,7 +82,13 @@ serve(async (req) => {
   }
 
   try {
-    const fxData = await fetchFromInstapay();
+    // Parse query parameters for currency pair
+    const url = new URL(req.url);
+    const source = url.searchParams.get("source") || "qar";
+    const target = url.searchParams.get("target") || "egp";
+    console.log(`Fetching rate for ${source}-${target}`);
+
+    const fxData = await fetchFromInstapay(source, target);
 
     if (!fxData) {
       return new Response(

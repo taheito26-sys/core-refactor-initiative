@@ -336,8 +336,12 @@ export async function getFxRate(sourceCurrency: string, targetCurrency: string):
 }> {
   try {
     // Call Supabase Edge Function to fetch live INSTAPAY rates
+    const params = new URLSearchParams({
+      source: sourceCurrency.toLowerCase(),
+      target: targetCurrency.toLowerCase(),
+    });
     const response = await fetch(
-      `${supabase.functions.url}/fetch-fx-rate`,
+      `${supabase.functions.url}/fetch-fx-rate?${params.toString()}`,
       {
         method: 'GET',
         headers: {
