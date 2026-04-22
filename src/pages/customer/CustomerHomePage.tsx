@@ -136,7 +136,7 @@ export default function CustomerHomePage() {
         {/* Rate row */}
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-white/10 px-3 py-2.5">
-            <p className="text-[10px] opacity-70 uppercase tracking-wide">QAR/EGP {L('Guide', 'دليل')}</p>
+            <p className="text-[10px] opacity-70 uppercase tracking-wide">{getLocalizedCurrencyName('QAR', lang)}/{getLocalizedCurrencyName('EGP', lang)} {L('Guide', 'دليل')}</p>
             <p className="text-xl font-black tabular-nums mt-0.5">
               {guideRate != null ? fmt(guideRate, 4) : '—'}
             </p>
@@ -165,7 +165,7 @@ export default function CustomerHomePage() {
                 placeholder="0"
                 className="h-10 w-full rounded-xl bg-white/20 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/40 outline-none focus:bg-white/25"
               />
-              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">QAR</span>
+              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">{getLocalizedCurrencyName('QAR', lang)}</span>
             </div>
             <span className="text-white/60 font-bold">→</span>
             <div className="relative flex-1">
@@ -175,7 +175,7 @@ export default function CustomerHomePage() {
                 placeholder="0"
                 className="h-10 w-full rounded-xl bg-white/10 px-3 pe-14 text-sm font-semibold text-white placeholder:text-white/30 outline-none tabular-nums"
               />
-              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">EGP</span>
+              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-70">{getLocalizedCurrencyName('EGP', lang)}</span>
             </div>
           </div>
         </div>
@@ -196,7 +196,7 @@ export default function CustomerHomePage() {
 
       {/* KPI row: volume periods */}
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Volume (QAR)', 'الحجم (QAR)')}</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Volume', 'الحجم')} ({getLocalizedCurrencyName('QAR', lang === 'ar' ? 'ar' : 'en')})</p>
         <div className="grid grid-cols-3 gap-2">
           <KpiCard label={L('This month', 'هذا الشهر')} value={fmt(metrics.thisMonthVol)} />
           <KpiCard label={L('Last month', 'الشهر الماضي')} value={fmt(metrics.lastMonthVol)} />
@@ -207,7 +207,7 @@ export default function CustomerHomePage() {
       {/* FX summary */}
       <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border/40">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">QAR → EGP {L('Summary', 'ملخص')}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} {L('Summary', 'ملخص')}</p>
         </div>
         <div className="grid grid-cols-3 divide-x divide-border/40">
           <div className="p-4">
@@ -252,17 +252,21 @@ export default function CustomerHomePage() {
         <Plus className="h-4 w-4" />{L('New QAR → EGP Order', 'طلب جديد QAR → EGP')}
       </button>
 
-      {/* Recent activity */}
+      {/* Recent activity - Ledger style */}
       {orders.length > 0 && (
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Recent', 'الأخيرة')}</p>
-            <button onClick={() => navigate('/c/orders')} className="text-xs text-primary font-medium">{L('All orders', 'كل الطلبات')}</button>
+        <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border/40">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Recent Orders', 'الطلبات الأخيرة')}</p>
+              <button onClick={() => navigate('/c/orders')} className="text-xs text-primary font-medium">{L('View all', 'عرض الكل')}</button>
+            </div>
           </div>
-          <div className="space-y-2">
+          <div className="divide-y divide-border/40">
             {orders.slice(0, 5).map(o => {
               const total = o.fx_rate ? o.amount * o.fx_rate : null;
               const rate  = o.fx_rate;
+              const sendCur = getLocalizedCurrencyName((o.send_currency ?? 'QAR') as CurrencyCode, lang === 'ar' ? 'ar' : 'en');
+              const receiveCur = getLocalizedCurrencyName((o.receive_currency ?? 'EGP') as CurrencyCode, lang === 'ar' ? 'ar' : 'en');
 
               // Map workflow_status to status config for display
               let cfg = STATUS.pending_quote;
@@ -272,19 +276,30 @@ export default function CustomerHomePage() {
               else if (o.workflow_status === 'cancelled') cfg = STATUS.cancelled;
 
               return (
-                <button key={o.id} onClick={() => navigate(`/c/orders?id=${o.id}`)} className="flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-card px-4 py-3 text-left active:scale-[0.99]">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold">{fmt(o.amount)} {getLocalizedCurrencyName((o.send_currency ?? 'QAR') as CurrencyCode, lang === 'ar' ? 'ar' : 'en')}</span>
-                      {total != null && <span className="text-sm font-bold text-emerald-600">→ {fmt(total)} {getLocalizedCurrencyName((o.receive_currency ?? 'EGP') as CurrencyCode, lang === 'ar' ? 'ar' : 'en')}</span>}
-                      {rate != null && <span className="text-[11px] text-muted-foreground tabular-nums">@ {fmt(rate, 4)}</span>}
+                <button
+                  key={o.id}
+                  onClick={() => navigate(`/c/orders?id=${o.id}`)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-muted/40 active:scale-[0.98] transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    {/* Amounts */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-sm font-semibold tabular-nums">{fmt(o.amount)} {sendCur}</span>
+                        {total != null && <span className="text-emerald-600 font-semibold">→ {fmt(total)} {receiveCur}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', cfg.cls)}>{lang === 'ar' ? cfg.ar : cfg.en}</span>
+                        <span className="text-[10px] text-muted-foreground">{formatCustomerDate(o.created_at, lang)}</span>
+                      </div>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', cfg.cls)}>{lang === 'ar' ? cfg.ar : cfg.en}</span>
-                      <span className="text-[11px] text-muted-foreground">{formatCustomerDate(o.created_at, lang)}</span>
-                    </div>
+                    {/* Rate */}
+                    {rate != null && (
+                      <div className="text-right">
+                        <p className="text-[11px] text-muted-foreground tabular-nums">@{fmt(rate, 4)}</p>
+                      </div>
+                    )}
                   </div>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </button>
               );
             })}
