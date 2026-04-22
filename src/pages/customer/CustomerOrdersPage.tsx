@@ -13,7 +13,6 @@ import {
   editSharedOrder,
   listSharedOrdersForActor,
   getCashAccountsForUser,
-  getWorkflowStatusLabel,
   canApproveOrder,
   canRejectOrder,
   canEditOrder,
@@ -43,6 +42,23 @@ function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string
         ? (lang === 'ar' ? 'أمس' : 'Yesterday')
         : new Date(date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
     }));
+}
+
+function getLocalizedWorkflowStatusLabel(status: WorkflowOrder['workflow_status'], lang: 'en' | 'ar') {
+  switch (status) {
+    case 'pending_customer_approval':
+      return lang === 'ar' ? 'بانتظار موافقة العميل' : 'Awaiting Customer Approval';
+    case 'pending_merchant_approval':
+      return lang === 'ar' ? 'بانتظار موافقة التاجر' : 'Awaiting Merchant Approval';
+    case 'approved':
+      return lang === 'ar' ? 'تمت الموافقة' : 'Approved';
+    case 'rejected':
+      return lang === 'ar' ? 'مرفوض' : 'Rejected';
+    case 'cancelled':
+      return lang === 'ar' ? 'ملغي' : 'Cancelled';
+    default:
+      return lang === 'ar' ? 'غير معروف' : 'Unknown';
+  }
 }
 
 function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
@@ -473,6 +489,7 @@ export default function CustomerOrdersPage() {
                     badge: 'border-slate-500/25 bg-slate-500/10 text-slate-300',
                     amount: 'text-slate-300',
                   };
+                  const statusLabel = getLocalizedWorkflowStatusLabel(order.workflow_status, lang);
                   const fxRateLabel = order.fx_rate != null ? formatCustomerNumber(order.fx_rate, lang, 4) : '—';
                   const sendAmountLabel = `${formatCustomerNumber(order.amount, lang, 0)} ${order.send_currency}`;
                   const receiveAmountLabel = deliveredAmount != null
@@ -485,41 +502,43 @@ export default function CustomerOrdersPage() {
                   return (
                     <div
                       key={order.id}
+                      dir={lang === 'ar' ? 'rtl' : 'ltr'}
                       className={cn(
                         'overflow-hidden rounded-[24px] border px-4 py-4 text-[15px] text-slate-100',
                         statusTone.card,
+                        lang === 'ar' && 'text-right',
                       )}
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className={cn('flex items-start justify-between gap-3', lang === 'ar' && 'flex-row-reverse')}>
                         <div className="min-w-0">
                           <div className="truncate text-[22px] font-black tracking-tight text-slate-50">
                             {merchantDisplayName}
                           </div>
                         </div>
                         <span className={cn('shrink-0 rounded-full border px-4 py-2 text-[16px] font-medium leading-none', statusTone.badge)}>
-                          {getWorkflowStatusLabel(order.workflow_status)}
+                          {statusLabel}
                         </span>
                       </div>
 
-                      <div className="mt-6 font-mono text-[18px] font-semibold tracking-[0.02em] text-slate-400">
+                      <div className={cn('mt-6 font-mono text-[18px] font-semibold tracking-[0.02em] text-slate-400', lang === 'ar' && 'text-right')}>
                         {formatCustomerDate(order.created_at, lang)}
                       </div>
 
-                      <div className="mt-5 flex items-baseline justify-between gap-4">
+                      <div className={cn('mt-5 flex items-baseline justify-between gap-4', lang === 'ar' && 'flex-row-reverse')}>
                         <div className="min-w-0">
                           <div className="text-[17px] text-slate-400">
-                            Amount:{' '}
+                            {L('Amount', 'المبلغ')}{' '}
                             <span className={cn('font-mono font-bold tabular-nums', statusTone.amount)}>
                               -{sendAmountLabel}
                             </span>
                           </div>
                         </div>
                         <div className="shrink-0 text-right text-[17px] text-slate-400">
-                          Balance: <span className="font-black text-slate-50">{receiveAmountLabel}</span>
+                          {L('Balance', 'الرصيد')}: <span className="font-black text-slate-50">{receiveAmountLabel}</span>
                         </div>
                       </div>
 
-                      <div className="mt-5 text-[17px] leading-7 text-slate-400">
+                      <div className={cn('mt-5 text-[17px] leading-7 text-slate-400', lang === 'ar' && 'text-right')}>
                         {detailLine}
                       </div>
 
@@ -597,7 +616,7 @@ export default function CustomerOrdersPage() {
                       {/* Status Badge */}
                       <div className="mb-3">
                         <span className={cn('inline-block rounded-lg px-2.5 py-1 text-xs font-semibold', statusCfg.color)}>
-                          {getWorkflowStatusLabel(order.workflow_status)}
+                          {getLocalizedWorkflowStatusLabel(order.workflow_status, lang)}
                         </span>
                       </div>
 
