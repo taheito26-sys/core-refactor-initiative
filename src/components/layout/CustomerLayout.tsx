@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { useIsMobile } from '@/hooks/use-mobile';
+import CustomerActivityCenter from '@/components/notifications/CustomerActivityCenter';
 import '@/styles/tracker.css';
 
 // PRD nav: Dashboard, Orders, Cash Management, Chat — 4 primary items
@@ -82,6 +83,7 @@ export function CustomerLayout() {
           {isMobile && <button onClick={() => setDrawerOpen(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><Menu className="h-4 w-4" /></button>}
           <span className="text-sm font-semibold truncate">{customerProfile?.display_name ?? 'Customer'}</span>
           <div className="flex-1" />
+          <CustomerActivityCenter />
           {isMobile && (
             <div className="flex items-center gap-0.5 rounded-md bg-muted p-0.5">
               {(['en', 'ar'] as const).map(l => (
