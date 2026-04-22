@@ -276,8 +276,6 @@ export default function ChatWorkspacePage() {
     [activeRoomId, send, stopTyping, replyTo],
   );
 
-  const isRTL = settings.language === 'ar';
-
   // ── Mute state (derived from room list) ─────────────────────────────────
   const isRoomMuted = activeRoom?.is_muted ?? false;
 
@@ -485,7 +483,7 @@ export default function ChatWorkspacePage() {
   // ── Mobile: single-pane rendering ────────────────────────────────────────
   if (isMobile) {
     return (
-      <div className="flex flex-col h-full bg-background overflow-hidden">
+      <div className={cn('flex flex-col h-full bg-background overflow-hidden')}>
         <CallOverlay webrtc={webrtc} />
         {lightbox}
         {roomInfo}
@@ -544,3 +542,5 @@ export default function ChatWorkspacePage() {
     </div>
   );
 }
+
+

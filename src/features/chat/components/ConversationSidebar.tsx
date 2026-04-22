@@ -51,6 +51,7 @@ type Filter = 'all' | ChatRoomType;
 
 export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewChat, isLoading, meId }: Props) {
   const t = useT();
+  const isRTL = t.isRTL;
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const unreadCounts = useChatStore((s) => s.unreadCounts);
@@ -74,7 +75,10 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="flex flex-col w-72 lg:w-80 border-r border-border/50 bg-card h-full shrink-0">
+    <div className={cn(
+      'flex flex-col w-72 lg:w-80 bg-card h-full shrink-0',
+      isRTL ? 'border-l border-border/50' : 'border-r border-border/50',
+    )}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
@@ -94,17 +98,20 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
 
         {/* Phase 17: Search-as-you-type */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+          <Search className={cn('absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50', isRTL ? 'right-2.5' : 'left-2.5')} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search conversations..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-muted/50 border border-border/30 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/40 transition-shadow"
+            className={cn(
+              'w-full py-1.5 text-xs rounded-lg bg-muted/50 border border-border/30 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/40 transition-shadow',
+              isRTL ? 'pr-8 pl-3 text-right' : 'pl-8 pr-3 text-left',
+            )}
           />
         </div>
 
         {/* Filter tabs */}
-        <div className="flex gap-1 mt-2">
+        <div className={cn('flex gap-1 mt-2', isRTL && 'flex-row-reverse')}>
           {(['all', 'merchant_private', 'merchant_client', 'merchant_collab'] as Filter[]).map((f) => (
             <button
               key={f}
@@ -188,6 +195,7 @@ function RoomRow({
   onClick: () => void;
   meId: string;
 }) {
+  const t = useT();
   const Icon = TYPE_ICONS[room.room_type];
   const displayName = room.display_name ?? room.name ?? 'Unnamed room';
   const preview = smartPreview(room.last_message_preview ?? '');
@@ -227,9 +235,10 @@ function RoomRow({
       onTouchEnd={handleTouchEnd}
       className={cn(
         'w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-border/20 relative overflow-hidden',
+        t.isRTL && 'flex-row-reverse text-right',
         isActive
-          ? 'bg-primary/10 border-l-2 border-l-primary'
-          : 'hover:bg-muted/50 border-l-2 border-l-transparent',
+          ? t.isRTL ? 'bg-primary/10 border-r-2 border-r-primary' : 'bg-primary/10 border-l-2 border-l-primary'
+          : t.isRTL ? 'hover:bg-muted/50 border-r-2 border-r-transparent' : 'hover:bg-muted/50 border-l-2 border-l-transparent',
       )}
       style={{ transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
     >

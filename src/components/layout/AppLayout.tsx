@@ -33,7 +33,7 @@ export function AppLayout() {
 
   return (
     <div
-      className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`)}
+      className={cn('app-shell flex h-dvh overflow-hidden', `layout-${settings.layout}`, isChat && isRTL && 'flex-row-reverse')}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       {/* Desktop sidebar */}
