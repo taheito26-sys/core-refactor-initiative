@@ -27,6 +27,7 @@ import {
 import { resolveCustomerLabel } from '@/features/merchants/lib/customer-labels';
 import { useTheme } from '@/lib/theme-context';
 import { formatFxRateDisplay } from '@/lib/currency-locale';
+import { getQatarEgyptGuideRate } from '@/features/customer/customer-market';
 
 // ── Place Order for Client Modal ──
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
@@ -53,11 +54,15 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   } | null>(null);
 
   // Load live FX rate with proper error handling
-  const { data: liveRate, isLoading: isRateLoading, isError: isRateError } = useQuery({
+  const { data: liveRate, isLoading: isRateLoading, isError: isRateError, refetch: refetchLiveRate } = useQuery({
     queryKey: ['live-fx-rate', sendCurrency, receiveCurrency],
     queryFn: async () => {
-      const { getFxRate } = await import('@/features/orders/shared-order-workflow');
-      return getFxRate(sendCurrency, receiveCurrency);
+      const guide = await getQatarEgyptGuideRate();
+      return {
+        rate: guide.rate,
+        fetchedAt: guide.timestamp,
+        isEstimate: guide.source !== 'INSTAPAY_V1',
+      };
     },
     staleTime: 60000, // 1 minute
     retry: 2,
@@ -65,9 +70,8 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
   // Auto-set FX rate on load
   useEffect(() => {
-    if (liveRate && !fxRate && !customFxRate) {
-      const rateValue = typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate));
-      setFxRate(rateValue.toFixed(4));
+    if (liveRate && liveRate.rate != null && !fxRate && !customFxRate) {
+      setFxRate(String(liveRate.rate));
     }
   }, [liveRate, fxRate, customFxRate]);
 
@@ -115,7 +119,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
       if (!connId || !amount || parseFloat(amount) <= 0)
         throw new Error('Select a client and enter an amount');
 
-      let numFxRate = 0.27; // default
+      let numFxRate: number | null = null;
 
       if (customFxRate && fxRate) {
         // User edited the rate
@@ -125,9 +129,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
       } else if (fxRate) {
         // Use whatever FX rate we have (from market or previously set)
         numFxRate = parseFloat(fxRate);
-      } else if (liveRate) {
-        // Use live market rate if available
-        numFxRate = typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate));
+      } else if (liveRate?.rate != null) {
+        // Use the exact InstaPay V1 market value.
+        numFxRate = liveRate.rate;
+      }
+
+      if (numFxRate == null || !Number.isFinite(numFxRate) || numFxRate <= 0) {
+        throw new Error('Live market rate unavailable');
       }
 
       const numAmount = parseFloat(amount);
@@ -212,7 +220,19 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             <label className="text-xs font-medium text-muted-foreground">FX Rate (قطري → مصري) *</label>
             <button
               type="button"
-              onClick={() => setCustomFxRate(!customFxRate)}
+              onClick={async () => {
+                if (customFxRate) {
+                  const freshRate = liveRate?.rate != null
+                    ? liveRate.rate
+                    : (await refetchLiveRate()).data?.rate ?? null;
+                  if (freshRate != null) {
+                    setFxRate(String(freshRate));
+                  }
+                  setCustomFxRate(false);
+                  return;
+                }
+                setCustomFxRate(true);
+              }}
               className="text-xs font-semibold text-primary hover:underline"
             >
               {customFxRate ? '📌 Use Market Rate' : '✏️ Edit Rate'}
@@ -232,7 +252,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                 type="number"
                 min="0"
                 step="0.0001"
-                placeholder="0.27"
+                placeholder="13.9253"
                 className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               />
               <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">1 QAR = ? EGP</span>
@@ -246,15 +266,21 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                   type="number"
                   min="0"
                   step="0.0001"
-                  placeholder={'13.9253'}
+                  placeholder={liveRate?.rate != null ? String(liveRate.rate) : '13.9253'}
                   disabled={!customFxRate}
                   className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-default"
                 />
-                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">{formatFxRateDisplay(0, 'QAR', 'EGP', lang).replace(' 0.0000', ' ?')}</span>
+                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                  {liveRate?.rate != null
+                    ? formatFxRateDisplay(liveRate.rate, 'QAR', 'EGP', lang)
+                    : formatFxRateDisplay(0, 'QAR', 'EGP', lang).replace(' 0.0000', ' ?')}
+                </span>
               </div>
               {liveRate && !customFxRate && (
                 <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
-                  📈 {lang === 'ar' ? 'سعر السوق: ' : 'Market Rate: '}{formatFxRateDisplay(typeof liveRate.rate === 'number' ? liveRate.rate : parseFloat(String(liveRate.rate)), 'QAR', 'EGP', lang)} {liveRate.isEstimate ? (lang === 'ar' ? '(تقديري)' : '(estimated)') : ''}
+                  📈 {lang === 'ar' ? 'سعر السوق: ' : 'Market Rate: '}
+                  {liveRate.rate != null ? formatFxRateDisplay(liveRate.rate, 'QAR', 'EGP', lang) : '—'}
+                  {liveRate.isEstimate ? (lang === 'ar' ? '(تقديري)' : '(estimated)') : ''}
                 </div>
               )}
             </>
