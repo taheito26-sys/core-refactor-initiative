@@ -235,6 +235,81 @@ export async function editSharedOrder({
 
 // ── Query helpers ──
 
+// Core columns guaranteed to exist in customer_orders
+const SAFE_SELECT_FIELDS = [
+  'id',
+  'customer_user_id',
+  'merchant_id',
+  'connection_id',
+  'order_type',
+  'amount',
+  'currency',
+  'status',
+  'note',
+  'send_country',
+  'receive_country',
+  'send_currency',
+  'receive_currency',
+  'payout_rail',
+  'corridor_label',
+  'created_at',
+  'updated_at',
+] as const;
+
+// Optional workflow columns — stripped if missing
+const WORKFLOW_FIELDS = [
+  'workflow_status',
+  'placed_by_role',
+  'placed_by_user_id',
+  'approval_required_from_role',
+  'approved_by_user_id',
+  'approved_at',
+  'rejected_by_user_id',
+  'rejected_at',
+  'rejection_reason',
+  'revision_no',
+  'edited_from_order_id',
+  'fx_rate',
+  'rate',
+  'total',
+  'final_rate',
+  'final_total',
+  'guide_rate',
+  'guide_total',
+  'pricing_mode',
+  'market_pair',
+  'pricing_version',
+];
+
+async function buildSafeOrderQuery(
+  baseQuery: (fields: string) => ReturnType<typeof supabase.from>,
+): Promise<WorkflowOrder[]> {
+  const remainingFields = [...SAFE_SELECT_FIELDS, ...WORKFLOW_FIELDS];
+  const attempted = new Set<string>();
+
+  while (remainingFields.length > 0) {
+    const { data, error } = await (baseQuery(remainingFields.join(', ')) as any);
+    if (!error) return (data ?? []) as WorkflowOrder[];
+
+    // Strip missing column and retry
+    const msg = (error as any)?.message ?? '';
+    const match = msg.match(
+      /could not find the ['"]?(\w+)['"]? column|column ['"]?(\w+)['"]? does not exist/i,
+    );
+    const col = match?.[1] ?? match?.[2];
+    if (col && !attempted.has(col)) {
+      attempted.add(col);
+      const idx = remainingFields.indexOf(col);
+      if (idx !== -1) remainingFields.splice(idx, 1);
+    } else {
+      // Non-column error — throw
+      throw error;
+    }
+  }
+
+  return [];
+}
+
 /**
  * List shared orders for the current actor (merchant or customer).
  */
@@ -242,20 +317,15 @@ export async function listSharedOrdersForActor(params: {
   merchantId?: string;
   customerUserId?: string;
 }): Promise<WorkflowOrder[]> {
-  let query = supabase
-    .from('customer_orders')
-    .select(ORDER_SELECT_FIELDS.join(', '));
-
-  if (params.merchantId) {
-    query = query.eq('merchant_id', params.merchantId);
-  }
-  if (params.customerUserId) {
-    query = query.eq('customer_user_id', params.customerUserId);
-  }
-
-  const { data, error } = await query.order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as WorkflowOrder[];
+  return buildSafeOrderQuery((fields) => {
+    let q = supabase
+      .from('customer_orders')
+      .select(fields)
+      .order('created_at', { ascending: false });
+    if (params.merchantId) q = q.eq('merchant_id', params.merchantId);
+    if (params.customerUserId) q = q.eq('customer_user_id', params.customerUserId);
+    return q;
+  });
 }
 
 /**
