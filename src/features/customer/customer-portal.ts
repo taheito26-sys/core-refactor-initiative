@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import { getQatarEgyptGuideRate } from '@/features/customer/customer-market';
+import type { CashAccount } from '@/features/orders/shared-order-workflow';
 
 export const CUSTOMER_COUNTRIES = [
   'Qatar',
@@ -257,6 +258,48 @@ export function getCompatibleRails(sendCountry: string, receiveCountry: string) 
 
 export function getPreferredRail(sendCountry: string, receiveCountry: string) {
   return getCompatibleRails(sendCountry, receiveCountry)[0]?.value ?? CUSTOMER_RAILS[0].value;
+}
+
+function normalizeAccountType(accountType?: string | null) {
+  return (accountType ?? '').trim().toLowerCase();
+}
+
+export function isCustomerCashAccountEligibleForOrder(
+  order: Partial<CustomerOrderRow>,
+  account: Pick<CashAccount, 'id' | 'currency' | 'status' | 'type'> & Record<string, unknown>,
+) {
+  if (!account?.id) return false;
+  if ('user_id' in account && order.customer_user_id && account.user_id !== order.customer_user_id) return false;
+  if (account.status !== 'active') return false;
+
+  const accountType = normalizeAccountType(account.type as string | null);
+  if (accountType === 'merchant_custody' || accountType === 'vault') return false;
+  if ('is_merchant_account' in account && Boolean(account.is_merchant_account)) return false;
+
+  const receiveCurrency = order.receive_currency ?? getCurrencyForCountry(order.receive_country);
+  if (receiveCurrency && account.currency !== receiveCurrency) return false;
+
+  const rail = (order.payout_rail ?? '').trim().toLowerCase();
+  if (rail === 'mobile_wallet' || rail === 'cash_pickup') {
+    return ['hand', 'cash', 'mobile_wallet', 'other'].includes(accountType);
+  }
+
+  if (rail === 'bank_transfer' || rail === 'instant_bank' || rail === 'card_payout') {
+    return ['bank', 'hand', 'cash', 'other'].includes(accountType);
+  }
+
+  return true;
+}
+
+export function getEligibleCustomerCashAccountsForOrder(
+  order: Partial<CustomerOrderRow>,
+  accounts: Array<Pick<CashAccount, 'id' | 'currency' | 'status' | 'type'> & Record<string, unknown>>,
+) {
+  return accounts.filter((account) => isCustomerCashAccountEligibleForOrder(order, account));
+}
+
+export function getCustomerOrderDestinationCurrency(order: Partial<CustomerOrderRow>) {
+  return order.receive_currency ?? getCurrencyForCountry(order.receive_country);
 }
 
 export function buildCustomerOrderPayload(input: CustomerOrderInput) {
@@ -795,46 +838,27 @@ export async function reopenCustomerOrderForApproval(order: CustomerOrderRow, me
   return { data: updated, error: null };
 }
 
-export async function acceptCustomerQuote(order: CustomerOrderRow, customerUserId: string) {
+export async function acceptCustomerQuote(order: CustomerOrderRow, customerUserId: string, customerCashAccountId: string) {
   if (!canCustomerRespondToQuote(order.status)) {
     return { data: null, error: new Error('Order is not in quoted state') };
   }
 
-  const { data, error } = await runCustomerOrderQueryWithFallback((selectClause) =>
-    supabase
-      .from('customer_orders')
-      .update({
-        status: 'completed',
-        customer_accepted_quote_at: nowIso(),
-      })
-      .eq('id', order.id)
-      .select(selectClause)
-      .single(),
-  );
+  if (order.customer_user_id !== customerUserId) {
+    return { data: null, error: new Error('Customer not authorized for this order') };
+  }
+
+  if (!customerCashAccountId) {
+    return { data: null, error: new Error('Destination cash account is required') };
+  }
+
+  const { data, error } = await supabase.rpc('accept_customer_order_request', {
+    p_order_id: order.id,
+    p_customer_cash_account_id: customerCashAccountId,
+  });
 
   if (error) return { data: null, error };
 
-  const updated = data as CustomerOrderRow;
-  const eventMetadata = buildOrderEventMetadata(updated, {
-    event_type: 'customer_quote_accepted',
-  } as Json);
-  await insertCustomerOrderEvent(updated.id, customerUserId, 'customer_quote_accepted', eventMetadata);
-
-  const merchantUserId = await getMerchantUserId(updated.merchant_id);
-  if (merchantUserId) {
-    await insertCustomerNotification({
-      userId: merchantUserId,
-      title: 'Customer responded to quote',
-      body: updated.corridor_label ?? updated.id,
-      category: 'customer_order_quote_response',
-      targetPath: '/merchants?tab=client-orders',
-      targetEntityType: 'customer_order',
-      targetEntityId: updated.id,
-      actorId: customerUserId,
-    });
-  }
-
-  return { data: updated, error: null };
+  return { data: data as CustomerOrderRow, error: null };
 }
 
 export async function rejectCustomerQuote(order: CustomerOrderRow, customerUserId: string, reason: string | null = null) {

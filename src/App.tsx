@@ -14,6 +14,7 @@ import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
 import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
+import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
 
 // Auth pages
 import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
@@ -194,6 +195,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner richColors position="bottom-right" />
+        <MobileInstallPrompt />
          <BrowserRouter>
           <NativePlatformBootstrap />
           <AuthProvider>

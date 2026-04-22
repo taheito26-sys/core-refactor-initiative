@@ -8,8 +8,32 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCustomerNumber } from "@/features/customer/customer-portal";
 import { getCashAccountsForUser, type CashAccount } from "@/features/orders/shared-order-workflow";
+import {
+  deriveCashQAR,
+  getAccountBalance,
+  getAllAccountBalances,
+  type CashLedgerEntry,
+} from "@/lib/tracker-helpers";
 
 type AccountType = "bank" | "mobile_wallet" | "cash" | "other";
+
+type CustomerCashLedgerRow = {
+  id: string;
+  user_id: string;
+  account_id: string;
+  contra_account_id: string | null;
+  ts: number;
+  type: CashLedgerEntry["type"];
+  direction: CashLedgerEntry["direction"];
+  amount: number;
+  currency: string;
+  note: string | null;
+  linked_entity_id: string | null;
+  linked_entity_type: string | null;
+  order_id: string | null;
+  batch_id: string | null;
+  created_at: string;
+};
 
 const ACCOUNT_TYPES: { value: AccountType; en: string; ar: string }[] = [
   { value: "bank",          en: "Bank",          ar: "بنك" },
@@ -43,6 +67,21 @@ export default function CustomerWalletPage() {
     enabled: !!userId,
   });
 
+  const { data: ledger = [], isLoading: isLedgerLoading } = useQuery({
+    queryKey: ['customer-cash-ledger', userId],
+    queryFn: async () => {
+      if (!userId) return [] as CustomerCashLedgerRow[];
+      const { data, error } = await supabase
+        .from('cash_ledger')
+        .select('*')
+        .eq('user_id', userId)
+        .order('ts', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as CustomerCashLedgerRow[];
+    },
+    enabled: !!userId,
+  });
+
   // Subscribe to cash account changes
   useEffect(() => {
     if (!userId) return;
@@ -53,6 +92,13 @@ export default function CustomerWalletPage() {
         { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${userId}` },
         () => {
           qc.invalidateQueries({ queryKey: ['customer-cash-accounts', userId] });
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${userId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ['customer-cash-ledger', userId] });
         },
       )
       .subscribe();
@@ -139,6 +185,9 @@ export default function CustomerWalletPage() {
   });
 
   const activeAccounts = useMemo(() => accounts.filter(a => a.status === 'active'), [accounts]);
+  const accountBalances = useMemo(() => getAllAccountBalances(activeAccounts, ledger as CashLedgerEntry[]), [activeAccounts, ledger]);
+  const customerCashQar = useMemo(() => deriveCashQAR(activeAccounts, ledger as CashLedgerEntry[]), [activeAccounts, ledger]);
+  const recentLedger = useMemo(() => ledger.slice(0, 8), [ledger]);
 
   return (
     <div className="space-y-6 pb-16">
@@ -153,6 +202,42 @@ export default function CustomerWalletPage() {
             <Plus className="h-4 w-4" />
             {L('Add Account', 'إضافة حساب')}
           </button>
+        </div>
+      </div>
+
+      <div className="mx-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-border/60 bg-card px-4 py-4">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {L('Client Cash', 'النقد العميل')}
+          </div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {fmt(customerCashQar, 2)} QAR
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {L('Active client-owned QAR balance', 'رصيد الحسابات النشطة المملوكة للعميل')}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border/60 bg-card px-4 py-4">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {L('Accounts', 'الحسابات')}
+          </div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {activeAccounts.length}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {L('Client-owned active cash accounts', 'حسابات نقدية نشطة مملوكة للعميل')}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border/60 bg-card px-4 py-4">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {L('Latest Move', 'آخر حركة')}
+          </div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {ledger[0] ? `${ledger[0].direction === 'in' ? '+' : '-'}${fmt(ledger[0].amount, 2)}` : '—'}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {ledger[0] ? ledger[0].note ?? ledger[0].type : L('No ledger entries yet', 'لا توجد حركات بعد')}
+          </div>
         </div>
       </div>
 
@@ -305,6 +390,74 @@ export default function CustomerWalletPage() {
           })}
         </div>
       )}
+
+      {activeAccounts.length > 0 && (
+        <div className="mx-4 space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">{L('Balances by account', 'الأرصدة حسب الحساب')}</h3>
+          <div className="space-y-2">
+            {activeAccounts.map((account) => (
+              <div key={account.id} className="rounded-2xl border border-border/60 bg-card px-4 py-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold text-foreground">{account.name}</div>
+                    <div className="text-xs text-muted-foreground">{account.currency} · {account.type}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-black text-primary">
+                      {fmt(accountBalances.get(account.id) ?? getAccountBalance(account.id, ledger as CashLedgerEntry[]), 2)} {account.currency}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {L('Current balance', 'الرصيد الحالي')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mx-4 space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">{L('Recent history', 'آخر الحركات')}</h3>
+        {isLedgerLoading ? (
+          <div className="flex h-20 items-center justify-center rounded-2xl border border-border/60 bg-card">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : recentLedger.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-8 text-center">
+            <p className="text-sm text-muted-foreground">{L('No ledger history yet', 'لا توجد حركات بعد')}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {recentLedger.map((entry) => {
+              const account = activeAccounts.find((item) => item.id === entry.account_id);
+              return (
+                <div key={entry.id} className="rounded-2xl border border-border/60 bg-card px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="font-semibold text-foreground">
+                        {account?.name ?? entry.account_id}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {entry.note ?? entry.type}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {new Date(entry.ts).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}
+                      </div>
+                    </div>
+                    <div className={cn(
+                      'text-right text-sm font-black',
+                      entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600',
+                    )}>
+                      {entry.direction === 'in' ? '+' : '-'}{fmt(entry.amount, 2)} {entry.currency}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Info Card */}
       <div className="mx-4 rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-4 space-y-2">

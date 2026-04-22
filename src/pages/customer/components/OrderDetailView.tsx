@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/auth-context';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +28,8 @@ import {
   acceptCustomerQuote,
   cancelCustomerOrder,
   deriveCustomerOrderMeta,
+  getEligibleCustomerCashAccountsForOrder,
+  getCustomerOrderDestinationCurrency,
   formatCustomerDate,
   formatCustomerNumber,
   getCustomerOrderReceivedAmount,
@@ -88,12 +91,14 @@ function normalizeOrderStatus(status: string) {
 
 export default function OrderDetailView({ orderId, merchantName, onBack }: Props) {
   const { userId } = useAuth();
+  const navigate = useNavigate();
   const { settings } = useTheme();
   const t = useT();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const language = settings.language === 'ar' ? 'ar' : 'en';
   const [uploading, setUploading] = useState(false);
+  const [selectedCashAccountId, setSelectedCashAccountId] = useState('');
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['customer-order-detail', orderId, userId],
@@ -120,6 +125,22 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
     enabled: !!order && !!userId,
   });
 
+  const { data: cashAccounts = [], isLoading: isCashAccountsLoading } = useQuery({
+    queryKey: ['customer-cash-accounts', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase
+        .from('cash_accounts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!userId && order?.status === 'quoted',
+  });
+
   const meta = useMemo(() => {
     if (!order) return null;
     return deriveCustomerOrderMeta(order, settings.language === 'ar' ? 'Qatar' : undefined);
@@ -134,6 +155,22 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
 
   const quoteRate = getDisplayedCustomerRate(order ?? {});
   const quoteTotal = getDisplayedCustomerTotal(order ?? {});
+  const eligibleCashAccounts = useMemo(() => {
+    if (!order) return [];
+    return getEligibleCustomerCashAccountsForOrder(order, cashAccounts);
+  }, [cashAccounts, order]);
+  const destinationCurrency = getCustomerOrderDestinationCurrency(order ?? {});
+
+  useEffect(() => {
+    if (!eligibleCashAccounts.length) {
+      setSelectedCashAccountId('');
+      return;
+    }
+
+    if (!eligibleCashAccounts.some((account) => account.id === selectedCashAccountId)) {
+      setSelectedCashAccountId(eligibleCashAccounts[0].id);
+    }
+  }, [eligibleCashAccounts, selectedCashAccountId]);
 
   const handleProofUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -192,7 +229,7 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
   const acceptQuote = useMutation({
     mutationFn: async () => {
       if (!order || !userId) return;
-      const { error } = await acceptCustomerQuote(order, userId);
+      const { error } = await acceptCustomerQuote(order, userId, selectedCashAccountId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -327,24 +364,83 @@ export default function OrderDetailView({ orderId, merchantName, onBack }: Props
 
       {currentStatus === 'quoted' && (
         <Card className="border-primary/20">
-          <CardContent className="flex flex-wrap gap-2 p-3">
-            <Button
-              onClick={() => acceptQuote.mutate()}
-              disabled={acceptQuote.isPending}
-              className="gap-2"
-            >
-              {acceptQuote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              Accept Quote
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => rejectQuote.mutate()}
-              disabled={rejectQuote.isPending}
-              className="gap-2"
-            >
-              {rejectQuote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-              Reject Quote
-            </Button>
+          <CardContent className="space-y-3 p-3">
+            <div className="space-y-2 rounded-xl border border-border/60 bg-background/60 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground/60">
+                Destination cash account
+              </div>
+              {isCashAccountsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading eligible cash accounts...
+                </div>
+              ) : eligibleCashAccounts.length === 0 ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    No eligible client cash account is available for this order.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={() => navigate('/c/wallet')} className="gap-2">
+                      Create New Cash Account
+                    </Button>
+                    <Button variant="outline" onClick={onBack}>
+                      Back
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {eligibleCashAccounts.map((account) => {
+                    const isSelected = selectedCashAccountId === account.id;
+                    return (
+                      <button
+                        key={account.id}
+                        type="button"
+                        onClick={() => setSelectedCashAccountId(account.id)}
+                        className={cn(
+                          'rounded-xl border px-3 py-3 text-left transition-colors',
+                          isSelected
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border/60 bg-card text-muted-foreground hover:border-primary/40',
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-semibold text-foreground">{account.name}</div>
+                          {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                        </div>
+                        <div className="mt-1 text-xs">
+                          {account.currency} · {account.type}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {destinationCurrency && (
+                <div className="text-xs text-muted-foreground">
+                  Accepted funds will settle in {destinationCurrency}.
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => acceptQuote.mutate()}
+                disabled={acceptQuote.isPending || !selectedCashAccountId || eligibleCashAccounts.length === 0}
+                className="gap-2"
+              >
+                {acceptQuote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Accept Quote
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => rejectQuote.mutate()}
+                disabled={rejectQuote.isPending}
+                className="gap-2"
+              >
+                {rejectQuote.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                Reject Quote
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
