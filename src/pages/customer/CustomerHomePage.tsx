@@ -234,8 +234,8 @@ export default function CustomerHomePage() {
         </button>
       )}
 
-      {/* No cash account prompt — shown when there are pending orders but no cash account */}
-      {!hasCashAccount && metrics.needsAction.length > 0 && (
+      {/* No cash account prompt — shown when customer has no cash account */}
+      {!hasCashAccount && orders.length > 0 && (
         <button
           onClick={() => setShowCreateAccount(true)}
           className="flex w-full items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-left active:scale-[0.99]"
