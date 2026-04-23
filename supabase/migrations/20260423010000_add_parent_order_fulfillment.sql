@@ -63,7 +63,7 @@ CREATE POLICY "Customers can view executions on their orders" ON public.order_ex
 
 -- 3. Create function to auto-assign sequence numbers
 CREATE OR REPLACE FUNCTION public.fn_assign_execution_sequence()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.sequence_number IS NULL THEN
     SELECT COALESCE(MAX(sequence_number), 0) + 1
@@ -73,7 +73,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER trg_assign_execution_sequence
   BEFORE INSERT ON public.order_executions
@@ -91,7 +91,7 @@ RETURNS public.order_executions
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   v_order public.customer_orders%rowtype;
   v_fulfilled_qar numeric;
@@ -163,7 +163,7 @@ BEGIN
 
   RETURN v_execution;
 END;
-$;
+$$;
 
 GRANT EXECUTE ON FUNCTION public.insert_order_execution(uuid, numeric, numeric, text, text)
   TO authenticated;
@@ -224,7 +224,7 @@ RETURNS public.customer_orders
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   v_customer_user_id uuid;
   v_merchant_id text;
@@ -335,7 +335,7 @@ BEGIN
 
   RETURN v_row;
 END;
-$;
+$$;
 
 GRANT EXECUTE ON FUNCTION public.create_customer_order_request(uuid, text, numeric, text, text, text, text, text, text, numeric, text, text, text, text)
   TO authenticated;
