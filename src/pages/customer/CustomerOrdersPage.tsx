@@ -280,6 +280,7 @@ export default function CustomerOrdersPage() {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null); // 'YYYY-MM' or null = all
 
   const { data: connections = [] } = useQuery({
     queryKey: ['c-connections', userId],
@@ -395,7 +396,23 @@ export default function CustomerOrdersPage() {
     },
   });
 
-  const grouped = groupByDay(orders, lang);
+  // Derive available months from orders (most recent first)
+  const availableMonths = useMemo(() => {
+    const seen = new Set<string>();
+    const months: string[] = [];
+    for (const o of [...orders].sort((a, b) => b.created_at.localeCompare(a.created_at))) {
+      const key = o.created_at.slice(0, 7); // 'YYYY-MM'
+      if (!seen.has(key)) { seen.add(key); months.push(key); }
+    }
+    return months;
+  }, [orders]);
+
+  const filteredOrders = useMemo(() =>
+    selectedMonth ? orders.filter(o => o.created_at.startsWith(selectedMonth)) : orders,
+    [orders, selectedMonth],
+  );
+
+  const grouped = groupByDay(filteredOrders, lang);
 
   return (
     <div className="space-y-6 pb-16">
@@ -415,6 +432,44 @@ export default function CustomerOrdersPage() {
             {L('New Order', 'طلب جديد')}
           </button>
         </div>
+
+        {/* Month filter pills */}
+        {availableMonths.length > 1 && (
+          <div className="flex gap-2 mt-3 overflow-x-auto pb-0.5 scrollbar-none">
+            <button
+              onClick={() => setSelectedMonth(null)}
+              className={cn(
+                'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                selectedMonth === null
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
+              )}
+            >
+              {L('All Months', 'كل الأشهر')}
+            </button>
+            {availableMonths.map(m => {
+              const [y, mo] = m.split('-');
+              const label = new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(
+                lang === 'ar' ? 'ar-EG' : 'en-US',
+                { month: 'short', year: '2-digit' },
+              );
+              return (
+                <button
+                  key={m}
+                  onClick={() => setSelectedMonth(m)}
+                  className={cn(
+                    'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                    selectedMonth === m
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80',
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {showNewOrder && connections.length > 0 && (
@@ -431,9 +486,9 @@ export default function CustomerOrdersPage() {
         <div className="flex h-32 items-center justify-center px-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : orders.length === 0 ? (
+      ) : filteredOrders.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-12 text-center">
-          <p className="text-muted-foreground">{L('No orders yet', 'لا توجد طلبات بعد')}</p>
+          <p className="text-muted-foreground">{orders.length === 0 ? L('No orders yet', 'لا توجد طلبات بعد') : L('No orders this month', 'لا توجد طلبات هذا الشهر')}</p>
         </div>
       ) : (
         <div className="space-y-6 px-4">
