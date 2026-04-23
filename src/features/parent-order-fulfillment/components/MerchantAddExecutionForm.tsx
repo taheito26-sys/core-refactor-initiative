@@ -63,7 +63,7 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
         throw new Error('Rate must be > 0');
       }
       if (exceedsRemaining) {
-        throw new Error(`Phase USDT (${previewUsdt.toFixed(2)}) exceeds remaining ${remainingUsdt.toFixed(2)} USDT`);
+        throw new Error(`Phase USDT (${Math.round(previewUsdt).toLocaleString()}) exceeds remaining ${Math.round(remainingUsdt).toLocaleString()} USDT`);
       }
 
       if (usdtQarRate > 0) {
@@ -185,24 +185,24 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
           {/* Calculated values row */}
           <div className="flex items-center gap-2 text-[10px]">
             <span>
-              <strong className="text-foreground">{previewEgp.toFixed(2)}</strong>
+              <strong className="text-foreground">{Math.round(previewEgp).toLocaleString()}</strong>
               <span className="ml-1 text-muted-foreground">EGP</span>
             </span>
             <span className="text-muted-foreground">•</span>
             <span>
-              <strong className="text-foreground">{previewUsdt.toFixed(2)}</strong>
+              <strong className="text-foreground">{Math.round(previewUsdt).toLocaleString()}</strong>
               <span className={cn('ml-1', exceedsRemaining ? 'text-red-500' : 'text-muted-foreground')}>
                 USDT
               </span>
             </span>
             <span className="text-muted-foreground">•</span>
             <span>
-              <strong className="text-foreground">{previewRate.toFixed(4)}</strong>
+              <strong className="text-foreground">{previewRate.toFixed(2)}</strong>
               <span className="ml-1 text-muted-foreground">Rate</span>
             </span>
             <span className="text-muted-foreground">•</span>
             <span>
-              <strong className="text-foreground">{previewFx.toFixed(4)}</strong>
+              <strong className="text-foreground">{previewFx.toFixed(2)}</strong>
               <span className="ml-1 text-muted-foreground">FX</span>
             </span>
           </div>
@@ -222,7 +222,7 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
               'text-[9px] font-semibold whitespace-nowrap',
               exceedsRemaining ? 'text-red-600' : 'text-muted-foreground'
             )}>
-              {previewUsdt.toFixed(2)} / {remainingUsdt.toFixed(2)}
+              {Math.round(previewUsdt).toLocaleString()} / {Math.round(remainingUsdt).toLocaleString()}
             </span>
           </div>
 
@@ -231,7 +231,7 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
             <div className="flex items-center gap-1.5 rounded bg-red-500/10 px-2 py-1">
               <AlertCircle className="h-3 w-3 text-red-600 flex-shrink-0" />
               <span className="text-[9px] text-red-600">
-                Exceeds remaining {remainingUsdt.toFixed(2)} USDT by {(previewUsdt - remainingUsdt).toFixed(2)}
+                Exceeds remaining {Math.round(remainingUsdt).toLocaleString()} USDT by {Math.round(previewUsdt - remainingUsdt).toLocaleString()}
               </span>
             </div>
           )}

@@ -23,8 +23,8 @@ interface ParentOrderCardProps {
 
 function fmtAmount(value: number): string {
   return value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   });
 }
 
@@ -142,7 +142,7 @@ function PhasedOrderProgress({
                     {exec.sequence_number}
                   </span>
                   <span className="font-medium">{fmtAmount(qar)} QAR</span>
-                  <span className="text-muted-foreground">@ {fx.toFixed(4)}</span>
+                  <span className="text-muted-foreground">@ {fx.toFixed(2)}</span>
                 </div>
                 <span className="font-medium text-emerald-600">{fmtAmount(egp)} EGP</span>
               </div>
@@ -152,7 +152,7 @@ function PhasedOrderProgress({
           {summary.weighted_avg_fx && (
             <div className="flex items-center justify-between text-xs pt-1 border-t border-blue-500/10">
               <span className="text-muted-foreground">Weighted Avg FX</span>
-              <span className="font-semibold">{summary.weighted_avg_fx.toFixed(4)}</span>
+              <span className="font-semibold">{summary.weighted_avg_fx.toFixed(2)}</span>
             </div>
           )}
         </div>

@@ -34,7 +34,7 @@ interface PhasedClientOrderCardProps {
 }
 
 function fmtAmt(value: number, lang: 'en' | 'ar'): string {
-  return formatCustomerNumber(value, lang, 2);
+  return formatCustomerNumber(value, lang, 0);
 }
 
 function currencyLabel(cur: string, lang: 'en' | 'ar') {
@@ -159,7 +159,7 @@ export function PhasedClientOrderCard({
       {/* FX Rate line — derived weighted avg, not order.fx_rate */}
       {weightedAvgFx && (
         <div className={cn('mt-1.5 text-[10px] leading-4 text-slate-400', isRtl && 'text-right')}>
-          1 {currencyLabel(sendCurrency, lang)} = {formatCustomerNumber(weightedAvgFx, lang, 4)} {currencyLabel(receiveCurrency, lang)}
+          1 {currencyLabel(sendCurrency, lang)} = {formatCustomerNumber(weightedAvgFx, lang, 2)} {currencyLabel(receiveCurrency, lang)}
         </div>
       )}
 
@@ -203,7 +203,7 @@ export function PhasedClientOrderCard({
                     {exec.sequence_number}
                   </span>
                   <span className="font-medium text-slate-200">{fmtAmt(qar, lang)} {currencyLabel(sendCurrency, lang)}</span>
-                  <span className="text-slate-500">@ {fx.toFixed(4)}</span>
+                  <span className="text-slate-500">@ {fx.toFixed(2)}</span>
                 </div>
                 <span className="font-semibold text-emerald-400">{fmtAmt(egp, lang)} {currencyLabel(receiveCurrency, lang)}</span>
               </div>
@@ -213,7 +213,7 @@ export function PhasedClientOrderCard({
           {weightedAvgFx && (
             <div className={cn('flex items-center justify-between text-[10px] pt-1 border-t border-white/5', isRtl && 'flex-row-reverse')}>
               <span className="text-slate-400">{L('Weighted Avg FX', 'متوسط سعر الصرف')}</span>
-              <span className="font-bold text-slate-200">{weightedAvgFx.toFixed(4)}</span>
+              <span className="font-bold text-slate-200">{weightedAvgFx.toFixed(2)}</span>
             </div>
           )}
         </div>

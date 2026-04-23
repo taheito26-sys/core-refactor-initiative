@@ -42,7 +42,7 @@ export function MerchantExecutionList({ parentOrderId, language = 'en' }: Props)
             </span>
             <span className="font-semibold text-emerald-600">{(exec.executed_egp ?? exec.egp_received_amount ?? 0).toFixed(0)} EGP</span>
             <span className="text-muted-foreground">@</span>
-            <span className="font-medium">{(exec.egp_per_usdt ?? 0).toFixed(1)}</span>
+            <span className="font-medium">{(exec.egp_per_usdt ?? 0).toFixed(2)}</span>
             <span className="text-muted-foreground">→</span>
             <span className="font-semibold">{(exec.phase_consumed_qar ?? exec.sold_qar_amount ?? 0).toFixed(0)} QAR</span>
           </div>
@@ -69,7 +69,7 @@ export function MerchantExecutionList({ parentOrderId, language = 'en' }: Props)
           {summary.weighted_avg_fx && (
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Avg FX:</span>
-              <span className="font-semibold">{summary.weighted_avg_fx.toFixed(4)}</span>
+              <span className="font-semibold">{summary.weighted_avg_fx.toFixed(2)}</span>
             </div>
           )}
         </div>
