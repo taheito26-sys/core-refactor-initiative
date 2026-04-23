@@ -690,8 +690,8 @@
   .tracker-root.orders-mobile-root .month-filter-row,
   .tracker-root.stock-mobile-root .orders-tab-bar,
   .tracker-root.stock-mobile-root .month-filter-row {
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-left: 6px;
+    padding-right: 6px;
   }
   /* Headings inside stock batches tab */
   .tracker-root.stock-mobile-root > div:first-child,
@@ -802,6 +802,8 @@
     max-width: 100%;
     min-width: 0;
     overflow: hidden;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
   }
   /* Left side of card row: allow shrink, truncate text */
   .tracker-root.orders-mobile-root .orders-cards-list > div > button > div:first-child {
@@ -835,6 +837,8 @@
     max-width: 100%;
     min-width: 0;
     overflow-x: hidden;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
   }
 }
 
