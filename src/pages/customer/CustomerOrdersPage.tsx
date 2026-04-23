@@ -617,7 +617,7 @@ export default function CustomerOrdersPage() {
                       )}
                     </div>
                     {/* Parent order fulfillment card — realtime subscription handled inside hook (Req 6.1, 6.6, 6.7) */}
-                    <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} />
+                    <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} fulfillmentMode={order.fulfillment_mode} />
                     </div>
                   );
                 }
@@ -749,7 +749,7 @@ export default function CustomerOrdersPage() {
                     </div>
                   </div>
                   {/* Parent order fulfillment card — realtime subscription handled inside hook (Req 6.1, 6.6, 6.7) */}
-                  <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} />
+                  <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} fulfillmentMode={order.fulfillment_mode} />
                   </div>
                 );
               })}

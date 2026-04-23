@@ -1,51 +1,22 @@
 /**
  * ParentOrderCard
  *
- * Renders a collapsed summary row for a parent order. On click, expands
- * to show the ExpandedExecutionTable with all child executions.
- *
- * Requirements: 6.1, 6.2, 6.3, 6.5
+ * For the CUSTOMER portal: shows a compact progress bar for phased orders.
+ * Clicking expands to show sub-execution details.
+ * Only renders content for phased orders — returns null for complete orders.
  */
 
-import { useState, lazy, Suspense } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState } from 'react';
 import { Progress } from '@/components/ui/progress';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { useParentOrderSummary } from '../hooks/useParentOrderSummary';
-import type { FulfillmentStatus } from '../types';
-
-// Lazy-load the execution table — only rendered when expanded (Req 6.5)
-const ExpandedExecutionTable = lazy(
-  () =>
-    import('./ExpandedExecutionTable').then((m) => ({
-      default: m.ExpandedExecutionTable,
-    })),
-);
+import { useOrderExecutions } from '../hooks/useOrderExecutions';
 
 interface ParentOrderCardProps {
   parentOrderId: string;
   parentQarAmount: number;
+  fulfillmentMode?: string | null;
 }
-
-/** Badge color mapping for fulfillment status. */
-const STATUS_BADGE: Record<
-  FulfillmentStatus,
-  { label: string; className: string }
-> = {
-  unfulfilled: {
-    label: 'Unfulfilled',
-    className: 'bg-gray-100 text-gray-700 border-gray-200',
-  },
-  partially_fulfilled: {
-    label: 'Partial',
-    className: 'bg-amber-100 text-amber-800 border-amber-200',
-  },
-  fully_fulfilled: {
-    label: 'Fulfilled',
-    className: 'bg-green-100 text-green-800 border-green-200',
-  },
-};
 
 function fmtAmount(value: number): string {
   return value.toLocaleString(undefined, {
@@ -54,136 +25,114 @@ function fmtAmount(value: number): string {
   });
 }
 
-function fmtRate(value: number): string {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 4,
-  });
-}
-
 export function ParentOrderCard({
   parentOrderId,
   parentQarAmount,
+  fulfillmentMode,
 }: ParentOrderCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { summary, isLoading, error } = useParentOrderSummary(
-    parentOrderId,
-    parentQarAmount,
-  );
+
+  // Only render for phased orders
+  if (fulfillmentMode !== 'phased') {
+    return null;
+  }
+
+  return <PhasedOrderProgress parentOrderId={parentOrderId} expanded={expanded} onToggle={() => setExpanded(prev => !prev)} />;
+}
+
+/** Inner component that uses hooks (avoids conditional hook calls) */
+function PhasedOrderProgress({
+  parentOrderId,
+  expanded,
+  onToggle,
+}: {
+  parentOrderId: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const { data: summary, isLoading, error } = useParentOrderSummary(parentOrderId);
+  const { data: executions = [] } = useOrderExecutions(parentOrderId);
 
   if (isLoading) {
     return (
-      <Card className="animate-pulse">
-        <CardContent className="p-4">
-          <div className="h-6 bg-muted rounded w-3/4" />
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-2 rounded-lg bg-blue-500/5 px-3 py-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Loading progress...
+      </div>
     );
   }
 
   if (error || !summary) {
+    // No summary = no executions yet, show empty state
     return (
-      <Card>
-        <CardContent className="p-4 text-sm text-destructive">
-          Failed to load order summary
-        </CardContent>
-      </Card>
+      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>📦 Phased delivery</span>
+          <span>·</span>
+          <span>No executions yet</span>
+        </div>
+        <Progress value={0} className="mt-1.5 h-1.5" />
+      </div>
     );
   }
 
-  const statusBadge = STATUS_BADGE[summary.fulfillment_status];
+  const progressPct = summary.progress_percent ?? 0;
+  const isFull = summary.remaining_qar === 0;
 
   return (
-    <Card>
-      {/* Collapsed summary row — clickable to toggle */}
-      <CardContent className="p-4">
-        <button
-          type="button"
-          className="w-full text-left"
-          onClick={() => setExpanded((prev) => !prev)}
-          aria-expanded={expanded}
-        >
-          <div className="flex items-center gap-3">
-            {/* Expand/collapse chevron */}
+    <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 space-y-1.5">
+      {/* Compact progress header */}
+      <button
+        type="button"
+        className="w-full text-left"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
             <span className="text-muted-foreground">
-              {expanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
+              {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
             </span>
+            <span className="font-medium">
+              📦 {isFull ? 'Fully delivered' : 'Phased delivery'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-primary">{progressPct.toFixed(0)}%</span>
+            <span className="text-muted-foreground">
+              {fmtAmount(summary.fulfilled_qar)} / {fmtAmount(summary.parent_qar_amount)} QAR
+            </span>
+          </div>
+        </div>
+      </button>
 
-            {/* Summary metrics */}
-            <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Fulfilled</span>
-                <p className="font-mono font-medium">
-                  {fmtAmount(summary.fulfilled_qar)} QAR
-                </p>
+      {/* Progress bar */}
+      <Progress value={progressPct} className="h-1.5" />
+
+      {/* Expanded: show sub-executions */}
+      {expanded && executions.length > 0 && (
+        <div className="space-y-1 pt-1 border-t border-blue-500/10">
+          {executions.map((exec) => (
+            <div key={exec.id} className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                  {exec.sequence_number}
+                </span>
+                <span className="font-medium">{fmtAmount(exec.sold_qar_amount)} QAR</span>
+                <span className="text-muted-foreground">@ {exec.fx_rate_qar_to_egp.toFixed(4)}</span>
               </div>
-              <div>
-                <span className="text-muted-foreground">Remaining</span>
-                <p className="font-mono font-medium">
-                  {fmtAmount(summary.remaining_qar)} QAR
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Avg FX</span>
-                <p className="font-mono font-medium">
-                  {summary.weighted_avg_fx !== null
-                    ? fmtRate(summary.weighted_avg_fx)
-                    : '—'}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">EGP Received</span>
-                <p className="font-mono font-medium">
-                  {fmtAmount(summary.total_egp_received)}
-                </p>
-              </div>
+              <span className="font-medium text-emerald-600">{fmtAmount(exec.egp_received_amount)} EGP</span>
             </div>
-
-            {/* Status badge + execution count */}
-            <div className="flex items-center gap-2 shrink-0">
-              <Badge variant="outline" className={statusBadge.className}>
-                {statusBadge.label}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                {summary.fill_count} exec{summary.fill_count !== 1 ? 's' : ''}
-              </span>
+          ))}
+          {/* Weighted avg FX */}
+          {summary.weighted_avg_fx && (
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-blue-500/10">
+              <span className="text-muted-foreground">Weighted Avg FX</span>
+              <span className="font-semibold">{summary.weighted_avg_fx.toFixed(4)}</span>
             </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="mt-3">
-            <Progress
-              value={summary.progress_percent}
-              className="h-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1 text-right">
-              {summary.progress_percent.toFixed(1)}%
-            </p>
-          </div>
-        </button>
-
-        {/* Expanded execution table — lazy loaded */}
-        {expanded && (
-          <div className="mt-4 border-t pt-4">
-            <Suspense
-              fallback={
-                <div className="text-sm text-muted-foreground py-4 text-center">
-                  Loading executions…
-                </div>
-              }
-            >
-              <ExpandedExecutionTable
-                executions={summary.executions}
-                parentQarAmount={parentQarAmount}
-              />
-            </Suspense>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

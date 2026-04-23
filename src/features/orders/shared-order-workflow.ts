@@ -277,6 +277,7 @@ const WORKFLOW_FIELDS = [
   'revision_no',
   'edited_from_order_id',
   'fx_rate',
+  'fulfillment_mode',
   'rate',
   'total',
   'final_rate',
