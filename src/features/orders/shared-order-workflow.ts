@@ -141,6 +141,7 @@ export async function createSharedOrderRequest({
   merchantCashAccountId,
   customerCashAccountId,
   fulfillmentMode,
+  usdtQarRate,
 }: {
   connectionId: string;
   placedByRole: ActorRole;
@@ -400,11 +401,16 @@ export async function getCashAccountsForUser(userId: string): Promise<CashAccoun
  * Get cash accounts for a merchant.
  */
 export async function getMerchantCashAccounts(merchantId: string): Promise<CashAccount[]> {
+  if (!merchantId) return [];
+
   const { data, error } = await supabase.rpc('get_merchant_cash_accounts', {
     p_merchant_id: merchantId,
   });
 
-  if (error) throw error;
+  if (error) {
+    console.warn('[getMerchantCashAccounts] RPC error:', error.message);
+    return [];
+  }
   return (data ?? []) as CashAccount[];
 }
 
