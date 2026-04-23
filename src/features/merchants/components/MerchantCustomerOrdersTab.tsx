@@ -579,9 +579,9 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-0 -mx-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-4 pb-3">
         <h2 className="text-lg font-bold">Customer Orders</h2>
         <button
           onClick={() => setShowPlaceOrder(true)}
@@ -601,11 +601,11 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       )}
 
       {isLoading ? (
-        <Card><CardContent className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></CardContent></Card>
+        <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : orders.length === 0 ? (
-        <Card><CardContent className="flex h-32 items-center justify-center text-muted-foreground">No orders yet</CardContent></Card>
+        <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">No orders yet</div>
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-white/5">
           {orders.map((order) => {
             const customer = customerMap.get(order.customer_user_id);
             const isActioning = actioningId === order.id;
@@ -615,121 +615,125 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
             const canEdit = canEditOrder(order, 'merchant');
             const isPhasedOrder = order.fulfillment_mode === 'phased';
 
+            const customerName = customer?.profile?.display_name || customer?.nickname || 'Customer';
+
+            // Status badge config
+            const statusCfg: Record<string, { label: string; cls: string }> = {
+              pending_customer_approval: { label: 'بانتظار العميل', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+              pending_merchant_approval: { label: 'بانتظار التاجر', cls: 'bg-sky-500/20 text-sky-400 border-sky-500/30' },
+              approved: { label: 'تمت الموافقة', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+              rejected: { label: 'مرفوض', cls: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+              cancelled: { label: 'ملغي', cls: 'bg-slate-500/20 text-slate-400 border-slate-500/30' },
+            };
+            const sc = statusCfg[order.workflow_status || 'cancelled'] || statusCfg.cancelled;
+
+            const isApproved = order.workflow_status === 'approved';
+            const amountColor = isApproved ? 'text-emerald-400' : canApprove ? 'text-amber-400' : 'text-slate-300';
+
+            const dateLabel = new Date(order.created_at).toLocaleString('ar-EG', {
+              month: 'numeric', day: 'numeric', year: 'numeric',
+              hour: 'numeric', minute: '2-digit', hour12: true,
+            });
+
             return (
-              <Card key={order.id} className="overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="space-y-2">
-                    {/* Header row with customer, badges, and actions */}
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold">
-                            {customer?.profile?.display_name || customer?.nickname || 'Customer'}
-                          </span>
-                          <Badge variant="outline">{order.order_type.toUpperCase()}</Badge>
-                          <Badge variant={order.workflow_status === 'approved' ? 'default' : order.workflow_status === 'rejected' ? 'destructive' : 'secondary'}>
-                            {getWorkflowStatusLabel(order.workflow_status)}
-                          </Badge>
-                          {isPhasedOrder && (
-                            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-500/30">
-                              📦 Phased
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {order.amount} {order.send_currency} {order.receive_country && `→ ${order.receive_country}`}
-                        </div>
-                        {order.note && <div className="text-xs text-muted-foreground italic">"{order.note}"</div>}
-                        {order.revision_no > 1 && (
-                          <div className="text-xs text-amber-600">Revision {order.revision_no}</div>
-                        )}
-                      </div>
+              <div key={order.id} className="bg-[#0d1117] px-4 py-3 space-y-2">
+                {/* Row 1: status badge (left) + customer name (right) */}
+                <div className="flex items-center justify-between">
+                  <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${sc.cls}`}>
+                    {isPhasedOrder ? `📦 ${sc.label}` : sc.label}
+                  </span>
+                  <span className="text-[13px] font-bold text-slate-100">{customerName}</span>
+                </div>
 
-                      <div className="flex flex-col gap-2">
-                        {isEditing ? (
-                          <div className="w-32 space-y-1">
-                            <Input
-                              type="number"
-                              value={editAmount}
-                              onChange={e => setEditAmount(e.target.value)}
-                              placeholder={String(order.amount)}
-                              className="h-8 text-xs"
-                            />
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => editMutation.mutate({ order })}
-                                disabled={editMutation.isPending}
-                                className="h-7 flex-1 text-xs"
-                              >
-                                {editMutation.isPending ? <Loader2 className="h-3 w-3" /> : 'Update'}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => { setEditingId(null); setEditAmount(''); }}
-                                className="h-7 px-2"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {canApprove && (
-                              <Button
-                                size="sm"
-                                onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
-                                disabled={isActioning}
-                                className="h-8 gap-1 text-xs"
-                              >
-                                {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
-                                <Check className="h-3 w-3" />
-                                Approve
-                              </Button>
-                            )}
-                            {canReject && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
-                                disabled={isActioning}
-                                className="h-8 gap-1 text-xs"
-                              >
-                                {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
-                                <XCircle className="h-3 w-3" />
-                                Reject
-                              </Button>
-                            )}
-                            {canEdit && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
-                                className="h-8 text-xs"
-                              >
-                                Edit
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                {/* Row 2: balance label + date/time */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">
+                    {order.send_currency} → {order.receive_country || order.receive_currency}
+                  </span>
+                  <span className="text-[11px] text-slate-500 tabular-nums">{dateLabel}</span>
+                </div>
 
-                    {/* Phased Order Execution Management - INLINE, NO EXPANSION */}
-                    {isPhasedOrder && (
-                      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
-                        <PhasedOrderExecutionSection
-                          orderId={order.id}
-                          orderAmount={order.amount}
-                          orderUsdtQarRate={order.usdt_qar_rate ?? null}
+                {/* Row 3: running balance (left) + amount (right) */}
+                <div className="flex items-center justify-between">
+                  <div className="text-right" dir="rtl">
+                    <span className="text-[11px] text-slate-500">الرصيد: </span>
+                    <span className="text-[15px] font-black tabular-nums text-slate-200">
+                      {order.amount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-[15px] font-black tabular-nums ${amountColor}`}>
+                      {isApproved ? '+' : ''}{order.amount.toLocaleString()} {order.send_currency}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Row 4: note / description */}
+                {(order.note || order.fx_rate) && (
+                  <div className="text-[11px] text-slate-500 text-right" dir="rtl">
+                    {order.note
+                      ? order.note
+                      : order.fx_rate
+                      ? `${order.amount.toLocaleString()} ${order.send_currency} @ ${order.fx_rate.toFixed(2)}`
+                      : ''}
+                    {order.revision_no > 1 && ` · Rev ${order.revision_no}`}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                {(canApprove || canReject || canEdit || isEditing) && (
+                  <div className="pt-1">
+                    {isEditing ? (
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          value={editAmount}
+                          onChange={e => setEditAmount(e.target.value)}
+                          placeholder={String(order.amount)}
+                          className="h-8 flex-1 text-xs bg-white/5 border-white/10"
                         />
+                        <Button size="sm" variant="outline" onClick={() => editMutation.mutate({ order })} disabled={editMutation.isPending} className="h-8 text-xs">
+                          {editMutation.isPending ? <Loader2 className="h-3 w-3" /> : 'Update'}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditAmount(''); }} className="h-8 px-2">
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {canApprove && (
+                          <Button size="sm" onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }} disabled={isActioning} className="h-7 gap-1 text-[11px] bg-emerald-600 hover:bg-emerald-700">
+                            {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
+                            <Check className="h-3 w-3" />Approve
+                          </Button>
+                        )}
+                        {canReject && (
+                          <Button size="sm" variant="destructive" onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }} disabled={isActioning} className="h-7 gap-1 text-[11px]">
+                            {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
+                            <XCircle className="h-3 w-3" />Reject
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <Button size="sm" variant="outline" onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }} className="h-7 text-[11px] border-white/10">
+                            Edit
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                )}
+
+                {/* Phased Order Execution */}
+                {isPhasedOrder && (
+                  <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+                    <PhasedOrderExecutionSection
+                      orderId={order.id}
+                      orderAmount={order.amount}
+                      orderUsdtQarRate={order.usdt_qar_rate ?? null}
+                    />
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
