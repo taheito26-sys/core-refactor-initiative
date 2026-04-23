@@ -402,27 +402,42 @@ interface Props {
 }
 
 // Helper component for phased order execution section - COMPACT INLINE VERSION
-function PhasedOrderExecutionSection({ orderId }: { orderId: string }) {
+function PhasedOrderExecutionSection({ orderId, orderAmount, orderUsdtQarRate }: {
+  orderId: string;
+  orderAmount: number;
+  orderUsdtQarRate: number | null;
+}) {
   const { data: summary } = useParentOrderSummary(orderId);
+
+  // Use summary values if available, fall back to order-level values
+  const usdtQarRate = summary?.usdt_qar_rate ?? orderUsdtQarRate ?? 0;
+  const remainingUsdt = summary?.remaining_usdt ?? (
+    orderUsdtQarRate && orderUsdtQarRate > 0
+      ? orderAmount / orderUsdtQarRate
+      : orderAmount
+  );
+  const isFulfilled = summary
+    ? (summary.remaining_usdt ?? summary.remaining_qar ?? 0) <= 0 && (summary.fill_count ?? 0) > 0
+    : false;
 
   return (
     <div className="space-y-2">
       {/* Execution List - Compact chips */}
       <MerchantExecutionList parentOrderId={orderId} />
 
-      {/* Add Execution Form - Inline single row */}
-      {summary && (summary.remaining_usdt ?? summary.remaining_qar ?? 0) > 0 && (
+      {/* Add Execution Form — show unless fully fulfilled */}
+      {!isFulfilled && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-2 py-1.5">
           <span className="text-xs font-medium text-primary">Add:</span>
           <MerchantAddExecutionForm
             parentOrderId={orderId}
-            remainingUsdt={summary.remaining_usdt ?? 0}
-            usdtQarRate={summary.usdt_qar_rate ?? 0}
+            remainingUsdt={remainingUsdt}
+            usdtQarRate={usdtQarRate}
           />
         </div>
       )}
 
-      {summary && (summary.remaining_usdt ?? summary.remaining_qar ?? 0) <= 0 && summary.fill_count > 0 && (
+      {isFulfilled && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-center text-xs font-medium text-emerald-700">
           ✓ Fully fulfilled
         </div>
@@ -705,7 +720,11 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                     {/* Phased Order Execution Management - INLINE, NO EXPANSION */}
                     {isPhasedOrder && (
                       <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
-                        <PhasedOrderExecutionSection orderId={order.id} />
+                        <PhasedOrderExecutionSection
+                          orderId={order.id}
+                          orderAmount={order.amount}
+                          orderUsdtQarRate={order.usdt_qar_rate ?? null}
+                        />
                       </div>
                     )}
                   </div>

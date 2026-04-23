@@ -41,16 +41,32 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
         throw new Error(`Phase USDT (${previewUsdt.toFixed(2)}) exceeds remaining ${remainingUsdt.toFixed(2)} USDT`);
       }
 
-      const { data, error } = await supabase.rpc('insert_order_execution', {
-        p_parent_order_id: parentOrderId,
-        p_executed_egp: numEgp,
-        p_egp_per_usdt: numRate,
-        p_market_type: marketType,
-        p_cash_account_id: null,
-      });
-
-      if (error) throw error;
-      return data;
+      // If order has usdt_qar_rate, use the new USDT-based RPC
+      // Otherwise fall back to the legacy QAR-based RPC
+      if (usdtQarRate > 0) {
+        const { data, error } = await supabase.rpc('insert_order_execution', {
+          p_parent_order_id: parentOrderId,
+          p_executed_egp: numEgp,
+          p_egp_per_usdt: numRate,
+          p_market_type: marketType,
+          p_cash_account_id: null,
+        });
+        if (error) throw error;
+        return data;
+      } else {
+        // Legacy: use QAR amount and QAR→EGP FX rate directly
+        const soldQar = previewQar > 0 ? previewQar : numEgp / numRate;
+        const fxRate = numRate > 0 && soldQar > 0 ? numEgp / soldQar : numRate;
+        const { data, error } = await supabase.rpc('insert_order_execution', {
+          p_parent_order_id: parentOrderId,
+          p_sold_qar_amount: soldQar,
+          p_fx_rate_qar_to_egp: fxRate,
+          p_market_type: marketType,
+          p_cash_account_id: null,
+        });
+        if (error) throw error;
+        return data;
+      }
     },
     onSuccess: () => {
       toast.success('Phase added');
