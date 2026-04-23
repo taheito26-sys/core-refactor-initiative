@@ -143,14 +143,14 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
   const [rejectReason, setRejectReason] = useState('');
   const [actionTaken, setActionTaken] = useState<'approved' | 'rejected' | null>(null);
 
-  // Only show actions for pending approval notifications
+  // Show approve/reject for any customer_order notification that has an order ID
   const isOrderApprovalNotif =
     n.category === 'customer_order' &&
-    n.target.entityType === 'customer_order';
+    (n.target.entityType === 'customer_order' || n.target.targetEntityType === 'customer_order' || !n.target.entityType);
 
   if (!isOrderApprovalNotif) return null;
 
-  const orderId = n.target.entityId ?? null;
+  const orderId = n.target.entityId ?? n.target.targetEntityId ?? null;
   if (!orderId) return null;
 
   // If action already taken, show dimmed confirmation
@@ -280,7 +280,9 @@ function NotificationRow({ n, onNavigate, onActionDone, t }: NotificationRowProp
   const isUnread = !n.read_at;
   const Icon = iconForCategory(n.category);
   const color = colorForCategory(n.category);
-  const hasAction = n.category === 'customer_order' && n.target.entityType === 'customer_order';
+  const hasAction = n.category === 'customer_order' &&
+    (n.target.entityType === 'customer_order' || n.target.targetEntityType === 'customer_order' || !n.target.entityType) &&
+    (n.target.entityId ?? n.target.targetEntityId);
 
   // Localize stored English titles/bodies
   const lang = t.lang ?? 'en';

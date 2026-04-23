@@ -296,6 +296,7 @@ const App = () => (
                 <Route path="/network/*" element={<Navigate to="/merchants" replace />} />
                 <Route path="/vault" element={<Navigate to="/trading/vault" replace />} />
                 <Route path="/p2p" element={<Navigate to="/trading/p2p" replace />} />
+                <Route path="/customer/orders" element={<Navigate to="/c/orders" replace />} />
 
                 {/* Catch-all */}
                 <Route path="*" element={<NotFound />} />
