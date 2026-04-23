@@ -174,7 +174,9 @@ export async function createSharedOrderRequest({
     p_merchant_cash_account_id: merchantCashAccountId ?? null,
     p_customer_cash_account_id: customerCashAccountId ?? null,
     p_fulfillment_mode: fulfillmentMode ?? 'complete',
-    p_usdt_qar_rate: usdtQarRate ?? null,
+    // Only include usdt_qar_rate for phased orders — omitting the key entirely keeps
+    // backward compatibility with DB deployments that have the 14-param function signature.
+    ...(usdtQarRate != null && { p_usdt_qar_rate: usdtQarRate }),
   });
 
   if (error) throw error;
