@@ -18,49 +18,69 @@ interface Props {
 export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQarRate, onSuccess }: Props) {
   const qc = useQueryClient();
   const [executedEgp, setExecutedEgp] = useState('');
+  const [executedUsdt, setExecutedUsdt] = useState('');
   const [egpPerUsdt, setEgpPerUsdt] = useState('');
   const [marketType, setMarketType] = useState<MarketType>('manual');
 
   const numEgp = parseFloat(executedEgp) || 0;
+  const numUsdt = parseFloat(executedUsdt) || 0;
   const numRate = parseFloat(egpPerUsdt) || 0;
-  const previewUsdt = numRate > 0 ? numEgp / numRate : 0;
+
+  // Calculate third value based on which two are filled
+  let previewUsdt = numUsdt;
+  let previewEgp = numEgp;
+  let previewRate = numRate;
+
+  const filledCount = (numEgp > 0 ? 1 : 0) + (numUsdt > 0 ? 1 : 0) + (numRate > 0 ? 1 : 0);
+
+  if (filledCount >= 2) {
+    if (numEgp > 0 && numRate > 0) {
+      previewUsdt = numEgp / numRate;
+    } else if (numEgp > 0 && numUsdt > 0) {
+      previewRate = numEgp / numUsdt;
+    } else if (numUsdt > 0 && numRate > 0) {
+      previewEgp = numUsdt * numRate;
+    }
+  }
+
   const previewQar = previewUsdt * usdtQarRate;
-  const previewFx = previewQar > 0 ? numEgp / previewQar : 0;
+  const previewFx = previewQar > 0 ? previewEgp / previewQar : 0;
   const exceedsRemaining = previewUsdt > remainingUsdt + 0.01;
   const progressPercent = remainingUsdt > 0 ? Math.min((previewUsdt / remainingUsdt) * 100, 100) : 0;
 
   const addExecution = useMutation({
     mutationFn: async () => {
-      if (!numEgp || numEgp <= 0) {
-        throw new Error('Enter a valid EGP amount');
+      if (filledCount < 2) {
+        throw new Error('Fill at least 2 of 3 fields (EGP, USDT, Rate)');
       }
-      if (!numRate || numRate <= 0) {
-        throw new Error('Enter a valid EGP/USDT rate');
+      if (previewEgp <= 0) {
+        throw new Error('EGP amount must be > 0');
+      }
+      if (previewUsdt <= 0) {
+        throw new Error('USDT amount must be > 0');
+      }
+      if (previewRate <= 0) {
+        throw new Error('Rate must be > 0');
       }
       if (exceedsRemaining) {
         throw new Error(`Phase USDT (${previewUsdt.toFixed(2)}) exceeds remaining ${remainingUsdt.toFixed(2)} USDT`);
       }
 
-      // If order has usdt_qar_rate, use the new USDT-based RPC
-      // Otherwise fall back to the legacy QAR-based RPC
       if (usdtQarRate > 0) {
         const { data, error } = await supabase.rpc('insert_order_execution', {
           p_parent_order_id: parentOrderId,
-          p_executed_egp: numEgp,
-          p_egp_per_usdt: numRate,
+          p_executed_egp: previewEgp,
+          p_egp_per_usdt: previewRate,
           p_market_type: marketType,
           p_cash_account_id: null,
         });
         if (error) throw error;
         return data;
       } else {
-        // Legacy: use QAR amount and QAR→EGP FX rate directly
-        const soldQar = previewQar > 0 ? previewQar : numEgp / numRate;
-        const fxRate = numRate > 0 && soldQar > 0 ? numEgp / soldQar : numRate;
         const { data, error } = await supabase.rpc('insert_order_execution', {
           p_parent_order_id: parentOrderId,
-          p_sold_qar_amount: soldQar,
-          p_fx_rate_qar_to_egp: fxRate,
+          p_sold_qar_amount: previewQar,
+          p_fx_rate_qar_to_egp: previewFx,
           p_market_type: marketType,
           p_cash_account_id: null,
         });
@@ -71,6 +91,7 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
     onSuccess: () => {
       toast.success('Phase added');
       setExecutedEgp('');
+      setExecutedUsdt('');
       setEgpPerUsdt('');
       setMarketType('manual');
       qc.invalidateQueries({ queryKey: ['order-executions', parentOrderId] });
@@ -82,7 +103,7 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
     },
   });
 
-  const isValid = numEgp > 0 && numRate > 0 && !exceedsRemaining;
+  const isValid = filledCount >= 2 && previewEgp > 0 && previewUsdt > 0 && previewRate > 0 && !exceedsRemaining;
 
   return (
     <div className="space-y-2">
@@ -100,6 +121,22 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
             className="h-8 w-20 text-xs"
           />
           <span className="text-[9px] text-muted-foreground text-center">EGP</span>
+        </div>
+
+        <span className="text-xs text-muted-foreground font-medium">/</span>
+
+        {/* USDT Amount */}
+        <div className="flex flex-col gap-0.5">
+          <Input
+            type="number"
+            value={executedUsdt}
+            onChange={e => setExecutedUsdt(e.target.value)}
+            placeholder="USDT"
+            min="0"
+            step="0.01"
+            className="h-8 w-20 text-xs"
+          />
+          <span className="text-[9px] text-muted-foreground text-center">USDT</span>
         </div>
 
         <span className="text-xs text-muted-foreground font-medium">@</span>
@@ -143,10 +180,15 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
       </div>
 
       {/* Real-time calculations and feedback */}
-      {numEgp > 0 && numRate > 0 ? (
+      {filledCount >= 2 ? (
         <div className="space-y-1.5">
           {/* Calculated values row */}
           <div className="flex items-center gap-2 text-[10px]">
+            <span>
+              <strong className="text-foreground">{previewEgp.toFixed(2)}</strong>
+              <span className="ml-1 text-muted-foreground">EGP</span>
+            </span>
+            <span className="text-muted-foreground">•</span>
             <span>
               <strong className="text-foreground">{previewUsdt.toFixed(2)}</strong>
               <span className={cn('ml-1', exceedsRemaining ? 'text-red-500' : 'text-muted-foreground')}>
@@ -155,8 +197,8 @@ export function MerchantAddExecutionForm({ parentOrderId, remainingUsdt, usdtQar
             </span>
             <span className="text-muted-foreground">•</span>
             <span>
-              <strong className="text-foreground">{previewQar.toFixed(2)}</strong>
-              <span className="ml-1 text-muted-foreground">QAR</span>
+              <strong className="text-foreground">{previewRate.toFixed(4)}</strong>
+              <span className="ml-1 text-muted-foreground">Rate</span>
             </span>
             <span className="text-muted-foreground">•</span>
             <span>
