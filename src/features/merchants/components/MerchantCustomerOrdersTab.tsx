@@ -196,13 +196,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
 
-          {/* Client + Amount — side by side on wider screens */}
+          {/* Client + Amount ï¿½ side by side on wider screens */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Client</label>
               <select value={connId} onChange={e => setConnId(e.target.value)}
                 className="h-10 w-full rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
-                <option value="">Select client…</option>
+                <option value="">Select clientï¿½</option>
                 {connections.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
@@ -216,13 +216,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             </div>
           </div>
 
-          {/* FX Rate — always editable, no toggle */}
+          {/* FX Rate ï¿½ always editable, no toggle */}
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">FX Rate (QAR ? EGP)</label>
             {isRateLoading ? (
               <div className="flex items-center gap-2 h-10 px-3 rounded-lg border border-border/50 bg-card">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Loading…</span>
+                <span className="text-xs text-muted-foreground">Loadingï¿½</span>
               </div>
             ) : (
               <div className="relative">
@@ -281,7 +281,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               </button>
             </div>
 
-            {/* USDT/QAR Rate — only for phased */}
+            {/* USDT/QAR Rate ï¿½ only for phased */}
             {fulfillmentMode === 'phased' && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="relative flex-1">
@@ -311,7 +311,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
-              placeholder="Add a note…"
+              placeholder="Add a noteï¿½"
               rows={2}
               className="w-full rounded-lg border border-border/50 bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
             />
@@ -345,7 +345,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                       : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
                   )}
                 >
-                  {account.name} · {account.currency}
+                  {account.name} ï¿½ {account.currency}
                 </button>
               ))}
             </div>
@@ -424,7 +424,7 @@ function PhasedOrderExecutionSection({ orderId, orderAmount, orderUsdtQarRate }:
       {/* Execution List - Compact chips */}
       <MerchantExecutionList parentOrderId={orderId} />
 
-      {/* Add Execution Form — show unless fully fulfilled */}
+      {/* Add Execution Form ï¿½ show unless fully fulfilled */}
       {!isFulfilled && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-2 py-1.5">
           <span className="text-xs font-medium text-primary">Add:</span>
@@ -488,43 +488,35 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       if (!resolvedMerchantId || customerIds.length === 0) return [];
       const { data } = await supabase
         .from('customer_merchant_connections')
-        .select('id, customer_user_id, nickname')
+        .select('customer_user_id, nickname')
         .eq('merchant_id', resolvedMerchantId)
+        .neq('status', 'blocked')
         .in('customer_user_id', customerIds);
-      return data ?? [];
+      if (!data || data.length === 0) return [];
+      const userIds = [...new Set(data.map((r: any) => r.customer_user_id))];
+      const { data: profiles } = await supabase
+        .from('customer_profiles')
+        .select('user_id, display_name')
+        .in('user_id', userIds);
+      const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
+      return data.map((row: any) => ({
+        ...row,
+        profile: profileMap.get(row.customer_user_id) ?? null,
+      }));
     },
     enabled: !!resolvedMerchantId && customerIds.length > 0,
   });
 
-  const { data: customerProfiles = [] } = useQuery({
-    queryKey: ['customer-profiles', customerIds],
-    queryFn: async () => {
-      if (customerIds.length === 0) return [];
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, display_name')
-        .in('id', customerIds);
-      return data ?? [];
-    },
-    enabled: customerIds.length > 0,
-  });
-
   const customerMap = useMemo(() => {
-    const map = new Map<string, { nickname: string | null; profile: { display_name: string | null } | null }>();
-    for (const id of customerIds) {
-      const conn = customerConnections.find((c: any) => c.customer_user_id === id);
-      const profile = customerProfiles.find((p: any) => p.id === id);
-      map.set(id, {
-        nickname: conn?.nickname ?? null,
-        profile: profile ? { display_name: profile.display_name } : null,
-      });
-    }
+    const map = new Map<string, any>();
+    customerConnections.forEach((c: any) => map.set(c.customer_user_id, c));
     return map;
-  }, [customerIds, customerConnections, customerProfiles]);
+  }, [customerConnections]);
 
   const approveMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
-      return respondSharedOrder({ orderId: order.id, responderRole: 'merchant', action: 'approve' });
+      if (!resolvedMerchantId) throw new Error('Merchant not found');
+      return respondSharedOrder({ orderId: order.id, actorRole: 'merchant', action: 'approve' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
@@ -533,13 +525,14 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     },
     onError: (e: any) => {
       setActioningId(null);
-      toast.error(e.message || 'Failed to approve');
+      toast.error(e?.message || 'Failed to approve');
     },
   });
 
   const rejectMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
-      return respondSharedOrder({ orderId: order.id, responderRole: 'merchant', action: 'reject' });
+      if (!resolvedMerchantId) throw new Error('Merchant not found');
+      return respondSharedOrder({ orderId: order.id, actorRole: 'merchant', action: 'reject' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
@@ -548,24 +541,24 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     },
     onError: (e: any) => {
       setActioningId(null);
-      toast.error(e.message || 'Failed to reject');
+      toast.error(e?.message || 'Failed to reject');
     },
   });
 
   const editMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
-      const newAmount = parseFloat(editAmount);
-      if (!newAmount || newAmount <= 0) throw new Error('Enter a valid amount');
-      return editSharedOrder({ orderId: order.id, editorRole: 'merchant', newAmount });
+      if (!userId) throw new Error('Merchant session missing');
+      const editedAmount = editAmount.trim() ? parseFloat(editAmount) : undefined;
+      return editSharedOrder({ orderId: order.id, actorRole: 'merchant', amount: editedAmount });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       setEditingId(null);
       setEditAmount('');
-      toast.success('Order updated');
+      toast.success('Order updated and sent back to customer');
     },
     onError: (e: any) => {
-      toast.error(e.message || 'Failed to update');
+      toast.error(e?.message || 'Failed to update');
     },
   });
 
