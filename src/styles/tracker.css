@@ -750,6 +750,91 @@
     padding: 6px 10px;
     gap: 6px;
   }
+
+  /* ── OVERFLOW FIX: prevent any child from expanding page width ── */
+  .tracker-root.orders-mobile-root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  /* Nuclear: every descendant must respect box model */
+  .tracker-root.orders-mobile-root * {
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  /* Tab bar: scroll internally, never expand page */
+  .tracker-root.orders-mobile-root .orders-tab-bar {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+  .tracker-root.orders-mobile-root .orders-tab-bar::-webkit-scrollbar { display: none; }
+  /* Month filter row: same */
+  .tracker-root.orders-mobile-root .month-filter-row {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+  .tracker-root.orders-mobile-root .month-filter-row::-webkit-scrollbar { display: none; }
+  /* Card list container */
+  .tracker-root.orders-mobile-root .orders-cards-list {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+  /* Each card row button — the main culprit */
+  .tracker-root.orders-mobile-root .orders-cards-list > div,
+  .tracker-root.orders-mobile-root .orders-cards-list > div > button {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  /* Left side of card row: allow shrink, truncate text */
+  .tracker-root.orders-mobile-root .orders-cards-list > div > button > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .tracker-root.orders-mobile-root .orders-cards-list > div > button > div:first-child > div:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  /* Right side of card row: fixed width, no overflow */
+  .tracker-root.orders-mobile-root .orders-cards-list > div > button > div:last-child {
+    flex: 0 0 auto;
+    max-width: 48%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  /* Mono numbers in right column */
+  .tracker-root.orders-mobile-root .orders-cards-list .mono {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Expanded detail panels */
+  .tracker-root.orders-mobile-root .orders-cards-list > div > div {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
 }
 
 /* ── Extra small screens (≤ 400px) ── */
