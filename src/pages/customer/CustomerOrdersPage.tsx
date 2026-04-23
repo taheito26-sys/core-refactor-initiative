@@ -22,6 +22,7 @@ import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/cu
 import { getP2PRates } from '@/lib/p2p-rates';
 import { ParentOrderCard } from '@/features/parent-order-fulfillment/components/ParentOrderCard';
 import { PhasedClientOrderCard } from '@/features/parent-order-fulfillment/components/PhasedClientOrderCard';
+import { AcceptOrderModal } from '@/features/parent-order-fulfillment/components/AcceptOrderModal';
 import { MobileInstallBanner } from '@/features/parent-order-fulfillment/components/MobileInstallBanner';
 import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
 import { useOrderExecutions } from '@/features/parent-order-fulfillment/hooks/useOrderExecutions';
@@ -281,6 +282,7 @@ export default function CustomerOrdersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null); // 'YYYY-MM' or null = all
+  const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
 
   const { data: connections = [] } = useQuery({
     queryKey: ['c-connections', userId],
@@ -556,7 +558,7 @@ export default function CustomerOrdersPage() {
                         <div className="flex flex-wrap gap-2">
                           {canApprove && (
                             <button
-                              onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                              onClick={() => setAcceptingOrder(order)}
                               disabled={isActioning}
                               className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 disabled:opacity-50"
                             >
@@ -726,7 +728,7 @@ export default function CustomerOrdersPage() {
                             <div className="flex flex-wrap gap-2">
                               {canApprove && (
                                 <button
-                                  onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                                  onClick={() => setAcceptingOrder(order)}
                                   disabled={isActioning}
                                   className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 disabled:opacity-50"
                                 >
@@ -806,7 +808,7 @@ export default function CustomerOrdersPage() {
                           <div className="flex flex-wrap gap-2">
                             {canApprove && (
                               <button
-                                onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                                onClick={() => setAcceptingOrder(order)}
                                 disabled={isActioning}
                                 className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/25 disabled:opacity-50"
                               >
@@ -929,7 +931,7 @@ export default function CustomerOrdersPage() {
                             <div className="flex flex-wrap gap-2">
                               {canApprove && (
                                 <button
-                                  onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                                  onClick={() => setAcceptingOrder(order)}
                                   disabled={isActioning}
                                   className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/25 disabled:opacity-50"
                                 >
@@ -968,6 +970,20 @@ export default function CustomerOrdersPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* AcceptOrderModal — forces cash account selection/creation before approval */}
+      {acceptingOrder && (
+        <AcceptOrderModal
+          orderId={acceptingOrder.id}
+          receiveCurrency={acceptingOrder.receive_currency ?? 'EGP'}
+          lang={lang}
+          onClose={() => setAcceptingOrder(null)}
+          onSuccess={() => {
+            setAcceptingOrder(null);
+            qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+          }}
+        />
       )}
     </div>
   );
