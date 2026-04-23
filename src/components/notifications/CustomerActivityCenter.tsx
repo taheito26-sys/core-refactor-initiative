@@ -41,6 +41,59 @@ import { respondSharedOrder, type WorkflowOrder } from '@/features/orders/shared
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+// ─── Notification localization helpers ──────────────────────────────────────
+
+function localizeNotifTitle(title: string | null | undefined, lang: string): string {
+  if (!title) return '';
+  if (lang !== 'ar') return title;
+  const t = title.trim();
+  if (/order confirmed/i.test(t)) return 'تم تأكيد الطلب';
+  if (/order completed/i.test(t)) return 'تم إكمال الطلب';
+  if (/order cancelled/i.test(t)) return 'تم إلغاء الطلب';
+  if (/order rejected/i.test(t)) return 'تم رفض الطلب';
+  if (/order approved/i.test(t)) return 'تمت الموافقة على الطلب';
+  if (/new customer order/i.test(t)) return 'طلب عميل جديد';
+  if (/placed an order for you/i.test(t)) {
+    const name = t.replace(/placed an order for you/i, '').trim();
+    return name ? `${name} قدّم لك طلبًا` : 'تم تقديم طلب لك';
+  }
+  if (/placed an order/i.test(t)) {
+    const name = t.replace(/placed an order/i, '').trim();
+    return name ? `${name} قدّم طلبًا` : 'تم تقديم طلب';
+  }
+  if (/requested an order/i.test(t)) {
+    const name = t.replace(/requested an order/i, '').trim();
+    return name ? `${name} طلب طلبًا` : 'تم طلب طلب';
+  }
+  if (/new order/i.test(t)) return 'طلب جديد';
+  if (/payment received/i.test(t)) return 'تم استلام الدفع';
+  if (/payment confirmed/i.test(t)) return 'تم تأكيد الدفع';
+  return title;
+}
+
+function localizeNotifBody(body: string | null | undefined, lang: string): string {
+  if (!body) return '';
+  if (lang !== 'ar') return body;
+  const b = body.trim();
+  const updatedMatch = b.match(/^(.+?)\s+updated your\s+(\w+)\s+order to:\s+(.+)$/i);
+  if (updatedMatch) {
+    const [, name, type, status] = updatedMatch;
+    const typeAr = type === 'buy' ? 'شراء' : type === 'sell' ? 'بيع' : type;
+    const statusMap: Record<string, string> = {
+      confirmed: 'مؤكد', completed: 'مكتمل', cancelled: 'ملغي',
+      approved: 'موافق عليه', rejected: 'مرفوض', pending: 'معلق',
+    };
+    return `${name} حدّث طلب ${typeAr}ك إلى: ${statusMap[status.toLowerCase()] ?? status}`;
+  }
+  const placedMatch = b.match(/^(.+?)\s+placed a\s+(\w+)\s+order for\s+(.+)$/i);
+  if (placedMatch) {
+    const [, name, type, amount] = placedMatch;
+    const typeAr = type === 'buy' ? 'شراء' : type === 'sell' ? 'بيع' : type;
+    return `${name} قدّم طلب ${typeAr} بـ ${amount}`;
+  }
+  return body;
+}
+
 // ─── Category config ────────────────────────────────────────────────────────
 
 interface CatConfig {
@@ -88,6 +141,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
   const queryClient = useQueryClient();
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [actionTaken, setActionTaken] = useState<'approved' | 'rejected' | null>(null);
 
   // Only show actions for pending approval notifications
   const isOrderApprovalNotif =
@@ -99,6 +153,20 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
   const orderId = n.target.entityId ?? null;
   if (!orderId) return null;
 
+  // If action already taken, show dimmed confirmation
+  if (actionTaken) {
+    return (
+      <div className="flex items-center gap-1.5 mt-2 opacity-50" onClick={(e) => e.stopPropagation()}>
+        <span className={cn(
+          'text-[10px] font-semibold px-2 py-0.5 rounded-full',
+          actionTaken === 'approved' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-destructive/20 text-destructive',
+        )}>
+          {actionTaken === 'approved' ? (t('approved') || 'Approved') : (t('rejected') || 'Rejected')} ✓
+        </span>
+      </div>
+    );
+  }
+
   const approveMutation = useMutation({
     mutationFn: async () => {
       await respondSharedOrder({
@@ -108,8 +176,10 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
       });
     },
     onSuccess: () => {
-      toast.success(t('orderApprovedSuccess') || 'Order approved');
+      toast.success(t('orderApprovedSuccess') || t('approved') || 'Order approved');
       queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['c-orders'] });
+      setActionTaken('approved');
       onDone([n.id]);
     },
     onError: (error: any) => {
@@ -127,8 +197,10 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
       });
     },
     onSuccess: () => {
-      toast.success(t('orderRejectedSuccess') || 'Order rejected');
+      toast.success(t('orderRejectedSuccess') || t('rejected') || 'Order rejected');
       queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['c-orders'] });
+      setActionTaken('rejected');
       onDone([n.id]);
     },
     onError: (error: any) => {
@@ -155,7 +227,7 @@ function InlineActionArea({ n, onDone, t }: ActionAreaProps) {
             disabled={busy || !rejectReason.trim()}
             onClick={() => rejectMutation.mutate(rejectReason.trim())}
           >
-            {t('confirmReject') || 'Confirm Reject'}
+            {t('confirmReject') || t('reject') || 'Confirm Reject'}
           </Button>
           <Button
             size="sm"
@@ -210,6 +282,11 @@ function NotificationRow({ n, onNavigate, onActionDone, t }: NotificationRowProp
   const color = colorForCategory(n.category);
   const hasAction = n.category === 'customer_order' && n.target.entityType === 'customer_order';
 
+  // Localize stored English titles/bodies
+  const lang = t.lang ?? 'en';
+  const localizedTitle = localizeNotifTitle(n.title, lang);
+  const localizedBody = localizeNotifBody(n.body, lang);
+
   return (
     <div
       onClick={() => onNavigate(n)}
@@ -225,7 +302,7 @@ function NotificationRow({ n, onNavigate, onActionDone, t }: NotificationRowProp
           {/* Title row */}
           <div className="flex items-baseline gap-1 justify-between">
             <span className={cn('text-xs font-semibold truncate', isUnread ? 'text-foreground' : 'text-muted-foreground')}>
-              {n.title}
+              {localizedTitle}
               {n.groupCount && n.groupCount > 1 && (
                 <span className="ml-1 text-[10px] font-normal text-muted-foreground">×{n.groupCount}</span>
               )}
@@ -236,8 +313,8 @@ function NotificationRow({ n, onNavigate, onActionDone, t }: NotificationRowProp
           </div>
 
           {/* Body */}
-          {n.body && (
-            <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+          {localizedBody && (
+            <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{localizedBody}</p>
           )}
 
           {/* Inline action buttons */}
