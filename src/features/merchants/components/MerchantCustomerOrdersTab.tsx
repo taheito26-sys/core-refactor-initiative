@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Loader2, Plus, X, Check, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Plus, X, Check, XCircle } from 'lucide-react';
 import {
   createSharedOrderRequest,
   respondSharedOrder,
@@ -449,28 +449,29 @@ interface Props {
   isAdminView?: boolean;
 }
 
-// Helper component for phased order execution section
+// Helper component for phased order execution section - COMPACT INLINE VERSION
 function PhasedOrderExecutionSection({ orderId }: { orderId: string }) {
   const { data: summary } = useParentOrderSummary(orderId);
 
   return (
-    <div className="space-y-3">
-      <div className="text-sm font-semibold text-foreground">Execution Management</div>
-      
-      {/* Execution List */}
+    <div className="space-y-2">
+      {/* Execution List - Compact chips */}
       <MerchantExecutionList parentOrderId={orderId} />
 
-      {/* Add Execution Form */}
+      {/* Add Execution Form - Inline single row */}
       {summary && summary.remaining_qar > 0 && (
-        <MerchantAddExecutionForm
-          parentOrderId={orderId}
-          remainingQar={summary.remaining_qar}
-        />
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-2 py-1.5">
+          <span className="text-xs font-medium text-primary">Add:</span>
+          <MerchantAddExecutionForm
+            parentOrderId={orderId}
+            remainingQar={summary.remaining_qar}
+          />
+        </div>
       )}
 
       {summary && summary.remaining_qar === 0 && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center text-sm font-medium text-emerald-700">
-          ✓ Order fully fulfilled
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-center text-xs font-medium text-emerald-700">
+          ✓ Fully fulfilled
         </div>
       )}
     </div>
@@ -484,7 +485,6 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const resolvedMerchantId = isAdminView ? merchantId ?? null : (merchantProfile?.merchant_id ?? merchantId ?? null);
 
@@ -645,126 +645,117 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
             const canApprove = canApproveOrder(order, 'merchant');
             const canReject = canRejectOrder(order, 'merchant');
             const canEdit = canEditOrder(order, 'merchant');
-            const isExpanded = expandedOrderId === order.id;
             const isPhasedOrder = order.fulfillment_mode === 'phased';
 
             return (
               <Card key={order.id} className="overflow-hidden">
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">
-                          {customer?.profile?.display_name || customer?.nickname || 'Customer'}
-                        </span>
-                        <Badge variant="outline">{order.order_type.toUpperCase()}</Badge>
-                        <Badge variant={order.workflow_status === 'approved' ? 'default' : order.workflow_status === 'rejected' ? 'destructive' : 'secondary'}>
-                          {getWorkflowStatusLabel(order.workflow_status)}
-                        </Badge>
-                        {isPhasedOrder && (
-                          <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-500/30">
-                            📦 Phased
+                  <div className="space-y-2">
+                    {/* Header row with customer, badges, and actions */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold">
+                            {customer?.profile?.display_name || customer?.nickname || 'Customer'}
+                          </span>
+                          <Badge variant="outline">{order.order_type.toUpperCase()}</Badge>
+                          <Badge variant={order.workflow_status === 'approved' ? 'default' : order.workflow_status === 'rejected' ? 'destructive' : 'secondary'}>
+                            {getWorkflowStatusLabel(order.workflow_status)}
                           </Badge>
+                          {isPhasedOrder && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-500/30">
+                              📦 Phased
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {order.amount} {order.send_currency} {order.receive_country && `→ ${order.receive_country}`}
+                        </div>
+                        {order.note && <div className="text-xs text-muted-foreground italic">"{order.note}"</div>}
+                        {order.revision_no > 1 && (
+                          <div className="text-xs text-amber-600">Revision {order.revision_no}</div>
                         )}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {order.amount} {order.send_currency} {order.receive_country && `→ ${order.receive_country}`}
-                      </div>
-                      {order.note && <div className="text-xs text-muted-foreground italic">"{order.note}"</div>}
-                      {order.revision_no > 1 && (
-                        <div className="text-xs text-amber-600">Revision {order.revision_no}</div>
-                      )}
-                    </div>
 
-                    <div className="flex flex-col gap-2">
-                      {isEditing ? (
-                        <div className="w-32 space-y-1">
-                          <Input
-                            type="number"
-                            value={editAmount}
-                            onChange={e => setEditAmount(e.target.value)}
-                            placeholder={String(order.amount)}
-                            className="h-8 text-xs"
-                          />
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => editMutation.mutate({ order })}
-                              disabled={editMutation.isPending}
-                              className="h-7 flex-1 text-xs"
-                            >
-                              {editMutation.isPending ? <Loader2 className="h-3 w-3" /> : 'Update'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => { setEditingId(null); setEditAmount(''); }}
-                              className="h-7 px-2"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {canApprove && (
-                            <Button
-                              size="sm"
-                              onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
-                              disabled={isActioning}
-                              className="h-8 gap-1 text-xs"
-                            >
-                              {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
-                              <Check className="h-3 w-3" />
-                              Approve
-                            </Button>
-                          )}
-                          {canReject && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
-                              disabled={isActioning}
-                              className="h-8 gap-1 text-xs"
-                            >
-                              {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
-                              <XCircle className="h-3 w-3" />
-                              Reject
-                            </Button>
-                          )}
-                          {canEdit && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
+                      <div className="flex flex-col gap-2">
+                        {isEditing ? (
+                          <div className="w-32 space-y-1">
+                            <Input
+                              type="number"
+                              value={editAmount}
+                              onChange={e => setEditAmount(e.target.value)}
+                              placeholder={String(order.amount)}
                               className="h-8 text-xs"
-                            >
-                              Edit
-                            </Button>
-                          )}
-                          {isPhasedOrder && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                              className="h-8 gap-1 text-xs"
-                            >
-                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                              {isExpanded ? 'Hide' : 'Show'} Executions
-                            </Button>
-                          )}
-                        </div>
-                      )}
+                            />
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => editMutation.mutate({ order })}
+                                disabled={editMutation.isPending}
+                                className="h-7 flex-1 text-xs"
+                              >
+                                {editMutation.isPending ? <Loader2 className="h-3 w-3" /> : 'Update'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => { setEditingId(null); setEditAmount(''); }}
+                                className="h-7 px-2"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {canApprove && (
+                              <Button
+                                size="sm"
+                                onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                                disabled={isActioning}
+                                className="h-8 gap-1 text-xs"
+                              >
+                                {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
+                                <Check className="h-3 w-3" />
+                                Approve
+                              </Button>
+                            )}
+                            {canReject && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
+                                disabled={isActioning}
+                                className="h-8 gap-1 text-xs"
+                              >
+                                {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
+                                <XCircle className="h-3 w-3" />
+                                Reject
+                              </Button>
+                            )}
+                            {canEdit && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
+                                className="h-8 text-xs"
+                              >
+                                Edit
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Phased Order Execution Management */}
-                  {isPhasedOrder && isExpanded && (
-                    <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
-                      <PhasedOrderExecutionSection orderId={order.id} />
-                    </div>
-                  )}
+                    {/* Phased Order Execution Management - INLINE, NO EXPANSION */}
+                    {isPhasedOrder && (
+                      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+                        <PhasedOrderExecutionSection orderId={order.id} />
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );
