@@ -188,142 +188,52 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-t-3xl bg-background p-5 pb-8 space-y-4" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">New Order for Client</h2>
+      <div
+        className="w-full max-w-lg rounded-t-2xl bg-background flex flex-col"
+        style={{ maxHeight: '92dvh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Fixed header */}
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border/40 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold">New Order</span>
+            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">QAR → EGP</span>
+          </div>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
 
-        {/* Corridor badge */}
-        <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2">
-          <span className="text-sm font-bold text-primary">QAR → EGP</span>
-          <span className="text-xs text-muted-foreground">Qatar to Egypt</span>
-        </div>
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
 
-        {/* Client selector */}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Client</label>
-          <select value={connId} onChange={e => setConnId(e.target.value)}
-            className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
-            <option value="">Select client…</option>
-            {connections.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
-        </div>
-
-        {/* Amount */}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Amount to send (QAR)</label>
-          <div className="relative">
-            <input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" placeholder="0"
-              className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-16 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">QAR</span>
-          </div>
-        </div>
-
-        {/* Fulfillment Mode */}
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 space-y-2">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
-            📦 Fulfillment Mode
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setFulfillmentMode('complete')}
-              className={cn(
-                'flex-1 rounded-lg border px-3 py-2 text-left text-xs transition-colors',
-                fulfillmentMode === 'complete'
-                  ? 'border-blue-500 bg-blue-500/10 text-blue-700'
-                  : 'border-border/50 bg-card text-muted-foreground hover:border-blue-500/40',
-              )}
-            >
-              <div className="font-semibold text-foreground">Complete Order</div>
-              <div className="text-[11px] opacity-80">Fulfill entire amount at once</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFulfillmentMode('phased')}
-              className={cn(
-                'flex-1 rounded-lg border px-3 py-2 text-left text-xs transition-colors',
-                fulfillmentMode === 'phased'
-                  ? 'border-blue-500 bg-blue-500/10 text-blue-700'
-                  : 'border-border/50 bg-card text-muted-foreground hover:border-blue-500/40',
-              )}
-            >
-              <div className="font-semibold text-foreground">Phased Delivery</div>
-              <div className="text-[11px] opacity-80">Add executions incrementally</div>
-            </button>
-          </div>
-          {/* USDT/QAR Rate — only for phased mode */}
-          {fulfillmentMode === 'phased' && (
-            <div className="space-y-1.5 pt-1 border-t border-blue-500/10">
-              <label className="text-[10px] font-medium text-blue-600">USDT/QAR Rate</label>
-              <div className="flex items-center gap-2">
-                <input
-                  value={usdtQarRate}
-                  onChange={e => setUsdtQarRate(e.target.value)}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="3.80"
-                  className="h-9 w-28 rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                />
-                <span className="text-xs text-muted-foreground">1 USDT = ? QAR</span>
+          {/* Client + Amount — side by side on wider screens */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Client</label>
+              <select value={connId} onChange={e => setConnId(e.target.value)}
+                className="h-10 w-full rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="">Select client…</option>
+                {connections.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Amount (QAR)</label>
+              <div className="relative">
+                <input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" placeholder="0"
+                  className="h-10 w-full rounded-lg border border-border/50 bg-card px-3 pe-14 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">QAR</span>
               </div>
-              {amount && usdtQarRate && parseFloat(usdtQarRate) > 0 && (
-                <div className="rounded-lg bg-blue-500/10 px-3 py-2 text-xs text-blue-700">
-                  Required USDT: <strong>{(parseFloat(amount) / parseFloat(usdtQarRate)).toFixed(2)}</strong>
-                </div>
-              )}
             </div>
-          )}
-        </div>
-
-        {/* FX Rate with Live Market Data */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-muted-foreground">FX Rate (قطري → مصري) *</label>
-            <button
-              type="button"
-              onClick={async () => {
-                if (customFxRate) {
-                  const freshRate = liveRate?.rate != null
-                    ? liveRate.rate
-                    : (await refetchLiveRate()).data?.rate ?? null;
-                  if (freshRate != null) {
-                    setFxRate(String(freshRate));
-                  }
-                  setCustomFxRate(false);
-                  return;
-                }
-                setCustomFxRate(true);
-              }}
-              className="text-xs font-semibold text-primary hover:underline"
-            >
-              {customFxRate ? '📌 Use Market Rate' : '✏️ Edit Rate'}
-            </button>
           </div>
 
-          {isRateLoading ? (
-            <div className="flex items-center gap-2 h-11 px-3 rounded-xl border border-border/50 bg-card">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Loading market rate...</span>
-            </div>
-          ) : isRateError || !liveRate ? (
-            <div className="relative">
-              <input
-                value={fxRate}
-                onChange={e => setFxRate(e.target.value)}
-                type="number"
-                min="0"
-                step="0.0001"
-                placeholder="13.9253"
-                className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-              />
-              <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">1 QAR = ? EGP</span>
-            </div>
-          ) : (
-            <>
+          {/* FX Rate — always editable, no toggle */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">FX Rate (QAR → EGP)</label>
+            {isRateLoading ? (
+              <div className="flex items-center gap-2 h-10 px-3 rounded-lg border border-border/50 bg-card">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Loading…</span>
+              </div>
+            ) : (
               <div className="relative">
                 <input
                   value={fxRate}
@@ -332,139 +242,164 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                   min="0"
                   step="0.0001"
                   placeholder={liveRate?.rate != null ? String(liveRate.rate) : '13.9253'}
-                  disabled={!customFxRate}
-                  className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-40 text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-default"
+                  className="h-10 w-full rounded-lg border border-border/50 bg-card px-3 pe-32 text-sm outline-none focus:ring-2 focus:ring-primary/30"
                 />
-                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
-                  {liveRate?.rate != null
-                    ? formatFxRateDisplay(liveRate.rate, 'QAR', 'EGP', lang)
-                    : formatFxRateDisplay(0, 'QAR', 'EGP', lang).replace(' 0.0000', ' ?')}
+                <span className="absolute end-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-muted-foreground">
+                  1 QAR = {fxRate ? parseFloat(fxRate).toFixed(4) : '?'} EGP
                 </span>
               </div>
-              {liveRate && !customFxRate && (
-                <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
-                  📈 {lang === 'ar' ? 'سعر السوق: ' : 'Market Rate: '}
-                  {liveRate.rate != null ? formatFxRateDisplay(liveRate.rate, 'QAR', 'EGP', lang) : '—'}
-                  {liveRate.isEstimate ? (lang === 'ar' ? '(تقديري)' : '(estimated)') : ''}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            )}
+            {/* Estimated delivery inline */}
+            {amount && fxRate && parseFloat(fxRate) > 0 && (
+              <div className="mt-1.5 flex items-center justify-between rounded-lg bg-blue-500/10 px-3 py-1.5 text-xs">
+                <span className="text-blue-600">Estimated delivery</span>
+                <span className="font-bold text-blue-700">{(parseFloat(amount) * parseFloat(fxRate)).toFixed(0)} EGP</span>
+              </div>
+            )}
+          </div>
 
-        {/* Calculated EGP Amount */}
-        {amount && fxRate && (
-          <div className="rounded-lg bg-blue-500/10 px-3 py-3 space-y-1">
-            <div className="text-xs font-medium text-blue-700">Estimated Delivery</div>
-            <div className="text-lg font-bold text-blue-700">
-              {(parseFloat(amount) * parseFloat(fxRate)).toFixed(2)} EGP
+          {/* Fulfillment Mode */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Fulfillment Mode</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setFulfillmentMode('complete')}
+                className={cn(
+                  'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                  fulfillmentMode === 'complete'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border/50 bg-card text-muted-foreground hover:border-primary/40',
+                )}
+              >
+                <div className="font-semibold">Complete</div>
+                <div className="text-[10px] opacity-70">All at once</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFulfillmentMode('phased')}
+                className={cn(
+                  'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                  fulfillmentMode === 'phased'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border/50 bg-card text-muted-foreground hover:border-primary/40',
+                )}
+              >
+                <div className="font-semibold">Phased</div>
+                <div className="text-[10px] opacity-70">Incremental</div>
+              </button>
             </div>
-            <div className="text-[11px] text-blue-600">Based on {fxRate} rate • Final amount may vary</div>
-          </div>
-        )}
 
-        {/* Note */}
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Note (optional)</label>
-          <Textarea
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            placeholder="Add a note about this order…"
-            className="min-h-20 text-sm"
-          />
-        </div>
-
-        {/* Cash Account */}
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 space-y-2">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
-            💰 Merchant cash account
+            {/* USDT/QAR Rate — only for phased */}
+            {fulfillmentMode === 'phased' && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    value={usdtQarRate}
+                    onChange={e => setUsdtQarRate(e.target.value)}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="3.80"
+                    className="h-9 w-full rounded-lg border border-border/50 bg-card px-3 pe-28 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <span className="absolute end-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">1 USDT = ? QAR</span>
+                </div>
+                {amount && usdtQarRate && parseFloat(usdtQarRate) > 0 && (
+                  <span className="shrink-0 text-xs font-semibold text-primary">
+                    {(parseFloat(amount) / parseFloat(usdtQarRate)).toFixed(0)} USDT
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-2">
-              {/* No Account Option */}
+
+          {/* Note */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Note (optional)</label>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="Add a note…"
+              rows={2}
+              className="w-full rounded-lg border border-border/50 bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+            />
+          </div>
+
+          {/* Cash Account */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">💰 Cash Account</label>
+            <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => setMerchantCashAccountId('none')}
                 className={cn(
-                  'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                  'rounded-lg border px-3 py-1.5 text-xs transition-colors',
                   merchantCashAccountId === 'none'
                     ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700'
                     : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
                 )}
               >
-                <div className="font-semibold text-foreground">No Account</div>
-                <div className="text-[11px] opacity-80">Skip account linking</div>
+                No Account
               </button>
-
-              {/* Cash Accounts */}
-              {activeCashAccounts.map((account: any) => {
-                const isSelected = merchantCashAccountId === account.id;
-                return (
-                  <button
-                    key={account.id}
-                    type="button"
-                    onClick={() => setMerchantCashAccountId(account.id)}
-                    className={cn(
-                      'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700'
-                        : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
-                    )}
-                  >
-                    <div className="font-semibold text-foreground">{account.name}</div>
-                    <div className="text-[11px] opacity-80">{account.currency}</div>
-                  </button>
-                );
-              })}
+              {activeCashAccounts.map((account: any) => (
+                <button
+                  key={account.id}
+                  type="button"
+                  onClick={() => setMerchantCashAccountId(account.id)}
+                  className={cn(
+                    'rounded-lg border px-3 py-1.5 text-xs transition-colors',
+                    merchantCashAccountId === account.id
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700'
+                      : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
+                  )}
+                >
+                  {account.name} · {account.currency}
+                </button>
+              ))}
             </div>
-            {activeCashAccounts.length === 0 && (
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-                <p className="text-xs text-amber-700">
-                  No active cash accounts found. Go to Wallet to create one, or select "No Account" above.
-                </p>
-              </div>
-            )}
           </div>
-        </div>
 
-        {submitResult && (
-          <div
-            className={cn(
-              'rounded-xl border px-4 py-3 text-sm',
+          {/* Result banner */}
+          {submitResult && (
+            <div className={cn(
+              'rounded-lg border px-3 py-2.5 text-sm',
               submitResult.kind === 'success'
                 ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700'
                 : 'border-red-500/30 bg-red-500/5 text-red-700',
-            )}
-          >
-            <p className="font-semibold">{submitResult.title}</p>
-            <p className="mt-1 text-xs leading-5 opacity-90">{submitResult.message}</p>
-          </div>
-        )}
+            )}>
+              <p className="font-semibold">{submitResult.title}</p>
+              <p className="mt-0.5 text-xs opacity-90">{submitResult.message}</p>
+            </div>
+          )}
+        </div>
 
-        {/* Submit */}
-        <button
-          onClick={() => {
-            if (submitResult) {
-              setConnId('');
-              setAmount('');
-              setFxRate('');
-              setCustomFxRate(false);
-              setMerchantCashAccountId('none');
-              setFulfillmentMode('complete');
-              setUsdtQarRate('3.8');
-              setNote('');
-              setSubmitResult(null);
-              onClose();
-            } else {
-              create.mutate();
-            }
-          }}
-          disabled={create.isPending || (!submitResult && (!connId || !amount))}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
-        >
-          {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {submitResult ? 'Close' : 'Place Order'}
-        </button>
+        {/* Fixed footer */}
+        <div className="px-4 pb-6 pt-3 border-t border-border/40 shrink-0">
+          <button
+            onClick={() => {
+              if (submitResult) {
+                setConnId('');
+                setAmount('');
+                setFxRate('');
+                setCustomFxRate(false);
+                setMerchantCashAccountId('none');
+                setFulfillmentMode('complete');
+                setUsdtQarRate('3.8');
+                setNote('');
+                setSubmitResult(null);
+                onClose();
+              } else {
+                create.mutate();
+              }
+            }}
+            disabled={create.isPending || (!submitResult && (!connId || !amount))}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            {submitResult ? 'Close' : 'Place Order'}
+          </button>
+        </div>
       </div>
     </div>
   );
