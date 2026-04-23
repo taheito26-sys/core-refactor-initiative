@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "name": "Translation Sync on i18n Change",
+  "description": "Monitors changes to the i18n translation file (src/lib/i18n.ts) and other files containing user-facing text (JSON, YAML localization files). When changes are detected, identifies new or modified English text entries and generates accurate Arabic translations, maintaining proper RTL context, locale-specific conventions, and consistent terminology across the app.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/lib/i18n.ts",
+      "**/*.i18n.json",
+      "**/locales/**/*.json",
+      "**/locales/**/*.yaml",
+      "**/locales/**/*.yml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The i18n translation file was just modified. Please review the changes and:\n\n1. Scan for any translation keys where the Arabic ('ar') value is missing, empty, or still contains English placeholder text.\n2. Scan for any newly added keys that only have an English ('en') value but no Arabic ('ar') translation.\n3. For each missing or incomplete translation, generate an accurate Arabic translation that:\n   - Maintains the correct meaning and context of the English source text\n   - Uses proper Arabic grammar, RTL conventions, and locale-specific formatting (ar-EG / ar-QA style)\n   - Stays consistent with the existing translation terminology used throughout the file (e.g., 'الصفقات' for trades, 'المخزون' for stock, 'الخزنة' for vault)\n   - Keeps technical terms (USDT, P2P, QAR, OTC) untranslated where appropriate\n4. Apply the missing translations directly to the file.\n5. Report what was added or changed.\n\nDo NOT modify any existing Arabic translations that are already complete and correct."
+  }
+}

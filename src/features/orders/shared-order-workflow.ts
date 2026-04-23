@@ -45,6 +45,8 @@ export interface WorkflowOrder {
   edited_from_order_id: string | null;
   fx_rate: number | null;
   fulfillment_mode: FulfillmentMode | null;
+  usdt_qar_rate: number | null;
+  required_usdt: number | null;
 
   // Location fields
   send_country: string | null;
@@ -154,6 +156,7 @@ export async function createSharedOrderRequest({
   merchantCashAccountId?: string | null; // text, not uuid
   customerCashAccountId?: string | null; // text, not uuid (null = no account)
   fulfillmentMode?: FulfillmentMode; // 'complete' | 'phased'
+  usdtQarRate?: number | null; // USDT/QAR rate for phased orders
 }): Promise<WorkflowOrder> {
   const { data, error } = await supabase.rpc('create_customer_order_request', {
     p_connection_id: connectionId,
@@ -170,6 +173,7 @@ export async function createSharedOrderRequest({
     p_merchant_cash_account_id: merchantCashAccountId ?? null,
     p_customer_cash_account_id: customerCashAccountId ?? null,
     p_fulfillment_mode: fulfillmentMode ?? 'complete',
+    p_usdt_qar_rate: usdtQarRate ?? null,
   });
 
   if (error) throw error;

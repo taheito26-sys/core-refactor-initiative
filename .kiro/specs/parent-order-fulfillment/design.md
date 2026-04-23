@@ -455,9 +455,12 @@ graph TD
 | Condition | Error Code | Response |
 |---|---|---|
 | `sold_qar_amount <= 0` | `invalid_amount` | Reject with validation message |
+| `sold_qar_amount` is null/undefined/empty | `invalid_amount` | Reject; field is mandatory |
 | `fx_rate_qar_to_egp <= 0` | `invalid_rate` | Reject with validation message |
+| `fx_rate_qar_to_egp` is null/undefined/empty | `invalid_rate` | Reject; field is mandatory |
 | `sold_qar_amount > remaining` | `amount_exceeds_remaining` | Reject; show remaining amount to user |
 | `egp_received_amount` mismatch | `egp_mismatch` | Reject; recompute server-side |
+| `egp_received_amount` is NaN/Infinity/negative | `egp_mismatch` | Reject; calculated value invalid |
 | `parent_order_id` not found | `parent_not_found` | Reject with 404-equivalent |
 
 ### Cash Account Acceptance Failures
@@ -485,10 +488,12 @@ graph TD
 
 - `computeParentSummary`: table-driven tests covering unfulfilled, partial, full, and edge cases (single execution, many executions, zero-amount parent)
 - `computeWeightedAvgFx`: verify formula against the Phase 7 acceptance test (50,000 QAR across three executions → 13.385)
-- `validateExecutionInsert`: all rejection branches + happy path
+- `validateExecutionInsert`: all rejection branches + happy path, including null/undefined/empty rate and amount
 - `validateCashAccountForAcceptance`: all four rejection reasons + happy path
 - `detectMobileInstallContext`: mock `window`, `navigator.userAgent`, `matchMedia`, `sessionStorage`
 - `deriveFulfillmentStatus`: boundary values (0, partial, exact full)
+- Canonical mismatch scenario: Phase 1: EGP 166,800 + Phase 2: EGP 112,960 → parent total must be EGP 279,760, not EGP 282,000
+- Order grouping: verify that orders with the same `parent_order_id` are grouped into a single card entry
 
 ### Property-Based Testing
 
@@ -500,12 +505,71 @@ graph TD
 3. `progress_percent` is always in `[0, 100]`
 4. Inserting an execution with `sold_qar_amount > remaining` always returns `{ valid: false }`
 5. `computeWeightedAvgFx([])` always returns `null`
+6. For any parent order with child phases, `computeParentSummary` returns `total_egp_received === SUM(child.egp_received_amount)` — never a manually entered total
+7. For any list of orders containing duplicate `parent_order_id` values, the grouping function produces exactly one entry per `parent_order_id`
+8. For any execution with null, undefined, or empty rate or amount, `validateExecutionInsert` rejects and returns `{ valid: false }`
 
 ### Integration Testing
 
 - End-to-end: insert 3 executions against a 50,000 QAR parent → assert `ParentOrderSummary` matches Phase 7 expected values exactly
 - Customer acceptance flow: attempt approval without account → blocked; with valid account → approved + `destination_cash_account_id` stored
 - Client isolation: customer A cannot see or select accounts belonging to customer B or any merchant
+- Realtime update: insert a new phase → verify client card updates without page refresh and notification is delivered exactly once
+- Data consistency: verify that no Client_Card ever displays a total that differs from the sum of its child phases
+
+---
+
+## Correctness Properties
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: Weighted average FX is bounded by child rates
+
+*For any* non-empty set of completed Order_Executions with positive `sold_qar_amount` and positive `fx_rate_qar_to_egp`, the computed `weighted_avg_fx` SHALL be greater than or equal to the minimum individual `fx_rate_qar_to_egp` and less than or equal to the maximum individual `fx_rate_qar_to_egp`.
+
+**Validates: Requirements 3.6, 3.8, 3.18, 12.3**
+
+### Property 2: Fulfilled plus remaining equals parent amount
+
+*For any* Parent_Order with `parent_qar_amount > 0` and any set of completed Order_Executions where `SUM(sold_qar_amount) <= parent_qar_amount`, the computed `fulfilled_qar + remaining_qar` SHALL equal `parent_qar_amount` exactly.
+
+**Validates: Requirements 3.1, 3.2, 3.12, 3.15, 3.16, 3.17, 12.1, 12.2**
+
+### Property 3: Progress percent is always in [0, 100]
+
+*For any* Parent_Order with `parent_qar_amount > 0` and any set of completed Order_Executions, the computed `progress_percent` SHALL be greater than or equal to 0 and less than or equal to 100.
+
+**Validates: Requirements 3.5, 3.13, 3.19, 12.4**
+
+### Property 4: Overfill is always rejected
+
+*For any* execution insert where `sold_qar_amount > (parent_qar_amount − current_fulfilled_qar)`, the `validateExecutionInsert` function SHALL return `{ valid: false, reason: 'amount_exceeds_remaining' }`.
+
+**Validates: Requirements 2.3, 4.2**
+
+### Property 5: Empty executions yield null weighted average
+
+*For any* Parent_Order with zero completed Order_Executions, `computeParentSummary` SHALL return `weighted_avg_fx = null`.
+
+**Validates: Requirements 3.7**
+
+### Property 6: Derived totals always match sum of child phases
+
+*For any* Parent_Order with one or more completed child phases, `computeParentSummary` SHALL return `total_egp_received` equal to `SUM(child.egp_received_amount)` for all completed phases — regardless of any manually entered or cached parent-level total. The system SHALL never return a total that differs from the derived sum.
+
+**Validates: Requirements 3.15, 3.20, 12.1, 12.5, 12.9**
+
+### Property 7: Single card per parent order (deduplication)
+
+*For any* list of orders containing one or more entries with the same `parent_order_id`, the grouping function SHALL produce exactly one entry per unique `parent_order_id` — no duplicate cards SHALL ever be rendered.
+
+**Validates: Requirements 6.8, 6.9**
+
+### Property 8: Mandatory field rejection
+
+*For any* Order_Execution insert where `fx_rate_qar_to_egp` is null, undefined, empty, or `<= 0`, OR where `sold_qar_amount` is null, undefined, empty, or `<= 0`, the `validateExecutionInsert` function SHALL return `{ valid: false }` and the record SHALL NOT be persisted.
+
+**Validates: Requirements 2.8, 2.9, 2.10, 2.11**
 
 ---
 

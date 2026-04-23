@@ -2,7 +2,15 @@
 
 ## Introduction
 
-The Parent Order Fulfillment feature enables a parent order (e.g. 50,000 QAR) to be fulfilled through one or more child sell executions, each potentially at a different FX rate. The system derives a weighted average FX rate from all completed child executions, tracks fulfillment progress, enforces overfill prevention, and surfaces a collapsed/expanded UI in the customer portal. Acceptance of an order requires the client to select a destination cash account. The client portal inherits merchant cash management logic in a read-only, scoped manner. The mobile app enforces installation prompts when running in a browser on a mobile device.
+The Parent Order Fulfillment feature enables a parent order (e.g. 20,000 QAR) to be fulfilled through one or more child sell executions (phases), each potentially at a different EGP/USDT rate. The system uses USDT as the intermediary currency: the parent order's QAR amount is converted to a `required_usdt` target at order creation time, and each phase records EGP executed and the EGP/USDT rate to compute how much USDT was fulfilled. Progress is tracked as `fulfilled_usdt / required_usdt`, NOT as QAR-based progress.
+
+Each phase stores snapshot values at the time of entry: `executed_egp`, `egp_per_usdt`, `phase_usdt`, `phase_consumed_qar`, and `phase_qar_egp_fx`. These snapshots are immutable after save — the system never depends on live merchant rates after a phase is persisted.
+
+The system derives a weighted average QAR→EGP FX rate from all completed child phases, tracks USDT-based fulfillment progress, enforces overfill prevention (in USDT space), and surfaces a collapsed/expanded UI in the customer portal. Acceptance of an order requires the client to select a destination cash account. The client portal inherits merchant cash management logic in a read-only, scoped manner. The mobile app enforces installation prompts when running in a browser on a mobile device.
+
+**Critical invariant:** Once phases exist for a parent order, all parent-level totals (total EGP, total consumed QAR, total fulfilled USDT, weighted average FX, progress) are derived exclusively from persisted phase snapshot rows. Manually entered totals are never trusted. The system must never display a parent total that differs from the sum of its child phase snapshots.
+
+**Example:** Parent: 20,000 QAR at rate 3.8 → required_usdt = 5,263.157895. Phase 1: 120,000 EGP at 53 EGP/USDT → phase_usdt = 2,264.150943, consumed_qar = 8,603.773585, fx = 13.948.
 
 All new behavior is additive. No existing pricing engine, settlement engine, merchant portal, ledger posting, or accounting rule is modified.
 
@@ -10,12 +18,12 @@ All new behavior is additive. No existing pricing engine, settlement engine, mer
 
 ## Glossary
 
-- **Parent_Order**: A `customer_orders` row representing the full order amount (e.g. 50,000 QAR) that may be fulfilled through one or more executions.
-- **Order_Execution**: A single child sell execution row in `order_executions`, linked to a Parent_Order via `parent_order_id`.
+- **Parent_Order**: A `customer_orders` row representing the full order amount (e.g. 20,000 QAR) that may be fulfilled through one or more executions. Stores `usdt_qar_rate` and `required_usdt` at creation time.
+- **Order_Execution**: A single child phase row in `order_executions`, linked to a Parent_Order via `parent_order_id`. Stores snapshot values: `executed_egp`, `egp_per_usdt`, `phase_usdt`, `phase_consumed_qar`, `phase_qar_egp_fx`.
 - **Aggregation_Layer**: The client-side or server-side logic (`computeParentSummary`) that derives fulfillment state from all completed Order_Executions for a given Parent_Order.
-- **Parent_Order_Summary**: The computed aggregate object containing `fulfilled_qar`, `remaining_qar`, `weighted_avg_fx`, `fulfillment_status`, `progress_percent`, and the child execution list.
-- **Weighted_Avg_FX**: The FX rate computed as `SUM(sold_qar_amount × fx_rate_qar_to_egp) / SUM(sold_qar_amount)` across all completed executions — never a simple average.
-- **Fulfillment_Status**: One of `unfulfilled`, `partially_fulfilled`, or `fully_fulfilled`, derived from the ratio of `fulfilled_qar` to `parent_qar_amount`.
+- **Parent_Order_Summary**: The computed aggregate object containing `total_fulfilled_usdt`, `required_usdt`, `total_consumed_qar`, `total_egp`, `weighted_avg_fx`, `fulfillment_status`, `progress_percent`, and the child execution list.
+- **Weighted_Avg_FX**: The QAR→EGP FX rate computed as `total_egp / total_consumed_qar` across all completed phases — never a simple average of individual phase rates.
+- **Fulfillment_Status**: One of `unfulfilled`, `partially_fulfilled`, or `fully_fulfilled`, derived from the ratio of `total_fulfilled_usdt` to `required_usdt`.
 - **Execution_Validator**: The function `validateExecutionInsert` that checks an incoming Order_Execution for validity before it is persisted.
 - **Cash_Account_Validator**: The function `validateCashAccountForAcceptance` that checks a selected cash account before order acceptance is committed.
 - **Cash_Account_Selector**: The UI component shown to the client when accepting an order, allowing selection of a destination cash account.
@@ -24,108 +32,140 @@ All new behavior is additive. No existing pricing engine, settlement engine, mer
 - **Install_Prompt_State**: One of `not_applicable`, `pending`, or `dismissed`, representing the current state of the mobile install prompt.
 - **Execution_Table**: The expanded UI component that renders child Order_Execution rows for a given Parent_Order.
 - **Sequence_Number**: An auto-incrementing integer per Parent_Order that orders child executions chronologically.
+- **Phase**: Synonym for Order_Execution in the context of phased fulfillment. Each phase represents one partial execution of the parent order.
+- **USDT**: The intermediary currency used for fulfillment tracking. Parent orders define a `required_usdt` target; phases contribute `phase_usdt` toward that target.
+- **required_usdt**: The USDT fulfillment target for a parent order, calculated as `received_qar / usdt_qar_rate` at order creation time. This value is immutable after creation.
+- **phase_usdt**: The USDT equivalent fulfilled by a single phase, calculated as `executed_egp / egp_per_usdt` at phase entry time. This is a snapshot value.
+- **phase_consumed_qar**: The QAR consumed by a single phase, calculated as `phase_usdt * parent_usdt_qar_rate` at phase entry time. This is a snapshot value.
+- **phase_qar_egp_fx**: The effective QAR→EGP FX rate for a single phase, calculated as `executed_egp / phase_consumed_qar` at phase entry time. This is a snapshot value.
+- **Derived_Aggregate**: A parent-level value (total_egp, total_consumed_qar, total_fulfilled_usdt, weighted_avg_fx, progress) that is computed exclusively from persisted child phase snapshot rows — never from manually entered or cached values.
+- **Client_Card**: A single compact UI card in the Customer_Portal that represents one Parent_Order, grouping all its child phases into one visual unit.
+- **Realtime_Subscription**: A Supabase `postgres_changes` subscription that pushes database events to the client without requiring a page refresh.
+- **Notification**: A toast or in-app message sent to the client when a phase is added or order state changes.
 
 ---
 
 ## Requirements
 
-### Requirement 1: Child Execution Data Model
+### Requirement 1: Parent Order and Phase Data Model
 
-**User Story:** As a merchant, I want to record individual sell executions against a parent order, so that each partial fill is tracked with its own FX rate, amount, and market type.
+**User Story:** As a merchant, I want to record a parent order with its USDT target and individual phase executions against it, so that each partial fill is tracked with its own EGP amount, EGP/USDT rate, and derived snapshot values.
 
 #### Acceptance Criteria
 
-1. THE System SHALL store each Order_Execution in an `order_executions` table with columns: `id`, `parent_order_id`, `sequence_number`, `sold_qar_amount`, `fx_rate_qar_to_egp`, `egp_received_amount`, `market_type`, `cash_account_id`, `status`, `executed_at`, `created_by`, `created_at`, `updated_at`.
-2. THE System SHALL enforce a CHECK constraint that `sold_qar_amount > 0` on the `order_executions` table.
-3. THE System SHALL enforce a CHECK constraint that `fx_rate_qar_to_egp > 0` on the `order_executions` table.
-4. THE System SHALL store `egp_received_amount` as a generated column equal to `sold_qar_amount × fx_rate_qar_to_egp`.
-5. THE System SHALL enforce a foreign key from `order_executions.parent_order_id` to `customer_orders.id`.
-6. THE System SHALL assign `sequence_number` as an auto-incrementing integer scoped per `parent_order_id`.
-7. THE System SHALL accept `market_type` values of `instapay_v1`, `p2p`, `bank`, or `manual` only.
-8. THE System SHALL accept `status` values of `completed`, `pending`, `cancelled`, or `failed` only.
-9. THE System SHALL allow `cash_account_id` to be null on an Order_Execution row.
-10. THE System SHALL store `executed_at` as a timezone-aware timestamp.
+1. THE System SHALL store `usdt_qar_rate` (numeric, > 0) on the `customer_orders` table for parent orders that use phased fulfillment.
+2. THE System SHALL store `required_usdt` as a generated or computed column on `customer_orders`, equal to `received_qar / usdt_qar_rate`.
+3. THE System SHALL store each Order_Execution in an `order_executions` table with columns: `id`, `parent_order_id`, `sequence_number`, `executed_egp`, `egp_per_usdt`, `phase_usdt`, `phase_consumed_qar`, `phase_qar_egp_fx`, `market_type`, `cash_account_id`, `status`, `executed_at`, `created_by`, `created_at`, `updated_at`.
+4. THE System SHALL enforce a CHECK constraint that `executed_egp > 0` on the `order_executions` table.
+5. THE System SHALL enforce a CHECK constraint that `egp_per_usdt > 0` on the `order_executions` table.
+6. THE System SHALL store `phase_usdt` as a generated column equal to `executed_egp / egp_per_usdt`.
+7. THE System SHALL store `phase_consumed_qar` as a generated column equal to `phase_usdt * parent_usdt_qar_rate` (looked up from the parent order's `usdt_qar_rate`).
+8. THE System SHALL store `phase_qar_egp_fx` as a generated column equal to `executed_egp / phase_consumed_qar`.
+9. THE System SHALL enforce a foreign key from `order_executions.parent_order_id` to `customer_orders.id`.
+10. THE System SHALL assign `sequence_number` as an auto-incrementing integer scoped per `parent_order_id`.
+11. THE System SHALL accept `market_type` values of `instapay_v1`, `p2p`, `bank`, or `manual` only.
+12. THE System SHALL accept `status` values of `completed`, `pending`, `cancelled`, or `failed` only.
+13. THE System SHALL allow `cash_account_id` to be null on an Order_Execution row.
+14. THE System SHALL store `executed_at` as a timezone-aware timestamp.
+15. ALL phase snapshot values (`phase_usdt`, `phase_consumed_qar`, `phase_qar_egp_fx`) SHALL be immutable after the phase is saved — the system SHALL NOT recalculate them based on live rates.
 
 ---
 
-### Requirement 2: Execution Insert Validation
+### Requirement 2: Phase Entry Validation
 
-**User Story:** As a merchant, I want the system to reject invalid execution inserts, so that data integrity is maintained and overfill is impossible.
+**User Story:** As a merchant, I want the system to reject invalid phase entries, so that data integrity is maintained, overfill is impossible (in USDT space), and no phase can be saved with missing or invalid inputs.
 
 #### Acceptance Criteria
 
-1. WHEN an Order_Execution insert is attempted with `sold_qar_amount <= 0`, THEN THE Execution_Validator SHALL reject it with reason `invalid_amount`.
-2. WHEN an Order_Execution insert is attempted with `fx_rate_qar_to_egp <= 0`, THEN THE Execution_Validator SHALL reject it with reason `invalid_rate`.
-3. WHEN an Order_Execution insert is attempted where `sold_qar_amount > (parent_qar_amount − current_fulfilled_qar)`, THEN THE Execution_Validator SHALL reject it with reason `amount_exceeds_remaining`.
-4. WHEN an Order_Execution insert is attempted where `|egp_received_amount − (sold_qar_amount × fx_rate_qar_to_egp)| > 0.001`, THEN THE Execution_Validator SHALL reject it with reason `egp_mismatch`.
-5. WHEN all validation checks pass, THEN THE Execution_Validator SHALL return `{ valid: true }`.
-6. THE System SHALL hold a row-level lock on the Parent_Order during the remaining-amount check to prevent race conditions from concurrent execution inserts.
-7. IF `parent_order_id` does not reference an existing `customer_orders` row, THEN THE System SHALL reject the insert with reason `parent_not_found`.
+1. WHEN a phase insert is attempted with `executed_egp <= 0`, THEN THE Execution_Validator SHALL reject it with reason `invalid_amount`.
+2. WHEN a phase insert is attempted with `egp_per_usdt <= 0`, THEN THE Execution_Validator SHALL reject it with reason `invalid_rate`.
+3. WHEN a phase insert would cause `total_fulfilled_usdt + phase_usdt > required_usdt`, THEN THE Execution_Validator SHALL reject it with reason `amount_exceeds_remaining`.
+4. WHEN all validation checks pass, THEN THE Execution_Validator SHALL return `{ valid: true }`.
+5. THE System SHALL hold a row-level lock on the Parent_Order during the remaining-USDT check to prevent race conditions from concurrent phase inserts.
+6. IF `parent_order_id` does not reference an existing `customer_orders` row, THEN THE System SHALL reject the insert with reason `parent_not_found`.
+7. THE Execution_Validator SHALL treat `egp_per_usdt` as a mandatory field — WHEN the rate is empty, null, or undefined, THEN THE Execution_Validator SHALL reject the insert with reason `invalid_rate` and SHALL NOT persist the record.
+8. THE Execution_Validator SHALL treat `executed_egp` as a mandatory field — WHEN the amount is empty, null, or undefined, THEN THE Execution_Validator SHALL reject the insert with reason `invalid_amount` and SHALL NOT persist the record.
+9. THE System SHALL block save of any phase row where `executed_egp` is empty or `<= 0`, or `egp_per_usdt` is empty or `<= 0`.
+10. THE System SHALL NOT allow partial phase rows with a missing rate — every persisted Order_Execution row SHALL have a valid `egp_per_usdt > 0`.
+11. IF validation fails for any reason, THEN THE System SHALL display a validation error message to the user and SHALL NOT persist the Order_Execution record.
 
 ---
 
-### Requirement 3: Parent Order Aggregation
+### Requirement 3: Parent Order Aggregation (USDT-Based Progress)
 
-**User Story:** As a merchant or customer, I want to see the aggregated fulfillment state of a parent order, so that I can understand how much has been filled, at what weighted average rate, and what remains.
+**User Story:** As a merchant or customer, I want to see the aggregated fulfillment state of a parent order with USDT-based progress tracking, derived exclusively from persisted child phase snapshot rows, so that parent totals always match the sum of child phases and no manually entered total is ever trusted.
 
 #### Acceptance Criteria
 
-1. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `fulfilled_qar` as the sum of `sold_qar_amount` for all Order_Executions with `status = 'completed'`.
-2. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `remaining_qar` as `parent_qar_amount − fulfilled_qar`.
-3. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `total_egp_received` as the sum of `egp_received_amount` for all Order_Executions with `status = 'completed'`.
-4. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `fill_count` as the count of Order_Executions with `status = 'completed'`.
-5. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `progress_percent` as `(fulfilled_qar / parent_qar_amount) × 100`.
-6. WHEN `fill_count > 0`, THE Aggregation_Layer SHALL compute `weighted_avg_fx` as `total_egp_received / fulfilled_qar`.
-7. WHEN `fill_count = 0`, THE Aggregation_Layer SHALL set `weighted_avg_fx` to `null`.
-8. THE Aggregation_Layer SHALL never compute `weighted_avg_fx` as a simple average of individual FX rates.
-9. THE Aggregation_Layer SHALL set `fulfillment_status` to `unfulfilled` when `fulfilled_qar = 0`.
-10. THE Aggregation_Layer SHALL set `fulfillment_status` to `partially_fulfilled` when `0 < fulfilled_qar < parent_qar_amount`.
-11. THE Aggregation_Layer SHALL set `fulfillment_status` to `fully_fulfilled` when `fulfilled_qar = parent_qar_amount`.
-12. THE Aggregation_Layer SHALL return `remaining_qar >= 0` for all valid inputs.
+1. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `total_fulfilled_usdt` as the sum of `phase_usdt` for all Order_Executions with `status = 'completed'`.
+2. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `remaining_usdt` as `required_usdt − total_fulfilled_usdt`.
+3. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `total_egp` as the sum of `executed_egp` for all Order_Executions with `status = 'completed'`.
+4. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `total_consumed_qar` as the sum of `phase_consumed_qar` for all Order_Executions with `status = 'completed'`.
+5. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `fill_count` as the count of Order_Executions with `status = 'completed'`.
+6. WHEN `computeParentSummary` is called, THE Aggregation_Layer SHALL compute `progress_percent` as `(total_fulfilled_usdt / required_usdt) × 100`.
+7. WHEN `fill_count > 0`, THE Aggregation_Layer SHALL compute `weighted_avg_fx` as `total_egp / total_consumed_qar` — never a simple average of individual `phase_qar_egp_fx` rates.
+8. WHEN `fill_count = 0`, THE Aggregation_Layer SHALL set `weighted_avg_fx` to `null`.
+9. THE Aggregation_Layer SHALL set `fulfillment_status` to `unfulfilled` when `total_fulfilled_usdt = 0`.
+10. THE Aggregation_Layer SHALL set `fulfillment_status` to `partially_fulfilled` when `0 < total_fulfilled_usdt < required_usdt`.
+11. THE Aggregation_Layer SHALL set `fulfillment_status` to `fully_fulfilled` when `total_fulfilled_usdt >= required_usdt`.
+12. THE Aggregation_Layer SHALL return `remaining_usdt >= 0` for all valid inputs.
 13. THE Aggregation_Layer SHALL return `progress_percent` in the range `[0, 100]` for all valid inputs.
 14. THE Aggregation_Layer SHALL include all child Order_Executions in the `executions` array, ordered by `sequence_number` ascending.
+15. WHILE one or more child phases exist for a Parent_Order, THE System SHALL derive all parent-level totals exclusively from persisted child phase snapshot rows — THE System SHALL never trust or display a manually entered parent total.
+16. THE Aggregation_Layer SHALL compute progress using USDT, NOT QAR: `progress = total_fulfilled_usdt / required_usdt`.
+17. THE Aggregation_Layer SHALL compute weighted average FX as `total_egp / total_consumed_qar` — never a snapshot rate, never a manually entered value, never a simple average of phase rates.
 
 ---
 
-### Requirement 4: Overfill Prevention
+### Requirement 4: Overfill Prevention (USDT Space)
 
-**User Story:** As a system operator, I want overfill to be impossible, so that the sum of completed execution amounts never exceeds the parent order amount.
+**User Story:** As a system operator, I want overfill to be impossible in USDT space, so that the sum of completed phase USDT amounts never exceeds the parent order's required USDT target.
 
 #### Acceptance Criteria
 
-1. THE System SHALL ensure that `SUM(sold_qar_amount for completed executions) <= parent_qar_amount` at all times.
-2. WHEN an execution insert would cause the total fulfilled amount to exceed `parent_qar_amount`, THEN THE Execution_Validator SHALL reject it with reason `amount_exceeds_remaining`.
+1. THE System SHALL ensure that `SUM(phase_usdt for completed phases) <= required_usdt` at all times.
+2. WHEN a phase insert would cause the total fulfilled USDT to exceed `required_usdt`, THEN THE Execution_Validator SHALL reject it with reason `amount_exceeds_remaining`.
 3. THE System SHALL enforce overfill prevention at the database layer (via trigger or RPC), not only at the application layer.
-4. WHILE a concurrent execution insert is in progress, THE System SHALL hold a row-level lock on the Parent_Order to prevent race conditions.
+4. WHILE a concurrent phase insert is in progress, THE System SHALL hold a row-level lock on the Parent_Order to prevent race conditions.
 
 ---
 
-### Requirement 5: System Integrity — Weighted Average Scenario
+### Requirement 5: System Integrity — USDT-Based Fulfillment Scenario
 
-**User Story:** As a system operator, I want the weighted average FX calculation to produce the correct result for the canonical 50,000 QAR / 3-execution scenario, so that I can verify the formula is implemented correctly.
+**User Story:** As a system operator, I want the USDT-based fulfillment calculation to produce the correct result for the canonical scenario, so that I can verify the formulas are implemented correctly.
 
 #### Acceptance Criteria
 
-1. WHEN three Order_Executions are inserted against a 50,000 QAR Parent_Order with amounts and rates that yield a weighted average of 13.385, THEN THE Aggregation_Layer SHALL compute `weighted_avg_fx = 13.385`.
-2. WHEN the three executions collectively cover the full 50,000 QAR, THEN THE Aggregation_Layer SHALL set `fulfillment_status = 'fully_fulfilled'`.
-3. WHEN the three executions collectively cover the full 50,000 QAR, THEN THE Aggregation_Layer SHALL set `remaining_qar = 0`.
-4. WHEN the three executions collectively cover the full 50,000 QAR, THEN THE Aggregation_Layer SHALL set `progress_percent = 100`.
+1. WHEN a Parent_Order is created with `received_qar = 20,000` and `usdt_qar_rate = 3.8`, THEN THE System SHALL compute `required_usdt = 5,263.157895` (20,000 / 3.8).
+2. WHEN a phase is entered with `executed_egp = 120,000` and `egp_per_usdt = 53`, THEN THE System SHALL compute `phase_usdt = 2,264.150943` (120,000 / 53).
+3. WHEN a phase is entered with `executed_egp = 120,000` and `egp_per_usdt = 53` against a parent with `usdt_qar_rate = 3.8`, THEN THE System SHALL compute `phase_consumed_qar = 8,603.773585` (2,264.150943 × 3.8).
+4. WHEN a phase is entered with `executed_egp = 120,000` and `phase_consumed_qar = 8,603.773585`, THEN THE System SHALL compute `phase_qar_egp_fx = 13.948` (120,000 / 8,603.773585).
+5. WHEN the single phase above is the only completed phase, THEN THE Aggregation_Layer SHALL compute `progress_percent = 43.02` (2,264.150943 / 5,263.157895 × 100).
+6. WHEN the single phase above is the only completed phase, THEN THE Aggregation_Layer SHALL set `fulfillment_status = 'partially_fulfilled'`.
 
 ---
 
-### Requirement 6: Expand/Collapse UI for Parent Orders
+### Requirement 6: Single Client Card per Order with Expand/Collapse and Realtime Updates
 
-**User Story:** As a customer, I want to expand a parent order row to see its individual child executions, so that I can review the details of each partial fill.
+**User Story:** As a customer, I want to see exactly one compact card per parent order that groups all partial executions, with an expandable section for phase details showing the new USDT-based fields, and I want the card to update in realtime when new phases are added — without page refresh and without duplicate notifications.
 
 #### Acceptance Criteria
 
-1. THE Customer_Portal SHALL render each Parent_Order as a collapsed row showing the Parent_Order_Summary (fulfilled amount, remaining amount, weighted average FX, fulfillment status, progress).
-2. WHEN a user expands a Parent_Order row, THE Customer_Portal SHALL render the Execution_Table showing all child Order_Executions for that parent.
-3. WHEN a user collapses a Parent_Order row, THE Customer_Portal SHALL hide the Execution_Table.
-4. THE Execution_Table SHALL render each Order_Execution row with: sequence number, sold QAR amount, FX rate, EGP received, market type, status, and executed-at timestamp.
-5. THE Customer_Portal SHALL render the Execution_Table lazily — only when the user expands the row.
-6. THE Customer_Portal SHALL subscribe to Supabase realtime events on `order_executions` filtered by `parent_order_id` and update the displayed summary when new executions are inserted.
-7. WHEN the Aggregation_Layer recomputes after a new execution, THE Customer_Portal SHALL reflect the updated Parent_Order_Summary without a full page reload.
+1. THE Customer_Portal SHALL render each Parent_Order as a single compact Client_Card showing the Parent_Order_Summary: total received QAR, total received EGP, total fulfilled USDT, required USDT, progress %, weighted average QAR→EGP FX, and order status.
+2. WHEN a user expands a Client_Card, THE Customer_Portal SHALL render the Execution_Table showing all child phases for that parent inside the same card as an expandable section.
+3. WHEN a user collapses a Client_Card, THE Customer_Portal SHALL hide the Execution_Table.
+4. THE Execution_Table SHALL render each phase row with: phase number (sequence_number), consumed QAR (`phase_consumed_qar`), received EGP (`executed_egp`), QAR→EGP FX rate (`phase_qar_egp_fx`), and completion status.
+5. THE Customer_Portal SHALL render the Execution_Table lazily — only when the user expands the card.
+6. THE Customer_Portal SHALL subscribe to Supabase Realtime_Subscription events on `order_executions` filtered by `parent_order_id` and update the displayed summary when new phases are inserted.
+7. WHEN the Aggregation_Layer recomputes after a new phase, THE Customer_Portal SHALL reflect the updated Parent_Order_Summary without a full page reload.
+8. THE Customer_Portal SHALL NOT render multiple Client_Cards for the same Parent_Order — all phases for a given `parent_order_id` SHALL be grouped into exactly one Client_Card.
+9. THE Customer_Portal SHALL group orders by `parent_order_id` before rendering, ensuring deduplication at the data layer.
+10. THE Client_Card summary SHALL display all values as Derived_Aggregates computed from persisted child phase snapshot rows — never from manually entered or cached parent-level values.
+11. WHEN a new phase is added to a Parent_Order, THE System SHALL execute the following sequence without page refresh: (a) save the phase to the database, (b) recalculate all parent aggregates from persisted phase snapshots, (c) update the Parent_Order record with new aggregates, (d) push the update to the client view via Realtime_Subscription, (e) send a Notification to the client.
+12. THE System SHALL prevent duplicate Notifications — WHEN multiple realtime events arrive for the same phase insert, THE System SHALL deliver exactly one Notification to the client.
+13. WHEN a Notification is sent for a new phase, THE Customer_Portal SHALL display a toast message indicating the order has been updated.
+14. THE Customer_Portal SHALL use the existing Supabase realtime subscription system for all push updates — no new transport mechanism shall be introduced.
+15. THE Client_Card SHALL display the phase count (number of completed phases) alongside the summary values.
 
 ---
 
@@ -213,5 +253,24 @@ All new behavior is additive. No existing pricing engine, settlement engine, mer
 3. THE System SHALL NOT modify any merchant portal behavior as part of this feature.
 4. THE System SHALL NOT modify any ledger posting logic as part of this feature.
 5. THE System SHALL NOT modify any accounting rules as part of this feature.
-6. THE `order_executions` table SHALL store the FX rate as a merchant-supplied value and SHALL NOT read from or write to the pricing engine.
-7. THE System SHALL add `destination_cash_account_id` to `customer_orders` as a new nullable column without altering existing columns or constraints.
+6. THE `order_executions` table SHALL store the EGP/USDT rate as a merchant-supplied value and SHALL NOT read from or write to the pricing engine.
+7. THE System SHALL add `usdt_qar_rate`, `required_usdt`, and `destination_cash_account_id` to `customer_orders` as new nullable columns without altering existing columns or constraints.
+
+---
+
+### Requirement 12: Data Consistency Guarantees
+
+**User Story:** As a system operator, I want the system to guarantee that parent order values always equal the sum of child phase snapshots, so that no hidden totals, cached mismatched values, or stale aggregates are ever displayed to the client.
+
+#### Acceptance Criteria
+
+1. THE System SHALL enforce the invariant: parent order `total_egp` SHALL always equal `SUM(all child phase executed_egp)` for phases with `status = 'completed'`.
+2. THE System SHALL enforce the invariant: parent order `total_consumed_qar` SHALL always equal `SUM(all child phase phase_consumed_qar)` for phases with `status = 'completed'`.
+3. THE System SHALL enforce the invariant: parent order `weighted_avg_fx` SHALL always equal `total_egp / total_consumed_qar` when at least one completed phase exists.
+4. THE System SHALL enforce the invariant: parent order `progress` SHALL always equal `total_fulfilled_usdt / required_usdt`.
+5. THE System SHALL never display a state where `submitted_total ≠ SUM(phase snapshots)` — if a manually entered parent total exists and differs from the sum of child phase snapshots, THE System SHALL display the derived sum, not the manually entered value.
+6. THE System SHALL NOT cache parent-level aggregate values independently of child phase data — all displayed aggregates SHALL be recomputed from persisted phase snapshot rows on every read or realtime event.
+7. THE System SHALL NOT store hidden totals that could diverge from child phase sums — any stored parent-level aggregate SHALL be treated as a derived cache that is overwritten on every phase insert, update, or delete.
+8. WHEN a phase is inserted, updated, or deleted, THE System SHALL immediately recompute all parent-level aggregates from the current set of persisted child phase snapshots.
+9. THE System SHALL ensure that all values displayed in the Client_Card (total received QAR, total received EGP, total fulfilled USDT, required USDT, weighted average FX, progress %, fulfillment status) come from persisted child phase snapshot data — never from a separate manually entered field on the parent order.
+10. IF a discrepancy is detected between a stored parent total and the computed sum of child phase snapshots, THEN THE System SHALL use the computed sum and log the discrepancy for investigation.

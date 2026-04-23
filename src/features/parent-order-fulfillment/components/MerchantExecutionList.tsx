@@ -1,7 +1,6 @@
 import { useOrderExecutions } from '../hooks/useOrderExecutions';
 import { useParentOrderSummary } from '../hooks/useParentOrderSummary';
 import { Loader2 } from 'lucide-react';
-import { formatFxRateDisplay } from '@/lib/currency-locale';
 
 interface Props {
   parentOrderId: string;
@@ -24,47 +23,47 @@ export function MerchantExecutionList({ parentOrderId, language = 'en' }: Props)
   if (executions.length === 0) {
     return (
       <div className="text-xs text-muted-foreground italic">
-        No executions yet
+        No phases yet
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      {/* Compact execution chips */}
+      {/* Compact phase chips */}
       <div className="flex flex-wrap gap-1.5">
-        {executions.map((execution) => (
+        {executions.map((exec) => (
           <div
-            key={execution.id}
+            key={exec.id}
             className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-card px-2 py-1 text-xs"
           >
             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
-              {execution.sequence_number}
+              {exec.sequence_number}
             </span>
-            <span className="font-semibold">{execution.sold_qar_amount.toFixed(0)}</span>
+            <span className="font-semibold text-emerald-600">{(exec.executed_egp ?? exec.egp_received_amount ?? 0).toFixed(0)} EGP</span>
             <span className="text-muted-foreground">@</span>
-            <span className="font-medium">{execution.fx_rate_qar_to_egp.toFixed(4)}</span>
+            <span className="font-medium">{(exec.egp_per_usdt ?? 0).toFixed(1)}</span>
             <span className="text-muted-foreground">→</span>
-            <span className="font-semibold text-emerald-600">{execution.egp_received_amount.toFixed(0)}</span>
+            <span className="font-semibold">{(exec.phase_consumed_qar ?? exec.sold_qar_amount ?? 0).toFixed(0)} QAR</span>
           </div>
         ))}
       </div>
 
       {/* Compact summary */}
       {summary && (
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-3 text-xs flex-wrap">
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground">Progress:</span>
-            <span className="font-semibold text-primary">{summary.progress_percent.toFixed(0)}%</span>
+            <span className="font-semibold text-primary">{(summary.progress_percent ?? 0).toFixed(0)}%</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-muted-foreground">Fulfilled:</span>
-            <span className="font-semibold">{summary.fulfilled_qar.toFixed(0)}/{summary.parent_qar_amount.toFixed(0)}</span>
+            <span className="text-muted-foreground">USDT:</span>
+            <span className="font-semibold">{(summary.total_fulfilled_usdt ?? 0).toFixed(0)}/{(summary.required_usdt ?? 0).toFixed(0)}</span>
           </div>
-          {summary.remaining_qar > 0 && (
+          {(summary.remaining_usdt ?? 0) > 0 && (
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Remaining:</span>
-              <span className="font-semibold text-amber-600">{summary.remaining_qar.toFixed(0)}</span>
+              <span className="font-semibold text-amber-600">{(summary.remaining_usdt ?? 0).toFixed(0)} USDT</span>
             </div>
           )}
           {summary.weighted_avg_fx && (

@@ -21,7 +21,10 @@ import {
 import { formatCustomerDate, formatCustomerNumber } from '@/features/customer/customer-portal';
 import { getP2PRates } from '@/lib/p2p-rates';
 import { ParentOrderCard } from '@/features/parent-order-fulfillment/components/ParentOrderCard';
+import { PhasedClientOrderCard } from '@/features/parent-order-fulfillment/components/PhasedClientOrderCard';
 import { MobileInstallBanner } from '@/features/parent-order-fulfillment/components/MobileInstallBanner';
+import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
+import { useOrderExecutions } from '@/features/parent-order-fulfillment/hooks/useOrderExecutions';
 
 function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string; date: string; orders: WorkflowOrder[] }[] {
   const map = new Map<string, WorkflowOrder[]>();
@@ -462,6 +465,89 @@ export default function CustomerOrdersPage() {
                 };
 
                 if (isMobile) {
+                  // ── PHASED ORDER: render single integrated card ──
+                  const isPhasedOrder = order.fulfillment_mode === 'phased';
+                  if (isPhasedOrder) {
+                    const phasedActions = (canApprove || canReject || canEdit) ? (
+                      isEditing ? (
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-medium tracking-wide text-slate-400">
+                            {L('New amount', 'المبلغ الجديد')}
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={editAmount}
+                              onChange={e => setEditAmount(e.target.value)}
+                              placeholder={String(order.amount)}
+                              className="h-9 flex-1 rounded-xl border border-white/10 bg-[#0b1224] px-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/30"
+                            />
+                            <button
+                              onClick={() => editMutation.mutate({ order })}
+                              disabled={editMutation.isPending}
+                              className="flex h-9 items-center justify-center rounded-xl bg-sky-500/15 px-3 text-xs font-semibold text-sky-300 disabled:opacity-50"
+                            >
+                              {editMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : L('Update', 'تحديث')}
+                            </button>
+                            <button
+                              onClick={() => { setEditingId(null); setEditAmount(''); }}
+                              className="flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/0 px-3 text-xs font-semibold text-slate-300"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {canApprove && (
+                            <button
+                              onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                              disabled={isActioning}
+                              className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 disabled:opacity-50"
+                            >
+                              {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                              {L('Approve', 'موافقة')}
+                            </button>
+                          )}
+                          {canReject && (
+                            <button
+                              onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
+                              disabled={isActioning}
+                              className="flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-rose-300 disabled:opacity-50"
+                            >
+                              {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                              {L('Reject', 'رفض')}
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button
+                              onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
+                              className="rounded-full border border-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300"
+                            >
+                              {L('Edit', 'تعديل')}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    ) : undefined;
+
+                    return (
+                      <PhasedClientOrderCard
+                        key={order.id}
+                        orderId={order.id}
+                        parentQarAmount={order.amount}
+                        sendCurrency={order.send_currency || 'QAR'}
+                        receiveCurrency={order.receive_currency || 'EGP'}
+                        workflowStatus={order.workflow_status}
+                        lang={lang}
+                        createdAt={order.created_at}
+                        note={order.note}
+                        actions={phasedActions}
+                      />
+                    );
+                  }
+
+                  // ── NON-PHASED ORDER: default mobile card ──
                   const statusTone = {
                     pending_customer_approval: {
                       card: 'border-amber-500/18 bg-[#0d1730] shadow-[0_0_0_1px_rgba(245,158,11,0.08)]',
@@ -624,6 +710,78 @@ export default function CustomerOrdersPage() {
 
                 return (
                   <div key={order.id} className="space-y-2">
+                  {order.fulfillment_mode === 'phased' ? (
+                    <PhasedClientOrderCard
+                      orderId={order.id}
+                      parentQarAmount={order.amount}
+                      sendCurrency={order.send_currency || 'QAR'}
+                      receiveCurrency={order.receive_currency || 'EGP'}
+                      workflowStatus={order.workflow_status}
+                      lang={lang}
+                      createdAt={order.created_at}
+                      note={order.note}
+                      actions={(canApprove || canReject || canEdit) ? (
+                        isEditing ? (
+                          <div className="space-y-2">
+                            <label className="block text-xs font-medium text-muted-foreground">{L('New amount', 'المبلغ الجديد')}</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                value={editAmount}
+                                onChange={e => setEditAmount(e.target.value)}
+                                placeholder={String(order.amount)}
+                                className="h-9 flex-1 rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                              />
+                              <button
+                                onClick={() => editMutation.mutate({ order })}
+                                disabled={editMutation.isPending}
+                                className="rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                              >
+                                {editMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : L('Update', 'تحديث')}
+                              </button>
+                              <button
+                                onClick={() => { setEditingId(null); setEditAmount(''); }}
+                                className="rounded-lg border border-border/50 px-4 text-sm font-semibold hover:bg-muted"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {canApprove && (
+                              <button
+                                onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                                disabled={isActioning}
+                                className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/25 disabled:opacity-50"
+                              >
+                                {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                {L('Approve', 'موافقة')}
+                              </button>
+                            )}
+                            {canReject && (
+                              <button
+                                onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
+                                disabled={isActioning}
+                                className="flex items-center gap-1.5 rounded-lg bg-red-500/15 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-500/25 disabled:opacity-50"
+                              >
+                                {isActioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                                {L('Reject', 'رفض')}
+                              </button>
+                            )}
+                            {canEdit && (
+                              <button
+                                onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
+                                className="rounded-lg border border-border/50 px-3 py-2 text-xs font-semibold hover:bg-muted"
+                              >
+                                {L('Edit', 'تعديل')}
+                              </button>
+                            )}
+                          </div>
+                        )
+                      ) : undefined}
+                    />
+                  ) : (
                   <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
                     <div className="p-3 sm:p-4">
                       {/* Status Badge */}
@@ -748,8 +906,7 @@ export default function CustomerOrdersPage() {
                       )}
                     </div>
                   </div>
-                  {/* Parent order fulfillment card — realtime subscription handled inside hook (Req 6.1, 6.6, 6.7) */}
-                  <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} fulfillmentMode={order.fulfillment_mode} />
+                  )}
                   </div>
                 );
               })}

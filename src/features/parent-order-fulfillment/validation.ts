@@ -1,5 +1,6 @@
 /**
  * Validation functions for the Parent Order Fulfillment feature.
+ * Updated for USDT-based phased order model.
  *
  * All functions are pure — no side effects, no I/O.
  */
@@ -7,17 +8,42 @@
 import type { CashAccount } from './types';
 import type { CashAccountValidationResult } from './types';
 
-// ── Task 5.1: Execution Insert Validation ────────────────────────────
+// ── Phase Entry Validation (USDT-based) ──────────────────────────────
 
 /**
- * Validates a proposed order execution before it is inserted.
+ * Validates a proposed phase entry before it is inserted.
  *
- * Checks (in order):
- * 1. `sold_qar_amount` must be > 0
- * 2. `fx_rate_qar_to_egp` must be > 0
- * 3. `sold_qar_amount` must not exceed the remaining unfulfilled amount
- * 4. `egp_received_amount` must equal `sold_qar_amount × fx_rate_qar_to_egp` within ±0.001
+ * Inputs: executed_egp, egp_per_usdt
+ * Checks overfill in USDT space: phase_usdt must not exceed remaining_usdt.
  */
+export function validatePhaseInsert(
+  phase: {
+    executed_egp: number;
+    egp_per_usdt: number;
+  },
+  requiredUsdt: number,
+  currentFulfilledUsdt: number,
+): { valid: boolean; reason?: string } {
+  if (phase.executed_egp == null || isNaN(phase.executed_egp) || phase.executed_egp <= 0) {
+    return { valid: false, reason: 'invalid_amount' };
+  }
+
+  if (phase.egp_per_usdt == null || isNaN(phase.egp_per_usdt) || phase.egp_per_usdt <= 0) {
+    return { valid: false, reason: 'invalid_rate' };
+  }
+
+  const phaseUsdt = phase.executed_egp / phase.egp_per_usdt;
+  const remainingUsdt = requiredUsdt - currentFulfilledUsdt;
+
+  if (phaseUsdt > remainingUsdt + 0.01) {
+    return { valid: false, reason: 'amount_exceeds_remaining' };
+  }
+
+  return { valid: true };
+}
+
+// ── Legacy: Execution Insert Validation (QAR-based, kept for compat) ─
+
 export function validateExecutionInsert(
   execution: {
     sold_qar_amount: number;
@@ -48,18 +74,8 @@ export function validateExecutionInsert(
   return { valid: true };
 }
 
-// ── Task 6.1: Cash Account Acceptance Validation ─────────────────────
+// ── Cash Account Acceptance Validation ───────────────────────────────
 
-/**
- * Validates that a selected cash account is eligible to receive EGP proceeds
- * when a customer accepts an order.
- *
- * Checks (in order):
- * 1. `accountId` must be non-null and non-empty
- * 2. The account must exist in the provided `accounts` list (ownership check)
- * 3. The account's currency must match `expectedCurrency`
- * 4. The account must be active
- */
 export function validateCashAccountForAcceptance(
   accountId: string | null,
   userId: string,

@@ -50,6 +50,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   const [customFxRate, setCustomFxRate] = useState(false);
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('none');
   const [fulfillmentMode, setFulfillmentMode] = useState<'complete' | 'phased'>('complete');
+  const [usdtQarRate, setUsdtQarRate] = useState('3.8');
   const [note, setNote] = useState('');
   const [submitResult, setSubmitResult] = useState<{
     kind: 'success' | 'error';
@@ -158,6 +159,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         note: note || null,
         merchantCashAccountId: merchantCashAccountId === 'none' ? null : merchantCashAccountId,
         fulfillmentMode,
+        usdtQarRate: fulfillmentMode === 'phased' && usdtQarRate ? parseFloat(usdtQarRate) : null,
       });
 
       return order;
@@ -252,6 +254,29 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               <div className="text-[11px] opacity-80">Add executions incrementally</div>
             </button>
           </div>
+          {/* USDT/QAR Rate — only for phased mode */}
+          {fulfillmentMode === 'phased' && (
+            <div className="space-y-1.5 pt-1 border-t border-blue-500/10">
+              <label className="text-[10px] font-medium text-blue-600">USDT/QAR Rate</label>
+              <div className="flex items-center gap-2">
+                <input
+                  value={usdtQarRate}
+                  onChange={e => setUsdtQarRate(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="3.80"
+                  className="h-9 w-28 rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <span className="text-xs text-muted-foreground">1 USDT = ? QAR</span>
+              </div>
+              {amount && usdtQarRate && parseFloat(usdtQarRate) > 0 && (
+                <div className="rounded-lg bg-blue-500/10 px-3 py-2 text-xs text-blue-700">
+                  Required USDT: <strong>{(parseFloat(amount) / parseFloat(usdtQarRate)).toFixed(2)}</strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* FX Rate with Live Market Data */}
@@ -426,6 +451,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               setCustomFxRate(false);
               setMerchantCashAccountId('none');
               setFulfillmentMode('complete');
+              setUsdtQarRate('3.8');
               setNote('');
               setSubmitResult(null);
               onClose();
@@ -459,17 +485,18 @@ function PhasedOrderExecutionSection({ orderId }: { orderId: string }) {
       <MerchantExecutionList parentOrderId={orderId} />
 
       {/* Add Execution Form - Inline single row */}
-      {summary && summary.remaining_qar > 0 && (
+      {summary && (summary.remaining_usdt ?? summary.remaining_qar ?? 0) > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-2 py-1.5">
           <span className="text-xs font-medium text-primary">Add:</span>
           <MerchantAddExecutionForm
             parentOrderId={orderId}
-            remainingQar={summary.remaining_qar}
+            remainingUsdt={summary.remaining_usdt ?? 0}
+            usdtQarRate={summary.usdt_qar_rate ?? 0}
           />
         </div>
       )}
 
-      {summary && summary.remaining_qar === 0 && (
+      {summary && (summary.remaining_usdt ?? summary.remaining_qar ?? 0) <= 0 && summary.fill_count > 0 && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-center text-xs font-medium text-emerald-700">
           ✓ Fully fulfilled
         </div>
