@@ -399,19 +399,33 @@ export async function getCashAccountsForUser(userId: string): Promise<CashAccoun
 
 /**
  * Get cash accounts for a merchant.
+ * Queries directly instead of using RPC to avoid PostgREST schema cache issues.
  */
 export async function getMerchantCashAccounts(merchantId: string): Promise<CashAccount[]> {
   if (!merchantId) return [];
 
-  const { data, error } = await supabase.rpc('get_merchant_cash_accounts', {
-    p_merchant_id: merchantId,
-  });
+  const { data, error } = await supabase
+    .from('cash_accounts')
+    .select('id, user_id, name, currency, type, status, created_at, updated_at')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
 
   if (error) {
-    console.warn('[getMerchantCashAccounts] RPC error:', error.message);
+    console.warn('[getMerchantCashAccounts] Query error:', error.message);
     return [];
   }
-  return (data ?? []) as CashAccount[];
+
+  if (!data || data.length === 0) return [];
+
+  const { data: merchantProfile } = await supabase
+    .from('merchant_profiles')
+    .select('user_id')
+    .eq('merchant_id', merchantId)
+    .single();
+
+  if (!merchantProfile) return [];
+
+  return (data.filter((ca: any) => ca.user_id === merchantProfile.user_id) ?? []) as CashAccount[];
 }
 
 /**
