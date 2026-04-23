@@ -757,6 +757,7 @@
     max-width: 100%;
     overflow-x: hidden;
     box-sizing: border-box;
+    overscroll-behavior-x: none;
   }
   /* Nuclear: every descendant must respect box model */
   .tracker-root.orders-mobile-root * {
