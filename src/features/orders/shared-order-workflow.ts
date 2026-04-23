@@ -283,6 +283,8 @@ const WORKFLOW_FIELDS = [
   'edited_from_order_id',
   'fx_rate',
   'fulfillment_mode',
+  'usdt_qar_rate',
+  'required_usdt',
   'rate',
   'total',
   'final_rate',
@@ -334,7 +336,8 @@ export async function listSharedOrdersForActor(params: {
     let q = supabase
       .from('customer_orders')
       .select(fields)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
     if (params.merchantId) q = q.eq('merchant_id', params.merchantId);
     if (params.customerUserId) q = q.eq('customer_user_id', params.customerUserId);
     return q;
