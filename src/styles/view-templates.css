@@ -274,8 +274,8 @@
   /* Minimal edge padding when edge-to-edge mobile roots are active */
   .app-page-shell:has(.orders-mobile-root),
   .app-page-shell:has(.stock-mobile-root) {
-    padding-left: 1px !important;
-    padding-right: 1px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 
   .layout-flux .grid,

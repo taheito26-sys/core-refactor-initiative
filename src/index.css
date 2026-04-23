@@ -298,8 +298,8 @@ select:focus {
   /* Minimal edge padding when page uses its own edge-to-edge mobile root */
   .app-page-shell:has(.orders-mobile-root),
   .app-page-shell:has(.stock-mobile-root) {
-    padding-left: 1px;
-    padding-right: 1px;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 
   .app-page-content {
