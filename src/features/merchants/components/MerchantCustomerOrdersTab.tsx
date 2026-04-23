@@ -31,8 +31,7 @@ import { getQatarEgyptGuideRate } from '@/features/customer/customer-market';
 import { MerchantAddExecutionForm } from '@/features/parent-order-fulfillment/components/MerchantAddExecutionForm';
 import { MerchantExecutionList } from '@/features/parent-order-fulfillment/components/MerchantExecutionList';
 import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
-
-// ── Place Order for Client Modal ──
+// -- Place Order for Client Modal --
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   merchantId: string; userId: string; onClose: () => void;
 }) {
@@ -189,7 +188,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border/40 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">New Order</span>
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">QAR → EGP</span>
+            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">QAR ? EGP</span>
           </div>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
@@ -197,13 +196,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
 
-          {/* Client + Amount — side by side on wider screens */}
+          {/* Client + Amount � side by side on wider screens */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Client</label>
               <select value={connId} onChange={e => setConnId(e.target.value)}
                 className="h-10 w-full rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
-                <option value="">Select client…</option>
+                <option value="">Select client�</option>
                 {connections.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
@@ -217,13 +216,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             </div>
           </div>
 
-          {/* FX Rate — always editable, no toggle */}
+          {/* FX Rate � always editable, no toggle */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">FX Rate (QAR → EGP)</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">FX Rate (QAR ? EGP)</label>
             {isRateLoading ? (
               <div className="flex items-center gap-2 h-10 px-3 rounded-lg border border-border/50 bg-card">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Loading…</span>
+                <span className="text-xs text-muted-foreground">Loading�</span>
               </div>
             ) : (
               <div className="relative">
@@ -282,7 +281,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               </button>
             </div>
 
-            {/* USDT/QAR Rate — only for phased */}
+            {/* USDT/QAR Rate � only for phased */}
             {fulfillmentMode === 'phased' && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="relative flex-1">
@@ -312,7 +311,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
-              placeholder="Add a note…"
+              placeholder="Add a note�"
               rows={2}
               className="w-full rounded-lg border border-border/50 bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
             />
@@ -320,7 +319,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
           {/* Cash Account */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">💰 Cash Account</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">?? Cash Account</label>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -346,7 +345,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                       : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
                   )}
                 >
-                  {account.name} · {account.currency}
+                  {account.name} � {account.currency}
                 </button>
               ))}
             </div>
@@ -425,7 +424,7 @@ function PhasedOrderExecutionSection({ orderId, orderAmount, orderUsdtQarRate }:
       {/* Execution List - Compact chips */}
       <MerchantExecutionList parentOrderId={orderId} />
 
-      {/* Add Execution Form — show unless fully fulfilled */}
+      {/* Add Execution Form � show unless fully fulfilled */}
       {!isFulfilled && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-2 py-1.5">
           <span className="text-xs font-medium text-primary">Add:</span>
@@ -439,7 +438,7 @@ function PhasedOrderExecutionSection({ orderId, orderAmount, orderUsdtQarRate }:
 
       {isFulfilled && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-center text-xs font-medium text-emerald-700">
-          ✓ Fully fulfilled
+          ? Fully fulfilled
         </div>
       )}
     </div>
@@ -478,116 +477,108 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       )
       .subscribe();
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [queryClient, resolvedMerchantId]);
+    return () => { void supabase.removeChannel(channel); };
+  }, [resolvedMerchantId, queryClient]);
 
-  const customerIds = useMemo(() => [...new Set(orders.map((o) => o.customer_user_id))], [orders]);
+  const customerIds = useMemo(() => [...new Set(orders.map(o => o.customer_user_id))], [orders]);
+
   const { data: customerConnections = [] } = useQuery({
-    queryKey: ['merchant-customer-connections', customerIds, resolvedMerchantId],
+    queryKey: ['merchant-customer-connections', resolvedMerchantId, customerIds],
     queryFn: async () => {
-      if (customerIds.length === 0 || !resolvedMerchantId) return [];
-      const { data, error } = await supabase
+      if (!resolvedMerchantId || customerIds.length === 0) return [];
+      const { data } = await supabase
         .from('customer_merchant_connections')
-        .select('customer_user_id, nickname, created_at, status')
+        .select('id, customer_user_id, nickname')
         .eq('merchant_id', resolvedMerchantId)
-        .neq('status', 'blocked')
         .in('customer_user_id', customerIds);
-      if (error) throw error;
-      const userIds = [...new Set((data ?? []).map((row) => row.customer_user_id))];
-      const { data: profiles } = await supabase
-        .from('customer_profiles')
-        .select('user_id, display_name, phone, region, country')
-        .in('user_id', userIds);
-      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
-      return (data ?? []).map((row) => ({
-        ...row,
-        profile: profileMap.get(row.customer_user_id) ?? null,
-      }));
+      return data ?? [];
+    },
+    enabled: !!resolvedMerchantId && customerIds.length > 0,
+  });
+
+  const { data: customerProfiles = [] } = useQuery({
+    queryKey: ['customer-profiles', customerIds],
+    queryFn: async () => {
+      if (customerIds.length === 0) return [];
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', customerIds);
+      return data ?? [];
     },
     enabled: customerIds.length > 0,
   });
 
   const customerMap = useMemo(() => {
-    const map = new Map<string, any>();
-    customerConnections.forEach((connection: any) => map.set(connection.customer_user_id, connection));
+    const map = new Map<string, { nickname: string | null; profile: { display_name: string | null } | null }>();
+    for (const id of customerIds) {
+      const conn = customerConnections.find((c: any) => c.customer_user_id === id);
+      const profile = customerProfiles.find((p: any) => p.id === id);
+      map.set(id, {
+        nickname: conn?.nickname ?? null,
+        profile: profile ? { display_name: profile.display_name } : null,
+      });
+    }
     return map;
-  }, [customerConnections]);
+  }, [customerIds, customerConnections, customerProfiles]);
 
   const approveMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
-      if (!resolvedMerchantId) throw new Error('Merchant not found');
-      const result = await respondSharedOrder({
-        orderId: order.id,
-        actorRole: 'merchant',
-        action: 'approve',
-      });
-      return result;
+      return respondSharedOrder({ orderId: order.id, responderRole: 'merchant', action: 'approve' });
     },
     onSuccess: () => {
-      toast.success('Order approved');
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
+      setActioningId(null);
+      toast.success('Order approved');
     },
-    onError: (error: any) => {
-      toast.error(error?.message ?? 'Failed to approve order');
+    onError: (e: any) => {
+      setActioningId(null);
+      toast.error(e.message || 'Failed to approve');
     },
-    onSettled: () => setActioningId(null),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: async ({ order, reason }: { order: WorkflowOrder; reason?: string }) => {
-      if (!resolvedMerchantId) throw new Error('Merchant not found');
-      const result = await respondSharedOrder({
-        orderId: order.id,
-        actorRole: 'merchant',
-        action: 'reject',
-        reason,
-      });
-      return result;
+    mutationFn: async ({ order }: { order: WorkflowOrder }) => {
+      return respondSharedOrder({ orderId: order.id, responderRole: 'merchant', action: 'reject' });
     },
     onSuccess: () => {
-      toast.success('Order rejected');
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
+      setActioningId(null);
+      toast.success('Order rejected');
     },
-    onError: (error: any) => {
-      toast.error(error?.message ?? 'Failed to reject order');
+    onError: (e: any) => {
+      setActioningId(null);
+      toast.error(e.message || 'Failed to reject');
     },
-    onSettled: () => setActioningId(null),
   });
 
   const editMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
-      if (!userId) throw new Error('Merchant session missing');
-      const editedAmount = editAmount.trim() ? parseFloat(editAmount) : undefined;
-      const result = await editSharedOrder({
-        orderId: order.id,
-        actorRole: 'merchant',
-        amount: editedAmount,
-      });
-      return result;
+      const newAmount = parseFloat(editAmount);
+      if (!newAmount || newAmount <= 0) throw new Error('Enter a valid amount');
+      return editSharedOrder({ orderId: order.id, editorRole: 'merchant', newAmount });
     },
     onSuccess: () => {
-      toast.success('Order updated and sent back to customer');
+      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       setEditingId(null);
       setEditAmount('');
-      queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
+      toast.success('Order updated');
     },
-    onError: (error: any) => {
-      toast.error(error?.message ?? 'Failed to update order');
+    onError: (e: any) => {
+      toast.error(e.message || 'Failed to update');
     },
   });
 
   return (
-    <div style={{ marginLeft: -12, marginRight: -12 }}>
+    <div style={{ margin: '0 -12px' }}>
       {/* Header */}
-      <div className="flex items-center justify-between pb-3" style={{ paddingLeft: 12, paddingRight: 12 }}>
-        <h2 className="text-lg font-bold">Customer Orders</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px 12px' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9' }}>Customer Orders</div>
         <button
           onClick={() => setShowPlaceOrder(true)}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
         >
-          <Plus className="h-4 w-4" />
+          <Plus style={{ width: 14, height: 14 }} />
           New Order
         </button>
       </div>
@@ -601,12 +592,14 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       )}
 
       {isLoading ? (
-        <div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}>
+          <Loader2 style={{ width: 22, height: 22, color: '#64748b' }} className="animate-spin" />
+        </div>
       ) : orders.length === 0 ? (
-        <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">No orders yet</div>
+        <div style={{ textAlign: 'center', padding: '40px 16px', color: '#64748b', fontSize: 13 }}>No orders yet</div>
       ) : (
-        <div className="divide-y divide-white/5">
-          {orders.map((order) => {
+        <div>
+          {orders.map((order, idx) => {
             const customer = customerMap.get(order.customer_user_id);
             const isActioning = actioningId === order.id;
             const isEditing = editingId === order.id;
@@ -614,118 +607,132 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
             const canReject = canRejectOrder(order, 'merchant');
             const canEdit = canEditOrder(order, 'merchant');
             const isPhasedOrder = order.fulfillment_mode === 'phased';
-
             const customerName = customer?.profile?.display_name || customer?.nickname || 'Customer';
-
-            // Status badge config
-            const statusCfg: Record<string, { label: string; cls: string }> = {
-              pending_customer_approval: { label: 'بانتظار العميل', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-              pending_merchant_approval: { label: 'بانتظار التاجر', cls: 'bg-sky-500/20 text-sky-400 border-sky-500/30' },
-              approved: { label: 'تمت الموافقة', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-              rejected: { label: 'مرفوض', cls: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
-              cancelled: { label: 'ملغي', cls: 'bg-slate-500/20 text-slate-400 border-slate-500/30' },
-            };
-            const sc = statusCfg[order.workflow_status || 'cancelled'] || statusCfg.cancelled;
-
             const isApproved = order.workflow_status === 'approved';
-            const amountColor = isApproved ? 'text-emerald-400' : canApprove ? 'text-amber-400' : 'text-slate-300';
 
-            const dateLabel = new Date(order.created_at).toLocaleString('ar-EG', {
+            type SK = 'pending_customer_approval'|'pending_merchant_approval'|'approved'|'rejected'|'cancelled';
+            const STATUS: Record<SK, { label: string; color: string; bg: string }> = {
+              pending_customer_approval: { label: '??????? ??????', color: '#f59e0b', bg: 'rgba(245,158,11,0.13)' },
+              pending_merchant_approval: { label: '??????? ??????',  color: '#38bdf8', bg: 'rgba(56,189,248,0.13)' },
+              approved:                  { label: '??? ????????',    color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
+              rejected:                  { label: '?????',           color: '#f87171', bg: 'rgba(248,113,113,0.13)' },
+              cancelled:                 { label: '????',            color: '#94a3b8', bg: 'rgba(148,163,184,0.08)' },
+            };
+            const sc = STATUS[(order.workflow_status as SK) || 'cancelled'] || STATUS.cancelled;
+            const amtColor = isApproved ? '#34d399' : canApprove ? '#f59e0b' : '#e2e8f0';
+
+            const dateStr = new Date(order.created_at).toLocaleString('ar-EG', {
               month: 'numeric', day: 'numeric', year: 'numeric',
               hour: 'numeric', minute: '2-digit', hour12: true,
             });
 
             return (
-              <div key={order.id} className="bg-[#0d1117] py-3 space-y-2" style={{ paddingLeft: 12, paddingRight: 12 }}>
-                {/* Row 1: status badge (left) + customer name (right) */}
-                <div className="flex items-center justify-between">
-                  <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${sc.cls}`}>
-                    {isPhasedOrder ? `📦 ${sc.label}` : sc.label}
+              <div
+                key={order.id}
+                style={{
+                  background: '#0d1117',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                  borderBottom: idx === orders.length - 1 ? '1px solid rgba(255,255,255,0.06)' : undefined,
+                  padding: '12px',
+                }}
+              >
+                {/* Row 1: status pill + customer name */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700, color: sc.color, background: sc.bg }}>
+                    {isPhasedOrder ? `?? ${sc.label}` : sc.label}
                   </span>
-                  <span className="text-[13px] font-bold text-slate-100">{customerName}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9' }}>{customerName}</span>
                 </div>
 
-                {/* Row 2: balance label + date/time */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500">
-                    {order.send_currency} → {order.receive_country || order.receive_currency}
+                {/* Row 2: corridor + date */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: '#475569' }}>
+                    {order.send_currency || 'QAR'} ? {order.receive_country || order.receive_currency || 'EGP'}
+                    {order.revision_no > 1 && <span style={{ color: '#f59e0b', marginLeft: 6 }}>Rev {order.revision_no}</span>}
                   </span>
-                  <span className="text-[11px] text-slate-500 tabular-nums">{dateLabel}</span>
+                  <span style={{ fontSize: 11, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{dateStr}</span>
                 </div>
 
-                {/* Row 3: running balance (left) + amount (right) */}
-                <div className="flex items-center justify-between">
-                  <div className="text-right" dir="rtl">
-                    <span className="text-[11px] text-slate-500">الرصيد: </span>
-                    <span className="text-[15px] font-black tabular-nums text-slate-200">
-                      {order.amount.toLocaleString()}
-                    </span>
+                {/* Row 3: amount + fx rate */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: order.note ? 6 : 0 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>??????</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: amtColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                      {isApproved ? '+' : ''}{order.amount.toLocaleString()}
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginLeft: 4 }}>{order.send_currency || 'QAR'}</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-[15px] font-black tabular-nums ${amountColor}`}>
-                      {isApproved ? '+' : ''}{order.amount.toLocaleString()} {order.send_currency}
-                    </span>
-                  </div>
+                  {order.fx_rate && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>?????</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#7dd3fc', fontVariantNumeric: 'tabular-nums' }}>{order.fx_rate.toFixed(2)}</div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Row 4: note / description */}
-                {(order.note || order.fx_rate) && (
-                  <div className="text-[11px] text-slate-500 text-right" dir="rtl">
-                    {order.note
-                      ? order.note
-                      : order.fx_rate
-                      ? `${order.amount.toLocaleString()} ${order.send_currency} @ ${order.fx_rate.toFixed(2)}`
-                      : ''}
-                    {order.revision_no > 1 && ` · Rev ${order.revision_no}`}
-                  </div>
+                {/* Row 4: note */}
+                {order.note && (
+                  <div style={{ fontSize: 11, color: '#475569', marginBottom: 6, fontStyle: 'italic' }}>{order.note}</div>
                 )}
 
                 {/* Action buttons */}
                 {(canApprove || canReject || canEdit || isEditing) && (
-                  <div className="pt-1">
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                     {isEditing ? (
-                      <div className="flex gap-2">
+                      <div style={{ display: 'flex', gap: 6 }}>
                         <Input
                           type="number"
                           value={editAmount}
                           onChange={e => setEditAmount(e.target.value)}
                           placeholder={String(order.amount)}
-                          className="h-8 flex-1 text-xs bg-white/5 border-white/10"
+                          className="h-8 flex-1 text-xs"
+                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#f1f5f9' }}
                         />
                         <Button size="sm" variant="outline" onClick={() => editMutation.mutate({ order })} disabled={editMutation.isPending} className="h-8 text-xs">
-                          {editMutation.isPending ? <Loader2 className="h-3 w-3" /> : 'Update'}
+                          {editMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Update'}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditAmount(''); }} className="h-8 px-2">
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex flex-wrap gap-1.5">
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {canApprove && (
-                          <Button size="sm" onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }} disabled={isActioning} className="h-7 gap-1 text-[11px] bg-emerald-600 hover:bg-emerald-700">
-                            {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
-                            <Check className="h-3 w-3" />Approve
-                          </Button>
+                          <button
+                            onClick={() => { setActioningId(order.id); approveMutation.mutate({ order }); }}
+                            disabled={isActioning}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 8, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: isActioning ? 0.5 : 1 }}
+                          >
+                            {isActioning ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <Check style={{ width: 12, height: 12 }} />}
+                            Approve
+                          </button>
                         )}
                         {canReject && (
-                          <Button size="sm" variant="destructive" onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }} disabled={isActioning} className="h-7 gap-1 text-[11px]">
-                            {isActioning && <Loader2 className="h-3 w-3 animate-spin" />}
-                            <XCircle className="h-3 w-3" />Reject
-                          </Button>
+                          <button
+                            onClick={() => { setActioningId(order.id); rejectMutation.mutate({ order }); }}
+                            disabled={isActioning}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(248,113,113,0.15)', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: isActioning ? 0.5 : 1 }}
+                          >
+                            {isActioning ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> : <XCircle style={{ width: 12, height: 12 }} />}
+                            Reject
+                          </button>
                         )}
                         {canEdit && (
-                          <Button size="sm" variant="outline" onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }} className="h-7 text-[11px] border-white/10">
+                          <button
+                            onClick={() => { setEditingId(order.id); setEditAmount(String(order.amount)); }}
+                            style={{ background: 'rgba(255,255,255,0.06)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                          >
                             Edit
-                          </Button>
+                          </button>
                         )}
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Phased Order Execution */}
+                {/* Phased execution */}
                 {isPhasedOrder && (
-                  <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2">
+                  <div style={{ marginTop: 8, borderRadius: 10, border: '1px solid rgba(56,189,248,0.2)', background: 'rgba(56,189,248,0.04)', padding: '8px 10px' }}>
                     <PhasedOrderExecutionSection
                       orderId={order.id}
                       orderAmount={order.amount}
