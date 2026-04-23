@@ -27,6 +27,141 @@ import { MobileInstallBanner } from '@/features/parent-order-fulfillment/compone
 import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
 import { useOrderExecutions } from '@/features/parent-order-fulfillment/hooks/useOrderExecutions';
 
+// ── LinkCashModal — assign received EGP to a cash account ────────
+
+function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
+  orderId: string; egpAmount: number; receiveCurrency: string; lang: 'en' | 'ar'; onClose: () => void;
+}) {
+  const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
+  const { userId } = useAuth();
+  const qc = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState('bank');
+  const [newCurrency, setNewCurrency] = useState(receiveCurrency || 'EGP');
+
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ['c-cash-accounts', userId],
+    queryFn: async () => { if (!userId) return []; return getCashAccountsForUser(userId); },
+    enabled: !!userId,
+  });
+
+  const createAccMutation = useMutation({
+    mutationFn: async () => {
+      if (!userId || !newName.trim()) throw new Error(L('Enter account name', 'أدخل اسم الحساب'));
+      const { data, error } = await supabase.from('cash_accounts').insert({ user_id: userId, name: newName.trim(), type: newType, currency: newCurrency, status: 'active' }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['c-cash-accounts', userId] });
+      qc.invalidateQueries({ queryKey: ['customer-cash-accounts', userId] });
+      setSelectedId(data.id);
+      setCreating(false);
+      setNewName(''); setNewType('bank'); setNewCurrency(receiveCurrency || 'EGP');
+      toast.success(L('Account created', 'تم إنشاء الحساب'));
+    },
+    onError: (e: any) => toast.error(e?.message),
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedId || !userId) throw new Error(L('Select an account', 'اختر حساباً'));
+      const { error } = await supabase.from('cash_ledger').insert({
+        user_id: userId, account_id: selectedId, ts: Date.now(),
+        type: 'order_receipt', direction: 'in', amount: egpAmount,
+        currency: receiveCurrency || 'EGP',
+        note: L('Order receipt', 'استلام طلب'),
+        linked_entity_id: orderId, linked_entity_type: 'customer_order',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(L('Linked to cash account', 'تم الربط بالحساب النقدي'));
+      qc.invalidateQueries({ queryKey: ['customer-cash-ledger', userId] });
+      qc.invalidateQueries({ queryKey: ['customer-cash-accounts', userId] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.message),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-2xl bg-background flex flex-col" style={{ maxHeight: '80dvh' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border/40 shrink-0">
+          <div>
+            <p className="text-sm font-bold">{L('Link to Cash Account', 'ربط بحساب نقدي')}</p>
+            <p className="text-[10px] text-muted-foreground">{L('Credit', 'إضافة')} {egpAmount.toLocaleString()} {receiveCurrency}</p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-4 py-4 space-y-3">
+          {creating ? (
+            <div className="space-y-3">
+              <p className="text-sm font-bold">{L('New Account', 'حساب جديد')}</p>
+              <input autoFocus value={newName} onChange={e => setNewName(e.target.value)} placeholder={L('Account name', 'اسم الحساب')}
+                className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={newType} onChange={e => setNewType(e.target.value)} className="h-10 rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
+                  {[['bank','Bank','بنك'],['cash','Cash','نقد'],['mobile_wallet','Mobile Wallet','محفظة موبايل'],['other','Other','أخرى']].map(([v,en,ar]) => (
+                    <option key={v} value={v}>{lang === 'ar' ? ar : en}</option>
+                  ))}
+                </select>
+                <select value={newCurrency} onChange={e => setNewCurrency(e.target.value)} className="h-10 rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
+                  {['EGP','QAR','USD'].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setCreating(false)} className="flex-1 h-10 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted">{L('Back', 'رجوع')}</button>
+                <button onClick={() => createAccMutation.mutate()} disabled={createAccMutation.isPending} className="flex-1 h-10 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50">
+                  {createAccMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : L('Create', 'إنشاء')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {isLoading ? <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">{L('Select account to receive funds', 'اختر الحساب لاستلام الأموال')}</p>
+                  {accounts.map((acc: any) => (
+                    <button key={acc.id} type="button" onClick={() => setSelectedId(acc.id === selectedId ? null : acc.id)}
+                      className={cn('w-full text-left rounded-xl border px-4 py-3 transition-colors',
+                        acc.id === selectedId ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border/50 hover:border-primary/50')}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-sm">{acc.name}</p>
+                          <p className="text-xs text-muted-foreground">{acc.type} · {acc.currency}</p>
+                        </div>
+                        {acc.id === selectedId && <Check className="h-4 w-4 text-primary" />}
+                      </div>
+                    </button>
+                  ))}
+                  <button onClick={() => setCreating(true)}
+                    className="flex w-full items-center gap-2 rounded-xl border border-dashed border-border/50 px-4 py-2.5 text-xs text-muted-foreground hover:border-primary/40">
+                    <Plus className="h-3.5 w-3.5" />{L('Add new account', 'إضافة حساب جديد')}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {!creating && (
+          <div className="px-4 pb-6 pt-3 border-t border-border/40 shrink-0 flex gap-2">
+            <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted">{L('Cancel', 'إلغاء')}</button>
+            <button disabled={!selectedId || linkMutation.isPending} onClick={() => linkMutation.mutate()}
+              className="flex-1 h-11 rounded-xl bg-emerald-600 text-sm font-bold text-white disabled:opacity-50">
+              {linkMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : L('Link & Credit', 'ربط وإضافة')}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function groupByDay(orders: WorkflowOrder[], lang: 'en' | 'ar'): { label: string; date: string; orders: WorkflowOrder[] }[] {
   const map = new Map<string, WorkflowOrder[]>();
   for (const o of orders) {
@@ -283,6 +418,7 @@ export default function CustomerOrdersPage() {
   const [editAmount, setEditAmount] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null); // 'YYYY-MM' or null = all
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
+  const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
 
   const { data: connections = [] } = useQuery({
     queryKey: ['c-connections', userId],
@@ -758,6 +894,17 @@ export default function CustomerOrdersPage() {
                           )}
                         </div>
                       )}
+                      {/* Link to Cash — shown on approved orders */}
+                      {order.workflow_status === 'approved' && order.fx_rate && (
+                        <div className="mt-2 border-t border-white/5 pt-2">
+                          <button
+                            onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
+                            className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
+                          >
+                            💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {/* Parent order fulfillment card — realtime subscription handled inside hook (Req 6.1, 6.6, 6.7) */}
                     <ParentOrderCard parentOrderId={order.id} parentQarAmount={order.amount} fulfillmentMode={order.fulfillment_mode} />
@@ -836,6 +983,13 @@ export default function CustomerOrdersPage() {
                             )}
                           </div>
                         )
+                      ) : order.workflow_status === 'approved' ? (
+                        <button
+                          onClick={() => setLinkingOrder(order)}
+                          className="flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-500/20"
+                        >
+                          💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                        </button>
                       ) : undefined}
                     />
                   ) : (
@@ -961,6 +1115,17 @@ export default function CustomerOrdersPage() {
                           )}
                         </div>
                       )}
+                      {/* Link to Cash — shown on approved orders */}
+                      {order.workflow_status === 'approved' && order.fx_rate && (
+                        <div className="mt-3 pt-3 border-t border-border/30">
+                          <button
+                            onClick={() => setLinkingOrder(order)}
+                            className="flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-500/20"
+                          >
+                            💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   )}
@@ -984,6 +1149,17 @@ export default function CustomerOrdersPage() {
             setAcceptingOrder(null);
             qc.invalidateQueries({ queryKey: ['c-orders', userId] });
           }}
+        />
+      )}
+
+      {/* LinkCashModal — assign received EGP to a cash account on approved orders */}
+      {linkingOrder && (
+        <LinkCashModal
+          orderId={linkingOrder.id}
+          egpAmount={linkingOrder.fx_rate ? Math.round(linkingOrder.amount * linkingOrder.fx_rate) : 0}
+          receiveCurrency={linkingOrder.receive_currency ?? 'EGP'}
+          lang={lang}
+          onClose={() => setLinkingOrder(null)}
         />
       )}
     </div>
