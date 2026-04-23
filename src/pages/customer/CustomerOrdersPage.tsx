@@ -977,6 +977,7 @@ export default function CustomerOrdersPage() {
         <AcceptOrderModal
           orderId={acceptingOrder.id}
           receiveCurrency={acceptingOrder.receive_currency ?? 'EGP'}
+          egpAmount={acceptingOrder.fx_rate ? acceptingOrder.amount * acceptingOrder.fx_rate : null}
           lang={lang}
           onClose={() => setAcceptingOrder(null)}
           onSuccess={() => {

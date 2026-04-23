@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 interface AcceptOrderModalProps {
   orderId: string;
   receiveCurrency: string;
+  egpAmount?: number | null; // delivered EGP amount to credit to cash account
   lang?: 'en' | 'ar';
   onClose: () => void;
   onSuccess: () => void;
@@ -27,6 +28,7 @@ interface AcceptOrderModalProps {
 export function AcceptOrderModal({
   orderId,
   receiveCurrency,
+  egpAmount,
   lang = 'en',
   onClose,
   onSuccess,
@@ -69,7 +71,30 @@ export function AcceptOrderModal({
   const approveMutation = useMutation({
     mutationFn: async () => {
       if (!selectedId) throw new Error(L('Select a cash account first', 'اختر حساباً نقدياً أولاً'));
-      return respondSharedOrder({ orderId, actorRole: 'customer', action: 'approve' });
+
+      // 1. Approve the order
+      const result = await respondSharedOrder({ orderId, actorRole: 'customer', action: 'approve' });
+
+      // 2. Write cash ledger entry to credit the selected account
+      const creditAmount = egpAmount ?? (result as any)?.amount ?? 0;
+      if (creditAmount > 0 && userId) {
+        await supabase.from('cash_ledger').insert({
+          user_id: userId,
+          account_id: selectedId,
+          ts: Date.now(),
+          type: 'order_receipt',
+          direction: 'in',
+          amount: creditAmount,
+          currency: receiveCurrency || 'EGP',
+          note: `Order receipt`,
+          linked_entity_id: orderId,
+          linked_entity_type: 'customer_order',
+        });
+        qc.invalidateQueries({ queryKey: ['customer-cash-ledger', userId] });
+        qc.invalidateQueries({ queryKey: ['customer-cash-accounts', userId] });
+      }
+
+      return result;
     },
     onSuccess: () => {
       toast.success(L('Order approved', 'تمت الموافقة على الطلب'));
