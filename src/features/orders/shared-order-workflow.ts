@@ -285,6 +285,8 @@ const WORKFLOW_FIELDS = [
   'edited_from_order_id',
   'fx_rate',
   'fulfillment_mode',
+  'usdt_qar_rate',
+  'required_usdt',
   'rate',
   'total',
   'final_rate',
