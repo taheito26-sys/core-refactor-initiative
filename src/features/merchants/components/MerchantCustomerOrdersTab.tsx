@@ -47,7 +47,6 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   const [connId, setConnId] = useState('');
   const [amount, setAmount] = useState('');
   const [fxRate, setFxRate] = useState('');
-  const [customFxRate, setCustomFxRate] = useState(false);
   const [merchantCashAccountId, setMerchantCashAccountId] = useState('none');
   const [fulfillmentMode, setFulfillmentMode] = useState<'complete' | 'phased'>('complete');
   const [usdtQarRate, setUsdtQarRate] = useState('3.8');
@@ -59,7 +58,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   } | null>(null);
 
   // Load live FX rate with proper error handling
-  const { data: liveRate, isLoading: isRateLoading, isError: isRateError, refetch: refetchLiveRate } = useQuery({
+  const { data: liveRate, isLoading: isRateLoading, isError: isRateError } = useQuery({
     queryKey: ['live-fx-rate', sendCurrency, receiveCurrency],
     queryFn: async () => {
       const guide = await getQatarEgyptGuideRate();
@@ -75,10 +74,10 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
   // Auto-set FX rate on load
   useEffect(() => {
-    if (liveRate && liveRate.rate != null && !fxRate && !customFxRate) {
+    if (liveRate && liveRate.rate != null && !fxRate) {
       setFxRate(String(liveRate.rate));
     }
-  }, [liveRate, fxRate, customFxRate]);
+  }, [liveRate, fxRate]);
 
   // Load connected clients
   const { data: connections = [] } = useQuery({
@@ -126,21 +125,14 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
       let numFxRate: number | null = null;
 
-      if (customFxRate && fxRate) {
-        // User edited the rate
-        if (parseFloat(fxRate) <= 0)
-          throw new Error('Enter valid FX rate (QAR → EGP)');
-        numFxRate = parseFloat(fxRate);
-      } else if (fxRate) {
-        // Use whatever FX rate we have (from market or previously set)
+      if (fxRate && parseFloat(fxRate) > 0) {
         numFxRate = parseFloat(fxRate);
       } else if (liveRate?.rate != null) {
-        // Use the exact InstaPay V1 market value.
         numFxRate = liveRate.rate;
       }
 
       if (numFxRate == null || !Number.isFinite(numFxRate) || numFxRate <= 0) {
-        throw new Error('Live market rate unavailable');
+        throw new Error('Enter a valid FX rate');
       }
 
       const numAmount = parseFloat(amount);
@@ -382,7 +374,6 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                 setConnId('');
                 setAmount('');
                 setFxRate('');
-                setCustomFxRate(false);
                 setMerchantCashAccountId('none');
                 setFulfillmentMode('complete');
                 setUsdtQarRate('3.8');
