@@ -1,16 +1,18 @@
 ﻿import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, Calculator, ArrowRight } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, CheckCircle2, X, Wallet } from 'lucide-react';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   formatCustomerNumber, formatCustomerDate,
   listCustomerConnections,
 } from '@/features/customer/customer-portal';
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
-import { listSharedOrdersForActor, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
+import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
 import { getLocalizedCurrencyName, type CurrencyCode } from '@/lib/currency-locale';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,7 +57,6 @@ export default function CustomerHomePage() {
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
   const [calcAmount, setCalcAmount] = useState('');
-
   const { data: orders = [] } = useQuery<WorkflowOrder[]>({
     queryKey: ['c-dash-orders', userId],
     queryFn: async () => { if (!userId) return []; return await listSharedOrdersForActor({ customerUserId: userId }); },
@@ -72,38 +73,76 @@ export default function CustomerHomePage() {
   const guideRate = marketData?.guide?.rate ?? null;
   const egyptBuyAvg = marketData?.egypt?.buyAvg ?? null;
 
+  // Cash accounts — needed to prompt creation when receiving orders
+  const qc = useQueryClient();
+  const { data: cashAccounts = [] } = useQuery({
+    queryKey: ['c-cash-accounts-home', userId],
+    queryFn: async () => { if (!userId) return []; return getCashAccountsForUser(userId); },
+    enabled: !!userId,
+  });
+  const hasCashAccount = cashAccounts.length > 0;
+
+  // Create cash account state
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
+  const [newAccName, setNewAccName] = useState('');
+  const [newAccType, setNewAccType] = useState('bank');
+  const [newAccCurrency, setNewAccCurrency] = useState('EGP');
+  const [createStep, setCreateStep] = useState(1); // 1=name, 2=type, 3=currency
+
+  const createAccountMutation = useMutation({
+    mutationFn: async () => {
+      if (!userId || !newAccName.trim()) throw new Error(L('Enter account name', 'أدخل اسم الحساب'));
+      const { data, error } = await supabase.from('cash_accounts').insert({
+        user_id: userId, name: newAccName.trim(), type: newAccType, currency: newAccCurrency, status: 'active',
+      }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success(L('Cash account created!', 'تم إنشاء الحساب!'));
+      setShowCreateAccount(false);
+      setNewAccName(''); setNewAccType('bank'); setNewAccCurrency('EGP'); setCreateStep(1);
+      qc.invalidateQueries({ queryKey: ['c-cash-accounts-home', userId] });
+      qc.invalidateQueries({ queryKey: ['c-cash-accounts', userId] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? L('Failed', 'فشل')),
+  });
+
   const metrics = useMemo(() => {
-    const now = Date.now();
     const weekStart = startOfWeek().getTime();
     const monthStart = startOfMonth().getTime();
     const lastMonthStart = startOfMonth(-1).getTime();
 
-    // For new workflow system: completed = approved, active = pending approval, needsAction = pending customer approval
     const completed = orders.filter(o => o.workflow_status === 'approved');
     const active    = orders.filter(o => o.workflow_status && ['pending_customer_approval', 'pending_merchant_approval'].includes(o.workflow_status));
     const needsAction = orders.filter(o => o.workflow_status === 'pending_customer_approval');
 
-    const thisMonth  = orders.filter(o => new Date(o.created_at).getTime() >= monthStart);
-    const lastMonth  = orders.filter(o => { const t = new Date(o.created_at).getTime(); return t >= lastMonthStart && t < monthStart; });
-    const thisWeek   = orders.filter(o => new Date(o.created_at).getTime() >= weekStart);
+    // Volume = only orders where customer RECEIVES QAR (merchant placed = customer receives)
+    const receivedOrders = orders.filter(o => o.placed_by_role === 'merchant');
+    const receivedCompleted = receivedOrders.filter(o => o.workflow_status === 'approved');
 
-    // Calculate totals using fx_rate from new workflow
-    const totalQar = completed.reduce((s, o) => s + (o.amount ?? 0), 0);
-    const totalEgp = completed.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0);
+    const thisMonth  = receivedOrders.filter(o => new Date(o.created_at).getTime() >= monthStart);
+    const lastMonth  = receivedOrders.filter(o => { const t = new Date(o.created_at).getTime(); return t >= lastMonthStart && t < monthStart; });
+    const thisWeek   = receivedOrders.filter(o => new Date(o.created_at).getTime() >= weekStart);
 
-    // Average FX rate from completed orders
-    const avgFx = completed.length > 0 ? totalEgp / totalQar : null;
-    const weekCompleted = thisWeek.filter(o => o.workflow_status === 'approved');
-    const weekQar = weekCompleted.reduce((s, o) => s + (o.amount ?? 0), 0);
-    const weekEgp = weekCompleted.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0);
-    const weekFx = weekCompleted.length > 0 ? weekEgp / weekQar : null;
+    // Current month completed received orders for summary
+    const thisMonthCompleted = receivedCompleted.filter(o => new Date(o.created_at).getTime() >= monthStart);
+    const monthQar = thisMonthCompleted.reduce((s, o) => s + (o.amount ?? 0), 0);
+    const monthEgp = thisMonthCompleted.reduce((s, o) => s + ((o.amount ?? 0) * (o.fx_rate ?? 1)), 0);
+    const monthAvgFx = monthQar > 0 ? monthEgp / monthQar : null;
 
-    // Trend: last 14 days grouped by day
+    // Order activity stats (replaces 14-day trend)
+    const totalOrders = orders.length;
+    const approvedOrders = completed.length;
+    const pendingOrders = active.length;
+    const thisMonthOrders = orders.filter(o => new Date(o.created_at).getTime() >= monthStart).length;
+
+    // Trend: last 14 days
     const trend: { date: string; qar: number }[] = [];
     for (let i = 13; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
       const next = new Date(d); next.setDate(next.getDate() + 1);
-      const dayOrders = orders.filter(o => {
+      const dayOrders = receivedOrders.filter(o => {
         const t = new Date(o.created_at).getTime();
         return t >= d.getTime() && t < next.getTime();
       });
@@ -115,7 +154,8 @@ export default function CustomerHomePage() {
       thisMonthVol: thisMonth.reduce((s, o) => s + (o.amount ?? 0), 0),
       lastMonthVol: lastMonth.reduce((s, o) => s + (o.amount ?? 0), 0),
       thisWeekVol:  thisWeek.reduce((s, o) => s + (o.amount ?? 0), 0),
-      totalQar, totalEgp, avgFx, weekFx,
+      monthQar, monthEgp, monthAvgFx,
+      totalOrders, approvedOrders, pendingOrders, thisMonthOrders,
       active, completed, needsAction, trend, maxTrend,
     };
   }, [orders, lang]);
@@ -194,6 +234,144 @@ export default function CustomerHomePage() {
         </button>
       )}
 
+      {/* No cash account prompt — shown when there are pending orders but no cash account */}
+      {!hasCashAccount && metrics.needsAction.length > 0 && (
+        <button
+          onClick={() => setShowCreateAccount(true)}
+          className="flex w-full items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-left active:scale-[0.99]"
+        >
+          <Wallet className="h-5 w-5 shrink-0 text-primary" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">{L('Set up a cash account to receive funds', 'أنشئ حساباً نقدياً لاستلام الأموال')}</p>
+            <p className="text-xs text-muted-foreground">{L('Required to approve incoming orders', 'مطلوب للموافقة على الطلبات الواردة')}</p>
+          </div>
+          <Plus className="h-4 w-4 text-primary shrink-0" />
+        </button>
+      )}
+
+      {/* Create Cash Account Modal — step by step */}
+      {showCreateAccount && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowCreateAccount(false)}>
+          <div className="w-full max-w-lg rounded-t-2xl bg-background flex flex-col" style={{ maxHeight: '80dvh' }} onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border/40 shrink-0">
+              <div>
+                <p className="text-sm font-bold">{L('New Cash Account', 'حساب نقدي جديد')}</p>
+                <p className="text-[10px] text-muted-foreground">{L(`Step ${createStep} of 3`, `خطوة ${createStep} من 3`)}</p>
+              </div>
+              <button onClick={() => setShowCreateAccount(false)} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
+
+            {/* Step indicator */}
+            <div className="flex gap-1.5 px-4 pt-3 shrink-0">
+              {[1,2,3].map(s => (
+                <div key={s} className={cn('h-1 flex-1 rounded-full transition-colors', s <= createStep ? 'bg-primary' : 'bg-muted')} />
+              ))}
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+              {/* Step 1: Name */}
+              {createStep === 1 && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-base font-bold">{L('What should we call this account?', 'ما اسم هذا الحساب؟')}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{L('e.g. My EGP Account, Cairo Bank', 'مثال: حسابي، بنك القاهرة')}</p>
+                  </div>
+                  <input
+                    autoFocus
+                    value={newAccName}
+                    onChange={e => setNewAccName(e.target.value)}
+                    placeholder={L('Account name', 'اسم الحساب')}
+                    className="h-12 w-full rounded-xl border border-border/50 bg-card px-4 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              )}
+
+              {/* Step 2: Type */}
+              {createStep === 2 && (
+                <div className="space-y-3">
+                  <p className="text-base font-bold">{L('Account type', 'نوع الحساب')}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'bank', label: { en: 'Bank Transfer', ar: 'تحويل بنكي' } },
+                      { value: 'cash', label: { en: 'Cash', ar: 'نقد' } },
+                      { value: 'wallet', label: { en: 'Mobile Wallet', ar: 'محفظة موبايل' } },
+                      { value: 'instapay', label: { en: 'InstaPay', ar: 'إنستاباي' } },
+                    ].map(t => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setNewAccType(t.value)}
+                        className={cn(
+                          'rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-colors',
+                          newAccType === t.value ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 bg-card text-muted-foreground hover:border-primary/40',
+                        )}
+                      >
+                        {lang === 'ar' ? t.label.ar : t.label.en}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Currency */}
+              {createStep === 3 && (
+                <div className="space-y-3">
+                  <p className="text-base font-bold">{L('Currency', 'العملة')}</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['EGP', 'QAR', 'USD'].map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setNewAccCurrency(c)}
+                        className={cn(
+                          'rounded-xl border px-4 py-3 text-center text-sm font-bold transition-colors',
+                          newAccCurrency === c ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 bg-card text-muted-foreground hover:border-primary/40',
+                        )}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Summary */}
+                  <div className="rounded-xl bg-muted/30 px-4 py-3 space-y-1 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">{L('Name', 'الاسم')}</span><span className="font-semibold">{newAccName}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{L('Type', 'النوع')}</span><span className="font-semibold">{newAccType}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{L('Currency', 'العملة')}</span><span className="font-semibold">{newAccCurrency}</span></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 pb-6 pt-3 border-t border-border/40 shrink-0 flex gap-2">
+              {createStep > 1 && (
+                <button
+                  onClick={() => setCreateStep(s => s - 1)}
+                  className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted"
+                >
+                  {L('Back', 'رجوع')}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (createStep < 3) {
+                    if (createStep === 1 && !newAccName.trim()) { toast.error(L('Enter account name', 'أدخل اسم الحساب')); return; }
+                    setCreateStep(s => s + 1);
+                  } else {
+                    createAccountMutation.mutate();
+                  }
+                }}
+                disabled={createAccountMutation.isPending}
+                className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-50"
+              >
+                {createStep < 3 ? L('Next', 'التالي') : (createAccountMutation.isPending ? L('Creating...', 'جارٍ الإنشاء...') : L('Create Account', 'إنشاء الحساب'))}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI row: volume periods */}
       <div>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{L('Volume', 'الحجم')} ({getLocalizedCurrencyName('QAR', lang === 'ar' ? 'ar' : 'en')})</p>
@@ -204,45 +382,52 @@ export default function CustomerHomePage() {
         </div>
       </div>
 
-      {/* FX summary */}
+      {/* FX summary — current month */}
       <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border/40">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} {L('Summary', 'ملخص')}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {getLocalizedCurrencyName('QAR', lang)} → {getLocalizedCurrencyName('EGP', lang)} · {L('This Month', 'هذا الشهر')}
+          </p>
         </div>
         <div className="grid grid-cols-3 divide-x divide-border/40">
           <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-[10px] text-muted-foreground">{L('Sent (QAR)', 'مُرسَل')}</p></div>
-            <p className="text-lg font-black tabular-nums">{fmt(metrics.totalQar)}</p>
+            <div className="flex items-center gap-1 mb-1"><ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-[10px] text-muted-foreground">{L('Received (QAR)', 'مُستلَم')}</p></div>
+            <p className="text-lg font-black tabular-nums">{fmt(metrics.monthQar)}</p>
           </div>
           <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" /><p className="text-[10px] text-muted-foreground">{L('Received (EGP)', 'مُستلَم')}</p></div>
-            <p className="text-lg font-black tabular-nums text-emerald-600">{fmt(metrics.totalEgp)}</p>
+            <div className="flex items-center gap-1 mb-1"><ArrowDownLeft className="h-3.5 w-3.5 text-emerald-500" /><p className="text-[10px] text-muted-foreground">{L('Delivered (EGP)', 'مُسلَّم')}</p></div>
+            <p className="text-lg font-black tabular-nums text-emerald-600">{fmt(metrics.monthEgp)}</p>
           </div>
           <div className="p-4">
-            <div className="flex items-center gap-1 mb-1"><TrendingUp className="h-3.5 w-3.5 text-primary" /><p className="text-[10px] text-muted-foreground">{L('Avg FX', 'متوسط السعر')}</p></div>
-            <p className="text-lg font-black tabular-nums">{metrics.avgFx != null ? fmt(metrics.avgFx, 4) : '—'}</p>
+            <div className="flex items-center gap-1 mb-1"><TrendingUp className="h-3.5 w-3.5 text-primary" /><p className="text-[10px] text-muted-foreground">{L('Avg Rate', 'متوسط السعر')}</p></div>
+            <p className="text-lg font-black tabular-nums">{metrics.monthAvgFx != null ? fmt(metrics.monthAvgFx, 2) : '—'}</p>
           </div>
         </div>
       </div>
 
-      {/* Trend chart (bar) */}
+      {/* Order Activity — replaces 14-day volume chart */}
       {orders.length > 0 && (
-        <div className="rounded-2xl border border-border/50 bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">{L('14-day volume', 'حجم 14 يوم')}</p>
-          <div className="flex items-end gap-0.5 h-16">
-            {metrics.trend.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-                <div
-                  className="w-full rounded-sm bg-primary/60 min-h-[2px]"
-                  style={{ height: `${Math.max(2, (d.qar / metrics.maxTrend) * 56)}px` }}
-                  title={`${d.date}: ${fmt(d.qar)} QAR`}
-                />
-              </div>
-            ))}
+        <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border/40">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{L('Order Activity', 'نشاط الطلبات')}</p>
           </div>
-          <div className="flex justify-between mt-1">
-            <p className="text-[9px] text-muted-foreground">{metrics.trend[0]?.date}</p>
-            <p className="text-[9px] text-muted-foreground">{metrics.trend[metrics.trend.length - 1]?.date}</p>
+          <div className="grid grid-cols-4 divide-x divide-border/40">
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Total', 'الكل')}</p>
+              <p className="text-xl font-black">{metrics.totalOrders}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Approved', 'مكتمل')}</p>
+              <p className="text-xl font-black text-emerald-600">{metrics.approvedOrders}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('Pending', 'معلق')}</p>
+              <p className="text-xl font-black text-amber-500">{metrics.pendingOrders}</p>
+            </div>
+            <div className="p-3 text-center">
+              <p className="text-[10px] text-muted-foreground mb-1">{L('This Month', 'هذا الشهر')}</p>
+              <p className="text-xl font-black text-primary">{metrics.thisMonthOrders}</p>
+            </div>
           </div>
         </div>
       )}
