@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
@@ -34,6 +35,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const { settings } = useTheme();
   const t = useT();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const isAdminWorkspace = Boolean(isAdminView);
   const { user, merchantProfile } = useAuth();
   const resolvedUserId = isAdminWorkspace ? adminUserId : user?.id;
@@ -420,7 +422,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   }
 
   return (
-    <div className="tracker-root" dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
+    <div className={`tracker-root${isMobile ? ' dashboard-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: '100%' }}>
       <div className="kpi-band-grid">
         <div className="kpi-band">
           <div className="kpi-band-title">{t('tradingVolume')}</div>

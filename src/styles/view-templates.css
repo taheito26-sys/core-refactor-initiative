@@ -273,7 +273,8 @@
 
   /* Minimal edge padding when edge-to-edge mobile roots are active */
   .app-page-shell:has(.orders-mobile-root),
-  .app-page-shell:has(.stock-mobile-root) {
+  .app-page-shell:has(.stock-mobile-root),
+  .app-page-shell:has(.dashboard-mobile-root) {
     padding-left: 0 !important;
     padding-right: 0 !important;
   }
