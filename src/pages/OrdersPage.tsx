@@ -2485,7 +2485,7 @@ export default function OrdersPage() {
         {/* ── Compact summary row ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 6px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
           onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
           onPointerUp={e => (e.currentTarget.style.background = 'none')}
           onPointerLeave={e => (e.currentTarget.style.background = 'none')}
@@ -2515,7 +2515,7 @@ export default function OrdersPage() {
 
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ padding: '0 10px 10px', borderTop: '1px solid var(--line2)' }}>
+          <div style={{ padding: '0 6px 10px', borderTop: '1px solid var(--line2)' }}>
             <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
               {isMerchantLinked && linkedRel && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -2601,7 +2601,7 @@ export default function OrdersPage() {
         {/* ── Compact summary row ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 6px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
           onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
           onPointerUp={e => (e.currentTarget.style.background = 'none')}
           onPointerLeave={e => (e.currentTarget.style.background = 'none')}
@@ -2630,7 +2630,7 @@ export default function OrdersPage() {
 
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ padding: '0 10px 10px', borderTop: '1px solid var(--line2)' }}>
+          <div style={{ padding: '0 6px 10px', borderTop: '1px solid var(--line2)' }}>
             <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span className="muted">{t('buyer')}</span>
