@@ -579,9 +579,9 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   });
 
   return (
-    <div className="space-y-0 -mx-4">
+    <div style={{ marginLeft: -12, marginRight: -12 }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pb-3">
+      <div className="flex items-center justify-between pb-3" style={{ paddingLeft: 12, paddingRight: 12 }}>
         <h2 className="text-lg font-bold">Customer Orders</h2>
         <button
           onClick={() => setShowPlaceOrder(true)}
@@ -636,7 +636,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
             });
 
             return (
-              <div key={order.id} className="bg-[#0d1117] px-4 py-3 space-y-2">
+              <div key={order.id} className="bg-[#0d1117] py-3 space-y-2" style={{ paddingLeft: 12, paddingRight: 12 }}>
                 {/* Row 1: status badge (left) + customer name (right) */}
                 <div className="flex items-center justify-between">
                   <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${sc.cls}`}>
