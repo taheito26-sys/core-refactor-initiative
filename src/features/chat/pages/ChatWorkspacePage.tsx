@@ -515,10 +515,7 @@ export default function ChatWorkspacePage() {
   return (
     <div
       dir={isRTL ? 'rtl' : 'ltr'}
-      className={cn(
-        'flex h-full bg-background overflow-hidden',
-        isRTL && 'flex-row-reverse',
-      )}
+      className="flex h-full bg-background overflow-hidden"
     >
       <CallOverlay webrtc={webrtc} />
       {lightbox}

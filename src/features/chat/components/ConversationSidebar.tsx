@@ -77,7 +77,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className="flex flex-col w-72 lg:w-80 border-r border-border/50 bg-card h-full shrink-0">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="flex flex-col w-72 lg:w-80 border-e border-border/50 bg-card h-full shrink-0">
       {/* Header */}
       <div className="px-4 py-3 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
