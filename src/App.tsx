@@ -46,6 +46,7 @@ import DashboardPage from './pages/DashboardPage';
 import OrdersPage from './pages/OrdersPage';
 import OrdersImportLedgerPage from './pages/OrdersImportLedgerPage';
 import StockPage from './pages/StockPage';
+import CashPage from './pages/CashPage';
 import P2PTrackerPage from './pages/P2PTrackerPage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -262,6 +263,7 @@ const App = () => (
                   <Route path="/trading/orders" element={<OrdersPage />} />
                   <Route path="/trading/orders/import-ledger" element={<OrdersImportLedgerPage />} />
                   <Route path="/trading/stock" element={<StockPage />} />
+                  <Route path="/trading/cash" element={<CashPage />} />
                   <Route path="/trading/calendar" element={<CalendarPage />} />
                   <Route path="/trading/p2p" element={<P2PTrackerPage />} />
                   <Route path="/crm" element={<CRMPage />} />

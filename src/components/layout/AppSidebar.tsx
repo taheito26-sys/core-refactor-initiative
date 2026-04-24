@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   TrendingUp,
   Wallet,
+  Banknote,
   MessageCircle,
   Calendar,
   Settings,
@@ -35,6 +36,7 @@ export const tradingNav: NavItem[] = [
   { labelKey: 'dashboard', fallback: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { labelKey: 'orders', fallback: 'Orders', icon: TrendingUp, path: '/trading/orders' },
   { labelKey: 'stock', fallback: 'Stock', icon: Wallet, path: '/trading/stock' },
+  { labelKey: 'cashManagement', fallback: 'Cash', icon: Banknote, path: '/trading/cash' },
   { labelKey: 'crm', fallback: 'CRM', icon: UserCircle, path: '/crm' },
   { labelKey: 'chat', fallback: 'chat', icon: MessageCircle, path: '/chat' },
   { labelKey: 'calendar', fallback: 'Calendar', icon: Calendar, path: '/trading/calendar' },
@@ -60,8 +62,8 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
     tradingNav[0], // Dashboard
     tradingNav[1], // Orders
     tradingNav[2], // Stock
-    networkNav[0], // Merchants
-    tradingNav[4], // Chat
+    tradingNav[3], // Cash
+    tradingNav[5], // Chat
   ].filter(Boolean) as NavItem[];
 
   return (
