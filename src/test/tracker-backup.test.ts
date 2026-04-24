@@ -1,9 +1,45 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import { findTrackerStorageKey, getCurrentTrackerState, hasMeaningfulTrackerData, normalizeImportedTrackerState } from '@/lib/tracker-backup';
+import {
+  clearTrackerClearGuard,
+  findTrackerStorageKey,
+  getCurrentTrackerState,
+  hasMeaningfulTrackerData,
+  isTrackerClearInProgress,
+  markTrackerClearInProgress,
+  normalizeImportedTrackerState,
+} from '@/lib/tracker-backup';
 import { mergeLocalAndCloud } from '@/lib/tracker-state';
 
 describe('tracker backup state detection', () => {
+  it('tracks a short-lived clear guard during destructive resets', () => {
+    sessionStorage.clear();
+
+    expect(isTrackerClearInProgress()).toBe(false);
+
+    markTrackerClearInProgress();
+    expect(isTrackerClearInProgress()).toBe(true);
+
+    clearTrackerClearGuard();
+    expect(isTrackerClearInProgress()).toBe(false);
+  });
+
+  it('expires the clear guard after its TTL', () => {
+    sessionStorage.clear();
+    vi.useFakeTimers();
+
+    try {
+      markTrackerClearInProgress();
+      expect(isTrackerClearInProgress()).toBe(true);
+
+      vi.advanceTimersByTime(15_001);
+      expect(isTrackerClearInProgress()).toBe(false);
+      expect(sessionStorage.getItem('tracker_clear_guard_ts')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('treats cash-only tracker data as real exportable state', () => {
     const cashOnly = {
       cashAccounts: [{ id: 'cash-1', name: 'Vault', type: 'vault', currency: 'QAR', status: 'active', createdAt: 1 }],
