@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WelcomeMsg } from '@/hooks/useWelcomeMessage';
 
-const DURATION_MS = 4000;
-
 interface Props {
   msg: WelcomeMsg;
   onDismiss: () => void;
 }
 
 export function WelcomeOverlay({ msg, onDismiss }: Props) {
+  const durationMs = msg.durationMs;
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(100);
   const startRef = useRef<number>(0);
@@ -27,7 +26,7 @@ export function WelcomeOverlay({ msg, onDismiss }: Props) {
 
     const tick = () => {
       const elapsed = Date.now() - startRef.current;
-      const pct = Math.max(0, 100 - (elapsed / DURATION_MS) * 100);
+      const pct = Math.max(0, 100 - (elapsed / durationMs) * 100);
       setProgress(pct);
       if (pct > 0) {
         rafRef.current = requestAnimationFrame(tick);
@@ -38,7 +37,7 @@ export function WelcomeOverlay({ msg, onDismiss }: Props) {
     timerRef.current = setTimeout(() => {
       setVisible(false);
       setTimeout(onDismiss, 350);
-    }, DURATION_MS);
+    }, durationMs);
 
     return () => {
       cancelAnimationFrame(rafRef.current);

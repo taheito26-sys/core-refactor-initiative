@@ -56,15 +56,17 @@ export interface WelcomeMsg {
   title: string;
   body: string;
   isRTL: boolean;
+  durationMs: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SESSION_KEY    = 'wlcm_shown';
+const SESSION_KEY     = 'wlcm_shown';
 const LAST_HIDDEN_KEY = 'wlcm_hidden_at';
 const BACK_THRESHOLD_MS = 20 * 60 * 1000;
+const DEFAULT_DURATION_MS = 4000;
 
-function pickMessage(name: string, lang: 'en' | 'ar'): WelcomeMsg {
+function pickMessage(name: string, lang: 'en' | 'ar', durationMs: number): WelcomeMsg {
   const pool = lang === 'ar' ? MESSAGES_AR : MESSAGES_EN;
   const seed = Number(localStorage.getItem('wlcm_seed') || '0');
   const idx  = seed % pool.length;
@@ -75,6 +77,7 @@ function pickMessage(name: string, lang: 'en' | 'ar'): WelcomeMsg {
     title: m.title.replace('{name}', name),
     body:  m.body,
     isRTL: lang === 'ar',
+    durationMs,
   };
 }
 
@@ -83,22 +86,35 @@ function pickMessage(name: string, lang: 'en' | 'ar'): WelcomeMsg {
 export function useWelcomeMessage(name: string | null | undefined, lang: 'en' | 'ar') {
   const [msg, setMsg] = useState<WelcomeMsg | null>(null);
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [durationMs, setDurationMs] = useState<number>(DEFAULT_DURATION_MS);
 
   const dismiss = useCallback(() => setMsg(null), []);
 
-  // Check if welcome message is enabled via app_config
+  // Fetch enabled flag AND duration from app_config
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const { data } = await supabase
-          .from('app_config')
-          .select('value')
-          .eq('key', 'welcome_message_enabled')
-          .single();
-        if (!cancelled) setEnabled(data?.value !== false);
-      } catch {
-        if (!cancelled) setEnabled(true); // default to enabled if query fails
+      // Fetch both keys in parallel
+      const [enabledRes, durationRes] = await Promise.allSettled([
+        supabase.from('app_config').select('value').eq('key', 'welcome_message_enabled').single(),
+        supabase.from('app_config').select('value').eq('key', 'welcome_message_duration_s').single(),
+      ]);
+
+      if (cancelled) return;
+
+      // enabled
+      if (enabledRes.status === 'fulfilled' && !enabledRes.value.error) {
+        setEnabled(enabledRes.value.data?.value !== false);
+      } else {
+        setEnabled(true); // default to enabled if query fails
+      }
+
+      // duration
+      if (durationRes.status === 'fulfilled' && !durationRes.value.error) {
+        const val = durationRes.value.data?.value;
+        if (typeof val === 'number' && val > 0) {
+          setDurationMs(val * 1000);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -109,13 +125,15 @@ export function useWelcomeMessage(name: string | null | undefined, lang: 'en' | 
     if (!name || enabled === null || enabled === false) return;
     if (sessionStorage.getItem(SESSION_KEY)) return;
     sessionStorage.setItem(SESSION_KEY, '1');
-    const t = setTimeout(() => setMsg(pickMessage(name, lang)), 800);
+    const t = setTimeout(() => setMsg(pickMessage(name, lang, durationMs)), 800);
     return () => clearTimeout(t);
-  }, [name, lang, enabled]);
+  }, [name, lang, enabled, durationMs]);
 
   // Trigger 2 — returning after 20 min away
+  // NOTE: must check `enabled !== true` (not just `=== false`) so we don't
+  // fire while the DB query is still loading (enabled === null).
   useEffect(() => {
-    if (!name || enabled === false) return;
+    if (!name || enabled !== true) return;
     const onVisChange = () => {
       if (document.visibilityState === 'hidden') {
         localStorage.setItem(LAST_HIDDEN_KEY, String(Date.now()));
@@ -124,12 +142,12 @@ export function useWelcomeMessage(name: string | null | undefined, lang: 'en' | 
       const hiddenAt = Number(localStorage.getItem(LAST_HIDDEN_KEY) || '0');
       if (hiddenAt > 0 && Date.now() - hiddenAt >= BACK_THRESHOLD_MS) {
         localStorage.removeItem(LAST_HIDDEN_KEY);
-        setTimeout(() => setMsg(pickMessage(name, lang)), 400);
+        setTimeout(() => setMsg(pickMessage(name, lang, durationMs)), 400);
       }
     };
     document.addEventListener('visibilitychange', onVisChange);
     return () => document.removeEventListener('visibilitychange', onVisChange);
-  }, [name, lang]);
+  }, [name, lang, enabled, durationMs]);
 
   return { msg, dismiss };
 }
