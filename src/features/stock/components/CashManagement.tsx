@@ -1023,7 +1023,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit }: CashM
 
       {/* ── Warnings ── */}
       {(lowBalanceAccounts.length > 0 || overdueReconciliation.length > 0 || concentrationWarning) && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, ...(isMobile ? { paddingLeft: 14, paddingRight: 14 } : {}) }}>
           {lowBalanceAccounts.map(a => (
             <div key={a.id} className="cash-warning-pill" style={{ borderColor: 'color-mix(in srgb, var(--warn) 30%, transparent)', color: 'var(--warn)' }}>
               ⚠ {a.name}: {t('lowBalancePill')} ({fmtTotal(balances.get(a.id) || 0)} QAR)
@@ -1043,7 +1043,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit }: CashM
       )}
 
       {/* ── Inner Tabs ── */}
-      <div style={{ display: 'flex', gap: 4, background: 'var(--panel)', borderRadius: 8, padding: 4, alignSelf: 'flex-start' }}>
+      <div className="cash-inner-tabs" style={{ display: 'flex', gap: 4, background: 'var(--panel)', borderRadius: 8, padding: 4, alignSelf: 'flex-start', ...(isMobile ? { marginLeft: 14, marginRight: 14 } : {}) }}>
         {tabBtn('accounts', t('cashAccountsTab'))}
         {tabBtn('ledger', t('cashLedgerTab'))}
         {tabBtn('insights', t('cashInsightsTab'))}
