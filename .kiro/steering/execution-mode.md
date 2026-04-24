@@ -16,38 +16,38 @@ Never respond with these words alone without full implementation + verification:
 
 ## Mandatory Execution Sequence
 
-### STEP 1 — IMPLEMENT
-Apply the requested change to the codebase.
+### STEP 1 — INSPECT
+Read the relevant files before making any edit.
 
-### STEP 2 — VERIFY
-Confirm the change exists by checking:
-- Files modified
-- UI rendered
-- Behavior changed
-- Build success (`tsc --noEmit` passes)
+### STEP 2 — IMPLEMENT
+Apply the smallest correct change. Do not modify unrelated pages, tabs, shared layouts, or business logic. Preserve existing UI/UX unless explicitly asked to redesign.
 
-### STEP 3 — PROVE
+### STEP 3 — VERIFY
+Run the project's actual build command after every change:
+- `npm run build` or `pnpm build` (whichever the project uses)
+- TypeScript check if available
+- Tests if available
+If verification fails, fix the error and rerun — do not stop.
+
+### STEP 4 — PROVE
 Provide concrete evidence:
-- File paths changed
-- Code snippets
-- Build status
+- Files changed (exact paths)
+- Verification command run
+- Result of verification (pass/fail + output)
 - Commit hash
 
-### STEP 4 — FAIL IF NOT VERIFIED
-If verification fails, do not say "done". Instead respond with:
+### STEP 5 — FAIL IF NOT VERIFIED
+If verification fails and cannot be fixed, respond with:
 ```
 STATUS: FAILED
 REASON: <specific reason>
+BLOCKER: <exact error>
 ```
 
-### STEP 5 — RETRY AUTOMATICALLY
-Retry implementation until verification passes.
-
 ### STEP 6 — STOP CONDITION
-You may only declare completion when:
+A task is NOT complete unless:
 - Change is visible in the codebase
-- Build succeeds
-- Behavior matches requirement
+- Build/typecheck passes
 - Committed and pushed to main
 
 ## Additional Rules
@@ -61,10 +61,14 @@ You may only declare completion when:
 7. Apply database changes directly via `supabase db push`.
 8. Token consumption without execution is prohibited.
 9. Acknowledgment without implementation is prohibited.
+10. Do not claim a task is done unless the change is implemented AND verified inside the current repository.
 
-## Response Format
+## Final Response Format
 
-Return only:
-- STATUS (✅ or FAILED)
-- FILES CHANGED
-- RESULT (build status + commit hash)
+Always end with:
+```
+FILES CHANGED: <list>
+VERIFICATION: <command run> → <result>
+COMMIT: <hash>
+REMAINING ISSUES: <none or description>
+```
