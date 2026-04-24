@@ -3,6 +3,7 @@
  *
  * Listens to Supabase realtime changes on key tables and triggers
  * a vault backup when data changes. Throttled to max once per 10 min.
+ * Includes: orders, cash, ledger, AND stock (tracker state with batches/trades).
  * Runs at the AppLayout level so it covers all pages.
  */
 
@@ -10,16 +11,9 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { uploadVaultBackup } from '@/lib/supabase-vault';
+import { getCurrentTrackerState } from '@/lib/tracker-backup';
 
 const THROTTLE_MS = 10 * 60 * 1000; // 10 minutes
-
-const WATCHED_TABLES = [
-  'customer_orders',
-  'cash_accounts',
-  'cash_ledger',
-  'order_executions',
-  'merchant_deals',
-] as const;
 
 export function useAutoVaultBackup() {
   const { userId } = useAuth();
@@ -38,31 +32,55 @@ export function useAutoVaultBackup() {
       pendingTimer.current = setTimeout(async () => {
         lastBackupTs.current = Date.now();
         try {
-          // Snapshot key Supabase tables for this user
+          // Snapshot Supabase tables
           const [orders, accounts, ledger] = await Promise.all([
             supabase.from('customer_orders').select('*').eq('customer_user_id', userId).order('created_at', { ascending: false }).limit(100),
             supabase.from('cash_accounts').select('*').eq('user_id', userId),
             supabase.from('cash_ledger').select('*').eq('user_id', userId).order('ts', { ascending: false }).limit(200),
           ]);
 
+          // Snapshot tracker state (stock: batches, trades, customers, suppliers, cash)
+          const trackerState = getCurrentTrackerState(localStorage);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const ts = trackerState as Record<string, any>;
+          const batches = Array.isArray(ts.batches) ? ts.batches : [];
+          const trades = Array.isArray(ts.trades) ? ts.trades : [];
+          const customers = Array.isArray(ts.customers) ? ts.customers : [];
+          const suppliers = Array.isArray(ts.suppliers) ? ts.suppliers : [];
+          const cashAccounts = Array.isArray(ts.cashAccounts) ? ts.cashAccounts : [];
+          const cashLedgerLocal = Array.isArray(ts.cashLedger) ? ts.cashLedger : [];
+
           const snapshot: Record<string, unknown> = {
-            _type: 'supabase_vault_backup',
+            _type: 'full_vault_backup',
             _ts: new Date().toISOString(),
             _trigger: table,
+            // Supabase data
             customer_orders: orders.data ?? [],
-            cash_accounts: accounts.data ?? [],
-            cash_ledger: ledger.data ?? [],
+            cash_accounts_db: accounts.data ?? [],
+            cash_ledger_db: ledger.data ?? [],
+            // Tracker/stock data
+            batches,
+            trades,
+            customers,
+            suppliers,
+            cashAccounts,
+            cashLedger: cashLedgerLocal,
+            cashQAR: ts.cashQAR ?? 0,
+            cashOwner: ts.cashOwner ?? '',
+            settings: ts.settings ?? {},
           };
 
           const counts: string[] = [];
           if ((orders.data?.length ?? 0) > 0) counts.push(`${orders.data!.length} orders`);
           if ((accounts.data?.length ?? 0) > 0) counts.push(`${accounts.data!.length} accounts`);
           if ((ledger.data?.length ?? 0) > 0) counts.push(`${ledger.data!.length} ledger`);
+          if (batches.length > 0) counts.push(`${batches.length} batches`);
+          if (trades.length > 0) counts.push(`${trades.length} trades`);
 
           await uploadVaultBackup(
             userId,
             snapshot,
-            `Auto · ${table} changed · ${counts.join(', ') || 'sync'}`,
+            `Auto · ${table} · ${counts.join(', ') || 'sync'}`,
           );
         } catch {
           // Non-critical — silent fail
@@ -75,6 +93,7 @@ export function useAutoVaultBackup() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` }, () => triggerBackup('customer_orders'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_accounts'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_ledger'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${userId}` }, () => triggerBackup('stock'))
       .subscribe();
 
     return () => {
