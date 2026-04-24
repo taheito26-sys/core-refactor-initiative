@@ -1740,49 +1740,11 @@
 
 /* ── Mobile responsive ─────────────────────────────────────── */
 @media (max-width: 600px) {
-  .tracker-root .cash-summary-strip {
-    gap: 2px;
-    padding: 10px 14px;
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-  }
+  .tracker-root .cash-summary-strip { gap: 2px; padding: 8px 10px; }
   .tracker-root .cash-summary-item { padding: 0 6px; }
   .tracker-root .cash-summary-value { font-size: 14px; }
+  .tracker-root .cash-accounts-grid { grid-template-columns: 1fr; }
   .tracker-root .cash-summary-sep { display: none; }
-
-  /* Edge-to-edge account cards on mobile */
-  .tracker-root .cash-accounts-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .tracker-root .cash-account-card {
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
-    padding: 14px 16px;
-  }
-  .tracker-root .cash-account-card:first-child {
-    border-top: 1px solid var(--line);
-  }
-  .tracker-root .cash-account-card:last-child {
-    border-bottom: 1px solid var(--line);
-  }
-  .tracker-root .cash-account-card:hover {
-    transform: none;
-  }
-
-  /* Warning pills: add horizontal padding */
-  .tracker-root .cash-warning-pill {
-    margin-left: 14px;
-  }
-
-  /* Inner tabs: add horizontal padding */
-  .tracker-root .cash-inner-tabs {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
 }
 
 /* ── Sale sheet backdrop (Orders page mobile) ──────────────────────── */
