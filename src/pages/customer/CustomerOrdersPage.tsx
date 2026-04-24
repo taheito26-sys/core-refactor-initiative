@@ -464,6 +464,36 @@ export default function CustomerOrdersPage() {
     return map;
   }, [allCashAccounts]);
 
+  // Fetch actual delivered EGP for approved orders from parent_order_summary
+  const approvedOrderIds = useMemo(() =>
+    orders.filter(o => o.workflow_status === 'approved').map(o => o.id),
+    [orders],
+  );
+
+  const { data: orderSummaries = [] } = useQuery({
+    queryKey: ['c-order-summaries', approvedOrderIds],
+    queryFn: async () => {
+      if (approvedOrderIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('parent_order_summary')
+        .select('parent_order_id, total_egp_received')
+        .in('parent_order_id', approvedOrderIds);
+      if (error) return [];
+      return data ?? [];
+    },
+    enabled: approvedOrderIds.length > 0,
+  });
+
+  const deliveredEgpMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of orderSummaries) {
+      if (s.parent_order_id && s.total_egp_received > 0) {
+        map.set(s.parent_order_id, s.total_egp_received);
+      }
+    }
+    return map;
+  }, [orderSummaries]);
+
   const { data: connections = [] } = useQuery({
     queryKey: ['c-connections', userId],
     queryFn: async () => {
@@ -1231,7 +1261,7 @@ export default function CustomerOrdersPage() {
       {linkingOrder && (
         <LinkCashModal
           orderId={linkingOrder.id}
-          egpAmount={linkingOrder.fx_rate ? Math.round(linkingOrder.amount * linkingOrder.fx_rate) : 0}
+          egpAmount={deliveredEgpMap.get(linkingOrder.id) ?? (linkingOrder.fx_rate ? Math.round(linkingOrder.amount * linkingOrder.fx_rate) : 0)}
           receiveCurrency={linkingOrder.receive_currency ?? 'EGP'}
           lang={lang}
           onClose={() => setLinkingOrder(null)}
