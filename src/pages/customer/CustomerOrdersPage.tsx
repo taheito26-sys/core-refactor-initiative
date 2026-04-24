@@ -798,9 +798,12 @@ export default function CustomerOrdersPage() {
                       )
                     ) : order.workflow_status === 'approved' ? (
                       orderCashLinkMap.has(order.id) ? (
-                        <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300">
+                        <button
+                          onClick={() => setLinkingOrder(order)}
+                          className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                        >
                           ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
-                        </span>
+                        </button>
                       ) : (
                         <button
                           onClick={() => setLinkingOrder(order)}
@@ -985,9 +988,12 @@ export default function CustomerOrdersPage() {
                       {order.workflow_status === 'approved' && (
                         <div className="mt-2 border-t border-white/5 pt-2">
                           {orderCashLinkMap.has(order.id) ? (
-                            <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300">
+                            <button
+                              onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
+                              className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                            >
                               ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
-                            </span>
+                            </button>
                           ) : (
                             <button
                               onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
@@ -1078,9 +1084,12 @@ export default function CustomerOrdersPage() {
                         )
                       ) : order.workflow_status === 'approved' ? (
                         orderCashLinkMap.has(order.id) ? (
-                          <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600">
+                          <button
+                            onClick={() => setLinkingOrder(order)}
+                            className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/20"
+                          >
                             ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
-                          </span>
+                          </button>
                         ) : (
                           <button
                             onClick={() => setLinkingOrder(order)}
@@ -1218,9 +1227,12 @@ export default function CustomerOrdersPage() {
                       {order.workflow_status === 'approved' && order.fx_rate && (
                         <div className="mt-3 pt-3 border-t border-border/30">
                           {orderCashLinkMap.has(order.id) ? (
-                            <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600">
+                            <button
+                              onClick={() => setLinkingOrder(order)}
+                              className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/20"
+                            >
                               ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
-                            </span>
+                            </button>
                           ) : (
                             <button
                               onClick={() => setLinkingOrder(order)}
