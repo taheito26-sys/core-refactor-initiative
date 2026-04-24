@@ -61,7 +61,7 @@
 .tracker-root .kpi-cell-sub { font-size: calc(8px * var(--ui-scale,1)); color: var(--muted); margin-top: 2px; }
 
 /* ── KPI CARDS ── */
-.tracker-root .kpis { display: grid; gap: 4px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tracker-root .kpis { display: grid; gap: 4px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .tracker-root .kpis.kpis-p2p { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 .tracker-root .kpi-card {
   background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius);
@@ -802,8 +802,8 @@
     max-width: 100%;
     min-width: 0;
     overflow: hidden;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
   /* Left side of card row: allow shrink, truncate text */
   .tracker-root.orders-mobile-root .orders-cards-list > div > button > div:first-child {
@@ -837,8 +837,8 @@
     max-width: 100%;
     min-width: 0;
     overflow-x: hidden;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 }
 

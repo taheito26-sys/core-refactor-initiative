@@ -9,8 +9,18 @@ let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedJson = '';
 let _prefTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedPrefs = '';
-let _lastAutoBackupTs = 0;
+let _lastAutoBackupTs = Date.now(); // Start from now so first backup waits 30 min
+let _lastAutoBackupHash = '';
 const AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+
+function quickHash(str: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h = (h ^ str.charCodeAt(i)) >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
 
 function stateToJson(state: TrackerState): string {
   try {
@@ -115,11 +125,26 @@ async function persistToCloud(state: TrackerState): Promise<void> {
   if (!error) {
     _lastSavedJson = json;
 
-    // Auto-backup to vault storage (throttled: max once per 30 min)
+    // Auto-backup to vault storage — only when data actually changed AND throttled to 30 min
+    const stateHash = quickHash(json);
     const now = Date.now();
-    if (now - _lastAutoBackupTs >= AUTO_BACKUP_INTERVAL_MS) {
+    if (
+      stateHash !== _lastAutoBackupHash &&
+      now - _lastAutoBackupTs >= AUTO_BACKUP_INTERVAL_MS
+    ) {
       _lastAutoBackupTs = now;
-      void uploadVaultBackup(user.id, state as unknown as Record<string, unknown>, 'Auto-backup').catch(() => {
+      _lastAutoBackupHash = stateHash;
+
+      // Build descriptive label
+      const collections = state as unknown as Record<string, unknown>;
+      const counts: string[] = [];
+      for (const key of ['trades', 'batches', 'customers', 'cashAccounts', 'cashLedger'] as const) {
+        const arr = Array.isArray(collections[key]) ? (collections[key] as unknown[]) : [];
+        if (arr.length > 0) counts.push(`${arr.length} ${key}`);
+      }
+      const label = `Auto · ${counts.join(', ') || 'state sync'}`;
+
+      void uploadVaultBackup(user.id, state as unknown as Record<string, unknown>, label).catch(() => {
         // Non-critical — don't block the main save
       });
     }
