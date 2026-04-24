@@ -106,7 +106,7 @@ function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
                 className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
               <div className="grid grid-cols-2 gap-2">
                 <select value={newType} onChange={e => setNewType(e.target.value)} className="h-10 rounded-lg border border-border/50 bg-card px-2 text-sm outline-none">
-                  {[['bank','Bank','بنك'],['cash','Cash','نقد'],['mobile_wallet','Mobile Wallet','محفظة موبايل'],['other','Other','أخرى']].map(([v,en,ar]) => (
+                  {[['bank','Bank','بنك'],['hand','Cash','نقد'],['mobile_wallet','Mobile Wallet','محفظة موبايل'],['other','Other','أخرى']].map(([v,en,ar]) => (
                     <option key={v} value={v}>{lang === 'ar' ? ar : en}</option>
                   ))}
                 </select>

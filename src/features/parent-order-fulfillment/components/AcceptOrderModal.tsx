@@ -160,9 +160,9 @@ export function AcceptOrderModal({
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { value: 'bank', en: 'Bank Transfer', ar: 'تحويل بنكي' },
-                      { value: 'cash', en: 'Cash', ar: 'نقد' },
-                      { value: 'wallet', en: 'Mobile Wallet', ar: 'محفظة موبايل' },
-                      { value: 'instapay', en: 'InstaPay', ar: 'إنستاباي' },
+                      { value: 'hand', en: 'Cash', ar: 'نقد' },
+                      { value: 'mobile_wallet', en: 'Mobile Wallet', ar: 'محفظة موبايل' },
+                      { value: 'other', en: 'InstaPay', ar: 'إنستاباي' },
                     ].map(t => (
                       <button key={t.value} type="button" onClick={() => setNewType(t.value)}
                         className={cn('rounded-xl border px-4 py-3 text-sm font-semibold transition-colors',

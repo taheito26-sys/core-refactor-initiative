@@ -295,9 +295,9 @@ export default function CustomerHomePage() {
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { value: 'bank', label: { en: 'Bank Transfer', ar: 'تحويل بنكي' } },
-                      { value: 'cash', label: { en: 'Cash', ar: 'نقد' } },
-                      { value: 'wallet', label: { en: 'Mobile Wallet', ar: 'محفظة موبايل' } },
-                      { value: 'instapay', label: { en: 'InstaPay', ar: 'إنستاباي' } },
+                      { value: 'hand', label: { en: 'Cash', ar: 'نقد' } },
+                      { value: 'mobile_wallet', label: { en: 'Mobile Wallet', ar: 'محفظة موبايل' } },
+                      { value: 'other', label: { en: 'InstaPay', ar: 'إنستاباي' } },
                     ].map(t => (
                       <button
                         key={t.value}
