@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, LayoutDashboard, Users, CheckCircle, Bell, FileText, Cloud, Shield, UserCircle } from 'lucide-react';
+import { Loader2, LayoutDashboard, Users, CheckCircle, Bell, FileText, Cloud, Shield, UserCircle, Settings } from 'lucide-react';
 import { useIsAdmin } from '@/features/admin/hooks/useAdminProfiles';
 import { AdminDashboard } from '@/features/admin/components/AdminDashboard';
 import { AdminUserDirectory } from '@/features/admin/components/AdminUserDirectory';
@@ -9,6 +9,7 @@ import { AdminCustomerWorkspace } from '@/features/admin/components/AdminCustome
 import { AdminAuditCenter } from '@/features/admin/components/AdminAuditCenter';
 import { AdminNotificationSender } from '@/features/admin/components/AdminNotificationSender';
 import { AdminBackupManager } from '@/features/admin/components/AdminBackupManager';
+import { AdminSettings } from '@/features/admin/components/AdminSettings';
 import AdminApprovalsPage from './AdminApprovalsPage';
 
 const TABS = [
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',  Icon: Bell            },
   { id: 'audit',         label: 'Audit Log',      Icon: FileText        },
   { id: 'backups',       label: 'Backups',        Icon: Cloud           },
+  { id: 'settings',      label: 'Settings',       Icon: Settings        },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -154,6 +156,7 @@ export default function AdminPage() {
         {activeTab === 'notifications' && <AdminNotificationSender />}
         {activeTab === 'audit'         && <AdminAuditCenter />}
         {activeTab === 'backups'       && <AdminBackupManager />}
+        {activeTab === 'settings'      && <AdminSettings />}
       </div>
 
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 // ─── Message pools ────────────────────────────────────────────────────────────
 
@@ -81,21 +82,40 @@ function pickMessage(name: string, lang: 'en' | 'ar'): WelcomeMsg {
 
 export function useWelcomeMessage(name: string | null | undefined, lang: 'en' | 'ar') {
   const [msg, setMsg] = useState<WelcomeMsg | null>(null);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
 
   const dismiss = useCallback(() => setMsg(null), []);
 
+  // Check if welcome message is enabled via app_config
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('app_config')
+          .select('value')
+          .eq('key', 'welcome_message_enabled')
+          .single();
+        if (!cancelled) setEnabled(data?.value !== false);
+      } catch {
+        if (!cancelled) setEnabled(true); // default to enabled if query fails
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // Trigger 1 — first open of this browser session
   useEffect(() => {
-    if (!name) return;
+    if (!name || enabled === null || enabled === false) return;
     if (sessionStorage.getItem(SESSION_KEY)) return;
     sessionStorage.setItem(SESSION_KEY, '1');
     const t = setTimeout(() => setMsg(pickMessage(name, lang)), 800);
     return () => clearTimeout(t);
-  }, [name, lang]);
+  }, [name, lang, enabled]);
 
   // Trigger 2 — returning after 20 min away
   useEffect(() => {
-    if (!name) return;
+    if (!name || enabled === false) return;
     const onVisChange = () => {
       if (document.visibilityState === 'hidden') {
         localStorage.setItem(LAST_HIDDEN_KEY, String(Date.now()));
