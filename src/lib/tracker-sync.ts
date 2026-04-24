@@ -13,6 +13,45 @@ let _lastAutoBackupTs = Date.now(); // Start from now so first backup waits 30 m
 let _lastAutoBackupHash = '';
 const AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
+/**
+ * Ids that came from OTHER merchant members' tracker_snapshots on the most
+ * recent load. Excluded on save so this user's row never absorbs another
+ * user's data — prevents the merchant-wide read/write pollution cycle.
+ */
+const _foreignIds: Record<string, Set<string>> = {
+  batches: new Set(),
+  trades: new Set(),
+  customers: new Set(),
+  suppliers: new Set(),
+  cashAccounts: new Set(),
+  cashLedger: new Set(),
+  cashHistory: new Set(),
+};
+
+function rememberForeignIds(
+  collectionKey: keyof typeof _foreignIds,
+  rows: unknown[],
+): void {
+  const set = _foreignIds[collectionKey];
+  for (const r of rows) {
+    if (r && typeof r === 'object' && 'id' in (r as Record<string, unknown>)) {
+      set.add(String((r as Record<string, unknown>).id));
+    }
+  }
+}
+
+function stripForeignIds<T extends { id?: string } | Record<string, unknown>>(
+  collectionKey: keyof typeof _foreignIds,
+  rows: T[] | undefined,
+): T[] {
+  const set = _foreignIds[collectionKey];
+  if (!Array.isArray(rows) || set.size === 0) return rows ?? [];
+  return rows.filter((r) => {
+    const id = (r as { id?: unknown })?.id;
+    return typeof id !== 'string' || !set.has(id);
+  });
+}
+
 function quickHash(str: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
@@ -107,18 +146,31 @@ async function ensureRow(userId: string): Promise<void> {
 
 /** Save tracker state to Supabase (upsert) — debounced */
 async function persistToCloud(state: TrackerState): Promise<void> {
-  const json = stateToJson(state);
-  if (!json || json === _lastSavedJson) return;
-
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
+
+  // Strip foreign-origin ids so this user's row only ever contains rows
+  // authored (or owned) by this user. Prevents merchant-wide cross-pollution.
+  const stripped: TrackerState = {
+    ...state,
+    batches: stripForeignIds('batches', state.batches),
+    trades: stripForeignIds('trades', state.trades),
+    customers: stripForeignIds('customers', state.customers),
+    suppliers: stripForeignIds('suppliers', state.suppliers),
+    cashAccounts: stripForeignIds('cashAccounts', state.cashAccounts),
+    cashLedger: stripForeignIds('cashLedger', state.cashLedger),
+    cashHistory: stripForeignIds('cashHistory', state.cashHistory),
+  };
+
+  const json = stateToJson(stripped);
+  if (!json || json === _lastSavedJson) return;
 
   const { error } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('tracker_snapshots' as any)
     .upsert(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { user_id: user.id, state: state as any, updated_at: new Date().toISOString() },
+      { user_id: user.id, state: stripped as any, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     );
 
@@ -199,7 +251,24 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
       .select('state, updated_at, user_id')
       .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
     if (!error && data) {
-      cloudState = mergeTrackerStatesForMerchant(data as unknown as TrackerSnapshotRow[]);
+      // Reset foreign-id memory, then tag every id that came from OTHER
+      // merchant members' rows. These are excluded on save so this user's
+      // row never absorbs the merchant-wide merge.
+      for (const set of Object.values(_foreignIds)) set.clear();
+      const rows = data as unknown as TrackerSnapshotRow[];
+      for (const row of rows) {
+        if (!row.state || row.user_id === user.id) continue;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = row.state as any;
+        rememberForeignIds('batches', Array.isArray(s.batches) ? s.batches : []);
+        rememberForeignIds('trades', Array.isArray(s.trades) ? s.trades : []);
+        rememberForeignIds('customers', Array.isArray(s.customers) ? s.customers : []);
+        rememberForeignIds('suppliers', Array.isArray(s.suppliers) ? s.suppliers : []);
+        rememberForeignIds('cashAccounts', Array.isArray(s.cashAccounts) ? s.cashAccounts : []);
+        rememberForeignIds('cashLedger', Array.isArray(s.cashLedger) ? s.cashLedger : []);
+        rememberForeignIds('cashHistory', Array.isArray(s.cashHistory) ? s.cashHistory : []);
+      }
+      cloudState = mergeTrackerStatesForMerchant(rows);
     }
   } else {
     const { data, error } = await supabase

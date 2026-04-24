@@ -20,16 +20,28 @@ export function useAutoVaultBackup() {
   useEffect(() => {
     if (!userId) return;
 
+    let merchantId: string | null = null;
+    let merchantChannelBound = false;
+
     const triggerBackup = (table: string) => {
       // Debounce 5s — multiple changes in quick succession only trigger one backup
       if (pendingTimer.current) clearTimeout(pendingTimer.current);
       pendingTimer.current = setTimeout(async () => {
         try {
-          // Snapshot Supabase tables
+          const ordersQuery = merchantId
+            ? supabase
+                .from('customer_orders')
+                .select('*')
+                .or(`customer_user_id.eq.${userId},placed_by_user_id.eq.${userId},merchant_id.eq.${merchantId}`)
+            : supabase
+                .from('customer_orders')
+                .select('*')
+                .or(`customer_user_id.eq.${userId},placed_by_user_id.eq.${userId}`);
+
           const [orders, accounts, ledger] = await Promise.all([
-            supabase.from('customer_orders').select('*').eq('customer_user_id', userId).order('created_at', { ascending: false }).limit(100),
+            ordersQuery.order('created_at', { ascending: false }).limit(200),
             supabase.from('cash_accounts').select('*').eq('user_id', userId),
-            supabase.from('cash_ledger').select('*').eq('user_id', userId).order('ts', { ascending: false }).limit(200),
+            supabase.from('cash_ledger').select('*').eq('user_id', userId).order('ts', { ascending: false }).limit(500),
           ]);
 
           // Snapshot tracker state (stock: batches, trades, customers, suppliers, cash)
@@ -83,10 +95,31 @@ export function useAutoVaultBackup() {
     const channel = supabase
       .channel(`vault-auto-backup-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` }, () => triggerBackup('customer_orders'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_orders', filter: `placed_by_user_id=eq.${userId}` }, () => triggerBackup('customer_orders'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_accounts'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_ledger'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${userId}` }, () => triggerBackup('stock'))
       .subscribe();
+
+    // Resolve merchant_id, then add a merchant-scoped order subscription so
+    // merchant-side inserts/updates (where customer_user_id is the counterpart)
+    // also trigger a backup for this merchant user.
+    void supabase
+      .from('merchant_profiles')
+      .select('merchant_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const mid = (data as { merchant_id?: string } | null)?.merchant_id;
+        if (!mid || merchantChannelBound) return;
+        merchantId = mid;
+        merchantChannelBound = true;
+        channel.on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'customer_orders', filter: `merchant_id=eq.${mid}` },
+          () => triggerBackup('customer_orders'),
+        );
+      });
 
     return () => {
       if (pendingTimer.current) clearTimeout(pendingTimer.current);
