@@ -252,7 +252,7 @@ export default function VaultPage() {
       const sk = findTrackerStorageKey(localStorage);
       localStorage.removeItem('tracker_data_cleared');
       localStorage.setItem(sk, JSON.stringify(snap.state));
-      await saveTrackerStateNow(snap.state as unknown as TrackerState);
+      await saveTrackerStateNow(snap.state as unknown as TrackerState, { replaceExisting: true });
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة' : '✓ Restored from local snapshot');
       window.location.reload();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -314,7 +314,7 @@ export default function VaultPage() {
       const sk = findTrackerStorageKey(localStorage);
       localStorage.removeItem('tracker_data_cleared');
       localStorage.setItem(sk, JSON.stringify(state));
-      await saveTrackerStateNow(state as unknown as TrackerState);
+      await saveTrackerStateNow(state as unknown as TrackerState, { replaceExisting: true });
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة من السحابة' : '✓ Restored from cloud');
       window.location.reload();
     } catch (e: unknown) {
@@ -664,7 +664,7 @@ export default function VaultPage() {
         const sk = findTrackerStorageKey(localStorage);
         localStorage.removeItem('tracker_data_cleared');
         localStorage.setItem(sk, JSON.stringify(normalized));
-        void saveTrackerStateNow(normalized as unknown as TrackerState);
+        void saveTrackerStateNow(normalized as unknown as TrackerState, { replaceExisting: true });
         setImportStatus('success');
         setImportMsg(t.lang === 'ar' 
           ? `✓ تم الاستيراد: ${itemCount} سجل`
@@ -692,7 +692,7 @@ export default function VaultPage() {
     localStorage.setItem('tracker_data_cleared', 'true');
     await clearTrackerVaultDb();
     const emptyState = { batches: [], trades: [], customers: [], suppliers: [], cashQAR: 0, cashOwner: '', cashHistory: [], cashAccounts: [], cashLedger: [], currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } };
-    void saveTrackerStateNow(emptyState as unknown as TrackerState);
+    void saveTrackerStateNow(emptyState as unknown as TrackerState, { replaceExisting: true });
     toast.success(t.lang === 'ar' ? 'تم مسح البيانات — جاري إعادة التحميل…' : 'Data cleared — reloading…');
     setTimeout(() => window.location.reload(), 500);
   };

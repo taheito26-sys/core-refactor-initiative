@@ -75,6 +75,15 @@ type TrackerSnapshotRow = {
   user_id?: string;
 };
 
+export interface SaveTrackerStateOptions {
+  /**
+   * When true, write the provided state exactly as-is instead of merging it
+   * with the existing cloud snapshot. Use this for destructive operations
+   * like clear/import/restore so old data does not get reintroduced.
+   */
+  replaceExisting?: boolean;
+}
+
 function mergeArrayById<T>(base: T[] | undefined, incoming: T[] | undefined): T[] {
   const out = new Map<string, T>();
   for (const item of base || []) {
@@ -145,7 +154,7 @@ async function ensureRow(userId: string): Promise<void> {
 }
 
 /** Save tracker state to Supabase (upsert) — debounced */
-async function persistToCloud(state: TrackerState): Promise<void> {
+async function persistToCloud(state: TrackerState, options: SaveTrackerStateOptions = {}): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
@@ -162,35 +171,39 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     cashHistory: stripForeignIds('cashHistory', state.cashHistory),
   };
 
-  // Read-merge-write: union incoming state with the current cloud row so a
-  // fresh device (iOS PWA with empty localStorage, new browser, etc.) cannot
-  // wipe data by upserting a partial/empty state. Tracker collections are
-  // additive — merging by id is always safe.
-  const { data: existingRow } = await supabase
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from('tracker_snapshots' as any)
-    .select('state')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const existingState = (existingRow as any)?.state as Partial<TrackerState> | null;
+  let merged: TrackerState = stripped;
 
-  const merged: TrackerState = existingState && typeof existingState === 'object'
-    ? {
-        ...existingState,
-        ...stripped,
-        batches: mergeArrayById(existingState.batches, stripped.batches),
-        trades: mergeArrayById(existingState.trades, stripped.trades),
-        customers: mergeArrayById(existingState.customers, stripped.customers),
-        suppliers: mergeArrayById(
-          (existingState as Partial<TrackerState>).suppliers,
-          stripped.suppliers,
-        ),
-        cashAccounts: mergeArrayById(existingState.cashAccounts, stripped.cashAccounts),
-        cashLedger: mergeArrayById(existingState.cashLedger, stripped.cashLedger),
-        cashHistory: mergeArrayById(existingState.cashHistory, stripped.cashHistory),
-      } as TrackerState
-    : stripped;
+  if (!options.replaceExisting) {
+    // Read-merge-write: union incoming state with the current cloud row so a
+    // fresh device (iOS PWA with empty localStorage, new browser, etc.) cannot
+    // wipe data by upserting a partial/empty state. Tracker collections are
+    // additive - merging by id is always safe.
+    const { data: existingRow } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('tracker_snapshots' as any)
+      .select('state')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const existingState = (existingRow as any)?.state as Partial<TrackerState> | null;
+
+    merged = existingState && typeof existingState === 'object'
+      ? {
+          ...existingState,
+          ...stripped,
+          batches: mergeArrayById(existingState.batches, stripped.batches),
+          trades: mergeArrayById(existingState.trades, stripped.trades),
+          customers: mergeArrayById(existingState.customers, stripped.customers),
+          suppliers: mergeArrayById(
+            (existingState as Partial<TrackerState>).suppliers,
+            stripped.suppliers,
+          ),
+          cashAccounts: mergeArrayById(existingState.cashAccounts, stripped.cashAccounts),
+          cashLedger: mergeArrayById(existingState.cashLedger, stripped.cashLedger),
+          cashHistory: mergeArrayById(existingState.cashHistory, stripped.cashHistory),
+        } as TrackerState
+      : stripped;
+  }
 
   const json = stateToJson(merged);
   if (!json || json === _lastSavedJson) return;
@@ -252,10 +265,10 @@ export function saveTrackerState(state: TrackerState): void {
 }
 
 /** Force an immediate cloud save (e.g. on import/restore) */
-export async function saveTrackerStateNow(state: TrackerState): Promise<void> {
+export async function saveTrackerStateNow(state: TrackerState, options: SaveTrackerStateOptions = {}): Promise<void> {
   if (_saveTimer) clearTimeout(_saveTimer);
   persistToLocal(state);
-  await persistToCloud(state);
+  await persistToCloud(state, options);
 }
 
 /** Load tracker state from cloud, returning null if none found */
