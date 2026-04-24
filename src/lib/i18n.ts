@@ -45,6 +45,7 @@ const translations = {
   admin: { en: 'Admin', ar: 'المشرف' },
   notifications: { en: 'Notifications', ar: 'الإشعارات' },
   logout: { en: 'Logout', ar: 'تسجيل خروج' },
+  more: { en: 'More', ar: 'المزيد' },
 
   // ── Marketplace / OTC ──
   marketplace: { en: 'OTC Marketplace', ar: 'سوق OTC' },

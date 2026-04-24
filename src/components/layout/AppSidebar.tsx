@@ -38,7 +38,7 @@ export const tradingNav: NavItem[] = [
   { labelKey: 'stock', fallback: 'Stock', icon: Wallet, path: '/trading/stock' },
   { labelKey: 'cashManagement', fallback: 'Cash', icon: Banknote, path: '/trading/cash' },
   { labelKey: 'crm', fallback: 'CRM', icon: UserCircle, path: '/crm' },
-  { labelKey: 'chat', fallback: 'chat', icon: MessageCircle, path: '/chat' },
+  { labelKey: 'messages', fallback: 'Chat', icon: MessageCircle, path: '/chat' },
   { labelKey: 'calendar', fallback: 'Calendar', icon: Calendar, path: '/trading/calendar' },
   { labelKey: 'p2pTracker', fallback: 'P2P Market', icon: Globe, path: '/trading/p2p' },
 ];
@@ -90,7 +90,7 @@ export function MobileBottomNav({ onMoreClick }: { onMoreClick: () => void }) {
         <span className="mobile-bottom-nav__icon-wrap">
           <MoreHorizontal className="mobile-bottom-nav__icon" />
         </span>
-        <span className="mobile-bottom-nav__label">More</span>
+        <span className="mobile-bottom-nav__label">{t('more')}</span>
       </button>
     </nav>
   );
