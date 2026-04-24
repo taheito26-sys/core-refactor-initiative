@@ -32,6 +32,8 @@ const IMPORT_STATE_CANDIDATE_KEYS = [
 ] as const;
 
 export const AUTO_BACKUP_KEYS = ['gasAutoSave', 'trackerAutoBackup', 'taheitoAutoBackup'] as const;
+const TRACKER_CLEAR_GUARD_KEY = 'tracker_clear_guard_ts';
+const TRACKER_CLEAR_GUARD_TTL_MS = 15_000;
 
 export type TrackerState = Record<string, unknown>;
 
@@ -152,5 +154,36 @@ export function listTrackerKeysToClear(storage: Storage): string[] {
 export function clearTrackerStorage(storage: Storage): void {
   for (const key of listTrackerKeysToClear(storage)) {
     storage.removeItem(key);
+  }
+}
+
+export function markTrackerClearInProgress(storage: Storage = sessionStorage): void {
+  try {
+    storage.setItem(TRACKER_CLEAR_GUARD_KEY, String(Date.now()));
+  } catch {
+    // best effort
+  }
+}
+
+export function isTrackerClearInProgress(storage: Storage = sessionStorage): boolean {
+  try {
+    const raw = storage.getItem(TRACKER_CLEAR_GUARD_KEY);
+    const ts = raw ? Number(raw) : 0;
+    if (!Number.isFinite(ts) || ts <= 0) return false;
+    if (Date.now() - ts > TRACKER_CLEAR_GUARD_TTL_MS) {
+      storage.removeItem(TRACKER_CLEAR_GUARD_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearTrackerClearGuard(storage: Storage = sessionStorage): void {
+  try {
+    storage.removeItem(TRACKER_CLEAR_GUARD_KEY);
+  } catch {
+    // best effort
   }
 }

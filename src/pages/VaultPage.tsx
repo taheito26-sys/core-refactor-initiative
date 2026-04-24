@@ -18,6 +18,7 @@ import {
   findTrackerStorageKey,
   getCurrentTrackerState,
   hasMeaningfulTrackerData,
+  markTrackerClearInProgress,
   loadAutoBackupFromStorage,
   normalizeImportedTrackerState,
   saveAutoBackupToStorage,
@@ -690,6 +691,7 @@ export default function VaultPage() {
     if (!confirm(t.lang === 'ar' ? '⚠ مسح جميع البيانات؟ لا يمكن التراجع إلا إذا كان لديك نسخة احتياطية.' : '⚠ Clear ALL data? This cannot be undone unless you have a backup.')) return;
     clearTrackerStorage(localStorage);
     localStorage.setItem('tracker_data_cleared', 'true');
+    markTrackerClearInProgress();
     await clearTrackerVaultDb();
     const emptyState = { batches: [], trades: [], customers: [], suppliers: [], cashQAR: 0, cashOwner: '', cashHistory: [], cashAccounts: [], cashLedger: [], currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } };
     void saveTrackerStateNow(emptyState as unknown as TrackerState, { replaceExisting: true });

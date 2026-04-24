@@ -1,7 +1,7 @@
 // Cross-device tracker state & preferences sync via Supabase
 import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
-import { hasMeaningfulTrackerData } from './tracker-backup';
+import { hasMeaningfulTrackerData, clearTrackerClearGuard, isTrackerClearInProgress } from './tracker-backup';
 import type { TrackerState } from './tracker-helpers';
 import { uploadVaultBackup } from './supabase-vault';
 import { clearCashStateFromCloud } from './cash-sync';
@@ -256,6 +256,7 @@ async function persistToCloud(state: TrackerState, options: SaveTrackerStateOpti
 /** Persist state to localStorage immediately and to cloud (debounced 2s) */
 export function saveTrackerState(state: TrackerState): void {
   persistToLocal(state);
+  clearTrackerClearGuard();
 
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
@@ -273,12 +274,15 @@ export async function saveTrackerStateNow(state: TrackerState, options: SaveTrac
     await clearCashStateFromCloud().catch((err) => {
       console.warn('[tracker-sync] clearCashStateFromCloud failed:', err);
     });
+  } else {
+    clearTrackerClearGuard();
   }
   await persistToCloud(state, options);
 }
 
 /** Load tracker state from cloud, returning null if none found */
 export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState> | null> {
+  if (isTrackerClearInProgress()) return null;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 

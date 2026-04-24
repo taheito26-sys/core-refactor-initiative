@@ -25,6 +25,7 @@ import {
   findTrackerStorageKey,
   getCurrentTrackerState,
   hasMeaningfulTrackerData,
+  markTrackerClearInProgress,
   loadAutoBackupFromStorage,
   normalizeImportedTrackerState,
   saveAutoBackupToStorage,
@@ -105,7 +106,7 @@ export default function SettingsPage() {
   const handleCloudImportFile = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const reader = new FileReader(); reader.onload = async () => { try { const data = JSON.parse(reader.result as string); if (!userId) return; const res = await uploadVaultBackup(userId, data, f.name.replace('.json', '')); if (res.ok) { toast.success('Uploaded'); await loadCloudBackups(); } else toast.error(res.error || 'Failed'); } catch { toast.error('Invalid JSON'); } }; reader.readAsText(f); e.target.value = ''; };
   const handleAutoBackupToggle = (v: boolean) => { setAutoBackup(v); saveAutoBackupToStorage(localStorage, v); toast(v ? 'Auto-backup ON' : 'Auto-backup OFF'); };
   const exportJSON = async () => { const state = await resolveVaultState(); downloadBlob(JSON.stringify(state, null, 2), `p2p-tracker-${new Date().toISOString().slice(0, 10)}.json`); setExportStatus('success'); toast.success('JSON exported'); setTimeout(() => setExportStatus('idle'), 3000); };
-  const clearAll = async () => { if (!confirm(t.lang === 'ar' ? '⚠ مسح جميع البيانات؟' : '⚠ Clear ALL data?')) return; clearTrackerStorage(localStorage); localStorage.setItem('tracker_data_cleared', 'true'); const empty = { batches: [], trades: [], customers: [], suppliers: [], cashQAR: 0, cashOwner: '', cashHistory: [], cashAccounts: [], cashLedger: [], currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } }; void saveTrackerStateNow(empty as unknown as TrackerState, { replaceExisting: true }); toast.success('Data cleared — reloading…'); setTimeout(() => window.location.reload(), 500); };
+  const clearAll = async () => { if (!confirm(t.lang === 'ar' ? '⚠ مسح جميع البيانات؟' : '⚠ Clear ALL data?')) return; clearTrackerStorage(localStorage); localStorage.setItem('tracker_data_cleared', 'true'); markTrackerClearInProgress(); const empty = { batches: [], trades: [], customers: [], suppliers: [], cashQAR: 0, cashOwner: '', cashHistory: [], cashAccounts: [], cashLedger: [], currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } }; void saveTrackerStateNow(empty as unknown as TrackerState, { replaceExisting: true }); toast.success('Data cleared — reloading…'); setTimeout(() => window.location.reload(), 500); };
 
   return (
     <div className="tracker-page" dir={t.isRTL ? 'rtl' : 'ltr'}>
