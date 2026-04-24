@@ -723,6 +723,13 @@ export default function CustomerOrdersPage() {
                           )}
                         </div>
                       )
+                    ) : order.workflow_status === 'approved' ? (
+                      <button
+                        onClick={() => setLinkingOrder(order)}
+                        className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
+                      >
+                        💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                      </button>
                     ) : undefined;
 
                     return (
