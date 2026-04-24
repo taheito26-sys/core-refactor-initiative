@@ -92,18 +92,8 @@ export function useAutoVaultBackup() {
       }, 5000);
     };
 
-    const channel = supabase
-      .channel(`vault-auto-backup-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` }, () => triggerBackup('customer_orders'))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_orders', filter: `placed_by_user_id=eq.${userId}` }, () => triggerBackup('customer_orders'))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_accounts'))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_ledger'))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${userId}` }, () => triggerBackup('stock'))
-      .subscribe();
-
-    // Resolve merchant_id, then add a merchant-scoped order subscription so
-    // merchant-side inserts/updates (where customer_user_id is the counterpart)
-    // also trigger a backup for this merchant user.
+    // Resolve merchant_id first, THEN build and subscribe the channel
+    // so we can add the merchant-scoped filter before subscribe() is called.
     void supabase
       .from('merchant_profiles')
       .select('merchant_id')
@@ -111,19 +101,34 @@ export function useAutoVaultBackup() {
       .maybeSingle()
       .then(({ data }) => {
         const mid = (data as { merchant_id?: string } | null)?.merchant_id;
-        if (!mid || merchantChannelBound) return;
-        merchantId = mid;
-        merchantChannelBound = true;
-        channel.on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'customer_orders', filter: `merchant_id=eq.${mid}` },
-          () => triggerBackup('customer_orders'),
-        );
+        merchantId = mid ?? null;
+
+        const channelBuilder = supabase
+          .channel(`vault-auto-backup-${userId}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` }, () => triggerBackup('customer_orders'))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_orders', filter: `placed_by_user_id=eq.${userId}` }, () => triggerBackup('customer_orders'))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_accounts'))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${userId}` }, () => triggerBackup('cash_ledger'))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${userId}` }, () => triggerBackup('stock'));
+
+        // Add merchant-scoped order subscription if we have a merchant_id
+        if (mid) {
+          merchantChannelBound = true;
+          channelBuilder.on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'customer_orders', filter: `merchant_id=eq.${mid}` },
+            () => triggerBackup('customer_orders'),
+          );
+        }
+
+        channelBuilder.subscribe();
       });
 
     return () => {
       if (pendingTimer.current) clearTimeout(pendingTimer.current);
-      void supabase.removeChannel(channel);
+      // Remove by channel name — works even if the async setup hasn't completed yet
+      const ch = supabase.getChannels().find(c => c.topic === `realtime:vault-auto-backup-${userId}`);
+      if (ch) void supabase.removeChannel(ch);
     };
   }, [userId]);
 }
