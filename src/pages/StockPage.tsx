@@ -47,7 +47,7 @@ export default function StockPage() {
   const t = useT();
   const isMobile = useIsMobile();
 
-  const { state, derived, applyState, applyStateAndCommit } = useTrackerState({
+  const { state, derived, applyState, applyStateAndCommit, clearedAccountIds } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
@@ -537,7 +537,7 @@ export default function StockPage() {
 
       {/* ── CASH MANAGEMENT TAB ────────────────────────────────── */}
       {stockTab === 'cash' && (
-        <CashManagement state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} />
+        <CashManagement state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} clearedAccountIds={clearedAccountIds} />
       )}
 
       {/* ── BATCHES TAB ────────────────────────────────────────── */}

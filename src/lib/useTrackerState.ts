@@ -68,6 +68,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const [derived, setDerived] = useState<DerivedState>(initial.derived);
   const stateRef = useRef(state);
   const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks account IDs whose ledger was just cleared — prevents refreshFromCloud
+  // from re-merging local-only entries for those accounts during the sync window.
+  const clearedAccountIds = useRef<Set<string>>(new Set());
 
   const applyState = useCallback((next: TrackerState) => {
     // In admin preloaded mode, don't persist
@@ -167,7 +170,11 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       if (cashData && (cashData.accounts.length > 0 || cashData.ledger.length > 0)) {
         setState(prev => {
           const cloudIds = new Set(cashData.ledger.map(e => e.id));
-          const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
+          // Don't re-merge local-only entries for accounts that were explicitly
+          // cleared — those entries were deleted from cloud on purpose.
+          const localOnly = (prev.cashLedger || []).filter(e =>
+            !cloudIds.has(e.id) && !clearedAccountIds.current.has(e.accountId)
+          );
           const cloudAccountIds = new Set(cashData.accounts.map(a => a.id));
           const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
           const next = {
@@ -325,5 +332,5 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     return () => { cancelled = true; };
   }, [adminMode, isAuthenticated, options.preloadedState]);
 
-  return { state, derived, applyState, applyStateAndCommit, cloudLoaded };
+  return { state, derived, applyState, applyStateAndCommit, cloudLoaded, clearedAccountIds };
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import {
   uid, fmtTotal, fmtDate, num,
@@ -704,9 +704,11 @@ interface CashManagementProps {
   applyState: (next: TrackerState) => void;
   /** DB-first commit variant — resolves only after the server acks. */
   applyStateAndCommit?: (next: TrackerState) => Promise<void>;
+  /** Ref to the set of account IDs whose ledger was cleared — prevents sync from restoring them */
+  clearedAccountIds?: MutableRefObject<Set<string>>;
 }
 
-export function CashManagement({ state, applyState, applyStateAndCommit }: CashManagementProps) {
+export function CashManagement({ state, applyState, applyStateAndCommit, clearedAccountIds }: CashManagementProps) {
   const t = useT();
   const isMobile = useIsMobile();
   const { user, merchantProfile } = useAuth();
@@ -875,7 +877,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit }: CashM
   };
 
   const clearLedgerEntries = async (id: string) => {
-    // 1. Delete from cloud FIRST — so when the realtime postgres_changes event
+    // 1. Register this account as "cleared" so refreshFromCloud won't re-merge
+    //    local-only entries for it during the sync window.
+    clearedAccountIds?.current.add(id);
+
+    // 2. Delete from cloud FIRST — so when the realtime postgres_changes event
     //    fires and refreshFromCloud() runs, the cloud is already empty and
     //    won't restore the cleared entries back into local state.
     try {
@@ -883,7 +889,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit }: CashM
     } catch (err) {
       console.error('[CashManagement] deleteCashAccountLedgerFromCloud failed:', err);
     }
-    // 2. Commit the cleared state to cloud immediately (not debounced) so
+    // 3. Commit the cleared state to cloud immediately (not debounced) so
     //    refreshFromCloud sees the cleared ledger and doesn't re-merge old entries.
     const newLedger = ledger.filter(e => e.accountId !== id && e.contraAccountId !== id);
     const newCashQAR = deriveCashQAR(accounts, newLedger);
@@ -898,6 +904,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit }: CashM
     } else {
       applyState(nextState);
     }
+
+    // 4. Keep the account suppressed for 5s to cover any delayed realtime events,
+    //    then remove it so future legitimate entries can sync normally.
+    setTimeout(() => { clearedAccountIds?.current.delete(id); }, 5000);
   };
 
   // ── Ledger filtered rows with running balance ─────────────────
