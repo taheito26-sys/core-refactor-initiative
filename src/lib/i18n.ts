@@ -2042,11 +2042,11 @@ const translations = {
   attachFile:                   { en: 'Attach file',                                      ar: 'إرفاق ملف' },
 
   // ── Currency Names (Localized) ──
-  currencyQAR:                  { en: 'QAR',                                              ar: 'قطري' },
-  currencyEGP:                  { en: 'EGP',                                              ar: 'مصري' },
+  currencyQAR:                  { en: 'QAR',                                              ar: 'ريال' },
+  currencyEGP:                  { en: 'EGP',                                              ar: 'جنية' },
   currencyUSDT:                 { en: 'USDT',                                             ar: 'USDT' },
   currencyUSD:                  { en: 'USD',                                              ar: 'دولار أمريكي' },
-  fxRateFormat:                 { en: '1 QAR = {rate} EGP',                               ar: '1 قطري = {rate} مصري' },
+  fxRateFormat:                 { en: '1 QAR = {rate} EGP',                               ar: '1 ريال = {rate} جنية' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

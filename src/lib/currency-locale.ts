@@ -8,8 +8,8 @@ import type { Lang } from './i18n';
 export type CurrencyCode = 'QAR' | 'EGP' | 'USD' | 'USDT' | 'AED' | 'SAR';
 
 const currencyNames: Record<CurrencyCode, Record<Lang, string>> = {
-  QAR: { en: 'QAR', ar: 'قطري' },
-  EGP: { en: 'EGP', ar: 'مصري' },
+  QAR: { en: 'QAR', ar: 'ريال' },
+  EGP: { en: 'EGP', ar: 'جنية' },
   USD: { en: 'USD', ar: 'دولار' },
   USDT: { en: 'USDT', ar: 'USDT' },
   AED: { en: 'AED', ar: 'إماراتي' },
@@ -28,7 +28,7 @@ export function getLocalizedCurrencyName(code: CurrencyCode, lang: Lang = 'en'):
 
 /**
  * Format FX rate display with localized currency names
- * Example: "1 قطري = 13.9253 مصري" (Arabic) or "1 QAR = 13.9253 EGP" (English)
+ * Example: "1 ريال = 13.9253 جنية" (Arabic) or "1 QAR = 13.9253 EGP" (English)
  */
 export function formatFxRateDisplay(
   rate: number,
