@@ -1,22 +1,17 @@
 /**
  * Vault auto-backup trigger.
  * Call triggerVaultBackup() after any important data mutation.
- * Throttled: max once per 10 minutes, debounced 5s.
+ * Debounced 5s to coalesce rapid successive mutations.
  */
 
 import { uploadVaultBackup } from './supabase-vault';
 import { getCurrentTrackerState } from './tracker-backup';
 import { supabase } from '@/integrations/supabase/client';
 
-let _lastTs = 0;
 let _timer: ReturnType<typeof setTimeout> | null = null;
-const THROTTLE_MS = 10 * 60 * 1000;
 const DEBOUNCE_MS = 5000;
 
 export function triggerVaultBackup(reason: string) {
-  const now = Date.now();
-  if (now - _lastTs < THROTTLE_MS) return;
-
   if (_timer) clearTimeout(_timer);
   _timer = setTimeout(() => void _doBackup(reason), DEBOUNCE_MS);
 }
@@ -26,7 +21,6 @@ async function _doBackup(reason: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const uid = user.id;
-    _lastTs = Date.now();
 
     const [orders, accounts, ledger] = await Promise.all([
       supabase.from('customer_orders').select('*').or(`customer_user_id.eq.${uid},merchant_id.in.(select merchant_id from merchant_profiles where user_id='${uid}')`).order('created_at', { ascending: false }).limit(100),

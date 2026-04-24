@@ -2,7 +2,7 @@
  * useAutoVaultBackup
  *
  * Listens to Supabase realtime changes on key tables and triggers
- * a vault backup when data changes. Throttled to max once per 10 min.
+ * a vault backup when data changes. Debounced 5s to coalesce bursts.
  * Includes: orders, cash, ledger, AND stock (tracker state with batches/trades).
  * Runs at the AppLayout level so it covers all pages.
  */
@@ -13,24 +13,17 @@ import { useAuth } from '@/features/auth/auth-context';
 import { uploadVaultBackup } from '@/lib/supabase-vault';
 import { getCurrentTrackerState } from '@/lib/tracker-backup';
 
-const THROTTLE_MS = 10 * 60 * 1000; // 10 minutes
-
 export function useAutoVaultBackup() {
   const { userId } = useAuth();
-  const lastBackupTs = useRef(Date.now());
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!userId) return;
 
     const triggerBackup = (table: string) => {
-      const now = Date.now();
-      if (now - lastBackupTs.current < THROTTLE_MS) return;
-
       // Debounce 5s — multiple changes in quick succession only trigger one backup
       if (pendingTimer.current) clearTimeout(pendingTimer.current);
       pendingTimer.current = setTimeout(async () => {
-        lastBackupTs.current = Date.now();
         try {
           // Snapshot Supabase tables
           const [orders, accounts, ledger] = await Promise.all([
