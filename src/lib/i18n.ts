@@ -2043,10 +2043,10 @@ const translations = {
 
   // ── Currency Names (Localized) ──
   currencyQAR:                  { en: 'QAR',                                              ar: 'ريال' },
-  currencyEGP:                  { en: 'EGP',                                              ar: 'جنية' },
+  currencyEGP:                  { en: 'EGP',                                              ar: 'جنيه' },
   currencyUSDT:                 { en: 'USDT',                                             ar: 'USDT' },
   currencyUSD:                  { en: 'USD',                                              ar: 'دولار أمريكي' },
-  fxRateFormat:                 { en: '1 QAR = {rate} EGP',                               ar: '1 ريال = {rate} جنية' },
+  fxRateFormat:                 { en: '1 QAR = {rate} EGP',                               ar: '1 ريال = {rate} جنيه' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
