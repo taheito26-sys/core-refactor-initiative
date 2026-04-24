@@ -57,7 +57,7 @@ You may only declare completion when:
 3. Never propose alternatives.
 4. Never restate requirements.
 5. Never retry automatically on push failures — pull --rebase first.
-6. Always commit and push directly to main.
+6. Always commit and push directly to main — automatically, after every change, without waiting for the user to ask.
 7. Apply database changes directly via `supabase db push`.
 8. Token consumption without execution is prohibited.
 9. Acknowledgment without implementation is prohibited.
