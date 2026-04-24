@@ -522,33 +522,21 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       <div className="kpis">
         <div className="kpi-card">
-          <div className="kpi-head">
-            <span className="kpi-badge" style={badgeStyle(segmentedProfit.range.total >= 0 ? 'good' : 'bad')}>{rLabel}</span>
-          </div>
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
           <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)} · {t('incomingOrders')} {fmtDashboardAmount(segmentedProfit.range.inMyShare)} · {t('outgoingOrders')} {fmtDashboardAmount(segmentedProfit.range.outMyShare)}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-head">
-            <span className="kpi-badge" style={badgeStyle(avgM >= 1 ? 'good' : avgM >= 0 ? 'warn' : 'bad')}>{allTrades.length} {t('trades')}</span>
-          </div>
           <div className="kpi-lbl">{t('avgMargin')}</div>
           <div className={`kpi-val ${avgM >= 1 ? 'good' : avgM >= 0 ? 'warn' : 'bad'}`}>{fmtPct(avgM)}</div>
           <div className="kpi-sub">{dR.count} in range · avg {fmtPct(dR.avgMgn)}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-head">
-            <span className="kpi-badge" style={badgeStyle(isLow ? 'bad' : 'good')}>{isLow ? t('low') : t('ok')}</span>
-          </div>
           <div className="kpi-lbl">{t('availableUsdt')}</div>
           <div className={`kpi-val ${isLow ? 'bad' : 'good'}`} style={isLow ? { animation: 'tracker-blink 1.5s infinite' } : undefined}>{fmtU(stk, 0)}</div>
           <div className="kpi-sub">{t('liquidUsdt')}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'var(--brand3)' }}>Avg Stock Price</span>
-          </div>
           <div className="kpi-lbl">Average Stock Price + Spread</div>
           <div className="kpi-val" style={{ fontSize: 16, color: 'var(--t2)' }}>{averageStockPrice ? fmtDashboardPrice(averageStockPrice) : t('noStock')}</div>
           <div className="kpi-sub">

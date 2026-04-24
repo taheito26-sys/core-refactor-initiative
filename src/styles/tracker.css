@@ -74,7 +74,7 @@
 .tracker-root .kpi-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background: var(--kpi-accent); opacity:0; transition: opacity var(--lt-tr); }
 .tracker-root .kpi-card:hover::after { opacity: var(--lt-card-ornament,1); }
 .tracker-root .kpi-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3px; }
-.tracker-root .kpi-lbl { font-size: calc(9px * var(--ui-scale,1)); font-weight: var(--lt-fw-ui,900); letter-spacing: var(--lt-label-tracking,.6px); text-transform: uppercase; color: var(--muted); margin-bottom: 4px; line-height: 1.15; }
+.tracker-root .kpi-lbl { font-size: calc(11px * var(--ui-scale,1)); font-weight: var(--lt-fw-ui,700); letter-spacing: var(--lt-label-tracking,.3px); text-transform: uppercase; color: var(--text); margin-bottom: 6px; line-height: 1.15; }
 .tracker-root .kpi-val { font-size: calc(18px * var(--ui-scale,1)); font-weight: var(--lt-fw-val,800); letter-spacing: var(--lt-val-tracking,-.3px); line-height: 1; font-family: var(--lt-font-mono); }
 .tracker-root .kpi-sub { font-size: calc(9px * var(--ui-scale,1)); color: var(--muted); margin-top: 4px; line-height: 1.2; }
 .tracker-root .kpi-badge { font-size: calc(9px * var(--ui-scale,1)); font-weight: var(--lt-fw-ui,700); padding: 2px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; transition: all var(--lt-tr); }
