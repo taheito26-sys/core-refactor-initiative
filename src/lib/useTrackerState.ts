@@ -6,6 +6,7 @@ import { saveTrackerState, loadTrackerStateFromCloud } from './tracker-sync';
 import { getCurrentTrackerState } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
+import { triggerVaultBackup } from './vault-auto-trigger';
 
 interface UseTrackerOptions {
   lowStockThreshold?: number;
@@ -57,6 +58,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     stateRef.current = next;
     setDerived(computeFIFO(next.batches, next.trades));
     saveTrackerState(next);
+    triggerVaultBackup('stock/cash change');
     // Debounced sync to dedicated cash tables
     if (next.cashAccounts?.length || next.cashLedger?.length) {
       if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);

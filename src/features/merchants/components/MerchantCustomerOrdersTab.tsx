@@ -31,6 +31,7 @@ import { getQatarEgyptGuideRate } from '@/features/customer/customer-market';
 import { MerchantAddExecutionForm } from '@/features/parent-order-fulfillment/components/MerchantAddExecutionForm';
 import { MerchantExecutionList } from '@/features/parent-order-fulfillment/components/MerchantExecutionList';
 import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
+import { triggerVaultBackup } from '@/lib/vault-auto-trigger';
 // -- Place Order for Client Modal --
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   merchantId: string; userId: string; onClose: () => void;
@@ -167,6 +168,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
       });
       toast.success('Order placed and sent to customer');
       qc.invalidateQueries({ queryKey: ['merchant-customer-orders', merchantId] });
+      triggerVaultBackup('merchant order placed');
     },
     onError: (e: any) => {
       setSubmitResult({
@@ -522,6 +524,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       setActioningId(null);
       toast.success('Order approved');
+      triggerVaultBackup('merchant order approved');
     },
     onError: (e: any) => {
       setActioningId(null);
@@ -538,6 +541,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       setActioningId(null);
       toast.success('Order rejected');
+      triggerVaultBackup('merchant order rejected');
     },
     onError: (e: any) => {
       setActioningId(null);
@@ -556,6 +560,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
       setEditingId(null);
       setEditAmount('');
       toast.success('Order updated and sent back to customer');
+      triggerVaultBackup('merchant order edited');
     },
     onError: (e: any) => {
       toast.error(e?.message || 'Failed to update');

@@ -26,6 +26,7 @@ import { AcceptOrderModal } from '@/features/parent-order-fulfillment/components
 import { MobileInstallBanner } from '@/features/parent-order-fulfillment/components/MobileInstallBanner';
 import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
 import { useOrderExecutions } from '@/features/parent-order-fulfillment/hooks/useOrderExecutions';
+import { triggerVaultBackup } from '@/lib/vault-auto-trigger';
 
 // ── LinkCashModal — assign received EGP to a cash account ────────
 
@@ -276,6 +277,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
       }
       toast.success(L('Order placed and sent to merchant', 'تم تقديم الطلب وإرساله للتاجر'));
       qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+      triggerVaultBackup('order placed');
       onCreated();
     },
     onError: (e: any) => toast.error(e.message),
@@ -560,6 +562,7 @@ export default function CustomerOrdersPage() {
     onSuccess: () => {
       toast.success(L('Order approved', 'تمت الموافقة على الطلب'));
       qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+      triggerVaultBackup('order approved');
     },
     onError: (error: any) => {
       toast.error(error?.message ?? L('Failed to approve', 'فشل في الموافقة'));
@@ -580,6 +583,7 @@ export default function CustomerOrdersPage() {
     onSuccess: () => {
       toast.success(L('Order rejected', 'تم رفض الطلب'));
       qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+      triggerVaultBackup('order rejected');
     },
     onError: (error: any) => {
       toast.error(error?.message ?? L('Failed to reject', 'فشل في الرفض'));
@@ -602,6 +606,7 @@ export default function CustomerOrdersPage() {
       setEditingId(null);
       setEditAmount('');
       qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+      triggerVaultBackup('order edited');
     },
     onError: (error: any) => {
       toast.error(error?.message ?? L('Failed to update', 'فشل في التحديث'));
