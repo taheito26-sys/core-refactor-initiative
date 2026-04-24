@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
+import { localCur } from '@/lib/currency-locale';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -302,7 +303,7 @@ export default function P2PTrackerPage() {
                          onChange={e => setScanAmount(e.target.value)}
                          className={cn("h-9 font-black font-mono bg-muted/20 border-border/50", scanError && "border-destructive focus-visible:ring-destructive")}
                        />
-                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30">دولار</span>
+                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30">{localCur('USDT', t.lang)}</span>
                      </div>
                      {scanError && <p className="text-[10px] text-destructive font-bold flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {scanError}</p>}
                    </div>
@@ -361,7 +362,7 @@ export default function P2PTrackerPage() {
                            onChange={e => setQaSellOverrideText(e.target.value)}
                            className="h-9 font-black font-mono bg-muted/20 border-border/50 pr-10 text-[12px]"
                          />
-                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black opacity-30">ريال</span>
+                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black opacity-30">{localCur('QAR', t.lang)}</span>
                        </div>
                        {qaSellOverride !== null && (
                          <Button
@@ -376,7 +377,7 @@ export default function P2PTrackerPage() {
                      </div>
                      {qaSellOverride !== null && (
                        <p className="text-[9px] text-primary font-bold">
-                         Using {qaSellOverride.toFixed(4)} ريال for all جنيه KPIs (sell = buy)
+                         Using {qaSellOverride.toFixed(4)} {localCur('QAR', t.lang)} for all {localCur('EGP', t.lang)} KPIs (sell = buy)
                        </p>
                      )}
                    </CardContent>

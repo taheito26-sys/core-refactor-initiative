@@ -22,6 +22,7 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
+import { localCur } from '@/lib/currency-locale';
 import {
   Dialog,
   DialogContent,
@@ -148,7 +149,7 @@ export default function StockPage() {
 
   const wacop = getWACOP(derived);
   /** Currency-aware formatter: respects the global {baseFiat}/USDT toggle using FIFO WACOP */
-  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop), [settings.currency, wacop]);
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop, baseFiat as 'QAR' | 'EGP', t.lang), [settings.currency, wacop, baseFiat, t.lang]);
   const rLabel = rangeLabel(state.range);
 
   const query = (settings.searchQuery || '').trim().toLowerCase();
@@ -788,8 +789,8 @@ export default function StockPage() {
                   <div className="field2">
                     <div className="lbl">{t('currencyMode')}</div>
                     <div className="modeToggle">
-                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}</button>
-                      <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 دولار</button>
+                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {localCur(baseFiat, t.lang)}</button>
+                      <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 {localCur('USDT', t.lang)}</button>
                     </div>
                   </div>
                   <div className="g2tight" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : undefined}>
@@ -821,7 +822,7 @@ export default function StockPage() {
                     <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
                       <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
-                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}/دولار
+                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} {localCur(baseFiat, t.lang)}/{localCur('USDT', t.lang)}
                       </span>
                     </div>
                   )}
@@ -1046,8 +1047,8 @@ export default function StockPage() {
                     <div className="field2">
                       <div className="lbl">{t('currencyMode')}</div>
                       <div className="modeToggle">
-                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}</button>
-                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 دولار</button>
+                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {localCur(baseFiat, t.lang)}</button>
+                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 {localCur('USDT', t.lang)}</button>
                       </div>
                     </div>
                     <div className="field2">
@@ -1071,7 +1072,7 @@ export default function StockPage() {
                     {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
                       <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
                         <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
-                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}/دولار</span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} {localCur(baseFiat, t.lang)}/{localCur('USDT', t.lang)}</span>
                       </div>
                     )}
                   </>)}

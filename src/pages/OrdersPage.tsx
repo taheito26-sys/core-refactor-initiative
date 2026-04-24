@@ -10,7 +10,7 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
-import * as api from '@/lib/api';
+import { localCur } from '@/lib/currency-locale';import * as api from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { DEAL_TYPE_CONFIGS, calculateAllocation, calculateAgreementAllocation, isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
 import { AGREEMENT_TEMPLATES, getTemplateRatioLabel, getDealShares, type AgreementTemplate } from '@/lib/deal-templates';
@@ -475,7 +475,7 @@ export default function OrdersPage() {
   const wacop = getWACOP(derived);
   const averageStockPrice = wacop;
   /** Currency-aware formatter: respects the global QAR/USDT toggle using FIFO WACOP */
-  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, averageStockPrice), [settings.currency, averageStockPrice]);
+  const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, averageStockPrice, baseFiat as 'QAR' | 'EGP', t.lang), [settings.currency, averageStockPrice, baseFiat, t.lang]);
 
   const rLabel = rangeLabel(state.range);
   const query = (settings.searchQuery || '').trim().toLowerCase();
@@ -3624,8 +3624,8 @@ export default function OrdersPage() {
                       <div className="lbl">{t(getCurrencyLabel('amount', saleMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
-                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>دولار</button>
-                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{baseFiat === 'EGP' ? 'جنيه' : 'ريال'}</button>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>{localCur('USDT', t.lang)}</button>
+                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{localCur(baseFiat, t.lang)}</button>
                       </div>
                     </div>
                     <div className="field2">

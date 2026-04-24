@@ -6,6 +6,7 @@ import { useTrackerState } from '@/lib/useTrackerState';
 import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, type Customer, type Supplier } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
+import { localCur } from '@/lib/currency-locale';
 import { mapConnectedCustomers, mergeListedCustomers } from '@/features/merchants/lib/customer-listing';
 import { supabase } from '@/integrations/supabase/client';
 import '@/styles/tracker.css';
@@ -84,11 +85,12 @@ function KpiCard({ label, value, color }: { label: string; value: string | numbe
 }
 
 // ── Supplier Detail Card ────────────────────────────────────────────
-function SupplierCard({ supplier, maxUSDT, onEdit, onDelete }: {
+function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
   supplier: { name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number };
   maxUSDT: number;
   onEdit: () => void;
   onDelete: () => void;
+  lang: 'en' | 'ar';
 }) {
   const pct = maxUSDT > 0 ? Math.round((supplier.totalUSDT / maxUSDT) * 100) : 0;
   return (
@@ -111,7 +113,7 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete }: {
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtPrice(supplier.avgCost)}</div>
         </div>
         <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
-          <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>SPENT ريال</div>
+          <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>SPENT {localCur('QAR', lang)}</div>
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtTotal(supplier.spentQAR)}</div>
         </div>
       </div>
@@ -556,6 +558,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                   maxUSDT={maxSupplierUSDT}
                   onEdit={() => openEditSupplier(s.name)}
                   onDelete={() => deleteSupplier(s.name)}
+                  lang={t.lang}
                 />
               ))}
             </div>
@@ -592,6 +595,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                   maxUSDT={maxSupplierUSDT}
                   onEdit={() => openEditSupplier(s.name)}
                   onDelete={() => deleteSupplier(s.name)}
+                  lang={t.lang}
                 />
               ))}
             </div>

@@ -162,7 +162,37 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     cashHistory: stripForeignIds('cashHistory', state.cashHistory),
   };
 
-  const json = stateToJson(stripped);
+  // Read-merge-write: union incoming state with the current cloud row so a
+  // fresh device (iOS PWA with empty localStorage, new browser, etc.) cannot
+  // wipe data by upserting a partial/empty state. Tracker collections are
+  // additive — merging by id is always safe.
+  const { data: existingRow } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('tracker_snapshots' as any)
+    .select('state')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existingState = (existingRow as any)?.state as Partial<TrackerState> | null;
+
+  const merged: TrackerState = existingState && typeof existingState === 'object'
+    ? {
+        ...existingState,
+        ...stripped,
+        batches: mergeArrayById(existingState.batches, stripped.batches),
+        trades: mergeArrayById(existingState.trades, stripped.trades),
+        customers: mergeArrayById(existingState.customers, stripped.customers),
+        suppliers: mergeArrayById(
+          (existingState as Partial<TrackerState>).suppliers,
+          stripped.suppliers,
+        ),
+        cashAccounts: mergeArrayById(existingState.cashAccounts, stripped.cashAccounts),
+        cashLedger: mergeArrayById(existingState.cashLedger, stripped.cashLedger),
+        cashHistory: mergeArrayById(existingState.cashHistory, stripped.cashHistory),
+      } as TrackerState
+    : stripped;
+
+  const json = stateToJson(merged);
   if (!json || json === _lastSavedJson) return;
 
   const { error } = await supabase
@@ -170,7 +200,7 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     .from('tracker_snapshots' as any)
     .upsert(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { user_id: user.id, state: stripped as any, updated_at: new Date().toISOString() },
+      { user_id: user.id, state: merged as any, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     );
 

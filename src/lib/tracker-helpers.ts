@@ -101,38 +101,24 @@ export function fmtQWithUnit(
   displayCurrency: string = 'QAR',
   wacop: number | null = null,
   recordFiat: 'QAR' | 'EGP' = 'QAR',
+  lang: 'en' | 'ar' = 'en',
 ): string {
   const q = num(fiatAmount);
   if (!Number.isFinite(q)) return '—';
   if (displayCurrency === 'USDT' && wacop && wacop > 0) {
-    return fmtPrice(q / wacop) + ' دولار';
+    const usdtLabel = lang === 'ar' ? 'دولار' : 'USDT';
+    return fmtPrice(q / wacop) + ' ' + usdtLabel;
   }
-  // Show in the record's actual fiat currency with localized name
-  const localizedCurrency = getLocalizedCurrencyName(recordFiat);
-  return fmtTotal(q) + ' ' + localizedCurrency;
+  // Show in the record's actual fiat currency
+  const label = lang === 'ar' ? _arCurrency(recordFiat) : recordFiat;
+  return fmtTotal(q) + ' ' + label;
 }
 
-/**
- * Get localized currency name based on language
- * QAR → ريال, EGP → جنيه, USDT → دولار
- */
-function getLocalizedCurrencyName(currency: 'QAR' | 'EGP' | 'USDT'): string {
-  const currencyMap: Record<string, string> = {
-    'QAR': 'ريال',
-    'EGP': 'جنيه',
-    'USDT': 'دولار',
-  };
-  return currencyMap[currency] || currency;
+/** Internal: Arabic currency name lookup */
+function _arCurrency(code: string): string {
+  const map: Record<string, string> = { QAR: 'ريال', EGP: 'جنيه', USDT: 'دولار' };
+  return map[code] || code;
 }
-
-/**
- * Format fiat amount with localized currency name
- * e.g. fmtQLocalized(7790, 'QAR') → "7,790 ريال"
- */
-export function fmtQLocalized(v: number, fiatCurrency: 'QAR' | 'EGP' = 'QAR'): string {
-  const x = num(v, 0);
-  const localizedName = getLocalizedCurrencyName(fiatCurrency);
-  return fmtTotal(x) + ' ' + localizedName;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

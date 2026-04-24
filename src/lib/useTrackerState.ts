@@ -151,8 +151,17 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setCloudLoaded(true);
 
       if (!cloudState) {
-        // No cloud state — push local to cloud
-        saveTrackerState(stateRef.current);
+        // No cloud state yet. Only push local if it actually has data —
+        // a fresh PWA install with empty localStorage must NOT upload an
+        // empty row that would later be mistaken for "cloud has nothing".
+        const s = stateRef.current;
+        const hasData =
+          (s.batches?.length ?? 0) > 0 ||
+          (s.trades?.length ?? 0) > 0 ||
+          (s.customers?.length ?? 0) > 0 ||
+          (s.cashAccounts?.length ?? 0) > 0 ||
+          (s.cashLedger?.length ?? 0) > 0;
+        if (hasData) saveTrackerState(s);
         return;
       }
 

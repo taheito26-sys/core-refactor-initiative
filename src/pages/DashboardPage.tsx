@@ -10,7 +10,7 @@ import {
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
-import { supabase } from '@/integrations/supabase/client';
+import { localCur } from '@/lib/currency-locale';import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
@@ -92,20 +92,20 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const fmtDashboardAmount = useCallback((qarAmount: number) => {
     const converted = convertDashboardFiat(qarAmount);
     if (!converted) return '—';
-    if (converted.currency === 'USDT') return `${fmtPrice(converted.amount)} USDT`;
-    return `${fmtTotal(converted.amount)} ${converted.currency}`;
-  }, [convertDashboardFiat]);
+    if (converted.currency === 'USDT') return `${fmtPrice(converted.amount)} ${localCur('USDT', t.lang)}`;
+    return `${fmtTotal(converted.amount)} ${localCur(converted.currency, t.lang)}`;
+  }, [convertDashboardFiat, t.lang]);
 
   const fmtDashboardPrice = useCallback((priceQarPerUsdt: number) => {
     const price = num(priceQarPerUsdt, Number.NaN);
     if (!Number.isFinite(price)) return '—';
 
     if (settings.currency === 'EGP' && dashboardQarPerUsdt && dashboardQarPerUsdt > 0 && egyptBuyRate && egyptBuyRate > 0) {
-      return `${fmtPrice((price / dashboardQarPerUsdt) * egyptBuyRate)} EGP`;
+      return `${fmtPrice((price / dashboardQarPerUsdt) * egyptBuyRate)} ${localCur('EGP', t.lang)}`;
     }
 
-    return `${fmtPrice(price)} QAR`;
-  }, [dashboardQarPerUsdt, egyptBuyRate, settings.currency]);
+    return `${fmtPrice(price)} ${localCur('QAR', t.lang)}`;
+  }, [dashboardQarPerUsdt, egyptBuyRate, settings.currency, t.lang]);
 
   const allTrades = state.trades.filter(t => !t.voided);
   const getTradeMyPct = (tr: typeof allTrades[0]) => {
@@ -430,7 +430,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div>
               <div className="kpi-period">{curMo}</div>
               {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev, sub: `${segmentedProfit.thisMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.thisMonth.ownQty, 0)} USDT` },
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev, sub: `${segmentedProfit.thisMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.thisMonth.ownQty, 0)} ${localCur('USDT', t.lang)}` },
                 { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inVol, sub: `${segmentedProfit.thisMonth.inCount} ${t('deals') || 'deals'}` },
                 { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outVol, sub: `${segmentedProfit.thisMonth.outCount} ${t('deals') || 'deals'}` },
               ].map(row => (
@@ -450,7 +450,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div>
               <div className="kpi-period">{prevMo}</div>
               {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev, sub: `${segmentedProfit.lastMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.lastMonth.ownQty, 0)} USDT` },
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev, sub: `${segmentedProfit.lastMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.lastMonth.ownQty, 0)} ${localCur('USDT', t.lang)}` },
                 { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inVol, sub: `${segmentedProfit.lastMonth.inCount} ${t('deals') || 'deals'}` },
                 { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outVol, sub: `${segmentedProfit.lastMonth.outCount} ${t('deals') || 'deals'}` },
               ].map(row => (
@@ -577,7 +577,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <>
                 <div className="kpi-val" style={{ color: 'var(--t5)' }}>
                   {refPrice && cash > 0
-                    ? fmtU(cash / refPrice, 0) + ' USDT'
+                    ? fmtU(cash / refPrice, 0) + ' ' + localCur('USDT', t.lang)
                     : cash > 0
                       ? fmtDashboardAmount(cash)
                       : t('setCash')}
