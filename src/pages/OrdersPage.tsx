@@ -163,6 +163,7 @@ export default function OrdersPage() {
   const [settleImmediately, setSettleImmediately] = useState(false);
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [ordersPage, setOrdersPage] = useState(1);
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
 
@@ -624,6 +625,16 @@ export default function OrdersPage() {
       return key === selectedMonth;
     });
   }, [filtered, selectedMonth]);
+
+  // ── Pagination ──
+  const ORDERS_PER_PAGE = 10;
+  const totalOrderPages = Math.max(1, Math.ceil(subFilteredMy.length / ORDERS_PER_PAGE));
+  // Reset page when filters change
+  useEffect(() => { setOrdersPage(1); }, [selectedMonth, query, settings.range]);
+  const paginatedOrders = useMemo(() => {
+    const start = (ordersPage - 1) * ORDERS_PER_PAGE;
+    return subFilteredMy.slice(start, start + ORDERS_PER_PAGE);
+  }, [subFilteredMy, ordersPage]);
 
   const subFilteredTransfers = useMemo(() => {
     if (selectedMonth === 'all') return allTransfers;
@@ -2880,7 +2891,7 @@ export default function OrdersPage() {
                 </div>
               ) : isMobile ? (
                 <div className="orders-cards-list" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
-                  {subFilteredMy.map((tr) => renderMyOrderMobileCard(tr))}
+                  {paginatedOrders.map((tr) => renderMyOrderMobileCard(tr))}
                   {/* Unlinked merchant deals (same logic as desktop) */}
                   {(() => {
                     const localTradeIds = new Set(subFilteredMy.map(tr => tr.id));
@@ -2915,7 +2926,7 @@ export default function OrdersPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {subFilteredMy.map(tr => {
+                      {paginatedOrders.map(tr => {
                         const c = derived.tradeCalc.get(tr.id);
                         const ok = !!c?.ok;
                         const rev = tr.amountUSDT * tr.sellPriceQAR;
@@ -3068,6 +3079,31 @@ export default function OrdersPage() {
                       })()}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* ── Pagination Controls ── */}
+              {subFilteredMy.length > ORDERS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '12px 0', fontSize: 12 }}>
+                  <button
+                    className="btn secondary"
+                    style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
+                    disabled={ordersPage <= 1}
+                    onClick={() => setOrdersPage(p => Math.max(1, p - 1))}
+                  >
+                    {t.lang === 'ar' ? '→' : '←'} {t('prev')}
+                  </button>
+                  <span style={{ fontWeight: 700, color: 'var(--fg)', minWidth: 80, textAlign: 'center' }}>
+                    {ordersPage} / {totalOrderPages}
+                  </span>
+                  <button
+                    className="btn secondary"
+                    style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
+                    disabled={ordersPage >= totalOrderPages}
+                    onClick={() => setOrdersPage(p => Math.min(totalOrderPages, p + 1))}
+                  >
+                    {t('next')} {t.lang === 'ar' ? '←' : '→'}
+                  </button>
                 </div>
               )}
             </>
