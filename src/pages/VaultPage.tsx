@@ -708,262 +708,117 @@ export default function VaultPage() {
       />
 
       <div className="p-6 space-y-4">
-        {/* ── Row 1: Ring 1 + Ring 2 ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          {/* ── 💾 Ring 1 — Local Snapshots ── */}
-          <Card className="glass">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-display">
-                  {t.lang === 'ar' ? '💾 الحلقة 1 — نسخ محلية' : '💾 Ring 1 — Local Snapshots'}
-                </CardTitle>
-                <Badge variant="outline" className="text-[10px]">IndexedDB</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {t.lang === 'ar' 
-                  ? 'نسخ احتياطية محلية تلقائية كل 10 عمليات حفظ. تبقى حتى بعد مسح ذاكرة المتصفح.'
-                  : 'Automatic local snapshots every 10 saves. Survives browser cache clears. No internet required.'}
-              </p>
-
-              <div className="space-y-2">
-                <Label className="text-xs">{t.lang === 'ar' ? 'الوصف *' : 'Description *'}</Label>
-                <Input
-                  value={snapDesc}
-                  onChange={e => setSnapDesc(e.target.value)}
-                  placeholder={t.lang === 'ar' ? 'لماذا تأخذ هذه النسخة؟' : 'Why are you taking this snapshot?'}
-                />
-              </div>
-
-              <Button onClick={takeSnapshot} disabled={loading} size="sm">
-                <Camera className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'أخذ نسخة الآن' : 'Take Snapshot Now'}
-              </Button>
-
-              {/* Snapshot list */}
-              <div className="space-y-0 border-t pt-3">
-                {snaps.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground">
-                    {t.lang === 'ar' ? 'لا توجد نسخ محلية بعد.' : 'No local snapshots yet. They are created every 10 saves automatically.'}
-                  </p>
+        {/* ── Unified Backup & Recovery ── */}
+        <Card className="glass">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-display">
+                {t.lang === 'ar' ? '🔒 النسخ الاحتياطي والاسترداد' : '🔒 Backup & Recovery'}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px]">{snaps.length} {t.lang === 'ar' ? 'محلي' : 'local'} · {cloudBackups.length} {t.lang === 'ar' ? 'سحابي' : 'cloud'}</Badge>
+                {userId ? (
+                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ {t.lang === 'ar' ? 'متصل' : 'Connected'}</Badge>
                 ) : (
-                  snaps.slice(0, 8).map(s => (
-                    <div key={s.id} className="flex justify-between items-start gap-2 py-2 border-b border-border/50">
+                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ {t.lang === 'ar' ? 'غير متصل' : 'Offline'}</Badge>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <p className="text-[11px] text-muted-foreground">{t.lang === 'ar' ? `نسخ تلقائي كل 30 دقيقة + نسخ محلية. ${email || ''}` : `Auto-backup every 30 min + local snapshots. ${email || ''}`}</p>
+
+            {/* Quick Actions */}
+            <div className="flex gap-2 flex-wrap">
+              <Input value={cloudLabel} onChange={e => setCloudLabel(e.target.value)} placeholder={t.lang === 'ar' ? 'وصف (اختياري)' : 'Label (optional)'} className="flex-1 min-w-[120px] text-[11px]" />
+              <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading || !userId} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                {t.lang === 'ar' ? '☁ سحابي' : '☁ Cloud'}
+              </Button>
+              <Input value={snapDesc} onChange={e => setSnapDesc(e.target.value)} placeholder={t.lang === 'ar' ? 'وصف محلي' : 'Local label'} className="w-32 text-[11px]" />
+              <Button size="sm" variant="outline" onClick={takeSnapshot} disabled={loading}>
+                <Camera className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? '💾 محلي' : '💾 Local'}
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between px-1">
+              <Label className="text-xs">{t.lang === 'ar' ? 'نسخ تلقائي (كل 30 دقيقة)' : 'Auto-backup (every 30 min)'}</Label>
+              <Switch checked={autoBackup} onCheckedChange={handleAutoBackupToggle} />
+            </div>
+
+            {/* Cloud Backups */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">☁ {t.lang === 'ar' ? 'سحابي' : 'Cloud'} ({cloudBackups.length})</h3>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={loadCloudBackups} disabled={cloudLoading}><RefreshCw className={`w-3 h-3 ${cloudLoading ? 'animate-spin' : ''}`} /></Button>
+                  <label className="cursor-pointer"><Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" asChild><span><Upload className="w-3 h-3" /></span></Button><input ref={cloudImportRef} type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} /></label>
+                </div>
+              </div>
+              <div className="max-h-[240px] overflow-y-auto space-y-1">
+                {cloudBackups.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground text-center py-3">{t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد' : 'No cloud backups yet'}</p>
+                ) : cloudBackups.map((b, idx) => {
+                  const vn = cloudBackups.length - idx;
+                  const dt = b.createdAt ? new Date(b.createdAt).toLocaleString() : '—';
+                  const sz = b.sizeBytes > 0 ? sbFmtBytes(b.sizeBytes) : '';
+                  return (
+                    <div key={b.id} className="flex justify-between items-center gap-2 p-2 rounded-lg border border-border/50 bg-card/50">
                       <div className="min-w-0">
-                        <div className="flex gap-2 items-baseline">
-                          <span className="text-[11px] font-bold whitespace-nowrap">{fmtDate(s.ts)}</span>
-                          <span className="text-[10px] text-muted-foreground truncate">{s.label || '—'}</span>
-                        </div>
-                        <div className="text-[9px] text-muted-foreground">
-                          {s.tradeCount} {t.lang === 'ar' ? 'صفقة' : 'trades'} · {s.batchCount} {t.lang === 'ar' ? 'دفعة' : 'batches'} · {s.sizeKB} KB · ✓ {(s.checksum || '—').slice(0, 8)}
-                        </div>
+                        <div className="flex items-center gap-1.5"><span className="font-bold text-[11px]">V{vn}</span>{idx === 0 && <Badge variant="outline" className="text-[8px] text-green-500 border-green-500/30">{t.lang === 'ar' ? 'الأحدث' : 'LATEST'}</Badge>}</div>
+                        <div className="text-[9px] text-muted-foreground">{dt}{sz ? ` · ${sz}` : ''}{b.label ? ` · ${b.label}` : ''}</div>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={() => restoreSnap(s.id)}>
-                          {t.lang === 'ar' ? 'استعادة' : 'Restore'}
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={() => exportSnap(s.id)}>
-                          {t.lang === 'ar' ? 'تصدير' : 'Export'}
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-destructive" onClick={() => deleteSnap(s.id)}>
-                          {t.lang === 'ar' ? 'حذف' : 'Del'}
-                        </Button>
+                        <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => restoreCloudBackup(b.name)}>{t.lang === 'ar' ? 'استعادة' : 'Restore'}</Button>
+                        <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => extractCloudBackup(b.name)}>{t.lang === 'ar' ? 'تصدير' : 'Extract'}</Button>
+                        <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => previewCloudBackup(b.name, `V${vn}`)}>{t.lang === 'ar' ? 'معاينة' : 'Preview'}</Button>
+                        <Button variant="ghost" size="sm" className="h-5 text-[8px] px-1.5 text-destructive" onClick={() => deleteCloudBackup(b.name)}>{t.lang === 'ar' ? 'حذف' : 'Del'}</Button>
                       </div>
                     </div>
-                  ))
-                )}
-                {snaps.length > 8 && (
-                  <p className="text-[10px] text-muted-foreground pt-2">+{snaps.length - 8} {t.lang === 'ar' ? 'نسخ أقدم' : 'more older snapshots'}</p>
-                )}
+                  );
+                })}
               </div>
+            </div>
 
-              {/* Recovery */}
-              <div className="border-t pt-3">
-                <Label className="text-xs mb-2 block">{t.lang === 'ar' ? 'وضع الاسترداد' : 'Recovery Mode'}</Label>
-                <p className="text-[10px] text-muted-foreground">
-                  {snaps.length} {t.lang === 'ar' ? 'نسخة' : 'snapshots'}{snaps.length > 0 ? ` · ${t.lang === 'ar' ? 'الأحدث' : 'Latest'}: ${new Date(snaps[0].ts).toLocaleTimeString()}` : ''}
-                </p>
-                <Button variant="outline" size="sm" className="mt-2 text-[10px]" onClick={loadSnaps}>
-                  <RefreshCw className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'تحديث' : 'Refresh'}
-                </Button>
+            {previewData && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                <div className="flex items-center justify-between"><span className="text-xs font-bold">{previewData.label}</span><Button variant="ghost" size="sm" className="h-5 text-[9px] px-1" onClick={() => setPreviewData(null)}>✕</Button></div>
+                <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap font-mono bg-muted/30 rounded p-2">{previewData.summary}</pre>
               </div>
+            )}
 
-              {/* Auto-backup toggle */}
-              <div className="flex items-center justify-between pt-2 border-t">
-                <Label className="text-xs">{t.lang === 'ar' ? 'نسخ تلقائي بعد كل تغيير' : 'Auto-backup after every change'}</Label>
-                <Switch checked={autoBackup} onCheckedChange={handleAutoBackupToggle} />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* ── ☁ Ring 2 — Cloud Vault (Supabase Storage) ── */}
-          <Card className="glass">
-            <CardHeader className="pb-2">
+            {/* Local Snapshots */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-display">
-                  {t.lang === 'ar' ? '☁ الحلقة 2 — الخزنة السحابية' : '☁ Ring 2 — Cloud Vault'}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  {cloudBackups.length > 0 && (
-                    <Badge variant="outline" className="text-[10px]">
-                      {cloudBackups.length} {t.lang === 'ar' ? 'نسخة' : 'versions'}
-                    </Badge>
-                  )}
-                  {userId ? (
-                    <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ {t.lang === 'ar' ? 'متصل' : 'Connected'}</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ {t.lang === 'ar' ? 'غير مسجل' : 'Not signed in'}</Badge>
-                  )}
-                </div>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">💾 {t.lang === 'ar' ? 'محلي' : 'Local'} ({snaps.length})</h3>
+                <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={loadSnaps}><RefreshCw className="w-3 h-3" /></Button>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {t.lang === 'ar'
-                  ? `نسخ سحابية مباشرة عبر حسابك. حتى 30 نسخة. ${email || ''}`
-                  : `Versioned cloud backups via your account. Up to 30 versions. ${email || ''}`}
-              </p>
-
-              {/* Manual backup with label */}
-              <div className="flex gap-2">
-                <Input
-                  value={cloudLabel}
-                  onChange={e => setCloudLabel(e.target.value)}
-                  placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
-                  className="flex-1 text-[11px]"
-                />
-                <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading || !userId} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
-                  {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
-                </Button>
-              </div>
-
-              {/* Backup list */}
-              <div className="max-h-[320px] overflow-y-auto text-[11px] space-y-1">
-                {cloudBackups.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Cloud className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-[11px]">{t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد.' : 'No cloud backups yet.'}</p>
-                    <p className="text-[10px]">{t.lang === 'ar' ? 'انقر "نسخ الآن" لإنشاء أول نسخة.' : 'Click "Backup Now" to create your first backup.'}</p>
+              <div className="max-h-[200px] overflow-y-auto space-y-1">
+                {snaps.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground text-center py-3">{t.lang === 'ar' ? 'لا توجد نسخ محلية' : 'No local snapshots yet'}</p>
+                ) : snaps.slice(0, 8).map(s => (
+                  <div key={s.id} className="flex justify-between items-center gap-2 p-2 rounded-lg border border-border/50 bg-card/50">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold">{fmtDate(s.ts)}</div>
+                      <div className="text-[9px] text-muted-foreground">{s.label || '—'} · {s.tradeCount} {t.lang === 'ar' ? 'صفقة' : 'trades'} · {s.sizeKB}KB</div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => restoreSnap(s.id)}>{t.lang === 'ar' ? 'استعادة' : 'Restore'}</Button>
+                      <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => exportSnap(s.id)}>{t.lang === 'ar' ? 'تصدير' : 'Export'}</Button>
+                      <Button variant="ghost" size="sm" className="h-5 text-[8px] px-1.5 text-destructive" onClick={() => deleteSnap(s.id)}>{t.lang === 'ar' ? 'حذف' : 'Del'}</Button>
+                    </div>
                   </div>
-                ) : (
-                  cloudBackups.map((b, idx) => {
-                    const versionNum = cloudBackups.length - idx;
-                    const dt = b.createdAt ? new Date(b.createdAt).toLocaleString() : '—';
-                    const size = b.sizeBytes > 0 ? sbFmtBytes(b.sizeBytes) : '';
-                    return (
-                      <div
-                        key={b.id}
-                        className="flex justify-between items-center gap-2 p-2.5 rounded-lg border border-border/50 bg-card/50"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-[12px]">
-                              {t.lang === 'ar' ? `نسخة ${versionNum}` : `Version ${versionNum}`}
-                            </span>
-                            {idx === 0 && <Badge variant="outline" className="text-[8px] text-green-500 border-green-500/30">{t.lang === 'ar' ? 'الأحدث' : 'LATEST'}</Badge>}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {dt}{size ? ` · ${size}` : ''}{b.label ? ` · ${b.label}` : ''}
-                          </div>
-                        </div>
-                        <div className="flex gap-1 shrink-0 flex-wrap justify-end">
-                          <Button variant="outline" size="sm" className="h-6 text-[9px] px-2" onClick={() => restoreCloudBackup(b.name)}>
-                            {t.lang === 'ar' ? 'استعادة' : 'Restore'}
-                          </Button>
-                          <Button variant="outline" size="sm" className="h-6 text-[9px] px-2" onClick={() => extractCloudBackup(b.name)}>
-                            {t.lang === 'ar' ? 'تصدير' : 'Extract'}
-                          </Button>
-                          <Button variant="outline" size="sm" className="h-6 text-[9px] px-2" onClick={() => previewCloudBackup(b.name, `Version ${versionNum}`)}>
-                            {t.lang === 'ar' ? 'معاينة' : 'Preview'}
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-destructive" onClick={() => deleteCloudBackup(b.name)}>
-                            {t.lang === 'ar' ? 'حذف' : 'Del'}
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                ))}
               </div>
+            </div>
 
-              {/* Preview modal */}
-              {previewData && (
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold">{t.lang === 'ar' ? 'معاينة' : 'Preview'}: {previewData.label}</span>
-                    <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1" onClick={() => setPreviewData(null)}>✕</Button>
-                  </div>
-                  <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap font-mono bg-muted/30 rounded p-2">
-                    {previewData.summary}
-                  </pre>
-                </div>
-              )}
+            <div className="border-t pt-3">
+              <Button variant="destructive" size="sm" onClick={clearAll}><AlertTriangle className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'مسح جميع البيانات' : 'Clear All Data'}</Button>
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Bottom actions */}
-              <div className="flex gap-2 flex-wrap border-t pt-3">
-                <Button variant="secondary" size="sm" onClick={loadCloudBackups} disabled={cloudLoading}>
-                  <RefreshCw className={`w-3 h-3 mr-1 ${cloudLoading ? 'animate-spin' : ''}`} /> {t.lang === 'ar' ? 'تحديث' : 'Refresh'}
-                </Button>
-                <label className="cursor-pointer">
-                  <Button variant="secondary" size="sm" asChild>
-                    <span><Upload className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'رفع ملف' : 'Import File'}</span>
-                  </Button>
-                  <input ref={cloudImportRef} type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} />
-                </label>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ── Row 2: Cloud Backup Setup + Data Export/Import ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          {/* ── ☁ Cloud Backup Info ── */}
-          <Card className="glass">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-display">
-                  {t.lang === 'ar' ? '☁ النسخ السحابي' : '☁ Cloud Backup'}
-                </CardTitle>
-                <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">
-                  {userId ? (t.lang === 'ar' ? '✓ متصل' : '✓ Connected') : (t.lang === 'ar' ? '⚠ غير متصل' : '⚠ Not connected')}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {t.lang === 'ar'
-                  ? 'النسخ السحابي يعمل مباشرة عبر حسابك. لا حاجة لإعداد إضافي أو تسجيل دخول منفصل.'
-                  : 'Cloud backup works directly via your logged-in account. No extra setup or separate sign-in needed.'}
-              </p>
-
-              {/* Quick actions */}
-              <div className="flex gap-2 flex-wrap">
-                <Button variant="secondary" size="sm" onClick={cloudBackupNow} disabled={cloudLoading || !userId} className="flex-1 min-w-[140px]">
-                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
-                  {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={loadCloudBackups} disabled={cloudLoading} className="flex-1 min-w-[140px]">
-                  <RefreshCw className={`w-3 h-3 mr-1 ${cloudLoading ? 'animate-spin' : ''}`} /> {t.lang === 'ar' ? 'عرض النسخ' : 'View Backups'}
-                </Button>
-              </div>
-
-              <div className="text-[10px] text-muted-foreground">
-                {cloudBackups.length > 0
-                  ? `${cloudBackups.length} ${t.lang === 'ar' ? 'نسخة سحابية' : 'cloud backups'} · ${t.lang === 'ar' ? 'الأحدث' : 'Latest'}: ${new Date(cloudBackups[0].createdAt).toLocaleString()}`
-                  : (t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد' : 'No cloud backups yet')}
-              </div>
-
-              {/* Auto-backup toggle */}
-              <div className="flex items-center justify-between pt-2 border-t">
-                <Label className="text-xs">{t.lang === 'ar' ? 'نسخ تلقائي بعد كل تغيير' : 'Auto-backup after every change'}</Label>
-                <Switch checked={autoBackup} onCheckedChange={handleAutoBackupToggle} />
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-1 gap-4">
           {/* ── 📦 Data Export & Import ── */}
           <Card className="glass">
             <CardHeader className="pb-2">
