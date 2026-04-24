@@ -36,7 +36,7 @@ function fmtAmt(value: number, lang: 'en' | 'ar'): string {
 
 function currencyLabel(cur: string, lang: 'en' | 'ar') {
   const labels: Record<string, { en: string; ar: string }> = {
-    QAR: { en: 'QAR', ar: 'قطري' },
+    QAR: { en: 'QAR', ar: 'ريال' },
     EGP: { en: 'EGP', ar: 'جنية' },
   };
   return labels[cur] ? (lang === 'ar' ? labels[cur].ar : labels[cur].en) : cur;

@@ -286,7 +286,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2">
-          <span className="text-sm font-bold text-primary">{L('QAR → EGP', 'قطري → مصري')}</span>
+          <span className="text-sm font-bold text-primary">{L('QAR → EGP', 'ريال → مصري')}</span>
           <span className="text-xs text-muted-foreground">{L('Qatar to Egypt', 'قطر إلى مصر')}</span>
         </div>
 
@@ -299,11 +299,11 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Amount (قطري)', 'المبلغ (قطري)')}</label>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{L('Amount (QAR)', 'المبلغ (ريال)')}</label>
           <div className="relative">
             <input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" placeholder="0"
               className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 pe-16 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">قطري</span>
+            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">{L('QAR', 'ريال')}</span>
           </div>
         </div>
 
@@ -322,7 +322,7 @@ function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
           <div className="rounded-lg bg-blue-500/10 px-3 py-3 space-y-2 border border-blue-500/20">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-blue-700">{L('Market Rate (InstaPay V1)', 'سعر السوق (InstaPay V1)')}</span>
-              <span className="text-sm font-bold text-blue-700">1 قطري = {liveRate.rate.toFixed(4)} جنية</span>
+              <span className="text-sm font-bold text-blue-700">1 {L('QAR', 'ريال')} = {liveRate.rate.toFixed(4)} جنية</span>
             </div>
             {amount && (
               <div className="pt-2 border-t border-blue-500/20">
@@ -651,8 +651,8 @@ export default function CustomerOrdersPage() {
                 const deliveredAmount = order.fx_rate ? order.amount * order.fx_rate : null;
                 const currencyLabel = (cur: string) => {
                   const labels: Record<string, { en: string; ar: string }> = {
-                    QAR: { en: 'QAR (قطري)', ar: 'قطري' },
-                    EGP: { en: 'EGP (جنية)', ar: 'جنية' },
+                    QAR: { en: 'QAR', ar: 'ريال' },
+                    EGP: { en: 'EGP', ar: 'جنية' },
                   };
                   return labels[cur] ? (lang === 'ar' ? labels[cur].ar : labels[cur].en) : cur;
                 };
@@ -895,7 +895,7 @@ export default function CustomerOrdersPage() {
                         </div>
                       )}
                       {/* Link to Cash — shown on approved orders */}
-                      {order.workflow_status === 'approved' && order.fx_rate && (
+                      {order.workflow_status === 'approved' && (
                         <div className="mt-2 border-t border-white/5 pt-2">
                           <button
                             onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
