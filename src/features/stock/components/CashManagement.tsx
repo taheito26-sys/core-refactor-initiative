@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'sonner';
 import {
   uid, fmtTotal, fmtDate, num,
   type TrackerState,
@@ -701,9 +702,11 @@ function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit
 interface CashManagementProps {
   state: TrackerState;
   applyState: (next: TrackerState) => void;
+  /** DB-first commit variant — resolves only after the server acks. */
+  applyStateAndCommit?: (next: TrackerState) => Promise<void>;
 }
 
-export function CashManagement({ state, applyState }: CashManagementProps) {
+export function CashManagement({ state, applyState, applyStateAndCommit }: CashManagementProps) {
   const t = useT();
   const isMobile = useIsMobile();
   const { user, merchantProfile } = useAuth();
@@ -798,7 +801,22 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
   }, [ledger]);
 
   // ── Mutation helpers ───────────────────────────────────────────
-  const addAccount = (account: CashAccount, openingBalance: number) => {
+  const commit = async (next: TrackerState): Promise<boolean> => {
+    if (applyStateAndCommit) {
+      try {
+        await applyStateAndCommit(next);
+        return true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Save failed: ${msg}`);
+        return false;
+      }
+    }
+    applyState(next);
+    return true;
+  };
+
+  const addAccount = async (account: CashAccount, openingBalance: number) => {
     const newLedger = [...ledger];
     if (openingBalance > 0) {
       newLedger.push({
@@ -809,25 +827,24 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
     }
     const newAccounts = [...accounts, account];
     const newCashQAR = deriveCashQAR(newAccounts, newLedger);
-    applyState({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: newCashQAR });
-    setShowAddAccount(false);
+    const ok = await commit({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: newCashQAR });
+    if (ok) setShowAddAccount(false);
   };
 
-  const saveAccount = (account: CashAccount) => {
+  const saveAccount = async (account: CashAccount) => {
     const newAccounts = accounts.map(a => a.id === account.id ? account : a);
-    applyState({ ...state, cashAccounts: newAccounts });
-    setEditingAccount(undefined);
+    const ok = await commit({ ...state, cashAccounts: newAccounts });
+    if (ok) setEditingAccount(undefined);
   };
 
-  const deactivateAccount = (id: string) => {
+  const deactivateAccount = async (id: string) => {
     const newAccounts = accounts.map(a => a.id === id ? { ...a, status: 'inactive' as const } : a);
-    applyState({ ...state, cashAccounts: newAccounts });
+    await commit({ ...state, cashAccounts: newAccounts });
   };
 
-  const addLedgerEntry = (entry: CashLedgerEntry) => {
+  const addLedgerEntry = async (entry: CashLedgerEntry) => {
     const newLedger = [...ledger, entry];
     const newCashQAR = deriveCashQAR(accounts, newLedger);
-    // BUG FIX (Bug 3): keep cashHistory in sync for dashboard CashBoxManager
     const acc = accounts.find(a => a.id === entry.accountId);
     const legacyEntry = {
       id: entry.id,
@@ -840,21 +857,21 @@ export function CashManagement({ state, applyState }: CashManagementProps) {
       note: entry.note ?? '',
     };
     const newCashHistory = [...(state.cashHistory || []), legacyEntry];
-    applyState({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, cashHistory: newCashHistory });
-    setShowDeposit(null);
+    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, cashHistory: newCashHistory });
+    if (ok) setShowDeposit(null);
   };
 
-  const addTransfer = (entries: [CashLedgerEntry, CashLedgerEntry]) => {
+  const addTransfer = async (entries: [CashLedgerEntry, CashLedgerEntry]) => {
     const newLedger = [...ledger, ...entries];
     const newCashQAR = deriveCashQAR(accounts, newLedger);
-    applyState({ ...state, cashLedger: newLedger, cashQAR: newCashQAR });
-    setShowTransfer(false);
+    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR });
+    if (ok) setShowTransfer(false);
   };
 
-  const reconcileAccount = (account: CashAccount, entry: CashLedgerEntry) => {
+  const reconcileAccount = async (account: CashAccount, entry: CashLedgerEntry) => {
     const newAccounts = accounts.map(a => a.id === account.id ? { ...a, lastReconciled: Date.now() } : a);
-    applyState({ ...state, cashAccounts: newAccounts, cashLedger: [...ledger, entry] });
-    setReconcileAccountData(null);
+    const ok = await commit({ ...state, cashAccounts: newAccounts, cashLedger: [...ledger, entry] });
+    if (ok) setReconcileAccountData(null);
   };
 
   const clearLedgerEntries = (id: string) => {

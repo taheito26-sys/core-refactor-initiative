@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
 import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-state';
-import { saveTrackerState, loadTrackerStateFromCloud } from './tracker-sync';
+import { saveTrackerState, saveTrackerStateNow, loadTrackerStateFromCloud } from './tracker-sync';
 import { getCurrentTrackerState } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
@@ -92,6 +92,38 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     }
   }, [adminMode, options.preloadedState]);
 
+  /**
+   * Commit-first variant: writes to the DB synchronously (tracker_snapshots
+   * + cash tables) and only updates React/localStorage state AFTER the
+   * server acknowledges. Throws on failure so the caller can abort its
+   * success toast and surface the error instead.
+   *
+   * Use this for merchant-facing mutations (add stock, add cash, record
+   * trade) where "done" must mean "durable on the server," not "saved
+   * locally and maybe uploaded later."
+   */
+  const applyStateAndCommit = useCallback(async (next: TrackerState): Promise<void> => {
+    if (adminMode || options.preloadedState) {
+      setState(next);
+      stateRef.current = next;
+      setDerived(computeFIFO(next.batches, next.trades));
+      return;
+    }
+    const prev = stateRef.current;
+
+    // Write to DB FIRST — if this throws, React state is not mutated.
+    await saveTrackerStateNow(next);
+    if (next.cashAccounts?.length || next.cashLedger?.length) {
+      await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
+    }
+
+    // Server acknowledged — now update UI.
+    setState(next);
+    stateRef.current = next;
+    setDerived(computeFIFO(next.batches, next.trades));
+    triggerVaultBackup(diffTrackerReason(prev, next));
+  }, [adminMode, options.preloadedState]);
+
   // Handle preloaded state (admin view)
   useEffect(() => {
     if (!adminMode && !options.preloadedState) return;
@@ -179,5 +211,5 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     return () => { cancelled = true; };
   }, [adminMode, isAuthenticated, options.preloadedState]);
 
-  return { state, derived, applyState, cloudLoaded };
+  return { state, derived, applyState, applyStateAndCommit, cloudLoaded };
 }

@@ -202,6 +202,10 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     }
   } else {
     console.warn('[tracker-sync] cloud save failed:', error.message);
+    // Throw so callers that await (saveTrackerStateNow → applyStateAndCommit)
+    // can propagate the failure and abort their success toast. The debounced
+    // path swallows this in its own wrapper.
+    throw new Error(error.message);
   }
 }
 
@@ -211,7 +215,9 @@ export function saveTrackerState(state: TrackerState): void {
 
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    void persistToCloud(state);
+    persistToCloud(state).catch((err) => {
+      console.warn('[tracker-sync] debounced cloud save failed:', err);
+    });
   }, 2000);
 }
 

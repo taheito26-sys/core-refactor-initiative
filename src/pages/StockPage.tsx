@@ -46,7 +46,7 @@ export default function StockPage() {
   const t = useT();
   const isMobile = useIsMobile();
 
-  const { state, derived, applyState } = useTrackerState({
+  const { state, derived, applyState, applyStateAndCommit } = useTrackerState({
     lowStockThreshold: settings.lowStockThreshold,
     priceAlertThreshold: settings.priceAlertThreshold,
     range: settings.range,
@@ -232,7 +232,7 @@ export default function StockPage() {
     setNewSupplierPhone('');
   };
 
-  const addBatch = () => {
+  const addBatch = async () => {
     const ts = new Date(batchDate).getTime();
     const source = batchSupplier.trim();
 
@@ -350,7 +350,15 @@ export default function StockPage() {
       ],
     };
 
-    applyState(next);
+    setBatchMsg(t('saving') || 'Saving…');
+    try {
+      // DB-first: only confirm after the server accepts the write.
+      await applyStateAndCommit(next);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setBatchMsg(`⚠ ${t('saveFailed') || 'Save failed'}: ${msg}`);
+      return;
+    }
     setBatchAmount('');
     setBatchPrice('');
     setBatchUsdtQty('');
@@ -528,7 +536,7 @@ export default function StockPage() {
 
       {/* ── CASH MANAGEMENT TAB ────────────────────────────────── */}
       {stockTab === 'cash' && (
-        <CashManagement state={state} applyState={applyState} />
+        <CashManagement state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} />
       )}
 
       {/* ── BATCHES TAB ────────────────────────────────────────── */}
