@@ -336,6 +336,71 @@ export default function VaultPage() {
     }
   };
 
+  const [previewData, setPreviewData] = useState<{ label: string; summary: string } | null>(null);
+
+  const previewCloudBackup = async (fileName: string, label: string) => {
+    if (!userId) return;
+    setCloudLoading(true);
+    try {
+      const state = await downloadVaultBackup(userId, fileName);
+      if (!state) { toast.error('No content'); return; }
+      const collections = ['batches', 'trades', 'customers', 'suppliers', 'cashAccounts', 'cashLedger'] as const;
+      const lines = collections
+        .map(k => {
+          const arr = Array.isArray((state as Record<string, unknown>)[k]) ? (state as Record<string, unknown>)[k] as unknown[] : [];
+          return arr.length > 0 ? `${k}: ${arr.length}` : null;
+        })
+        .filter(Boolean);
+      const total = lines.length > 0 ? lines.join('\n') : (t.lang === 'ar' ? 'لا توجد بيانات' : 'No data');
+      setPreviewData({ label, summary: total });
+    } catch {
+      toast.error('Preview failed');
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const extractCloudBackup = async (fileName: string) => {
+    if (!userId) return;
+    setCloudLoading(true);
+    try {
+      const state = await downloadVaultBackup(userId, fileName);
+      if (!state) { toast.error('No content'); return; }
+      const fname = `cloud-backup-${fileName}`;
+      downloadBlob(JSON.stringify(state, null, 2), fname);
+      toast.success(t.lang === 'ar' ? 'تم التصدير' : 'Extracted');
+    } catch {
+      toast.error('Extract failed');
+    } finally {
+      setCloudLoading(false);
+    }
+  };
+
+  const handleCloudImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const data = JSON.parse(reader.result as string);
+        if (!userId) return;
+        const res = await uploadVaultBackup(userId, data, f.name.replace('.json', ''));
+        if (res.ok) {
+          toast.success(t.lang === 'ar' ? 'تم رفع الملف' : 'File uploaded');
+          await loadCloudBackups();
+        } else {
+          toast.error(res.error || 'Upload failed');
+        }
+      } catch {
+        toast.error('Invalid JSON file');
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  };
+
+  const cloudImportRef = useRef<HTMLInputElement>(null);
+
 
 
 
@@ -739,18 +804,25 @@ export default function VaultPage() {
                 <CardTitle className="text-sm font-display">
                   {t.lang === 'ar' ? '☁ الحلقة 2 — الخزنة السحابية' : '☁ Ring 2 — Cloud Vault'}
                 </CardTitle>
-                {userId ? (
-                  <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ {email}</Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ {t.lang === 'ar' ? 'غير مسجل' : 'Not signed in'}</Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {cloudBackups.length > 0 && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {cloudBackups.length} {t.lang === 'ar' ? 'نسخة' : 'versions'}
+                    </Badge>
+                  )}
+                  {userId ? (
+                    <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓ {t.lang === 'ar' ? 'متصل' : 'Connected'}</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠ {t.lang === 'ar' ? 'غير مسجل' : 'Not signed in'}</Badge>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {t.lang === 'ar'
-                  ? 'نسخ سحابية مباشرة عبر حسابك. حتى 30 نسخة تلقائية. لا حاجة لإعداد إضافي.'
-                  : 'Direct cloud backups via your account. Up to 30 versions. No extra setup needed.'}
+                  ? `نسخ سحابية مباشرة عبر حسابك. حتى 30 نسخة. ${email || ''}`
+                  : `Versioned cloud backups via your account. Up to 30 versions. ${email || ''}`}
               </p>
 
               {/* Manual backup with label */}
@@ -761,38 +833,50 @@ export default function VaultPage() {
                   placeholder={t.lang === 'ar' ? 'وصف النسخة (اختياري)' : 'Backup label (optional)'}
                   className="flex-1 text-[11px]"
                 />
-                <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading || !userId}>
+                <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading || !userId} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
                   {t.lang === 'ar' ? 'نسخ الآن' : 'Backup Now'}
                 </Button>
               </div>
 
               {/* Backup list */}
-              <div className="max-h-[240px] overflow-y-auto text-[11px] border rounded-md p-2 bg-muted/20">
+              <div className="max-h-[320px] overflow-y-auto text-[11px] space-y-1">
                 {cloudBackups.length === 0 ? (
-                  <p className="text-[10px] text-muted-foreground p-2">
-                    {t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد. انقر "نسخ الآن" أولاً.' : 'No cloud backups yet. Click Backup Now first.'}
-                  </p>
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Cloud className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-[11px]">{t.lang === 'ar' ? 'لا توجد نسخ سحابية بعد.' : 'No cloud backups yet.'}</p>
+                    <p className="text-[10px]">{t.lang === 'ar' ? 'انقر "نسخ الآن" لإنشاء أول نسخة.' : 'Click "Backup Now" to create your first backup.'}</p>
+                  </div>
                 ) : (
                   cloudBackups.map((b, idx) => {
+                    const versionNum = cloudBackups.length - idx;
                     const dt = b.createdAt ? new Date(b.createdAt).toLocaleString() : '—';
-                    const size = b.sizeBytes > 0 ? ` · ${sbFmtBytes(b.sizeBytes)}` : '';
+                    const size = b.sizeBytes > 0 ? sbFmtBytes(b.sizeBytes) : '';
                     return (
                       <div
                         key={b.id}
-                        className="flex justify-between items-center gap-2 p-2 rounded-md border border-border/50 mb-1"
+                        className="flex justify-between items-center gap-2 p-2.5 rounded-lg border border-border/50 bg-card/50"
                       >
                         <div className="min-w-0">
-                          <div className="font-bold text-[11px] whitespace-nowrap">
-                            {dt} {idx === 0 && <Badge variant="outline" className="text-[9px] ml-1">{t.lang === 'ar' ? 'الأحدث' : 'LATEST'}</Badge>}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-[12px]">
+                              {t.lang === 'ar' ? `نسخة ${versionNum}` : `Version ${versionNum}`}
+                            </span>
+                            {idx === 0 && <Badge variant="outline" className="text-[8px] text-green-500 border-green-500/30">{t.lang === 'ar' ? 'الأحدث' : 'LATEST'}</Badge>}
                           </div>
                           <div className="text-[10px] text-muted-foreground">
-                            {b.label}{size}
+                            {dt}{size ? ` · ${size}` : ''}{b.label ? ` · ${b.label}` : ''}
                           </div>
                         </div>
-                        <div className="flex gap-1 shrink-0">
-                          <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2" onClick={() => restoreCloudBackup(b.name)}>
+                        <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+                          <Button variant="outline" size="sm" className="h-6 text-[9px] px-2" onClick={() => restoreCloudBackup(b.name)}>
                             {t.lang === 'ar' ? 'استعادة' : 'Restore'}
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-6 text-[9px] px-2" onClick={() => extractCloudBackup(b.name)}>
+                            {t.lang === 'ar' ? 'تصدير' : 'Extract'}
+                          </Button>
+                          <Button variant="outline" size="sm" className="h-6 text-[9px] px-2" onClick={() => previewCloudBackup(b.name, `Version ${versionNum}`)}>
+                            {t.lang === 'ar' ? 'معاينة' : 'Preview'}
                           </Button>
                           <Button variant="ghost" size="sm" className="h-6 text-[9px] px-2 text-destructive" onClick={() => deleteCloudBackup(b.name)}>
                             {t.lang === 'ar' ? 'حذف' : 'Del'}
@@ -804,11 +888,30 @@ export default function VaultPage() {
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 flex-wrap">
+              {/* Preview modal */}
+              {previewData && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold">{t.lang === 'ar' ? 'معاينة' : 'Preview'}: {previewData.label}</span>
+                    <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1" onClick={() => setPreviewData(null)}>✕</Button>
+                  </div>
+                  <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap font-mono bg-muted/30 rounded p-2">
+                    {previewData.summary}
+                  </pre>
+                </div>
+              )}
+
+              {/* Bottom actions */}
+              <div className="flex gap-2 flex-wrap border-t pt-3">
                 <Button variant="secondary" size="sm" onClick={loadCloudBackups} disabled={cloudLoading}>
                   <RefreshCw className={`w-3 h-3 mr-1 ${cloudLoading ? 'animate-spin' : ''}`} /> {t.lang === 'ar' ? 'تحديث' : 'Refresh'}
                 </Button>
+                <label className="cursor-pointer">
+                  <Button variant="secondary" size="sm" asChild>
+                    <span><Upload className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'رفع ملف' : 'Import File'}</span>
+                  </Button>
+                  <input ref={cloudImportRef} type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} />
+                </label>
               </div>
             </CardContent>
           </Card>
