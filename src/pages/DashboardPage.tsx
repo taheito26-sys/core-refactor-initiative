@@ -559,12 +559,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
           return (
             <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/stock?tab=cash') : undefined}>
-              <div className="kpi-head">
-                <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>
-                  💰 {t('cash')}
-                </span>
-              </div>
-              <div className="kpi-lbl">{t('cashAvailable')}</div>
+              <div className="kpi-lbl" style={{ color: 'var(--warn)' }}>{t('cashAvailable')}</div>
               <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtDashboardAmount(totalCash)}</div>
               <div className="kpi-sub">
                 {!isAdminView && <span style={{ fontSize: 9, color: 'var(--brand)', fontWeight: 600 }}>{t('openCashMgmt')}</span>}
@@ -573,10 +568,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           );
         })()}
         <div className="kpi-card">
-          <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--t5)', borderColor: 'color-mix(in srgb,var(--t5) 30%,transparent)', background: 'color-mix(in srgb,var(--t5) 10%,transparent)' }}>@Avg Price</span>
-          </div>
-          <div className="kpi-lbl">{t('buyingPower')}</div>
+          <div className="kpi-lbl" style={{ color: 'var(--t5)' }}>{t('buyingPower')}</div>
           {(() => {
             const cash = num(state.cashQAR, 0);
             const refPrice = averageStockPrice || p2pAvgs.avgBuy;
@@ -602,17 +594,11 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           })()}
         </div>
         <div className="kpi-card">
-          <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>{t('net')}</span>
-          </div>
-          <div className="kpi-lbl">{t('netPosition')}</div>
+          <div className="kpi-lbl" style={{ color: 'var(--good)' }}>{t('netPosition')}</div>
           <div className="kpi-val good">{fmtDashboardAmount(stCost + num(state.cashQAR, 0))}</div>
           <div className="kpi-sub">{t('stock')} {fmtDashboardAmount(stCost)} + {t('cash')} {fmtDashboardAmount(num(state.cashQAR, 0))}</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-head">
-            <span className="kpi-badge" style={{ color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{state.batches.length} {t('batchSuffix')}</span>
-          </div>
           <div className="kpi-lbl">{t('stockCostEst')}</div>
           <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtDashboardAmount(stCost)}</div>
           <div className="kpi-sub">Avg stock price {averageStockPrice ? fmtDashboardPrice(averageStockPrice) : '—'}</div>
@@ -624,38 +610,28 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           const isExpanded = expandedNewKpi === 'roi';
           return (
             <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'roi')}>
-              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
-                  💹
-                </span>
-              </div>
-              <div className="kpi-lbl">{t('roiLabel')}</div>
+              <div className="kpi-lbl" style={{ color: 'var(--good)' }}>{t('roiLabel')}</div>
               <div className={`kpi-val ${roiVal >= 0 ? 'good' : 'bad'}`}>{fmtPrice(roiVal)}%</div>
               <div className="kpi-sub">{t('roiSub')}</div>
               <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span
-                  className="kpi-badge"
                   style={{
-                    fontSize: 9, padding: '1px 6px', cursor: 'pointer',
+                    fontSize: 9, padding: '1px 6px', cursor: 'pointer', borderRadius: 4,
                     color: roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)',
-                    borderColor: `color-mix(in srgb,${roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)'} 30%,transparent)`,
-                    background: `color-mix(in srgb,${roiPeriod === '7d' ? 'var(--brand)' : 'var(--muted)'} 10%,transparent)`,
+                    background: roiPeriod === '7d' ? 'color-mix(in srgb,var(--brand) 12%,transparent)' : 'transparent',
                     fontWeight: roiPeriod === '7d' ? 700 : 400,
                   }}
                   onClick={(e) => { e.stopPropagation(); setRoiPeriod('7d'); }}
                 >7D</span>
                 <span
-                  className="kpi-badge"
                   style={{
-                    fontSize: 9, padding: '1px 6px', cursor: 'pointer',
+                    fontSize: 9, padding: '1px 6px', cursor: 'pointer', borderRadius: 4,
                     color: roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)',
-                    borderColor: `color-mix(in srgb,${roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)'} 30%,transparent)`,
-                    background: `color-mix(in srgb,${roiPeriod === '30d' ? 'var(--brand)' : 'var(--muted)'} 10%,transparent)`,
+                    background: roiPeriod === '30d' ? 'color-mix(in srgb,var(--brand) 12%,transparent)' : 'transparent',
                     fontWeight: roiPeriod === '30d' ? 700 : 400,
                   }}
                   onClick={(e) => { e.stopPropagation(); setRoiPeriod('30d'); }}
                 >30D</span>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>{t('orders')}</span>
                 <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
               </div>
               {isExpanded && (
