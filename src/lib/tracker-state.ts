@@ -61,7 +61,28 @@ export function buildStateFrom(
   return { state, derived };
 }
 
-/** Pick the richer source between local and cloud state */
+/**
+ * Union local and cloud by id for every collection.
+ * No row is ever dropped just because the other side has a higher total count.
+ * Scalars (cashQAR, settings, cal, currency, range) prefer cloud when present,
+ * otherwise fall back to local — cloud is authoritative for these.
+ */
+function unionById<T>(a: T[] | undefined, b: T[] | undefined): T[] {
+  const out = new Map<string, T>();
+  const push = (list: T[] | undefined) => {
+    for (const item of list || []) {
+      const key =
+        typeof item === 'object' && item && 'id' in (item as Record<string, unknown>)
+          ? String((item as Record<string, unknown>).id)
+          : JSON.stringify(item);
+      out.set(key, item);
+    }
+  };
+  push(a);
+  push(b);
+  return Array.from(out.values());
+}
+
 export function mergeLocalAndCloud(
   local: Partial<TrackerState> | null,
   cloud: Partial<TrackerState> | null,
@@ -70,13 +91,17 @@ export function mergeLocalAndCloud(
   if (!cloud) return local;
   if (!local) return cloud;
 
-  const localCount = (local.trades?.length ?? 0) + (local.batches?.length ?? 0) + (local.customers?.length ?? 0) + (local.suppliers?.length ?? 0);
-  const localCashCount = (local.cashAccounts?.length ?? 0) + (local.cashLedger?.length ?? 0) + (local.cashHistory?.length ?? 0);
-  const cloudCount = (cloud.trades?.length ?? 0) + (cloud.batches?.length ?? 0) + (cloud.customers?.length ?? 0) + (cloud.suppliers?.length ?? 0);
-  const cloudCashCount = (cloud.cashAccounts?.length ?? 0) + (cloud.cashLedger?.length ?? 0) + (cloud.cashHistory?.length ?? 0);
-
-  // Use whichever has more data
-  return (cloudCount + cloudCashCount) >= (localCount + localCashCount) ? cloud : local;
+  return {
+    ...local,
+    ...cloud,
+    batches: unionById(local.batches, cloud.batches),
+    trades: unionById(local.trades, cloud.trades),
+    customers: unionById(local.customers, cloud.customers),
+    suppliers: unionById(local.suppliers, cloud.suppliers),
+    cashAccounts: unionById(local.cashAccounts, cloud.cashAccounts),
+    cashLedger: unionById(local.cashLedger, cloud.cashLedger),
+    cashHistory: unionById(local.cashHistory, cloud.cashHistory),
+  };
 }
 
 export function createEmptyState(overrides?: StateOverrides): { state: TrackerState; derived: DerivedState } {

@@ -124,8 +124,14 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         return;
       }
 
+      // Merge against the in-memory ref (which already contains any changes the
+      // user made between mount and now). Falling back to localStorage would
+      // miss in-flight mutations on devices where Safari has wiped storage or
+      // the user interacted before the first persistToLocal flushed.
+      const inFlight = stateRef.current as Partial<TrackerState>;
       const local = getCurrentTrackerState(window.localStorage) as Partial<TrackerState> | null;
-      const best = mergeLocalAndCloud(local, cloudState);
+      const localUnion = mergeLocalAndCloud(local, inFlight);
+      const best = mergeLocalAndCloud(localUnion, cloudState);
       if (!best) return;
 
       const rebuilt = buildStateFrom(best, {
@@ -138,7 +144,8 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setState(rebuilt.state);
       stateRef.current = rebuilt.state;
       setDerived(rebuilt.derived);
-      // Also update localStorage with merged state
+      // Also update localStorage AND push merged state back to cloud so any
+      // in-flight local-only rows are uploaded.
       saveTrackerState(rebuilt.state);
 
       // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
