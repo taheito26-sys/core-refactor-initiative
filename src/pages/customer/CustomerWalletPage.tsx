@@ -498,18 +498,6 @@ export default function CustomerWalletPage() {
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            {activeAccounts.length >= 2 && (
-              <button onClick={() => setTransferModal(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">
-                <ArrowLeftRight className="h-3.5 w-3.5" />{L("Transfer", "تحويل")}
-              </button>
-            )}
-            <button onClick={() => setShowAddAccount(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-2 text-xs font-semibold hover:bg-muted">
-              <Plus className="h-3.5 w-3.5" />{L("Add Account", "إضافة حساب")}
-            </button>
-          </div>
         </div>
 
         {/* Tabs */}
@@ -536,6 +524,20 @@ export default function CustomerWalletPage() {
           {/* ── ACCOUNTS TAB ── */}
           {tab === "accounts" && (
             <div className="space-y-3">
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                {activeAccounts.length >= 2 && (
+                  <button onClick={() => setTransferModal(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">
+                    <ArrowLeftRight className="h-3.5 w-3.5" />{L("Transfer", "تحويل")}
+                  </button>
+                )}
+                <button onClick={() => setShowAddAccount(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-2 text-xs font-semibold hover:bg-muted">
+                  <Plus className="h-3.5 w-3.5" />{L("Add Account", "إضافة حساب")}
+                </button>
+              </div>
+
               {activeAccounts.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border/60 bg-card/30 px-6 py-12 text-center">
                   <p className="text-muted-foreground">{L("No accounts yet", "لا توجد حسابات بعد")}</p>
