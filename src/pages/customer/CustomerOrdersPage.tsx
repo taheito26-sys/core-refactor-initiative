@@ -69,8 +69,9 @@ function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
   const linkMutation = useMutation({
     mutationFn: async () => {
       if (!selectedId || !userId) throw new Error(L('Select an account', 'اختر حساباً'));
+      const ledgerId = Math.random().toString(36).slice(2, 10);
       const { error } = await supabase.from('cash_ledger').insert({
-        user_id: userId, account_id: selectedId, ts: Date.now(),
+        id: ledgerId, user_id: userId, account_id: selectedId, ts: Date.now(),
         type: 'order_receipt', direction: 'in', amount: egpAmount,
         currency: receiveCurrency || 'EGP',
         note: L('Order receipt', 'استلام طلب'),

@@ -79,7 +79,9 @@ export function AcceptOrderModal({
       // 2. Write cash ledger entry to credit the selected account
       const creditAmount = egpAmount ?? (result as any)?.amount ?? 0;
       if (creditAmount > 0 && userId) {
+        const ledgerId = Math.random().toString(36).slice(2, 10);
         await supabase.from('cash_ledger').insert({
+          id: ledgerId,
           user_id: userId,
           account_id: selectedId,
           ts: Date.now(),

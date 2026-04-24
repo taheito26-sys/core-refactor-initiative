@@ -438,7 +438,8 @@ export default function CustomerWalletPage() {
 
   const addLedgerEntry = useMutation({
     mutationFn: async (entry: Omit<LedgerRow, "user_id" | "created_at">) => {
-      const { error } = await supabase.from("cash_ledger").insert({ user_id: userId, ...entry });
+      const ledgerId = entry.id || Math.random().toString(36).slice(2, 10);
+      const { error } = await supabase.from("cash_ledger").insert({ id: ledgerId, user_id: userId, ...entry });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["customer-cash-ledger", userId] }); },
