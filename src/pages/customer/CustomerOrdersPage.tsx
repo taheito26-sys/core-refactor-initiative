@@ -206,7 +206,7 @@ function getLocalizedWorkflowStatusLabel(status: WorkflowOrder['workflow_status'
   }
 }
 
-function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
+export function NewOrderForm({ connections, userId, lang, onClose, onCreated }: {
   connections: any[]; userId: string; lang: 'en' | 'ar'; onClose: () => void; onCreated: () => void;
 }) {
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;

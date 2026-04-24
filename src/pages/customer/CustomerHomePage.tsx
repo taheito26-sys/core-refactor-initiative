@@ -14,6 +14,7 @@ import {
 import { getCustomerMarketKpis } from '@/features/customer/customer-market';
 import { listSharedOrdersForActor, getCashAccountsForUser, type WorkflowOrder } from '@/features/orders/shared-order-workflow';
 import { getLocalizedCurrencyName, type CurrencyCode } from '@/lib/currency-locale';
+import { NewOrderForm } from './CustomerOrdersPage';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function startOfWeek(): Date {
@@ -57,6 +58,7 @@ export default function CustomerHomePage() {
   const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const fmt = (v: number, d = 0) => formatCustomerNumber(v, lang, d);
   const [calcAmount, setCalcAmount] = useState('');
+  const [showNewOrder, setShowNewOrder] = useState(false);
   const { data: orders = [] } = useQuery<WorkflowOrder[]>({
     queryKey: ['c-dash-orders', userId],
     queryFn: async () => { if (!userId) return []; return await listSharedOrdersForActor({ customerUserId: userId }); },
@@ -434,9 +436,20 @@ export default function CustomerHomePage() {
       )}
 
       {/* New order CTA */}
-      <button onClick={() => navigate('/c/orders?new=1')} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground active:scale-[0.99]">
+      <button onClick={() => setShowNewOrder(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground active:scale-[0.99]">
         <Plus className="h-4 w-4" />{L('New QAR → EGP Order', 'طلب جديد QAR → EGP')}
       </button>
+
+      {/* New Order Modal — opens inline without navigating away */}
+      {showNewOrder && connections.length > 0 && (
+        <NewOrderForm
+          connections={connections}
+          userId={userId!}
+          lang={lang}
+          onClose={() => setShowNewOrder(false)}
+          onCreated={() => { setShowNewOrder(false); }}
+        />
+      )}
 
       {/* Recent activity - Ledger style */}
       {orders.length > 0 && (
