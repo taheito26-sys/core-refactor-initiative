@@ -63,17 +63,16 @@ export function useAutoVaultBackup() {
             settings: ts.settings ?? {},
           };
 
-          const counts: string[] = [];
-          if ((orders.data?.length ?? 0) > 0) counts.push(`${orders.data!.length} orders`);
-          if ((accounts.data?.length ?? 0) > 0) counts.push(`${accounts.data!.length} accounts`);
-          if ((ledger.data?.length ?? 0) > 0) counts.push(`${ledger.data!.length} ledger`);
-          if (batches.length > 0) counts.push(`${batches.length} batches`);
-          if (trades.length > 0) counts.push(`${trades.length} trades`);
-
+          const reasonMap: Record<string, string> = {
+            customer_orders: 'order changed',
+            cash_accounts: 'cash account changed',
+            cash_ledger: 'cash entry changed',
+            stock: 'stock changed',
+          };
           await uploadVaultBackup(
             userId,
             snapshot,
-            `Auto · ${table} · ${counts.join(', ') || 'sync'}`,
+            `Auto · ${reasonMap[table] ?? table}`,
           );
         } catch {
           // Non-critical — silent fail

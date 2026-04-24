@@ -48,15 +48,7 @@ async function _doBackup(reason: string) {
       settings: ts.settings ?? {},
     };
 
-    const counts: string[] = [];
-    if ((orders.data?.length ?? 0) > 0) counts.push(`${orders.data!.length} orders`);
-    if ((accounts.data?.length ?? 0) > 0) counts.push(`${accounts.data!.length} accounts`);
-    const b = Array.isArray(ts.batches) ? ts.batches.length : 0;
-    const t = Array.isArray(ts.trades) ? ts.trades.length : 0;
-    if (b > 0) counts.push(`${b} batches`);
-    if (t > 0) counts.push(`${t} trades`);
-
-    await uploadVaultBackup(uid, snapshot, `Auto · ${reason} · ${counts.join(', ') || 'sync'}`);
+    await uploadVaultBackup(uid, snapshot, `Auto · ${reason}`);
   } catch {
     // Non-critical
   }

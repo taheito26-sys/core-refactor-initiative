@@ -8,6 +8,28 @@ import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
 
+function diffTrackerReason(prev: TrackerState, next: TrackerState): string {
+  const parts: string[] = [];
+  const pair = (key: keyof TrackerState, singular: string) => {
+    const p = (prev[key] as unknown[] | undefined)?.length ?? 0;
+    const n = (next[key] as unknown[] | undefined)?.length ?? 0;
+    if (n > p) parts.push(`${singular} added`);
+    else if (n < p) parts.push(`${singular} removed`);
+  };
+  pair('batches', 'batch');
+  pair('trades', 'trade');
+  pair('customers', 'customer');
+  pair('suppliers', 'supplier');
+  pair('cashAccounts', 'cash account');
+  pair('cashLedger', 'cash entry');
+  if (parts.length === 0) {
+    // Same counts — likely edit/settings/cash balance change
+    if ((prev.cashQAR ?? 0) !== (next.cashQAR ?? 0)) return 'cash balance updated';
+    return 'settings updated';
+  }
+  return parts.join(', ');
+}
+
 interface UseTrackerOptions {
   lowStockThreshold?: number;
   priceAlertThreshold?: number;
@@ -54,11 +76,12 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setDerived(computeFIFO(next.batches, next.trades));
       return;
     }
+    const prev = stateRef.current;
     setState(next);
     stateRef.current = next;
     setDerived(computeFIFO(next.batches, next.trades));
     saveTrackerState(next);
-    triggerVaultBackup('stock/cash change');
+    triggerVaultBackup(diffTrackerReason(prev, next));
     // Debounced sync to dedicated cash tables
     if (next.cashAccounts?.length || next.cashLedger?.length) {
       if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
