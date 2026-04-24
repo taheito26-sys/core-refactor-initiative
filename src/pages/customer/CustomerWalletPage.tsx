@@ -410,7 +410,8 @@ export default function CustomerWalletPage() {
 
   const createAccount = useMutation({
     mutationFn: async (data: Partial<Account>) => {
-      const { error } = await supabase.from("cash_accounts").insert({ user_id: userId, ...data, status: "active" });
+      const newId = Math.random().toString(36).slice(2, 10);
+      const { error } = await supabase.from("cash_accounts").insert({ id: newId, user_id: userId, ...data, status: "active" });
       if (error) throw error;
     },
     onSuccess: () => { toast.success(L("Account created", "تم إنشاء الحساب")); qc.invalidateQueries({ queryKey: ["customer-cash-accounts", userId] }); qc.invalidateQueries({ queryKey: ["customer-cash-accounts-for-user", userId] }); },

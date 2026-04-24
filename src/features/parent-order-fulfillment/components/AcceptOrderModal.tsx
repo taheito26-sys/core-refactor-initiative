@@ -50,8 +50,9 @@ export function AcceptOrderModal({
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!userId || !newName.trim()) throw new Error(L('Enter account name', 'أدخل اسم الحساب'));
+      const newId = Math.random().toString(36).slice(2, 10);
       const { data, error } = await supabase.from('cash_accounts').insert({
-        user_id: userId, name: newName.trim(), type: newType, currency: newCurrency, status: 'active',
+        id: newId, user_id: userId, name: newName.trim(), type: newType, currency: newCurrency, status: 'active',
       }).select().single();
       if (error) throw error;
       return data;
