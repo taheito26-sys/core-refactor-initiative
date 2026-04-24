@@ -167,13 +167,18 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         }
       }
       const cashData = await loadCashFromCloud();
-      if (cashData && (cashData.accounts.length > 0 || cashData.ledger.length > 0)) {
+      if (cashData) {
         setState(prev => {
+          // Cloud is authoritative for cash ledger.
+          // Only keep local entries that are genuinely newer than the cloud fetch
+          // (i.e. added in the last 2s) — this covers the race where a user adds
+          // an entry and the realtime event fires before saveCashToCloud completes.
           const cloudIds = new Set(cashData.ledger.map(e => e.id));
-          // Don't re-merge local-only entries for accounts that were explicitly
-          // cleared — those entries were deleted from cloud on purpose.
+          const twoSecondsAgo = Date.now() - 2000;
           const localOnly = (prev.cashLedger || []).filter(e =>
-            !cloudIds.has(e.id) && !clearedAccountIds.current.has(e.accountId)
+            !cloudIds.has(e.id) &&
+            !clearedAccountIds.current.has(e.accountId) &&
+            e.ts > twoSecondsAgo
           );
           const cloudAccountIds = new Set(cashData.accounts.map(a => a.id));
           const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
@@ -311,8 +316,15 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
         setState(prev => {
           const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
-          const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
-          // Merge accounts by ID: prefer cloud for existing accounts, keep local-only accounts
+          // Cloud is authoritative — only keep local entries added in the last 2s
+          // (in-flight entries that haven't synced yet). This prevents cleared
+          // entries from being restored on mount.
+          const twoSecondsAgo = Date.now() - 2000;
+          const localOnly = (prev.cashLedger || []).filter(e =>
+            !cloudIds.has(e.id) &&
+            !clearedAccountIds.current.has(e.accountId) &&
+            e.ts > twoSecondsAgo
+          );
           const cloudAccountIds = new Set(cashData.accounts.map((a: { id: string }) => a.id));
           const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
           const next = {
@@ -320,7 +332,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
             cashLedger: [...cashData.ledger, ...localOnly],
           };
-          stateRef.current = next;   // ← ISSUE 6 FIX: keep ref in sync with merged cash state
+          stateRef.current = next;
           return next;
         });
       }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
