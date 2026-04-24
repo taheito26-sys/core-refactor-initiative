@@ -219,7 +219,7 @@ export default function SettingsPage() {
                       draft.baseFiatCurrency === c ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
                     )}
                   >
-                    {c === 'QAR' ? '🇶🇦 QAR' : '🇪🇬 EGP'}
+                    {c === 'QAR' ? '🇶🇦 ريال' : '🇪🇬 جنيه'}
                   </button>
                 ))}
               </div>

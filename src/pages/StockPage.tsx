@@ -780,8 +780,8 @@ export default function StockPage() {
                   <div className="field2">
                     <div className="lbl">{t('currencyMode')}</div>
                     <div className="modeToggle">
-                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat}</button>
-                      <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
+                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}</button>
+                      <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 دولار</button>
                     </div>
                   </div>
                   <div className="g2tight" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : undefined}>
@@ -813,7 +813,7 @@ export default function StockPage() {
                     <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
                       <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
-                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat}/USDT
+                        {fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}/دولار
                       </span>
                     </div>
                   )}
@@ -1038,8 +1038,8 @@ export default function StockPage() {
                     <div className="field2">
                       <div className="lbl">{t('currencyMode')}</div>
                       <div className="modeToggle">
-                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat}</button>
-                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 USDT</button>
+                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}</button>
+                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 دولار</button>
                       </div>
                     </div>
                     <div className="field2">
@@ -1063,7 +1063,7 @@ export default function StockPage() {
                     {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
                       <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
                         <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
-                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat}/USDT</span>
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} {baseFiat === 'EGP' ? 'جنيه' : 'ريال'}/دولار</span>
                       </div>
                     )}
                   </>)}

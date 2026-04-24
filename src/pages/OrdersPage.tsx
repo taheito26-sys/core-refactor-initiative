@@ -3624,8 +3624,8 @@ export default function OrdersPage() {
                       <div className="lbl">{t(getCurrencyLabel('amount', saleMode as any))}</div>
                       <div className="inputBox"><input inputMode="decimal" placeholder="0.00" value={saleAmount} onChange={numericOnly(setSaleAmount)} style={mobileInputStyle} /></div>
                       <div className="modeToggle" style={{ marginTop: 4, fontSize: 9 }}>
-                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>USDT</button>
-                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{baseFiat}</button>
+                        <button className={saleMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode('USDT')} style={mobileActionStyle}>دولار</button>
+                        <button className={saleMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setSaleMode(baseFiat as 'QAR' | 'EGP')} style={mobileActionStyle}>{baseFiat === 'EGP' ? 'جنيه' : 'ريال'}</button>
                       </div>
                     </div>
                     <div className="field2">

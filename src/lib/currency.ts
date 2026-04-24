@@ -26,7 +26,7 @@ export const FIAT_CONFIG: Record<FiatCurrency, FiatCurrencyConfig> = {
     symbol: 'QAR',
     symbolAr: 'ر.ق',
     name: 'Qatari Riyal',
-    nameAr: 'ريال قطري',
+    nameAr: 'ريال',
     displayDecimals: 0,
   },
   EGP: {
@@ -34,7 +34,7 @@ export const FIAT_CONFIG: Record<FiatCurrency, FiatCurrencyConfig> = {
     symbol: 'EGP',
     symbolAr: 'ج.م',
     name: 'Egyptian Pound',
-    nameAr: 'جنيه مصري',
+    nameAr: 'جنيه',
     displayDecimals: 0,
   },
 };

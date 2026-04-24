@@ -9,9 +9,9 @@ export type CurrencyCode = 'QAR' | 'EGP' | 'USD' | 'USDT' | 'AED' | 'SAR';
 
 const currencyNames: Record<CurrencyCode, Record<Lang, string>> = {
   QAR: { en: 'QAR', ar: 'ريال' },
-  EGP: { en: 'EGP', ar: 'جنية' },
+  EGP: { en: 'EGP', ar: 'جنيه' },
   USD: { en: 'USD', ar: 'دولار' },
-  USDT: { en: 'USDT', ar: 'USDT' },
+  USDT: { en: 'USDT', ar: 'دولار' },
   AED: { en: 'AED', ar: 'إماراتي' },
   SAR: { en: 'SAR', ar: 'سعودي' },
 };

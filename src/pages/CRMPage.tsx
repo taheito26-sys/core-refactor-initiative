@@ -111,7 +111,7 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete }: {
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtPrice(supplier.avgCost)}</div>
         </div>
         <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
-          <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>SPENT QAR</div>
+          <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>SPENT ريال</div>
           <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono, monospace)' }}>{fmtTotal(supplier.spentQAR)}</div>
         </div>
       </div>
