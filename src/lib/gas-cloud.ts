@@ -159,8 +159,9 @@ export async function autoAuthenticateCloudWithDetails(
   for (const pw of passwordCandidates) {
     try {
       const res = await rawGasPost({ action: 'login', email, password: pw });
-      if (res && res.ok && res.token) {
-        saveSession(email, res.token, displayName || res.user?.name);
+      if (res && (res.ok || res.success) && (res.token || res.sessionToken)) {
+        const token = res.token || res.sessionToken;
+        saveSession(email, token, displayName || res.user?.name || res.name);
         return { ok: true };
       }
     } catch {
@@ -177,17 +178,30 @@ export async function autoAuthenticateCloudWithDetails(
       password: currentPassword,
       name: displayName || email.split('@')[0],
     });
-    if (res && res.ok && res.token) {
-      saveSession(email, res.token, displayName || res.user?.name);
+    if (res && (res.ok || res.success) && (res.token || res.sessionToken)) {
+      const token = res.token || res.sessionToken;
+      saveSession(email, token, displayName || res.user?.name || res.name);
       return { ok: true };
+    }
+    // Registration succeeded but no token returned — try login to get token
+    if (res && (res.ok || res.success)) {
+      try {
+        const loginRes = await rawGasPost({ action: 'login', email, password: currentPassword });
+        if (loginRes && (loginRes.ok || loginRes.success) && (loginRes.token || loginRes.sessionToken)) {
+          const token = loginRes.token || loginRes.sessionToken;
+          saveSession(email, token, displayName || loginRes.user?.name || loginRes.name);
+          return { ok: true };
+        }
+      } catch { /* fall through */ }
     }
   } catch (registerError: unknown) {
     // Registration might fail if account exists with different password.
     for (const pw of passwordCandidates) {
       try {
         const res = await rawGasPost({ action: 'login', email, password: pw });
-        if (res && res.ok && res.token) {
-          saveSession(email, res.token, displayName || res.user?.name);
+        if (res && (res.ok || res.success) && (res.token || res.sessionToken)) {
+          const token = res.token || res.sessionToken;
+          saveSession(email, token, displayName || res.user?.name || res.name);
           return { ok: true };
         }
       } catch {
