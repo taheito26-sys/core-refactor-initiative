@@ -94,7 +94,7 @@ export default function CustomerHomePage() {
       if (!userId || !newAccName.trim()) throw new Error(L('Enter account name', 'أدخل اسم الحساب'));
       const newId = Math.random().toString(36).slice(2, 10);
       const { data, error } = await supabase.from('cash_accounts').insert({
-        id: newId, user_id: userId, name: newAccName.trim(), type: newAccType, currency: newAccCurrency, status: 'active',
+        id: newId, user_id: userId, name: newAccName.trim(), type: newAccType, currency: newAccCurrency, status: 'active', created_at: Date.now(),
       }).select().single();
       if (error) throw error;
       return data;
