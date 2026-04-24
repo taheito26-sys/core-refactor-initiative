@@ -684,66 +684,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             </div>
           );
         })()}
-
-        {(() => {
-          const isExpanded = expandedNewKpi === 'cycle';
-          return (
-            <div className="kpi-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setExpandedNewKpi(isExpanded ? null : 'cycle')}>
-              <div className="kpi-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="kpi-badge" style={{ color: 'var(--warn)', borderColor: 'color-mix(in srgb,var(--warn) 30%,transparent)', background: 'color-mix(in srgb,var(--warn) 10%,transparent)' }}>
-                  ⏱️
-                </span>
-              </div>
-              <div className="kpi-lbl">{t('avgCycleTime')}</div>
-              <div className="kpi-val" style={{ color: 'var(--warn)' }}>{cycleHours !== null ? `${fmtTotal(cycleHours)}h` : '—'}</div>
-              <div className="kpi-sub">{t('avgCycleTimeSub')}</div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>FIFO</span>
-                <span className="kpi-badge" style={{ fontSize: 9, padding: '1px 6px', color: 'var(--muted)', borderColor: 'color-mix(in srgb,var(--muted) 30%,transparent)', background: 'color-mix(in srgb,var(--muted) 10%,transparent)' }}>Stock</span>
-                <span style={{ fontSize: 9, color: 'var(--warn)', marginLeft: 'auto' }}>💡 {isExpanded ? t('collapseLbl') : t('tapExpand')}</span>
-              </div>
-              {isExpanded && (
-                <div style={{ marginTop: 8, padding: '8px 10px', borderTop: '1px solid var(--line)', fontSize: 11, lineHeight: 1.6, color: 'var(--t3)' }}>
-                  <p>Average hours from buying a batch to it being consumed in sales.</p>
-                  <p style={{ marginTop: 4 }}><strong style={{ color: 'var(--warn)' }}>Why:</strong> Shorter cycle = faster capital rotation and less exposure to price moves.</p>
-                  <div style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: 'var(--panel2)', fontFamily: 'monospace', fontSize: 10, color: 'var(--good)' }}>
-                    = avg(trade.ts – slice.batchTs) per FIFO slice
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {rangeMerchantKpis && (
-          <div className="kpi-card">
-            <div className="kpi-head">
-              <span className="kpi-badge" style={{ color: 'var(--brand)', borderColor: 'color-mix(in srgb,var(--brand) 30%,transparent)', background: 'color-mix(in srgb,var(--brand) 10%,transparent)' }}>
-                📤 {rangeMerchantKpis.outCount} deals
-              </span>
-            </div>
-            <div className="kpi-lbl">{isAdminView ? `${t('outgoingNet')} · ${t('myCutLabel')}` : t('outgoingNet')}</div>
-            <div className={`kpi-val ${rangeMerchantKpis.outMyShare >= 0 ? 'good' : 'bad'}`}>
-              {rangeMerchantKpis.outMyShare >= 0 ? '+' : ''}{fmtDashboardAmount(rangeMerchantKpis.outMyShare)}
-            </div>
-            <div className="kpi-sub">{t('netProfitLabel')}: {fmtDashboardAmount(rangeMerchantKpis.outNet)}</div>
-          </div>
-        )}
-
-        {rangeMerchantKpis && (
-          <div className="kpi-card">
-            <div className="kpi-head">
-              <span className="kpi-badge" style={{ color: 'var(--good)', borderColor: 'color-mix(in srgb,var(--good) 30%,transparent)', background: 'color-mix(in srgb,var(--good) 10%,transparent)' }}>
-                📥 {rangeMerchantKpis.inCount} deals
-              </span>
-            </div>
-            <div className="kpi-lbl">{isAdminView ? `${t('incomingNet')} · ${t('myCutLabel')}` : t('incomingNet')}</div>
-            <div className={`kpi-val ${rangeMerchantKpis.inMyShare >= 0 ? 'good' : 'bad'}`}>
-              {rangeMerchantKpis.inMyShare >= 0 ? '+' : ''}{fmtDashboardAmount(rangeMerchantKpis.inMyShare)}
-            </div>
-            <div className="kpi-sub">{t('netProfitLabel')}: {fmtDashboardAmount(rangeMerchantKpis.inNet)}</div>
-          </div>
-        )}
       </div>
 
       <div className="dash-bottom">
