@@ -629,9 +629,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className="kpi-val" style={{ color: 'var(--text)' }}>{fmtDashboardAmount(stCost)}</div>
           <div className="kpi-sub">Avg stock price {averageStockPrice ? fmtDashboardPrice(averageStockPrice) : '—'}</div>
         </div>
-      </div>
 
-      <div className="kpis" style={{ marginTop: 0 }}>
         {(() => {
           const roiData = roiPeriod === '7d' ? d7 : d30;
           const roiVal = stCost > 0 ? (roiData.net / stCost) * 100 : 0;

@@ -3,11 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
 import { hasMeaningfulTrackerData } from './tracker-backup';
 import type { TrackerState } from './tracker-helpers';
+import { uploadVaultBackup } from './supabase-vault';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedJson = '';
 let _prefTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedPrefs = '';
+let _lastAutoBackupTs = 0;
+const AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 function stateToJson(state: TrackerState): string {
   try {
@@ -111,6 +114,15 @@ async function persistToCloud(state: TrackerState): Promise<void> {
 
   if (!error) {
     _lastSavedJson = json;
+
+    // Auto-backup to vault storage (throttled: max once per 30 min)
+    const now = Date.now();
+    if (now - _lastAutoBackupTs >= AUTO_BACKUP_INTERVAL_MS) {
+      _lastAutoBackupTs = now;
+      void uploadVaultBackup(user.id, state as unknown as Record<string, unknown>, 'Auto-backup').catch(() => {
+        // Non-critical — don't block the main save
+      });
+    }
   } else {
     console.warn('[tracker-sync] cloud save failed:', error.message);
   }
