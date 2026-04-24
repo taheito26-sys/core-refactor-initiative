@@ -83,6 +83,7 @@ function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
       toast.success(L('Linked to cash account', 'تم الربط بالحساب النقدي'));
       qc.invalidateQueries({ queryKey: ['customer-cash-ledger', userId] });
       qc.invalidateQueries({ queryKey: ['customer-cash-accounts', userId] });
+      qc.invalidateQueries({ queryKey: ['c-order-cash-links', userId] });
       onClose();
     },
     onError: (e: any) => toast.error(e?.message),
@@ -422,6 +423,47 @@ export default function CustomerOrdersPage() {
   const [acceptingOrder, setAcceptingOrder] = useState<WorkflowOrder | null>(null);
   const [linkingOrder, setLinkingOrder] = useState<WorkflowOrder | null>(null);
 
+  // Query cash ledger entries linked to customer orders — used to show linked account name
+  const { data: orderCashLinks = [] } = useQuery({
+    queryKey: ['c-order-cash-links', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase
+        .from('cash_ledger')
+        .select('linked_entity_id, account_id, amount, currency')
+        .eq('user_id', userId)
+        .eq('linked_entity_type', 'customer_order')
+        .eq('type', 'order_receipt');
+      if (error) return [];
+      return data ?? [];
+    },
+    enabled: !!userId,
+  });
+
+  // Map order ID → cash link info
+  const orderCashLinkMap = useMemo(() => {
+    const map = new Map<string, { accountId: string; amount: number; currency: string }>();
+    for (const link of orderCashLinks) {
+      if (link.linked_entity_id) {
+        map.set(link.linked_entity_id, { accountId: link.account_id, amount: link.amount, currency: link.currency });
+      }
+    }
+    return map;
+  }, [orderCashLinks]);
+
+  // Query cash accounts for name lookup
+  const { data: allCashAccounts = [] } = useQuery({
+    queryKey: ['c-cash-accounts', userId],
+    queryFn: async () => { if (!userId) return []; return getCashAccountsForUser(userId); },
+    enabled: !!userId,
+  });
+
+  const cashAccountNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const acc of allCashAccounts) map.set((acc as any).id, (acc as any).name);
+    return map;
+  }, [allCashAccounts]);
+
   const { data: connections = [] } = useQuery({
     queryKey: ['c-connections', userId],
     queryFn: async () => {
@@ -725,12 +767,18 @@ export default function CustomerOrdersPage() {
                         </div>
                       )
                     ) : order.workflow_status === 'approved' ? (
-                      <button
-                        onClick={() => setLinkingOrder(order)}
-                        className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
-                      >
-                        💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
-                      </button>
+                      orderCashLinkMap.has(order.id) ? (
+                        <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300">
+                          ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setLinkingOrder(order)}
+                          className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
+                        >
+                          💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                        </button>
+                      )
                     ) : undefined;
 
                     return (
@@ -906,12 +954,18 @@ export default function CustomerOrdersPage() {
                       {/* Link to Cash — shown on approved orders */}
                       {order.workflow_status === 'approved' && (
                         <div className="mt-2 border-t border-white/5 pt-2">
-                          <button
-                            onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
-                            className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
-                          >
-                            💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
-                          </button>
+                          {orderCashLinkMap.has(order.id) ? (
+                            <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300">
+                              ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); setLinkingOrder(order); }}
+                              className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/20"
+                            >
+                              💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -993,12 +1047,18 @@ export default function CustomerOrdersPage() {
                           </div>
                         )
                       ) : order.workflow_status === 'approved' ? (
-                        <button
-                          onClick={() => setLinkingOrder(order)}
-                          className="flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-500/20"
-                        >
-                          💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
-                        </button>
+                        orderCashLinkMap.has(order.id) ? (
+                          <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600">
+                            ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setLinkingOrder(order)}
+                            className="flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-500/20"
+                          >
+                            💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                          </button>
+                        )
                       ) : undefined}
                     />
                   ) : (
@@ -1127,12 +1187,18 @@ export default function CustomerOrdersPage() {
                       {/* Link to Cash — shown on approved orders */}
                       {order.workflow_status === 'approved' && order.fx_rate && (
                         <div className="mt-3 pt-3 border-t border-border/30">
-                          <button
-                            onClick={() => setLinkingOrder(order)}
-                            className="flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-500/20"
-                          >
-                            💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
-                          </button>
+                          {orderCashLinkMap.has(order.id) ? (
+                            <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600">
+                              ✓ {cashAccountNameMap.get(orderCashLinkMap.get(order.id)!.accountId) || L('Linked', 'مرتبط')}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setLinkingOrder(order)}
+                              className="flex items-center gap-1.5 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-600 hover:bg-sky-500/20"
+                            >
+                              💰 {L('Link to Cash Account', 'ربط بحساب نقدي')}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
