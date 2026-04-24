@@ -129,6 +129,31 @@ async function pruneOldBackups(userId: string): Promise<void> {
 }
 
 /**
+ * Admin: upload a backup to ANY user's folder. Requires admin RLS policy.
+ */
+export async function adminUploadVaultBackup(
+  targetUserId: string,
+  state: Record<string, unknown>,
+  label: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return uploadVaultBackup(targetUserId, state, label);
+}
+
+/**
+ * Admin: fetch the newest backup for a user and return its parsed state.
+ */
+export async function adminGetLatestBackup(
+  targetUserId: string,
+): Promise<{ state: Record<string, unknown>; fileName: string } | null> {
+  const list = await listVaultBackups(targetUserId);
+  if (list.length === 0) return null;
+  const newest = list[0];
+  const state = await downloadVaultBackup(targetUserId, newest.name);
+  if (!state) return null;
+  return { state, fileName: newest.name };
+}
+
+/**
  * Format bytes to human-readable string.
  */
 export function fmtBytes(b: number): string {
