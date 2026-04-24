@@ -11,6 +11,7 @@ import { useWelcomeMessage } from '@/hooks/useWelcomeMessage';
 import { WelcomeOverlay } from '@/components/WelcomeOverlay';
 import { usePushRegistration } from '@/hooks/usePushRegistration';
 import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
+import { AppInstallPrompt } from '@/components/AppInstallPrompt';
 
 export function AppLayout() {
   const isMobile = useIsMobile();
@@ -77,6 +78,9 @@ export function AppLayout() {
 
       {/* Welcome message overlay */}
       {welcomeMsg && <WelcomeOverlay msg={welcomeMsg} onDismiss={dismissWelcome} />}
+
+      {/* PWA install prompt — shown on every page for mobile browser users */}
+      <AppInstallPrompt />
     </div>
   );
 }
