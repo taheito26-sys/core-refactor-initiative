@@ -209,6 +209,13 @@ export function PhasedClientOrderCard({
       {/* Expanded phase breakdown — full width, outside padding */}
       {expanded && hasPhases && (
         <div className="border-t border-white/8 bg-white/[0.02]">
+          {/* Column headers */}
+          <div className={cn('grid grid-cols-3 gap-1 px-3 pt-2 pb-1', isRtl && 'text-right')}>
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">{L('Sent', 'المُرسل')}</div>
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold text-center">{L('Rate', 'السعر')}</div>
+            <div className={cn('text-[9px] uppercase tracking-wider text-slate-500 font-semibold', isRtl ? 'text-left' : 'text-right')}>{L('Received', 'المُستلم')}</div>
+          </div>
+
           {executions.map((exec, idx) => {
             const egp = exec.executed_egp ?? exec.egp_received_amount ?? 0;
             const qar = exec.phase_consumed_qar ?? exec.sold_qar_amount ?? 0;
@@ -218,41 +225,38 @@ export function PhasedClientOrderCard({
             return (
               <div
                 key={exec.id}
-                className={cn(
-                  'px-3 py-2.5',
-                  !isLast && 'border-b border-white/5',
-                )}
+                className={cn('px-3 py-2', !isLast && 'border-b border-white/5')}
               >
-                {/* Phase row: number + QAR on left, rate center, EGP on right */}
-                <div className={cn('flex items-center gap-2', isRtl && 'flex-row-reverse')}>
-                  {/* Phase number badge */}
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-[10px] font-bold text-sky-400">
-                    {exec.sequence_number}
-                  </span>
-
-                  {/* QAR amount */}
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[13px] font-bold text-slate-100">
-                      {fmtAmt(qar, lang)}
+                <div className="grid grid-cols-3 gap-1 items-center">
+                  {/* Left: phase badge + QAR */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-[10px] font-bold text-sky-400">
+                      {exec.sequence_number}
                     </span>
-                    <span className="ml-1 text-[10px] text-slate-400">{currencyLabel(sendCurrency, lang)}</span>
+                    <div className="min-w-0">
+                      <div className="text-[14px] font-black text-slate-100 leading-tight tabular-nums">
+                        {fmtAmt(qar, lang)}
+                      </div>
+                      <div className="text-[9px] text-slate-500">{currencyLabel(sendCurrency, lang)}</div>
+                    </div>
                   </div>
 
-                  {/* Rate — prominent center */}
-                  <div className="flex flex-col items-center px-2">
-                    <span className="text-[11px] text-slate-500">@</span>
-                    <span className="text-[14px] font-black text-sky-300 leading-tight">{fx.toFixed(2)}</span>
+                  {/* Center: rate */}
+                  <div className="flex flex-col items-center">
+                    <div className="text-[16px] font-black text-sky-300 leading-tight tabular-nums">
+                      {fx.toFixed(2)}
+                    </div>
+                    <div className="text-[8px] text-slate-600">
+                      {currencyLabel(sendCurrency, lang)}→{currencyLabel(receiveCurrency, lang)}
+                    </div>
                   </div>
 
-                  {/* Arrow */}
-                  <span className="text-slate-600 text-[10px]">→</span>
-
-                  {/* EGP amount */}
-                  <div className={cn('flex-1 min-w-0', isRtl ? 'text-left' : 'text-right')}>
-                    <span className="text-[13px] font-bold text-emerald-400">
+                  {/* Right: EGP */}
+                  <div className={cn('min-w-0', isRtl ? 'text-left' : 'text-right')}>
+                    <div className="text-[14px] font-black text-emerald-400 leading-tight tabular-nums">
                       {fmtAmt(egp, lang)}
-                    </span>
-                    <span className="ml-1 text-[10px] text-slate-400">{currencyLabel(receiveCurrency, lang)}</span>
+                    </div>
+                    <div className="text-[9px] text-slate-500">{currencyLabel(receiveCurrency, lang)}</div>
                   </div>
                 </div>
               </div>
@@ -262,11 +266,14 @@ export function PhasedClientOrderCard({
           {/* Weighted avg FX footer */}
           {weightedAvgFx && (
             <div className={cn(
-              'flex items-center justify-between px-3 py-2 border-t border-white/5',
-              isRtl && 'flex-row-reverse',
+              'grid grid-cols-3 gap-1 items-center px-3 py-2.5 border-t border-white/8 bg-white/[0.02]',
+              isRtl && 'text-right',
             )}>
-              <span className="text-[10px] text-slate-400">{L('Weighted Avg FX', 'متوسط سعر الصرف')}</span>
-              <span className="text-[14px] font-black text-sky-300">{weightedAvgFx.toFixed(2)}</span>
+              <div className="text-[10px] text-slate-400 font-semibold">{L('Avg Rate', 'متوسط السعر')}</div>
+              <div className="text-center">
+                <span className="text-[16px] font-black text-sky-300 tabular-nums">{weightedAvgFx.toFixed(2)}</span>
+              </div>
+              <div />
             </div>
           )}
         </div>
