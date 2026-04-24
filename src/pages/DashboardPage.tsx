@@ -14,6 +14,7 @@ import { localCur } from '@/lib/currency-locale';import { supabase } from '@/int
 import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
+import { clearCashStateFromCloud } from '@/lib/cash-sync';
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -286,7 +287,31 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   });
 
   const handleCashSave = useCallback((newCash: number, owner: string, history?: import('@/lib/tracker-helpers').CashTransaction[]) => {
-    applyState({ ...state, cashQAR: newCash, cashOwner: owner, cashHistory: history ?? state.cashHistory ?? [] });
+    const nextHistory = history ?? state.cashHistory ?? [];
+    const isClearAction = newCash === 0 && nextHistory[nextHistory.length - 1]?.note === 'Cash cleared';
+    const nextState = isClearAction
+      ? {
+          ...state,
+          cashQAR: 0,
+          cashOwner: owner,
+          cashHistory: nextHistory,
+          cashAccounts: [],
+          cashLedger: [],
+        }
+      : {
+          ...state,
+          cashQAR: newCash,
+          cashOwner: owner,
+          cashHistory: nextHistory,
+        };
+
+    if (isClearAction) {
+      void clearCashStateFromCloud().catch((err) => {
+        console.error('[DashboardPage] clearCashStateFromCloud failed:', err);
+      });
+    }
+
+    applyState(nextState);
   }, [state, applyState]);
 
   const rangeMerchantKpis = useMemo(() => {
