@@ -4,6 +4,7 @@ import { findTrackerStorageKey } from './tracker-backup';
 import { hasMeaningfulTrackerData } from './tracker-backup';
 import type { TrackerState } from './tracker-helpers';
 import { uploadVaultBackup } from './supabase-vault';
+import { clearCashStateFromCloud } from './cash-sync';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedJson = '';
@@ -268,6 +269,11 @@ export function saveTrackerState(state: TrackerState): void {
 export async function saveTrackerStateNow(state: TrackerState, options: SaveTrackerStateOptions = {}): Promise<void> {
   if (_saveTimer) clearTimeout(_saveTimer);
   persistToLocal(state);
+  if (options.replaceExisting) {
+    await clearCashStateFromCloud().catch((err) => {
+      console.warn('[tracker-sync] clearCashStateFromCloud failed:', err);
+    });
+  }
   await persistToCloud(state, options);
 }
 

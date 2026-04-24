@@ -1,14 +1,16 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { saveTrackerStateNow } from '@/lib/tracker-sync';
 
-const { authGetUserMock, selectMock, upsertMock, fromMock } = vi.hoisted(() => {
+const { authGetUserMock, selectMock, upsertMock, deleteMock, deleteEqMock, eqMock, fromMock } = vi.hoisted(() => {
   const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const eqMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
   const selectMock = vi.fn(() => ({ eq: eqMock }));
-  const fromMock = vi.fn(() => ({ select: selectMock, upsert: upsertMock }));
+  const deleteEqMock = vi.fn().mockResolvedValue({ data: null, error: null });
+  const deleteMock = vi.fn(() => ({ eq: deleteEqMock }));
+  const fromMock = vi.fn(() => ({ select: selectMock, upsert: upsertMock, delete: deleteMock }));
   const authGetUserMock = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  return { authGetUserMock, selectMock, upsertMock, fromMock };
+  return { authGetUserMock, selectMock, upsertMock, deleteMock, deleteEqMock, eqMock, fromMock };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -47,6 +49,8 @@ describe('saveTrackerStateNow', () => {
     await saveTrackerStateNow(emptyState, { replaceExisting: true });
 
     expect(selectMock).not.toHaveBeenCalled();
+    expect(deleteMock).toHaveBeenCalledTimes(2);
+    expect(deleteEqMock).toHaveBeenCalledWith('user_id', 'user-1');
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: 'user-1',
