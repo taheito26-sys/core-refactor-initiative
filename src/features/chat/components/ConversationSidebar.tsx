@@ -4,6 +4,7 @@ import { Search, Plus, Users, Lock, Briefcase, RefreshCw, Pin, MessageCircle } f
 import { cn } from '@/lib/utils';
 import { useChatStore, typingUsersInRoom } from '@/lib/chat-store';
 import { useT } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme-context';
 import type { ChatRoomListItem, ChatRoomType } from '../types';
 import { Button } from '@/components/ui/button';
 
@@ -51,6 +52,8 @@ type Filter = 'all' | ChatRoomType;
 
 export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewChat, isLoading, meId }: Props) {
   const t = useT();
+  const { settings } = useTheme();
+  const isRTL = settings.language === 'ar';
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const unreadCounts = useChatStore((s) => s.unreadCounts);
@@ -74,7 +77,7 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="flex flex-col w-72 lg:w-80 border-r border-border/50 bg-card h-full shrink-0">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="flex flex-col w-72 lg:w-80 border-r border-border/50 bg-card h-full shrink-0">
       {/* Header */}
       <div className="px-4 py-3 border-b border-border/50">
         <div className="flex items-center justify-between mb-3">
@@ -94,12 +97,12 @@ export function ConversationSidebar({ rooms, activeRoomId, onSelectRoom, onNewCh
 
         {/* Phase 17: Search-as-you-type */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-muted/50 border border-border/30 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/40 transition-shadow"
+            placeholder={isRTL ? '...بحث في المحادثات' : 'Search conversations...'}
+            className="w-full ps-8 pe-3 py-1.5 text-xs rounded-lg bg-muted/50 border border-border/30 focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/40 transition-shadow"
           />
         </div>
 
@@ -226,10 +229,10 @@ function RoomRow({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       className={cn(
-        'w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-border/20 relative overflow-hidden',
+        'w-full flex items-center gap-3 px-4 py-3 text-start transition-all border-b border-border/20 relative overflow-hidden',
         isActive
-          ? 'bg-primary/10 border-l-2 border-l-primary'
-          : 'hover:bg-muted/50 border-l-2 border-l-transparent',
+          ? 'bg-primary/10 border-s-2 border-s-primary'
+          : 'hover:bg-muted/50 border-s-2 border-s-transparent',
       )}
       style={{ transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
     >
@@ -274,7 +277,7 @@ function RoomRow({
           )}>
             {displayName}
           </span>
-          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          <div className="flex items-center gap-1.5 shrink-0 ms-2">
             {room.is_muted && (
               <span className="text-muted-foreground/40 text-[9px]">🔇</span>
             )}
@@ -295,7 +298,7 @@ function RoomRow({
           {/* Phase 16: Unread count pill redesign */}
           {unread > 0 && (
             <span className={cn(
-              'flex h-[18px] min-w-[18px] items-center justify-center rounded-full text-[9px] font-black px-1 shrink-0 ml-1',
+              'flex h-[18px] min-w-[18px] items-center justify-center rounded-full text-[9px] font-black px-1 shrink-0 ms-1',
               room.is_muted
                 ? 'bg-muted text-muted-foreground'
                 : 'bg-primary text-primary-foreground',
