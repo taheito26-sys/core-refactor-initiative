@@ -11,6 +11,7 @@ import { Check, Save, RotateCcw, Download, Trash2, Cloud, Camera, Upload, Refres
 import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
+import { localCur } from '@/lib/currency-locale';
 import { useAuth } from '@/features/auth/auth-context';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -219,7 +220,7 @@ export default function SettingsPage() {
                       draft.baseFiatCurrency === c ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
                     )}
                   >
-                    {c === 'QAR' ? '🇶🇦 ريال' : '🇪🇬 جنيه'}
+                    {c === 'QAR' ? `🇶🇦 ${localCur('QAR', t.lang)}` : `🇪🇬 ${localCur('EGP', t.lang)}`}
                   </button>
                 ))}
               </div>
@@ -237,7 +238,7 @@ export default function SettingsPage() {
                       draft.currency === c ? 'border-primary bg-primary/10 text-primary font-bold' : 'border-border hover:border-primary/30'
                     )}
                   >
-                    {c}
+                    {localCur(c, t.lang)}
                   </button>
                 ))}
               </div>

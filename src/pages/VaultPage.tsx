@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Camera, Download, Upload, Trash2, RefreshCw, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Loader2, Cloud } from 'lucide-react';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
+import { localCur } from '@/lib/currency-locale';
 import { useTheme } from '@/lib/theme-context';
 import {
   clearTrackerStorage,
@@ -557,14 +558,14 @@ export default function VaultPage() {
     }
 
     if (trades.length || batches.length) {
-      const localizedCurrency = baseFiat === 'EGP' ? 'جنيه' : 'ريال';
-      const tradeHeaders = ['ID', 'Date', 'Amount USDT', `Sell Price ${localizedCurrency}`, `Fee ${localizedCurrency}`, 'Note', 'Voided'];
+      const lc = (code: string) => localCur(code, t.lang);
+      const tradeHeaders = ['ID', 'Date', `Amount ${lc('USDT')}`, `Sell Price ${lc(baseFiat)}`, `Fee ${lc(baseFiat)}`, 'Note', 'Voided'];
       const tradeRows = trades.map((tr: any) => [
         tr.id || '', new Date(tr.ts || tr.created_at || 0).toLocaleString(),
         tr.amountUSDT ?? tr.quantity ?? '', tr.sellPriceQAR ?? tr.unit_price ?? '',
         tr.feeQAR ?? tr.fee ?? '', tr.note ?? tr.notes ?? '', tr.voided ?? tr.status ?? ''
       ].join('\t'));
-      const batchHeaders = ['ID', 'Date', 'Quantity USDT', `Buy Price ${localizedCurrency}`, 'Source', 'Note'];
+      const batchHeaders = ['ID', 'Date', `Quantity ${lc('USDT')}`, `Buy Price ${lc(baseFiat)}`, 'Source', 'Note'];
       const batchRows = batches.map((b: any) => [
         b.id || '', new Date(b.ts || b.acquired_at || b.created_at || 0).toLocaleString(),
         b.initialUSDT ?? b.qty ?? b.quantity ?? '', b.buyPriceQAR ?? b.priceQAR ?? b.price ?? b.unit_cost ?? '',

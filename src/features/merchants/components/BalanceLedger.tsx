@@ -83,24 +83,24 @@ export function BalanceLedger({ relationshipId }: Props) {
         <div className="kpi-band-cols">
           <div>
             <div className="kpi-period">{t('totalLent')}</div>
-            <div className="kpi-cell-val mono">{fmtQWithUnit(totalLent, settings.currency, wacop)}</div>
+            <div className="kpi-cell-val mono">{fmtQWithUnit(totalLent, settings.currency, wacop, undefined, t.lang)}</div>
           </div>
           <div>
             <div className="kpi-period">{t('reinvestedPool')}</div>
             <div className="kpi-cell-val mono" style={{ color: totalReinvested > 0 ? 'var(--good)' : 'var(--muted)' }}>
-              {fmtQWithUnit(totalReinvested, settings.currency, wacop)}
+              {fmtQWithUnit(totalReinvested, settings.currency, wacop, undefined, t.lang)}
             </div>
           </div>
           <div>
             <div className="kpi-period">{t('payOut')}</div>
             <div className="kpi-cell-val mono" style={{ color: totalPaidOut > 0 ? 'var(--muted)' : 'var(--muted)' }}>
-              {fmtQWithUnit(totalPaidOut, settings.currency, wacop)}
+              {fmtQWithUnit(totalPaidOut, settings.currency, wacop, undefined, t.lang)}
             </div>
           </div>
           <div>
             <div className="kpi-period">{t('netBalanceLabel')}</div>
             <div className="kpi-cell-val mono" style={{ fontWeight: 800, color: netBalance > 0 ? 'var(--good)' : 'var(--muted)' }}>
-              {fmtQWithUnit(netBalance, settings.currency, wacop)}
+              {fmtQWithUnit(netBalance, settings.currency, wacop, undefined, t.lang)}
             </div>
           </div>
         </div>
@@ -139,10 +139,10 @@ export function BalanceLedger({ relationshipId }: Props) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="mono" style={{ color, fontWeight: 700, fontSize: 12 }}>
-                    {sign}{fmtQWithUnit(e.amount, settings.currency, wacop)}
+                    {sign}{fmtQWithUnit(e.amount, settings.currency, wacop, undefined, t.lang)}
                   </div>
                   <div className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>
-                    bal: {fmtQWithUnit(e.running_balance, settings.currency, wacop)}
+                    bal: {fmtQWithUnit(e.running_balance, settings.currency, wacop, undefined, t.lang)}
                   </div>
                 </div>
               </div>

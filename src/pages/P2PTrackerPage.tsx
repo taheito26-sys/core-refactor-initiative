@@ -295,7 +295,7 @@ export default function P2PTrackerPage() {
                  </CardHeader>
                  <CardContent className="px-4 pb-4 space-y-4">
                    <div className="space-y-2">
-                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Required USDT</Label>
+                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Required {localCur('USDT', t.lang)}</Label>
                      <div className="relative">
                        <Input 
                          type="number" 
@@ -393,7 +393,7 @@ export default function P2PTrackerPage() {
                 <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center justify-between px-1">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                      Scan Results for {fmtU(parseFloat(scanAmount))} USDT
+                      Scan Results for {fmtU(parseFloat(scanAmount))} {localCur('USDT', t.lang)}
                       <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
                       {scanResults.length} Matches Found
                     </h3>

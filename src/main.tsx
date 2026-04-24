@@ -40,6 +40,19 @@ async function applyBuildDriftRecovery(): Promise<boolean> {
   return true;
 }
 
+// When a new service worker activates (skipWaiting + clientsClaim), force a
+// full page reload so the current tab starts running the new bundle instead
+// of the stale precached one. Without this, installed PWAs on iOS/Android
+// keep running old JS indefinitely and miss critical data-sync fixes.
+if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+  let reloadedForSwSwap = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloadedForSwSwap) return;
+    reloadedForSwSwap = true;
+    window.location.reload();
+  });
+}
+
 const root = document.getElementById("root");
 if (root) {
   void applyBuildDriftRecovery().then((shouldRender) => {
