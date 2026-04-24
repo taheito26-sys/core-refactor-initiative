@@ -621,7 +621,7 @@ export default function StockPage() {
                         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{fmtDate(b.ts)}</div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-                        <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(b.initialUSDT)} USDT</strong>
+                        <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(b.initialUSDT)} {localCur('USDT', t.lang)}</strong>
                         <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(b.buyPriceQAR)}</span>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                           {(b.profit || 0) !== 0 && (
@@ -718,10 +718,10 @@ export default function StockPage() {
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11 }}>
                               <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
                               <div><span className="muted">{t('batchSource')}:</span> <strong>{b.source || '—'}</strong></div>
-                              <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} USDT</strong></div>
-                              <div><span className="muted">{t('batchConsumedQty')}:</span> <strong>{new Intl.NumberFormat(t.lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 0 }).format(consumed)} USDT</strong></div>
-                              <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} QAR</strong></div>
-                              <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} USDT</strong></div>
+                              <div><span className="muted">{t('batchQty')}:</span> <strong>{fmtU(b.initialUSDT)} {localCur('USDT', t.lang)}</strong></div>
+                              <div><span className="muted">{t('batchConsumedQty')}:</span> <strong>{new Intl.NumberFormat(t.lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 0 }).format(consumed)} {localCur('USDT', t.lang)}</strong></div>
+                              <div><span className="muted">{t('batchBuyPrice')}:</span> <strong>{fmtP(b.buyPriceQAR)} {localCur(baseFiat, t.lang)}</strong></div>
+                              <div><span className="muted">{t('batchRemaining')}:</span> <strong>{fmtU(rem)} {localCur('USDT', t.lang)}</strong></div>
                               <div><span className="muted">{t('batchUtilization')}:</span> <strong>{(100 - prog).toFixed(0)}% {t('usage')}</strong></div>
                               <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
                               {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
@@ -1003,13 +1003,13 @@ export default function StockPage() {
                 <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 10 }}>✅</div>
                 <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, color: 'var(--good)' }}>{t('batchAdded')}</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
-                  {fmtU(batchConfirmDetails.qty)} USDT @ {fmtP(batchConfirmDetails.price)} {activeBatchFiat}
+                  {fmtU(batchConfirmDetails.qty)} {localCur('USDT', t.lang)} @ {fmtP(batchConfirmDetails.price)} {localCur(activeBatchFiat, t.lang)}
                 </div>
                 <div style={{ fontSize: 12, textAlign: 'left', background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 10, padding: '12px 14px', display: 'grid', gap: 8, marginBottom: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('supplier')}</span><strong>{batchConfirmDetails.source}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('total')} USDT</span><strong className="mono">{fmtU(batchConfirmDetails.qty)} USDT</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t(getCurrencyLabel('buyPrice', batchMode as any))}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} {activeBatchFiat}</strong></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} {activeBatchFiat}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('total')} {localCur('USDT', t.lang)}</span><strong className="mono">{fmtU(batchConfirmDetails.qty)} {localCur('USDT', t.lang)}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t(getCurrencyLabel('buyPrice', batchMode as any))}</span><strong className="mono">{fmtP(batchConfirmDetails.price)} {localCur(activeBatchFiat, t.lang)}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid color-mix(in srgb, var(--line) 60%, transparent)', paddingTop: 8 }}><span className="muted">{t('cost')}</span><strong className="mono" style={{ color: 'var(--bad)' }}>{fmtTotal(batchConfirmDetails.total)} {localCur(activeBatchFiat, t.lang)}</strong></div>
                   {batchConfirmDetails.fundingAccName && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="muted">{t('fundingSourceLbl')}</span><strong style={{ maxWidth: '60%', textAlign: 'right' }}>{batchConfirmDetails.fundingAccName}</strong></div>
                   )}

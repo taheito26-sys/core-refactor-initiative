@@ -1012,7 +1012,7 @@ export default function OrdersPage() {
       amountUSDT,
       tradeId,
       baseFiatCurrency: baseFiat,
-      note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} USDT @ ${fmtP(sell)}`,
+      note: `${t('saleProceeds')}: ${fmtU(amountUSDT)} ${localCur('USDT', t.lang)} @ ${fmtP(sell)}`,
     });
   };
 
@@ -1040,21 +1040,21 @@ export default function OrdersPage() {
       description: (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-            <span style={{ opacity: 0.7, fontSize: 11 }}>{fmtU(amountUSDT)} USDT @ {fmtP(sell)}</span>
-            <span style={{ fontWeight: 600, fontSize: 12 }}>{fmtC(revenue)} QAR</span>
+            <span style={{ opacity: 0.7, fontSize: 11 }}>{fmtU(amountUSDT)} {localCur('USDT', t.lang)} @ {fmtP(sell)}</span>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>{fmtC(revenue)}</span>
           </div>
           {Number.isFinite(net) && (
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
               <span style={{ opacity: 0.7, fontSize: 11 }}>{t('netProfitLabel')}</span>
               <span style={{ fontWeight: 600, fontSize: 12, color: (net as number) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                {fmtC(net as number)} QAR
+                {fmtC(net as number)}
               </span>
             </div>
           )}
           {depositAmt > 0 && depositAccName && (
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, borderTop: '1px solid var(--line)', paddingTop: 4, marginTop: 2 }}>
               <span style={{ opacity: 0.7, fontSize: 11 }}>💵 {t('cashDeposited')} → {depositAccName}</span>
-              <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--good)' }}>+{fmtC(depositAmt)} QAR</span>
+              <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--good)' }}>+{fmtC(depositAmt)}</span>
             </div>
           )}
           {partnerName && (
@@ -1816,7 +1816,8 @@ export default function OrdersPage() {
       if (linked && t.merchantPct && Number.isFinite(net)) net = net * (t.merchantPct / 100);
       return [new Date(t.ts).toISOString(), t.amountUSDT, t.sellPriceQAR, revenue, Number.isFinite(cost) ? cost : '', Number.isFinite(net) ? net : ''].join(',');
     });
-    const csv = `Date,Qty USDT,Sell QAR,Revenue QAR,Cost QAR,Net QAR\n${rows.join('\n')}`;
+    const lc = (c: string) => localCur(c, t.lang);
+    const csv = `Date,Qty ${lc('USDT')},Sell ${lc(baseFiat)},Revenue ${lc(baseFiat)},Cost ${lc(baseFiat)},Net ${lc(baseFiat)}\n${rows.join('\n')}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
