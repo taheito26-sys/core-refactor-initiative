@@ -874,13 +874,30 @@ export function CashManagement({ state, applyState, applyStateAndCommit }: CashM
     if (ok) setReconcileAccountData(null);
   };
 
-  const clearLedgerEntries = (id: string) => {
+  const clearLedgerEntries = async (id: string) => {
+    // 1. Delete from cloud FIRST — so when the realtime postgres_changes event
+    //    fires and refreshFromCloud() runs, the cloud is already empty and
+    //    won't restore the cleared entries back into local state.
+    try {
+      await deleteCashAccountLedgerFromCloud(id);
+    } catch (err) {
+      console.error('[CashManagement] deleteCashAccountLedgerFromCloud failed:', err);
+    }
+    // 2. Commit the cleared state to cloud immediately (not debounced) so
+    //    refreshFromCloud sees the cleared ledger and doesn't re-merge old entries.
     const newLedger = ledger.filter(e => e.accountId !== id && e.contraAccountId !== id);
     const newCashQAR = deriveCashQAR(accounts, newLedger);
-    applyState({ ...state, cashLedger: newLedger, cashQAR: newCashQAR });
-    // BUG FIX: also delete from cloud so cleared entries don't return on reload
-    deleteCashAccountLedgerFromCloud(id)
-      .catch(err => console.error('[CashManagement] deleteCashAccountLedgerFromCloud failed:', err));
+    const nextState = { ...state, cashLedger: newLedger, cashQAR: newCashQAR };
+    if (applyStateAndCommit) {
+      try {
+        await applyStateAndCommit(nextState);
+      } catch (err) {
+        console.error('[CashManagement] applyStateAndCommit after clear failed:', err);
+        applyState(nextState);
+      }
+    } else {
+      applyState(nextState);
+    }
   };
 
   // ── Ledger filtered rows with running balance ─────────────────
