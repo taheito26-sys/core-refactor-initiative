@@ -14,7 +14,7 @@ import { localCur } from '@/lib/currency-locale';import { supabase } from '@/int
 import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
-import { clearCashStateFromCloud } from '@/lib/cash-sync';
+import { saveTrackerStateNow } from '@/lib/tracker-sync';
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -306,9 +306,15 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         };
 
     if (isClearAction) {
-      void clearCashStateFromCloud().catch((err) => {
-        console.error('[DashboardPage] clearCashStateFromCloud failed:', err);
-      });
+      void (async () => {
+        try {
+          await saveTrackerStateNow(nextState, { replaceExisting: true });
+          window.location.reload();
+        } catch (err) {
+          console.error('[DashboardPage] cash clear failed:', err);
+        }
+      })();
+      return;
     }
 
     applyState(nextState);
