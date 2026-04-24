@@ -7,9 +7,30 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Check, Save, RotateCcw, Download, Trash2 } from 'lucide-react';
+import { Check, Save, RotateCcw, Download, Trash2, Cloud, Camera, Upload, RefreshCw, Loader2, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel';
 import { toast } from 'sonner';
+import { useT } from '@/lib/i18n';
+import { useAuth } from '@/features/auth/auth-context';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  uploadVaultBackup, listVaultBackups, downloadVaultBackup,
+  deleteVaultBackup, fmtBytes as sbFmtBytes,
+  type VaultBackup,
+} from '@/lib/supabase-vault';
+import {
+  clearTrackerStorage,
+  findTrackerStorageKey,
+  getCurrentTrackerState,
+  hasMeaningfulTrackerData,
+  loadAutoBackupFromStorage,
+  normalizeImportedTrackerState,
+  saveAutoBackupToStorage,
+} from '@/lib/tracker-backup';
+import { saveTrackerStateNow, loadTrackerStateFromCloud } from '@/lib/tracker-sync';
+import type { TrackerState } from '@/lib/tracker-helpers';
+import { mergeLocalAndCloud } from '@/lib/tracker-state';
 import { useT } from '@/lib/i18n';
 import {
   useTheme,
@@ -25,6 +46,8 @@ import {
 import type { AppSettings } from '@/lib/theme/types';
 
 export default function SettingsPage() {
+  const { email, userId } = useAuth();
+  const navigate = useNavigate();
   const {
     settings: draft,
     update,
@@ -50,6 +73,38 @@ export default function SettingsPage() {
 
   const curLayoutDef = LAYOUTS.find(l => l.id === draft.layout) || LAYOUTS[0];
   const curThemeEntries = Object.entries(curLayoutDef.themes) as [string, ThemeDef][];
+
+  // ── Vault / Backup state ──
+  const [cloudBackups, setCloudBackups] = useState<VaultBackup[]>([]);
+  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudLabel, setCloudLabel] = useState('');
+  const [autoBackup, setAutoBackup] = useState(() => loadAutoBackupFromStorage(localStorage));
+  const [previewData, setPreviewData] = useState<{ label: string; summary: string } | null>(null);
+  const cloudImportRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [exportStatus, setExportStatus] = useState<'idle' | 'success'>('idle');
+
+  function getCurrentState(): Record<string, unknown> { return getCurrentTrackerState(localStorage); }
+  async function resolveVaultState(): Promise<Record<string, unknown>> {
+    const local = getCurrentState();
+    if (hasMeaningfulTrackerData(local)) return local;
+    try { const cloud = await loadTrackerStateFromCloud(); const merged = mergeLocalAndCloud(local as Partial<TrackerState> | null, cloud); if (merged && hasMeaningfulTrackerData(merged)) return merged; if (cloud && hasMeaningfulTrackerData(cloud)) return cloud; } catch { /* fall through */ }
+    return local;
+  }
+  function downloadBlob(content: string, filename: string, mime = 'application/json') { const blob = new Blob([content], { type: mime }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
+
+  const loadCloudBackups = useCallback(async () => { if (!userId) return; setCloudLoading(true); try { setCloudBackups(await listVaultBackups(userId)); } catch { setCloudBackups([]); } finally { setCloudLoading(false); } }, [userId]);
+  useEffect(() => { void loadCloudBackups(); }, [loadCloudBackups]);
+
+  const cloudBackupNow = async () => { if (!userId) return; setCloudLoading(true); try { const state = await resolveVaultState(); const res = await uploadVaultBackup(userId, state, cloudLabel || 'Manual'); if (!res.ok) throw new Error(res.error); setCloudLabel(''); toast.success('☁ Backed up'); await loadCloudBackups(); } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Failed'); } finally { setCloudLoading(false); } };
+  const restoreCloudBackup = async (fn: string) => { if (!userId || !confirm(t.lang === 'ar' ? 'استعادة؟ سيتم استبدال البيانات.' : 'Restore? This overwrites all data.')) return; setCloudLoading(true); try { const state = await downloadVaultBackup(userId, fn); if (!state) { toast.error('No content'); return; } const sk = findTrackerStorageKey(localStorage); localStorage.removeItem('tracker_data_cleared'); localStorage.setItem(sk, JSON.stringify(state)); await saveTrackerStateNow(state as unknown as TrackerState); toast.success('✓ Restored'); window.location.reload(); } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Failed'); } finally { setCloudLoading(false); } };
+  const extractCloudBackup = async (fn: string) => { if (!userId) return; setCloudLoading(true); try { const state = await downloadVaultBackup(userId, fn); if (!state) { toast.error('No content'); return; } downloadBlob(JSON.stringify(state, null, 2), `backup-${fn}`); toast.success('Extracted'); } catch { toast.error('Failed'); } finally { setCloudLoading(false); } };
+  const previewCloudBackup = async (fn: string, label: string) => { if (!userId) return; setCloudLoading(true); try { const state = await downloadVaultBackup(userId, fn); if (!state) return; const lines = (['batches','trades','customers','cashAccounts','cashLedger'] as const).map(k => { const arr = Array.isArray((state as Record<string,unknown>)[k]) ? (state as Record<string,unknown>)[k] as unknown[] : []; return arr.length > 0 ? `${k}: ${arr.length}` : null; }).filter(Boolean); setPreviewData({ label, summary: lines.join('\n') || 'No data' }); } catch { toast.error('Failed'); } finally { setCloudLoading(false); } };
+  const deleteCloudBackup = async (fn: string) => { if (!userId || !confirm(t.lang === 'ar' ? 'حذف؟' : 'Delete?')) return; const res = await deleteVaultBackup(userId, fn); if (res.ok) { toast('Deleted'); await loadCloudBackups(); } else toast.error(res.error || 'Failed'); };
+  const handleCloudImportFile = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (!f) return; const reader = new FileReader(); reader.onload = async () => { try { const data = JSON.parse(reader.result as string); if (!userId) return; const res = await uploadVaultBackup(userId, data, f.name.replace('.json', '')); if (res.ok) { toast.success('Uploaded'); await loadCloudBackups(); } else toast.error(res.error || 'Failed'); } catch { toast.error('Invalid JSON'); } }; reader.readAsText(f); e.target.value = ''; };
+  const handleAutoBackupToggle = (v: boolean) => { setAutoBackup(v); saveAutoBackupToStorage(localStorage, v); toast(v ? 'Auto-backup ON' : 'Auto-backup OFF'); };
+  const exportJSON = async () => { const state = await resolveVaultState(); downloadBlob(JSON.stringify(state, null, 2), `p2p-tracker-${new Date().toISOString().slice(0, 10)}.json`); setExportStatus('success'); toast.success('JSON exported'); setTimeout(() => setExportStatus('idle'), 3000); };
+  const clearAll = async () => { if (!confirm(t.lang === 'ar' ? '⚠ مسح جميع البيانات؟' : '⚠ Clear ALL data?')) return; clearTrackerStorage(localStorage); localStorage.setItem('tracker_data_cleared', 'true'); const empty = { batches: [], trades: [], customers: [], suppliers: [], cashQAR: 0, cashOwner: '', cashHistory: [], cashAccounts: [], cashLedger: [], currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } }; void saveTrackerStateNow(empty as unknown as TrackerState); toast.success('Data cleared — reloading…'); setTimeout(() => window.location.reload(), 500); };
 
   return (
     <div className="tracker-page" dir={t.isRTL ? 'rtl' : 'ltr'}>
@@ -379,6 +434,69 @@ export default function SettingsPage() {
               <p className="text-[10px] text-muted-foreground">
                 {t('clientSideLogs')}
               </p>
+            </CardContent>
+          </Card>
+
+          {/* ── 🔒 Backup & Recovery ── */}
+          <Card className="glass">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-display">🔒 {t.lang === 'ar' ? 'النسخ الاحتياطي' : 'Backup & Recovery'}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">{cloudBackups.length} {t.lang === 'ar' ? 'نسخة' : 'backups'}</Badge>
+                  {userId ? <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/30">✓</Badge> : <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/30">⚠</Badge>}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input value={cloudLabel} onChange={e => setCloudLabel(e.target.value)} placeholder={t.lang === 'ar' ? 'وصف (اختياري)' : 'Label (optional)'} className="flex-1 text-[11px]" />
+                <Button size="sm" onClick={cloudBackupNow} disabled={cloudLoading || !userId} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  {cloudLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Cloud className="w-3 h-3 mr-1" />}
+                  {t.lang === 'ar' ? 'نسخ' : 'Backup'}
+                </Button>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">{t.lang === 'ar' ? 'نسخ تلقائي' : 'Auto-backup'}</Label>
+                <Switch checked={autoBackup} onCheckedChange={handleAutoBackupToggle} />
+              </div>
+              <div className="max-h-[200px] overflow-y-auto space-y-1">
+                {cloudBackups.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground text-center py-3">{t.lang === 'ar' ? 'لا توجد نسخ' : 'No backups yet'}</p>
+                ) : cloudBackups.map((b, idx) => {
+                  const vn = cloudBackups.length - idx;
+                  const dt = b.createdAt ? new Date(b.createdAt).toLocaleString() : '—';
+                  const sz = b.sizeBytes > 0 ? sbFmtBytes(b.sizeBytes) : '';
+                  return (
+                    <div key={b.id} className="flex justify-between items-center gap-2 p-2 rounded-lg border border-border/50 bg-card/50">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1"><span className="font-bold text-[11px]">V{vn}</span>{idx === 0 && <Badge variant="outline" className="text-[8px] text-green-500 border-green-500/30">LATEST</Badge>}</div>
+                        <div className="text-[9px] text-muted-foreground">{dt}{sz ? ` · ${sz}` : ''}{b.label ? ` · ${b.label}` : ''}</div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => restoreCloudBackup(b.name)}>Restore</Button>
+                        <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => extractCloudBackup(b.name)}>Extract</Button>
+                        <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5" onClick={() => previewCloudBackup(b.name, `V${vn}`)}>Preview</Button>
+                        <Button variant="ghost" size="sm" className="h-5 text-[8px] px-1.5 text-destructive" onClick={() => deleteCloudBackup(b.name)}>Del</Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {previewData && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-1">
+                  <div className="flex items-center justify-between"><span className="text-xs font-bold">{previewData.label}</span><Button variant="ghost" size="sm" className="h-5 text-[9px] px-1" onClick={() => setPreviewData(null)}>✕</Button></div>
+                  <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap font-mono bg-muted/30 rounded p-2">{previewData.summary}</pre>
+                </div>
+              )}
+              <div className="flex gap-2 border-t pt-2">
+                <Button variant="secondary" size="sm" onClick={loadCloudBackups} disabled={cloudLoading}><RefreshCw className={`w-3 h-3 mr-1 ${cloudLoading ? 'animate-spin' : ''}`} /> Refresh</Button>
+                <Button variant="outline" size="sm" onClick={exportJSON}><FileJson className="w-3 h-3 mr-1" /> Export JSON</Button>
+                <label className="cursor-pointer"><Button variant="outline" size="sm" asChild><span><Upload className="w-3 h-3 mr-1" /> Import</span></Button><input ref={cloudImportRef} type="file" accept=".json" className="hidden" onChange={handleCloudImportFile} /></label>
+              </div>
+              <div className="border-t pt-2">
+                <Button variant="destructive" size="sm" onClick={clearAll}><AlertTriangle className="w-3 h-3 mr-1" /> {t.lang === 'ar' ? 'مسح الكل' : 'Clear All Data'}</Button>
+              </div>
             </CardContent>
           </Card>
         </div>
