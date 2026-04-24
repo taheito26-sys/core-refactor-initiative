@@ -1048,27 +1048,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         </button>
       </div>
 
-      {/* ── Warnings ── */}
-      {(lowBalanceAccounts.length > 0 || overdueReconciliation.length > 0 || concentrationWarning) && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {lowBalanceAccounts.map(a => (
-            <div key={a.id} className="cash-warning-pill" style={{ borderColor: 'color-mix(in srgb, var(--warn) 30%, transparent)', color: 'var(--warn)' }}>
-              ⚠ {a.name}: {t('lowBalancePill')} ({fmtTotal(balances.get(a.id) || 0)} QAR)
-            </div>
-          ))}
-          {concentrationWarning && (
-            <div className="cash-warning-pill" style={{ borderColor: 'color-mix(in srgb, var(--brand) 30%, transparent)', color: 'var(--brand)' }}>
-              📊 {concentrationWarning.account.name}: {concentrationWarning.pct}% {t('holdsOfTotal')}
-            </div>
-          )}
-          {overdueReconciliation.length > 0 && (
-            <div className="cash-warning-pill" style={{ borderColor: 'color-mix(in srgb, var(--muted) 40%, transparent)', color: 'var(--muted)' }}>
-              🔄 {overdueReconciliation.length} {t('accountsDueRecon')}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Inner Tabs ── */}
       <div className="cash-inner-tabs" style={{ display: 'flex', gap: 4, background: 'var(--panel)', borderRadius: 8, padding: 4, alignSelf: 'flex-start' }}>
         {tabBtn('accounts', t('cashAccountsTab'))}
