@@ -153,7 +153,7 @@ export function PhasedClientOrderCard({
           <div className="rounded-xl bg-white/[0.04] px-2 py-1.5 text-center">
             <div className="text-[9px] uppercase tracking-[0.08em] text-slate-400">{L('Rate', 'السعر')}</div>
             <div className="mt-1 text-[13px] font-black leading-none text-sky-300">
-              {summaryLoading ? '...' : weightedAvgFx ? weightedAvgFx.toFixed(2) : '—'}
+              {summaryLoading ? '...' : weightedAvgFx ? (isRtl ? weightedAvgFx.toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : weightedAvgFx.toFixed(2)) : '—'}
             </div>
             <div className="mt-0.5 text-[9px] text-slate-400">
               1 {currencyLabel(sendCurrency, lang)} = ? {currencyLabel(receiveCurrency, lang)}
@@ -185,7 +185,7 @@ export function PhasedClientOrderCard({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-emerald-400">{progressPct.toFixed(0)}%</span>
+            <span className="font-bold text-emerald-400">{isRtl ? progressPct.toLocaleString('ar-EG', { maximumFractionDigits: 0 }) : progressPct.toFixed(0)}%</span>
             <span className="text-slate-400">{getFulfillmentLabel(fulfillmentStatus, lang)}</span>
           </div>
         </div>
