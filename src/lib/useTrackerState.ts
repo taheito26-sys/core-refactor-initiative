@@ -7,6 +7,7 @@ import { getCurrentTrackerState } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
+import { supabase } from '@/integrations/supabase/client';
 
 function diffTrackerReason(prev: TrackerState, next: TrackerState): string {
   const parts: string[] = [];
@@ -139,6 +140,110 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     setDerived(rebuilt.derived);
     setCloudLoaded(true);
   }, [adminMode, options.preloadedState, options.lowStockThreshold, options.priceAlertThreshold, options.range, options.currency]);
+
+  // Pulls the latest merchant-wide state from cloud and merges into React
+  // state. Used both on initial mount and on realtime postgres_changes events
+  // so desktop mutations appear on mobile (and vice versa) without reload.
+  const refreshFromCloud = useCallback(async () => {
+    try {
+      const cloudState = await loadTrackerStateFromCloud();
+      if (cloudState) {
+        const inFlight = stateRef.current as Partial<TrackerState>;
+        const best = mergeLocalAndCloud(inFlight, cloudState);
+        if (best) {
+          const rebuilt = buildStateFrom(best, {
+            lowStockThreshold: options.lowStockThreshold,
+            priceAlertThreshold: options.priceAlertThreshold,
+            range: options.range,
+            currency: options.currency,
+          });
+          setState(rebuilt.state);
+          stateRef.current = rebuilt.state;
+          setDerived(rebuilt.derived);
+          saveTrackerState(rebuilt.state);
+        }
+      }
+      const cashData = await loadCashFromCloud();
+      if (cashData && (cashData.accounts.length > 0 || cashData.ledger.length > 0)) {
+        setState(prev => {
+          const cloudIds = new Set(cashData.ledger.map(e => e.id));
+          const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
+          const cloudAccountIds = new Set(cashData.accounts.map(a => a.id));
+          const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
+          const next = {
+            ...prev,
+            cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
+            cashLedger: [...cashData.ledger, ...localOnly],
+          };
+          stateRef.current = next;
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('[useTrackerState] refreshFromCloud failed:', err);
+    }
+  }, [options.lowStockThreshold, options.priceAlertThreshold, options.range, options.currency]);
+
+  // Realtime: when tracker_snapshots / cash_accounts / cash_ledger change for
+  // this user, re-fetch and re-merge so another device's writes appear
+  // live without a page refresh. Debounced 500ms to coalesce bursts.
+  useEffect(() => {
+    if (adminMode || options.preloadedState) return;
+    if (!isAuthenticated) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => { void refreshFromCloud(); }, 500);
+    };
+
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (cancelled || !user) return;
+      channel = supabase
+        .channel(`tracker-state-sync-${user.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${user.id}` }, scheduleRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${user.id}` }, scheduleRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${user.id}` }, scheduleRefresh)
+        .subscribe();
+
+      // Also listen to other members of the same merchant group
+      void supabase
+        .from('merchant_profiles')
+        .select('merchant_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          const mid = (data as { merchant_id?: string } | null)?.merchant_id;
+          if (!mid || !channel) return;
+          void supabase
+            .from('merchant_profiles')
+            .select('user_id')
+            .eq('merchant_id', mid)
+            .then(({ data: members }) => {
+              const memberIds = (members || [])
+                .map((m: { user_id?: string }) => m.user_id)
+                .filter((id): id is string => !!id && id !== user.id);
+              for (const memberId of memberIds) {
+                if (!channel) break;
+                channel.on(
+                  'postgres_changes',
+                  { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${memberId}` },
+                  scheduleRefresh,
+                );
+              }
+            });
+        });
+    });
+
+    return () => {
+      cancelled = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [adminMode, isAuthenticated, options.preloadedState, refreshFromCloud]);
 
   // On mount + auth, try loading from cloud and merge with local
   useEffect(() => {
