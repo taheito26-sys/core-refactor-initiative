@@ -12,6 +12,7 @@ import { WelcomeOverlay } from '@/components/WelcomeOverlay';
 import { usePushRegistration } from '@/hooks/usePushRegistration';
 import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
 import { AppInstallPrompt } from '@/components/AppInstallPrompt';
+import { useAutoVaultBackup } from '@/hooks/useAutoVaultBackup';
 
 export function AppLayout() {
   const isMobile = useIsMobile();
@@ -23,6 +24,7 @@ export function AppLayout() {
   // App-level hooks: push registration + cross-device read sync
   usePushRegistration();
   useReadReceiptSync();
+  useAutoVaultBackup();
 
   const { msg: welcomeMsg, dismiss: dismissWelcome } = useWelcomeMessage(
     merchantProfile?.display_name,
