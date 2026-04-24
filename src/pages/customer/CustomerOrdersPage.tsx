@@ -50,7 +50,8 @@ function LinkCashModal({ orderId, egpAmount, receiveCurrency, lang, onClose }: {
   const createAccMutation = useMutation({
     mutationFn: async () => {
       if (!userId || !newName.trim()) throw new Error(L('Enter account name', 'أدخل اسم الحساب'));
-      const { data, error } = await supabase.from('cash_accounts').insert({ user_id: userId, name: newName.trim(), type: newType, currency: newCurrency, status: 'active' }).select().single();
+      const newId = Math.random().toString(36).slice(2, 10);
+      const { data, error } = await supabase.from('cash_accounts').insert({ id: newId, user_id: userId, name: newName.trim(), type: newType, currency: newCurrency, status: 'active' }).select().single();
       if (error) throw error;
       return data;
     },
