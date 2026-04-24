@@ -119,7 +119,6 @@ function _arCurrency(code: string): string {
   const map: Record<string, string> = { QAR: 'ريال', EGP: 'جنيه', USDT: 'دولار' };
   return map[code] || code;
 }
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function esc(s: any): string {

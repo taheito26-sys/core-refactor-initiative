@@ -125,7 +125,7 @@ export default function CalendarPage() {
         </div>
         <div className="cal-stat">
           <div className="kpi-lbl">{t('monthlyVolume')}</div>
-          <div className="kpi-val">{fmtQWithUnit(totalV)}</div>
+          <div className="kpi-val">{fmtQWithUnit(totalV, 'QAR', null, 'QAR', t.lang)}</div>
         </div>
         <div className="cal-stat">
           <div className="kpi-lbl">{t('winRate')}</div>
@@ -187,7 +187,7 @@ export default function CalendarPage() {
       {selectedDay && selData && selData.trades > 0 && (
         <div className="cal-detail">
           <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
-            📅 {mn[month]} {selectedDay}, {year} — {selData.trades} {t('trades')} · Vol {fmtQWithUnit(selData.volumeQAR)} · {t('net')} {(selData.profit >= 0 ? '+' : '') + fmtQ(selData.profit)} · {t('winRate')} {(selData.trades ? ((selData.wins / selData.trades) * 100).toFixed(0) : '0')}%
+            📅 {mn[month]} {selectedDay}, {year} — {selData.trades} {t('trades')} · Vol {fmtQWithUnit(selData.volumeQAR, 'QAR', null, 'QAR', t.lang)} · {t('net')} {(selData.profit >= 0 ? '+' : '') + fmtQ(selData.profit)} · {t('winRate')} {(selData.trades ? ((selData.wins / selData.trades) * 100).toFixed(0) : '0')}%
           </div>
           <div className="tableWrap">
             <table>

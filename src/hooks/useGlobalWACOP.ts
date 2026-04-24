@@ -36,6 +36,7 @@ export function useGlobalWACOP(): GlobalWACOP {
 
   const wacop = useMemo(() => (derived ? getWACOP(derived) : null), [derived]);
   const currency = settings.currency;
+  const lang = settings.language;
 
   // ── Persist daily snapshot ──
   useEffect(() => {
@@ -70,20 +71,22 @@ export function useGlobalWACOP(): GlobalWACOP {
   }, [userId, wacop, derived]);
 
   const fmt = useCallback(
-    (qarAmount: number) => fmtQWithUnit(qarAmount, currency, wacop),
-    [currency, wacop]
+    (qarAmount: number) => fmtQWithUnit(qarAmount, currency, wacop, undefined, lang),
+    [currency, wacop, lang]
   );
 
   const fmtWithSuffix = useCallback(
     (qarAmount: number) => {
       const q = num(qarAmount);
       if (!Number.isFinite(q)) return '—';
+      const arMap: Record<string, string> = { QAR: 'ريال', EGP: 'جنيه', USDT: 'دولار' };
+      const lbl = (code: string) => lang === 'ar' ? (arMap[code] || code) : code;
       if (currency === 'USDT' && wacop && wacop > 0) {
-        return fmtPrice(q / wacop) + ' USDT';
+        return fmtPrice(q / wacop) + ' ' + lbl('USDT');
       }
-      return fmtTotal(q) + ' QAR';
+      return fmtTotal(q) + ' ' + lbl('QAR');
     },
-    [currency, wacop]
+    [currency, wacop, lang]
   );
 
   const toActive = useCallback(
