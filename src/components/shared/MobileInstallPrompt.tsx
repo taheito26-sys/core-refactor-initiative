@@ -21,6 +21,9 @@ type BeforeInstallPromptEventLike = Event & {
  */
 const VERIFIED_INSTALL_KEY = 'pwa-verified-installed';
 
+/** Key to track when user chose to skip install and use browser */
+const SKIP_INSTALL_KEY = 'pwa-install-skipped';
+
 function safeLocalStorageGet(key: string): string | null {
   try {
     return typeof window !== 'undefined'
@@ -92,6 +95,7 @@ export default function MobileInstallPrompt() {
   const [verifiedInstall, setVerifiedInstall] = useState(() =>
     hasVerifiedInstall(),
   );
+  const [skipped, setSkipped] = useState(() => Boolean(safeLocalStorageGet(SKIP_INSTALL_KEY)));
   const [installing, setInstalling] = useState(false);
   const [nativePromptDismissed, setNativePromptDismissed] = useState(false);
 
@@ -169,7 +173,8 @@ export default function MobileInstallPrompt() {
     !isNativeApp() &&
     !installed &&
     !isInstalledPwa() &&
-    !verifiedInstall;
+    !verifiedInstall &&
+    !skipped;
 
   const debug =
     typeof window !== 'undefined' &&
@@ -299,6 +304,16 @@ export default function MobileInstallPrompt() {
                 {installing ? 'Installing...' : 'Install'}
               </Button>
             )}
+            <Button
+              variant="ghost"
+              className="w-full text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                safeLocalStorageSet(SKIP_INSTALL_KEY, String(Date.now()));
+                setSkipped(true);
+              }}
+            >
+              Continue in browser
+            </Button>
           </div>
         </CardContent>
       </Card>
