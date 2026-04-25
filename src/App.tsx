@@ -21,11 +21,35 @@ function PwaDebugBadge() {
   if (typeof window === 'undefined') return null;
   const enabled = new URLSearchParams(window.location.search).get('pwa_debug') === '1';
   if (!enabled) return null;
+
+  const safeGet = (key: string) => {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+
+  const INSTALLED_KEY = 'pwa-install-prompt-installed';
+  const POSTPONE_UNTIL_KEY = 'pwa-install-prompt-postpone-until';
+
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const mobileUA = /iphone|ipad|ipod|android|mobile/i.test(ua);
   const narrow = window.matchMedia?.('(max-width: 1024px)').matches ?? false;
   const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
   const mobileSurface = mobileUA || narrow || coarse;
+
+  const installedFlag = Boolean(safeGet(INSTALLED_KEY));
+  const postponeUntilRaw = safeGet(POSTPONE_UNTIL_KEY);
+  const postponeUntil = postponeUntilRaw ? Number(postponeUntilRaw) : 0;
+  const isPostponed = Number.isFinite(postponeUntil) && Date.now() < postponeUntil;
+  const shouldBlock =
+    mobileSurface &&
+    !isNativeApp() &&
+    !isInstalledPwa() &&
+    !installedFlag &&
+    !isPostponed;
+
   return (
     <div className="fixed bottom-2 left-2 z-[200] rounded-lg border border-border bg-background/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
       <div className="font-mono">
@@ -34,6 +58,10 @@ function PwaDebugBadge() {
         <div>mobileSurface: {String(mobileSurface)}</div>
         <div>isNativeApp: {String(isNativeApp())}</div>
         <div>isInstalledPwa: {String(isInstalledPwa())}</div>
+        <div>installedFlag(ls): {String(installedFlag)}</div>
+        <div>postponeUntil(ls): {String(postponeUntilRaw)}</div>
+        <div>isPostponed: {String(isPostponed)}</div>
+        <div>shouldBlock(calc): {String(shouldBlock)}</div>
       </div>
     </div>
   );
