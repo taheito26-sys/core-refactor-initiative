@@ -248,8 +248,11 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   }, [options.lowStockThreshold, options.priceAlertThreshold, options.range, options.currency]);
 
   // Realtime: when tracker_snapshots / cash_accounts / cash_ledger change for
-  // this user, re-fetch and re-merge so another device's writes appear
-  // live without a page refresh. Debounced 500ms to coalesce bursts.
+  // this user OR any merchant team member, re-fetch and re-merge so another
+  // device's writes appear live without a page refresh. Debounced 500ms to
+  // coalesce bursts.
+  // IMPORTANT: all .on() listeners must be registered BEFORE .subscribe() is
+  // called — Supabase ignores listeners added after subscription.
   useEffect(() => {
     if (adminMode || options.preloadedState) return;
     if (!isAuthenticated) return;
@@ -263,52 +266,45 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let cancelled = false;
 
-    void supabase.auth.getUser().then(({ data: { user } }) => {
+    // Resolve merchant members first, then build the channel with ALL listeners
+    // before subscribing — this is the only way Supabase Realtime picks them up.
+    void supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (cancelled || !user) return;
-      channel = supabase
-        .channel(`tracker-state-sync-${user.id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${user.id}` }, scheduleRefresh)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${user.id}` }, scheduleRefresh)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${user.id}` }, scheduleRefresh)
-        .subscribe();
 
-      // Also listen to other members of the same merchant group
-      void supabase
-        .from('merchant_profiles')
-        .select('merchant_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          const mid = (data as { merchant_id?: string } | null)?.merchant_id;
-          if (!mid || !channel) return;
-          void supabase
+      // Collect all user IDs to subscribe to (own + merchant members)
+      let watchIds: string[] = [user.id];
+      try {
+        const { data: myProfile } = await supabase
+          .from('merchant_profiles')
+          .select('merchant_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const mid = (myProfile as { merchant_id?: string } | null)?.merchant_id;
+        if (mid) {
+          const { data: members } = await supabase
             .from('merchant_profiles')
             .select('user_id')
-            .eq('merchant_id', mid)
-            .then(({ data: members }) => {
-              const memberIds = (members || [])
-                .map((m: { user_id?: string }) => m.user_id)
-                .filter((id): id is string => !!id && id !== user.id);
-              for (const memberId of memberIds) {
-                if (!channel) break;
-                channel.on(
-                  'postgres_changes',
-                  { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${memberId}` },
-                  scheduleRefresh,
-                );
-                channel.on(
-                  'postgres_changes',
-                  { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${memberId}` },
-                  scheduleRefresh,
-                );
-                channel.on(
-                  'postgres_changes',
-                  { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${memberId}` },
-                  scheduleRefresh,
-                );
-              }
-            });
-        });
+            .eq('merchant_id', mid);
+          const memberIds = (members || [])
+            .map((m: { user_id?: string }) => m.user_id)
+            .filter((id): id is string => !!id);
+          if (memberIds.length > 0) watchIds = Array.from(new Set(memberIds));
+        }
+      } catch {
+        // Non-critical — fall back to own user only
+      }
+
+      if (cancelled) return;
+
+      // Build channel with all listeners registered before .subscribe()
+      let ch = supabase.channel(`tracker-state-sync-${user.id}`);
+      for (const uid of watchIds) {
+        ch = ch
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${uid}` }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${uid}` }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${uid}` }, scheduleRefresh);
+      }
+      channel = ch.subscribe();
     });
 
     return () => {
