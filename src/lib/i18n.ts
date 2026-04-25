@@ -1612,7 +1612,7 @@ const translations = {
 
   // ── Login page ──
   signIn: { en: 'Sign In', ar: 'تسجيل الدخول' },
-  accessYourAccount: { en: 'Access your P2P Tracker account', ar: 'الوصول إلى حسابك في المتتبع' },
+  accessYourAccount: { en: 'Access your The Tracker account', ar: 'الوصول إلى حسابك في المتتبع' },
   continueWithGoogle: { en: 'Continue with Google', ar: 'المتابعة بحساب Google' },
   googleSignInFailed: { en: 'Google sign-in failed', ar: 'فشل تسجيل الدخول بـ Google' },
   welcomeBack: { en: 'Welcome Back', ar: 'أهلاً بعودتك' },

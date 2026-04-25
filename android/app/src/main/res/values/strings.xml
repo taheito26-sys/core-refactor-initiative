@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">P2P Tracker</string>
-    <string name="title_activity_main">P2P Tracker</string>
+    <string name="app_name">The Tracker</string>
+    <string name="title_activity_main">The Tracker</string>
     <string name="package_name">com.taheito26sys.corerefactorinitiative</string>
     <string name="custom_url_scheme">com.taheito26sys.corerefactorinitiative</string>
 </resources>

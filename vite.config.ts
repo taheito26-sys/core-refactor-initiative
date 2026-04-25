@@ -61,10 +61,10 @@ export default defineConfig(({ mode }) => {
             ],
           },
           manifest: {
-            name: "P2P Tracker",
-            short_name: "P2P Tracker",
+            name: "The Tracker",
+            short_name: "The Tracker",
             description:
-              "P2P Trading Platform — live market rates, deals & merchant management",
+              "The Tracker — live market rates, deals & merchant management",
             theme_color: "#0f172a",
             background_color: "#0f172a",
             display: "standalone",

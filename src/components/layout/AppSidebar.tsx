@@ -153,7 +153,7 @@ export function AppSidebar({ isMobile = false, mobileOpen = false, onMobileClose
       <div className="flex items-center justify-between px-4 py-4 shrink-0">
         {!collapsed && (
           <span className="font-black text-[14px] text-foreground tracking-tighter uppercase">
-            Tracker
+            The Tracker
           </span>
         )}
         {!isMobile && (

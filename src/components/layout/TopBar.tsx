@@ -21,7 +21,7 @@ function titleFromPath(pathname: string, t: ReturnType<typeof useT>): { title: s
   if (pathname === '/vault') return { title: t('vault'), subtitle: 'Document storage' };
   if (pathname === '/settings') return { title: t('settings'), subtitle: t('layoutThemesData') };
   if (pathname === '/notifications') return { title: t('notifications'), subtitle: 'Activity feed' };
-  return { title: 'P2P Tracker', subtitle: 'P2P Trading Platform' };
+  return { title: 'The Tracker', subtitle: 'P2P Trading Platform' };
 }
 
 const RANGES = [
