@@ -23,6 +23,15 @@ function PwaDebugBadge() {
   if (!enabled) return null;
 
   const [installPromptSeen, setInstallPromptSeen] = useState(false);
+  const [swInfo, setSwInfo] = useState<{
+    supported: boolean;
+    controller: boolean;
+    registrations: number | null;
+  }>({ supported: typeof navigator !== 'undefined' && 'serviceWorker' in navigator, controller: false, registrations: null });
+  const [manifestHref, setManifestHref] = useState<string | null>(null);
+  const [pwaRegisterAttempted, setPwaRegisterAttempted] = useState(false);
+  const [pwaRegisterError, setPwaRegisterError] = useState<string | null>(null);
+
   useEffect(() => {
     const handler = (e: Event) => {
       // Don't allow the browser to auto-show mini-infobar; we want control.
@@ -32,6 +41,70 @@ function PwaDebugBadge() {
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  useEffect(() => {
+    // Read manifest link (if present)
+    try {
+      const href = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.href ?? null;
+      setManifestHref(href);
+    } catch {
+      setManifestHref(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshSwInfo = async () => {
+      if (!('serviceWorker' in navigator)) {
+        if (!cancelled) setSwInfo({ supported: false, controller: false, registrations: null });
+        return;
+      }
+
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        if (cancelled) return;
+        setSwInfo({
+          supported: true,
+          controller: Boolean(navigator.serviceWorker.controller),
+          registrations: regs.length,
+        });
+      } catch {
+        if (!cancelled) {
+          setSwInfo({ supported: true, controller: Boolean(navigator.serviceWorker.controller), registrations: null });
+        }
+      }
+    };
+
+    void refreshSwInfo();
+    const t = window.setInterval(() => void refreshSwInfo(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, []);
+
+  useEffect(() => {
+    // If PWA is enabled but SW isn't registered yet, attempt a safe explicit registration.
+    // This helps cases where injected registration didn't run as expected on some browsers.
+    if (!('serviceWorker' in navigator)) return;
+    if (pwaRegisterAttempted) return;
+    if (navigator.serviceWorker.controller) return;
+
+    setPwaRegisterAttempted(true);
+    (async () => {
+      try {
+        // vite-plugin-pwa virtual module; will throw if DISABLE_PWA_BUILD=1 or in non-PWA build.
+        const mod = await import('virtual:pwa-register');
+        const registerSW: undefined | ((opts?: unknown) => void) = (mod as { registerSW?: (opts?: unknown) => void }).registerSW;
+        if (typeof registerSW === 'function') {
+          registerSW({ immediate: true });
+        }
+      } catch (e) {
+        setPwaRegisterError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+  }, [pwaRegisterAttempted]);
 
   const safeGet = (key: string) => {
     try {
@@ -74,6 +147,12 @@ function PwaDebugBadge() {
         <div>isPostponed: {String(isPostponed)}</div>
         <div>shouldBlock(calc): {String(shouldBlock)}</div>
         <div>beforeinstallprompt(seen): {String(installPromptSeen)}</div>
+        <div>manifest: {manifestHref ? 'yes' : 'no'}</div>
+        <div>sw.supported: {String(swInfo.supported)}</div>
+        <div>sw.controller: {String(swInfo.controller)}</div>
+        <div>sw.registrations: {String(swInfo.registrations)}</div>
+        <div>pwa.registerAttempted: {String(pwaRegisterAttempted)}</div>
+        <div>pwa.registerError: {pwaRegisterError ? 'yes' : 'no'}</div>
       </div>
     </div>
   );
