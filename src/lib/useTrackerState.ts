@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
 import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-state';
 import { saveTrackerState, saveTrackerStateNow, loadTrackerStateFromCloud } from './tracker-sync';
-import { getCurrentTrackerState, getTrackerWriteGeneration, isTrackerDataCleared } from './tracker-backup';
+import { getCurrentTrackerState, getTrackerWriteGeneration, isTrackerDataCleared, activateTrackerClearBarrier } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
@@ -126,17 +126,13 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (!guardedSetState(next)) return;
     saveTrackerState(next);
     triggerVaultBackup(diffTrackerReason(prev, next));
-    // Debounced sync to dedicated cash tables
-    if (next.cashAccounts?.length || next.cashLedger?.length) {
-      if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
-      cashSaveTimer.current = setTimeout(() => {
-        saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
-          .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
-      }, 500);
-    } else if (cashSaveTimer.current) {
-      clearTimeout(cashSaveTimer.current);
-      cashSaveTimer.current = null;
-    }
+    // Debounced sync to dedicated cash tables — always fire so deletions
+    // (empty arrays) propagate to the cloud and other devices see the clear.
+    if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
+    cashSaveTimer.current = setTimeout(() => {
+      saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
+        .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
+    }, 500);
   }, [adminMode, options.preloadedState]);
 
   /**
@@ -158,9 +154,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
 
     // Write to DB FIRST — if this throws, React state is not mutated.
     await saveTrackerStateNow(next);
-    if (next.cashAccounts?.length || next.cashLedger?.length) {
-      await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
-    } else if (cashSaveTimer.current) {
+    // Always sync cash tables — empty arrays propagate deletions to other devices.
+    await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
+    if (cashSaveTimer.current) {
       clearTimeout(cashSaveTimer.current);
       cashSaveTimer.current = null;
     }
@@ -298,6 +294,16 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
                 channel.on(
                   'postgres_changes',
                   { event: '*', schema: 'public', table: 'tracker_snapshots', filter: `user_id=eq.${memberId}` },
+                  scheduleRefresh,
+                );
+                channel.on(
+                  'postgres_changes',
+                  { event: '*', schema: 'public', table: 'cash_accounts', filter: `user_id=eq.${memberId}` },
+                  scheduleRefresh,
+                );
+                channel.on(
+                  'postgres_changes',
+                  { event: '*', schema: 'public', table: 'cash_ledger', filter: `user_id=eq.${memberId}` },
                   scheduleRefresh,
                 );
               }

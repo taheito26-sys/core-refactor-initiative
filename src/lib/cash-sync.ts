@@ -190,18 +190,44 @@ export async function loadCashFromCloud(): Promise<{
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Resolve all user IDs in the same merchant group so cash written by any
+  // team member (e.g. desktop user) is visible on every device.
+  let userIds: string[] = [user.id];
+  try {
+    const { data: myProfile } = await (supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('merchant_profiles') as any)
+      .select('merchant_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const merchantId = (myProfile as any)?.merchant_id as string | undefined;
+    if (merchantId) {
+      const { data: members } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from('merchant_profiles') as any)
+        .select('user_id')
+        .eq('merchant_id', merchantId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ids = (members || []).map((m: any) => m.user_id).filter(Boolean) as string[];
+      if (ids.length > 0) userIds = Array.from(new Set(ids));
+    }
+  } catch {
+    // Non-critical — fall back to own user only
+  }
+
   const [accResult, ledResult] = await Promise.all([
     (supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('cash_accounts') as any)
       .select('*')
-      .eq('user_id', user.id)
+      .in('user_id', userIds)
       .order('created_at', { ascending: true }),
     (supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('cash_ledger') as any)
       .select('*')
-      .eq('user_id', user.id)
+      .in('user_id', userIds)
       .order('ts', { ascending: true }),
   ]);
 
