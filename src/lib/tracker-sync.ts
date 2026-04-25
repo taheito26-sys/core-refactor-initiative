@@ -269,6 +269,13 @@ async function persistToCloud(state: TrackerState, options: SaveTrackerStateOpti
 
 /** Persist state to localStorage immediately and to cloud (debounced 2s) */
 export function saveTrackerState(state: TrackerState): void {
+  if (isTrackerDataCleared() && hasTrackerItems(state)) {
+    if (_saveTimer) {
+      clearTimeout(_saveTimer);
+      _saveTimer = null;
+    }
+    return;
+  }
   const preserveDataCleared = !hasTrackerItems(state);
   persistToLocal(state, { preserveDataCleared });
   clearTrackerClearGuard();
@@ -284,6 +291,9 @@ export function saveTrackerState(state: TrackerState): void {
 /** Force an immediate cloud save (e.g. on import/restore) */
 export async function saveTrackerStateNow(state: TrackerState, options: SaveTrackerStateOptions = {}): Promise<void> {
   if (_saveTimer) clearTimeout(_saveTimer);
+  if (isTrackerDataCleared() && hasTrackerItems(state)) {
+    return;
+  }
   const preserveDataCleared = options.preserveDataCleared ?? !hasTrackerItems(state);
   persistToLocal(state, { preserveDataCleared });
   if (options.replaceExisting) {

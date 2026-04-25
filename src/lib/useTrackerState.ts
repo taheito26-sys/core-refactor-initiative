@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
 import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-state';
 import { saveTrackerState, saveTrackerStateNow, loadTrackerStateFromCloud } from './tracker-sync';
-import { getCurrentTrackerState } from './tracker-backup';
+import { getCurrentTrackerState, hasTrackerItems } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
@@ -72,18 +72,34 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   // from re-merging local-only entries for those accounts during the sync window.
   const clearedAccountIds = useRef<Set<string>>(new Set());
 
+  function isWriteBlocked(): boolean {
+    try {
+      return typeof window !== 'undefined' && window.localStorage.getItem('tracker_data_cleared') === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  function guardedSetState(next: TrackerState | ((prev: TrackerState) => TrackerState)): boolean {
+    const resolved = typeof next === 'function' ? next(stateRef.current) : next;
+    if (isWriteBlocked() && hasTrackerItems(resolved)) {
+      return false;
+    }
+
+    setState(resolved);
+    stateRef.current = resolved;
+    setDerived(computeFIFO(resolved.batches, resolved.trades));
+    return true;
+  }
+
   const applyState = useCallback((next: TrackerState) => {
     // In admin preloaded mode, don't persist
     if (adminMode || options.preloadedState) {
-      setState(next);
-      stateRef.current = next;
-      setDerived(computeFIFO(next.batches, next.trades));
+      guardedSetState(next);
       return;
     }
     const prev = stateRef.current;
-    setState(next);
-    stateRef.current = next;
-    setDerived(computeFIFO(next.batches, next.trades));
+    if (!guardedSetState(next)) return;
     saveTrackerState(next);
     triggerVaultBackup(diffTrackerReason(prev, next));
     // Debounced sync to dedicated cash tables
@@ -111,9 +127,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
    */
   const applyStateAndCommit = useCallback(async (next: TrackerState): Promise<void> => {
     if (adminMode || options.preloadedState) {
-      setState(next);
-      stateRef.current = next;
-      setDerived(computeFIFO(next.batches, next.trades));
+      guardedSetState(next);
       return;
     }
     const prev = stateRef.current;
@@ -128,9 +142,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     }
 
     // Server acknowledged — now update UI.
-    setState(next);
-    stateRef.current = next;
-    setDerived(computeFIFO(next.batches, next.trades));
+    guardedSetState(next);
     triggerVaultBackup(diffTrackerReason(prev, next));
   }, [adminMode, options.preloadedState]);
 
@@ -144,9 +156,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       range: options.range,
       currency: options.currency,
     });
-    setState(rebuilt.state);
-    stateRef.current = rebuilt.state;
-    setDerived(rebuilt.derived);
+    guardedSetState(rebuilt.state);
     setCloudLoaded(true);
   }, [adminMode, options.preloadedState, options.lowStockThreshold, options.priceAlertThreshold, options.range, options.currency]);
 
@@ -166,15 +176,13 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             range: options.range,
             currency: options.currency,
           });
-          setState(rebuilt.state);
-          stateRef.current = rebuilt.state;
-          setDerived(rebuilt.derived);
+          guardedSetState(rebuilt.state);
           saveTrackerState(rebuilt.state);
         }
       }
       const cashData = await loadCashFromCloud();
       if (cashData) {
-        setState(prev => {
+        guardedSetState(prev => {
           // Cloud is authoritative for cash ledger.
           // Only keep local entries that are genuinely newer than the cloud fetch
           // (i.e. added in the last 2s) — this covers the race where a user adds
@@ -193,7 +201,6 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
             cashLedger: [...cashData.ledger, ...localOnly],
           };
-          stateRef.current = next;
           return next;
         });
       }
@@ -305,9 +312,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         currency: options.currency,
       });
 
-      setState(rebuilt.state);
-      stateRef.current = rebuilt.state;
-      setDerived(rebuilt.derived);
+      guardedSetState(rebuilt.state);
       // Also update localStorage AND push merged state back to cloud so any
       // in-flight local-only rows are uploaded.
       saveTrackerState(rebuilt.state);
@@ -320,7 +325,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       loadCashFromCloud().then(cashData => {
         if (!cashData) return;
         if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
-        setState(prev => {
+        guardedSetState(prev => {
           const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
           // Cloud is authoritative — only keep local entries added in the last 2s
           // (in-flight entries that haven't synced yet). This prevents cleared
@@ -338,7 +343,6 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
             cashLedger: [...cashData.ledger, ...localOnly],
           };
-          stateRef.current = next;
           return next;
         });
       }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });

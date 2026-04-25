@@ -106,4 +106,34 @@ describe('saveTrackerStateNow', () => {
 
     expect(localStorage.getItem('tracker_data_cleared')).toBe('true');
   });
+
+  it('blocks meaningful tracker writes while the clear barrier is active', async () => {
+    localStorage.setItem('tracker_data_cleared', 'true');
+
+    const dirtyState = {
+      batches: [{ id: 'batch-1' }],
+      trades: [],
+      customers: [],
+      suppliers: [],
+      cashQAR: 100,
+      cashOwner: 'owner',
+      cashHistory: [],
+      cashAccounts: [],
+      cashLedger: [],
+      currency: 'QAR',
+      range: '7d',
+      settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 },
+      cal: { year: 2026, month: 3, selectedDay: null },
+    };
+
+    await saveTrackerStateNow(dirtyState as never, { replaceExisting: true });
+
+    expect(upsertMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        state: dirtyState,
+      }),
+      expect.any(Object),
+    );
+  });
 });
