@@ -23,7 +23,9 @@ function isMobileInstallSurface() {
     typeof navigator !== 'undefined' &&
     (Boolean((navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData?.mobile) ||
       /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent));
-  return coarse && (narrow || mobileUA);
+  // Some mobile browsers (notably iPadOS / desktop-mode) report a "fine" pointer.
+  // For install gating we treat narrow viewport OR mobile UA as sufficient.
+  return mobileUA || narrow || coarse;
 }
 
 function isIOSSafari() {
