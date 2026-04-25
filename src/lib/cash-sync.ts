@@ -2,6 +2,8 @@ import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
 import { isTrackerClearInProgress, isTrackerDataCleared } from './tracker-backup';
 
+const DISABLE_CASH_CLOUD_SYNC = true;
+
 const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   opening: 'opening',
   deposit: 'deposit',
@@ -116,6 +118,7 @@ export async function saveCashToCloud(
   accounts: CashAccount[],
   ledger: CashLedgerEntry[],
 ): Promise<void> {
+  if (DISABLE_CASH_CLOUD_SYNC) return;
   if (isTrackerClearInProgress() || isTrackerDataCleared()) return;
   const {
     data: { user },
@@ -180,6 +183,7 @@ export async function loadCashFromCloud(): Promise<{
   accounts: CashAccount[];
   ledger: CashLedgerEntry[];
 } | null> {
+  if (DISABLE_CASH_CLOUD_SYNC) return null;
   if (isTrackerClearInProgress() || isTrackerDataCleared()) return null;
   const {
     data: { user },
