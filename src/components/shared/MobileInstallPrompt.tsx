@@ -11,9 +11,34 @@ type BeforeInstallPromptEventLike = Event & {
 };
 
 /**
- * Detect whether the current surface is a mobile browser that should be gated.
- * Uses pointer, viewport width, and UA heuristics.
+ * localStorage key stamped ONLY when a real install is confirmed:
+ * - `appinstalled` browser event fires, OR
+ * - `isInstalledPwa()` returns true (display-mode: standalone detected)
+ *
+ * Once stamped, the user is allowed to use the browser too.
+ * There is no self-report "I already installed" button — the stamp can only
+ * be set by verified install signals.
  */
+const VERIFIED_INSTALL_KEY = 'pwa-verified-installed';
+
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return typeof window !== 'undefined'
+      ? window.localStorage.getItem(key)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
 function isMobileInstallSurface() {
   if (typeof window === 'undefined') return false;
   const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -38,20 +63,35 @@ function isIOSSafari() {
 }
 
 /**
+ * Check whether a verified install has been recorded.
+ * Returns true if the user has previously installed the PWA (confirmed by
+ * browser signals), meaning they're now free to use the browser too.
+ */
+function hasVerifiedInstall(): boolean {
+  return Boolean(safeLocalStorageGet(VERIFIED_INSTALL_KEY));
+}
+
+/**
+ * Record a verified install. Called only from trusted browser signals.
+ */
+function stampVerifiedInstall(): void {
+  safeLocalStorageSet(VERIFIED_INSTALL_KEY, String(Date.now()));
+}
+
+/**
  * Full-screen gate that blocks mobile browser users until they install the PWA.
  *
- * There are NO bypass buttons — the only way past this gate is:
- * 1. Actually install the PWA (detected via display-mode: standalone)
- * 2. Open the app from the native wrapper (Capacitor)
- * 3. Be on a desktop browser
- *
- * The gate re-checks `isInstalledPwa()` on visibility change so that after the
- * user installs and reopens from the home screen, the gate disappears.
+ * Once the install is verified (appinstalled event or standalone mode detected),
+ * a localStorage stamp is set. From that point on the user can also use the
+ * browser freely — the gate never shows again on that device.
  */
 export default function MobileInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEventLike | null>(null);
   const [installed, setInstalled] = useState(() => isInstalledPwa());
+  const [verifiedInstall, setVerifiedInstall] = useState(() =>
+    hasVerifiedInstall(),
+  );
   const [installing, setInstalling] = useState(false);
   const [nativePromptDismissed, setNativePromptDismissed] = useState(false);
 
@@ -61,9 +101,13 @@ export default function MobileInstallPrompt() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Re-check installed state — covers the case where the user just installed
-    // and the component re-mounts.
-    setInstalled(isInstalledPwa());
+    // If we're currently running as an installed PWA, stamp it so the user
+    // can also use the browser in the future.
+    if (isInstalledPwa()) {
+      stampVerifiedInstall();
+      setInstalled(true);
+      setVerifiedInstall(true);
+    }
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -72,7 +116,9 @@ export default function MobileInstallPrompt() {
     };
 
     const handleInstalled = () => {
+      stampVerifiedInstall();
       setInstalled(true);
+      setVerifiedInstall(true);
     };
 
     // Re-check on visibility change: after the user installs and opens from
@@ -80,13 +126,26 @@ export default function MobileInstallPrompt() {
     // switch back, re-evaluate.
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        setInstalled(isInstalledPwa());
+        const nowInstalled = isInstalledPwa();
+        if (nowInstalled) {
+          stampVerifiedInstall();
+          setVerifiedInstall(true);
+        }
+        setInstalled(nowInstalled);
+      }
+    };
+
+    // Sync across tabs — if the PWA tab stamps the key, browser tabs pick it up.
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === VERIFIED_INSTALL_KEY && e.newValue) {
+        setVerifiedInstall(true);
       }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleInstalled);
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('storage', handleStorage);
 
     return () => {
       window.removeEventListener(
@@ -95,13 +154,22 @@ export default function MobileInstallPrompt() {
       );
       window.removeEventListener('appinstalled', handleInstalled);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
   // ── Gate logic ──
-  // Block if: mobile browser + not native app + not installed PWA
+  // Allow through if:
+  // - Desktop browser (not mobile surface)
+  // - Native app (Capacitor)
+  // - Currently running as installed PWA
+  // - Previously verified install exists (localStorage stamp)
   const shouldBlock =
-    mobileSurface && !isNativeApp() && !installed && !isInstalledPwa();
+    mobileSurface &&
+    !isNativeApp() &&
+    !installed &&
+    !isInstalledPwa() &&
+    !verifiedInstall;
 
   const debug =
     typeof window !== 'undefined' &&
@@ -116,7 +184,9 @@ export default function MobileInstallPrompt() {
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') {
+        stampVerifiedInstall();
         setInstalled(true);
+        setVerifiedInstall(true);
       } else {
         setNativePromptDismissed(true);
       }
@@ -141,6 +211,7 @@ export default function MobileInstallPrompt() {
                 <div>isNativeApp: {String(isNativeApp())}</div>
                 <div>installed(state): {String(installed)}</div>
                 <div>isInstalledPwa(): {String(isInstalledPwa())}</div>
+                <div>verifiedInstall: {String(verifiedInstall)}</div>
                 <div>
                   hasDeferredPrompt: {String(Boolean(deferredPrompt))}
                 </div>
