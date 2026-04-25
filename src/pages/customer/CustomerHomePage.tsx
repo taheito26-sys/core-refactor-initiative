@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { TrendingUp, AlertCircle, Plus, ArrowUpRight, ArrowDownLeft, CheckCircle2, X, Wallet, Calculator } from 'lucide-react';
@@ -64,6 +64,21 @@ export default function CustomerHomePage() {
     queryFn: async () => { if (!userId) return []; return await listSharedOrdersForActor({ customerUserId: userId }); },
     enabled: !!userId, refetchInterval: 60_000,
   });
+
+  // Live updates so dashboard reflects merchant-side edits/approvals without a reload.
+  const dashQc = useQueryClient();
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`customer-dash-orders-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` },
+        () => { dashQc.invalidateQueries({ queryKey: ['c-dash-orders', userId] }); },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [userId, dashQc]);
 
   const { data: connections = [] } = useQuery({
     queryKey: ['c-dash-connections', userId],

@@ -502,6 +502,25 @@ export default function CustomerOrdersPage() {
     enabled: !!userId,
   });
 
+  // Live updates: any change to this customer's orders rows triggers a refetch
+  // so merchant edits / approvals show up without the customer having to reload.
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`customer-orders-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customer_orders', filter: `customer_user_id=eq.${userId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+          qc.invalidateQueries({ queryKey: ['c-order-summaries'] });
+          qc.invalidateQueries({ queryKey: ['c-order-cash-links', userId] });
+        },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [userId, qc]);
+
   // Fetch actual delivered EGP for approved orders from parent_order_summary
   const approvedOrderIds = useMemo(() =>
     orders.filter(o => o.workflow_status === 'approved').map(o => o.id),
