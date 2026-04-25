@@ -72,17 +72,19 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 // ── Aggressive SW cleanup on every app boot ──
-// This ensures stale service workers never block new deployments
+// This ensures stale service workers never block new deployments.
+// Works identically on desktop browser and mobile PWA.
 (async function cleanupStaleSW() {
   try {
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
       for (const reg of registrations) {
-        // Force the waiting SW to activate immediately
+        // Force the waiting SW to activate immediately — this triggers
+        // the controllerchange event in main.tsx which reloads the page.
         if (reg.waiting) {
           reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
-        // Check for updates
+        // Check for updates from the server
         reg.update().catch(() => {});
       }
     }

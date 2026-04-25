@@ -35,6 +35,7 @@ export default defineConfig(({ mode }) => {
       !disablePwaBuild &&
         VitePWA({
           registerType: "autoUpdate",
+          injectRegister: "auto",
           includeAssets: ["favicon.svg", "favicon.ico", "favicon.png", "icon-192.png", "icon-512.png", "robots.txt"],
           workbox: {
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,

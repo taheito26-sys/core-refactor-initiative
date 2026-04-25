@@ -205,7 +205,25 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       const cloudState = cloudSnapshot?.state ?? null;
       if (cloudState) {
         const inFlight = stateRef.current as Partial<TrackerState>;
-        const best = mergeLocalAndCloud(inFlight, cloudState);
+        // Strip cash fields from the tracker_snapshots merge — cash data is
+        // owned exclusively by the dedicated cash_accounts / cash_ledger tables
+        // (loaded below via loadCashFromCloud). Merging stale cash arrays from
+        // tracker_snapshots would overwrite the correct dedicated-table data.
+        const cloudStateNoCash = {
+          ...cloudState,
+          cashAccounts: undefined,
+          cashLedger: undefined,
+          cashHistory: undefined,
+          cashQAR: undefined,
+        } as Partial<TrackerState>;
+        const inFlightNoCash = {
+          ...inFlight,
+          cashAccounts: undefined,
+          cashLedger: undefined,
+          cashHistory: undefined,
+          cashQAR: undefined,
+        } as Partial<TrackerState>;
+        const best = mergeLocalAndCloud(inFlightNoCash, cloudStateNoCash);
         if (best) {
           const rebuilt = buildStateFrom(best, {
             lowStockThreshold: options.lowStockThreshold,
@@ -213,8 +231,15 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             range: options.range,
             currency: options.currency,
           });
-          guardedSetState(rebuilt.state, { expectedGeneration: requestGeneration });
-          saveTrackerState(rebuilt.state);
+          // Preserve current cash state — it will be overwritten by loadCashFromCloud below
+          const withCash: TrackerState = {
+            ...rebuilt.state,
+            cashAccounts: stateRef.current.cashAccounts,
+            cashLedger: stateRef.current.cashLedger,
+            cashQAR: stateRef.current.cashQAR,
+          };
+          guardedSetState(withCash, { expectedGeneration: requestGeneration });
+          saveTrackerState(withCash);
         }
       }
       const cashData = await loadCashFromCloud();
@@ -366,7 +391,23 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       const inFlight = stateRef.current as Partial<TrackerState>;
       const local = getCurrentTrackerState(window.localStorage) as Partial<TrackerState> | null;
       const localUnion = mergeLocalAndCloud(local, inFlight);
-      const best = mergeLocalAndCloud(localUnion, cloudState);
+      // Strip cash fields before merging tracker_snapshots — cash is owned by
+      // the dedicated cash_accounts / cash_ledger tables loaded below.
+      const cloudStateNoCash = {
+        ...cloudState,
+        cashAccounts: undefined,
+        cashLedger: undefined,
+        cashHistory: undefined,
+        cashQAR: undefined,
+      } as Partial<TrackerState>;
+      const localUnionNoCash = {
+        ...localUnion,
+        cashAccounts: undefined,
+        cashLedger: undefined,
+        cashHistory: undefined,
+        cashQAR: undefined,
+      } as Partial<TrackerState>;
+      const best = mergeLocalAndCloud(localUnionNoCash, cloudStateNoCash);
       if (!best) return;
 
       const rebuilt = buildStateFrom(best, {
@@ -377,9 +418,15 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       });
 
       guardedSetState(rebuilt.state, { expectedGeneration: mountGeneration });
-      // Also update localStorage AND push merged state back to cloud so any
-      // in-flight local-only rows are uploaded.
-      saveTrackerState(rebuilt.state);
+      // Push merged state back to cloud — preserve cash fields from stateRef
+      // since the dedicated cash tables are the source of truth for those.
+      const withCash: TrackerState = {
+        ...rebuilt.state,
+        cashAccounts: stateRef.current.cashAccounts,
+        cashLedger: stateRef.current.cashLedger,
+        cashQAR: stateRef.current.cashQAR,
+      };
+      saveTrackerState(withCash);
 
       // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
       // ISSUE 6 FIX: previously stateRef.current was never updated after the
