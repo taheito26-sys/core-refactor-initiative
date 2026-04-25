@@ -1,17 +1,28 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { saveTrackerState, saveTrackerStateNow } from '@/lib/tracker-sync';
+import { loadTrackerStateFromCloud, saveTrackerState, saveTrackerStateNow } from '@/lib/tracker-sync';
 import { activateTrackerClearBarrier } from '@/lib/tracker-backup';
 
-const { authGetUserMock, selectMock, rpcMock, deleteMock, deleteEqMock, eqMock, fromMock } = vi.hoisted(() => {
+const { authGetUserMock, selectMock, rpcMock, deleteMock, deleteEqMock, eqMock, fromMock, merchantMaybeSingleMock, merchantMembersEqMock, snapshotInMock } = vi.hoisted(() => {
   const rpcMock = vi.fn().mockResolvedValue({ data: true, error: null });
   const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const eqMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
-  const selectMock = vi.fn(() => ({ eq: eqMock }));
+  const merchantMaybeSingleMock = vi.fn().mockResolvedValue({ data: { merchant_id: 'merchant-1' }, error: null });
+  const merchantMembersEqMock = vi.fn().mockResolvedValue({ data: [{ user_id: 'user-1' }, { user_id: 'user-2' }], error: null });
+  const snapshotInMock = vi.fn().mockResolvedValue({ data: [], error: null });
+  const selectMock = vi.fn((columns: string) => {
+    if (columns.includes('merchant_id')) {
+      return { eq: vi.fn(() => ({ maybeSingle: merchantMaybeSingleMock })) };
+    }
+    if (columns.includes('user_id') && !columns.includes('state')) {
+      return { eq: merchantMembersEqMock };
+    }
+    return { eq: eqMock, in: snapshotInMock };
+  });
   const deleteEqMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const deleteMock = vi.fn(() => ({ eq: deleteEqMock }));
   const fromMock = vi.fn(() => ({ select: selectMock, delete: deleteMock }));
   const authGetUserMock = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  return { authGetUserMock, selectMock, rpcMock, deleteMock, deleteEqMock, eqMock, fromMock };
+  return { authGetUserMock, selectMock, rpcMock, deleteMock, deleteEqMock, eqMock, fromMock, merchantMaybeSingleMock, merchantMembersEqMock, snapshotInMock };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -29,6 +40,9 @@ describe('saveTrackerStateNow', () => {
     localStorage.clear();
     vi.clearAllMocks();
     authGetUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+    merchantMaybeSingleMock.mockResolvedValue({ data: { merchant_id: 'merchant-1' }, error: null });
+    merchantMembersEqMock.mockResolvedValue({ data: [{ user_id: 'user-1' }, { user_id: 'user-2' }], error: null });
+    snapshotInMock.mockResolvedValue({ data: [], error: null });
   });
 
   it('overwrites the cloud snapshot when replaceExisting is enabled', async () => {
@@ -205,6 +219,42 @@ describe('saveTrackerStateNow', () => {
       expect.objectContaining({
         _user_id: 'user-1',
         _state: dirtyState,
+      }),
+    );
+  });
+
+  it('treats any merchant clear tombstone as authoritative over stale rows', async () => {
+    snapshotInMock.mockResolvedValueOnce({
+      data: [
+        {
+          user_id: 'user-1',
+          updated_at: '2026-04-02T00:00:00.000Z',
+          is_cleared: true,
+          write_generation: 12,
+          state: {},
+        },
+        {
+          user_id: 'user-2',
+          updated_at: '2026-04-03T00:00:00.000Z',
+          is_cleared: false,
+          write_generation: 99,
+          state: {
+            cashQAR: 500,
+            cashOwner: 'stale',
+            cashAccounts: [{ id: 'cash-1' }],
+            cashLedger: [{ id: 'entry-1' }],
+          },
+        },
+      ],
+      error: null,
+    });
+
+    const snapshot = await loadTrackerStateFromCloud();
+
+    expect(snapshot).toEqual(
+      expect.objectContaining({
+        cleared: true,
+        state: {},
       }),
     );
   });

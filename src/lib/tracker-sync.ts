@@ -379,11 +379,30 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
       .select('state, updated_at, user_id, is_cleared, write_generation')
       .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
     if (!error && data) {
+      const rows = data as unknown as TrackerSnapshotRow[];
+      const clearedRow = rows
+        .filter((row) => row.is_cleared)
+        .sort((a, b) => {
+          const aw = Number(a.write_generation || 0);
+          const bw = Number(b.write_generation || 0);
+          if (aw !== bw) return bw - aw;
+          const at = new Date(a.updated_at || 0).getTime();
+          const bt = new Date(b.updated_at || 0).getTime();
+          return bt - at;
+        })[0];
+      if (clearedRow) {
+        return {
+          state: {},
+          cleared: true,
+          writeGeneration: Number(clearedRow.write_generation || 0),
+          updatedAt: clearedRow.updated_at || null,
+        };
+      }
+
       // Reset foreign-id memory, then tag every id that came from OTHER
       // merchant members' rows. These are excluded on save so this user's
       // row never absorbs the merchant-wide merge.
       for (const set of Object.values(_foreignIds)) set.clear();
-      const rows = data as unknown as TrackerSnapshotRow[];
       for (const row of rows) {
         if (!row.state || row.user_id === user.id) continue;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -395,24 +414,6 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
         rememberForeignIds('cashAccounts', Array.isArray(s.cashAccounts) ? s.cashAccounts : []);
         rememberForeignIds('cashLedger', Array.isArray(s.cashLedger) ? s.cashLedger : []);
         rememberForeignIds('cashHistory', Array.isArray(s.cashHistory) ? s.cashHistory : []);
-      }
-      const ownClearedRow = rows
-        .filter((row) => row.user_id === user.id && row.is_cleared)
-        .sort((a, b) => {
-          const aw = Number(a.write_generation || 0);
-          const bw = Number(b.write_generation || 0);
-          if (aw !== bw) return bw - aw;
-          const at = new Date(a.updated_at || 0).getTime();
-          const bt = new Date(b.updated_at || 0).getTime();
-          return bt - at;
-        })[0];
-      if (ownClearedRow) {
-        return {
-          state: {},
-          cleared: true,
-          writeGeneration: Number(ownClearedRow.write_generation || 0),
-          updatedAt: ownClearedRow.updated_at || null,
-        };
       }
       const merged = mergeTrackerStatesForMerchant(rows);
       cloudState = merged as Partial<TrackerState> | null;
