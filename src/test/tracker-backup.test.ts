@@ -104,4 +104,26 @@ describe('tracker backup state detection', () => {
     expect(merged?.cashAccounts).toHaveLength(1);
     expect(merged?.cashLedger).toHaveLength(1);
   });
+
+  it('strips cash from merged state while the cleared marker is set', () => {
+    localStorage.clear();
+    localStorage.setItem('tracker_data_cleared', 'true');
+
+    const merged = mergeLocalAndCloud(
+      {
+        cashQAR: 250,
+        cashAccounts: [{ id: 'cash-1' }],
+        cashLedger: [{ id: 'led-1' }],
+      },
+      {
+        cashQAR: 500,
+        cashAccounts: [{ id: 'cash-2' }],
+        cashLedger: [{ id: 'led-2' }],
+      },
+    );
+
+    expect(merged?.cashQAR).toBe(0);
+    expect(merged?.cashAccounts).toHaveLength(0);
+    expect(merged?.cashLedger).toHaveLength(0);
+  });
 });

@@ -1,6 +1,6 @@
 // Production-ready tracker state bootstrap — loads imported/local state first, then cloud
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
-import { getCurrentTrackerState, hasMeaningfulTrackerData } from './tracker-backup';
+import { getCurrentTrackerState, hasMeaningfulTrackerData, isTrackerDataCleared } from './tracker-backup';
 
 interface StateOverrides {
   lowStockThreshold?: number;
@@ -11,6 +11,18 @@ interface StateOverrides {
 
 function asNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function stripCashState(stored: Partial<TrackerState> | null): Partial<TrackerState> | null {
+  if (!stored) return stored;
+  return {
+    ...stored,
+    cashQAR: 0,
+    cashOwner: '',
+    cashHistory: [],
+    cashAccounts: [],
+    cashLedger: [],
+  };
 }
 
 function loadStoredTrackerState(): Partial<TrackerState> | null {
@@ -24,7 +36,7 @@ function loadStoredTrackerState(): Partial<TrackerState> | null {
     return null;
   }
 
-  return candidate;
+  return isTrackerDataCleared(window.localStorage) ? stripCashState(candidate) : candidate;
 }
 
 /** Build a TrackerState from a source (local or cloud), with overrides */
@@ -90,6 +102,24 @@ export function mergeLocalAndCloud(
   if (!cloud && !local) return null;
   if (!cloud) return local;
   if (!local) return cloud;
+
+  if (isTrackerDataCleared()) {
+    const cleanLocal = stripCashState(local) ?? {};
+    const cleanCloud = stripCashState(cloud) ?? {};
+    return {
+      ...cleanLocal,
+      ...cleanCloud,
+      batches: unionById(cleanLocal.batches, cleanCloud.batches),
+      trades: unionById(cleanLocal.trades, cleanCloud.trades),
+      customers: unionById(cleanLocal.customers, cleanCloud.customers),
+      suppliers: unionById(cleanLocal.suppliers, cleanCloud.suppliers),
+      cashAccounts: [],
+      cashLedger: [],
+      cashHistory: [],
+      cashQAR: 0,
+      cashOwner: '',
+    };
+  }
 
   return {
     ...local,
