@@ -15,6 +15,30 @@ const INSTALLED_KEY = 'pwa-install-prompt-installed';
 const POSTPONE_UNTIL_KEY = 'pwa-install-prompt-postpone-until';
 const DEFAULT_POSTPONE_MS = 24 * 60 * 60 * 1000; // 24h
 
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
+function safeLocalStorageRemove(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
 function isMobileInstallSurface() {
   if (typeof window === 'undefined') return false;
   const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -44,13 +68,13 @@ export default function MobileInstallPrompt() {
   const [installed, setInstalled] = useState(false);
   const [installedFlag, setInstalledFlag] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return Boolean(window.localStorage.getItem(INSTALLED_KEY));
+    return Boolean(safeLocalStorageGet(INSTALLED_KEY));
   });
   const [installing, setInstalling] = useState(false);
   const [nativePromptDismissed, setNativePromptDismissed] = useState(false);
   const [postponeUntil, setPostponeUntil] = useState<number>(() => {
     if (typeof window === 'undefined') return 0;
-    const raw = window.localStorage.getItem(POSTPONE_UNTIL_KEY);
+    const raw = safeLocalStorageGet(POSTPONE_UNTIL_KEY);
     const parsed = raw ? Number(raw) : 0;
     return Number.isFinite(parsed) ? parsed : 0;
   });
@@ -66,16 +90,16 @@ export default function MobileInstallPrompt() {
     // by accidentally tapping "already installed" or an expired postpone window.
     try {
       const now = Date.now();
-      const postponeRaw = window.localStorage.getItem(POSTPONE_UNTIL_KEY);
+      const postponeRaw = safeLocalStorageGet(POSTPONE_UNTIL_KEY);
       const postponeParsed = postponeRaw ? Number(postponeRaw) : 0;
       if (!Number.isFinite(postponeParsed) || postponeParsed <= now) {
-        window.localStorage.removeItem(POSTPONE_UNTIL_KEY);
+        safeLocalStorageRemove(POSTPONE_UNTIL_KEY);
         setPostponeUntil(0);
       }
 
-      const installedFlagRaw = window.localStorage.getItem(INSTALLED_KEY);
+      const installedFlagRaw = safeLocalStorageGet(INSTALLED_KEY);
       if (installedFlagRaw && !isInstalledPwa()) {
-        window.localStorage.removeItem(INSTALLED_KEY);
+        safeLocalStorageRemove(INSTALLED_KEY);
         setInstalledFlag(false);
       }
     } catch {
@@ -100,8 +124,9 @@ export default function MobileInstallPrompt() {
     };
 
     const handleInstalled = () => {
-      window.localStorage.setItem(INSTALLED_KEY, String(Date.now()));
+      safeLocalStorageSet(INSTALLED_KEY, String(Date.now()));
       setInstalled(true);
+      setInstalledFlag(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -135,9 +160,9 @@ export default function MobileInstallPrompt() {
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') {
-        window.localStorage.setItem(INSTALLED_KEY, String(Date.now()));
+        safeLocalStorageSet(INSTALLED_KEY, String(Date.now()));
         setInstalled(true);
-          setInstalledFlag(true);
+        setInstalledFlag(true);
       } else {
         setNativePromptDismissed(true);
       }
@@ -150,14 +175,14 @@ export default function MobileInstallPrompt() {
   };
 
   const handleAlreadyInstalled = () => {
-    window.localStorage.setItem(INSTALLED_KEY, String(Date.now()));
+    safeLocalStorageSet(INSTALLED_KEY, String(Date.now()));
     setInstalled(true);
     setInstalledFlag(true);
   };
 
   const handlePostpone = (ms: number = DEFAULT_POSTPONE_MS) => {
     const until = Date.now() + ms;
-    window.localStorage.setItem(POSTPONE_UNTIL_KEY, String(until));
+    safeLocalStorageSet(POSTPONE_UNTIL_KEY, String(until));
     setPostponeUntil(until);
   };
 
