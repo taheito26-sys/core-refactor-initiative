@@ -83,14 +83,13 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     setDerived(computeFIFO(next.batches, next.trades));
     saveTrackerState(next);
     triggerVaultBackup(diffTrackerReason(prev, next));
-    // Debounced sync to dedicated cash tables
-    if (next.cashAccounts?.length || next.cashLedger?.length) {
-      if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
-      cashSaveTimer.current = setTimeout(() => {
-        saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
-          .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
-      }, 500);
-    }
+    // Always sync to dedicated cash tables — including empty arrays, so a
+    // "clear all cash" propagates the deletes (full reconcile) to the cloud.
+    if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
+    cashSaveTimer.current = setTimeout(() => {
+      saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
+        .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
+    }, 500);
   }, [adminMode, options.preloadedState]);
 
   /**
@@ -114,9 +113,8 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
 
     // Write to DB FIRST — if this throws, React state is not mutated.
     await saveTrackerStateNow(next);
-    if (next.cashAccounts?.length || next.cashLedger?.length) {
-      await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
-    }
+    // Always reconcile cash tables (including empty) so deletes propagate.
+    await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
 
     // Server acknowledged — now update UI.
     setState(next);
@@ -148,10 +146,29 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     try {
       const cloudState = await loadTrackerStateFromCloud();
       if (cloudState) {
-        const inFlight = stateRef.current as Partial<TrackerState>;
-        const best = mergeLocalAndCloud(inFlight, cloudState);
+        // Cash lives in dedicated cash_accounts / cash_ledger tables — strip
+        // any stale copies from the snapshot so the snapshot can never bring
+        // cleared cash back to life.
+        const cloudStateNoCash: Partial<TrackerState> = {
+          ...cloudState,
+          cashAccounts: [],
+          cashLedger: [],
+        };
+        const inFlight: Partial<TrackerState> = {
+          ...stateRef.current,
+          cashAccounts: [],
+          cashLedger: [],
+        };
+        const best = mergeLocalAndCloud(inFlight, cloudStateNoCash);
         if (best) {
-          const rebuilt = buildStateFrom(best, {
+          // Preserve the current in-memory cash arrays through the rebuild;
+          // they will be replaced by the cash-table load below.
+          const preserved = {
+            ...best,
+            cashAccounts: stateRef.current.cashAccounts ?? [],
+            cashLedger: stateRef.current.cashLedger ?? [],
+          };
+          const rebuilt = buildStateFrom(preserved, {
             lowStockThreshold: options.lowStockThreshold,
             priceAlertThreshold: options.priceAlertThreshold,
             range: options.range,
@@ -163,17 +180,15 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
           saveTrackerState(rebuilt.state);
         }
       }
+      // Dedicated cash tables are AUTHORITATIVE. Always apply the result —
+      // even when both arrays are empty — so a clear on one device propagates.
       const cashData = await loadCashFromCloud();
-      if (cashData && (cashData.accounts.length > 0 || cashData.ledger.length > 0)) {
+      if (cashData) {
         setState(prev => {
-          const cloudIds = new Set(cashData.ledger.map(e => e.id));
-          const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
-          const cloudAccountIds = new Set(cashData.accounts.map(a => a.id));
-          const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
           const next = {
             ...prev,
-            cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
-            cashLedger: [...cashData.ledger, ...localOnly],
+            cashAccounts: cashData.accounts,
+            cashLedger: cashData.ledger,
           };
           stateRef.current = next;
           return next;
@@ -303,19 +318,15 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // stateRef.current and overwrite the cloud cash values when persisting.
       loadCashFromCloud().then(cashData => {
         if (!cashData) return;
-        if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
+        // Cash tables are authoritative — replace state's cash arrays even
+        // when empty (the only way a "clear cash" propagates across devices).
         setState(prev => {
-          const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
-          const localOnly = (prev.cashLedger || []).filter(e => !cloudIds.has(e.id));
-          // Merge accounts by ID: prefer cloud for existing accounts, keep local-only accounts
-          const cloudAccountIds = new Set(cashData.accounts.map((a: { id: string }) => a.id));
-          const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
           const next = {
             ...prev,
-            cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
-            cashLedger: [...cashData.ledger, ...localOnly],
+            cashAccounts: cashData.accounts,
+            cashLedger: cashData.ledger,
           };
-          stateRef.current = next;   // ← ISSUE 6 FIX: keep ref in sync with merged cash state
+          stateRef.current = next;
           return next;
         });
       }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });

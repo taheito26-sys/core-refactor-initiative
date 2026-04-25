@@ -119,7 +119,6 @@ export async function saveCashToCloud(
   ledger: CashLedgerEntry[],
 ): Promise<void> {
   if (DISABLE_CASH_CLOUD_SYNC) return;
-  if (isTrackerClearInProgress() || isTrackerDataCleared()) return;
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -145,6 +144,35 @@ export async function saveCashToCloud(
     if (ledErr) {
       console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
     }
+  }
+
+  // Full reconcile: delete this user's rows whose ids are NOT in the local
+  // set. Without this, a removed/cleared cash entry stays in the cloud and
+  // reappears on the next merchant-wide load.
+  const accountIds = accounts.map((a) => a.id).filter(Boolean);
+  const ledgerIds = ledger.map((e) => e.id).filter(Boolean);
+
+  const accDel = (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('cash_accounts') as any)
+    .delete()
+    .eq('user_id', uid);
+  const ledDel = (supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('cash_ledger') as any)
+    .delete()
+    .eq('user_id', uid);
+
+  const [accDelRes, ledDelRes] = await Promise.all([
+    accountIds.length > 0 ? accDel.not('id', 'in', `(${accountIds.map((id) => `"${id}"`).join(',')})`) : accDel,
+    ledgerIds.length > 0 ? ledDel.not('id', 'in', `(${ledgerIds.map((id) => `"${id}"`).join(',')})`) : ledDel,
+  ]);
+
+  if (accDelRes.error) {
+    console.warn('[cash-sync] accounts reconcile delete failed:', accDelRes.error.message);
+  }
+  if (ledDelRes.error) {
+    console.warn('[cash-sync] ledger reconcile delete failed:', ledDelRes.error.message);
   }
 }
 
@@ -184,7 +212,6 @@ export async function loadCashFromCloud(): Promise<{
   ledger: CashLedgerEntry[];
 } | null> {
   if (DISABLE_CASH_CLOUD_SYNC) return null;
-  if (isTrackerClearInProgress() || isTrackerDataCleared()) return null;
   const {
     data: { user },
   } = await supabase.auth.getUser();

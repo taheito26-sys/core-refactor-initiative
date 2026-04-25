@@ -151,15 +151,18 @@ async function persistToCloud(state: TrackerState): Promise<void> {
 
   // Strip foreign-origin ids so this user's row only ever contains rows
   // authored (or owned) by this user. Prevents merchant-wide cross-pollution.
+  // Cash is intentionally NOT written to the snapshot — the dedicated
+  // cash_accounts / cash_ledger tables are the single source of truth for
+  // cash, otherwise a stale snapshot resurrects cleared cash on next load.
   const stripped: TrackerState = {
     ...state,
     batches: stripForeignIds('batches', state.batches),
     trades: stripForeignIds('trades', state.trades),
     customers: stripForeignIds('customers', state.customers),
     suppliers: stripForeignIds('suppliers', state.suppliers),
-    cashAccounts: stripForeignIds('cashAccounts', state.cashAccounts),
-    cashLedger: stripForeignIds('cashLedger', state.cashLedger),
-    cashHistory: stripForeignIds('cashHistory', state.cashHistory),
+    cashAccounts: [],
+    cashLedger: [],
+    cashHistory: [],
   };
 
   // Read-merge-write: union incoming state with the current cloud row so a
