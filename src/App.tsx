@@ -15,14 +15,26 @@ import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
 import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
 import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
+import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
 
 function PwaDebugBadge() {
   if (typeof window === 'undefined') return null;
   const enabled = new URLSearchParams(window.location.search).get('pwa_debug') === '1';
   if (!enabled) return null;
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const mobileUA = /iphone|ipad|ipod|android|mobile/i.test(ua);
+  const narrow = window.matchMedia?.('(max-width: 1024px)').matches ?? false;
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  const mobileSurface = mobileUA || narrow || coarse;
   return (
     <div className="fixed bottom-2 left-2 z-[200] rounded-lg border border-border bg-background/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-      pwa_debug=1 active
+      <div className="font-mono">
+        <div>pwa_debug=1 active</div>
+        <div>build: {String(__APP_BUILD_ID__)}</div>
+        <div>mobileSurface: {String(mobileSurface)}</div>
+        <div>isNativeApp: {String(isNativeApp())}</div>
+        <div>isInstalledPwa: {String(isInstalledPwa())}</div>
+      </div>
     </div>
   );
 }
