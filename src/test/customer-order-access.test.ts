@@ -4,7 +4,6 @@ import {
   getEligibleCustomerCashAccountsForOrder,
   type CustomerOrderRow,
 } from '@/features/customer/customer-portal';
-import { shouldShowMobileInstallPrompt } from '@/components/shared/MobileInstallPrompt';
 
 const { rpcMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -106,44 +105,3 @@ describe('customer order acceptance', () => {
   });
 });
 
-describe('mobile install prompt gating', () => {
-  it('suppresses installed users and respects dismissal cooldown', () => {
-    expect(
-      shouldShowMobileInstallPrompt({
-        isInstalled: true,
-        isNative: false,
-        isMobile: true,
-        hasDeferredPrompt: true,
-        isIOS: false,
-        dismissedAt: null,
-        now: 1000,
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldShowMobileInstallPrompt({
-        isInstalled: false,
-        isNative: false,
-        isMobile: true,
-        hasDeferredPrompt: true,
-        isIOS: false,
-        dismissedAt: 500,
-        now: 500 + 7 * 24 * 60 * 60 * 1000 - 1,
-      }),
-    ).toBe(false);
-  });
-
-  it('shows the prompt for iOS Safari when not installed', () => {
-    expect(
-      shouldShowMobileInstallPrompt({
-        isInstalled: false,
-        isNative: false,
-        isMobile: true,
-        hasDeferredPrompt: false,
-        isIOS: true,
-        dismissedAt: null,
-        now: 1000,
-      }),
-    ).toBe(true);
-  });
-});

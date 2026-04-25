@@ -195,10 +195,10 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner richColors position="bottom-right" />
-        <MobileInstallPrompt />
          <BrowserRouter>
           <NativePlatformBootstrap />
           <AuthProvider>
+            <MobileInstallPrompt />
             <AuthDiagnostics />
             <ChatRuntimeBootstrap />
             <RouteErrorBoundary>
