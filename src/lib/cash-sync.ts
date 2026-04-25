@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
 import { isTrackerClearInProgress, isTrackerDataCleared } from './tracker-backup';
 
-const DISABLE_CASH_CLOUD_SYNC = true;
+const DISABLE_CASH_CLOUD_SYNC = false;
 
 const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   opening: 'opening',
