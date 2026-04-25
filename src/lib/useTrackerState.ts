@@ -190,8 +190,20 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const refreshFromCloud = useCallback(async () => {
     const requestGeneration = getTrackerWriteGeneration();
     try {
-      const cloudState = await loadTrackerStateFromCloud();
+      const cloudSnapshot = await loadTrackerStateFromCloud();
       if (requestGeneration !== getTrackerWriteGeneration()) return;
+      if (cloudSnapshot?.cleared) {
+        activateTrackerClearBarrier(window.localStorage);
+        const empty = buildStateFrom({}, {
+          lowStockThreshold: options.lowStockThreshold,
+          priceAlertThreshold: options.priceAlertThreshold,
+          range: options.range,
+          currency: options.currency,
+        });
+        guardedSetState(empty.state, { expectedGeneration: requestGeneration, allowDuringClear: true });
+        return;
+      }
+      const cloudState = cloudSnapshot?.state ?? null;
       if (cloudState) {
         const inFlight = stateRef.current as Partial<TrackerState>;
         const best = mergeLocalAndCloud(inFlight, cloudState);
@@ -304,10 +316,23 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
 
     let cancelled = false;
     const mountGeneration = getTrackerWriteGeneration();
-    loadTrackerStateFromCloud().then((cloudState) => {
+    loadTrackerStateFromCloud().then((cloudSnapshot) => {
       if (cancelled || mountGeneration !== getTrackerWriteGeneration()) return;
       setCloudLoaded(true);
 
+      if (cloudSnapshot?.cleared) {
+        activateTrackerClearBarrier(window.localStorage);
+        const empty = buildStateFrom({}, {
+          lowStockThreshold: options.lowStockThreshold,
+          priceAlertThreshold: options.priceAlertThreshold,
+          range: options.range,
+          currency: options.currency,
+        });
+        guardedSetState(empty.state, { expectedGeneration: mountGeneration, allowDuringClear: true });
+        return;
+      }
+
+      const cloudState = cloudSnapshot?.state ?? null;
       if (!cloudState) {
         // No cloud state yet. Only push local if it actually has data —
         // a fresh PWA install with empty localStorage must NOT upload an

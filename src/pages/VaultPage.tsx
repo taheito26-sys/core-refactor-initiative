@@ -41,6 +41,7 @@ import {
   type VaultBackup,
 } from '@/lib/supabase-vault';
 import { useAuth } from '@/features/auth/auth-context';
+import { buildStateFrom } from '@/lib/tracker-state';
 
 /* ── IDB Vault (Ring 1) ── */
 interface Snapshot {
@@ -152,7 +153,9 @@ async function resolveVaultState(): Promise<Record<string, unknown>> {
   if (hasMeaningfulTrackerData(local)) return local;
 
   try {
-    const cloud = await loadTrackerStateFromCloud();
+    const cloudSnapshot = await loadTrackerStateFromCloud();
+    if (cloudSnapshot?.cleared) return buildStateFrom({}, { currency: 'QAR' }).state;
+    const cloud = cloudSnapshot?.state ?? null;
     const merged = mergeLocalAndCloud(local as Partial<TrackerState> | null, cloud);
     if (merged && hasMeaningfulTrackerData(merged)) return merged;
     if (cloud && hasMeaningfulTrackerData(cloud)) return cloud;

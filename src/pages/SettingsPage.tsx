@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
 import { useAuth } from '@/features/auth/auth-context';
+import { buildStateFrom } from '@/lib/tracker-state';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -92,7 +93,14 @@ export default function SettingsPage() {
   async function resolveVaultState(): Promise<Record<string, unknown>> {
     const local = getCurrentState();
     if (hasMeaningfulTrackerData(local)) return local;
-    try { const cloud = await loadTrackerStateFromCloud(); const merged = mergeLocalAndCloud(local as Partial<TrackerState> | null, cloud); if (merged && hasMeaningfulTrackerData(merged)) return merged; if (cloud && hasMeaningfulTrackerData(cloud)) return cloud; } catch { /* fall through */ }
+    try {
+      const cloudSnapshot = await loadTrackerStateFromCloud();
+      if (cloudSnapshot?.cleared) return buildStateFrom({}, { currency: 'QAR' }).state;
+      const cloud = cloudSnapshot?.state ?? null;
+      const merged = mergeLocalAndCloud(local as Partial<TrackerState> | null, cloud);
+      if (merged && hasMeaningfulTrackerData(merged)) return merged;
+      if (cloud && hasMeaningfulTrackerData(cloud)) return cloud;
+    } catch { /* fall through */ }
     return local;
   }
   function downloadBlob(content: string, filename: string, mime = 'application/json') { const blob = new Blob([content], { type: mime }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }

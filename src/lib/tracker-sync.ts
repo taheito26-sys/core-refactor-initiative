@@ -96,6 +96,15 @@ type TrackerSnapshotRow = {
   state: Partial<TrackerState> | null;
   updated_at?: string | null;
   user_id?: string;
+  is_cleared?: boolean | null;
+  write_generation?: number | null;
+};
+
+export type CloudTrackerSnapshot = {
+  state: Partial<TrackerState> | null;
+  cleared: boolean;
+  writeGeneration: number;
+  updatedAt?: string | null;
 };
 
 export interface SaveTrackerStateOptions {
@@ -248,12 +257,14 @@ async function persistToCloud(state: TrackerState, options: SaveTrackerStateOpti
 
   const json = stateToJson(merged);
   if (!json || json === _lastSavedJson) return;
+  const isCleared = Boolean(options.allowDuringClear && isExplicitClearPayload(merged));
 
   const { data, error } = await supabase.rpc('save_tracker_snapshot_if_newer', {
     _user_id: user.id,
     _state: merged,
     _updated_at: new Date().toISOString(),
     _write_generation: options.writeGeneration ?? 0,
+    _is_cleared: isCleared,
   });
 
   if (!error) {
@@ -339,7 +350,7 @@ export async function saveTrackerStateNow(state: TrackerState, options: SaveTrac
 }
 
 /** Load tracker state from cloud, returning null if none found */
-export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState> | null> {
+export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot | null> {
   if (isTrackerClearInProgress() || isTrackerDataCleared()) return null;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -365,7 +376,7 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
     const { data, error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
-      .select('state, updated_at, user_id')
+      .select('state, updated_at, user_id, is_cleared, write_generation')
       .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
     if (!error && data) {
       // Reset foreign-id memory, then tag every id that came from OTHER
@@ -385,18 +396,46 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
         rememberForeignIds('cashLedger', Array.isArray(s.cashLedger) ? s.cashLedger : []);
         rememberForeignIds('cashHistory', Array.isArray(s.cashHistory) ? s.cashHistory : []);
       }
-      cloudState = mergeTrackerStatesForMerchant(rows);
+      const ownClearedRow = rows
+        .filter((row) => row.user_id === user.id && row.is_cleared)
+        .sort((a, b) => {
+          const aw = Number(a.write_generation || 0);
+          const bw = Number(b.write_generation || 0);
+          if (aw !== bw) return bw - aw;
+          const at = new Date(a.updated_at || 0).getTime();
+          const bt = new Date(b.updated_at || 0).getTime();
+          return bt - at;
+        })[0];
+      if (ownClearedRow) {
+        return {
+          state: {},
+          cleared: true,
+          writeGeneration: Number(ownClearedRow.write_generation || 0),
+          updatedAt: ownClearedRow.updated_at || null,
+        };
+      }
+      const merged = mergeTrackerStatesForMerchant(rows);
+      cloudState = merged as Partial<TrackerState> | null;
     }
   } else {
     const { data, error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
-      .select('state, updated_at')
+      .select('state, updated_at, is_cleared, write_generation')
       .eq('user_id', user.id)
       .maybeSingle();
     if (!error && data) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      cloudState = (data as any).state as Partial<TrackerState> | null;
+      const row = data as any;
+      if (row.is_cleared) {
+        return {
+          state: {},
+          cleared: true,
+          writeGeneration: Number(row.write_generation || 0),
+          updatedAt: row.updated_at || null,
+        };
+      }
+      cloudState = row.state as Partial<TrackerState> | null;
     }
   }
 
@@ -407,7 +446,11 @@ export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState>
     return null;
   }
 
-  return cloudState;
+  return {
+    state: cloudState,
+    cleared: false,
+    writeGeneration: 0,
+  };
 }
 
 // ── Preferences sync ──
