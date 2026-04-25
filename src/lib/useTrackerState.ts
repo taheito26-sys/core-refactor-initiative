@@ -193,6 +193,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       const cloudSnapshot = await loadTrackerStateFromCloud();
       if (requestGeneration !== getTrackerWriteGeneration()) return;
       if (cloudSnapshot?.cleared) {
+        console.info(
+          `[refresh] cleared tombstone — gen=${cloudSnapshot.writeGeneration} updatedAt=${cloudSnapshot.updatedAt ?? 'n/a'} — wiping to empty state`,
+        );
         activateTrackerClearBarrier(window.localStorage);
         const empty = buildStateFrom({}, {
           lowStockThreshold: options.lowStockThreshold,
@@ -321,6 +324,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setCloudLoaded(true);
 
       if (cloudSnapshot?.cleared) {
+        console.info(
+          `[boot] cleared tombstone — gen=${cloudSnapshot.writeGeneration} updatedAt=${cloudSnapshot.updatedAt ?? 'n/a'} — booting into empty state`,
+        );
         activateTrackerClearBarrier(window.localStorage);
         const empty = buildStateFrom({}, {
           lowStockThreshold: options.lowStockThreshold,
@@ -352,6 +358,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // user made between mount and now). Falling back to localStorage would
       // miss in-flight mutations on devices where Safari has wiped storage or
       // the user interacted before the first persistToLocal flushed.
+      console.info(
+        `[boot] normal snapshot — batches=${(cloudState as Partial<TrackerState>).batches?.length ?? 0} trades=${(cloudState as Partial<TrackerState>).trades?.length ?? 0} cashAccounts=${(cloudState as Partial<TrackerState>).cashAccounts?.length ?? 0} cashLedger=${(cloudState as Partial<TrackerState>).cashLedger?.length ?? 0}`,
+      );
       const inFlight = stateRef.current as Partial<TrackerState>;
       const local = getCurrentTrackerState(window.localStorage) as Partial<TrackerState> | null;
       const localUnion = mergeLocalAndCloud(local, inFlight);
