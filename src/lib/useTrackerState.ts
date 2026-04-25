@@ -205,25 +205,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       const cloudState = cloudSnapshot?.state ?? null;
       if (cloudState) {
         const inFlight = stateRef.current as Partial<TrackerState>;
-        // Strip cash fields from the tracker_snapshots merge — cash data is
-        // owned exclusively by the dedicated cash_accounts / cash_ledger tables
-        // (loaded below via loadCashFromCloud). Merging stale cash arrays from
-        // tracker_snapshots would overwrite the correct dedicated-table data.
-        const cloudStateNoCash = {
-          ...cloudState,
-          cashAccounts: undefined,
-          cashLedger: undefined,
-          cashHistory: undefined,
-          cashQAR: undefined,
-        } as Partial<TrackerState>;
-        const inFlightNoCash = {
-          ...inFlight,
-          cashAccounts: undefined,
-          cashLedger: undefined,
-          cashHistory: undefined,
-          cashQAR: undefined,
-        } as Partial<TrackerState>;
-        const best = mergeLocalAndCloud(inFlightNoCash, cloudStateNoCash);
+        const best = mergeLocalAndCloud(inFlight, cloudState);
         if (best) {
           const rebuilt = buildStateFrom(best, {
             lowStockThreshold: options.lowStockThreshold,
@@ -231,25 +213,16 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             range: options.range,
             currency: options.currency,
           });
-          // Preserve current cash state — it will be overwritten by loadCashFromCloud below
-          const withCash: TrackerState = {
-            ...rebuilt.state,
-            cashAccounts: stateRef.current.cashAccounts,
-            cashLedger: stateRef.current.cashLedger,
-            cashQAR: stateRef.current.cashQAR,
-          };
-          guardedSetState(withCash, { expectedGeneration: requestGeneration });
-          saveTrackerState(withCash);
+          guardedSetState(rebuilt.state, { expectedGeneration: requestGeneration });
+          saveTrackerState(rebuilt.state);
         }
       }
       const cashData = await loadCashFromCloud();
       if (requestGeneration !== getTrackerWriteGeneration()) return;
-      if (cashData) {
+      if (cashData && (cashData.accounts.length > 0 || cashData.ledger.length > 0)) {
+        // Dedicated cash tables have data — they are authoritative.
+        // Override the snapshot-sourced cash with the dedicated table data.
         guardedSetState(prev => {
-          // Cloud is authoritative for cash ledger.
-          // Only keep local entries that are genuinely newer than the cloud fetch
-          // (i.e. added in the last 2s) — this covers the race where a user adds
-          // an entry and the realtime event fires before saveCashToCloud completes.
           const cloudIds = new Set(cashData.ledger.map(e => e.id));
           const twoSecondsAgo = Date.now() - 2000;
           const localOnly = (prev.cashLedger || []).filter(e =>
@@ -259,14 +232,16 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
           );
           const cloudAccountIds = new Set(cashData.accounts.map(a => a.id));
           const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
-          const next = {
+          return {
             ...prev,
             cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
             cashLedger: [...cashData.ledger, ...localOnly],
           };
-          return next;
         }, { expectedGeneration: requestGeneration });
       }
+      // If loadCashFromCloud returns null or empty, keep the cash data from
+      // tracker_snapshots merge — it's the only source for existing users
+      // whose data hasn't migrated to the dedicated tables yet.
     } catch (err) {
       console.error('[useTrackerState] refreshFromCloud failed:', err);
     }
@@ -391,23 +366,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       const inFlight = stateRef.current as Partial<TrackerState>;
       const local = getCurrentTrackerState(window.localStorage) as Partial<TrackerState> | null;
       const localUnion = mergeLocalAndCloud(local, inFlight);
-      // Strip cash fields before merging tracker_snapshots — cash is owned by
-      // the dedicated cash_accounts / cash_ledger tables loaded below.
-      const cloudStateNoCash = {
-        ...cloudState,
-        cashAccounts: undefined,
-        cashLedger: undefined,
-        cashHistory: undefined,
-        cashQAR: undefined,
-      } as Partial<TrackerState>;
-      const localUnionNoCash = {
-        ...localUnion,
-        cashAccounts: undefined,
-        cashLedger: undefined,
-        cashHistory: undefined,
-        cashQAR: undefined,
-      } as Partial<TrackerState>;
-      const best = mergeLocalAndCloud(localUnionNoCash, cloudStateNoCash);
+      const best = mergeLocalAndCloud(localUnion, cloudState);
       if (!best) return;
 
       const rebuilt = buildStateFrom(best, {
@@ -418,29 +377,18 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       });
 
       guardedSetState(rebuilt.state, { expectedGeneration: mountGeneration });
-      // Push merged state back to cloud — preserve cash fields from stateRef
-      // since the dedicated cash tables are the source of truth for those.
-      const withCash: TrackerState = {
-        ...rebuilt.state,
-        cashAccounts: stateRef.current.cashAccounts,
-        cashLedger: stateRef.current.cashLedger,
-        cashQAR: stateRef.current.cashQAR,
-      };
-      saveTrackerState(withCash);
+      // Also update localStorage AND push merged state back to cloud so any
+      // in-flight local-only rows are uploaded.
+      saveTrackerState(rebuilt.state);
 
-      // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
-      // ISSUE 6 FIX: previously stateRef.current was never updated after the
-      // async setState callback, so any call to applyState() that happened
-      // immediately after the cash merge would read stale pre-cash data from
-      // stateRef.current and overwrite the cloud cash values when persisting.
+      // Load dedicated cash tables — if they have data, they override the
+      // snapshot-sourced cash. If empty, keep the snapshot data (for users
+      // whose data hasn't migrated to dedicated tables yet).
       loadCashFromCloud().then(cashData => {
         if (!cashData || mountGeneration !== getTrackerWriteGeneration()) return;
         if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
         guardedSetState(prev => {
           const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
-          // Cloud is authoritative — only keep local entries added in the last 2s
-          // (in-flight entries that haven't synced yet). This prevents cleared
-          // entries from being restored on mount.
           const twoSecondsAgo = Date.now() - 2000;
           const localOnly = (prev.cashLedger || []).filter(e =>
             !cloudIds.has(e.id) &&
@@ -449,12 +397,11 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
           );
           const cloudAccountIds = new Set(cashData.accounts.map((a: { id: string }) => a.id));
           const localOnlyAccounts = (prev.cashAccounts || []).filter(a => !cloudAccountIds.has(a.id));
-          const next = {
+          return {
             ...prev,
             cashAccounts: [...cashData.accounts, ...localOnlyAccounts],
             cashLedger: [...cashData.ledger, ...localOnly],
           };
-          return next;
         }, { expectedGeneration: mountGeneration });
       }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
     }).catch((err) => {
