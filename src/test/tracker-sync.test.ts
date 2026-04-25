@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { saveTrackerStateNow } from '@/lib/tracker-sync';
+import { saveTrackerState, saveTrackerStateNow } from '@/lib/tracker-sync';
 
 const { authGetUserMock, selectMock, upsertMock, deleteMock, deleteEqMock, eqMock, fromMock } = vi.hoisted(() => {
   const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -81,6 +81,28 @@ describe('saveTrackerStateNow', () => {
     localStorage.setItem('tracker_data_cleared', 'true');
 
     await saveTrackerStateNow(emptyState, { replaceExisting: true, preserveDataCleared: true });
+
+    expect(localStorage.getItem('tracker_data_cleared')).toBe('true');
+  });
+
+  it('preserves the cleared-data marker on ordinary empty-state saves', () => {
+    localStorage.setItem('tracker_data_cleared', 'true');
+
+    saveTrackerState({
+      batches: [],
+      trades: [],
+      customers: [],
+      suppliers: [],
+      cashQAR: 0,
+      cashOwner: '',
+      cashHistory: [],
+      cashAccounts: [],
+      cashLedger: [],
+      currency: 'QAR',
+      range: '7d',
+      settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 },
+      cal: { year: 2026, month: 3, selectedDay: null },
+    });
 
     expect(localStorage.getItem('tracker_data_cleared')).toBe('true');
   });

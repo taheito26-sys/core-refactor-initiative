@@ -66,6 +66,11 @@ export function hasMeaningfulTrackerData(value: unknown): value is TrackerState 
   return TRACKER_DATA_KEYS.some((key) => Array.isArray(value[key]));
 }
 
+export function hasTrackerItems(value: unknown): value is TrackerState {
+  if (!isObject(value)) return false;
+  return TRACKER_DATA_KEYS.some((key) => Array.isArray(value[key]) && value[key].length > 0);
+}
+
 function looksLikeTrackerState(value: unknown): value is TrackerState {
   return hasMeaningfulTrackerData(value);
 }

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { findTrackerStorageKey } from './tracker-backup';
 import {
   hasMeaningfulTrackerData,
+  hasTrackerItems,
   clearTrackerClearGuard,
   clearTrackerDataCleared,
   isTrackerClearInProgress,
@@ -268,7 +269,8 @@ async function persistToCloud(state: TrackerState, options: SaveTrackerStateOpti
 
 /** Persist state to localStorage immediately and to cloud (debounced 2s) */
 export function saveTrackerState(state: TrackerState): void {
-  persistToLocal(state);
+  const preserveDataCleared = !hasTrackerItems(state);
+  persistToLocal(state, { preserveDataCleared });
   clearTrackerClearGuard();
 
   if (_saveTimer) clearTimeout(_saveTimer);
@@ -282,7 +284,8 @@ export function saveTrackerState(state: TrackerState): void {
 /** Force an immediate cloud save (e.g. on import/restore) */
 export async function saveTrackerStateNow(state: TrackerState, options: SaveTrackerStateOptions = {}): Promise<void> {
   if (_saveTimer) clearTimeout(_saveTimer);
-  persistToLocal(state, { preserveDataCleared: options.preserveDataCleared });
+  const preserveDataCleared = options.preserveDataCleared ?? !hasTrackerItems(state);
+  persistToLocal(state, { preserveDataCleared });
   if (options.replaceExisting) {
     await clearCashStateFromCloud().catch((err) => {
       console.warn('[tracker-sync] clearCashStateFromCloud failed:', err);
