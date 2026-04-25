@@ -4,6 +4,16 @@ import { isTrackerClearInProgress, isTrackerDataCleared } from './tracker-backup
 
 const DISABLE_CASH_CLOUD_SYNC = false;
 
+/**
+ * Flips to true the first time loadCashFromCloud successfully reaches the
+ * cloud this session. Reconcile-deletes in saveCashToCloud are gated on
+ * this flag — an empty local state BEFORE cloud has loaded means "we don't
+ * know what's in cloud yet", NOT "the user wants to clear everything".
+ * Without this gate, a debounced auto-save firing during the post-mount
+ * race window wipes every cash row the user has.
+ */
+let _cashCloudLoadedThisSession = false;
+
 const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   opening: 'opening',
   deposit: 'deposit',
@@ -149,6 +159,13 @@ export async function saveCashToCloud(
   // Full reconcile: delete this user's rows whose ids are NOT in the local
   // set. Without this, a removed/cleared cash entry stays in the cloud and
   // reappears on the next merchant-wide load.
+  //
+  // GATED on _cashCloudLoadedThisSession: an empty local state before cloud
+  // has loaded means "we haven't observed cloud yet" — running the reconcile
+  // delete in that window wipes every cash row for this user. We only know
+  // the local set is intentional once loadCashFromCloud has succeeded once.
+  if (!_cashCloudLoadedThisSession) return;
+
   const accountIds = accounts.map((a) => a.id).filter(Boolean);
   const ledgerIds = ledger.map((e) => e.id).filter(Boolean);
 
@@ -266,6 +283,9 @@ export async function loadCashFromCloud(): Promise<{
     console.warn('[cash-sync] load ledger failed:', ledResult.error.message);
     return null;
   }
+
+  // Cloud has been observed — reconcile-delete is now safe.
+  _cashCloudLoadedThisSession = true;
 
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
