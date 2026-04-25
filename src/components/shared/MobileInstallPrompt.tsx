@@ -13,7 +13,8 @@ type BeforeInstallPromptEventLike = Event & {
 
 const INSTALLED_KEY = 'pwa-install-prompt-installed';
 const POSTPONE_UNTIL_KEY = 'pwa-install-prompt-postpone-until';
-const DEFAULT_POSTPONE_MS = 24 * 60 * 60 * 1000; // 24h
+const DEFAULT_POSTPONE_MS = 60 * 60 * 1000; // 1h
+const MAX_POSTPONE_MS = 7 * 24 * 60 * 60 * 1000; // sanity cap: 7 days
 
 function safeLocalStorageGet(key: string): string | null {
   try {
@@ -94,7 +95,8 @@ export default function MobileInstallPrompt() {
       const now = Date.now();
       const postponeRaw = safeLocalStorageGet(POSTPONE_UNTIL_KEY);
       const postponeParsed = postponeRaw ? Number(postponeRaw) : 0;
-      if (!Number.isFinite(postponeParsed) || postponeParsed <= now) {
+      const postponeTooFar = Number.isFinite(postponeParsed) && postponeParsed > now + MAX_POSTPONE_MS;
+      if (!Number.isFinite(postponeParsed) || postponeParsed <= now || postponeTooFar) {
         safeLocalStorageRemove(POSTPONE_UNTIL_KEY);
         setPostponeUntil(0);
       }
