@@ -68,6 +68,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const stateRef = useRef(state);
   const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cashCommitInFlightUntilRef = useRef<number>(0);
+  const clearedAccountIds = useRef<Set<string>>(new Set());
 
   const applyState = useCallback((next: TrackerState) => {
     // In admin preloaded mode, don't persist
@@ -195,6 +196,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             cashLedger: cashData.ledger,
           };
           stateRef.current = next;
+          // Persist to localStorage so the next page load starts with
+          // correct cash data instead of stale/empty arrays.
+          saveTrackerState(next);
           return next;
         });
       }
@@ -272,6 +276,31 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (!isAuthenticated) return;
 
     let cancelled = false;
+
+    // Helper: load cash from dedicated tables and apply to state.
+    // Called regardless of whether tracker_snapshots has data, because
+    // cash_accounts / cash_ledger are the single source of truth for cash.
+    const applyCashFromCloud = () => {
+      loadCashFromCloud().then(cashData => {
+        if (cancelled) return;
+        if (!cashData) return;
+        // Cash tables are authoritative — replace state's cash arrays even
+        // when empty (the only way a "clear cash" propagates across devices).
+        setState(prev => {
+          const next = {
+            ...prev,
+            cashAccounts: cashData.accounts,
+            cashLedger: cashData.ledger,
+          };
+          stateRef.current = next;
+          // Persist to localStorage so the next page load starts with
+          // correct cash data instead of empty arrays.
+          saveTrackerState(next);
+          return next;
+        });
+      }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
+    };
+
     loadTrackerStateFromCloud().then((cloudState) => {
       if (cancelled) return;
       setCloudLoaded(true);
@@ -288,6 +317,10 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
           (s.cashAccounts?.length ?? 0) > 0 ||
           (s.cashLedger?.length ?? 0) > 0;
         if (hasData) saveTrackerState(s);
+        // Still load cash from dedicated tables — they may have data even
+        // when tracker_snapshots is empty (e.g. first-time user who only
+        // added cash, or snapshot was cleared).
+        applyCashFromCloud();
         return;
       }
 
@@ -309,31 +342,16 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       saveTrackerState(rebuilt.state);
 
       // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
-      // ISSUE 6 FIX: previously stateRef.current was never updated after the
-      // async setState callback, so any call to applyState() that happened
-      // immediately after the cash merge would read stale pre-cash data from
-      // stateRef.current and overwrite the cloud cash values when persisting.
-      loadCashFromCloud().then(cashData => {
-        if (!cashData) return;
-        // Cash tables are authoritative — replace state's cash arrays even
-        // when empty (the only way a "clear cash" propagates across devices).
-        setState(prev => {
-          const next = {
-            ...prev,
-            cashAccounts: cashData.accounts,
-            cashLedger: cashData.ledger,
-          };
-          stateRef.current = next;
-          return next;
-        });
-      }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
+      applyCashFromCloud();
     }).catch((err) => {
       console.error('[useTrackerState] cloud load failed:', err);
       setCloudLoaded(true);
+      // Even if tracker snapshot load fails, try loading cash from dedicated tables
+      applyCashFromCloud();
     });
 
     return () => { cancelled = true; };
   }, [adminMode, isAuthenticated, options.preloadedState]);
 
-  return { state, derived, applyState, applyStateAndCommit, cloudLoaded };
+  return { state, derived, applyState, applyStateAndCommit, cloudLoaded, clearedAccountIds };
 }

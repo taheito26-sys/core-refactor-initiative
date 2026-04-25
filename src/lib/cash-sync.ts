@@ -166,6 +166,13 @@ export async function saveCashToCloud(
   // the local set is intentional once loadCashFromCloud has succeeded once.
   if (!_cashCloudLoadedThisSession) return;
 
+  // Additional safety: if BOTH accounts and ledger are empty, skip the
+  // reconcile-delete entirely. A legitimate "clear all" goes through
+  // clearCashStateFromCloud() instead. This prevents a race where a
+  // debounced save fires with stale empty arrays during mount/navigation
+  // and wipes the cloud data.
+  if (accounts.length === 0 && ledger.length === 0) return;
+
   const accountIds = accounts.map((a) => a.id).filter(Boolean);
   const ledgerIds = ledger.map((e) => e.id).filter(Boolean);
 
