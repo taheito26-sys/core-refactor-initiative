@@ -168,7 +168,14 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right Panel: Sign In ── */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-background p-6 lg:p-12 relative overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 lg:p-12 relative overflow-y-auto" style={{
+        background: `
+          linear-gradient(135deg, #3d2817 0%, #5a3d2a 50%, #3d2817 100%),
+          radial-gradient(ellipse 80% 60% at 20% 80%, rgba(212, 175, 55, 0.08), transparent),
+          radial-gradient(ellipse 60% 50% at 80% 20%, rgba(212, 175, 55, 0.04), transparent)
+        `,
+        backgroundColor: '#3d2817'
+      }}>
         {/* ── Language Toggle ── */}
         <div className="absolute top-4 right-4 flex items-center gap-0.5 bg-muted rounded-full p-0.5 shadow-sm">
           <button
