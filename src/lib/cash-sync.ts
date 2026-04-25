@@ -116,6 +116,7 @@ export async function saveCashToCloud(
   accounts: CashAccount[],
   ledger: CashLedgerEntry[],
 ): Promise<void> {
+  if (isTrackerClearInProgress() || isTrackerDataCleared()) return;
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -93,6 +93,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
           .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
       }, 500);
+    } else if (cashSaveTimer.current) {
+      clearTimeout(cashSaveTimer.current);
+      cashSaveTimer.current = null;
     }
   }, [adminMode, options.preloadedState]);
 
@@ -119,6 +122,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     await saveTrackerStateNow(next);
     if (next.cashAccounts?.length || next.cashLedger?.length) {
       await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
+    } else if (cashSaveTimer.current) {
+      clearTimeout(cashSaveTimer.current);
+      cashSaveTimer.current = null;
     }
 
     // Server acknowledged — now update UI.
