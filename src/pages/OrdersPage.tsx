@@ -2493,41 +2493,61 @@ export default function OrdersPage() {
     const isExpanded = !!expandedCards[tr.id];
 
     return (
-      <div key={`mobile-trade-${tr.id}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        {/* ── Compact summary row ── */}
+      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ padding: 12, margin: '0 6px 8px' }}>
+        {/* ── Top row: badge + customer name + date ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+          <span className={`pill ${isMerchantLinked ? 'warn' : 'good'}`} style={{ fontSize: 9, flexShrink: 0 }}>
+            {isMerchantLinked ? (t.isRTL ? 'صفقة تاجر' : 'Merchant') : (t.isRTL ? 'بيع مباشر' : 'Direct Sale')}
+          </span>
+          <div style={{ fontSize: 11, fontWeight: 700, textAlign: 'right', minWidth: 0 }}>
+            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</div>
+          </div>
+        </div>
+
+        {/* ── Date row ── */}
+        <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{fmtDate(tr.ts)}</div>
+
+        {/* ── Amount + Profit row (2-col grid like cash ledger) ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 6px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
-          onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-          onPointerUp={e => (e.currentTarget.style.background = 'none')}
-          onPointerLeave={e => (e.currentTarget.style.background = 'none')}
+          style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
-              <span style={{ fontSize: 9, color: isMerchantLinked ? 'var(--brand)' : 'var(--muted)', flexShrink: 0 }}>{isMerchantLinked ? '🤝' : '👤'}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
+            <div>
+              <span className="muted">{t.isRTL ? 'الكمية' : 'Amount'}:</span>{' '}
+              <strong className="mono" style={{ fontSize: 13 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)} USDT</strong>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{fmtDate(tr.ts)}</div>
+            <div style={{ textAlign: 'right' }}>
+              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
+              <strong className="mono" style={{ color: 'var(--warn)' }}>{baseFiat} {fmtTotal(rev)}</strong>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-            <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)} USDT</strong>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</span>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>= {fmtTotal(rev)} {baseFiat}</span>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginTop: 4 }}>
+            <div>
+              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
+              <strong className="mono">{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</strong>
+            </div>
+            <div style={{ textAlign: 'right' }}>
               {Number.isFinite(net) && (
-                <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {net >= 0 ? '+' : ''}{fmtC(net)}
-                </span>
+                <>
+                  <span className="muted">{t.isRTL ? 'الربح' : 'Profit'}:</span>{' '}
+                  <strong className="mono" style={{ color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                    {net >= 0 ? '+' : ''}{fmtC(net)} {t.isRTL ? 'ريال' : baseFiat}
+                  </strong>
+                </>
               )}
               {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', flexShrink: 0, filter: 'drop-shadow(0 0 2px color-mix(in srgb, var(--brand) 30%, transparent))' }}><path d="M6 9l6 6 6-6"/></svg>
             </div>
+          </div>
+          {/* Expand indicator */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5 }}><path d="M6 9l6 6 6-6"/></svg>
           </div>
         </button>
 
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ padding: '0 6px 10px', borderTop: '1px solid var(--line2)' }}>
+          <div style={{ borderTop: '1px solid var(--line2)', marginTop: 8, paddingTop: 8 }}>
             <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
               {isMerchantLinked && linkedRel && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -2567,7 +2587,6 @@ export default function OrdersPage() {
               {tr.approvalStatus === 'approved' && (
                 <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
               )}
-              {/* Push to client portal — visible when buyer is a connected customer */}
               {connectedCustomers.some(c => c.customerUserId === tr.customerId || c.id === tr.customerId) && (
                 <button
                   className="rowBtn"
@@ -2609,40 +2628,57 @@ export default function OrdersPage() {
       : (row.myNet ?? row.fullNet ?? null);
 
     return (
-      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        {/* ── Compact summary row ── */}
+      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} className="panel" style={{ padding: 12, margin: '0 6px 8px' }}>
+        {/* ── Top row: badge + merchant name ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+          <span className={`pill ${deal.status === 'approved' ? 'good' : deal.status === 'rejected' ? 'bad' : 'warn'}`} style={{ fontSize: 9, flexShrink: 0 }}>{deal.status}</span>
+          <div style={{ fontSize: 11, fontWeight: 700, textAlign: 'right', minWidth: 0 }}>
+            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{merchantName}</div>
+          </div>
+        </div>
+
+        {/* ── Date row ── */}
+        <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{row.dateLabel}</div>
+
+        {/* ── Amount + Volume row ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 6px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
-          onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-          onPointerUp={e => (e.currentTarget.style.background = 'none')}
-          onPointerLeave={e => (e.currentTarget.style.background = 'none')}
+          style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{merchantName}</span>
-              <span style={{ fontSize: 9, color: 'var(--brand)', flexShrink: 0 }}>{row.familyIcon}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
+            <div>
+              <span className="muted">{t.isRTL ? 'الكمية' : 'Amount'}:</span>{' '}
+              <strong className="mono" style={{ fontSize: 13 }}>{fmtU(row.quantity)} USDT</strong>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{row.dateLabel}</div>
+            <div style={{ textAlign: 'right' }}>
+              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
+              <strong className="mono" style={{ color: 'var(--warn)' }}>{baseFiat} {fmtC(row.volume)}</strong>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
-            <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(row.quantity)} USDT</strong>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</span>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {netDisplay != null && (
-                <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)}
-                </span>
-              )}
-              <span className={`pill ${deal.status === 'approved' ? 'good' : deal.status === 'rejected' ? 'bad' : 'warn'}`} style={{ fontSize: 9 }}>{deal.status}</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', flexShrink: 0, filter: 'drop-shadow(0 0 2px color-mix(in srgb, var(--brand) 30%, transparent))' }}><path d="M6 9l6 6 6-6"/></svg>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginTop: 4 }}>
+            <div>
+              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
+              <strong className="mono">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</strong>
             </div>
+            <div style={{ textAlign: 'right' }}>
+              {netDisplay != null && (
+                <>
+                  <span className="muted">{t.isRTL ? 'الربح' : 'Profit'}:</span>{' '}
+                  <strong className="mono" style={{ color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                    {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)} {t.isRTL ? 'ريال' : baseFiat}
+                  </strong>
+                </>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5 }}><path d="M6 9l6 6 6-6"/></svg>
           </div>
         </button>
 
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ padding: '0 6px 10px', borderTop: '1px solid var(--line2)' }}>
+          <div style={{ borderTop: '1px solid var(--line2)', marginTop: 8, paddingTop: 8 }}>
             <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span className="muted">{t('buyer')}</span>
