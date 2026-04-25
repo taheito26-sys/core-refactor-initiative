@@ -37,10 +37,13 @@ function isIOSSafari() {
 }
 
 export default function MobileInstallPrompt() {
-  const { isAuthenticated } = useAuth();
+  // Auth is optional for this gate: we want to enforce install on mobile web
+  // both before login and after login.
+  useAuth();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEventLike | null>(null);
   const [installed, setInstalled] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [nativePromptDismissed, setNativePromptDismissed] = useState(false);
   const [postponeUntil, setPostponeUntil] = useState<number>(() => {
     if (typeof window === 'undefined') return 0;
     const raw = window.localStorage.getItem(POSTPONE_UNTIL_KEY);
@@ -84,6 +87,7 @@ export default function MobileInstallPrompt() {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEventLike);
+      setNativePromptDismissed(false);
     };
 
     const handleInstalled = () => {
@@ -109,41 +113,12 @@ export default function MobileInstallPrompt() {
     typeof window !== 'undefined' ? Date.now() < postponeUntil : false;
 
   const shouldBlock =
-    isAuthenticated &&
     mobileSurface &&
     !isNativeApp() &&
     !installed &&
     !storedInstalled &&
     !isInstalledPwa() &&
     !isPostponed;
-
-  // Auto-fire native prompt as soon as the browser provides it. Browsers
-  // require a user gesture for prompt(), but Chrome/Edge allow it during the
-  // beforeinstallprompt event handler chain after a recent interaction.
-  useEffect(() => {
-    if (!shouldBlock || !deferredPrompt || installing) return;
-    let cancelled = false;
-    const fire = async () => {
-      setInstalling(true);
-      try {
-        await deferredPrompt.prompt();
-        const choice = await deferredPrompt.userChoice;
-        if (cancelled) return;
-        if (choice.outcome === 'accepted') {
-          window.localStorage.setItem(INSTALLED_KEY, String(Date.now()));
-          setInstalled(true);
-        }
-      } catch {
-        // User dismissed or browser blocked — fall back to manual button.
-      } finally {
-        if (!cancelled) setInstalling(false);
-      }
-    };
-    void fire();
-    return () => {
-      cancelled = true;
-    };
-  }, [shouldBlock, deferredPrompt, installing]);
 
   if (!shouldBlock) return null;
 
@@ -156,8 +131,13 @@ export default function MobileInstallPrompt() {
       if (choice.outcome === 'accepted') {
         window.localStorage.setItem(INSTALLED_KEY, String(Date.now()));
         setInstalled(true);
+      } else {
+        setNativePromptDismissed(true);
       }
     } finally {
+      // The native prompt can usually only be used once per captured event.
+      // Clear it so the UI can fall back to manual instructions.
+      setDeferredPrompt(null);
       setInstalling(false);
     }
   };
@@ -205,9 +185,15 @@ export default function MobileInstallPrompt() {
             </div>
           ) : (
             <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-              {deferredPrompt
-                ? 'Tap Install below to add the app to your home screen.'
-                : 'If your browser does not show an install option, open this site in Chrome or your default browser and try again.'}
+              {deferredPrompt ? (
+                nativePromptDismissed ? (
+                  'Install was dismissed. Use your browser menu to install (⋮ → Install app / Add to Home Screen), then reopen from your home screen.'
+                ) : (
+                  'Tap Install below to add the app to your home screen.'
+                )
+              ) : (
+                'If your browser does not show an install option, open this site in Chrome or your default browser and try again.'
+              )}
             </div>
           )}
 
