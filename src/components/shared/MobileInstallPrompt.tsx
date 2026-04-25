@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -79,8 +79,10 @@ export default function MobileInstallPrompt() {
     return Number.isFinite(parsed) ? parsed : 0;
   });
 
-  const mobileSurface = useMemo(isMobileInstallSurface, []);
-  const iosSafari = useMemo(isIOSSafari, []);
+  // Don't memoize: mobile browsers can change viewport/pointer modes as the URL bar
+  // collapses, orientation changes, or "request desktop site" toggles.
+  const mobileSurface = isMobileInstallSurface();
+  const iosSafari = isIOSSafari();
 
   useEffect(() => {
     setInstalled(isInstalledPwa());
