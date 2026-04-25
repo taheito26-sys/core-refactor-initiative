@@ -69,19 +69,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#d4af37] to-[#aa8c2c]">
-              <svg className="h-8 w-8" viewBox="0 0 100 100" fill="none">
-                <defs>
-                  <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style={{stopColor: '#ffd700', stopOpacity: 1}} />
-                    <stop offset="100%" style={{stopColor: '#d4af37', stopOpacity: 1}} />
-                  </linearGradient>
-                </defs>
-                <circle cx="50" cy="50" r="48" fill="none" stroke="url(#goldGrad)" strokeWidth="2"/>
-                <path d="M 35 45 Q 40 35 50 30 Q 60 35 65 45 L 70 55 Q 65 65 50 70 Q 35 65 30 55 Z" fill="url(#goldGrad)"/>
-                <path d="M 45 50 Q 50 45 55 50 Q 50 55 45 50" fill="url(#goldGrad)"/>
-              </svg>
-            </div>
+            <img src="/favicon.png" alt="Tracker Logo" className="h-12 w-12 rounded-xl shadow-lg" />
             <div>
               <div className="text-white font-black text-lg tracking-tight">TRACKER</div>
               <div className="text-[#d4af37] text-[10px] font-semibold uppercase tracking-[0.2em]">P2P Intelligence</div>
@@ -212,19 +200,7 @@ export default function LoginPage() {
           <div className="lg:hidden space-y-6">
             {/* Logo */}
             <div className="flex flex-col items-center gap-3">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#d4af37] to-[#aa8c2c]">
-                <svg className="h-10 w-10" viewBox="0 0 100 100" fill="none">
-                  <defs>
-                    <linearGradient id="goldGradMobile" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" style={{stopColor: '#ffd700', stopOpacity: 1}} />
-                      <stop offset="100%" style={{stopColor: '#d4af37', stopOpacity: 1}} />
-                    </linearGradient>
-                  </defs>
-                  <circle cx="50" cy="50" r="48" fill="none" stroke="url(#goldGradMobile)" strokeWidth="2"/>
-                  <path d="M 35 45 Q 40 35 50 30 Q 60 35 65 45 L 70 55 Q 65 65 50 70 Q 35 65 30 55 Z" fill="url(#goldGradMobile)"/>
-                  <path d="M 45 50 Q 50 45 55 50 Q 50 55 45 50" fill="url(#goldGradMobile)"/>
-                </svg>
-              </div>
+              <img src="/favicon.png" alt="Tracker Logo" className="h-16 w-16 rounded-2xl shadow-lg" />
               <div className="text-center">
                 <div className="text-xl font-black text-foreground tracking-tight">TRACKER</div>
                 <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-[0.2em]">P2P Intelligence</div>
