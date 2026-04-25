@@ -116,6 +116,7 @@ export function findTrackerStorageKey(storage: Storage): string {
 
 export function getCurrentTrackerState(storage: Storage): TrackerState {
   try {
+    if (isTrackerDataCleared(storage)) return {};
     const key = findTrackerStorageKey(storage);
     const value = storage.getItem(key);
     if (!value) return {};

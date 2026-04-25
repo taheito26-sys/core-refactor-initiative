@@ -39,6 +39,27 @@ describe('tracker backup state detection', () => {
     expect(isTrackerDataCleared()).toBe(false);
   });
 
+  it('ignores stored tracker data while the persistent cleared marker is set', () => {
+    localStorage.clear();
+
+    const key = findTrackerStorageKey(localStorage);
+    localStorage.setItem(key, JSON.stringify({
+      cashQAR: 123,
+      cashAccounts: [{ id: 'cash-1' }],
+      cashLedger: [{ id: 'led-1' }],
+    }));
+
+    markTrackerDataCleared();
+    expect(getCurrentTrackerState(localStorage)).toEqual({});
+
+    clearTrackerDataCleared();
+    expect(getCurrentTrackerState(localStorage)).toMatchObject({
+      cashQAR: 123,
+      cashAccounts: [{ id: 'cash-1' }],
+      cashLedger: [{ id: 'led-1' }],
+    });
+  });
+
   it('expires the clear guard after its TTL', () => {
     sessionStorage.clear();
     vi.useFakeTimers();
