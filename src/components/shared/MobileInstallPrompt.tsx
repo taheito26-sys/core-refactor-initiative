@@ -4,52 +4,27 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { isInstalledPwa, isNativeApp } from '@/platform/runtime';
-import { useAuth } from '@/features/auth/auth-context';
 
 type BeforeInstallPromptEventLike = Event & {
   prompt: () => Promise<void> | void;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform?: string }>;
 };
 
-const INSTALLED_KEY = 'pwa-install-prompt-installed';
-const POSTPONE_UNTIL_KEY = 'pwa-install-prompt-postpone-until';
-const DEFAULT_POSTPONE_MS = 60 * 60 * 1000; // 1h
-const MAX_POSTPONE_MS = 7 * 24 * 60 * 60 * 1000; // sanity cap: 7 days
-
-function safeLocalStorageGet(key: string): string | null {
-  try {
-    return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeLocalStorageSet(key: string, value: string): void {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // ignore
-  }
-}
-
-function safeLocalStorageRemove(key: string): void {
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-}
-
+/**
+ * Detect whether the current surface is a mobile browser that should be gated.
+ * Uses pointer, viewport width, and UA heuristics.
+ */
 function isMobileInstallSurface() {
   if (typeof window === 'undefined') return false;
   const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
   const narrow = window.matchMedia?.('(max-width: 1024px)').matches ?? false;
   const mobileUA =
     typeof navigator !== 'undefined' &&
-    (Boolean((navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData?.mobile) ||
+    (Boolean(
+      (navigator as Navigator & { userAgentData?: { mobile?: boolean } })
+        .userAgentData?.mobile,
+    ) ||
       /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent));
-  // Some mobile browsers (notably iPadOS / desktop-mode) report a "fine" pointer.
-  // For install gating we treat narrow viewport OR mobile UA as sufficient.
   return mobileUA || narrow || coarse;
 }
 
@@ -57,69 +32,38 @@ function isIOSSafari() {
   if (typeof window === 'undefined') return false;
   const ua = navigator.userAgent;
   const isAppleMobile = /iphone|ipad|ipod/i.test(ua);
-  const isSafari = /safari/i.test(ua) && !/crios|fxios|edgios|opios/i.test(ua);
+  const isSafari =
+    /safari/i.test(ua) && !/crios|fxios|edgios|opios/i.test(ua);
   return isAppleMobile && isSafari;
 }
 
+/**
+ * Full-screen gate that blocks mobile browser users until they install the PWA.
+ *
+ * There are NO bypass buttons — the only way past this gate is:
+ * 1. Actually install the PWA (detected via display-mode: standalone)
+ * 2. Open the app from the native wrapper (Capacitor)
+ * 3. Be on a desktop browser
+ *
+ * The gate re-checks `isInstalledPwa()` on visibility change so that after the
+ * user installs and reopens from the home screen, the gate disappears.
+ */
 export default function MobileInstallPrompt() {
-  // Auth is optional for this gate: we want to enforce install on mobile web
-  // both before login and after login.
-  useAuth();
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEventLike | null>(null);
-  const [installed, setInstalled] = useState(false);
-  const [installedFlag, setInstalledFlag] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return Boolean(safeLocalStorageGet(INSTALLED_KEY));
-  });
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEventLike | null>(null);
+  const [installed, setInstalled] = useState(() => isInstalledPwa());
   const [installing, setInstalling] = useState(false);
   const [nativePromptDismissed, setNativePromptDismissed] = useState(false);
-  const [postponeUntil, setPostponeUntil] = useState<number>(() => {
-    if (typeof window === 'undefined') return 0;
-    const raw = safeLocalStorageGet(POSTPONE_UNTIL_KEY);
-    const parsed = raw ? Number(raw) : 0;
-    return Number.isFinite(parsed) ? parsed : 0;
-  });
 
-  // Don't memoize: mobile browsers can change viewport/pointer modes as the URL bar
-  // collapses, orientation changes, or "request desktop site" toggles.
   const mobileSurface = isMobileInstallSurface();
   const iosSafari = isIOSSafari();
 
   useEffect(() => {
-    setInstalled(isInstalledPwa());
     if (typeof window === 'undefined') return;
 
-    // Housekeeping: clear stale flags so users don't get permanently unblocked
-    // by accidentally tapping "already installed" or an expired postpone window.
-    try {
-      const now = Date.now();
-      const postponeRaw = safeLocalStorageGet(POSTPONE_UNTIL_KEY);
-      const postponeParsed = postponeRaw ? Number(postponeRaw) : 0;
-      const postponeTooFar = Number.isFinite(postponeParsed) && postponeParsed > now + MAX_POSTPONE_MS;
-      if (!Number.isFinite(postponeParsed) || postponeParsed <= now || postponeTooFar) {
-        safeLocalStorageRemove(POSTPONE_UNTIL_KEY);
-        setPostponeUntil(0);
-      }
-
-      const installedFlagRaw = safeLocalStorageGet(INSTALLED_KEY);
-      if (installedFlagRaw && !isInstalledPwa()) {
-        safeLocalStorageRemove(INSTALLED_KEY);
-        setInstalledFlag(false);
-      }
-    } catch {
-      // Best-effort only
-    }
-
-    // Keep postpone window in sync across tabs.
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === POSTPONE_UNTIL_KEY) {
-        const next = e.newValue ? Number(e.newValue) : 0;
-        setPostponeUntil(Number.isFinite(next) ? next : 0);
-      }
-      if (e.key === INSTALLED_KEY) {
-        setInstalledFlag(Boolean(e.newValue));
-      }
-    };
+    // Re-check installed state — covers the case where the user just installed
+    // and the component re-mounts.
+    setInstalled(isInstalledPwa());
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -128,32 +72,36 @@ export default function MobileInstallPrompt() {
     };
 
     const handleInstalled = () => {
-      safeLocalStorageSet(INSTALLED_KEY, String(Date.now()));
       setInstalled(true);
-      setInstalledFlag(true);
+    };
+
+    // Re-check on visibility change: after the user installs and opens from
+    // the home screen, the old browser tab may still be alive. When they
+    // switch back, re-evaluate.
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setInstalled(isInstalledPwa());
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleInstalled);
-    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener(
+        'beforeinstallprompt',
+        handleBeforeInstallPrompt,
+      );
       window.removeEventListener('appinstalled', handleInstalled);
-      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
-  const isPostponed =
-    typeof window !== 'undefined' ? Date.now() < postponeUntil : false;
-
+  // ── Gate logic ──
+  // Block if: mobile browser + not native app + not installed PWA
   const shouldBlock =
-    mobileSurface &&
-    !isNativeApp() &&
-    !installed &&
-    !installedFlag &&
-    !isInstalledPwa() &&
-    !isPostponed;
+    mobileSurface && !isNativeApp() && !installed && !isInstalledPwa();
 
   const debug =
     typeof window !== 'undefined' &&
@@ -168,30 +116,14 @@ export default function MobileInstallPrompt() {
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') {
-        safeLocalStorageSet(INSTALLED_KEY, String(Date.now()));
         setInstalled(true);
-        setInstalledFlag(true);
       } else {
         setNativePromptDismissed(true);
       }
     } finally {
-      // The native prompt can usually only be used once per captured event.
-      // Clear it so the UI can fall back to manual instructions.
       setDeferredPrompt(null);
       setInstalling(false);
     }
-  };
-
-  const handleAlreadyInstalled = () => {
-    safeLocalStorageSet(INSTALLED_KEY, String(Date.now()));
-    setInstalled(true);
-    setInstalledFlag(true);
-  };
-
-  const handlePostpone = (ms: number = DEFAULT_POSTPONE_MS) => {
-    const until = Date.now() + ms;
-    safeLocalStorageSet(POSTPONE_UNTIL_KEY, String(until));
-    setPostponeUntil(until);
   };
 
   return (
@@ -200,16 +132,18 @@ export default function MobileInstallPrompt() {
         <CardContent className="space-y-4 p-6">
           {debug && (
             <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-[11px] text-muted-foreground">
-              <div className="font-semibold text-foreground">PWA gate debug</div>
+              <div className="font-semibold text-foreground">
+                PWA gate debug
+              </div>
               <div className="mt-2 space-y-1 font-mono">
                 <div>shouldBlock: {String(shouldBlock)}</div>
                 <div>mobileSurface: {String(mobileSurface)}</div>
                 <div>isNativeApp: {String(isNativeApp())}</div>
                 <div>installed(state): {String(installed)}</div>
-                <div>installedFlag(storage): {String(installedFlag)}</div>
                 <div>isInstalledPwa(): {String(isInstalledPwa())}</div>
-                <div>isPostponed: {String(isPostponed)}</div>
-                <div>hasDeferredPrompt: {String(Boolean(deferredPrompt))}</div>
+                <div>
+                  hasDeferredPrompt: {String(Boolean(deferredPrompt))}
+                </div>
                 <div>iosSafari: {String(iosSafari)}</div>
               </div>
             </div>
@@ -224,49 +158,76 @@ export default function MobileInstallPrompt() {
               <Smartphone className="h-6 w-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-base font-semibold text-foreground">Install the app to continue</div>
+              <div className="text-base font-semibold text-foreground">
+                Install the app to continue
+              </div>
               <div className="text-xs text-muted-foreground">
-                On mobile this portal must be used as an installed app — please add it to your home screen.
+                On mobile this portal must be used as an installed app — please
+                add it to your home screen.
               </div>
             </div>
           </div>
 
           {iosSafari ? (
             <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-              <div className="font-semibold text-foreground">On iPhone or iPad:</div>
-              <ol className="mt-2 space-y-1 list-decimal ps-4">
-                <li>Tap the Share icon in Safari.</li>
-                <li>Choose Add to Home Screen.</li>
+              <div className="font-semibold text-foreground">
+                On iPhone or iPad:
+              </div>
+              <ol className="mt-2 list-decimal space-y-1 ps-4">
+                <li>
+                  Tap the <strong>Share</strong> icon in Safari (bottom bar).
+                </li>
+                <li>
+                  Choose <strong>Add to Home Screen</strong>.
+                </li>
                 <li>Open the app from your home screen.</li>
               </ol>
+              <p className="mt-3 text-[11px] text-muted-foreground/70">
+                This screen will disappear once you open the installed app.
+              </p>
             </div>
           ) : (
             <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
               {deferredPrompt ? (
                 nativePromptDismissed ? (
-                  'Install was dismissed. Use your browser menu to install (⋮ → Install app / Add to Home Screen), then reopen from your home screen.'
+                  <>
+                    Install was dismissed. Use your browser menu to install (⋮ →
+                    Install app / Add to Home Screen), then reopen from your
+                    home screen.
+                    <p className="mt-2 text-[11px] text-muted-foreground/70">
+                      This screen will disappear once you open the installed
+                      app.
+                    </p>
+                  </>
                 ) : (
                   'Tap Install below to add the app to your home screen.'
                 )
               ) : (
-                'If your browser does not show an install option, open this site in Chrome or your default browser and try again.'
+                <>
+                  Open your browser menu (⋮) and choose{' '}
+                  <strong>Install app</strong> or{' '}
+                  <strong>Add to Home Screen</strong>, then reopen from your
+                  home screen.
+                  <p className="mt-2 text-[11px] text-muted-foreground/70">
+                    If you don't see the option, try opening this site in Chrome
+                    or your default browser.
+                  </p>
+                </>
               )}
             </div>
           )}
 
           <div className="flex flex-col gap-2">
-            {!iosSafari && (
-              <Button className="w-full gap-2" onClick={handleInstall} disabled={!deferredPrompt || installing}>
+            {!iosSafari && deferredPrompt && !nativePromptDismissed && (
+              <Button
+                className="w-full gap-2"
+                onClick={handleInstall}
+                disabled={installing}
+              >
                 <Download className="h-4 w-4" />
-                {installing ? 'Installing...' : deferredPrompt ? 'Install' : 'Waiting for browser...'}
+                {installing ? 'Installing...' : 'Install'}
               </Button>
             )}
-            <Button variant="secondary" className="w-full" onClick={() => handlePostpone()}>
-              Remind me later
-            </Button>
-            <Button variant="outline" className="w-full" onClick={handleAlreadyInstalled}>
-              I've already installed it
-            </Button>
           </div>
         </CardContent>
       </Card>
