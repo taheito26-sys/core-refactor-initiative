@@ -184,7 +184,7 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right Panel: Sign In ── */}
-      <div className="flex-1 flex items-center justify-center bg-background p-6 lg:p-12 relative">
+      <div className="flex-1 flex flex-col items-center justify-center bg-background p-6 lg:p-12 relative overflow-y-auto">
         {/* ── Language Toggle ── */}
         <div className="absolute top-4 right-4 flex items-center gap-0.5 bg-muted rounded-full p-0.5 shadow-sm">
           <button
@@ -211,10 +211,11 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <div className="w-full max-w-sm space-y-8">
-          {/* Mobile-only: logo + portal selector */}
+        <div className="w-full max-w-sm space-y-8 flex-1 flex flex-col justify-center">
+          {/* Mobile-only: Enhanced hero section */}
           <div className="lg:hidden space-y-6">
-            <div className="flex flex-col items-center gap-3 mb-4">
+            {/* Logo */}
+            <div className="flex flex-col items-center gap-3">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(340,50%,35%)] shadow-lg">
                 <TrendingUp className="h-7 w-7 text-white" />
               </div>
@@ -224,7 +225,37 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Mobile portal selector */}
+            {/* Hero Headline & Description */}
+            <div className="text-center space-y-2">
+              <h1 className="text-2xl font-black text-foreground leading-[1.1] tracking-tight">
+                {t('qatarPowered')}
+              </h1>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {t('trustedByMerchants')}
+              </p>
+            </div>
+
+            {/* Feature Cards - Mobile Carousel Style */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.15em]">
+                {t.isRTL ? 'المميزات' : 'Features'}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { icon: BarChart3, label: t('liveMarketData') },
+                  { icon: Shield, label: t('secureMerchantNetwork') },
+                  { icon: Zap, label: t('smartFifoTracking') },
+                  { icon: Users, label: t('profitShareAuto') },
+                ].map((feat, i) => (
+                  <div key={i} className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border border-border/50">
+                    <feat.icon className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-[11px] text-muted-foreground font-medium leading-tight">{feat.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Portal Selector */}
             <div className="space-y-3">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.15em]">
                 {t.isRTL ? 'اختر البوابة' : 'Choose your portal'}
@@ -270,11 +301,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="text-center lg:text-start">
+          {/* Desktop: Welcome text */}
+          <div className="hidden lg:block text-start">
             <h2 className="text-2xl font-black text-foreground tracking-tight">{t('welcomeBack')}</h2>
             <p className="text-sm text-muted-foreground mt-1">{t('secureTrading')}</p>
           </div>
 
+          {/* Sign In Button */}
           <Button
             type="button"
             className="w-full h-12 text-sm font-semibold gap-3 rounded-xl shadow-sm"
@@ -295,9 +328,21 @@ export default function LoginPage() {
             {t('continueWithGoogle')}
           </Button>
 
+          {/* Security Badge */}
           <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground/60">
             <Shield className="h-3 w-3" />
             <span>{t.isRTL ? 'محمي بتشفير المؤسسات' : 'Protected by enterprise-grade encryption'}</span>
+          </div>
+
+          {/* Mobile-only: Made in Qatar Footer */}
+          <div className="lg:hidden flex items-center justify-center gap-2 pt-4 border-t border-border/50">
+            <div className="flex gap-1">
+              <div className="w-1.5 h-4 rounded-full bg-primary/60" />
+              <div className="w-1.5 h-4 rounded-full bg-muted-foreground/40" />
+            </div>
+            <span className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-[0.15em]">
+              {t.isRTL ? 'صُنع في قطر 🇶🇦' : 'Made in Qatar 🇶🇦'}
+            </span>
           </div>
         </div>
       </div>
