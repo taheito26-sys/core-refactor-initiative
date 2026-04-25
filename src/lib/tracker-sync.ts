@@ -7,6 +7,18 @@ import { uploadVaultBackup } from './supabase-vault';
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedJson = '';
+/**
+ * Once we've successfully read the cloud row at least once this session,
+ * the in-memory tracker state has incorporated everything cloud knew about,
+ * so persistToCloud can safely OVERWRITE the row. Before this flag flips,
+ * we still do read-merge-write so a fresh PWA with empty localStorage can't
+ * wipe the cloud by upserting an empty state.
+ *
+ * This is what makes deletes (batch removed, trade removed) propagate —
+ * without it, the read-merge-write union-by-id keeps resurrecting deleted
+ * items every time we save.
+ */
+let _cloudLoadedThisSession = false;
 let _prefTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSavedPrefs = '';
 let _lastAutoBackupTs = Date.now(); // Start from now so first backup waits 30 min
@@ -165,21 +177,24 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     cashHistory: [],
   };
 
-  // Read-merge-write: union incoming state with the current cloud row so a
-  // fresh device (iOS PWA with empty localStorage, new browser, etc.) cannot
-  // wipe data by upserting a partial/empty state. Tracker collections are
-  // additive — merging by id is always safe.
-  const { data: existingRow } = await supabase
+  // Once cloud has been loaded into memory at least once this session, the
+  // in-memory state already incorporates anything cloud had — so we can
+  // OVERWRITE the cloud row. This is what makes deletes propagate.
+  // Before that first load, we still do read-merge-write so a fresh device
+  // (iOS PWA with empty localStorage) can't wipe cloud by upserting empty.
+  let merged: TrackerState = stripped;
+  if (!_cloudLoadedThisSession) {
+    const { data: existingRow } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('tracker_snapshots' as any)
+      .select('state')
+      .eq('user_id', user.id)
+      .maybeSingle();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from('tracker_snapshots' as any)
-    .select('state')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const existingState = (existingRow as any)?.state as Partial<TrackerState> | null;
+    const existingState = (existingRow as any)?.state as Partial<TrackerState> | null;
 
-  const merged: TrackerState = existingState && typeof existingState === 'object'
-    ? {
+    if (existingState && typeof existingState === 'object') {
+      merged = {
         ...existingState,
         ...stripped,
         batches: mergeArrayById(existingState.batches, stripped.batches),
@@ -189,11 +204,12 @@ async function persistToCloud(state: TrackerState): Promise<void> {
           (existingState as Partial<TrackerState>).suppliers,
           stripped.suppliers,
         ),
-        cashAccounts: mergeArrayById(existingState.cashAccounts, stripped.cashAccounts),
-        cashLedger: mergeArrayById(existingState.cashLedger, stripped.cashLedger),
-        cashHistory: mergeArrayById(existingState.cashHistory, stripped.cashHistory),
-      } as TrackerState
-    : stripped;
+        cashAccounts: [],
+        cashLedger: [],
+        cashHistory: [],
+      } as TrackerState;
+    }
+  }
 
   const json = stateToJson(merged);
   if (!json || json === _lastSavedJson) return;
@@ -265,6 +281,12 @@ export async function saveTrackerStateNow(state: TrackerState): Promise<void> {
 export async function loadTrackerStateFromCloud(): Promise<Partial<TrackerState> | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
+  // Mark cloud as loaded for this session so subsequent saves overwrite
+  // (deletes propagate) instead of read-merge-write (deletes resurrected).
+  // We set this even if the row turns out to be empty — what matters is
+  // that we successfully reached cloud, not that there was data there.
+  _cloudLoadedThisSession = true;
 
   const { data: myMerchantProfile } = await supabase
     .from('merchant_profiles')
