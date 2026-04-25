@@ -21,18 +21,19 @@ function extractIntermediary(rawLine: string, normalized: string): string | null
 }
 
 function findRate(normalized: string): number | null {
-  const matches = normalized.match(/\d+(?:\.\d+)?/g) || [];
+  const matches = normalized.match(/\d+(?:[.,]\d+)?/g) || [];
   for (const part of matches) {
-    const num = Number.parseFloat(part);
-    if (num >= 3.5 && num <= 4.0 && part.includes('.')) return num;
+    const normalizedPart = part.replace(',', '.');
+    const num = Number.parseFloat(normalizedPart);
+    if (num >= 3.5 && num <= 4.0 && (normalizedPart.includes('.') || part.includes(','))) return num;
   }
   return null;
 }
 
 function findQarAmount(normalized: string): number | null {
-  const qarMatch = normalized.match(/(?:يساوي|=|او|ريال)\s*(\d{1,9})/);
+  const qarMatch = normalized.match(/(?:يساوي|=|او|ريال)\s*([\d,]{1,12})/);
   if (!qarMatch?.[1]) return null;
-  const n = Number.parseInt(qarMatch[1], 10);
+  const n = Number.parseInt(qarMatch[1].replace(/,/g, ''), 10);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -42,8 +43,8 @@ function findUsdtAmount(normalized: string, qarAmount: number | null): number | 
   const candidates: Array<{ value: number; distance: number }> = [];
 
   tokens.forEach((token, idx) => {
-    if (!/^\d+$/.test(token)) return;
-    const value = Number.parseInt(token, 10);
+    if (!/^\d{1,3}(?:,\d{3})*$/.test(token) && !/^\d+$/.test(token)) return;
+    const value = Number.parseInt(token.replace(/,/g, ''), 10);
     if (value < 1 || value > 1_000_000) return;
     if (qarAmount != null && value === qarAmount) return;
 
@@ -110,7 +111,9 @@ export function classifyLedgerLine(rawLine: string, lineIndex: number, ctx: Ledg
   }
 
   const confidence = Math.max(0.3, 0.92 - (ctx.confidencePenalty ?? 0));
-  const computedQarAmount = qarAmount ?? Number.parseFloat((usdtAmount * rate).toFixed(2));
+  // For QAR, users usually expect whole numbers from screenshots/ledgers.
+  // If the line didn't explicitly include a QAR total, round to nearest QAR.
+  const computedQarAmount = qarAmount ?? Math.round(usdtAmount * rate);
   const needsReview = confidence < 0.7;
 
   return {

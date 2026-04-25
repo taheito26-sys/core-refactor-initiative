@@ -67,6 +67,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   const [derived, setDerived] = useState<DerivedState>(initial.derived);
   const stateRef = useRef(state);
   const cashSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cashCommitInFlightUntilRef = useRef<number>(0);
 
   const applyState = useCallback((next: TrackerState) => {
     // In admin preloaded mode, don't persist
@@ -113,7 +114,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // Write to DB FIRST — if this throws, React state is not mutated.
     await saveTrackerStateNow(next);
     // Always reconcile cash tables (including empty) so deletes propagate.
+    cashCommitInFlightUntilRef.current = Date.now() + 5000;
     await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
+    cashCommitInFlightUntilRef.current = 0;
 
     // Server acknowledged — now update UI.
     setState(next);
@@ -171,6 +174,20 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // even when both arrays are empty — so a clear on one device propagates.
       const cashData = await loadCashFromCloud();
       if (cashData) {
+        // Race guard: tracker_snapshots realtime can trigger refreshFromCloud
+        // before saveCashToCloud completes. In that window, cloud cash tables
+        // may still be empty and would incorrectly wipe the local cash UI.
+        // If local has data and cloud returns empty, keep local until the next refresh.
+        const localHasCash =
+          (stateRef.current.cashAccounts?.length ?? 0) > 0 ||
+          (stateRef.current.cashLedger?.length ?? 0) > 0;
+        const cloudEmpty =
+          (cashData.accounts?.length ?? 0) === 0 &&
+          (cashData.ledger?.length ?? 0) === 0;
+        const inFlight = cashCommitInFlightUntilRef.current > Date.now();
+        if (inFlight && localHasCash && cloudEmpty) {
+          return;
+        }
         setState(prev => {
           const next = {
             ...prev,

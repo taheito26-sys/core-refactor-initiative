@@ -268,7 +268,7 @@ export default function OrdersImportLedgerPage() {
           deal_type: 'investment',
           title: `Ledger Import · USDT ${row.usdtAmount} @ ${row.rate}`,
           amount: row.computedQarAmount || 0,
-          currency: 'USDT',
+          currency: 'QAR',
           status: 'pending',
           created_by: userId,
           notes: [
@@ -292,6 +292,9 @@ export default function OrdersImportLedgerPage() {
             intermediary: row.intermediary,
             parse_confidence: row.confidence,
             direction: row.direction,
+            usdt_amount: row.usdtAmount,
+            rate: row.rate,
+            computed_qar_amount: row.computedQarAmount,
             uploader_user_id: row.uploaderUserId,
             counterparty_merchant_id: row.selectedMerchantId,
             counterparty_merchant_name: row.selectedMerchantName,
