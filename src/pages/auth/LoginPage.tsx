@@ -52,29 +52,39 @@ export default function LoginPage() {
     <div className="flex min-h-screen" dir={t.isRTL ? 'rtl' : 'ltr'}>
       {/* ── Left Panel: Qatar Culture Hero ── */}
       <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden">
-        <div className="absolute inset-0 bg-[hsl(340,30%,8%)]" />
+        <div className="absolute inset-0 bg-[#1a1410]" />
         <div
           className="absolute inset-0"
           style={{
             background: `
-              radial-gradient(ellipse 80% 60% at 20% 80%, hsl(340 60% 20% / 0.4), transparent),
-              radial-gradient(ellipse 60% 50% at 80% 20%, hsl(35 80% 30% / 0.3), transparent),
-              radial-gradient(ellipse 40% 40% at 50% 50%, hsl(0 0% 100% / 0.02), transparent)
+              radial-gradient(ellipse 80% 60% at 20% 80%, hsl(35 80% 25% / 0.3), transparent),
+              radial-gradient(ellipse 60% 50% at 80% 20%, hsl(35 70% 20% / 0.2), transparent),
+              radial-gradient(ellipse 40% 40% at 50% 50%, hsl(0 0% 100% / 0.01), transparent)
             `,
           }}
         />
-        <div className="absolute inset-0 opacity-[0.04]" style={{
+        <div className="absolute inset-0 opacity-[0.03]" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
         }} />
 
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(35,70%,40%)] shadow-lg shadow-[hsl(35,80%,55%)]/20">
-              <TrendingUp className="h-6 w-6 text-white" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#d4af37] to-[#aa8c2c]">
+              <svg className="h-8 w-8" viewBox="0 0 100 100" fill="none">
+                <defs>
+                  <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style={{stopColor: '#ffd700', stopOpacity: 1}} />
+                    <stop offset="100%" style={{stopColor: '#d4af37', stopOpacity: 1}} />
+                  </linearGradient>
+                </defs>
+                <circle cx="50" cy="50" r="48" fill="none" stroke="url(#goldGrad)" strokeWidth="2"/>
+                <path d="M 35 45 Q 40 35 50 30 Q 60 35 65 45 L 70 55 Q 65 65 50 70 Q 35 65 30 55 Z" fill="url(#goldGrad)"/>
+                <path d="M 45 50 Q 50 45 55 50 Q 50 55 45 50" fill="url(#goldGrad)"/>
+              </svg>
             </div>
             <div>
               <div className="text-white font-black text-lg tracking-tight">TRACKER</div>
-              <div className="text-[hsl(35,60%,65%)] text-[10px] font-semibold uppercase tracking-[0.2em]">P2P Intelligence</div>
+              <div className="text-[#d4af37] text-[10px] font-semibold uppercase tracking-[0.2em]">P2P Intelligence</div>
             </div>
           </div>
 
@@ -88,23 +98,9 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 max-w-md">
-              {[
-                { icon: BarChart3, label: t('liveMarketData') },
-                { icon: Shield, label: t('secureMerchantNetwork') },
-                { icon: Zap, label: t('smartFifoTracking') },
-                { icon: Users, label: t('profitShareAuto') },
-              ].map((feat, i) => (
-                <div key={i} className="flex items-center gap-2.5 p-3 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-                  <feat.icon className="h-4 w-4 text-[hsl(35,80%,60%)] shrink-0" />
-                  <span className="text-[11px] text-white/70 font-medium leading-tight">{feat.label}</span>
-                </div>
-              ))}
-            </div>
-
             {/* ── Portal Selector ── */}
             <div className="max-w-md space-y-3 pt-2">
-              <p className="text-[10px] font-semibold text-[hsl(35,60%,65%)] uppercase tracking-[0.15em]">
+              <p className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-[0.15em]">
                 {t.isRTL ? 'اختر البوابة' : 'Choose your portal'}
               </p>
               <div className="grid grid-cols-2 gap-3">
@@ -114,22 +110,22 @@ export default function LoginPage() {
                   className={cn(
                     'flex flex-col items-center gap-2 rounded-xl border p-5 transition-all duration-200',
                     selectedRole === 'merchant'
-                      ? 'border-[hsl(35,80%,55%)] bg-[hsl(35,80%,55%)]/10 shadow-lg shadow-[hsl(35,80%,55%)]/10'
+                      ? 'border-[#d4af37] bg-[#d4af37]/10 shadow-lg shadow-[#d4af37]/10'
                       : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
                   )}
                 >
                   <div className={cn(
                     'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                    selectedRole === 'merchant' ? 'bg-[hsl(35,80%,55%)]/20' : 'bg-white/[0.06]'
+                    selectedRole === 'merchant' ? 'bg-[#d4af37]/20' : 'bg-white/[0.06]'
                   )}>
                     <Store className={cn(
                       'h-5 w-5 transition-colors',
-                      selectedRole === 'merchant' ? 'text-[hsl(35,80%,55%)]' : 'text-white/40'
+                      selectedRole === 'merchant' ? 'text-[#d4af37]' : 'text-white/40'
                     )} />
                   </div>
                   <span className={cn(
                     'text-sm font-bold transition-colors',
-                    selectedRole === 'merchant' ? 'text-[hsl(35,80%,55%)]' : 'text-white/60'
+                    selectedRole === 'merchant' ? 'text-[#d4af37]' : 'text-white/60'
                   )}>
                     {t.isRTL ? 'تاجر' : 'Merchant'}
                   </span>
@@ -144,22 +140,22 @@ export default function LoginPage() {
                   className={cn(
                     'flex flex-col items-center gap-2 rounded-xl border p-5 transition-all duration-200',
                     selectedRole === 'customer'
-                      ? 'border-[hsl(35,80%,55%)] bg-[hsl(35,80%,55%)]/10 shadow-lg shadow-[hsl(35,80%,55%)]/10'
+                      ? 'border-[#d4af37] bg-[#d4af37]/10 shadow-lg shadow-[#d4af37]/10'
                       : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
                   )}
                 >
                   <div className={cn(
                     'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-                    selectedRole === 'customer' ? 'bg-[hsl(35,80%,55%)]/20' : 'bg-white/[0.06]'
+                    selectedRole === 'customer' ? 'bg-[#d4af37]/20' : 'bg-white/[0.06]'
                   )}>
                     <User className={cn(
                       'h-5 w-5 transition-colors',
-                      selectedRole === 'customer' ? 'text-[hsl(35,80%,55%)]' : 'text-white/40'
+                      selectedRole === 'customer' ? 'text-[#d4af37]' : 'text-white/40'
                     )} />
                   </div>
                   <span className={cn(
                     'text-sm font-bold transition-colors',
-                    selectedRole === 'customer' ? 'text-[hsl(35,80%,55%)]' : 'text-white/60'
+                    selectedRole === 'customer' ? 'text-[#d4af37]' : 'text-white/60'
                   )}>
                     {t.isRTL ? 'عميل' : 'Customer'}
                   </span>
@@ -173,7 +169,7 @@ export default function LoginPage() {
 
           <div className="flex items-center gap-3">
             <div className="flex gap-1">
-              <div className="w-1.5 h-6 rounded-full bg-[hsl(340,60%,35%)]" />
+              <div className="w-1.5 h-6 rounded-full bg-[#d4af37]" />
               <div className="w-1.5 h-6 rounded-full bg-white/80" />
             </div>
             <span className="text-[10px] text-white/30 font-semibold uppercase tracking-[0.15em]">
@@ -216,8 +212,18 @@ export default function LoginPage() {
           <div className="lg:hidden space-y-6">
             {/* Logo */}
             <div className="flex flex-col items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[hsl(35,80%,55%)] to-[hsl(340,50%,35%)] shadow-lg">
-                <TrendingUp className="h-7 w-7 text-white" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#d4af37] to-[#aa8c2c]">
+                <svg className="h-10 w-10" viewBox="0 0 100 100" fill="none">
+                  <defs>
+                    <linearGradient id="goldGradMobile" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" style={{stopColor: '#ffd700', stopOpacity: 1}} />
+                      <stop offset="100%" style={{stopColor: '#d4af37', stopOpacity: 1}} />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="50" cy="50" r="48" fill="none" stroke="url(#goldGradMobile)" strokeWidth="2"/>
+                  <path d="M 35 45 Q 40 35 50 30 Q 60 35 65 45 L 70 55 Q 65 65 50 70 Q 35 65 30 55 Z" fill="url(#goldGradMobile)"/>
+                  <path d="M 45 50 Q 50 45 55 50 Q 50 55 45 50" fill="url(#goldGradMobile)"/>
+                </svg>
               </div>
               <div className="text-center">
                 <div className="text-xl font-black text-foreground tracking-tight">TRACKER</div>
@@ -225,34 +231,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Hero Headline & Description */}
-            <div className="text-center space-y-2">
+            {/* Headline */}
+            <div className="text-center">
               <h1 className="text-2xl font-black text-foreground leading-[1.1] tracking-tight">
                 {t('qatarPowered')}
               </h1>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {t('trustedByMerchants')}
-              </p>
-            </div>
-
-            {/* Feature Cards - Mobile Carousel Style */}
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.15em]">
-                {t.isRTL ? 'المميزات' : 'Features'}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { icon: BarChart3, label: t('liveMarketData') },
-                  { icon: Shield, label: t('secureMerchantNetwork') },
-                  { icon: Zap, label: t('smartFifoTracking') },
-                  { icon: Users, label: t('profitShareAuto') },
-                ].map((feat, i) => (
-                  <div key={i} className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border border-border/50">
-                    <feat.icon className="h-4 w-4 text-primary shrink-0" />
-                    <span className="text-[11px] text-muted-foreground font-medium leading-tight">{feat.label}</span>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Portal Selector */}
@@ -275,9 +258,6 @@ export default function LoginPage() {
                   <span className={cn('text-sm font-bold', selectedRole === 'merchant' ? 'text-primary' : 'text-muted-foreground')}>
                     {t.isRTL ? 'تاجر' : 'Merchant'}
                   </span>
-                  <span className="text-[10px] text-muted-foreground leading-tight text-center">
-                    {t.isRTL ? 'تداول وإدارة المخزون' : 'Trade & manage stock'}
-                  </span>
                 </button>
                 <button
                   type="button"
@@ -292,9 +272,6 @@ export default function LoginPage() {
                   <User className={cn('h-5 w-5', selectedRole === 'customer' ? 'text-primary' : 'text-muted-foreground')} />
                   <span className={cn('text-sm font-bold', selectedRole === 'customer' ? 'text-primary' : 'text-muted-foreground')}>
                     {t.isRTL ? 'عميل' : 'Customer'}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground leading-tight text-center">
-                    {t.isRTL ? 'شراء وبيع مع التجار' : 'Buy & sell with merchants'}
                   </span>
                 </button>
               </div>
