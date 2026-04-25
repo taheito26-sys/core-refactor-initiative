@@ -6,8 +6,10 @@ import {
   hasTrackerItems,
   clearTrackerClearGuard,
   clearTrackerDataCleared,
+  bumpTrackerWriteGeneration,
   isTrackerClearInProgress,
   isTrackerDataCleared,
+  getTrackerWriteGeneration,
 } from './tracker-backup';
 import type { TrackerState } from './tracker-helpers';
 import { uploadVaultBackup } from './supabase-vault';
@@ -114,6 +116,8 @@ export interface SaveTrackerStateOptions {
    * clear/reset action.
    */
   allowDuringClear?: boolean;
+  /** Internal monotonic token attached to every state write. */
+  writeGeneration?: number;
 }
 
 function mergeArrayById<T>(base: T[] | undefined, incoming: T[] | undefined): T[] {
@@ -191,6 +195,9 @@ async function ensureRow(userId: string): Promise<void> {
 async function persistToCloud(state: TrackerState, options: SaveTrackerStateOptions = {}): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
+  if (options.writeGeneration !== undefined && options.writeGeneration !== getTrackerWriteGeneration()) {
+    return;
+  }
 
   // Strip foreign-origin ids so this user's row only ever contains rows
   // authored (or owned) by this user. Prevents merchant-wide cross-pollution.
@@ -242,16 +249,17 @@ async function persistToCloud(state: TrackerState, options: SaveTrackerStateOpti
   const json = stateToJson(merged);
   if (!json || json === _lastSavedJson) return;
 
-  const { error } = await supabase
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from('tracker_snapshots' as any)
-    .upsert(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { user_id: user.id, state: merged as any, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' }
-    );
+  const { data, error } = await supabase.rpc('save_tracker_snapshot_if_newer', {
+    _user_id: user.id,
+    _state: merged,
+    _updated_at: new Date().toISOString(),
+    _write_generation: options.writeGeneration ?? 0,
+  });
 
   if (!error) {
+    if (data === false) {
+      return;
+    }
     _lastSavedJson = json;
 
     // Auto-backup to vault storage — only when data actually changed AND throttled to 30 min
@@ -295,13 +303,14 @@ export function saveTrackerState(state: TrackerState): void {
     }
     return;
   }
+  const writeGeneration = bumpTrackerWriteGeneration();
   const preserveDataCleared = !hasTrackerItems(state);
   persistToLocal(state, { preserveDataCleared });
   clearTrackerClearGuard();
 
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    persistToCloud(state).catch((err) => {
+    persistToCloud(state, { writeGeneration }).catch((err) => {
       console.warn('[tracker-sync] debounced cloud save failed:', err);
     });
   }, 2000);
@@ -316,6 +325,7 @@ export async function saveTrackerStateNow(state: TrackerState, options: SaveTrac
   if (options.allowDuringClear && !isExplicitClearPayload(state)) {
     return;
   }
+  const writeGeneration = bumpTrackerWriteGeneration();
   const preserveDataCleared = options.preserveDataCleared ?? !hasTrackerItems(state);
   persistToLocal(state, { preserveDataCleared });
   if (options.replaceExisting) {
@@ -325,7 +335,7 @@ export async function saveTrackerStateNow(state: TrackerState, options: SaveTrac
   } else {
     clearTrackerClearGuard();
   }
-  await persistToCloud(state, options);
+  await persistToCloud(state, { ...options, writeGeneration });
 }
 
 /** Load tracker state from cloud, returning null if none found */

@@ -2,16 +2,16 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { saveTrackerState, saveTrackerStateNow } from '@/lib/tracker-sync';
 import { activateTrackerClearBarrier } from '@/lib/tracker-backup';
 
-const { authGetUserMock, selectMock, upsertMock, deleteMock, deleteEqMock, eqMock, fromMock } = vi.hoisted(() => {
-  const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
+const { authGetUserMock, selectMock, rpcMock, deleteMock, deleteEqMock, eqMock, fromMock } = vi.hoisted(() => {
+  const rpcMock = vi.fn().mockResolvedValue({ data: true, error: null });
   const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const eqMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
   const selectMock = vi.fn(() => ({ eq: eqMock }));
   const deleteEqMock = vi.fn().mockResolvedValue({ data: null, error: null });
   const deleteMock = vi.fn(() => ({ eq: deleteEqMock }));
-  const fromMock = vi.fn(() => ({ select: selectMock, upsert: upsertMock, delete: deleteMock }));
+  const fromMock = vi.fn(() => ({ select: selectMock, delete: deleteMock }));
   const authGetUserMock = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  return { authGetUserMock, selectMock, upsertMock, deleteMock, deleteEqMock, eqMock, fromMock };
+  return { authGetUserMock, selectMock, rpcMock, deleteMock, deleteEqMock, eqMock, fromMock };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -19,6 +19,7 @@ vi.mock('@/integrations/supabase/client', () => ({
     auth: {
       getUser: authGetUserMock,
     },
+    rpc: rpcMock,
     from: fromMock,
   },
 }));
@@ -52,12 +53,13 @@ describe('saveTrackerStateNow', () => {
     expect(selectMock).not.toHaveBeenCalled();
     expect(deleteMock).toHaveBeenCalledTimes(2);
     expect(deleteEqMock).toHaveBeenCalledWith('user_id', 'user-1');
-    expect(upsertMock).toHaveBeenCalledWith(
+    expect(rpcMock).toHaveBeenCalledWith(
+      'save_tracker_snapshot_if_newer',
       expect.objectContaining({
-        user_id: 'user-1',
-        state: emptyState,
+        _user_id: 'user-1',
+        _state: emptyState,
+        _write_generation: expect.any(Number),
       }),
-      expect.any(Object),
     );
     expect(localStorage.getItem('tracker_state')).toBe(JSON.stringify(emptyState));
   });
@@ -111,12 +113,12 @@ describe('saveTrackerStateNow', () => {
       allowDuringClear: true,
     });
 
-    expect(upsertMock).toHaveBeenCalledWith(
+    expect(rpcMock).toHaveBeenCalledWith(
+      'save_tracker_snapshot_if_newer',
       expect.objectContaining({
-        user_id: 'user-1',
-        state: emptyState,
+        _user_id: 'user-1',
+        _state: emptyState,
       }),
-      expect.any(Object),
     );
     expect(localStorage.getItem('tracker_data_cleared')).toBe('true');
   });
@@ -146,12 +148,12 @@ describe('saveTrackerStateNow', () => {
       allowDuringClear: true,
     });
 
-    expect(upsertMock).not.toHaveBeenCalledWith(
+    expect(rpcMock).not.toHaveBeenCalledWith(
+      'save_tracker_snapshot_if_newer',
       expect.objectContaining({
-        user_id: 'user-1',
-        state: partialState,
+        _user_id: 'user-1',
+        _state: partialState,
       }),
-      expect.any(Object),
     );
   });
 
@@ -198,12 +200,12 @@ describe('saveTrackerStateNow', () => {
 
     await saveTrackerStateNow(dirtyState as never, { replaceExisting: true });
 
-    expect(upsertMock).not.toHaveBeenCalledWith(
+    expect(rpcMock).not.toHaveBeenCalledWith(
+      'save_tracker_snapshot_if_newer',
       expect.objectContaining({
-        user_id: 'user-1',
-        state: dirtyState,
+        _user_id: 'user-1',
+        _state: dirtyState,
       }),
-      expect.any(Object),
     );
   });
 });
