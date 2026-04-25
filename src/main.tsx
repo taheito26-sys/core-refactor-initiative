@@ -44,30 +44,12 @@ async function applyBuildDriftRecovery(): Promise<boolean> {
 // full page reload so the current tab starts running the new bundle instead
 // of the stale precached one. Without this, installed PWAs on iOS/Android
 // keep running old JS indefinitely and miss critical data-sync fixes.
-// Guard: skip if build-drift recovery already triggered a reload this session.
 if (typeof window !== "undefined" && "serviceWorker" in navigator) {
   let reloadedForSwSwap = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (reloadedForSwSwap) return;
-    // If build-drift recovery already set the reload guard, skip — it will
-    // reload the page itself. This prevents a double-reload race.
-    const buildReloadGuard = sessionStorage.getItem("__app_build_reload_guard__");
-    if (buildReloadGuard) return;
     reloadedForSwSwap = true;
     window.location.reload();
-  });
-
-  // Proactively check for SW updates on visibility change (mobile PWA resumes
-  // from background with a stale SW). This ensures mobile and desktop both
-  // pick up new deployments at the same speed.
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      navigator.serviceWorker.getRegistrations().then((regs) => {
-        for (const reg of regs) {
-          reg.update().catch(() => {});
-        }
-      });
-    }
   });
 }
 
