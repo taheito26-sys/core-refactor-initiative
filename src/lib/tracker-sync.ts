@@ -259,13 +259,25 @@ async function persistToCloud(state: TrackerState, options: SaveTrackerStateOpti
   if (!json || json === _lastSavedJson) return;
   const isCleared = Boolean(options.allowDuringClear && isExplicitClearPayload(merged));
 
-  const { data, error } = await supabase.rpc('save_tracker_snapshot_if_newer', {
+  let { data, error } = await supabase.rpc('save_tracker_snapshot_if_newer', {
     _user_id: user.id,
     _state: merged,
     _updated_at: new Date().toISOString(),
     _write_generation: options.writeGeneration ?? 0,
     _is_cleared: isCleared,
   });
+
+  if (error && /save_tracker_snapshot_if_newer|write_generation|is_cleared|column .* does not exist|function .* does not exist/i.test(error.message)) {
+    const fallback = await (supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('tracker_snapshots' as any) as any)
+      .upsert(
+        { user_id: user.id, state: merged, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
+    error = fallback.error ?? null;
+    data = fallback.error ? null : true;
+  }
 
   if (!error) {
     if (data === false) {
@@ -377,7 +389,7 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
     const { data, error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
-      .select('state, updated_at, user_id, is_cleared, write_generation')
+      .select('*')
       .in('user_id', merchantUserIds.length ? merchantUserIds : [user.id]);
     if (!error && data) {
       const rows = data as unknown as TrackerSnapshotRow[];
@@ -428,7 +440,7 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
     const { data, error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('tracker_snapshots' as any)
-      .select('state, updated_at, is_cleared, write_generation')
+      .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
     if (!error && data) {
