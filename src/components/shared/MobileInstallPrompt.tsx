@@ -55,6 +55,25 @@ export default function MobileInstallPrompt() {
     setInstalled(isInstalledPwa());
     if (typeof window === 'undefined') return;
 
+    // Housekeeping: clear stale flags so users don't get permanently unblocked
+    // by accidentally tapping "already installed" or an expired postpone window.
+    try {
+      const now = Date.now();
+      const postponeRaw = window.localStorage.getItem(POSTPONE_UNTIL_KEY);
+      const postponeParsed = postponeRaw ? Number(postponeRaw) : 0;
+      if (!Number.isFinite(postponeParsed) || postponeParsed <= now) {
+        window.localStorage.removeItem(POSTPONE_UNTIL_KEY);
+        setPostponeUntil(0);
+      }
+
+      const installedFlagRaw = window.localStorage.getItem(INSTALLED_KEY);
+      if (installedFlagRaw && !isInstalledPwa()) {
+        window.localStorage.removeItem(INSTALLED_KEY);
+      }
+    } catch {
+      // Best-effort only
+    }
+
     // Keep postpone window in sync across tabs.
     const handleStorage = (e: StorageEvent) => {
       if (e.key !== POSTPONE_UNTIL_KEY) return;
