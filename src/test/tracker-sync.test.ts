@@ -60,4 +60,28 @@ describe('saveTrackerStateNow', () => {
     );
     expect(localStorage.getItem('tracker_state')).toBe(JSON.stringify(emptyState));
   });
+
+  it('keeps the persistent cleared-data marker during destructive clears', async () => {
+    const emptyState = {
+      batches: [],
+      trades: [],
+      customers: [],
+      suppliers: [],
+      cashQAR: 0,
+      cashOwner: '',
+      cashHistory: [],
+      cashAccounts: [],
+      cashLedger: [],
+      currency: 'QAR',
+      range: '7d',
+      settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 },
+      cal: { year: 2026, month: 3, selectedDay: null },
+    };
+
+    localStorage.setItem('tracker_data_cleared', 'true');
+
+    await saveTrackerStateNow(emptyState, { replaceExisting: true, preserveDataCleared: true });
+
+    expect(localStorage.getItem('tracker_data_cleared')).toBe('true');
+  });
 });

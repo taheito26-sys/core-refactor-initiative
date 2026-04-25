@@ -15,10 +15,12 @@ import { localCur } from '@/lib/currency-locale';
 import { useTheme } from '@/lib/theme-context';
 import {
   clearTrackerStorage,
+  clearTrackerDataCleared,
   findTrackerStorageKey,
   getCurrentTrackerState,
   hasMeaningfulTrackerData,
   markTrackerClearInProgress,
+  markTrackerDataCleared,
   loadAutoBackupFromStorage,
   normalizeImportedTrackerState,
   saveAutoBackupToStorage,
@@ -251,7 +253,7 @@ export default function VaultPage() {
     if (!snap?.state) { toast.error(t.lang === 'ar' ? 'النسخة غير موجودة' : 'Snapshot not found'); return; }
     try {
       const sk = findTrackerStorageKey(localStorage);
-      localStorage.removeItem('tracker_data_cleared');
+      clearTrackerDataCleared(localStorage);
       localStorage.setItem(sk, JSON.stringify(snap.state));
       await saveTrackerStateNow(snap.state as unknown as TrackerState, { replaceExisting: true });
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة' : '✓ Restored from local snapshot');
@@ -313,7 +315,7 @@ export default function VaultPage() {
       const state = await downloadVaultBackup(userId, fileName);
       if (!state) { toast.error(t.lang === 'ar' ? 'لا يوجد محتوى' : 'No backup content'); return; }
       const sk = findTrackerStorageKey(localStorage);
-      localStorage.removeItem('tracker_data_cleared');
+      clearTrackerDataCleared(localStorage);
       localStorage.setItem(sk, JSON.stringify(state));
       await saveTrackerStateNow(state as unknown as TrackerState, { replaceExisting: true });
       toast.success(t.lang === 'ar' ? '✓ تمت الاستعادة من السحابة' : '✓ Restored from cloud');
@@ -663,7 +665,7 @@ export default function VaultPage() {
           return;
         }
         const sk = findTrackerStorageKey(localStorage);
-        localStorage.removeItem('tracker_data_cleared');
+        clearTrackerDataCleared(localStorage);
         localStorage.setItem(sk, JSON.stringify(normalized));
         void saveTrackerStateNow(normalized as unknown as TrackerState, { replaceExisting: true });
         setImportStatus('success');
@@ -690,11 +692,11 @@ export default function VaultPage() {
   const clearAll = async () => {
     if (!confirm(t.lang === 'ar' ? '⚠ مسح جميع البيانات؟ لا يمكن التراجع إلا إذا كان لديك نسخة احتياطية.' : '⚠ Clear ALL data? This cannot be undone unless you have a backup.')) return;
     clearTrackerStorage(localStorage);
-    localStorage.setItem('tracker_data_cleared', 'true');
+    markTrackerDataCleared(localStorage);
     markTrackerClearInProgress();
     await clearTrackerVaultDb();
     const emptyState = { batches: [], trades: [], customers: [], suppliers: [], cashQAR: 0, cashOwner: '', cashHistory: [], cashAccounts: [], cashLedger: [], currency: 'QAR', range: '7d', settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 }, cal: { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null } };
-    void saveTrackerStateNow(emptyState as unknown as TrackerState, { replaceExisting: true });
+    void saveTrackerStateNow(emptyState as unknown as TrackerState, { replaceExisting: true, preserveDataCleared: true });
     toast.success(t.lang === 'ar' ? 'تم مسح البيانات — جاري إعادة التحميل…' : 'Data cleared — reloading…');
     setTimeout(() => window.location.reload(), 500);
   };

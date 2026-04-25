@@ -2,11 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 
 import {
   clearTrackerClearGuard,
+  clearTrackerDataCleared,
   findTrackerStorageKey,
   getCurrentTrackerState,
   hasMeaningfulTrackerData,
   isTrackerClearInProgress,
+  isTrackerDataCleared,
   markTrackerClearInProgress,
+  markTrackerDataCleared,
   normalizeImportedTrackerState,
 } from '@/lib/tracker-backup';
 import { mergeLocalAndCloud } from '@/lib/tracker-state';
@@ -22,6 +25,18 @@ describe('tracker backup state detection', () => {
 
     clearTrackerClearGuard();
     expect(isTrackerClearInProgress()).toBe(false);
+  });
+
+  it('tracks the persistent cleared-data marker separately from the session guard', () => {
+    localStorage.clear();
+
+    expect(isTrackerDataCleared()).toBe(false);
+
+    markTrackerDataCleared();
+    expect(isTrackerDataCleared()).toBe(true);
+
+    clearTrackerDataCleared();
+    expect(isTrackerDataCleared()).toBe(false);
   });
 
   it('expires the clear guard after its TTL', () => {

@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { CashAccount, CashLedgerEntry } from './tracker-helpers';
-import { isTrackerClearInProgress } from './tracker-backup';
+import { isTrackerClearInProgress, isTrackerDataCleared } from './tracker-backup';
 
 const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   opening: 'opening',
@@ -179,7 +179,7 @@ export async function loadCashFromCloud(): Promise<{
   accounts: CashAccount[];
   ledger: CashLedgerEntry[];
 } | null> {
-  if (isTrackerClearInProgress()) return null;
+  if (isTrackerClearInProgress() || isTrackerDataCleared()) return null;
   const {
     data: { user },
   } = await supabase.auth.getUser();
