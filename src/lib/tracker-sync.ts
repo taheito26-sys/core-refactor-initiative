@@ -362,6 +362,7 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
     .maybeSingle();
 
   let cloudState: Partial<TrackerState> | null = null;
+  let cloudWriteGeneration = 0;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const merchantId = (myMerchantProfile as any)?.merchant_id as string | undefined;
 
@@ -417,6 +418,11 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
       }
       const merged = mergeTrackerStatesForMerchant(rows);
       cloudState = merged as Partial<TrackerState> | null;
+
+      const ownRow = rows.find((r) => r.user_id === user.id);
+      if (ownRow) {
+        cloudWriteGeneration = Number(ownRow.write_generation || 0);
+      }
     }
   } else {
     const { data, error } = await supabase
@@ -437,6 +443,7 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
         };
       }
       cloudState = row.state as Partial<TrackerState> | null;
+      cloudWriteGeneration = Number(row.write_generation || 0);
     }
   }
 
@@ -450,7 +457,7 @@ export async function loadTrackerStateFromCloud(): Promise<CloudTrackerSnapshot 
   return {
     state: cloudState,
     cleared: false,
-    writeGeneration: 0,
+    writeGeneration: cloudWriteGeneration,
   };
 }
 

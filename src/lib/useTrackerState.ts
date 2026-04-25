@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
 import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-state';
 import { saveTrackerState, saveTrackerStateNow, loadTrackerStateFromCloud } from './tracker-sync';
-import { getCurrentTrackerState, getTrackerWriteGeneration, isTrackerDataCleared, activateTrackerClearBarrier } from './tracker-backup';
+import { getCurrentTrackerState, getTrackerWriteGeneration, isTrackerDataCleared, activateTrackerClearBarrier, syncTrackerWriteGenerationToAtLeast } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
@@ -188,10 +188,14 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   // state. Used both on initial mount and on realtime postgres_changes events
   // so desktop mutations appear on mobile (and vice versa) without reload.
   const refreshFromCloud = useCallback(async () => {
-    const requestGeneration = getTrackerWriteGeneration();
+    let requestGeneration = getTrackerWriteGeneration();
     try {
       const cloudSnapshot = await loadTrackerStateFromCloud();
       if (requestGeneration !== getTrackerWriteGeneration()) return;
+      if (cloudSnapshot?.writeGeneration) {
+        const synced = syncTrackerWriteGenerationToAtLeast(cloudSnapshot.writeGeneration);
+        requestGeneration = synced;
+      }
       if (cloudSnapshot?.cleared) {
         activateTrackerClearBarrier(window.localStorage);
         const empty = buildStateFrom({}, {
@@ -317,9 +321,12 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (!isAuthenticated) return;
 
     let cancelled = false;
-    const mountGeneration = getTrackerWriteGeneration();
+    let mountGeneration = getTrackerWriteGeneration();
     loadTrackerStateFromCloud().then((cloudSnapshot) => {
       if (cancelled || mountGeneration !== getTrackerWriteGeneration()) return;
+      if (cloudSnapshot?.writeGeneration) {
+        mountGeneration = syncTrackerWriteGenerationToAtLeast(cloudSnapshot.writeGeneration);
+      }
       setCloudLoaded(true);
 
       if (cloudSnapshot?.cleared) {

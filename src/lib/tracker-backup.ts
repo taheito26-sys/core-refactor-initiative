@@ -191,6 +191,24 @@ export function bumpTrackerWriteGeneration(storage: Storage = localStorage): num
   return next;
 }
 
+/**
+ * Raise the local write-generation counter to at least `value`. Used after a
+ * cloud load so a fresh device (e.g. mobile PWA starting at 0) doesn't have its
+ * subsequent writes rejected by save_tracker_snapshot_if_newer when the cloud
+ * row is already at a higher generation written by another device.
+ */
+export function syncTrackerWriteGenerationToAtLeast(
+  value: number,
+  storage: Storage = localStorage,
+): number {
+  const current = readWriteGeneration(storage);
+  if (value > current) {
+    writeGeneration(storage, value);
+    return value;
+  }
+  return current;
+}
+
 export function isTrackerDataCleared(storage: Storage = localStorage): boolean {
   try {
     return storage.getItem(TRACKER_DATA_CLEARED_KEY) === 'true';
