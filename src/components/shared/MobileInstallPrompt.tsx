@@ -12,6 +12,8 @@ type BeforeInstallPromptEventLike = Event & {
 };
 
 const INSTALLED_KEY = 'pwa-install-prompt-installed';
+const POSTPONE_UNTIL_KEY = 'pwa-install-prompt-postpone-until';
+const DEFAULT_POSTPONE_MS = 24 * 60 * 60 * 1000; // 24h
 
 function isMobileInstallSurface() {
   if (typeof window === 'undefined') return false;
@@ -37,6 +39,12 @@ export default function MobileInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEventLike | null>(null);
   const [installed, setInstalled] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [postponeUntil, setPostponeUntil] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    const raw = window.localStorage.getItem(POSTPONE_UNTIL_KEY);
+    const parsed = raw ? Number(raw) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  });
 
   const mobileSurface = useMemo(isMobileInstallSurface, []);
   const iosSafari = useMemo(isIOSSafari, []);
@@ -44,6 +52,13 @@ export default function MobileInstallPrompt() {
   useEffect(() => {
     setInstalled(isInstalledPwa());
     if (typeof window === 'undefined') return;
+
+    // Keep postpone window in sync across tabs.
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key !== POSTPONE_UNTIL_KEY) return;
+      const next = e.newValue ? Number(e.newValue) : 0;
+      setPostponeUntil(Number.isFinite(next) ? next : 0);
+    };
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -57,15 +72,20 @@ export default function MobileInstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleInstalled);
+    window.addEventListener('storage', handleStorage);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleInstalled);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
   const storedInstalled =
     typeof window !== 'undefined' ? Boolean(window.localStorage.getItem(INSTALLED_KEY)) : false;
+
+  const isPostponed =
+    typeof window !== 'undefined' ? Date.now() < postponeUntil : false;
 
   const shouldBlock =
     isAuthenticated &&
@@ -73,7 +93,8 @@ export default function MobileInstallPrompt() {
     !isNativeApp() &&
     !installed &&
     !storedInstalled &&
-    !isInstalledPwa();
+    !isInstalledPwa() &&
+    !isPostponed;
 
   // Auto-fire native prompt as soon as the browser provides it. Browsers
   // require a user gesture for prompt(), but Chrome/Edge allow it during the
@@ -125,6 +146,12 @@ export default function MobileInstallPrompt() {
     setInstalled(true);
   };
 
+  const handlePostpone = (ms: number = DEFAULT_POSTPONE_MS) => {
+    const until = Date.now() + ms;
+    window.localStorage.setItem(POSTPONE_UNTIL_KEY, String(until));
+    setPostponeUntil(until);
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 p-4 backdrop-blur">
       <Card className="w-full max-w-md border-primary/20 shadow-2xl">
@@ -170,6 +197,9 @@ export default function MobileInstallPrompt() {
                 {installing ? 'Installing...' : deferredPrompt ? 'Install' : 'Waiting for browser...'}
               </Button>
             )}
+            <Button variant="secondary" className="w-full" onClick={() => handlePostpone()}>
+              Remind me later
+            </Button>
             <Button variant="outline" className="w-full" onClick={handleAlreadyInstalled}>
               I've already installed it
             </Button>
