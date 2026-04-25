@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -21,6 +21,17 @@ function PwaDebugBadge() {
   if (typeof window === 'undefined') return null;
   const enabled = new URLSearchParams(window.location.search).get('pwa_debug') === '1';
   if (!enabled) return null;
+
+  const [installPromptSeen, setInstallPromptSeen] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      // Don't allow the browser to auto-show mini-infobar; we want control.
+      e.preventDefault();
+      setInstallPromptSeen(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   const safeGet = (key: string) => {
     try {
@@ -62,6 +73,7 @@ function PwaDebugBadge() {
         <div>postponeUntil(ls): {String(postponeUntilRaw)}</div>
         <div>isPostponed: {String(isPostponed)}</div>
         <div>shouldBlock(calc): {String(shouldBlock)}</div>
+        <div>beforeinstallprompt(seen): {String(installPromptSeen)}</div>
       </div>
     </div>
   );
