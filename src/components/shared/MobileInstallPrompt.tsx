@@ -42,6 +42,10 @@ export default function MobileInstallPrompt() {
   useAuth();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEventLike | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [installedFlag, setInstalledFlag] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(window.localStorage.getItem(INSTALLED_KEY));
+  });
   const [installing, setInstalling] = useState(false);
   const [nativePromptDismissed, setNativePromptDismissed] = useState(false);
   const [postponeUntil, setPostponeUntil] = useState<number>(() => {
@@ -72,6 +76,7 @@ export default function MobileInstallPrompt() {
       const installedFlagRaw = window.localStorage.getItem(INSTALLED_KEY);
       if (installedFlagRaw && !isInstalledPwa()) {
         window.localStorage.removeItem(INSTALLED_KEY);
+        setInstalledFlag(false);
       }
     } catch {
       // Best-effort only
@@ -79,9 +84,13 @@ export default function MobileInstallPrompt() {
 
     // Keep postpone window in sync across tabs.
     const handleStorage = (e: StorageEvent) => {
-      if (e.key !== POSTPONE_UNTIL_KEY) return;
-      const next = e.newValue ? Number(e.newValue) : 0;
-      setPostponeUntil(Number.isFinite(next) ? next : 0);
+      if (e.key === POSTPONE_UNTIL_KEY) {
+        const next = e.newValue ? Number(e.newValue) : 0;
+        setPostponeUntil(Number.isFinite(next) ? next : 0);
+      }
+      if (e.key === INSTALLED_KEY) {
+        setInstalledFlag(Boolean(e.newValue));
+      }
     };
 
     const handleBeforeInstallPrompt = (event: Event) => {
@@ -106,9 +115,6 @@ export default function MobileInstallPrompt() {
     };
   }, []);
 
-  const storedInstalled =
-    typeof window !== 'undefined' ? Boolean(window.localStorage.getItem(INSTALLED_KEY)) : false;
-
   const isPostponed =
     typeof window !== 'undefined' ? Date.now() < postponeUntil : false;
 
@@ -116,7 +122,7 @@ export default function MobileInstallPrompt() {
     mobileSurface &&
     !isNativeApp() &&
     !installed &&
-    !storedInstalled &&
+    !installedFlag &&
     !isInstalledPwa() &&
     !isPostponed;
 
@@ -131,6 +137,7 @@ export default function MobileInstallPrompt() {
       if (choice.outcome === 'accepted') {
         window.localStorage.setItem(INSTALLED_KEY, String(Date.now()));
         setInstalled(true);
+          setInstalledFlag(true);
       } else {
         setNativePromptDismissed(true);
       }
@@ -145,6 +152,7 @@ export default function MobileInstallPrompt() {
   const handleAlreadyInstalled = () => {
     window.localStorage.setItem(INSTALLED_KEY, String(Date.now()));
     setInstalled(true);
+    setInstalledFlag(true);
   };
 
   const handlePostpone = (ms: number = DEFAULT_POSTPONE_MS) => {
