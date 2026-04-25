@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
 import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-state';
 import { saveTrackerState, saveTrackerStateNow, loadTrackerStateFromCloud } from './tracker-sync';
-import { getCurrentTrackerState, hasTrackerItems } from './tracker-backup';
+import { getCurrentTrackerState, getTrackerWriteGeneration, isTrackerDataCleared } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
@@ -74,15 +74,39 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
 
   function isWriteBlocked(): boolean {
     try {
-      return typeof window !== 'undefined' && window.localStorage.getItem('tracker_data_cleared') === 'true';
+      return typeof window !== 'undefined' && isTrackerDataCleared(window.localStorage);
     } catch {
       return false;
     }
   }
 
-  function guardedSetState(next: TrackerState | ((prev: TrackerState) => TrackerState)): boolean {
+  function isExplicitClearPayload(value: TrackerState): boolean {
+    const record = value as Record<string, unknown>;
+    const dataKeys = ['batches', 'trades', 'customers', 'suppliers', 'cashAccounts', 'cashLedger', 'cashHistory'] as const;
+    if (dataKeys.some((key) => Array.isArray(record[key]) && (record[key] as unknown[]).length > 0)) {
+      return false;
+    }
+    const cashQAR = Number(record.cashQAR ?? 0);
+    if (!Number.isFinite(cashQAR) || cashQAR !== 0) return false;
+    const cashOwner = record.cashOwner;
+    if (typeof cashOwner === 'string' && cashOwner.trim() !== '') return false;
+    return true;
+  }
+
+  function guardedSetState(
+    next: TrackerState | ((prev: TrackerState) => TrackerState),
+    meta: { allowDuringClear?: boolean; expectedGeneration?: number } = {},
+  ): boolean {
+    const currentGeneration = getTrackerWriteGeneration();
+    if (meta.expectedGeneration !== undefined && meta.expectedGeneration !== currentGeneration) {
+      return false;
+    }
+
     const resolved = typeof next === 'function' ? next(stateRef.current) : next;
-    if (isWriteBlocked() && hasTrackerItems(resolved)) {
+    if (isWriteBlocked() && !meta.allowDuringClear) {
+      return false;
+    }
+    if (meta.allowDuringClear && !isExplicitClearPayload(resolved)) {
       return false;
     }
 
@@ -164,8 +188,10 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   // state. Used both on initial mount and on realtime postgres_changes events
   // so desktop mutations appear on mobile (and vice versa) without reload.
   const refreshFromCloud = useCallback(async () => {
+    const requestGeneration = getTrackerWriteGeneration();
     try {
       const cloudState = await loadTrackerStateFromCloud();
+      if (requestGeneration !== getTrackerWriteGeneration()) return;
       if (cloudState) {
         const inFlight = stateRef.current as Partial<TrackerState>;
         const best = mergeLocalAndCloud(inFlight, cloudState);
@@ -176,11 +202,12 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             range: options.range,
             currency: options.currency,
           });
-          guardedSetState(rebuilt.state);
+          guardedSetState(rebuilt.state, { expectedGeneration: requestGeneration });
           saveTrackerState(rebuilt.state);
         }
       }
       const cashData = await loadCashFromCloud();
+      if (requestGeneration !== getTrackerWriteGeneration()) return;
       if (cashData) {
         guardedSetState(prev => {
           // Cloud is authoritative for cash ledger.
@@ -202,7 +229,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             cashLedger: [...cashData.ledger, ...localOnly],
           };
           return next;
-        });
+        }, { expectedGeneration: requestGeneration });
       }
     } catch (err) {
       console.error('[useTrackerState] refreshFromCloud failed:', err);
@@ -276,8 +303,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (!isAuthenticated) return;
 
     let cancelled = false;
+    const mountGeneration = getTrackerWriteGeneration();
     loadTrackerStateFromCloud().then((cloudState) => {
-      if (cancelled) return;
+      if (cancelled || mountGeneration !== getTrackerWriteGeneration()) return;
       setCloudLoaded(true);
 
       if (!cloudState) {
@@ -312,7 +340,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         currency: options.currency,
       });
 
-      guardedSetState(rebuilt.state);
+      guardedSetState(rebuilt.state, { expectedGeneration: mountGeneration });
       // Also update localStorage AND push merged state back to cloud so any
       // in-flight local-only rows are uploaded.
       saveTrackerState(rebuilt.state);
@@ -323,7 +351,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       // immediately after the cash merge would read stale pre-cash data from
       // stateRef.current and overwrite the cloud cash values when persisting.
       loadCashFromCloud().then(cashData => {
-        if (!cashData) return;
+        if (!cashData || mountGeneration !== getTrackerWriteGeneration()) return;
         if (cashData.accounts.length === 0 && cashData.ledger.length === 0) return;
         guardedSetState(prev => {
           const cloudIds = new Set(cashData.ledger.map((e: { id: string }) => e.id));
@@ -344,7 +372,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
             cashLedger: [...cashData.ledger, ...localOnly],
           };
           return next;
-        });
+        }, { expectedGeneration: mountGeneration });
       }).catch((err) => { console.error('[useTrackerState] cash cloud sync failed:', err); });
     }).catch((err) => {
       console.error('[useTrackerState] cloud load failed:', err);

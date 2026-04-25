@@ -34,6 +34,7 @@ const IMPORT_STATE_CANDIDATE_KEYS = [
 export const AUTO_BACKUP_KEYS = ['gasAutoSave', 'trackerAutoBackup', 'taheitoAutoBackup'] as const;
 const TRACKER_CLEAR_GUARD_KEY = 'tracker_clear_guard_ts';
 const TRACKER_DATA_CLEARED_KEY = 'tracker_data_cleared';
+const TRACKER_WRITE_GENERATION_KEY = 'tracker_write_generation';
 const TRACKER_CLEAR_GUARD_TTL_MS = 15_000;
 
 export type TrackerState = Record<string, unknown>;
@@ -164,12 +165,30 @@ export function clearTrackerStorage(storage: Storage): void {
   }
 }
 
-export function markTrackerDataCleared(storage: Storage = localStorage): void {
+function readWriteGeneration(storage: Storage): number {
   try {
-    storage.setItem(TRACKER_DATA_CLEARED_KEY, 'true');
+    return Number(storage.getItem(TRACKER_WRITE_GENERATION_KEY) || '0') || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeGeneration(storage: Storage, value: number): void {
+  try {
+    storage.setItem(TRACKER_WRITE_GENERATION_KEY, String(value));
   } catch {
     // best effort
   }
+}
+
+export function getTrackerWriteGeneration(storage: Storage = localStorage): number {
+  return readWriteGeneration(storage);
+}
+
+export function bumpTrackerWriteGeneration(storage: Storage = localStorage): number {
+  const next = readWriteGeneration(storage) + 1;
+  writeGeneration(storage, next);
+  return next;
 }
 
 export function isTrackerDataCleared(storage: Storage = localStorage): boolean {
@@ -180,12 +199,30 @@ export function isTrackerDataCleared(storage: Storage = localStorage): boolean {
   }
 }
 
-export function clearTrackerDataCleared(storage: Storage = localStorage): void {
+export function activateTrackerClearBarrier(storage: Storage = localStorage): number {
+  try {
+    storage.setItem(TRACKER_DATA_CLEARED_KEY, 'true');
+  } catch {
+    // best effort
+  }
+  return bumpTrackerWriteGeneration(storage);
+}
+
+export function liftTrackerClearBarrier(storage: Storage = localStorage): number {
   try {
     storage.removeItem(TRACKER_DATA_CLEARED_KEY);
   } catch {
     // best effort
   }
+  return bumpTrackerWriteGeneration(storage);
+}
+
+export function clearTrackerDataCleared(storage: Storage = localStorage): void {
+  liftTrackerClearBarrier(storage);
+}
+
+export function markTrackerDataCleared(storage: Storage = localStorage): void {
+  activateTrackerClearBarrier(storage);
 }
 
 export function markTrackerClearInProgress(storage: Storage = sessionStorage): void {

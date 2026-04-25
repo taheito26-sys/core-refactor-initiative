@@ -77,6 +77,19 @@ function stateToJson(state: TrackerState): string {
   }
 }
 
+function isExplicitClearPayload(value: TrackerState): boolean {
+  const record = value as Record<string, unknown>;
+  const dataKeys = ['batches', 'trades', 'customers', 'suppliers', 'cashAccounts', 'cashLedger', 'cashHistory'] as const;
+  if (dataKeys.some((key) => Array.isArray(record[key]) && (record[key] as unknown[]).length > 0)) {
+    return false;
+  }
+  const cashQAR = Number(record.cashQAR ?? 0);
+  if (!Number.isFinite(cashQAR) || cashQAR !== 0) return false;
+  const cashOwner = record.cashOwner;
+  if (typeof cashOwner === 'string' && cashOwner.trim() !== '') return false;
+  return true;
+}
+
 type TrackerSnapshotRow = {
   state: Partial<TrackerState> | null;
   updated_at?: string | null;
@@ -95,6 +108,12 @@ export interface SaveTrackerStateOptions {
    * stale cloud state after a destructive clear.
    */
   preserveDataCleared?: boolean;
+  /**
+   * Explicitly authorize a clear-state write while the destructive barrier is
+   * active. This should only be used for the empty-state payload produced by a
+   * clear/reset action.
+   */
+  allowDuringClear?: boolean;
 }
 
 function mergeArrayById<T>(base: T[] | undefined, incoming: T[] | undefined): T[] {
@@ -269,7 +288,7 @@ async function persistToCloud(state: TrackerState, options: SaveTrackerStateOpti
 
 /** Persist state to localStorage immediately and to cloud (debounced 2s) */
 export function saveTrackerState(state: TrackerState): void {
-  if (isTrackerDataCleared() && hasTrackerItems(state)) {
+  if (isTrackerDataCleared()) {
     if (_saveTimer) {
       clearTimeout(_saveTimer);
       _saveTimer = null;
@@ -291,7 +310,10 @@ export function saveTrackerState(state: TrackerState): void {
 /** Force an immediate cloud save (e.g. on import/restore) */
 export async function saveTrackerStateNow(state: TrackerState, options: SaveTrackerStateOptions = {}): Promise<void> {
   if (_saveTimer) clearTimeout(_saveTimer);
-  if (isTrackerDataCleared() && hasTrackerItems(state)) {
+  if (isTrackerDataCleared() && !options.allowDuringClear) {
+    return;
+  }
+  if (options.allowDuringClear && !isExplicitClearPayload(state)) {
     return;
   }
   const preserveDataCleared = options.preserveDataCleared ?? !hasTrackerItems(state);

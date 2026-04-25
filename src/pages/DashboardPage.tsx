@@ -15,7 +15,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { CashBoxManager } from '@/features/dashboard/components/CashBoxManager';
 import { saveTrackerStateNow } from '@/lib/tracker-sync';
-import { markTrackerClearInProgress, markTrackerDataCleared } from '@/lib/tracker-backup';
+import { activateTrackerClearBarrier, markTrackerClearInProgress } from '@/lib/tracker-backup';
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -309,9 +309,9 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     if (isClearAction) {
       void (async () => {
         try {
-          markTrackerDataCleared();
+          activateTrackerClearBarrier();
           markTrackerClearInProgress();
-          await saveTrackerStateNow(nextState, { replaceExisting: true, preserveDataCleared: true });
+          await saveTrackerStateNow(nextState, { replaceExisting: true, preserveDataCleared: true, allowDuringClear: true });
           window.location.reload();
         } catch (err) {
           console.error('[DashboardPage] cash clear failed:', err);

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { saveTrackerState, saveTrackerStateNow } from '@/lib/tracker-sync';
+import { activateTrackerClearBarrier } from '@/lib/tracker-backup';
 
 const { authGetUserMock, selectMock, upsertMock, deleteMock, deleteEqMock, eqMock, fromMock } = vi.hoisted(() => {
   const upsertMock = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -41,9 +42,9 @@ describe('saveTrackerStateNow', () => {
       cashAccounts: [],
       cashLedger: [],
       currency: 'QAR',
-      range: '7d',
-      settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 },
-      cal: { year: 2026, month: 3, selectedDay: null },
+      range: '30d',
+      settings: { lowStockThreshold: 4200, priceAlertThreshold: 2 },
+      cal: { year: 2026, month: 4, selectedDay: null },
     };
 
     await saveTrackerStateNow(emptyState, { replaceExisting: true });
@@ -83,6 +84,75 @@ describe('saveTrackerStateNow', () => {
     await saveTrackerStateNow(emptyState, { replaceExisting: true, preserveDataCleared: true });
 
     expect(localStorage.getItem('tracker_data_cleared')).toBe('true');
+  });
+
+  it('allows an explicit clear-state write while the barrier is active', async () => {
+    const emptyState = {
+      batches: [],
+      trades: [],
+      customers: [],
+      suppliers: [],
+      cashQAR: 0,
+      cashOwner: '',
+      cashHistory: [],
+      cashAccounts: [],
+      cashLedger: [],
+      currency: 'QAR',
+      range: '7d',
+      settings: { lowStockThreshold: 5000, priceAlertThreshold: 2 },
+      cal: { year: 2026, month: 3, selectedDay: null },
+    };
+
+    activateTrackerClearBarrier(localStorage);
+
+    await saveTrackerStateNow(emptyState, {
+      replaceExisting: true,
+      preserveDataCleared: true,
+      allowDuringClear: true,
+    });
+
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        state: emptyState,
+      }),
+      expect.any(Object),
+    );
+    expect(localStorage.getItem('tracker_data_cleared')).toBe('true');
+  });
+
+  it('rejects partial payloads even when allowDuringClear is set', async () => {
+    localStorage.setItem('tracker_data_cleared', 'true');
+
+    const partialState = {
+      batches: [],
+      trades: [],
+      customers: [],
+      suppliers: [],
+      cashQAR: 0,
+      cashOwner: 'should-not-pass',
+      cashHistory: [],
+      cashAccounts: [],
+      cashLedger: [],
+      currency: 'QAR',
+      range: 'all',
+      settings: { lowStockThreshold: 3900, priceAlertThreshold: 2 },
+      cal: { year: 2026, month: 5, selectedDay: null },
+    };
+
+    await saveTrackerStateNow(partialState as never, {
+      replaceExisting: true,
+      preserveDataCleared: true,
+      allowDuringClear: true,
+    });
+
+    expect(upsertMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        state: partialState,
+      }),
+      expect.any(Object),
+    );
   });
 
   it('preserves the cleared-data marker on ordinary empty-state saves', () => {
