@@ -16,6 +16,17 @@ import { NativePlatformBootstrap } from "@/platform/native-bridge";
 import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
 import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
 
+function PwaDebugBadge() {
+  if (typeof window === 'undefined') return null;
+  const enabled = new URLSearchParams(window.location.search).get('pwa_debug') === '1';
+  if (!enabled) return null;
+  return (
+    <div className="fixed bottom-2 left-2 z-[200] rounded-lg border border-border bg-background/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+      pwa_debug=1 active
+    </div>
+  );
+}
+
 // Auth pages
 import OAuthCallbackPage from "./pages/auth/OAuthCallbackPage";
 import LoginPage from "./pages/auth/LoginPage";
@@ -198,6 +209,7 @@ const App = () => (
          <BrowserRouter>
           <NativePlatformBootstrap />
           <AuthProvider>
+            <PwaDebugBadge />
             <MobileInstallPrompt />
             <AuthDiagnostics />
             <ChatRuntimeBootstrap />
