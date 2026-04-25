@@ -190,7 +190,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border/40 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">New Order</span>
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">QAR ? EGP</span>
+            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">QAR → EGP</span>
           </div>
           <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
@@ -198,13 +198,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3">
 
-          {/* Client + Amount � side by side on wider screens */}
+          {/* Client + Amount — side by side on wider screens */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Client</label>
               <select value={connId} onChange={e => setConnId(e.target.value)}
                 className="h-10 w-full rounded-lg border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
-                <option value="">Select client�</option>
+                <option value="">Select client...</option>
                 {connections.map((c: any) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
@@ -218,13 +218,13 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             </div>
           </div>
 
-          {/* FX Rate � always editable, no toggle */}
+          {/* FX Rate — always editable, no toggle */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">FX Rate (QAR ? EGP)</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">FX Rate (QAR → EGP)</label>
             {isRateLoading ? (
               <div className="flex items-center gap-2 h-10 px-3 rounded-lg border border-border/50 bg-card">
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Loading�</span>
+                <span className="text-xs text-muted-foreground">Loading...</span>
               </div>
             ) : (
               <div className="relative">
@@ -283,7 +283,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
               </button>
             </div>
 
-            {/* USDT/QAR Rate � only for phased */}
+            {/* USDT/QAR Rate — only for phased */}
             {fulfillmentMode === 'phased' && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="relative flex-1">
@@ -313,7 +313,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
-              placeholder="Add a note�"
+              placeholder="Add a note..."
               rows={2}
               className="w-full rounded-lg border border-border/50 bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
             />
@@ -321,7 +321,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
 
           {/* Cash Account */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">?? Cash Account</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">💰 Cash Account</label>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -347,7 +347,7 @@ function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
                       : 'border-border/50 bg-card text-muted-foreground hover:border-emerald-500/40',
                   )}
                 >
-                  {account.name} � {account.currency}
+                  {account.name} · {account.currency}
                 </button>
               ))}
             </div>
@@ -426,7 +426,7 @@ function PhasedOrderExecutionSection({ orderId, orderAmount, orderUsdtQarRate }:
       {/* Execution List - Compact chips */}
       <MerchantExecutionList parentOrderId={orderId} />
 
-      {/* Add Execution Form � show unless fully fulfilled */}
+      {/* Add Execution Form — show unless fully fulfilled */}
       {!isFulfilled && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-2 py-1.5">
           <span className="text-xs font-medium text-primary">Add:</span>
@@ -440,7 +440,7 @@ function PhasedOrderExecutionSection({ orderId, orderAmount, orderUsdtQarRate }:
 
       {isFulfilled && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-center text-xs font-medium text-emerald-700">
-          ? Fully fulfilled
+          ✅ Fully fulfilled
         </div>
       )}
     </div>
@@ -450,6 +450,9 @@ function PhasedOrderExecutionSection({ orderId, orderAmount, orderUsdtQarRate }:
 export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: Props = {}) {
   const { merchantProfile, userId } = useAuth();
   const queryClient = useQueryClient();
+  const { settings } = useTheme();
+  const lang = settings.language === 'ar' ? 'ar' : 'en';
+  const L = (en: string, ar: string) => lang === 'ar' ? ar : en;
   const [showPlaceOrder, setShowPlaceOrder] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -571,7 +574,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
     <div style={{ margin: '0 -12px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px 12px' }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9' }}>Customer Orders</div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9' }}>{L('Customer Orders', 'طلبات العملاء')}</div>
         <button
           onClick={() => setShowPlaceOrder(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
@@ -594,7 +597,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
           <Loader2 style={{ width: 22, height: 22, color: '#64748b' }} className="animate-spin" />
         </div>
       ) : orders.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 16px', color: '#64748b', fontSize: 13 }}>No orders yet</div>
+        <div style={{ textAlign: 'center', padding: '40px 16px', color: '#64748b', fontSize: 13 }}>{L('No orders yet', 'لا توجد طلبات بعد')}</div>
       ) : (
         <div>
           {orders.map((order, idx) => {
@@ -610,16 +613,16 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
 
             type SK = 'pending_customer_approval'|'pending_merchant_approval'|'approved'|'rejected'|'cancelled';
             const STATUS: Record<SK, { label: string; color: string; bg: string }> = {
-              pending_customer_approval: { label: '??????? ??????', color: '#f59e0b', bg: 'rgba(245,158,11,0.13)' },
-              pending_merchant_approval: { label: '??????? ??????',  color: '#38bdf8', bg: 'rgba(56,189,248,0.13)' },
-              approved:                  { label: '??? ????????',    color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
-              rejected:                  { label: '?????',           color: '#f87171', bg: 'rgba(248,113,113,0.13)' },
-              cancelled:                 { label: '????',            color: '#94a3b8', bg: 'rgba(148,163,184,0.08)' },
+              pending_customer_approval: { label: L('Awaiting Customer', 'بانتظار العميل'), color: '#f59e0b', bg: 'rgba(245,158,11,0.13)' },
+              pending_merchant_approval: { label: L('Awaiting Merchant', 'بانتظار التاجر'),  color: '#38bdf8', bg: 'rgba(56,189,248,0.13)' },
+              approved:                  { label: L('Approved', 'تمت الموافقة'),    color: '#34d399', bg: 'rgba(52,211,153,0.13)' },
+              rejected:                  { label: L('Rejected', 'مرفوض'),           color: '#f87171', bg: 'rgba(248,113,113,0.13)' },
+              cancelled:                 { label: L('Cancelled', 'ملغي'),            color: '#94a3b8', bg: 'rgba(148,163,184,0.08)' },
             };
             const sc = STATUS[(order.workflow_status as SK) || 'cancelled'] || STATUS.cancelled;
             const amtColor = isApproved ? '#34d399' : canApprove ? '#f59e0b' : '#e2e8f0';
 
-            const dateStr = new Date(order.created_at).toLocaleString('ar-EG', {
+            const dateStr = new Date(order.created_at).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', {
               month: 'numeric', day: 'numeric', year: 'numeric',
               hour: 'numeric', minute: '2-digit', hour12: true,
             });
@@ -637,7 +640,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                 {/* Row 1: status pill + customer name */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700, color: sc.color, background: sc.bg }}>
-                    {isPhasedOrder ? `?? ${sc.label}` : sc.label}
+                    {isPhasedOrder ? `📦 ${sc.label}` : sc.label}
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 800, color: '#f1f5f9' }}>{customerName}</span>
                 </div>
@@ -645,7 +648,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                 {/* Row 2: corridor + date */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 11, color: '#475569' }}>
-                    {order.send_currency || 'QAR'} ? {order.receive_country || order.receive_currency || 'EGP'}
+                    {order.send_currency || 'QAR'} → {order.receive_country || order.receive_currency || 'EGP'}
                     {order.revision_no > 1 && <span style={{ color: '#f59e0b', marginLeft: 6 }}>Rev {order.revision_no}</span>}
                   </span>
                   <span style={{ fontSize: 11, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>{dateStr}</span>
@@ -654,7 +657,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                 {/* Row 3: amount + fx rate */}
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: order.note ? 6 : 0 }}>
                   <div>
-                    <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>??????</div>
+                    <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>{L('Amount', 'المبلغ')}</div>
                     <div style={{ fontSize: 22, fontWeight: 900, color: amtColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                       {isApproved ? '+' : ''}{order.amount.toLocaleString()}
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginLeft: 4 }}>{order.send_currency || 'QAR'}</span>
@@ -662,7 +665,7 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
                   </div>
                   {order.fx_rate && (
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>?????</div>
+                      <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>{L('Rate', 'السعر')}</div>
                       <div style={{ fontSize: 15, fontWeight: 800, color: '#7dd3fc', fontVariantNumeric: 'tabular-nums' }}>{order.fx_rate.toFixed(2)}</div>
                     </div>
                   )}
