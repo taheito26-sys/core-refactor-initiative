@@ -1,9 +1,8 @@
 // React hook that provides tracker state with cross-device cloud sync
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeFIFO, type TrackerState, type DerivedState } from './tracker-helpers';
-import { createEmptyState, buildStateFrom, mergeLocalAndCloud } from './tracker-state';
+import { createEmptyState, buildStateFrom } from './tracker-state';
 import { saveTrackerState, saveTrackerStateNow, loadTrackerStateFromCloud } from './tracker-sync';
-import { getCurrentTrackerState } from './tracker-backup';
 import { useAuth } from '@/features/auth/auth-context';
 import { saveCashToCloud, loadCashFromCloud } from './cash-sync';
 import { triggerVaultBackup } from './vault-auto-trigger';
@@ -146,39 +145,27 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     try {
       const cloudState = await loadTrackerStateFromCloud();
       if (cloudState) {
-        // Cash lives in dedicated cash_accounts / cash_ledger tables — strip
-        // any stale copies from the snapshot so the snapshot can never bring
-        // cleared cash back to life.
-        const cloudStateNoCash: Partial<TrackerState> = {
+        // Cloud is AUTHORITATIVE for snapshot collections (batches, trades,
+        // customers, suppliers). Do NOT union-merge with stateRef.current —
+        // a union can never represent "deleted on the other device", so a
+        // remote delete would be silently undone by this device's stale
+        // in-memory copy. Trust cloud; preserve only the in-memory cash
+        // arrays (the cash-tables load below replaces them).
+        const authoritative: Partial<TrackerState> = {
           ...cloudState,
-          cashAccounts: [],
-          cashLedger: [],
+          cashAccounts: stateRef.current.cashAccounts ?? [],
+          cashLedger: stateRef.current.cashLedger ?? [],
         };
-        const inFlight: Partial<TrackerState> = {
-          ...stateRef.current,
-          cashAccounts: [],
-          cashLedger: [],
-        };
-        const best = mergeLocalAndCloud(inFlight, cloudStateNoCash);
-        if (best) {
-          // Preserve the current in-memory cash arrays through the rebuild;
-          // they will be replaced by the cash-table load below.
-          const preserved = {
-            ...best,
-            cashAccounts: stateRef.current.cashAccounts ?? [],
-            cashLedger: stateRef.current.cashLedger ?? [],
-          };
-          const rebuilt = buildStateFrom(preserved, {
-            lowStockThreshold: options.lowStockThreshold,
-            priceAlertThreshold: options.priceAlertThreshold,
-            range: options.range,
-            currency: options.currency,
-          });
-          setState(rebuilt.state);
-          stateRef.current = rebuilt.state;
-          setDerived(rebuilt.derived);
-          saveTrackerState(rebuilt.state);
-        }
+        const rebuilt = buildStateFrom(authoritative, {
+          lowStockThreshold: options.lowStockThreshold,
+          priceAlertThreshold: options.priceAlertThreshold,
+          range: options.range,
+          currency: options.currency,
+        });
+        setState(rebuilt.state);
+        stateRef.current = rebuilt.state;
+        setDerived(rebuilt.derived);
+        saveTrackerState(rebuilt.state);
       }
       // Dedicated cash tables are AUTHORITATIVE. Always apply the result —
       // even when both arrays are empty — so a clear on one device propagates.
@@ -287,17 +274,12 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         return;
       }
 
-      // Merge against the in-memory ref (which already contains any changes the
-      // user made between mount and now). Falling back to localStorage would
-      // miss in-flight mutations on devices where Safari has wiped storage or
-      // the user interacted before the first persistToLocal flushed.
-      const inFlight = stateRef.current as Partial<TrackerState>;
-      const local = getCurrentTrackerState(window.localStorage) as Partial<TrackerState> | null;
-      const localUnion = mergeLocalAndCloud(local, inFlight);
-      const best = mergeLocalAndCloud(localUnion, cloudState);
-      if (!best) return;
-
-      const rebuilt = buildStateFrom(best, {
+      // Cloud is AUTHORITATIVE on mount. A union with localStorage / inFlight
+      // would re-introduce items that were deleted on another device since
+      // this device's last open — union has no way to express "deleted".
+      // Trust cloud verbatim; cash arrays will be replaced by the cash-table
+      // load below.
+      const rebuilt = buildStateFrom(cloudState, {
         lowStockThreshold: options.lowStockThreshold,
         priceAlertThreshold: options.priceAlertThreshold,
         range: options.range,
@@ -307,8 +289,6 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
       setState(rebuilt.state);
       stateRef.current = rebuilt.state;
       setDerived(rebuilt.derived);
-      // Also update localStorage AND push merged state back to cloud so any
-      // in-flight local-only rows are uploaded.
       saveTrackerState(rebuilt.state);
 
       // Load dedicated cash tables and merge with local state (prefer cloud, keep local-only entries)
