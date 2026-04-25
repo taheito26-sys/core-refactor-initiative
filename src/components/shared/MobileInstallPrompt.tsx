@@ -153,7 +153,11 @@ export default function MobileInstallPrompt() {
     !isInstalledPwa() &&
     !isPostponed;
 
-  if (!shouldBlock) return null;
+  const debug =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('pwa_debug') === '1';
+
+  if (!shouldBlock && !debug) return null;
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
@@ -192,6 +196,22 @@ export default function MobileInstallPrompt() {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 p-4 backdrop-blur">
       <Card className="w-full max-w-md border-primary/20 shadow-2xl">
         <CardContent className="space-y-4 p-6">
+          {debug && (
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-[11px] text-muted-foreground">
+              <div className="font-semibold text-foreground">PWA gate debug</div>
+              <div className="mt-2 space-y-1 font-mono">
+                <div>shouldBlock: {String(shouldBlock)}</div>
+                <div>mobileSurface: {String(mobileSurface)}</div>
+                <div>isNativeApp: {String(isNativeApp())}</div>
+                <div>installed(state): {String(installed)}</div>
+                <div>installedFlag(storage): {String(installedFlag)}</div>
+                <div>isInstalledPwa(): {String(isInstalledPwa())}</div>
+                <div>isPostponed: {String(isPostponed)}</div>
+                <div>hasDeferredPrompt: {String(Boolean(deferredPrompt))}</div>
+                <div>iosSafari: {String(iosSafari)}</div>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <div
               className={cn(
