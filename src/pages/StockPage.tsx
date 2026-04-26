@@ -607,85 +607,55 @@ export default function StockPage() {
                 const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
                 const isOpen = !!detailsOpen[b.id];
                 return (
-                  <div key={b.id} className="panel" style={{ padding: '10px 12px', margin: '0 0 8px' }}>
-                    {/* Row 1: Source (left) + date (right) */}
+                  <div key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    {/* ── Compact header row: tap to expand ── */}
                     <button
                       onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}
-                      style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+                      style={{ width: '100%', background: 'none', border: 'none', padding: '12px 14px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, transition: 'background 0.1s', WebkitTapHighlightColor: 'transparent' }}
+                      onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onPointerUp={e => (e.currentTarget.style.background = 'none')}
+                      onPointerLeave={e => (e.currentTarget.style.background = 'none')}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {b.source || '—'}
-                        </div>
-                        <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(b.ts)}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{b.source || '—'}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{fmtDate(b.ts)}</div>
                       </div>
-                      {/* ── Data grid: 2×2 ── */}
-                      <div style={{ borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)', margin: '0 -12px' }}>
-                        {/* Row 1: Qty + Rate */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid var(--line2)' }}>
-                          <div style={{ padding: '7px 12px', borderRight: '1px solid var(--line2)' }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('qty')}</div>
-                            <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtU(b.initialUSDT)}</div>
-                          </div>
-                          <div style={{ padding: '7px 12px', textAlign: 'right' }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('otcRate')}</div>
-                            <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtP(b.buyPriceQAR)}</div>
-                          </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+                        <strong className="mono" style={{ fontSize: 13, letterSpacing: '-0.02em' }}>{fmtU(b.initialUSDT)} {localCur('USDT', t.lang)}</strong>
+                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(b.buyPriceQAR)}</span>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {(b.profit || 0) !== 0 && (
+                            <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                              {(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}
+                            </span>
+                          )}
+                          <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', flexShrink: 0, filter: 'drop-shadow(0 0 2px color-mix(in srgb, var(--brand) 30%, transparent))' }}><path d="M6 9l6 6 6-6"/></svg>
                         </div>
-                        {/* Row 2: Remaining + Profit + chevron */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                          <div style={{ padding: '7px 12px', borderRight: '1px solid var(--line2)' }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('rem')}</div>
-                            <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--warn)' }}>{fmtU(rem)}</div>
-                          </div>
-                          <div style={{ padding: '7px 12px', textAlign: 'right' }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('profit')}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                              <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: (b.profit || 0) !== 0 ? ((b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
-                                {(b.profit || 0) !== 0 ? `${(b.profit || 0) >= 0 ? '+' : ''}${fmtC(b.profit || 0)}` : '—'}
-                              </span>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.4, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Status pill */}
-                      <div style={{ padding: '5px 0' }}>
-                        <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
                       </div>
                     </button>
-                    {/* Expanded detail */}
+                    {/* ── Expanded detail ── */}
                     {isOpen && (
-                      <div style={{ borderTop: '1px solid var(--line2)', marginTop: 8, paddingTop: 8 }}>
-                        <div style={{ display: 'grid', gap: 4, marginBottom: 8, fontSize: 11 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                            <span className="muted">{t('cost')}</span>
-                            <strong className="mono">{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                            <span className="muted">{t('batchConsumedQty')}</span>
-                            <strong className="mono">{fmtU(consumed)}</strong>
-                          </div>
-                          {ct !== null && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                              <span className="muted">{t('cycleTime')}</span>
-                              <span className="cycle-badge">{fmtDur(ct)}</span>
-                            </div>
-                          )}
-                          {b.note && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                              <span className="muted">{t('batchNotes')}</span>
-                              <strong style={{ textAlign: 'right', maxWidth: '62%' }}>{b.note}</strong>
-                            </div>
-                          )}
+                      <div style={{ padding: '0 12px 12px', borderTop: '1px solid var(--line2)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, fontSize: 10, marginTop: 8, marginBottom: 8 }}>
+                          <div><span className="muted">{t('total')}:</span> <strong className="mono">{fmtU(b.initialUSDT)}</strong></div>
+                          <div><span className="muted">{t('buy')}:</span> <strong className="mono">{fmtP(b.buyPriceQAR)}</strong></div>
+                          <div><span className="muted">{t('rem')}:</span> <strong className="mono">{fmtU(rem)}</strong></div>
+                          <div><span className="muted">{t('batchConsumedQty')}:</span> <strong className="mono">{new Intl.NumberFormat(t.lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 0 }).format(consumed)}</strong></div>
+                          <div><span className="muted">{t('profit')}:</span> <strong className="mono" style={{ color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>{(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}</strong></div>
                         </div>
                         <div style={{ marginBottom: 8 }}>
                           <div className="prog"><span style={{ width: `${prog.toFixed(0)}%` }} /></div>
                           <div className="muted" style={{ fontSize: 9, marginTop: 2 }}>{prog.toFixed(0)}% {t('remainingPct')}</div>
                         </div>
-                        <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                          <button className="rowBtn" style={{ minHeight: 40 }} onClick={(e) => { e.stopPropagation(); openEdit(b.id); }}>{t('edit')}</button>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                          {ct !== null && <span className="cycle-badge">{fmtDur(ct)}</span>}
+                          <button className="rowBtn" style={{ minHeight: 30, padding: '0 10px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); openEdit(b.id); }}>{t('edit')}</button>
+                        </div>
+                        <div style={{ display: 'grid', gap: 3, fontSize: 10 }}>
+                          <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
+                          <div><span className="muted">{t('cost')}:</span> <strong>{fmtC(b.initialUSDT * b.buyPriceQAR)}</strong></div>
+                          {b.note && <div><span className="muted">{t('batchNotes')}:</span> <strong>{b.note}</strong></div>}
                         </div>
                       </div>
                     )}
