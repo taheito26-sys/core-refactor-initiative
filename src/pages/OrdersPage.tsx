@@ -2524,20 +2524,24 @@ export default function OrdersPage() {
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
               <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(rev)}</div>
             </div>
-            {/* Net */}
-            <div style={{ padding: '8px 8px', textAlign: 'right' }}>
+            {/* Net + chevron */}
+            <div style={{ padding: '8px 8px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
-                {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+                  {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
+                </div>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
               </div>
             </div>
           </div>
 
-          {/* ── Footer: status + chevron ── */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', gap: 8 }}>
-            <div>{getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}</div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
-          </div>
+          {/* ── Status row ── */}
+          {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined) && (
+            <div style={{ padding: '5px 10px' }}>
+              {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
+            </div>
+          )}
         </button>
 
         {/* ── Expanded detail ── */}
@@ -2621,21 +2625,23 @@ export default function OrdersPage() {
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
               <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(row.volume)}</div>
             </div>
-            <div style={{ padding: '8px 8px', textAlign: 'right' }}>
+            <div style={{ padding: '8px 8px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
-                {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+                  {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
+                </div>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
               </div>
             </div>
           </div>
 
-          {/* ── Footer: margin + chevron ── */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', gap: 8 }}>
-            <div>
-              {marginLabel && <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{marginLabel}</span>}
+          {/* ── Margin row (if present) ── */}
+          {marginLabel && (
+            <div style={{ padding: '4px 10px' }}>
+              <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{marginLabel}</span>
             </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
-          </div>
+          )}
         </button>
         {/* ── Expanded detail ── */}
         {isExpanded && (
