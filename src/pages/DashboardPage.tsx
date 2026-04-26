@@ -408,6 +408,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   // Calculate top 5 clients with their net profit
   const top5Clients = useMemo(() => {
+    // Get all merchant profiles for name lookup
+    const merchantProfiles = state.merchantProfiles || [];
+    const profileMap = new Map<string, string>();
+    for (const p of merchantProfiles) {
+      profileMap.set(p.merchant_id, p.display_name || p.user_id || 'Unknown');
+    }
+
     // Group trades by client/counterparty
     const clientProfitMap = new Map<string, number>();
 
@@ -417,15 +424,25 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       // Determine client identifier
       let clientId = 'Unknown';
-      if (tr.linkedDealId || tr.linkedRelId) {
+      
+      if (tr.linkedMerchantId) {
+        // For merchant-linked trades, use the linked merchant name
+        clientId = profileMap.get(tr.linkedMerchantId) || `Merchant #${tr.linkedMerchantId.slice(-6)}`;
+      } else if (tr.linkedDealId || tr.linkedRelId) {
         // For deals, use merchant name from relationship
         const deal = merchantDealKpis?.dealDetails?.find(d => d.id === tr.linkedDealId);
         if (deal) {
           clientId = deal.merchantName;
+        } else {
+          clientId = `Deal #${tr.id.slice(-6)}`;
         }
       } else {
-        // For own trades, use trade ID as fallback
-        clientId = `Trade #${tr.id.slice(-6)}`;
+        // For own trades without counterparty, use customer ID if available
+        if (tr.customerId) {
+          clientId = `Customer #${tr.customerId.slice(-6)}`;
+        } else {
+          clientId = `Trade #${tr.id.slice(-6)}`;
+        }
       }
 
       const current = clientProfitMap.get(clientId) || 0;
@@ -438,7 +455,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       .slice(0, 5);
 
     return sorted.map(([name, net]) => ({ name, net }));
-  }, [allTrades, tradeNet, merchantDealKpis]);
+  }, [allTrades, tradeNet, merchantDealKpis, state.merchantProfiles]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ChartTooltip = ({ active, payload, label }: any) => {
