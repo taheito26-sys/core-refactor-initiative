@@ -2507,31 +2507,33 @@ export default function OrdersPage() {
             <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(tr.ts)}</div>
           </div>
 
-          {/* ── Data grid: 4 columns ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)', marginBottom: 0 }}>
-            {/* Qty */}
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(qty)}</div>
+          {/* ── Data grid: 2×2 ── */}
+          <div style={{ borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)' }}>
+            {/* Row 1: Qty + Rate */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid var(--line2)' }}>
+              <div style={{ padding: '7px 10px', borderRight: '1px solid var(--line2)' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('qty')}</div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtU(qty)}</div>
+              </div>
+              <div style={{ padding: '7px 10px', textAlign: 'right' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('otcRate')}</div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtP(rate)}</div>
+              </div>
             </div>
-            {/* Rate */}
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtP(rate)}</div>
-            </div>
-            {/* Volume */}
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(rev)}</div>
-            </div>
-            {/* Net + chevron */}
-            <div style={{ padding: '8px 8px', textAlign: 'right' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                <span className="mono" style={{ fontSize: 12, fontWeight: 800, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
-                  {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
-                </span>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+            {/* Row 2: Volume + Net + chevron */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+              <div style={{ padding: '7px 10px', borderRight: '1px solid var(--line2)' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('volume')}</div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(rev)}</div>
+              </div>
+              <div style={{ padding: '7px 10px', textAlign: 'right' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('net')}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                  <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+                    {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
+                  </span>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+                </div>
               </div>
             </div>
           </div>
@@ -2611,27 +2613,33 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* ── Data grid: 4 columns ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)' }}>
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(row.quantity)}</div>
+          {/* ── Data grid: 2×2 ── */}
+          <div style={{ borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)' }}>
+            {/* Row 1: Qty + Rate */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid var(--line2)' }}>
+              <div style={{ padding: '7px 10px', borderRight: '1px solid var(--line2)' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('qty')}</div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtU(row.quantity)}</div>
+              </div>
+              <div style={{ padding: '7px 10px', textAlign: 'right' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('otcRate')}</div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
+              </div>
             </div>
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
-            </div>
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(row.volume)}</div>
-            </div>
-            <div style={{ padding: '8px 8px', textAlign: 'right' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                <span className="mono" style={{ fontSize: 12, fontWeight: 800, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
-                  {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
-                </span>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+            {/* Row 2: Volume + Net + chevron */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+              <div style={{ padding: '7px 10px', borderRight: '1px solid var(--line2)' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('volume')}</div>
+                <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(row.volume)}</div>
+              </div>
+              <div style={{ padding: '7px 10px', textAlign: 'right' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('net')}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                  <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+                    {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
+                  </span>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+                </div>
               </div>
             </div>
           </div>

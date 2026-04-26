@@ -619,34 +619,40 @@ export default function StockPage() {
                         </div>
                         <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(b.ts)}</div>
                       </div>
-                      {/* Row 2: Profit (left) + Qty (center) + Cost (right) */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 4, fontSize: 11 }}>
-                        <div>
-                          {(b.profit || 0) !== 0 && (
-                            <>
-                              <span className="muted">{t('profit')}:</span>{' '}
-                              <strong className="mono" style={{ fontSize: 12, color: (b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                                {(b.profit || 0) >= 0 ? '+' : ''}{fmtC(b.profit || 0)}
-                              </strong>
-                            </>
-                          )}
+                      {/* ── Data grid: 2×2 ── */}
+                      <div style={{ borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)', margin: '0 -12px' }}>
+                        {/* Row 1: Qty + Rate */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid var(--line2)' }}>
+                          <div style={{ padding: '7px 12px', borderRight: '1px solid var(--line2)' }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('qty')}</div>
+                            <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtU(b.initialUSDT)}</div>
+                          </div>
+                          <div style={{ padding: '7px 12px', textAlign: 'right' }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('otcRate')}</div>
+                            <div className="mono" style={{ fontSize: 13, fontWeight: 800 }}>{fmtP(b.buyPriceQAR)}</div>
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <span className="muted">{t('qty')}:</span>{' '}
-                          <strong className="mono" style={{ fontSize: 12 }}>{fmtU(b.initialUSDT)}</strong>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span className="muted">{t('rem')}:</span>{' '}
-                          <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtU(rem)}</strong>
+                        {/* Row 2: Remaining + Profit + chevron */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                          <div style={{ padding: '7px 12px', borderRight: '1px solid var(--line2)' }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('rem')}</div>
+                            <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: 'var(--warn)' }}>{fmtU(rem)}</div>
+                          </div>
+                          <div style={{ padding: '7px 12px', textAlign: 'right' }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 2 }}>{t('profit')}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                              <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: (b.profit || 0) !== 0 ? ((b.profit || 0) >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+                                {(b.profit || 0) !== 0 ? `${(b.profit || 0) >= 0 ? '+' : ''}${fmtC(b.profit || 0)}` : '—'}
+                              </span>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.4, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      {/* Row 3: Rate (left) + Status badge + chevron (right) */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                        <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(b.buyPriceQAR)}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.4, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
-                        </div>
+
+                      {/* Status pill */}
+                      <div style={{ padding: '5px 0' }}>
+                        <span className={`pill ${stCls}`} style={{ fontSize: 9 }}>{st}</span>
                       </div>
                     </button>
                     {/* Expanded detail */}
