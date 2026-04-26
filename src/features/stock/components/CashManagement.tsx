@@ -1180,7 +1180,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   <button className="btn" style={{ fontSize: 10, padding: '5px 10px', background: 'var(--good)', color: '#000' }}
                     onClick={() => {
                       respondRequest.mutate({ id: req.id, action: 'accept' });
-                      const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === req.requesterMerchantId);
+                      const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && ((req.relationshipId && a.relationshipId === req.relationshipId) || a.merchantId === req.requesterMerchantId));
                       const custodyAccId = existingCustodyAcc?.id ?? uid();
                       const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
                         id: custodyAccId,
@@ -1508,7 +1508,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 const cp = counterparties.find(c => c.counterpartyMerchantId === input.custodianMerchantId);
                 const cpLabel = cp?.counterpartyLabel ?? input.custodianMerchantId;
                 // Add local merchant_custody account + merchant_funding_out ledger entry
-                const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === input.custodianMerchantId);
+                const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && ((input.relationshipId && a.relationshipId === input.relationshipId) || a.merchantId === input.custodianMerchantId));
                 const custodyAccId = existingCustodyAcc?.id ?? uid();
                 const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
                   id: custodyAccId,
