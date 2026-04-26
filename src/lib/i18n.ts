@@ -445,6 +445,7 @@ const translations = {
   actions: { en: 'Actions', ar: 'الإجراءات' },
   details: { en: '▶ Details', ar: '▶ التفاصيل' },
   hideDetails: { en: '▼ Hide', ar: '▼ إخفاء' },
+  pushToClientPortal: { en: '📤 Push to client portal', ar: '📤 إرسال إلى بوابة العميل' },
   edit: { en: 'Edit', ar: 'تعديل' },
   delete: { en: 'Delete', ar: 'حذف' },
   save: { en: 'Save', ar: 'حفظ' },

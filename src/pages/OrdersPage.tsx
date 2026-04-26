@@ -2511,7 +2511,7 @@ export default function OrdersPage() {
             <div>
               {Number.isFinite(net) && (
                 <>
-                  <span className="muted">{t.isRTL ? 'الربح' : 'Net'}:</span>{' '}
+                  <span className="muted">{t('net')}:</span>{' '}
                   <strong className="mono" style={{ fontSize: 12, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                     {net >= 0 ? '+' : ''}{fmtC(net)} {baseFiat}
                   </strong>
@@ -2519,7 +2519,7 @@ export default function OrdersPage() {
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
+              <span className="muted">{t('volume')}:</span>{' '}
               <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtTotal(rev)} {baseFiat}</strong>
             </div>
           </div>
@@ -2563,7 +2563,7 @@ export default function OrdersPage() {
                   style={{ minHeight: 40, gridColumn: '1 / -1', color: 'var(--brand)' }}
                   onClick={() => pushTradeToClient(tr)}
                 >
-                  📤 Push to client portal
+                  📤 {t('pushToClientPortal')}
                 </button>
               )}
             </div>
@@ -2620,7 +2620,7 @@ export default function OrdersPage() {
             <div>
               {netDisplay != null && (
                 <>
-                  <span className="muted">{t.isRTL ? 'الربح' : 'Net'}:</span>{' '}
+                  <span className="muted">{t('net')}:</span>{' '}
                   <strong className="mono" style={{ fontSize: 12, color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
                     {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)} {baseFiat}
                   </strong>
@@ -2628,14 +2628,14 @@ export default function OrdersPage() {
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
+              <span className="muted">{t('volume')}:</span>{' '}
               <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtC(row.volume)} {baseFiat}</strong>
             </div>
           </div>
           {/* Row 3: Rate (left) + Expand chevron (right) */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, fontSize: 11 }}>
             <div>
-              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
+              <span className="muted">{t('otcRate')}:</span>{' '}
               <strong className="mono" style={{ fontSize: 12 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</strong>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
