@@ -2506,8 +2506,8 @@ export default function OrdersPage() {
             </div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(tr.ts)}</div>
           </div>
-          {/* Row 2: Net + Volume */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2, fontSize: 11 }}>
+          {/* Row 2: Net + Qty + Volume */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 4, fontSize: 11 }}>
             <div>
               {Number.isFinite(net) && (
                 <>
@@ -2517,6 +2517,10 @@ export default function OrdersPage() {
                   </strong>
                 </>
               )}
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <span className="muted">{t('qty')}:</span>{' '}
+              <strong className="mono" style={{ fontSize: 12 }}>{fmtU(qty)}</strong>
             </div>
             <div style={{ textAlign: 'right' }}>
               <span className="muted">{t('volume')}:</span>{' '}
@@ -2615,8 +2619,8 @@ export default function OrdersPage() {
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
           style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          {/* Row 2: Net (left) + Volume (right) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginBottom: 4 }}>
+          {/* Row 2: Net (left) + Qty (center) + Volume (right) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, fontSize: 11, marginBottom: 4 }}>
             <div>
               {netDisplay != null && (
                 <>
@@ -2626,6 +2630,10 @@ export default function OrdersPage() {
                   </strong>
                 </>
               )}
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <span className="muted">{t('qty')}:</span>{' '}
+              <strong className="mono" style={{ fontSize: 12 }}>{fmtU(row.quantity)}</strong>
             </div>
             <div style={{ textAlign: 'right' }}>
               <span className="muted">{t('volume')}:</span>{' '}
