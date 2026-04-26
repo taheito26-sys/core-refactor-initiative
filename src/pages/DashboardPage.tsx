@@ -498,16 +498,15 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div>
               <div className="kpi-period">{curMo}</div>
               {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev, sub: `${segmentedProfit.thisMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.thisMonth.ownQty, 0)} ${localCur('USDT', t.lang)}` },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inVol, sub: `${segmentedProfit.thisMonth.inCount} ${t('deals') || 'deals'}` },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outVol, sub: `${segmentedProfit.thisMonth.outCount} ${t('deals') || 'deals'}` },
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inVol },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outVol },
               ].map(row => (
                 <div key={row.label} style={{ padding: '2px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
                     <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtDashboardAmount(row.val)}</span>
                   </div>
-                  <div className="kpi-cell-sub" style={{ fontSize: 8, textAlign: 'end' }}>{row.sub}</div>
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -518,16 +517,15 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div>
               <div className="kpi-period">{prevMo}</div>
               {[
-                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev, sub: `${segmentedProfit.lastMonth.ownCount} ${t('trades')} · ${fmtU(segmentedProfit.lastMonth.ownQty, 0)} ${localCur('USDT', t.lang)}` },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inVol, sub: `${segmentedProfit.lastMonth.inCount} ${t('deals') || 'deals'}` },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outVol, sub: `${segmentedProfit.lastMonth.outCount} ${t('deals') || 'deals'}` },
+                { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev },
+                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inVol },
+                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outVol },
               ].map(row => (
                 <div key={row.label} style={{ padding: '2px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
                     <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--t1)' }}>{fmtDashboardAmount(row.val)}</span>
                   </div>
-                  <div className="kpi-cell-sub" style={{ fontSize: 8, textAlign: 'end' }}>{row.sub}</div>
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
