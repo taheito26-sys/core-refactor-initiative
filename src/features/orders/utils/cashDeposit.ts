@@ -28,9 +28,11 @@ export function applyOrderCashDeposit({
   if (cashDepositMode === 'none') return nextState;
 
   const revenue = amountUSDT * sell;
-  const depositAmt = cashDepositMode === 'full'
-    ? revenue
-    : Math.min(parseFloat(cashDepositAmountRaw) || 0, revenue);
+  const depositAmt = Math.round(
+    (cashDepositMode === 'full'
+      ? revenue
+      : Math.min(parseFloat(cashDepositAmountRaw) || 0, revenue)) * 100
+  ) / 100;
   if (depositAmt <= 0) return nextState;
 
   const activeFiatAccounts = (nextState.cashAccounts || []).filter(a => a.status === 'active' && a.currency === baseFiatCurrency);

@@ -204,9 +204,10 @@ export interface CashLedgerEntry {
 }
 
 export function getAccountBalance(accountId: string, ledger: CashLedgerEntry[]): number {
-  return (ledger || [])
+  const raw = (ledger || [])
     .filter(e => e.accountId === accountId)
     .reduce((sum, e) => sum + (e.direction === 'in' ? e.amount : -e.amount), 0);
+  return Math.round(raw * 100) / 100;
 }
 
 export function getAllAccountBalances(accounts: CashAccount[], ledger: CashLedgerEntry[]): Map<string, number> {

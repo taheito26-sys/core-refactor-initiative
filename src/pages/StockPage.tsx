@@ -280,7 +280,7 @@ export default function StockPage() {
       volumeQAR = totalUSDT * px;
     }
 
-    const batchCostQAR = volumeQAR;
+    const batchCostQAR = Math.round(volumeQAR * 100) / 100;
     const batchId = uid();
 
     // ── Multi-account cash deduction (new system) ──────────────────
