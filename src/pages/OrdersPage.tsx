@@ -2506,21 +2506,21 @@ export default function OrdersPage() {
             </div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(tr.ts)}</div>
           </div>
-          {/* Row 2: Net + Volume + Rate */}
+          {/* Row 2: Net + Volume */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2, fontSize: 11 }}>
             <div>
               {Number.isFinite(net) && (
                 <>
                   <span className="muted">{t('net')}:</span>{' '}
                   <strong className="mono" style={{ fontSize: 12, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                    {net >= 0 ? '+' : ''}{fmtC(net)} {baseFiat}
+                    {net >= 0 ? '+' : ''}{fmtC(net)}
                   </strong>
                 </>
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
               <span className="muted">{t('volume')}:</span>{' '}
-              <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtTotal(rev)} {baseFiat}</strong>
+              <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtC(rev)}</strong>
             </div>
           </div>
           {/* Row 3: Rate + Status */}
@@ -2622,14 +2622,14 @@ export default function OrdersPage() {
                 <>
                   <span className="muted">{t('net')}:</span>{' '}
                   <strong className="mono" style={{ fontSize: 12, color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                    {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)} {baseFiat}
+                    {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)}
                   </strong>
                 </>
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
               <span className="muted">{t('volume')}:</span>{' '}
-              <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtC(row.volume)} {baseFiat}</strong>
+              <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtC(row.volume)}</strong>
             </div>
           </div>
           {/* Row 3: Rate (left) + Expand chevron (right) */}
