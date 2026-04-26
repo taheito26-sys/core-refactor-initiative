@@ -58,6 +58,10 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   const dR = kpiFor(state, derived, settings.range);
   const stk = totalStock(derived);
   const stCost = stockCostQAR(derived);
+  const liveCashQAR = useMemo(
+    () => deriveCashQAR(state.cashAccounts || [], state.cashLedger || []),
+    [state.cashAccounts, state.cashLedger]
+  );
   const averageStockPrice = getWACOP(derived);
   const rLabel = rangeLabel(settings.range);
   const baseFiat = settings.baseFiatCurrency || 'QAR';
@@ -717,8 +721,8 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         </div>
         <div className="kpi-card">
           <div className="kpi-lbl" style={{ color: 'var(--good)' }}>{t('netPosition')}</div>
-          <div className="kpi-val good">{fmtDashboardAmount(stCost + num(state.cashQAR, 0))}</div>
-          <div className="kpi-sub">{t('stock')} {fmtDashboardAmount(stCost)} + {t('cash')} {fmtDashboardAmount(num(state.cashQAR, 0))}</div>
+          <div className="kpi-val good">{fmtDashboardAmount(stCost + liveCashQAR)}</div>
+          <div className="kpi-sub">{t('stock')} {fmtDashboardAmount(stCost)} + {t('cash')} {fmtDashboardAmount(liveCashQAR)}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-lbl">{t('stockCostEst')}</div>
