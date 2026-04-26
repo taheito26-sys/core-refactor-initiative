@@ -735,7 +735,8 @@
     margin-left: 0;
     margin-right: 0;
     width: 100%;
-    padding: 0;
+    padding: 0 10px;
+    box-sizing: border-box;
   }
   /* New Sale form: hidden by default on mobile — shown as sheet via .sale-sheet-open */
   .tracker-root.orders-mobile-root #new-sale-form {
@@ -810,6 +811,8 @@
     max-width: 100%;
     min-width: 0;
     overflow-x: hidden;
+    padding: 0 10px;
+    box-sizing: border-box;
   }
   /* Each card row button — the main culprit */
   .tracker-root.orders-mobile-root .orders-cards-list > div,
@@ -818,6 +821,7 @@
     max-width: 100%;
     min-width: 0;
     overflow: hidden;
+    box-sizing: border-box;
   }
   /* Left side of card row: allow shrink, truncate text */
   .tracker-root.orders-mobile-root .orders-cards-list > div > button > div:first-child {

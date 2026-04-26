@@ -607,7 +607,7 @@ export default function StockPage() {
                 const stCls = rem <= 1e-9 ? 'bad' : rem < b.initialUSDT ? 'warn' : 'good';
                 const isOpen = !!detailsOpen[b.id];
                 return (
-                  <div key={b.id} className="panel" style={{ padding: '10px 12px', margin: '0 6px 6px' }}>
+                  <div key={b.id} className="panel" style={{ padding: '10px 12px', margin: '0 0 8px' }}>
                     {/* Row 1: Source (left) + date (right) */}
                     <button
                       onClick={() => setDetailsOpen(prev => ({ ...prev, [b.id]: !prev[b.id] }))}
