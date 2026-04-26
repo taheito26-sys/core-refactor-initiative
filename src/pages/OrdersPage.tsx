@@ -2494,7 +2494,7 @@ export default function OrdersPage() {
     const rate = linkedRow?.sellPrice ?? tr.sellPriceQAR;
 
     return (
-      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 6px 8px', overflow: 'hidden' }}>
+      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden' }}>
         {/* ── Header: buyer name + date ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
@@ -2591,7 +2591,7 @@ export default function OrdersPage() {
     const statusPillCls = deal.status === 'approved' ? 'good' : deal.status === 'rejected' ? 'bad' : 'warn';
 
     return (
-      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} className="panel" style={{ margin: '0 6px 8px', overflow: 'hidden' }}>
+      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden' }}>
         {/* ── Header: merchant name + status + date ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}

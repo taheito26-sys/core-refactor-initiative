@@ -687,6 +687,12 @@
   }
   .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
 
+  /* ── Dashboard mobile: 10px side padding so cards don't touch screen edges ── */
+  .tracker-root.dashboard-mobile-root {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
   /* ── Edge-to-edge layout (shared: orders + stock) ── */
   .tracker-root.orders-mobile-root,
   .tracker-root.stock-mobile-root {
@@ -729,13 +735,19 @@
     box-sizing: border-box;
     width: 100%;
   }
-  /* Card list: truly edge-to-edge */
+  /* Card list: 10px side padding so cards have breathing room on both edges (LTR + RTL) */
   .tracker-root.orders-mobile-root .orders-cards-list,
   .tracker-root.stock-mobile-root .orders-cards-list {
     margin-left: 0;
     margin-right: 0;
     width: 100%;
-    padding: 0;
+    padding: 0 10px;
+    box-sizing: border-box;
+  }
+  /* Each direct card child must respect box-sizing so padding doesn't cause overflow */
+  .tracker-root.orders-mobile-root .orders-cards-list > div,
+  .tracker-root.stock-mobile-root .orders-cards-list > div {
+    box-sizing: border-box;
   }
   /* New Sale form: hidden by default on mobile — shown as sheet via .sale-sheet-open */
   .tracker-root.orders-mobile-root #new-sale-form {
