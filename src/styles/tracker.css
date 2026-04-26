@@ -687,6 +687,12 @@
   }
   .orders-tab-btn { padding: 8px 12px; font-size: 10px; }
 
+  /* ── Dashboard mobile: add side padding so cards don't touch screen edges ── */
+  .tracker-root.dashboard-mobile-root {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
   /* ── Edge-to-edge layout (shared: orders + stock) ── */
   .tracker-root.orders-mobile-root,
   .tracker-root.stock-mobile-root {
