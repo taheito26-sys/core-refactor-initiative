@@ -3078,8 +3078,10 @@ export default function OrdersPage() {
                     </button>
                   </div>
                 )}
-                </div>{/* end tableContainerRef wrapper */}
+                </div>
               )}
+            </>
+          )}
 
           {/* ── INCOMING ORDERS TAB ── */}
           {activeTab === 'incoming' && (
