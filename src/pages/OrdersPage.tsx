@@ -2495,18 +2495,31 @@ export default function OrdersPage() {
 
     return (
       <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden' }}>
-        {/* ── Header: buyer name + date ── */}
+        {/* ── Header: buyer name + edit/details + date ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 12px 0' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1 }}>
+            {isMerchantLinked && <span style={{ fontSize: 10, marginRight: 5, verticalAlign: 'middle' }}>🤝</span>}{cn}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <button className="rowBtn" style={{ padding: '3px 8px', fontSize: 10, minHeight: 26 }}
+              onClick={(e) => { e.stopPropagation(); setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] })); }}>
+              {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
+            </button>
+            {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
+              <button className="rowBtn" style={{ padding: '3px 8px', fontSize: 10, minHeight: 26 }}
+                onClick={(e) => { e.stopPropagation(); openEdit(tr.id); }}>
+                {t('edit')}
+              </button>
+            )}
+            <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(tr.ts)}</div>
+          </div>
+        </div>
+
+        {/* ── Tap area for expand (data grid + footer) ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 0 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>
-              {isMerchantLinked && <span style={{ fontSize: 10, marginRight: 5, verticalAlign: 'middle' }}>🤝</span>}{cn}
-            </div>
-            <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(tr.ts)}</div>
-          </div>
-
           {/* ── Data grid: 4 columns ── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)', marginBottom: 0 }}>
             {/* Qty */}
@@ -2549,21 +2562,15 @@ export default function OrdersPage() {
                 <strong style={{ textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-              <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
-                {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
-              </button>
-              {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
-                <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => openEdit(tr.id)}>{t('edit')}</button>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {tr.approvalStatus === 'pending_approval' && (
-                <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
+                <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 36 }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
               )}
               {tr.approvalStatus === 'approved' && (
-                <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
+                <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 36 }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
               )}
               {connectedCustomers.some(c => c.customerUserId === tr.customerId || c.id === tr.customerId) && (
-                <button className="rowBtn" style={{ minHeight: 40, gridColumn: '1 / -1', color: 'var(--brand)' }} onClick={() => pushTradeToClient(tr)}>
+                <button className="rowBtn" style={{ minHeight: 36, color: 'var(--brand)' }} onClick={() => pushTradeToClient(tr)}>
                   📤 {t('pushToClientPortal')}
                 </button>
               )}
