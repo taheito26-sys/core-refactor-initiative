@@ -649,9 +649,11 @@ export default function OrdersPage() {
   // Reset page when filters change
   useEffect(() => { setOrdersPage(1); }, [selectedMonth, query, settings.range]);
   const paginatedOrders = useMemo(() => {
+    // On mobile, show all orders (no pagination)
+    if (isMobile) return subFilteredMy;
     const start = (ordersPage - 1) * ORDERS_PER_PAGE;
     return subFilteredMy.slice(start, start + ORDERS_PER_PAGE);
-  }, [subFilteredMy, ordersPage, ORDERS_PER_PAGE]);
+  }, [subFilteredMy, ordersPage, ORDERS_PER_PAGE, isMobile]);
 
   const subFilteredTransfers = useMemo(() => {
     if (selectedMonth === 'all') return allTransfers;
