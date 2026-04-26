@@ -65,7 +65,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div className="flex items-center gap-3">
-            <img src="/favicon.png" alt="Tracker" className="h-12 w-12 rounded-xl shadow-lg" />
+            <img src="/favicon.png?v=2" alt="Tracker" className="h-12 w-12 rounded-xl shadow-lg" />
             <div>
               <div className="text-white font-black text-lg tracking-tight">TRACKER</div>
               <div className="text-[#d4af37] text-[10px] font-semibold uppercase tracking-[0.2em]">P2P Intelligence</div>
@@ -177,7 +177,7 @@ export default function LoginPage() {
 
               {/* Mobile: Logo + Branding */}
               <div className="lg:hidden flex flex-col items-center gap-4">
-                <img src="/favicon.png" alt="Tracker" className="h-20 w-20 rounded-2xl shadow-2xl shadow-[#d4af37]/20" />
+                <img src="/favicon.png?v=2" alt="Tracker" className="h-20 w-20 rounded-2xl shadow-2xl shadow-[#d4af37]/20" />
                 <div className="text-center">
                   <div className="text-2xl font-black text-white tracking-tight">TRACKER</div>
                   <div className="text-[10px] text-[#d4af37] font-semibold uppercase tracking-[0.25em] mt-1">P2P Intelligence</div>
