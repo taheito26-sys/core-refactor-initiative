@@ -74,7 +74,6 @@ const LEDGER_TYPE_LABELS: Record<string, { en: string; ar: string }> = {
   transfer_in: { en: "Transfer In", ar: "تحويل وارد" },
   transfer_out: { en: "Transfer Out", ar: "تحويل صادر" },
   order_receipt: { en: "Order Receipt", ar: "استلام طلب" },
-  reconcile: { en: "Reconcile", ar: "تسوية" },
   opening: { en: "Opening Balance", ar: "رصيد افتتاحي" },
 };
 
@@ -221,65 +220,6 @@ function TransferModal({ accounts, balances, onSave, onClose, lang }: {
   );
 }
 
-// ── Reconcile Modal ───────────────────────────────────────────────
-
-function ReconcileModal({ account, balance, onSave, onClose, lang }: {
-  account: Account; balance: number;
-  onSave: (entry: Omit<LedgerRow, "user_id" | "created_at">) => void;
-  onClose: () => void; lang: string;
-}) {
-  const L = (en: string, ar: string) => lang === "ar" ? ar : en;
-  const [actual, setActual] = useState("");
-  const [reason, setReason] = useState("");
-  const [err, setErr] = useState("");
-  const val = parseFloat(actual);
-
-  const handle = () => {
-    if (isNaN(val) || val < 0) { setErr(L("Enter actual balance", "أدخل الرصيد الفعلي")); return; }
-    const diff = val - balance;
-    onSave({
-      id: uid(), ts: Date.now(), type: "reconcile", account_id: account.id,
-      contra_account_id: null, direction: diff >= 0 ? "in" : "out",
-      amount: Math.abs(diff), currency: account.currency,
-      note: reason.trim() || `Reconciled. Balance: ${fmtTotal(val)}`,
-      linked_entity_id: null, linked_entity_type: null,
-    });
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl bg-background p-5 space-y-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <p className="font-bold text-sm">🔄 {L("Reconcile", "تسوية")} — {account.name}</p>
-          <button onClick={onClose} className="rounded-full p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
-        </div>
-        <p className="text-xs text-muted-foreground">{L("System balance", "الرصيد في النظام")}: <strong>{fmtTotal(balance)} {account.currency}</strong></p>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">{L("Actual physical balance", "الرصيد الفعلي")}</label>
-          <input autoFocus inputMode="decimal" value={actual} onChange={e => setActual(e.target.value)}
-            placeholder="0.00" className="h-11 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-        </div>
-        {!isNaN(val) && val >= 0 && (
-          <p className="text-xs text-muted-foreground">
-            {L("Adjustment", "التعديل")}: <strong className={val - balance >= 0 ? "text-emerald-600" : "text-rose-600"}>{val - balance >= 0 ? "+" : ""}{fmtTotal(val - balance)} {account.currency}</strong>
-          </p>
-        )}
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">{L("Reason (optional)", "السبب (اختياري)")}</label>
-          <input value={reason} onChange={e => setReason(e.target.value)} placeholder="..."
-            className="h-10 w-full rounded-xl border border-border/50 bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
-        </div>
-        {err && <p className="text-xs text-destructive">⚠ {err}</p>}
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 h-11 rounded-xl border border-border/50 text-sm font-semibold hover:bg-muted">{L("Cancel", "إلغاء")}</button>
-          <button onClick={handle} className="flex-1 h-11 rounded-xl bg-primary text-sm font-bold text-primary-foreground">{L("Confirm", "تأكيد")}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Add/Edit Account Modal ────────────────────────────────────────
 
 function AccountModal({ existing, onSave, onClose, lang }: {
@@ -353,7 +293,6 @@ export default function CustomerWalletPage() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [depositModal, setDepositModal] = useState<{ account: Account; mode: "deposit" | "withdrawal" } | null>(null);
   const [transferModal, setTransferModal] = useState(false);
-  const [reconcileModal, setReconcileModal] = useState<Account | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: "", type: "" });
   const [clearPromptId, setClearPromptId] = useState<string | null>(null);
 
@@ -598,10 +537,6 @@ export default function CustomerWalletPage() {
                               ⇄ {L("Transfer", "تحويل")}
                             </button>
                           )}
-                          <button onClick={() => setReconcileModal(acc)}
-                            className="flex items-center gap-1 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/80">
-                            ✓ {L("Reconcile", "تسوية")}
-                          </button>
                           <button onClick={() => setTab("ledger")}
                             className="flex items-center gap-1 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/80">
                             📋 {L("Ledger", "السجل")}
@@ -786,11 +721,6 @@ export default function CustomerWalletPage() {
             addLedgerEntry.mutate(inn);
             toast.success(L("Transfer complete", "تم التحويل"));
           }} />
-      )}
-      {reconcileModal && (
-        <ReconcileModal lang={lang} account={reconcileModal} balance={balances.get(reconcileModal.id) ?? 0}
-          onClose={() => setReconcileModal(null)}
-          onSave={entry => { addLedgerEntry.mutate(entry); toast.success(L("Reconciled", "تمت التسوية")); }} />
       )}
     </div>
   );
