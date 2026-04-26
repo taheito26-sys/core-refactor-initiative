@@ -2506,20 +2506,27 @@ export default function OrdersPage() {
             </div>
             <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(tr.ts)}</div>
           </div>
-          {/* Row 2: USDT amount + QAR volume */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
-            <strong className="mono" style={{ fontSize: 14 }}>{fmtU(qty)} USDT</strong>
-            <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtTotal(rev)} {baseFiat}</strong>
+          {/* Row 2: Net + Volume + Rate */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2, fontSize: 11 }}>
+            <div>
+              {Number.isFinite(net) && (
+                <>
+                  <span className="muted">{t.isRTL ? 'الربح' : 'Net'}:</span>{' '}
+                  <strong className="mono" style={{ fontSize: 12, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                    {net >= 0 ? '+' : ''}{fmtC(net)} {baseFiat}
+                  </strong>
+                </>
+              )}
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
+              <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtTotal(rev)} {baseFiat}</strong>
+            </div>
           </div>
-          {/* Row 3: Rate + Profit */}
+          {/* Row 3: Rate + Status */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(rate)}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {Number.isFinite(net) && (
-                <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                  {net >= 0 ? '+' : ''}{fmtC(net)} {t.isRTL ? 'ريال' : baseFiat}
-                </span>
-              )}
               {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.4, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
             </div>
@@ -2603,39 +2610,35 @@ export default function OrdersPage() {
         {/* ── Date row ── */}
         <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{row.dateLabel}</div>
 
-        {/* ── Amount + Volume row ── */}
+        {/* ── Net + Volume + Rate row ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
           style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
+          {/* Row 2: Net (left) + Volume (right) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginBottom: 4 }}>
             <div>
-              <span className="muted">{t.isRTL ? 'الكمية' : 'Amount'}:</span>{' '}
-              <strong className="mono" style={{ fontSize: 13 }}>{fmtU(row.quantity)} USDT</strong>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
-              <strong className="mono" style={{ color: 'var(--warn)' }}>{baseFiat} {fmtC(row.volume)}</strong>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginTop: 4 }}>
-            <div>
-              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
-              <strong className="mono">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</strong>
-            </div>
-            <div style={{ textAlign: 'right' }}>
               {netDisplay != null && (
                 <>
-                  <span className="muted">{t.isRTL ? 'الربح' : 'Profit'}:</span>{' '}
-                  <strong className="mono" style={{ color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                    {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)} {t.isRTL ? 'ريال' : baseFiat}
+                  <span className="muted">{t.isRTL ? 'الربح' : 'Net'}:</span>{' '}
+                  <strong className="mono" style={{ fontSize: 12, color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                    {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)} {baseFiat}
                   </strong>
                 </>
               )}
             </div>
+            <div style={{ textAlign: 'right' }}>
+              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
+              <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtC(row.volume)} {baseFiat}</strong>
+            </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5 }}><path d="M6 9l6 6 6-6"/></svg>
+          {/* Row 3: Rate (left) + Expand chevron (right) */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, fontSize: 11 }}>
+            <div>
+              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
+              <strong className="mono" style={{ fontSize: 12 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</strong>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
           </div>
         </button>
 
