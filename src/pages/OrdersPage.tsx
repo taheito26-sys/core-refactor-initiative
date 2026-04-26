@@ -2496,90 +2496,70 @@ export default function OrdersPage() {
     return (
       <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden' }}>
         {/* ── Header: buyer name + edit/details + date ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 12px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
           <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1 }}>
-            {isMerchantLinked && <span style={{ fontSize: 10, marginRight: 5, verticalAlign: 'middle' }}>🤝</span>}{cn}
+            {isMerchantLinked && <span style={{ fontSize: 10, marginRight: 4, verticalAlign: 'middle' }}>🤝</span>}{cn}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-            <button className="rowBtn" style={{ padding: '3px 8px', fontSize: 10, minHeight: 26 }}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
               onClick={(e) => { e.stopPropagation(); setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] })); }}>
               {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
             </button>
             {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
-              <button className="rowBtn" style={{ padding: '3px 8px', fontSize: 10, minHeight: 26 }}
+              <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
                 onClick={(e) => { e.stopPropagation(); openEdit(tr.id); }}>
                 {t('edit')}
               </button>
             )}
-            <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(tr.ts)}</div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 2 }}>{fmtDate(tr.ts)}</div>
           </div>
         </div>
 
-        {/* ── Tap area for expand (data grid + footer) ── */}
-        <button
-          onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 0 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
-        >
-          {/* ── Data grid: 4 columns ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)', marginBottom: 0 }}>
-            {/* Qty */}
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(qty)}</div>
-            </div>
-            {/* Rate */}
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtP(rate)}</div>
-            </div>
-            {/* Volume */}
-            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(rev)}</div>
-            </div>
-            {/* Net */}
-            <div style={{ padding: '8px 8px', textAlign: 'right' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
-              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
-                {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
-              </div>
+        {/* ── Data grid: 4 columns ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: detailsOpen[tr.id] ? '1px solid var(--line2)' : undefined }}>
+          <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(qty)}</div>
+          </div>
+          <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtP(rate)}</div>
+          </div>
+          <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(rev)}</div>
+          </div>
+          <div style={{ padding: '8px 8px', textAlign: 'right' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+              {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
             </div>
           </div>
+        </div>
 
-          {/* ── Footer: status + chevron ── */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', gap: 8 }}>
-            <div>{getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}</div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
-          </div>
-        </button>
-
-        {/* ── Expanded detail ── */}
-        {isExpanded && (
-          <div style={{ borderTop: '1px solid var(--line2)', padding: '10px 12px' }}>
+        {/* ── Details (inline, no expand needed) ── */}
+        {detailsOpen[tr.id] && (
+          <div style={{ padding: '10px 12px' }}>
             {isMerchantLinked && linkedRel && (
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8, fontSize: 11 }}>
                 <span className="muted">{t('merchant')}</span>
                 <strong style={{ textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
               </div>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {renderDetail(tr, c)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
               {tr.approvalStatus === 'pending_approval' && (
-                <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 36 }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
+                <button className="rowBtn" style={{ color: 'var(--bad)', minHeight: 34 }} onClick={() => handleCancelTrade(tr.id)}>{t('cancel')}</button>
               )}
               {tr.approvalStatus === 'approved' && (
-                <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 36 }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
+                <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 34 }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
               )}
               {connectedCustomers.some(c => c.customerUserId === tr.customerId || c.id === tr.customerId) && (
-                <button className="rowBtn" style={{ minHeight: 36, color: 'var(--brand)' }} onClick={() => pushTradeToClient(tr)}>
+                <button className="rowBtn" style={{ minHeight: 34, color: 'var(--brand)' }} onClick={() => pushTradeToClient(tr)}>
                   📤 {t('pushToClientPortal')}
                 </button>
               )}
             </div>
-            {detailsOpen[tr.id] && (
-              <div style={{ marginTop: 8 }}>
-                {renderDetail(tr, c)}
-              </div>
-            )}
           </div>
         )}
       </div>
