@@ -2536,28 +2536,10 @@ export default function OrdersPage() {
                   <strong style={{ fontSize: 11, textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(qty)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(rate)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(rev)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(linkedRow?.avgBuy ?? c?.avgBuyQAR ?? 0) : '—'}</div>
-                </div>
-              </div>
             </div>
             <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
               <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
-                {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
+                {detailsOpen[tr.id] ? '▼ ' : '▶ '}{t('details')}
               </button>
               {(!tr.approvalStatus || tr.approvalStatus === 'pending_approval') && (
                 <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => openEdit(tr.id)}>{t('edit')}</button>
@@ -2671,24 +2653,6 @@ export default function OrdersPage() {
                   <span className="mono" style={{ fontSize: 11 }}>{marginLabel}</span>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(row.quantity)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(row.volume)}</div>
-                </div>
-              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <span className="muted">{t('net')}</span>
                 {!row.hasAvgBuy ? (
