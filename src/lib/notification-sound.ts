@@ -59,8 +59,8 @@ export function showBrowserNotification(title: string, options: BrowserNotificat
   try {
     const notification = new Notification(title, {
       body: options.body,
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
+      icon: '/favicon.png',
+      badge: '/favicon.png',
       tag: options.tag,
     });
 
