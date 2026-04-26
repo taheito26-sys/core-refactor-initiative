@@ -497,6 +497,7 @@ const translations = {
   amountQar: { en: 'Amount (QAR)', ar: 'المبلغ (ر.ق)' },
   sellPriceLabel: { en: 'Sell Price', ar: 'سعر البيع' },
   buyPrice: { en: 'Buy Price', ar: 'سعر الشراء' },
+  manualBuyPriceHint: { en: 'Cost basis per USDT when not using FIFO stock', ar: 'تكلفة الأساس لكل USDT عند عدم استخدام مخزون FIFO' },
   buyerName: { en: 'Buyer Name', ar: 'اسم المشتري' },
   searchOrTypeBuyer: { en: 'Search or type buyer name', ar: 'ابحث أو اكتب اسم المشتري' },
   noBuyersYet: { en: 'No buyers yet', ar: 'لا يوجد مشترين بعد' },

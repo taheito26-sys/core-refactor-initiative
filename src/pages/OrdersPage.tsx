@@ -144,6 +144,8 @@ export default function OrdersPage() {
   const [editCashDepositMode, setEditCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [editCashDepositAmount, setEditCashDepositAmount] = useState('');
   const [editCashDepositAccountId, setEditCashDepositAccountId] = useState('');
+  // Manual buy price for edit modal (when not using FIFO stock)
+  const [editManualBuyPrice, setEditManualBuyPrice] = useState('');
 
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
@@ -1869,6 +1871,8 @@ export default function OrdersPage() {
     setEditFee(String(tr.feeQAR ?? 0));
     setEditNote(tr.note ?? '');
     setEditCustomerId(tr.customerId ?? '');
+    // Initialize manual buy price from trade (used when usesStock is false)
+    setEditManualBuyPrice(tr.manualBuyPrice != null ? String(tr.manualBuyPrice) : '');
     // Reset link-to-partner state
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
@@ -1896,6 +1900,8 @@ export default function OrdersPage() {
     let updatedFields: Partial<Trade> = {
       ts, amountUSDT: qty, sellPriceQAR: sell, feeQAR: fee, note: editNote,
       customerId: editCustomerId, usesStock: editUsesStock,
+      // Include manual buy price when not using FIFO stock
+      manualBuyPrice: !editUsesStock ? (parseFloat(editManualBuyPrice) || 0) : undefined,
     };
 
     // ── Handle linking to partner deal ──
@@ -4758,6 +4764,24 @@ export default function OrdersPage() {
                   <div className="inputBox"><input inputMode="decimal" value={editSell} onChange={numericOnly(setEditSell)} disabled={isApproved} style={mobileInputStyle} /></div>
                 </div>
               </div>
+
+              {/* Manual Buy Price — shown when not using FIFO stock */}
+              {!editUsesStock && (
+                <div className="field2" style={{ marginBottom: 10 }}>
+                  <div className="lbl">{t('buyPrice')}</div>
+                  <div className="inputBox">
+                    <input
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={editManualBuyPrice}
+                      onChange={numericOnly(setEditManualBuyPrice)}
+                      disabled={isApproved}
+                      style={mobileInputStyle}
+                    />
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{t('manualBuyPriceHint') || 'Cost basis per USDT when not using FIFO stock'}</div>
+                </div>
+              )}
 
               <div className="g2tight" style={{ marginBottom: 10 }}>
                 <div className="field2">
