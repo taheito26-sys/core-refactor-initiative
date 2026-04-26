@@ -2489,63 +2489,44 @@ export default function OrdersPage() {
     const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
-
     const isExpanded = !!expandedCards[tr.id];
+    const qty = linkedRow?.quantity ?? tr.amountUSDT;
+    const rate = linkedRow?.sellPrice ?? tr.sellPriceQAR;
 
     return (
-      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ padding: 12, margin: '0 6px 8px' }}>
-        {/* ── Top row: badge + customer name + date ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-          <span className={`pill ${isMerchantLinked ? 'warn' : 'good'}`} style={{ fontSize: 9, flexShrink: 0 }}>
-            {isMerchantLinked ? (t.isRTL ? 'صفقة تاجر' : 'Merchant') : (t.isRTL ? 'بيع مباشر' : 'Direct Sale')}
-          </span>
-          <div style={{ fontSize: 11, fontWeight: 700, textAlign: 'right', minWidth: 0 }}>
-            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</div>
-          </div>
-        </div>
-
-        {/* ── Date row ── */}
-        <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{fmtDate(tr.ts)}</div>
-
-        {/* ── Amount + Profit row (2-col grid like cash ledger) ── */}
+      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ padding: '10px 12px', margin: '0 6px 6px' }}>
+        {/* Row 1: Buyer name (left) + date (right) */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
           style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
-            <div>
-              <span className="muted">{t.isRTL ? 'الكمية' : 'Amount'}:</span>{' '}
-              <strong className="mono" style={{ fontSize: 13 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)} USDT</strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {isMerchantLinked && <span style={{ fontSize: 9, marginRight: 4, verticalAlign: 'middle' }}>🤝</span>}{cn}
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
-              <strong className="mono" style={{ color: 'var(--warn)' }}>{baseFiat} {fmtTotal(rev)}</strong>
-            </div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(tr.ts)}</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginTop: 4 }}>
-            <div>
-              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
-              <strong className="mono">{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</strong>
-            </div>
-            <div style={{ textAlign: 'right' }}>
+          {/* Row 2: USDT amount + QAR volume */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
+            <strong className="mono" style={{ fontSize: 14 }}>{fmtU(qty)} USDT</strong>
+            <strong className="mono" style={{ fontSize: 12, color: 'var(--warn)' }}>{fmtTotal(rev)} {baseFiat}</strong>
+          </div>
+          {/* Row 3: Rate + Profit */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>@ {fmtP(rate)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {Number.isFinite(net) && (
-                <>
-                  <span className="muted">{t.isRTL ? 'الربح' : 'Profit'}:</span>{' '}
-                  <strong className="mono" style={{ color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                    {net >= 0 ? '+' : ''}{fmtC(net)} {t.isRTL ? 'ريال' : baseFiat}
-                  </strong>
-                </>
+                <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
+                  {net >= 0 ? '+' : ''}{fmtC(net)} {t.isRTL ? 'ريال' : baseFiat}
+                </span>
               )}
               {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.4, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
             </div>
-          </div>
-          {/* Expand indicator */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5 }}><path d="M6 9l6 6 6-6"/></svg>
           </div>
         </button>
 
-        {/* ── Expanded detail ── */}
+        {/* Expanded detail */}
         {isExpanded && (
           <div style={{ borderTop: '1px solid var(--line2)', marginTop: 8, paddingTop: 8 }}>
             <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
@@ -2558,11 +2539,11 @@ export default function OrdersPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
                 <div className="panel" style={{ padding: 6 }}>
                   <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(qty)}</div>
                 </div>
                 <div className="panel" style={{ padding: 6 }}>
                   <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</div>
+                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(rate)}</div>
                 </div>
                 <div className="panel" style={{ padding: 6 }}>
                   <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
