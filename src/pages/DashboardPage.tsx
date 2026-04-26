@@ -408,54 +408,56 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
   // Calculate top 5 clients with their net profit
   const top5Clients = useMemo(() => {
-    // Get all merchant profiles for name lookup
-    const merchantProfiles = state.merchantProfiles || [];
-    const profileMap = new Map<string, string>();
-    for (const p of merchantProfiles) {
-      profileMap.set(p.merchant_id, p.display_name || p.user_id || 'Unknown');
+    // Build customer name lookup from local state
+    const customerMap = new Map<string, string>();
+    for (const c of state.customers || []) {
+      if (c.id && c.name) customerMap.set(c.id, c.name);
     }
 
-    // Group trades by client/counterparty
-    const clientProfitMap = new Map<string, number>();
+    // Build merchant name lookup from deal details (counterparty names)
+    const merchantNameMap = new Map<string, string>();
+    for (const d of merchantDealKpis?.dealDetails || []) {
+      if (d.merchantName && d.merchantName !== 'Unknown') {
+        // key by merchantName itself — used when matching linkedRelId/linkedDealId trades
+        merchantNameMap.set(d.id, d.merchantName);
+      }
+    }
+
+    // Group net profit by resolved client name
+    const profitByClient = new Map<string, number>();
 
     for (const tr of allTrades) {
       const net = tradeNet(tr);
-      if (net === 0) continue;
+      if (!Number.isFinite(net) || net === 0) continue;
 
-      // Determine client identifier
-      let clientId = 'Unknown';
-      
-      if (tr.linkedMerchantId) {
-        // For merchant-linked trades, use the linked merchant name
-        clientId = profileMap.get(tr.linkedMerchantId) || `Merchant #${tr.linkedMerchantId.slice(-6)}`;
-      } else if (tr.linkedDealId || tr.linkedRelId) {
-        // For deals, use merchant name from relationship
-        const deal = merchantDealKpis?.dealDetails?.find(d => d.id === tr.linkedDealId);
-        if (deal) {
-          clientId = deal.merchantName;
-        } else {
-          clientId = `Deal #${tr.id.slice(-6)}`;
-        }
-      } else {
-        // For own trades without counterparty, use customer ID if available
-        if (tr.customerId) {
-          clientId = `Customer #${tr.customerId.slice(-6)}`;
-        } else {
-          clientId = `Trade #${tr.id.slice(-6)}`;
+      let clientName: string | null = null;
+
+      // 1. Own trade with a named customer
+      if (tr.customerId) {
+        clientName = customerMap.get(tr.customerId) || null;
+      }
+
+      // 2. Merchant-linked trade — use counterparty name from deal details
+      if (!clientName && (tr.linkedDealId || tr.linkedRelId)) {
+        const deal = merchantDealKpis?.dealDetails?.find(
+          d => d.id === tr.linkedDealId || (tr.linkedRelId && d.id === tr.linkedRelId)
+        );
+        if (deal?.merchantName && deal.merchantName !== 'Unknown') {
+          clientName = deal.merchantName;
         }
       }
 
-      const current = clientProfitMap.get(clientId) || 0;
-      clientProfitMap.set(clientId, current + net);
+      // Skip trades with no identifiable client name
+      if (!clientName) continue;
+
+      profitByClient.set(clientName, (profitByClient.get(clientName) || 0) + net);
     }
 
-    // Sort by net profit descending and take top 5
-    const sorted = [...clientProfitMap.entries()]
+    return [...profitByClient.entries()]
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
-    return sorted.map(([name, net]) => ({ name, net }));
-  }, [allTrades, tradeNet, merchantDealKpis, state.merchantProfiles]);
+      .slice(0, 5)
+      .map(([name, net]) => ({ name, net }));
+  }, [allTrades, tradeNet, merchantDealKpis, state.customers]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ChartTooltip = ({ active, payload, label }: any) => {
