@@ -407,20 +407,11 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
   }, [allTrades, tradeNet]);
 
   // Calculate top 5 clients with their net profit
-  const top5Clients = useMemo(() => {
+  const top5ClientsByProfit = useMemo(() => {
     // Build customer name lookup from local state
     const customerMap = new Map<string, string>();
     for (const c of state.customers || []) {
       if (c.id && c.name) customerMap.set(c.id, c.name);
-    }
-
-    // Build merchant name lookup from deal details (counterparty names)
-    const merchantNameMap = new Map<string, string>();
-    for (const d of merchantDealKpis?.dealDetails || []) {
-      if (d.merchantName && d.merchantName !== 'Unknown') {
-        // key by merchantName itself — used when matching linkedRelId/linkedDealId trades
-        merchantNameMap.set(d.id, d.merchantName);
-      }
     }
 
     // Group net profit by resolved client name
@@ -456,8 +447,54 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     return [...profitByClient.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([name, net]) => ({ name, net }));
+      .map(([name, value]) => ({ name, value }));
   }, [allTrades, tradeNet, merchantDealKpis, state.customers]);
+
+  // Calculate top 5 clients by volume (USDT)
+  const top5ClientsByVolume = useMemo(() => {
+    // Build customer name lookup from local state
+    const customerMap = new Map<string, string>();
+    for (const c of state.customers || []) {
+      if (c.id && c.name) customerMap.set(c.id, c.name);
+    }
+
+    // Group volume by resolved client name
+    const volumeByClient = new Map<string, number>();
+
+    for (const tr of allTrades) {
+      const vol = tr.amountUSDT;
+      if (!Number.isFinite(vol) || vol === 0) continue;
+
+      let clientName: string | null = null;
+
+      // 1. Own trade with a named customer
+      if (tr.customerId) {
+        clientName = customerMap.get(tr.customerId) || null;
+      }
+
+      // 2. Merchant-linked trade — use counterparty name from deal details
+      if (!clientName && (tr.linkedDealId || tr.linkedRelId)) {
+        const deal = merchantDealKpis?.dealDetails?.find(
+          d => d.id === tr.linkedDealId || (tr.linkedRelId && d.id === tr.linkedRelId)
+        );
+        if (deal?.merchantName && deal.merchantName !== 'Unknown') {
+          clientName = deal.merchantName;
+        }
+      }
+
+      // Skip trades with no identifiable client name
+      if (!clientName) continue;
+
+      volumeByClient.set(clientName, (volumeByClient.get(clientName) || 0) + vol);
+    }
+
+    return [...volumeByClient.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, value]) => ({ name, value }));
+  }, [allTrades, merchantDealKpis, state.customers]);
+
+  const [topClientsTab, setTopClientsTab] = useState<'profit' | 'volume'>('profit');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ChartTooltip = ({ active, payload, label }: any) => {
@@ -735,48 +772,82 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       <div className="dash-bottom">
         <div className="panel">
-          <div className="panel-head"><h2>{t('top5Clients')}</h2><span className="pill">{t('netProfit')}</span></div>
+          <div className="panel-head">
+            <h2>{t('top5Clients')}</h2>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <span
+                style={{
+                  fontSize: 9, padding: '2px 8px', cursor: 'pointer', borderRadius: 4,
+                  color: topClientsTab === 'profit' ? 'var(--brand)' : 'var(--muted)',
+                  background: topClientsTab === 'profit' ? 'color-mix(in srgb,var(--brand) 15%,transparent)' : 'transparent',
+                  fontWeight: topClientsTab === 'profit' ? 700 : 400,
+                }}
+                onClick={() => setTopClientsTab('profit')}
+              >{t('netProfit')}</span>
+              <span
+                style={{
+                  fontSize: 9, padding: '2px 8px', cursor: 'pointer', borderRadius: 4,
+                  color: topClientsTab === 'volume' ? 'var(--brand)' : 'var(--muted)',
+                  background: topClientsTab === 'volume' ? 'color-mix(in srgb,var(--brand) 15%,transparent)' : 'transparent',
+                  fontWeight: topClientsTab === 'volume' ? 700 : 400,
+                }}
+                onClick={() => setTopClientsTab('volume')}
+              >{t('volume')}</span>
+            </div>
+          </div>
           <div className="panel-body" style={{ padding: 8 }}>
-            {top5Clients.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                <span className="muted" style={{ fontSize: 11 }}>{t('noDataAvailable')}</span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {top5Clients.map((client, idx) => (
-                  <div key={idx} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '8px 10px',
-                    background: idx % 2 === 0 ? 'var(--panel2)' : 'transparent',
-                    borderRadius: 4,
-                    fontSize: 11
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: `linear-gradient(135deg, var(--t1), var(--t2))`,
-                        color: 'var(--panel)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 9,
-                        fontWeight: 700
-                      }}>
-                        {idx + 1}
-                      </span>
-                      <span style={{ fontWeight: 500, color: 'var(--t1)' }}>{client.name}</span>
-                    </div>
-                    <span className={`mono ${client.net >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700 }}>
-                      {client.net >= 0 ? '+' : ''}{fmtDashboardAmount(client.net)}
-                    </span>
+            {(() => {
+              const data = topClientsTab === 'profit' ? top5ClientsByProfit : top5ClientsByVolume;
+              if (data.length === 0) {
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                    <span className="muted" style={{ fontSize: 11 }}>{t('noDataAvailable')}</span>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              }
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {data.map((client, idx) => (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px 10px',
+                      background: idx % 2 === 0 ? 'var(--panel2)' : 'transparent',
+                      borderRadius: 4,
+                      fontSize: 11
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          background: `linear-gradient(135deg, var(--t1), var(--t2))`,
+                          color: 'var(--panel)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 9,
+                          fontWeight: 700
+                        }}>
+                          {idx + 1}
+                        </span>
+                        <span style={{ fontWeight: 500, color: 'var(--t1)' }}>{client.name}</span>
+                      </div>
+                      {topClientsTab === 'profit' ? (
+                        <span className={`mono ${client.value >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700 }}>
+                          {client.value >= 0 ? '+' : ''}{fmtDashboardAmount(client.value)}
+                        </span>
+                      ) : (
+                        <span className="mono" style={{ fontWeight: 700, color: 'var(--t1)' }}>
+                          {fmtU(client.value, 0)} {localCur('USDT', t.lang)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
         <div className="panel">
