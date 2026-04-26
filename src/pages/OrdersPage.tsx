@@ -2489,92 +2489,67 @@ export default function OrdersPage() {
     const net = isMerchantLinked && tr.merchantPct && Number.isFinite(rawNet) ? rawNet * (tr.merchantPct / 100) : rawNet;
     const cn = state.customers.find(x => x.id === tr.customerId)?.name || '—';
     const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
-
     const isExpanded = !!expandedCards[tr.id];
+    const qty = linkedRow?.quantity ?? tr.amountUSDT;
+    const rate = linkedRow?.sellPrice ?? tr.sellPriceQAR;
 
     return (
-      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ padding: 12, margin: '0 6px 8px' }}>
-        {/* ── Top row: badge + customer name + date ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-          <span className={`pill ${isMerchantLinked ? 'warn' : 'good'}`} style={{ fontSize: 9, flexShrink: 0 }}>
-            {isMerchantLinked ? (t.isRTL ? 'صفقة تاجر' : 'Merchant') : (t.isRTL ? 'بيع مباشر' : 'Direct Sale')}
-          </span>
-          <div style={{ fontSize: 11, fontWeight: 700, textAlign: 'right', minWidth: 0 }}>
-            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</div>
-          </div>
-        </div>
-
-        {/* ── Date row ── */}
-        <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{fmtDate(tr.ts)}</div>
-
-        {/* ── Amount + Profit row (2-col grid like cash ledger) ── */}
+      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 6px 8px', overflow: 'hidden' }}>
+        {/* ── Header: buyer name + date ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
-            <div>
-              <span className="muted">{t.isRTL ? 'الكمية' : 'Amount'}:</span>{' '}
-              <strong className="mono" style={{ fontSize: 13 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)} USDT</strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>
+              {isMerchantLinked && <span style={{ fontSize: 10, marginRight: 5, verticalAlign: 'middle' }}>🤝</span>}{cn}
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
-              <strong className="mono" style={{ color: 'var(--warn)' }}>{baseFiat} {fmtTotal(rev)}</strong>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>{fmtDate(tr.ts)}</div>
+          </div>
+
+          {/* ── Data grid: 4 columns ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)', marginBottom: 0 }}>
+            {/* Qty */}
+            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(qty)}</div>
+            </div>
+            {/* Rate */}
+            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtP(rate)}</div>
+            </div>
+            {/* Volume */}
+            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(rev)}</div>
+            </div>
+            {/* Net */}
+            <div style={{ padding: '8px 8px', textAlign: 'right' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: Number.isFinite(net) ? (net >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+                {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}
+              </div>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginTop: 4 }}>
-            <div>
-              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
-              <strong className="mono">{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</strong>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              {Number.isFinite(net) && (
-                <>
-                  <span className="muted">{t.isRTL ? 'الربح' : 'Profit'}:</span>{' '}
-                  <strong className="mono" style={{ color: net >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                    {net >= 0 ? '+' : ''}{fmtC(net)} {t.isRTL ? 'ريال' : baseFiat}
-                  </strong>
-                </>
-              )}
-              {getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}
-            </div>
-          </div>
-          {/* Expand indicator */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5 }}><path d="M6 9l6 6 6-6"/></svg>
+
+          {/* ── Footer: status + chevron ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', gap: 8 }}>
+            <div>{getApprovalStatusBadge(tr.approvalStatus as LinkedTradeStatus | undefined)}</div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
           </div>
         </button>
 
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ borderTop: '1px solid var(--line2)', marginTop: 8, paddingTop: 8 }}>
-            <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
-              {isMerchantLinked && linkedRel && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <span className="muted">{t('merchant')}</span>
-                  <strong style={{ fontSize: 11, textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
-                </div>
-              )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(linkedRow?.quantity ?? tr.amountUSDT)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtP(linkedRow?.sellPrice ?? tr.sellPriceQAR)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(rev)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{ok ? fmtP(linkedRow?.avgBuy ?? c?.avgBuyQAR ?? 0) : '—'}</div>
-                </div>
+          <div style={{ borderTop: '1px solid var(--line2)', padding: '10px 12px' }}>
+            {isMerchantLinked && linkedRel && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8, fontSize: 11 }}>
+                <span className="muted">{t('merchant')}</span>
+                <strong style={{ textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
               </div>
-            </div>
-            <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
               <button className="rowBtn" style={{ minHeight: 40 }} onClick={() => setDetailsOpen(prev => ({ ...prev, [tr.id]: !prev[tr.id] }))}>
                 {detailsOpen[tr.id] ? t('hideDetails') : t('details')}
               </button>
@@ -2588,12 +2563,8 @@ export default function OrdersPage() {
                 <button className="rowBtn" style={{ color: 'var(--warn)', minHeight: 40, gridColumn: '1 / -1' }} onClick={() => handleCancelTrade(tr.id)}>{t('requestCancellation')}</button>
               )}
               {connectedCustomers.some(c => c.customerUserId === tr.customerId || c.id === tr.customerId) && (
-                <button
-                  className="rowBtn"
-                  style={{ minHeight: 40, gridColumn: '1 / -1', color: 'var(--brand)' }}
-                  onClick={() => pushTradeToClient(tr)}
-                >
-                  📤 Push to client portal
+                <button className="rowBtn" style={{ minHeight: 40, gridColumn: '1 / -1', color: 'var(--brand)' }} onClick={() => pushTradeToClient(tr)}>
+                  📤 {t('pushToClientPortal')}
                 </button>
               )}
             </div>
@@ -2612,129 +2583,87 @@ export default function OrdersPage() {
     const rel = relationships.find(r => r.id === deal.relationship_id);
     const row = buildDealRowModel({ deal, perspective, myMerchantId: merchantProfile?.merchant_id, locale: t.isRTL ? 'ar' : 'en', resolveAvgBuy: resolveDealAvgBuy, agreements: allAgreements });
     const merchantName = rel?.counterparty?.display_name || '—';
-
-    const statusColors: Record<string, { bg: string; color: string }> = {
-      pending: { bg: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' },
-      approved: { bg: 'color-mix(in srgb, var(--good) 15%, transparent)', color: 'var(--good)' },
-      rejected: { bg: 'color-mix(in srgb, var(--bad) 15%, transparent)', color: 'var(--bad)' },
-      cancelled: { bg: 'color-mix(in srgb, var(--muted) 15%, transparent)', color: 'var(--muted)' },
-    };
-    const sc = statusColors[deal.status] || statusColors.pending;
-    const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}% ${t('marginLabel')}` : '—';
+    const marginLabel = row.margin != null && row.margin !== 0 ? `${(row.margin * 100).toFixed(2)}%` : null;
 
     const cardKey = `deal-${deal.id}`;
     const isExpanded = !!expandedCards[cardKey];
-    const netDisplay = !row.hasAvgBuy ? null
-      : (row.myNet ?? row.fullNet ?? null);
+    const netDisplay = !row.hasAvgBuy ? null : (row.myNet ?? row.fullNet ?? null);
+    const statusPillCls = deal.status === 'approved' ? 'good' : deal.status === 'rejected' ? 'bad' : 'warn';
 
     return (
-      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} className="panel" style={{ padding: 12, margin: '0 6px 8px' }}>
-        {/* ── Top row: badge + merchant name ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-          <span className={`pill ${deal.status === 'approved' ? 'good' : deal.status === 'rejected' ? 'bad' : 'warn'}`} style={{ fontSize: 9, flexShrink: 0 }}>{deal.status}</span>
-          <div style={{ fontSize: 11, fontWeight: 700, textAlign: 'right', minWidth: 0 }}>
-            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{merchantName}</div>
-          </div>
-        </div>
-
-        {/* ── Date row ── */}
-        <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{row.dateLabel}</div>
-
-        {/* ── Amount + Volume row ── */}
+      <div key={`mobile-${deal.id}`} id={cardKey} data-deal-id={deal.id} className="panel" style={{ margin: '0 6px 8px', overflow: 'hidden' }}>
+        {/* ── Header: merchant name + status + date ── */}
         <button
           onClick={() => setExpandedCards(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
-          style={{ width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 12px 0', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
-            <div>
-              <span className="muted">{t.isRTL ? 'الكمية' : 'Amount'}:</span>{' '}
-              <strong className="mono" style={{ fontSize: 13 }}>{fmtU(row.quantity)} USDT</strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>
+              {merchantName}
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span className="muted">{t.isRTL ? 'المبلغ' : 'Volume'}:</span>{' '}
-              <strong className="mono" style={{ color: 'var(--warn)' }}>{baseFiat} {fmtC(row.volume)}</strong>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, marginTop: 4 }}>
-            <div>
-              <span className="muted">{t.isRTL ? 'السعر' : 'Rate'}:</span>{' '}
-              <strong className="mono">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</strong>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              {netDisplay != null && (
-                <>
-                  <span className="muted">{t.isRTL ? 'الربح' : 'Profit'}:</span>{' '}
-                  <strong className="mono" style={{ color: netDisplay >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-                    {netDisplay >= 0 ? '+' : ''}{fmtC(netDisplay)} {t.isRTL ? 'ريال' : baseFiat}
-                  </strong>
-                </>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <span className={`pill ${statusPillCls}`} style={{ fontSize: 9 }}>{deal.status}</span>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{row.dateLabel}</div>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5 }}><path d="M6 9l6 6 6-6"/></svg>
+
+          {/* ── Data grid: 4 columns ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, borderTop: '1px solid var(--line2)', borderBottom: '1px solid var(--line2)' }}>
+            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(row.quantity)}</div>
+            </div>
+            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
+            </div>
+            <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('volume')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--warn)' }}>{fmtC(row.volume)}</div>
+            </div>
+            <div style={{ padding: '8px 8px', textAlign: 'right' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('net')}</div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: netDisplay != null ? (netDisplay >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--muted2)' }}>
+                {netDisplay != null ? `${netDisplay >= 0 ? '+' : ''}${fmtC(netDisplay)}` : '—'}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Footer: margin + chevron ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', gap: 8 }}>
+            <div>
+              {marginLabel && <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{marginLabel}</span>}
+            </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4,0,0.2,1)', opacity: 0.5, flexShrink: 0 }}><path d="M6 9l6 6 6-6"/></svg>
           </div>
         </button>
-
         {/* ── Expanded detail ── */}
         {isExpanded && (
-          <div style={{ borderTop: '1px solid var(--line2)', marginTop: 8, paddingTop: 8 }}>
-            <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <span className="muted">{t('buyer')}</span>
-                <strong style={{ fontSize: 11, textAlign: 'right', maxWidth: '62%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.buyer || '—'}</strong>
-              </div>
-              {row.margin != null && (
+          <div style={{ borderTop: '1px solid var(--line2)', padding: '10px 12px' }}>
+            <div style={{ display: 'grid', gap: 6, marginBottom: 10, fontSize: 11 }}>
+              {row.buyer && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <span className="muted">{t('marginLabel')}</span>
-                  <span className="mono" style={{ fontSize: 11 }}>{marginLabel}</span>
+                  <span className="muted">{t('buyer')}</span>
+                  <strong style={{ textAlign: 'right', maxWidth: '62%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.buyer}</strong>
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('qty')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtU(row.quantity)}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('avgBuy')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('sell')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</div>
-                </div>
-                <div className="panel" style={{ padding: 6 }}>
-                  <div className="muted" style={{ fontSize: 9 }}>{t('volume')}</div>
-                  <div className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{fmtC(row.volume)}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <span className="muted">{t('net')}</span>
-                {!row.hasAvgBuy ? (
-                  <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>
-                ) : row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet ? (
+              {row.myPct != null && row.fullNet != null && row.myNet != null && row.fullNet !== row.myNet && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span className="muted">{t('net')} ({t('myCut')})</span>
                   <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
                     <span style={{ color: 'var(--muted)', fontSize: 9, textDecoration: 'line-through' }}>{row.fullNet >= 0 ? '+' : ''}{fmtC(row.fullNet)}</span>
-                    <span style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                      {row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)} <span style={{ fontSize: 9, opacity: 0.7 }}>({t('myCut')})</span>
-                    </span>
+                    <strong style={{ color: row.myNet >= 0 ? 'var(--good)' : 'var(--bad)' }}>{row.myNet >= 0 ? '+' : ''}{fmtC(row.myNet)}</strong>
                   </span>
-                ) : (
-                  <span style={{ color: (row.myNet ?? 0) >= 0 ? 'var(--good)' : 'var(--bad)', fontWeight: 700, fontSize: 11 }}>
-                    {row.myNet != null && row.myNet !== 0 ? `${row.myNet >= 0 ? '+' : ''}${fmtC(row.myNet)}` : '—'}
-                  </span>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-
             <button
               className="rowBtn"
-              style={{ width: '100%', minHeight: 36, marginBottom: 6, fontSize: 11 }}
+              style={{ width: '100%', minHeight: 36, marginBottom: 8, fontSize: 11 }}
               onClick={() => setDetailsOpen(prev => ({ ...prev, [cardKey]: !prev[cardKey] }))}
             >
-              {detailsOpen[cardKey] ? `▼ ${t('hideDetails')}` : `▶ ${t('details')}`}
+              {detailsOpen[cardKey] ? t('hideDetails') : t('details')}
             </button>
-
             {detailsOpen[cardKey] && (
               <div style={{ marginBottom: 8, padding: 8, background: 'color-mix(in srgb, var(--panel2) 60%, transparent)', borderRadius: 6 }}>
                 {row.hasAvgBuy && row.fullNet != null && (
@@ -2780,8 +2709,7 @@ export default function OrdersPage() {
                 </div>
               </div>
             )}
-
-            <div className="actionsRow" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
               {perspective === 'incoming' && deal.status === 'pending' && (
                 <>
                   <button className="rowBtn" style={{ color: 'var(--good)', fontWeight: 700, minHeight: 40 }} onClick={() => approveIncomingDeal(deal.id)}>{t('approve')}</button>
