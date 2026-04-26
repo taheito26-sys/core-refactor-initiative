@@ -166,6 +166,28 @@ export default function OrdersPage() {
   const [ordersPage, setOrdersPage] = useState(1);
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
+  // ── Dynamic rows per page: fit table to available viewport height ──
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [ordersPerPage, setOrdersPerPage] = useState(10);
+  useEffect(() => {
+    if (isMobile) return; // mobile uses card list, not table
+    const ROW_HEIGHT = 41; // px per table row (matches tbody td padding)
+    const THEAD_HEIGHT = 36; // thead row
+    const PAGINATION_HEIGHT = 48; // pagination controls row
+    const BUFFER = 8; // small safety buffer
+    const measure = () => {
+      const el = tableContainerRef.current;
+      if (!el) return;
+      const available = el.clientHeight - THEAD_HEIGHT - PAGINATION_HEIGHT - BUFFER;
+      const rows = Math.max(1, Math.floor(available / ROW_HEIGHT));
+      setOrdersPerPage(rows);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (tableContainerRef.current) ro.observe(tableContainerRef.current);
+    return () => ro.disconnect();
+  }, [isMobile]);
+
 
   // Capital Transfer state
   const [transferDirection, setTransferDirection] = useState<'lender_to_operator' | 'operator_to_lender'>('lender_to_operator');
@@ -627,14 +649,14 @@ export default function OrdersPage() {
   }, [filtered, selectedMonth]);
 
   // ── Pagination ──
-  const ORDERS_PER_PAGE = 10;
+  const ORDERS_PER_PAGE = isMobile ? 10 : ordersPerPage;
   const totalOrderPages = Math.max(1, Math.ceil(subFilteredMy.length / ORDERS_PER_PAGE));
   // Reset page when filters change
   useEffect(() => { setOrdersPage(1); }, [selectedMonth, query, settings.range]);
   const paginatedOrders = useMemo(() => {
     const start = (ordersPage - 1) * ORDERS_PER_PAGE;
     return subFilteredMy.slice(start, start + ORDERS_PER_PAGE);
-  }, [subFilteredMy, ordersPage]);
+  }, [subFilteredMy, ordersPage, ORDERS_PER_PAGE]);
 
   const subFilteredTransfers = useMemo(() => {
     if (selectedMonth === 'all') return allTransfers;
@@ -2804,7 +2826,7 @@ export default function OrdersPage() {
       <div className="twoColPage orders-two-col">
 
         {/* ═══════════ LEFT PANEL ═══════════ */}
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
 
           {/* ── MY ORDERS TAB ── */}
           {activeTab === 'my' && (
@@ -2869,7 +2891,8 @@ export default function OrdersPage() {
                   })()}
                 </div>
               ) : (
-                <div className="tableWrap ledgerWrap">
+                <div ref={tableContainerRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div className="tableWrap ledgerWrap" style={{ flex: 1, overflow: 'auto' }}>
                   <table>
                     <thead>
                       <tr>
@@ -3031,34 +3054,32 @@ export default function OrdersPage() {
                     </tbody>
                   </table>
                 </div>
+                {/* ── Pagination Controls ── */}
+                {subFilteredMy.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '8px 0', fontSize: 12, flexShrink: 0 }}>
+                    <button
+                      className="btn secondary"
+                      style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
+                      disabled={ordersPage <= 1}
+                      onClick={() => setOrdersPage(p => Math.max(1, p - 1))}
+                    >
+                      {t.lang === 'ar' ? '→' : '←'} {t('prev')}
+                    </button>
+                    <span style={{ fontWeight: 700, color: 'var(--fg)', minWidth: 80, textAlign: 'center' }}>
+                      {ordersPage} / {totalOrderPages}
+                    </span>
+                    <button
+                      className="btn secondary"
+                      style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
+                      disabled={ordersPage >= totalOrderPages}
+                      onClick={() => setOrdersPage(p => Math.min(totalOrderPages, p + 1))}
+                    >
+                      {t('next')} {t.lang === 'ar' ? '←' : '→'}
+                    </button>
+                  </div>
+                )}
+                </div>{/* end tableContainerRef wrapper */}
               )}
-
-              {/* ── Pagination Controls ── */}
-              {subFilteredMy.length > ORDERS_PER_PAGE && (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '12px 0', fontSize: 12 }}>
-                  <button
-                    className="btn secondary"
-                    style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
-                    disabled={ordersPage <= 1}
-                    onClick={() => setOrdersPage(p => Math.max(1, p - 1))}
-                  >
-                    {t.lang === 'ar' ? '→' : '←'} {t('prev')}
-                  </button>
-                  <span style={{ fontWeight: 700, color: 'var(--fg)', minWidth: 80, textAlign: 'center' }}>
-                    {ordersPage} / {totalOrderPages}
-                  </span>
-                  <button
-                    className="btn secondary"
-                    style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
-                    disabled={ordersPage >= totalOrderPages}
-                    onClick={() => setOrdersPage(p => Math.min(totalOrderPages, p + 1))}
-                  >
-                    {t('next')} {t.lang === 'ar' ? '←' : '→'}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
 
           {/* ── INCOMING ORDERS TAB ── */}
           {activeTab === 'incoming' && (
