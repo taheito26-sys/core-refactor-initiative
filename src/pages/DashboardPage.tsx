@@ -406,6 +406,40 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     });
   }, [allTrades, tradeNet]);
 
+  // Calculate top 5 clients with their net profit
+  const top5Clients = useMemo(() => {
+    // Group trades by client/counterparty
+    const clientProfitMap = new Map<string, number>();
+
+    for (const tr of allTrades) {
+      const net = tradeNet(tr);
+      if (net === 0) continue;
+
+      // Determine client identifier
+      let clientId = 'Unknown';
+      if (tr.linkedDealId || tr.linkedRelId) {
+        // For deals, use merchant name from relationship
+        const deal = merchantDealKpis?.dealDetails?.find(d => d.id === tr.linkedDealId);
+        if (deal) {
+          clientId = deal.merchantName;
+        }
+      } else {
+        // For own trades, use trade ID as fallback
+        clientId = `Trade #${tr.id.slice(-6)}`;
+      }
+
+      const current = clientProfitMap.get(clientId) || 0;
+      clientProfitMap.set(clientId, current + net);
+    }
+
+    // Sort by net profit descending and take top 5
+    const sorted = [...clientProfitMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    return sorted.map(([name, net]) => ({ name, net }));
+  }, [allTrades, tradeNet, merchantDealKpis]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ChartTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -684,33 +718,47 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
       <div className="dash-bottom">
         <div className="panel">
-          <div className="panel-head"><h2>{t('profitRevenueTrend')}</h2><span className="pill">{t('last14Trades')}</span></div>
-          <div className="panel-body" style={{ height: 190, position: 'relative' }}>
-            {trendData.length < 2 ? (
+          <div className="panel-head"><h2>{t('top5Clients')}</h2><span className="pill">{t('netProfit')}</span></div>
+          <div className="panel-body" style={{ padding: 8 }}>
+            {top5Clients.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                <span className="muted" style={{ fontSize: 11 }}>{t('needAtLeast2Trades')}</span>
+                <span className="muted" style={{ fontSize: 11 }}>{t('noDataAvailable')}</span>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gProfit" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" strokeOpacity={0.3} />
-                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="revenue" name={t('volume') || 'Revenue'} stroke="#6366f1" fill="url(#gRevenue)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="profit" name={t('netProfitLabel') || 'Profit'} stroke="#22c55e" fill="url(#gProfit)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {top5Clients.map((client, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    background: idx % 2 === 0 ? 'var(--panel2)' : 'transparent',
+                    borderRadius: 4,
+                    fontSize: 11
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: `linear-gradient(135deg, var(--t1), var(--t2))`,
+                        color: 'var(--panel)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 9,
+                        fontWeight: 700
+                      }}>
+                        {idx + 1}
+                      </span>
+                      <span style={{ fontWeight: 500, color: 'var(--t1)' }}>{client.name}</span>
+                    </div>
+                    <span className={`mono ${client.net >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700 }}>
+                      {client.net >= 0 ? '+' : ''}{fmtDashboardAmount(client.net)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

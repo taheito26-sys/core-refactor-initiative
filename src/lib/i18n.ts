@@ -348,6 +348,8 @@ const translations = {
   collapseLbl: { en: 'collapse', ar: 'طي' },
   profitRevenueTrend: { en: 'Profit & Revenue Trend', ar: 'اتجاه الربح والإيرادات' },
   last14Trades: { en: 'Last 14 trades', ar: 'آخر 14 صفقة' },
+  top5Clients: { en: 'Top 5 Clients', ar: 'أفضل 5 عملاء' },
+  clientNetProfit: { en: 'Net Profit', ar: 'صافي الربح' },
   chartRendersLive: { en: 'Chart renders with live trade data', ar: 'الرسم البياني يعمل مع بيانات حية' },
   periodStats: { en: 'Period Stats', ar: 'إحصائيات الفترة' },
   volume: { en: 'Volume', ar: 'الحجم' },
