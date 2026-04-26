@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
         VitePWA({
           registerType: "autoUpdate",
           injectRegister: "auto",
-          includeAssets: ["favicon.ico", "favicon.png", "icon-192.png", "icon-512.png", "robots.txt"],
+          includeAssets: ["favicon.ico?v=2", "favicon.png?v=2", "icon-192.png?v=2", "icon-512.png?v=2", "robots.txt"],
           workbox: {
             maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
             navigateFallbackDenylist: [
@@ -69,22 +69,22 @@ export default defineConfig(({ mode }) => {
             theme_color: "#0f172a",
             background_color: "#0f172a",
             display: "standalone",
-            start_url: "/",
+            start_url: "/?icon_v=2",
             icons: [
               {
-                src: "/icon-192.png",
+                src: "/icon-192.png?v=2",
                 sizes: "192x192",
                 type: "image/png",
                 purpose: "any",
               },
               {
-                src: "/icon-512.png",
+                src: "/icon-512.png?v=2",
                 sizes: "512x512",
                 type: "image/png",
                 purpose: "any",
               },
               {
-                src: "/icon-512.png",
+                src: "/icon-512.png?v=2",
                 sizes: "512x512",
                 type: "image/png",
                 purpose: "maskable",
