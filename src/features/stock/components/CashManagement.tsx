@@ -750,7 +750,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [transferFromId, setTransferFromId] = useState<string | undefined>();
   const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' | 'funding' | 'proceeds' | 'settlement' } | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: '', type: '' });
-  const [reconcileAccountData, setReconcileAccountData] = useState<CashAccount | null>(null);
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
   const [showMerchantCustody, setShowMerchantCustody] = useState(false);
 
@@ -870,12 +869,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (ok) setShowTransfer(false);
   };
 
-  const reconcileAccount = async (account: CashAccount, entry: CashLedgerEntry) => {
-    const newAccounts = accounts.map(a => a.id === account.id ? { ...a, lastReconciled: Date.now() } : a);
-    const ok = await commit({ ...state, cashAccounts: newAccounts, cashLedger: [...ledger, entry] });
-    if (ok) setReconcileAccountData(null);
-  };
-
   const clearLedgerEntries = async (id: string) => {
     // 1. Register this account as "cleared" so refreshFromCloud won't re-merge
     //    local-only entries for it during the sync window.
@@ -940,14 +933,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       return bal < 1000 && a.currency === 'QAR';
     });
   }, [activeAccounts, balances]);
-
-  const overdueReconciliation = useMemo(() => {
-    const threshold = 7 * 24 * 3600 * 1000; // 7 days
-    return activeAccounts.filter(a => {
-      if (!a.lastReconciled) return true;
-      return Date.now() - a.lastReconciled > threshold;
-    });
-  }, [activeAccounts]);
 
   const batchFundingSources = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1077,7 +1062,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 const lastActivityEntry = [...ledger].filter(e => e.accountId === acc.id).sort((a, b) => b.ts - a.ts)[0];
                 const isInactive = acc.status === 'inactive';
                 const TypeIcon = ACCOUNT_TYPE_ICON[acc.type];
-                const needsReconcile = !acc.lastReconciled || (Date.now() - acc.lastReconciled > 7 * 86400000);
 
                 return (
                   <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '12px 12px 14px' : undefined }}>
@@ -1115,7 +1099,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, fontSize: 10, color: 'var(--muted)' }}>
                       {lastActivityEntry && <span>{t('lastActivity')}: {fmtDate(lastActivityEntry.ts)}</span>}
                       {batchCount > 0 && <span>• {batchCount} {t('batchesFunded')}</span>}
-                      {needsReconcile && !isInactive && <span style={{ color: 'var(--warn)' }}>• {t('needsReconcileLbl')}</span>}
                     </div>
 
                     {/* Actions */}
@@ -1155,7 +1138,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                           <IconTransfer /> {t('transferLbl')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setReconcileAccountData(acc)}>{t('reconcileBtn')}</button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)', gridColumn: '1 / -1' }} onClick={() => setClearLedgerPromptId(acc.id)}>🗑️ {t('clearLedger')}</button>
                       </div>
                     )}
@@ -1424,17 +1406,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   <span className="mono">{fmtTotal(balances.get(a.id) || 0)} QAR — {t('lowBalancePill')}</span>
                 </div>
               ))}
-              {overdueReconciliation.map(a => (
-                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
-                  <span style={{ color: 'var(--muted)' }}>🔄 {a.name}</span>
-                  <span style={{ color: 'var(--muted)', fontSize: 10 }}>
-                    {a.lastReconciled
-                      ? `${t('lastActivity')}: ${fmtDate(a.lastReconciled)}`
-                      : t('neverReconciled')}
-                  </span>
-                </div>
-              ))}
-              {lowBalanceAccounts.length === 0 && overdueReconciliation.length === 0 && (
+              {lowBalanceAccounts.length === 0 && (
                 <div style={{ color: 'var(--good)', fontSize: 12 }}>{t('allAccountsHealthy')}</div>
               )}
             </div>
@@ -1507,16 +1479,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           onClose={() => setShowDeposit(null)}
         />
       )}
-      {reconcileAccountData && (
-        <ReconcileEntryModal
-          account={reconcileAccountData}
-          currentBalance={balances.get(reconcileAccountData.id) || 0}
-          isMobile={isMobile}
-          onSave={(entry) => reconcileAccount(reconcileAccountData, entry)}
-          onClose={() => setReconcileAccountData(null)}
-        />
-      )}
-
       {clearLedgerPromptId && (
         <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setClearLedgerPromptId(null)}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
