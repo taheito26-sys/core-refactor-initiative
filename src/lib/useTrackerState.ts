@@ -324,12 +324,25 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
         return;
       }
 
-      // Cloud is AUTHORITATIVE on mount. A union with localStorage / inFlight
+      // Cloud is AUTHORITATIVE on mount for snapshot collections (batches,
+      // trades, customers, suppliers). A union with localStorage / inFlight
       // would re-introduce items that were deleted on another device since
       // this device's last open — union has no way to express "deleted".
-      // Trust cloud verbatim; cash arrays will be replaced by the cash-table
-      // load below.
-      const rebuilt = buildStateFrom(cloudState, {
+      //
+      // Cash is the exception: the snapshot intentionally carries empty cash
+      // arrays (the dedicated cash_accounts / cash_ledger tables are the
+      // source of truth for cash). If we set state from cloudState verbatim,
+      // cash arrays go empty for the ~500ms that loadCashFromCloud takes —
+      // the user sees their cash hide and reappear on every page mount.
+      // Preserve the in-memory cash arrays through the snapshot rebuild;
+      // applyCashFromCloud below will replace them with the authoritative
+      // cash-table data the moment that load returns.
+      const cloudStateWithCash: Partial<TrackerState> = {
+        ...cloudState,
+        cashAccounts: stateRef.current.cashAccounts ?? [],
+        cashLedger: stateRef.current.cashLedger ?? [],
+      };
+      const rebuilt = buildStateFrom(cloudStateWithCash, {
         lowStockThreshold: options.lowStockThreshold,
         priceAlertThreshold: options.priceAlertThreshold,
         range: options.range,
