@@ -1502,38 +1502,41 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           isMobile={isMobile}
           onClose={() => setShowMerchantCustody(false)}
           onSubmit={(input) => {
-            createRequest.mutate(input);
-            // Find counterparty label for the account name
-            const cp = counterparties.find(c => c.counterpartyMerchantId === input.custodianMerchantId);
-            const cpLabel = cp?.counterpartyLabel ?? input.custodianMerchantId;
-            // Add local merchant_custody account + merchant_funding_out ledger entry
-            const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === input.custodianMerchantId);
-            const custodyAccId = existingCustodyAcc?.id ?? uid();
-            const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
-              id: custodyAccId,
-              name: `Custody — ${cpLabel}`,
-              type: 'merchant_custody' as CashAccountType,
-              currency: input.currency as CashCurrency,
-              status: 'active' as const,
-              merchantId: input.custodianMerchantId,
-              relationshipId: input.relationshipId,
-              isMerchantAccount: true,
-              purpose: 'custody' as const,
-              createdAt: Date.now(),
-            }];
-            const outEntry: CashLedgerEntry = {
-              id: uid(), ts: Date.now(),
-              type: 'merchant_funding_out',
-              accountId: custodyAccId,
-              direction: 'out',
-              amount: input.amount,
-              currency: input.currency as CashCurrency,
-              note: input.note ?? `${t('custodyCustodyRequest')} ${cpLabel}`,
-              merchantId: input.custodianMerchantId,
-              relationshipId: input.relationshipId,
-            };
-            const newLedger = [...ledger, outEntry];
-            applyState({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: deriveCashQAR(newAccounts, newLedger) });
+            createRequest.mutate(input, {
+              onSuccess: () => {
+                // Find counterparty label for the account name
+                const cp = counterparties.find(c => c.counterpartyMerchantId === input.custodianMerchantId);
+                const cpLabel = cp?.counterpartyLabel ?? input.custodianMerchantId;
+                // Add local merchant_custody account + merchant_funding_out ledger entry
+                const existingCustodyAcc = accounts.find(a => a.type === 'merchant_custody' && a.merchantId === input.custodianMerchantId);
+                const custodyAccId = existingCustodyAcc?.id ?? uid();
+                const newAccounts = existingCustodyAcc ? accounts : [...accounts, {
+                  id: custodyAccId,
+                  name: `Custody — ${cpLabel}`,
+                  type: 'merchant_custody' as CashAccountType,
+                  currency: input.currency as CashCurrency,
+                  status: 'active' as const,
+                  merchantId: input.custodianMerchantId,
+                  relationshipId: input.relationshipId,
+                  isMerchantAccount: true,
+                  purpose: 'custody' as const,
+                  createdAt: Date.now(),
+                }];
+                const outEntry: CashLedgerEntry = {
+                  id: uid(), ts: Date.now(),
+                  type: 'merchant_funding_out',
+                  accountId: custodyAccId,
+                  direction: 'out',
+                  amount: input.amount,
+                  currency: input.currency as CashCurrency,
+                  note: input.note ?? `${t('custodyCustodyRequest')} ${cpLabel}`,
+                  merchantId: input.custodianMerchantId,
+                  relationshipId: input.relationshipId,
+                };
+                const newLedger = [...ledger, outEntry];
+                applyState({ ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: deriveCashQAR(newAccounts, newLedger) });
+              }
+            });
           }}
         />
       )}
