@@ -680,17 +680,6 @@
   }
 }
 
-/* ── Orders desktop: fill viewport height, no scroll ── */
-.tracker-root .orders-two-col {
-  flex: 1;
-  min-height: 0;
-  align-items: stretch;
-}
-.tracker-root .orders-two-col > div:first-child {
-  min-height: 0;
-  overflow: hidden;
-}
-
 /* ── Orders two-col: on mobile, keep list first and form below ── */
 @media (max-width: 768px) {
   .tracker-root .orders-two-col {

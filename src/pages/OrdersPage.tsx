@@ -170,22 +170,17 @@ export default function OrdersPage() {
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const [ordersPerPage, setOrdersPerPage] = useState(10);
   useEffect(() => {
-    if (isMobile) return; // mobile uses card list, not table
-    const ROW_HEIGHT = 41; // px per table row (matches tbody td padding)
-    const THEAD_HEIGHT = 36; // thead row
-    const PAGINATION_HEIGHT = 48; // pagination controls row
-    const BUFFER = 8; // small safety buffer
+    if (isMobile) return;
+    const ROW_HEIGHT = 38;
+    const FIXED_CHROME = 280; // topbar + tabs + month filter + KPI bar + thead + pagination + gaps
     const measure = () => {
-      const el = tableContainerRef.current;
-      if (!el) return;
-      const available = el.clientHeight - THEAD_HEIGHT - PAGINATION_HEIGHT - BUFFER;
-      const rows = Math.max(1, Math.floor(available / ROW_HEIGHT));
+      const vh = window.innerHeight;
+      const rows = Math.max(3, Math.floor((vh - FIXED_CHROME) / ROW_HEIGHT));
       setOrdersPerPage(rows);
     };
     measure();
-    const ro = new ResizeObserver(measure);
-    if (tableContainerRef.current) ro.observe(tableContainerRef.current);
-    return () => ro.disconnect();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
   }, [isMobile]);
 
 
@@ -2826,7 +2821,7 @@ export default function OrdersPage() {
       <div className="twoColPage orders-two-col">
 
         {/* ═══════════ LEFT PANEL ═══════════ */}
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <div>
 
           {/* ── MY ORDERS TAB ── */}
           {activeTab === 'my' && (
@@ -2891,8 +2886,7 @@ export default function OrdersPage() {
                   })()}
                 </div>
               ) : (
-                <div ref={tableContainerRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                <div className="tableWrap ledgerWrap" style={{ flex: 1, overflow: 'auto' }}>
+                <div className="tableWrap ledgerWrap">
                   <table>
                     <thead>
                       <tr>
@@ -3054,30 +3048,30 @@ export default function OrdersPage() {
                     </tbody>
                   </table>
                 </div>
-                {/* ── Pagination Controls ── */}
-                {subFilteredMy.length > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '8px 0', fontSize: 12, flexShrink: 0 }}>
-                    <button
-                      className="btn secondary"
-                      style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
-                      disabled={ordersPage <= 1}
-                      onClick={() => setOrdersPage(p => Math.max(1, p - 1))}
-                    >
-                      {t.lang === 'ar' ? '→' : '←'} {t('prev')}
-                    </button>
-                    <span style={{ fontWeight: 700, color: 'var(--fg)', minWidth: 80, textAlign: 'center' }}>
-                      {ordersPage} / {totalOrderPages}
-                    </span>
-                    <button
-                      className="btn secondary"
-                      style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
-                      disabled={ordersPage >= totalOrderPages}
-                      onClick={() => setOrdersPage(p => Math.min(totalOrderPages, p + 1))}
-                    >
-                      {t('next')} {t.lang === 'ar' ? '←' : '→'}
-                    </button>
-                  </div>
-                )}
+              )}
+
+              {/* ── Pagination Controls ── */}
+              {!isMobile && subFilteredMy.length > ORDERS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '8px 0', fontSize: 12 }}>
+                  <button
+                    className="btn secondary"
+                    style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
+                    disabled={ordersPage <= 1}
+                    onClick={() => setOrdersPage(p => Math.max(1, p - 1))}
+                  >
+                    {t.lang === 'ar' ? '→' : '←'} {t('prev')}
+                  </button>
+                  <span style={{ fontWeight: 700, color: 'var(--fg)', minWidth: 80, textAlign: 'center' }}>
+                    {ordersPage} / {totalOrderPages}
+                  </span>
+                  <button
+                    className="btn secondary"
+                    style={{ fontSize: 11, padding: '4px 12px', minHeight: 30 }}
+                    disabled={ordersPage >= totalOrderPages}
+                    onClick={() => setOrdersPage(p => Math.min(totalOrderPages, p + 1))}
+                  >
+                    {t('next')} {t.lang === 'ar' ? '←' : '→'}
+                  </button>
                 </div>
               )}
             </>
