@@ -449,10 +449,28 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       profitByClient.set(clientName, (profitByClient.get(clientName) || 0) + net);
     }
 
+    const countByClient = new Map<string, number>();
+    for (const [name] of profitByClient) {
+      countByClient.set(name, 0);
+    }
+    for (const tr of allTrades) {
+      let clientName: string | null = null;
+      if (tr.customerId) clientName = customerMap.get(tr.customerId) || null;
+      if (!clientName && (tr.linkedDealId || tr.linkedRelId)) {
+        const deal = merchantDealKpis?.dealDetails?.find(
+          d => d.id === tr.linkedDealId || (tr.linkedRelId && d.id === tr.linkedRelId)
+        );
+        if (deal?.merchantName && deal.merchantName !== 'Unknown') clientName = deal.merchantName;
+      }
+      if (clientName && profitByClient.has(clientName)) {
+        countByClient.set(clientName, (countByClient.get(clientName) || 0) + 1);
+      }
+    }
+
     return [...profitByClient.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([name, value]) => ({ name, value }));
+      .map(([name, value]) => ({ name, value, trades: countByClient.get(name) || 0 }));
   }, [allTrades, tradeNet, merchantDealKpis, state.customers]);
 
   // Calculate top 5 clients by volume (USDT)
@@ -465,6 +483,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
 
     // Group volume by resolved client name
     const volumeByClient = new Map<string, number>();
+    const countByClient = new Map<string, number>();
 
     for (const tr of allTrades) {
       const vol = tr.amountUSDT;
@@ -491,12 +510,13 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       if (!clientName) continue;
 
       volumeByClient.set(clientName, (volumeByClient.get(clientName) || 0) + vol);
+      countByClient.set(clientName, (countByClient.get(clientName) || 0) + 1);
     }
 
     return [...volumeByClient.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([name, value]) => ({ name, value }));
+      .map(([name, value]) => ({ name, value, trades: countByClient.get(name) || 0 }));
   }, [allTrades, merchantDealKpis, state.customers]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
