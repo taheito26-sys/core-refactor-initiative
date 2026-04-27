@@ -19,6 +19,7 @@ import { activateTrackerClearBarrier, markTrackerClearInProgress } from '@/lib/t
 import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { TopClientsKPI } from '@/components/dashboard/TopClientsKPI';
 import {
   AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
@@ -498,8 +499,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       .map(([name, value]) => ({ name, value }));
   }, [allTrades, merchantDealKpis, state.customers]);
 
-  const [topClientsTab, setTopClientsTab] = useState<'profit' | 'volume'>('profit');
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ChartTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -775,85 +774,12 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
       </div>
 
       <div className="dash-bottom">
-        <div className="panel">
-          <div className="panel-head">
-            <h2>{t('top5Clients')}</h2>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <span
-                style={{
-                  fontSize: 9, padding: '2px 8px', cursor: 'pointer', borderRadius: 4,
-                  color: topClientsTab === 'profit' ? 'var(--brand)' : 'var(--muted)',
-                  background: topClientsTab === 'profit' ? 'color-mix(in srgb,var(--brand) 15%,transparent)' : 'transparent',
-                  fontWeight: topClientsTab === 'profit' ? 700 : 400,
-                }}
-                onClick={() => setTopClientsTab('profit')}
-              >{t('netProfit')}</span>
-              <span
-                style={{
-                  fontSize: 9, padding: '2px 8px', cursor: 'pointer', borderRadius: 4,
-                  color: topClientsTab === 'volume' ? 'var(--brand)' : 'var(--muted)',
-                  background: topClientsTab === 'volume' ? 'color-mix(in srgb,var(--brand) 15%,transparent)' : 'transparent',
-                  fontWeight: topClientsTab === 'volume' ? 700 : 400,
-                }}
-                onClick={() => setTopClientsTab('volume')}
-              >{t('volume')}</span>
-            </div>
-          </div>
-          <div className="panel-body" style={{ padding: 8 }}>
-            {(() => {
-              const data = topClientsTab === 'profit' ? top5ClientsByProfit : top5ClientsByVolume;
-              if (data.length === 0) {
-                return (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                    <span className="muted" style={{ fontSize: 11 }}>{t('noDataAvailable')}</span>
-                  </div>
-                );
-              }
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {data.map((client, idx) => (
-                    <div key={idx} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '8px 10px',
-                      background: idx % 2 === 0 ? 'var(--panel2)' : 'transparent',
-                      borderRadius: 4,
-                      fontSize: 11
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: '50%',
-                          background: `linear-gradient(135deg, var(--t1), var(--t2))`,
-                          color: 'var(--panel)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 9,
-                          fontWeight: 700
-                        }}>
-                          {idx + 1}
-                        </span>
-                        <span style={{ fontWeight: 500, color: 'var(--t1)' }}>{client.name}</span>
-                      </div>
-                      {topClientsTab === 'profit' ? (
-                        <span className={`mono ${client.value >= 0 ? 'good' : 'bad'}`} style={{ fontWeight: 700 }}>
-                          {client.value >= 0 ? '+' : ''}{fmtDashboardAmount(client.value)}
-                        </span>
-                      ) : (
-                        <span className="mono" style={{ fontWeight: 700, color: 'var(--t1)' }}>
-                          {fmtU(client.value, 0)} {localCur('USDT', t.lang)}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
+        <TopClientsKPI
+          top5ClientsByProfit={top5ClientsByProfit}
+          top5ClientsByVolume={top5ClientsByVolume}
+          allTrades={allTrades}
+          tradeNet={tradeNet}
+        />
         <div className="panel">
           <div className="panel-head"><h2>{t('periodStats')}</h2><span className="pill">{rLabel}</span></div>
           <div className="panel-body">
