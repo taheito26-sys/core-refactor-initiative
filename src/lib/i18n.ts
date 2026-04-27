@@ -380,6 +380,8 @@ const translations = {
   p2pLiveWeightedAvg: { en: 'Live weighted average', ar: 'المتوسط المرجّح المباشر' },
   p2pNoData: { en: 'No data', ar: 'لا توجد بيانات' },
   p2pRefresh: { en: 'Refresh', ar: 'تحديث' },
+  p2pForceRefresh: { en: 'Force Refresh', ar: 'تحديث فوري' },
+  p2pRefreshing: { en: 'Refreshing...', ar: 'جاري التحديث...' },
   p2pAutoRefresh: { en: 'Auto-refresh', ar: 'تحديث تلقائي' },
   p2pUpdated: { en: 'Updated', ar: 'آخر تحديث' },
   p2pPriceHistory: { en: '📊 Price History', ar: '📊 سجل الأسعار' },

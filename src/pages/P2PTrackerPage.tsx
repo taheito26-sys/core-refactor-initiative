@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { DeepScanResults } from '@/features/p2p/components/DeepScanResults';
 import { computeDailySummaries } from '@/features/p2p/utils/converters';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function P2PTrackerPage() {
   const t = useT();
@@ -42,6 +43,25 @@ export default function P2PTrackerPage() {
   const [scanResults, setScanResults] = useState<P2POffer[] | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [isManualRefresh, setIsManualRefresh] = useState(false);
+
+  const triggerManualRefresh = async () => {
+    setIsManualRefresh(true);
+    try {
+      // Directly call the p2p-scraper function to force refresh
+      await supabase.functions.invoke('p2p-scraper', {
+        body: { market },
+      });
+      // Wait a moment for the data to be inserted
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Then refresh the data
+      await refresh();
+    } catch (err) {
+      console.error('Manual refresh failed:', err);
+    } finally {
+      setIsManualRefresh(false);
+    }
+  };
 
   const todaySummary = useMemo(() => {
     const summaries = computeDailySummaries(history);
@@ -247,10 +267,16 @@ export default function P2PTrackerPage() {
             </TabsList>
           </Tabs>
 
-          <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5 h-8 text-[11px] border-border/50">
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {t('p2pRefresh')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5 h-8 text-[11px] border-border/50">
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              {t('p2pRefresh')}
+            </Button>
+            <Button variant="outline" size="sm" onClick={triggerManualRefresh} disabled={loading || isManualRefresh} className="gap-1.5 h-8 text-[11px] border-border/50">
+              <Zap className={`h-3.5 w-3.5 ${isManualRefresh ? 'animate-pulse' : ''}`} />
+              {isManualRefresh ? t('p2pRefreshing') : t('p2pForceRefresh')}
+            </Button>
+          </div>
 
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md border border-border/20">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
