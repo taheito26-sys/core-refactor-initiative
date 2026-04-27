@@ -105,11 +105,11 @@ export default function P2PTrackerPage() {
 
     // Values expressed as EGP per QAR (EGP → QAR direction, ~14.xxx)
     // Formula: EG Buy avg ÷ QA rate  →  how many EGP you get per 1 QAR
+    // V1 uses QA Sell rate (what you receive when selling QAR)
+    // V2 uses QA Buy rate (what you pay when buying QAR) — removed per user request
     return {
       vCashV1:    egBuyVCashAvg && qaSellAvg ? egBuyVCashAvg / qaSellAvg : null,
-      vCashV2:    egBuyVCashAvg && qaBuyAvg  ? egBuyVCashAvg / qaBuyAvg  : null,
       instaPayV1: egBuyInstaAvg && qaSellAvg ? egBuyInstaAvg / qaSellAvg : null,
-      instaPayV2: egBuyInstaAvg && qaBuyAvg  ? egBuyInstaAvg / qaBuyAvg  : null,
       // Raw inputs passed through for KPI subtitle display
       qaSellAvg,
       qaBuyAvg,
