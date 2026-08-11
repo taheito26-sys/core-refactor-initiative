@@ -145,6 +145,31 @@ export default function StockPage() {
 
   const availableUsdt = useMemo(() => totalStock(derived), [derived]);
   const wacop = getWACOP(derived);
+  /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
+  const activeFifoBatch = useMemo(() => {
+    const sorted = [...state.batches].filter(b => b.initialUSDT > 0).sort((a, b) => a.ts - b.ts);
+    for (const b of sorted) {
+      const db = derived.batches.find(x => x.id === b.id);
+      const rem = db ? db.remainingUSDT : b.initialUSDT;
+      if (rem > 1e-9) return { ...b, remaining: rem };
+    }
+    return null;
+  }, [state.batches, derived]);
+  /** Quantity-weighted average buy price of batches added during the selected month (or the current month, if "All"). */
+  const monthAvgBuyPrice = useMemo(() => {
+    const targetKey = selectedMonth !== 'all' ? selectedMonth : (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    })();
+    const monthBatches = state.batches.filter(b => {
+      if (b.buyPriceQAR <= 0 || b.initialUSDT <= 0) return false;
+      const d = new Date(b.ts);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === targetKey;
+    });
+    const qty = monthBatches.reduce((s, b) => s + b.initialUSDT, 0);
+    return qty > 0 ? monthBatches.reduce((s, b) => s + b.initialUSDT * b.buyPriceQAR, 0) / qty : null;
+  }, [state.batches, selectedMonth]);
   /** Currency-aware formatter: respects the global {baseFiat}/USDT toggle using FIFO WACOP */
   const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop, baseFiat as 'QAR' | 'EGP', t.lang), [settings.currency, wacop, baseFiat, t.lang]);
 
@@ -624,6 +649,32 @@ export default function StockPage() {
               }}>
                 <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{t('estValue') || 'Est. Value'}</div>
                 <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtC(availableUsdt * wacop)}</div>
+              </div>
+            )}
+            {activeFifoBatch && (
+              <div style={{
+                flex: '1 1 140px', minWidth: 140,
+                padding: '5px 9px',
+                background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{t('activeFifoLayer')}</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                  {activeFifoBatch.source || '—'} · {fmtP(activeFifoBatch.buyPriceQAR)}
+                </div>
+              </div>
+            )}
+            {monthAvgBuyPrice != null && (
+              <div style={{
+                flex: '1 1 140px', minWidth: 140,
+                padding: '5px 9px',
+                background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{t('monthAvgBuyPrice')}</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtP(monthAvgBuyPrice)} {localCur(baseFiat, t.lang)}/{localCur('USDT', t.lang)}</div>
               </div>
             )}
           </div>

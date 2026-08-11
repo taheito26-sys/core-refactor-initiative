@@ -534,6 +534,8 @@ const translations = {
   fifoProgress: { en: 'FIFO layers · progress = remaining', ar: 'طبقات FIFO · التقدم = المتبقي' },
   availableUsdtForSale: { en: 'Available USDT for Sale', ar: 'USDT المتاح للبيع' },
   estValue: { en: 'Est. Value', ar: 'القيمة التقديرية' },
+  activeFifoLayer: { en: 'Active FIFO Layer', ar: 'طبقة FIFO النشطة' },
+  monthAvgBuyPrice: { en: 'Avg Buy Price (Month)', ar: 'متوسط سعر الشراء (الشهر)' },
   smartInsights: { en: 'Smart Insights', ar: 'رؤى ذكية' },
   priceTrendUp: { en: 'Your recent buy price is trending higher', ar: 'سعر الشراء الأخير في اتجاه صاعد' },
   priceTrendDown: { en: 'Your recent buy price is trending lower', ar: 'سعر الشراء الأخير في اتجاه هابط' },
