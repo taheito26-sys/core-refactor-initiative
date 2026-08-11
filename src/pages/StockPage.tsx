@@ -17,6 +17,7 @@ import {
   getAccountBalance,
   getAllAccountBalances,
   deriveCashQAR,
+  totalStock,
   type TrackerState,
   type CashLedgerEntry,
 } from '@/lib/tracker-helpers';
@@ -147,6 +148,7 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
+  const availableUsdt = useMemo(() => totalStock(derived), [derived]);
   const wacop = getWACOP(derived);
   /** Currency-aware formatter: respects the global {baseFiat}/USDT toggle using FIFO WACOP */
   const fmtC = useCallback((v: number) => fmtQWithUnit(v, settings.currency, wacop, baseFiat as 'QAR' | 'EGP', t.lang), [settings.currency, wacop, baseFiat, t.lang]);
@@ -585,6 +587,36 @@ export default function StockPage() {
             <div style={{ display: 'flex', gap: 6 }}>
               <span className="pill">{rLabel}</span>
             </div>
+          </div>
+
+          <div
+            className="panel"
+            style={{
+              marginBottom: 9,
+              padding: isMobile ? '10px 12px' : '10px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              background: 'color-mix(in srgb, var(--good) 8%, var(--panel))',
+              border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line2))',
+              borderRadius: 10,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                {t('availableUsdtForSale') || 'Available USDT for Sale'}
+              </div>
+              <div className="mono" style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: 'var(--good)', marginTop: 2 }}>
+                {fmtU(availableUsdt)} {localCur('USDT', t.lang)}
+              </div>
+            </div>
+            {wacop > 0 && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>{t('estValue') || 'Est. Value'}</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{fmtC(availableUsdt * wacop)}</div>
+              </div>
+            )}
           </div>
 
           {perf.length === 0 ? (
