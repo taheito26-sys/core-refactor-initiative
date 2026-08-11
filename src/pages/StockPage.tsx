@@ -31,7 +31,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { CashManagement } from '@/features/stock/components/CashManagement';
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
@@ -85,11 +84,8 @@ export default function StockPage() {
   const [editPrice, setEditPrice] = useState('');
   const [editNote, setEditNote] = useState('');
 
-  // ── Cash Management tab ──────────────────────────────────────────
   const [searchParams] = useSearchParams();
-  const [stockTab, setStockTab] = useState<'batches' | 'cash'>(
-    searchParams.get('tab') === 'cash' ? 'cash' : 'batches'
-  );
+  const stockTab = 'batches' as const;
   const [fundingAccountId, setFundingAccountId] = useState<string>('');
   // ── Mobile Add Batch Sheet ────────────────────────────────────────
   const [addBatchSheetOpen, setAddBatchSheetOpen] = useState(false);
@@ -518,31 +514,8 @@ export default function StockPage() {
   };
 
   return (
-    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : 12, display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
+    <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
-      {/* ── Stock Page Tab Switcher ─────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 2, background: 'var(--panel)', borderRadius: 8, padding: 3, alignSelf: isMobile ? 'stretch' : 'flex-start', width: isMobile ? '100%' : undefined }}>
-        <button
-          onClick={() => setStockTab('batches')}
-          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'batches' ? 'var(--brand)' : 'transparent', color: stockTab === 'batches' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
-        >
-          {t('stockTabLabel')}
-          <span style={{ background: stockTab === 'batches' ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.08)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{state.batches.length}</span>
-        </button>
-        <button
-          onClick={() => setStockTab('cash')}
-          style={{ padding: isMobile ? '8px 12px' : '6px 16px', minHeight: isMobile ? 36 : undefined, flex: isMobile ? 1 : undefined, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', borderRadius: 6, background: stockTab === 'cash' ? 'var(--brand)' : 'transparent', color: stockTab === 'cash' ? '#fff' : 'var(--muted)', transition: 'all 0.12s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-          {t('cashTabLabel')}
-          {cashAccounts.length > 0 && <span style={{ background: 'color-mix(in srgb, var(--good) 20%, transparent)', color: 'var(--good)', borderRadius: 4, padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>{cashAccounts.filter(a => a.status === 'active').length}</span>}
-        </button>
-      </div>
-
-      {/* ── CASH MANAGEMENT TAB ────────────────────────────────── */}
-      {stockTab === 'cash' && (
-        <CashManagement state={state} applyState={applyState} applyStateAndCommit={applyStateAndCommit} clearedAccountIds={clearedAccountIds} />
-      )}
-
-      {/* ── BATCHES TAB ────────────────────────────────────────── */}
       {stockTab === 'batches' && (
       <div className="twoColPage" style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 10 } : undefined}>
         <div>
@@ -589,32 +562,31 @@ export default function StockPage() {
             </div>
           </div>
 
-          <div
-            className="panel"
-            style={{
-              marginBottom: 9,
-              padding: isMobile ? '10px 12px' : '10px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-              background: 'color-mix(in srgb, var(--good) 8%, var(--panel))',
-              border: '1px solid color-mix(in srgb, var(--good) 25%, var(--line2))',
-              borderRadius: 10,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 9, flexWrap: 'wrap' }}>
+            <div style={{
+              flex: '1 1 140px', minWidth: 140,
+              padding: '5px 9px',
+              background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
                 {t('availableUsdtForSale') || 'Available USDT for Sale'}
               </div>
-              <div className="mono" style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: 'var(--good)', marginTop: 2 }}>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800, color: 'var(--good)', whiteSpace: 'nowrap' }}>
                 {fmtU(availableUsdt)} {localCur('USDT', t.lang)}
               </div>
             </div>
             {wacop > 0 && (
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)' }}>{t('estValue') || 'Est. Value'}</div>
-                <div className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{fmtC(availableUsdt * wacop)}</div>
+              <div style={{
+                flex: '1 1 60px', minWidth: 60,
+                padding: '5px 9px',
+                background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>{t('estValue') || 'Est. Value'}</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtC(availableUsdt * wacop)}</div>
               </div>
             )}
           </div>

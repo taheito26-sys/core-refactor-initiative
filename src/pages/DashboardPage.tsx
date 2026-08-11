@@ -703,7 +703,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           const totalCash = hasAccounts ? deriveCashQAR(cashAccounts, cashLedger) : num(state.cashQAR, 0);
 
           return (
-            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/stock?tab=cash') : undefined}>
+            <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
               <div className="kpi-lbl" style={{ color: 'var(--warn)' }}>{t('cashAvailable')}</div>
               <div className="kpi-val" style={{ color: 'var(--warn)' }}>{fmtDashboardAmount(totalCash)}</div>
               <div className="kpi-sub">

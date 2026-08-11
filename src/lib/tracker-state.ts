@@ -22,6 +22,7 @@ function stripCashState(stored: Partial<TrackerState> | null): Partial<TrackerSt
     cashHistory: [],
     cashAccounts: [],
     cashLedger: [],
+    customerLoans: [],
   };
 }
 
@@ -58,6 +59,7 @@ export function buildStateFrom(
     cashHistory: Array.isArray(stored?.cashHistory) ? stored.cashHistory : [],
     cashAccounts: Array.isArray(stored?.cashAccounts) ? stored.cashAccounts : [],
     cashLedger: Array.isArray(stored?.cashLedger) ? stored.cashLedger : [],
+    customerLoans: Array.isArray(stored?.customerLoans) ? stored.customerLoans : [],
     settings: {
       lowStockThreshold: overrides?.lowStockThreshold ?? asNumber(stored?.settings?.lowStockThreshold, 5000),
       priceAlertThreshold: overrides?.priceAlertThreshold ?? asNumber(stored?.settings?.priceAlertThreshold, 2),
@@ -118,6 +120,7 @@ export function mergeLocalAndCloud(
       cashHistory: [],
       cashQAR: 0,
       cashOwner: '',
+      customerLoans: unionById(cleanLocal.customerLoans, cleanCloud.customerLoans),
     };
   }
 
@@ -131,6 +134,7 @@ export function mergeLocalAndCloud(
     cashAccounts: unionById(local.cashAccounts, cloud.cashAccounts),
     cashLedger: unionById(local.cashLedger, cloud.cashLedger),
     cashHistory: unionById(local.cashHistory, cloud.cashHistory),
+    customerLoans: unionById(local.customerLoans, cloud.customerLoans),
   };
 }
 
