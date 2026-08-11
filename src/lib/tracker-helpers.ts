@@ -157,7 +157,9 @@ export type LedgerEntryType =
   | 'merchant_settlement_in'
   | 'merchant_settlement_out'
   | 'merchant_fee'
-  | 'merchant_adjustment';
+  | 'merchant_adjustment'
+  | 'loan_disbursement'
+  | 'loan_repayment';
 
 export interface CashAccount {
   id: string;
@@ -191,7 +193,7 @@ export interface CashLedgerEntry {
   amount: number;
   currency: CashCurrency;
   fxRate?: number;
-  linkedEntityType?: 'batch' | 'trade' | 'relationship' | 'settlement';
+  linkedEntityType?: 'batch' | 'trade' | 'relationship' | 'settlement' | 'loan';
   linkedEntityId?: string;
   note?: string;
   /** Metadata for merchant/linked tracking */
@@ -406,6 +408,36 @@ export interface CashTransaction {
   note: string;
 }
 
+/** A customer loan/credit sale: USDT (or fiat) given now, repaid over time via cash ledger entries. */
+export interface CustomerLoan {
+  id: string;
+  ts: number;
+  customerId: string;
+  /** Optional linked order/trade this loan financed */
+  tradeId?: string;
+  /** Principal amount owed, in `currency` */
+  principal: number;
+  currency: CashCurrency;
+  /** Account the principal was disbursed from (for the loan_disbursement ledger entry) */
+  fundingAccountId?: string;
+  /** ID of the CashLedgerEntry recording the disbursement */
+  disbursementLedgerEntryId?: string;
+  note?: string;
+  status: 'open' | 'closed';
+  createdAt: number;
+}
+
+export function getLoanRepaid(loanId: string, ledger: CashLedgerEntry[]): number {
+  const raw = (ledger || [])
+    .filter(e => e.linkedEntityType === 'loan' && e.linkedEntityId === loanId && e.type === 'loan_repayment')
+    .reduce((sum, e) => sum + e.amount, 0);
+  return Math.round(raw * 100) / 100;
+}
+
+export function getLoanRemaining(loan: CustomerLoan, ledger: CashLedgerEntry[]): number {
+  return Math.max(0, Math.round((loan.principal - getLoanRepaid(loan.id, ledger)) * 100) / 100);
+}
+
 export interface Supplier {
   id: string;
   name: string;
@@ -428,6 +460,8 @@ export interface TrackerState {
   cashAccounts: CashAccount[];
   /** Immutable cash ledger — every balance change appends here */
   cashLedger: CashLedgerEntry[];
+  /** Customer loans/credit sales — principal tracked against repayments in cashLedger */
+  customerLoans?: CustomerLoan[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }

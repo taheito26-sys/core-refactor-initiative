@@ -5,7 +5,9 @@ import {
   type TrackerState,
   type CashAccount, type CashAccountType, type CashCurrency,
   type CashLedgerEntry, type LedgerEntryType,
+  type CustomerLoan, type Customer, type Trade,
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
+  getLoanRepaid, getLoanRemaining,
 } from '@/lib/tracker-helpers';
 import { useT } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -698,6 +700,170 @@ function MerchantCustodyModal({ counterparties, myMerchantId, myUserId, onSubmit
   );
 }
 
+interface NewLoanModalProps {
+  customers: Customer[];
+  trades: Trade[];
+  accounts: CashAccount[];
+  balances: Map<string, number>;
+  onSave: (input: { customerId: string; tradeId?: string; principal: number; currency: CashCurrency; fundingAccountId?: string; note?: string }) => void;
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, isMobile = false }: NewLoanModalProps) {
+  const t = useT();
+  const [customerId, setCustomerId] = useState(customers[0]?.id || '');
+  const [tradeId, setTradeId] = useState('');
+  const [principal, setPrincipal] = useState('');
+  const [currency, setCurrency] = useState<CashCurrency>('QAR');
+  const [fundingAccountId, setFundingAccountId] = useState(accounts.find(a => a.currency === 'QAR')?.id || '');
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState('');
+
+  const principalNum = num(principal, 0);
+  const fundingAcc = accounts.find(a => a.id === fundingAccountId);
+  const custTrades = trades.filter(tr => tr.customerId === customerId && !tr.voided);
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
+    border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none',
+  };
+  const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
+
+  const handle = () => {
+    if (!customerId) { setErr(t('loanSelectCustomer')); return; }
+    if (!(principalNum > 0)) { setErr(t('enterValidAmount')); return; }
+    if (fundingAccountId) {
+      const bal = balances.get(fundingAccountId) || 0;
+      if (bal < principalNum) { setErr(`${t('insufficientInAcc')} "${fundingAcc?.name}"`); return; }
+    }
+    onSave({ customerId, tradeId: tradeId || undefined, principal: principalNum, currency, fundingAccountId: fundingAccountId || undefined, note: note.trim() || undefined });
+  };
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 420, maxHeight: '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{t('newLoan')}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('loanCustomer')}</div>
+          <select value={customerId} onChange={e => { setCustomerId(e.target.value); setTradeId(''); }} style={selectStyle}>
+            <option value="" style={optionStyle}>{t('loanSelectCustomer')}</option>
+            {customers.map(c => <option key={c.id} value={c.id} style={optionStyle}>{c.name}</option>)}
+          </select>
+        </div>
+
+        {custTrades.length > 0 && (
+          <div className="field2" style={{ marginBottom: 10 }}>
+            <div className="lbl">{t('loanLinkedOrder')}</div>
+            <select value={tradeId} onChange={e => setTradeId(e.target.value)} style={selectStyle}>
+              <option value="" style={optionStyle}>—</option>
+              {custTrades.map(tr => <option key={tr.id} value={tr.id} style={optionStyle}>{fmtDate(tr.ts)} · {tr.amountUSDT} USDT</option>)}
+            </select>
+          </div>
+        )}
+
+        <div className="g2tight" style={{ marginBottom: 10, ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
+          <div className="field2">
+            <div className="lbl">{t('loanPrincipal')}</div>
+            <div className="inputBox"><input inputMode="decimal" value={principal} onChange={e => setPrincipal(e.target.value)} placeholder="0.00" autoFocus /></div>
+          </div>
+          <div className="field2">
+            <div className="lbl">{t('currencyMode')}</div>
+            <select value={currency} onChange={e => setCurrency(e.target.value as CashCurrency)} style={selectStyle}>
+              {(['QAR', 'USDT', 'EGP', 'USD'] as CashCurrency[]).map(c => <option key={c} value={c} style={optionStyle}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('loanFundingSource')}</div>
+          <select value={fundingAccountId} onChange={e => setFundingAccountId(e.target.value)} style={selectStyle}>
+            <option value="" style={optionStyle}>—</option>
+            {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
+          </select>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 14 }}>
+          <div className="lbl">{t('loanNoteLabel')}</div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="..." /></div>
+        </div>
+
+        {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+        <div className="formActions">
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handle}>{t('newLoan')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface RepayLoanModalProps {
+  loan: CustomerLoan;
+  remaining: number;
+  accounts: CashAccount[];
+  onSave: (accountId: string, amount: number) => void;
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile = false }: RepayLoanModalProps) {
+  const t = useT();
+  const [accountId, setAccountId] = useState(accounts.find(a => a.currency === loan.currency)?.id || accounts[0]?.id || '');
+  const [amount, setAmount] = useState(String(remaining || ''));
+  const [err, setErr] = useState('');
+  const amtNum = num(amount, 0);
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
+    border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none',
+  };
+  const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
+
+  const handle = () => {
+    if (!accountId) { setErr(t('loanRepaymentAccount')); return; }
+    if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
+    onSave(accountId, amtNum);
+  };
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{t('loanAddRepayment')}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+          {t('loanRemaining')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(remaining)} {loan.currency}</strong>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('loanRepaymentAccount')}</div>
+          <select value={accountId} onChange={e => setAccountId(e.target.value)} style={selectStyle}>
+            {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>)}
+          </select>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 14 }}>
+          <div className="lbl">{t('loanRepaymentAmount')}</div>
+          <div className="inputBox"><input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus /></div>
+        </div>
+
+        {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+        <div className="formActions">
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handle}>{t('loanAddRepayment')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main CashManagement Component ─────────────────────────────────
 interface CashManagementProps {
   state: TrackerState;
@@ -714,6 +880,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const { user, merchantProfile } = useAuth();
   const accounts = state.cashAccounts || [];
   const ledger = state.cashLedger || [];
+  const loans = state.customerLoans || [];
 
   // ── Localized label maps (recomputed when language changes) ────
   const ACCOUNT_TYPE_LABELS: Record<CashAccountType, string> = useMemo(() => ({
@@ -743,7 +910,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     merchant_adjustment: t('ledgerMerchantAdjustment') || 'Merchant Adjustment',
   }), [t]);
 
-  const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights'>('accounts');
+  const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights' | 'loans'>('accounts');
+  const [showNewLoan, setShowNewLoan] = useState(false);
+  const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CashAccount | undefined>();
   const [showTransfer, setShowTransfer] = useState(false);
@@ -867,6 +1036,45 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR });
     if (ok) setShowTransfer(false);
+  };
+
+  const addLoan = async (input: { customerId: string; tradeId?: string; principal: number; currency: CashCurrency; fundingAccountId?: string; note?: string }) => {
+    const loanId = uid();
+    let newLedger = ledger;
+    let disbursementLedgerEntryId: string | undefined;
+    if (input.fundingAccountId) {
+      const entry: CashLedgerEntry = {
+        id: uid(), ts: Date.now(), type: 'loan_disbursement', accountId: input.fundingAccountId,
+        direction: 'out', amount: input.principal, currency: input.currency,
+        linkedEntityType: 'loan', linkedEntityId: loanId,
+        note: input.note || t('loans'),
+      };
+      newLedger = [...ledger, entry];
+      disbursementLedgerEntryId = entry.id;
+    }
+    const loan: CustomerLoan = {
+      id: loanId, ts: Date.now(), customerId: input.customerId, tradeId: input.tradeId,
+      principal: input.principal, currency: input.currency, fundingAccountId: input.fundingAccountId,
+      disbursementLedgerEntryId, note: input.note, status: 'open', createdAt: Date.now(),
+    };
+    const newCashQAR = deriveCashQAR(accounts, newLedger);
+    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: [...loans, loan] });
+    if (ok) setShowNewLoan(false);
+  };
+
+  const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number) => {
+    const entry: CashLedgerEntry = {
+      id: uid(), ts: Date.now(), type: 'loan_repayment', accountId,
+      direction: 'in', amount, currency: loan.currency,
+      linkedEntityType: 'loan', linkedEntityId: loan.id,
+      note: `${t('loanAddRepayment')} — ${loan.note || loan.id.slice(0, 6)}`,
+    };
+    const newLedger = [...ledger, entry];
+    const remaining = getLoanRemaining(loan, newLedger);
+    const newLoans = loans.map(l => l.id === loan.id ? { ...l, status: remaining <= 0 ? 'closed' as const : l.status } : l);
+    const newCashQAR = deriveCashQAR(accounts, newLedger);
+    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
+    if (ok) setRepayingLoan(null);
   };
 
   const clearLedgerEntries = async (id: string) => {
@@ -1037,6 +1245,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       <div className="cash-inner-tabs" style={{ display: 'flex', gap: 4, background: 'var(--panel)', borderRadius: 8, padding: 4, alignSelf: 'flex-start' }}>
         {tabBtn('accounts', t('cashAccountsTab'))}
         {tabBtn('ledger', t('cashLedgerTab'))}
+        {tabBtn('loans', t('cashLoansTab'))}
         {tabBtn('insights', t('cashInsightsTab'))}
       </div>
 
@@ -1343,6 +1552,58 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         </div>
       )}
 
+      {/* ── LOANS TAB ── */}
+      {innerTab === 'loans' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>{t('loans')}</div>
+            <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
+          </div>
+
+          {loans.length === 0 ? (
+            <div className="empty" style={{ padding: '24px 0' }}>
+              <div className="empty-t">{t('noLoansYet')}</div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {[...loans].sort((a, b) => b.ts - a.ts).map(loan => {
+                const customer = (state.customers || []).find(c => c.id === loan.customerId);
+                const received = getLoanRepaid(loan.id, ledger);
+                const remaining = getLoanRemaining(loan, ledger);
+                return (
+                  <div key={loan.id} className="panel" style={{ padding: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{customer?.name || loan.customerId}</div>
+                      <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                        {loan.status === 'closed' ? t('loanStatusClosed') : t('loanStatusOpen')}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11, marginBottom: loan.status === 'open' ? 8 : 0 }}>
+                      <div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanGiven')}</div>
+                        <div className="mono" style={{ fontWeight: 800 }}>{fmtAmt(loan.principal, loan.currency)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanReceived')}</div>
+                        <div className="mono" style={{ fontWeight: 800, color: 'var(--good)' }}>{fmtAmt(received, loan.currency)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanRemaining')}</div>
+                        <div className="mono" style={{ fontWeight: 800, color: remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>{fmtAmt(remaining, loan.currency)}</div>
+                      </div>
+                    </div>
+                    {loan.note && <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>{loan.note}</div>}
+                    {loan.status === 'open' && (
+                      <button className="rowBtn" onClick={() => setRepayingLoan(loan)}>{t('loanAddRepayment')}</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── INSIGHTS TAB ── */}
       {innerTab === 'insights' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1538,6 +1799,29 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               }
             });
           }}
+        />
+      )}
+
+      {showNewLoan && (
+        <NewLoanModal
+          customers={state.customers || []}
+          trades={state.trades || []}
+          accounts={activeAccounts}
+          balances={balances}
+          isMobile={isMobile}
+          onSave={addLoan}
+          onClose={() => setShowNewLoan(false)}
+        />
+      )}
+
+      {repayingLoan && (
+        <RepayLoanModal
+          loan={repayingLoan}
+          remaining={getLoanRemaining(repayingLoan, ledger)}
+          accounts={activeAccounts}
+          isMobile={isMobile}
+          onSave={(accountId, amount) => addLoanRepayment(repayingLoan, accountId, amount)}
+          onClose={() => setRepayingLoan(null)}
         />
       )}
     </div>
