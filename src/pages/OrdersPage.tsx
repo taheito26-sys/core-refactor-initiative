@@ -7,6 +7,7 @@ import {
   fmtPrice, fmtTotal, deriveCashQAR,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
   type CustomerLoan, type CashCurrency,
+  getLoanRepaid, getLoanRemaining,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
@@ -603,14 +604,15 @@ export default function OrdersPage() {
     }
     return true;
   }), [allTrades, effectiveRange, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, isCreatorInMyMerchant]);
-  const loanedTradeIds = useMemo(() => {
-    const s = new Set<string>();
+  const loanByTradeId = useMemo(() => {
+    const m = new Map<string, CustomerLoan>();
     const deletedIds = new Set(state.deletedLoanIds || []);
     for (const loan of state.customerLoans || []) {
-      if (loan.tradeId && !deletedIds.has(loan.id)) s.add(loan.tradeId);
+      if (loan.tradeId && !deletedIds.has(loan.id)) m.set(loan.tradeId, loan);
     }
-    return s;
+    return m;
   }, [state.customerLoans, state.deletedLoanIds]);
+  const loanedTradeIds = useMemo(() => new Set(loanByTradeId.keys()), [loanByTradeId]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
@@ -2539,7 +2541,9 @@ export default function OrdersPage() {
     const isExpanded = !!expandedCards[tr.id];
     const qty = linkedRow?.quantity ?? tr.amountUSDT;
     const rate = linkedRow?.sellPrice ?? tr.sellPriceQAR;
-    const isLoaned = loanedTradeIds.has(tr.id);
+    const loan = loanByTradeId.get(tr.id);
+    const isLoaned = !!loan;
+    const loanPct = loan ? Math.min(100, Math.round((getLoanRepaid(loan) / (loan.principal || 1)) * 100)) : 0;
 
     return (
       <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden', ...(isLoaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}>
@@ -2548,7 +2552,11 @@ export default function OrdersPage() {
           <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
             {isMerchantLinked && <span style={{ fontSize: 10, verticalAlign: 'middle' }}>🤝</span>}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
-            {isLoaned && <span className="pill warn" style={{ fontSize: 8, flexShrink: 0 }}>🤝 {t('loanLinkedOrderBadge')}</span>}
+            {loan && (
+              <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 8, flexShrink: 0 }}>
+                🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
@@ -2596,6 +2604,17 @@ export default function OrdersPage() {
                 <strong style={{ textAlign: 'right' }}>{linkedRel.counterparty?.display_name || '—'}</strong>
               </div>
             )}
+            {loan && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
+                  <span>{t('loanRepaymentHistory')}</span>
+                  <span className="mono">{fmtTotal(getLoanRepaid(loan))} / {fmtTotal(loan.principal)} {loan.currency}</span>
+                </div>
+                <div className="prog" style={{ height: 6 }}>
+                  <span style={{ width: `${loanPct}%`, background: loan.status === 'closed' ? 'var(--good)' : 'var(--warn)' }} />
+                </div>
+              </div>
+            )}
             {renderDetail(tr, c)}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
               {tr.approvalStatus === 'pending_approval' && (
@@ -2614,7 +2633,7 @@ export default function OrdersPage() {
         )}
       </div>
     );
-  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, pushTradeToClient, connectedCustomers, fmtC, fmtU, fmtP]);
+  }, [derived.tradeCalc, resolveLinkedOutgoingDeal, resolveDealAvgBuy, relationships, state.customers, t, detailsOpen, expandedCards, renderDetail, openEdit, handleCancelTrade, pushTradeToClient, connectedCustomers, fmtC, fmtU, fmtP, loanByTradeId]);
 
   const renderOrdersMobileCard = useCallback((deal: MerchantDeal, perspective: 'incoming' | 'outgoing') => {
     const rel = relationships.find(r => r.id === deal.relationship_id);
@@ -2938,14 +2957,24 @@ export default function OrdersPage() {
                         const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                         const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
-                        const isLoaned = loanedTradeIds.has(tr.id);
+                        const loan = loanByTradeId.get(tr.id);
+                        const isLoaned = !!loan;
+                        const loanPct = loan ? Math.min(100, Math.round((getLoanRepaid(loan) / (loan.principal || 1)) * 100)) : 0;
                         return (
                           <React.Fragment key={tr.id}>
                             <tr id={`order-${tr.id}`} data-order-id={tr.id} style={isLoaned ? { background: 'color-mix(in srgb, var(--warn) 8%, transparent)', borderLeft: '3px solid var(--warn)' } : isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                             <td>
                               <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
                               {!ok && <span className="pill bad" style={{ fontSize: 9, marginLeft: 4 }}>!</span>}
-                              {isLoaned && <span className="pill warn" style={{ fontSize: 9, marginLeft: 4 }}>🤝 {t('loanLinkedOrderBadge')}</span>}
+                              {loan && (
+                                <span
+                                  className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
+                                  style={{ fontSize: 9, marginLeft: 4 }}
+                                  title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
+                                >
+                                  🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
+                                </span>
+                              )}
                             </td>
                             <td style={{ textAlign: 'center', fontSize: 16 }}>
                               {isMerchantLinked ? '🤝' : '👤'}
