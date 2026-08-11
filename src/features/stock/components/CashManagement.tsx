@@ -705,11 +705,13 @@ interface NewLoanModalProps {
   trades: Trade[];
   accounts: CashAccount[];
   balances: Map<string, number>;
+  /** Trade ids that already have a loan (open or closed) against them — offered but flagged, not hidden, so a legitimate second partial loan on the same order is still possible. */
+  loanedTradeIds: Set<string>;
   onSave: (input: { customerId: string; tradeId?: string; principal: number; currency: CashCurrency; fundingAccountId?: string; note?: string }) => void;
   onClose: () => void;
   isMobile?: boolean;
 }
-function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, isMobile = false }: NewLoanModalProps) {
+function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, onSave, onClose, isMobile = false }: NewLoanModalProps) {
   const t = useT();
   const [customerId, setCustomerId] = useState(customers[0]?.id || '');
   const [tradeId, setTradeId] = useState('');
@@ -719,6 +721,7 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
   const [fundingAccountId, setFundingAccountId] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
 
   const principalNum = num(principal, 0);
   const fundingAcc = accounts.find(a => a.id === fundingAccountId);
@@ -730,6 +733,8 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
   };
   const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
 
+  const isDuplicateOrder = !!tradeId && loanedTradeIds.has(tradeId);
+
   const handle = () => {
     if (!customerId) { setErr(t('loanSelectCustomer')); return; }
     if (!(principalNum > 0)) { setErr(t('enterValidAmount')); return; }
@@ -737,6 +742,7 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
       const bal = balances.get(fundingAccountId) || 0;
       if (bal < principalNum) { setErr(`${t('insufficientInAcc')} "${fundingAcc?.name}"`); return; }
     }
+    if (isDuplicateOrder && !confirmDuplicate) { setErr(t('loanDuplicateOrderWarning')); return; }
     onSave({ customerId, tradeId: tradeId || undefined, principal: principalNum, currency, fundingAccountId: fundingAccountId || undefined, note: note.trim() || undefined });
   };
 
@@ -765,6 +771,7 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
               onChange={e => {
                 const newTradeId = e.target.value;
                 setTradeId(newTradeId);
+                setConfirmDuplicate(false);
                 const tr = custTrades.find(x => x.id === newTradeId);
                 if (tr && !principalTouched) {
                   const orderTotal = tr.amountUSDT * tr.sellPriceQAR - (tr.feeQAR || 0);
@@ -775,8 +782,21 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
               style={selectStyle}
             >
               <option value="" style={optionStyle}>—</option>
-              {custTrades.map(tr => <option key={tr.id} value={tr.id} style={optionStyle}>{fmtDate(tr.ts)} · {tr.amountUSDT} USDT</option>)}
+              {custTrades.map(tr => (
+                <option key={tr.id} value={tr.id} style={optionStyle}>
+                  {fmtDate(tr.ts)} · {tr.amountUSDT} USDT{loanedTradeIds.has(tr.id) ? ` — ${t('loanAlreadyLinked')}` : ''}
+                </option>
+              ))}
             </select>
+            {isDuplicateOrder && (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ fontSize: 10, color: 'var(--warn)', marginBottom: 4 }}>⚠ {t('loanDuplicateOrderWarning')}</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--muted)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={confirmDuplicate} onChange={e => setConfirmDuplicate(e.target.checked)} />
+                  {t('loanDuplicateOrderConfirm')}
+                </label>
+              </div>
+            )}
           </div>
         )}
 
@@ -984,7 +1004,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const { user, merchantProfile } = useAuth();
   const accounts = state.cashAccounts || [];
   const ledger = state.cashLedger || [];
-  const loans = state.customerLoans || [];
+  const deletedLoanIds = state.deletedLoanIds || [];
+  const loans = (state.customerLoans || []).filter(l => !deletedLoanIds.includes(l.id));
+  const loanedTradeIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const l of loans) { if (l.tradeId) s.add(l.tradeId); }
+    return s;
+  }, [loans]);
 
   // ── Localized label maps (recomputed when language changes) ────
   const ACCOUNT_TYPE_LABELS: Record<CashAccountType, string> = useMemo(() => ({
@@ -1213,8 +1239,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     ].filter(Boolean));
     const newLedger = ledger.filter(e => !linkedLedgerIds.has(e.id));
     const newLoans = loans.filter(l => l.id !== loanId);
+    // Tombstone the id — see TrackerState.deletedLoanIds doc for why a plain
+    // removal isn't enough to make a delete stick across tabs/devices.
+    const newDeletedLoanIds = Array.from(new Set([...(state.deletedLoanIds || []), loanId])).slice(-500);
     const newCashQAR = deriveCashQAR(accounts, newLedger);
-    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
+    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans, deletedLoanIds: newDeletedLoanIds });
     if (ok) setDeleteLoanConfirmId(null);
   };
 
@@ -1981,6 +2010,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           trades={state.trades || []}
           accounts={activeAccounts}
           balances={balances}
+          loanedTradeIds={loanedTradeIds}
           isMobile={isMobile}
           onSave={addLoan}
           onClose={() => setShowNewLoan(false)}

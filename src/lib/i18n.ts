@@ -1666,6 +1666,9 @@ const translations = {
   loanRepaymentNotePh: { en: 'e.g. cash handover, bank transfer ref…', ar: 'مثال: تسليم نقدي، مرجع تحويل بنكي…' },
   loanRepaymentHistory: { en: 'Repayment History', ar: 'سجل الدفعات' },
   loanLinkedOrderBadge: { en: 'Loaned', ar: 'بالدين' },
+  loanAlreadyLinked: { en: 'already has a loan', ar: 'لديه قرض بالفعل' },
+  loanDuplicateOrderWarning: { en: 'This order already has a loan. Creating another will loan it twice — confirm this is intentional.', ar: 'هذا الطلب لديه قرض بالفعل. إنشاء قرض آخر سيجعله مقرضاً مرتين — تأكد أن هذا مقصود.' },
+  loanDuplicateOrderConfirm: { en: 'Yes, I want a second loan on this order', ar: 'نعم، أريد قرضاً ثانياً على هذا الطلب' },
 
   // Account types
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },
