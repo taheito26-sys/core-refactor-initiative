@@ -39,6 +39,15 @@ interface UseTrackerOptions {
   /** When provided (admin view), skip cloud sync and use this state directly */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   preloadedState?: any;
+  /**
+   * Pass true ONLY from the page that is the actual source of truth for
+   * cash state (Cash Management / CashPage). Every other page's saves ride
+   * cashAccounts/cashLedger along incidentally (they're part of TrackerState)
+   * without meaning to manage cash — letting them reconcile-delete cloud
+   * cash rows means a stale tab can wipe real data the moment it saves
+   * anything. See the `reconcile` param on saveCashToCloud for the full story.
+   */
+  isCashAuthority?: boolean;
 }
 
 export function useTrackerState(options: UseTrackerOptions = {}) {
@@ -95,11 +104,11 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // "clear all cash" propagates the deletes (full reconcile) to the cloud.
     if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
     cashSaveTimer.current = setTimeout(() => {
-      saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
+      saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false)
         .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err))
         .finally(() => { cashCommitInFlightUntilRef.current = 0; });
     }, 500);
-  }, [adminMode, options.preloadedState]);
+  }, [adminMode, options.preloadedState, options.isCashAuthority]);
 
   /**
    * Commit-first variant: writes to the DB synchronously (tracker_snapshots
@@ -128,8 +137,9 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     try {
       // Write to DB FIRST — if this throws, React state is not mutated.
       await saveTrackerStateNow(next);
-      // Always reconcile cash tables (including empty) so deletes propagate.
-      await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
+      // Reconcile (including empty, so deletes propagate) only for the
+      // cash-authoritative instance — see saveCashToCloud's `reconcile` doc.
+      await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false);
     } finally {
       cashCommitInFlightUntilRef.current = 0;
     }
@@ -139,7 +149,7 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     stateRef.current = next;
     setDerived(computeFIFO(next.batches, next.trades));
     triggerVaultBackup(diffTrackerReason(prev, next));
-  }, [adminMode, options.preloadedState]);
+  }, [adminMode, options.preloadedState, options.isCashAuthority]);
 
   // Handle preloaded state (admin view)
   useEffect(() => {
