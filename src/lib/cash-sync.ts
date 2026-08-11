@@ -154,6 +154,24 @@ function rowToEntry(row: Record<string, unknown>): CashLedgerEntry {
 export async function saveCashToCloud(
   accounts: CashAccount[],
   ledger: CashLedgerEntry[],
+  /**
+   * Whether this call may delete cloud rows not present in `accounts`/`ledger`.
+   *
+   * Every page that touches TrackerState (Orders, Stock, Dashboard, Cash
+   * Management) runs its own independent useTrackerState() instance, each
+   * with its own in-memory copy of cashAccounts/cashLedger, and each one's
+   * ordinary saves end up calling this function (cash arrays ride along in
+   * every state spread). If ANY of those saves were allowed to reconcile
+   * (delete-what's-missing), a page whose copy is merely stale — e.g. a tab
+   * that's been open since before an account was added elsewhere — would
+   * wipe real, newer cloud rows the moment it saved anything at all.
+   *
+   * Only the Cash Management page is the actual source of truth for cash
+   * state, so only its calls may pass `reconcile: true`. Every other page's
+   * incidental cash save is upsert-only — it can add/update rows it knows
+   * about, but never deletes ones it doesn't.
+   */
+  reconcile = false,
 ): Promise<void> {
   if (DISABLE_CASH_CLOUD_SYNC) return;
   const {
@@ -198,8 +216,11 @@ export async function saveCashToCloud(
 
   // Full reconcile: delete this user's rows whose ids are NOT in the local
   // set. Without this, a removed/cleared cash entry stays in the cloud and
-  // reappears on the next merchant-wide load.
-  //
+  // reappears on the next merchant-wide load. Only run this for callers that
+  // are the authoritative cash-management surface — see the `reconcile`
+  // parameter doc above.
+  if (!reconcile) return;
+
   // GATED on _cashCloudLoadedThisSession: an empty local state before cloud
   // has loaded means "we haven't observed cloud yet" — running the reconcile
   // delete in that window wipes every cash row for this user. We only know

@@ -21,6 +21,10 @@ export default function CashPage({ adminTrackerState, isAdminView }: CashPagePro
     currency: settings.currency,
     preloadedState: adminTrackerState,
     disableCloudSync: Boolean(isAdminView),
+    // This page is the source of truth for cash state — only its saves are
+    // allowed to delete stale cloud rows. See saveCashToCloud's `reconcile`
+    // param for why every other page's incidental cash save must not.
+    isCashAuthority: true,
   });
 
   return (
