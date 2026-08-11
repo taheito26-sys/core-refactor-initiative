@@ -714,6 +714,7 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
   const [customerId, setCustomerId] = useState(customers[0]?.id || '');
   const [tradeId, setTradeId] = useState('');
   const [principal, setPrincipal] = useState('');
+  const [principalTouched, setPrincipalTouched] = useState(false);
   const [currency, setCurrency] = useState<CashCurrency>('QAR');
   const [fundingAccountId, setFundingAccountId] = useState('');
   const [note, setNote] = useState('');
@@ -750,7 +751,7 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanCustomer')}</div>
-          <select value={customerId} onChange={e => { setCustomerId(e.target.value); setTradeId(''); }} style={selectStyle}>
+          <select value={customerId} onChange={e => { setCustomerId(e.target.value); setTradeId(''); setPrincipal(''); setPrincipalTouched(false); }} style={selectStyle}>
             <option value="" style={optionStyle}>{t('loanSelectCustomer')}</option>
             {customers.map(c => <option key={c.id} value={c.id} style={optionStyle}>{c.name}</option>)}
           </select>
@@ -759,7 +760,20 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
         {custTrades.length > 0 && (
           <div className="field2" style={{ marginBottom: 10 }}>
             <div className="lbl">{t('loanLinkedOrder')}</div>
-            <select value={tradeId} onChange={e => setTradeId(e.target.value)} style={selectStyle}>
+            <select
+              value={tradeId}
+              onChange={e => {
+                const newTradeId = e.target.value;
+                setTradeId(newTradeId);
+                const tr = custTrades.find(x => x.id === newTradeId);
+                if (tr && !principalTouched) {
+                  const orderTotal = tr.amountUSDT * tr.sellPriceQAR - (tr.feeQAR || 0);
+                  setPrincipal(String(Math.max(0, Math.round(orderTotal * 100) / 100)));
+                  setCurrency('QAR');
+                }
+              }}
+              style={selectStyle}
+            >
               <option value="" style={optionStyle}>—</option>
               {custTrades.map(tr => <option key={tr.id} value={tr.id} style={optionStyle}>{fmtDate(tr.ts)} · {tr.amountUSDT} USDT</option>)}
             </select>
@@ -769,7 +783,16 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
         <div className="g2tight" style={{ marginBottom: 10, ...(isMobile ? { gridTemplateColumns: '1fr' } : {}) }}>
           <div className="field2">
             <div className="lbl">{t('loanPrincipal')}</div>
-            <div className="inputBox"><input inputMode="decimal" value={principal} onChange={e => setPrincipal(e.target.value)} placeholder="0.00" autoFocus /></div>
+            <div className="inputBox">
+              <input
+                inputMode="decimal"
+                value={principal}
+                onChange={e => { setPrincipal(e.target.value); setPrincipalTouched(true); }}
+                placeholder="0.00"
+                autoFocus
+              />
+            </div>
+            {tradeId && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>{t('loanPrincipalAdjustHint')}</div>}
           </div>
           <div className="field2">
             <div className="lbl">{t('currencyMode')}</div>
