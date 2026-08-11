@@ -82,6 +82,13 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     setState(next);
     stateRef.current = next;
     setDerived(computeFIFO(next.batches, next.trades));
+    // saveTrackerState debounces its cloud write ~2s and the cash save below
+    // debounces ~500ms — a realtime event from the faster cash write can
+    // trigger refreshFromCloud while the snapshot write is still pending,
+    // reading a stale snapshot and reverting what this call just added
+    // (e.g. a new order/loan). Hold refreshFromCloud off until both should
+    // have landed.
+    cashCommitInFlightUntilRef.current = Date.now() + 3000;
     saveTrackerState(next);
     triggerVaultBackup(diffTrackerReason(prev, next));
     // Always sync to dedicated cash tables — including empty arrays, so a
@@ -89,7 +96,8 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
     cashSaveTimer.current = setTimeout(() => {
       saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [])
-        .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
+        .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err))
+        .finally(() => { cashCommitInFlightUntilRef.current = 0; });
     }, 500);
   }, [adminMode, options.preloadedState]);
 
@@ -112,12 +120,19 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     }
     const prev = stateRef.current;
 
-    // Write to DB FIRST — if this throws, React state is not mutated.
-    await saveTrackerStateNow(next);
-    // Always reconcile cash tables (including empty) so deletes propagate.
-    cashCommitInFlightUntilRef.current = Date.now() + 5000;
-    await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
-    cashCommitInFlightUntilRef.current = 0;
+    // Mark in-flight BEFORE either write starts — each write's own
+    // postgres_changes event can fire refreshFromCloud while the *other*
+    // write is still pending, and reading cloud in that window would pull
+    // a stale snapshot/ledger and revert what this commit is adding.
+    cashCommitInFlightUntilRef.current = Date.now() + 8000;
+    try {
+      // Write to DB FIRST — if this throws, React state is not mutated.
+      await saveTrackerStateNow(next);
+      // Always reconcile cash tables (including empty) so deletes propagate.
+      await saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? []);
+    } finally {
+      cashCommitInFlightUntilRef.current = 0;
+    }
 
     // Server acknowledged — now update UI.
     setState(next);
@@ -146,6 +161,14 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
   // state. Used both on initial mount and on realtime postgres_changes events
   // so desktop mutations appear on mobile (and vice versa) without reload.
   const refreshFromCloud = useCallback(async () => {
+    // A DB-first commit (applyStateAndCommit) is currently mid-flight: it
+    // writes tracker_snapshots and the cash tables sequentially, and each
+    // write's own postgres_changes event can trigger this refresh before
+    // the *other* write has landed. Reading cloud in that window can pull
+    // a still-stale snapshot or ledger and silently revert whatever the
+    // in-flight commit just added (e.g. a new loan or repayment). Skip —
+    // the commit will call setState itself once both writes finish.
+    if (cashCommitInFlightUntilRef.current > Date.now()) return;
     try {
       const cloudState = await loadTrackerStateFromCloud();
       if (cloudState) {
