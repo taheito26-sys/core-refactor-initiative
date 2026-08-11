@@ -5,7 +5,7 @@ import {
   type TrackerState,
   type CashAccount, type CashAccountType, type CashCurrency,
   type CashLedgerEntry, type LedgerEntryType,
-  type CustomerLoan, type Customer, type Trade,
+  type CustomerLoan, type LoanRepayment, type Customer, type Trade,
   getAccountBalance, getAllAccountBalances, deriveCashQAR,
   getLoanRepaid, getLoanRemaining,
 } from '@/lib/tracker-helpers';
@@ -1047,7 +1047,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       const entry: CashLedgerEntry = {
         id: uid(), ts: Date.now(), type: 'loan_disbursement', accountId: input.fundingAccountId,
         direction: 'out', amount: input.principal, currency: input.currency,
-        linkedEntityType: 'loan', linkedEntityId: loanId,
         note: input.note || t('loans'),
       };
       newLedger = [...ledger, entry];
@@ -1056,7 +1055,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const loan: CustomerLoan = {
       id: loanId, ts: Date.now(), customerId: input.customerId, tradeId: input.tradeId,
       principal: input.principal, currency: input.currency, fundingAccountId: input.fundingAccountId,
-      disbursementLedgerEntryId, note: input.note, status: 'open', createdAt: Date.now(),
+      disbursementLedgerEntryId, repayments: [], note: input.note, status: 'open', createdAt: Date.now(),
     };
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: [...loans, loan] });
@@ -1064,15 +1063,24 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
 
   const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number) => {
+    const customerName = (state.customers || []).find(c => c.id === loan.customerId)?.name || '';
+    // The repayment itself is recorded ON the loan — the cash_ledger row is
+    // only the money side. Deriving repaid totals from the ledger loses them:
+    // its schema rejects loan-linked rows and strips the link column.
     const entry: CashLedgerEntry = {
       id: uid(), ts: Date.now(), type: 'loan_repayment', accountId,
       direction: 'in', amount, currency: loan.currency,
-      linkedEntityType: 'loan', linkedEntityId: loan.id,
-      note: `${t('loanAddRepayment')} — ${loan.note || loan.id.slice(0, 6)}`,
+      note: `${t('loanAddRepayment')}${customerName ? ` — ${customerName}` : ''}`,
+    };
+    const repayment: LoanRepayment = {
+      id: uid(), ts: Date.now(), amount, accountId, ledgerEntryId: entry.id,
     };
     const newLedger = [...ledger, entry];
-    const remaining = getLoanRemaining(loan, newLedger);
-    const newLoans = loans.map(l => l.id === loan.id ? { ...l, status: remaining <= 0 ? 'closed' as const : l.status } : l);
+    const updatedLoan: CustomerLoan = { ...loan, repayments: [...(loan.repayments || []), repayment] };
+    const remaining = getLoanRemaining(updatedLoan);
+    const newLoans = loans.map(l => l.id === loan.id
+      ? { ...updatedLoan, status: remaining <= 0 ? 'closed' as const : l.status }
+      : l);
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
     if (ok) setRepayingLoan(null);
@@ -1569,8 +1577,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             <div style={{ display: 'grid', gap: 8 }}>
               {[...loans].sort((a, b) => b.ts - a.ts).map(loan => {
                 const customer = (state.customers || []).find(c => c.id === loan.customerId);
-                const received = getLoanRepaid(loan.id, ledger);
-                const remaining = getLoanRemaining(loan, ledger);
+                const received = getLoanRepaid(loan);
+                const remaining = getLoanRemaining(loan);
                 return (
                   <div key={loan.id} className="panel" style={{ padding: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -1818,7 +1826,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {repayingLoan && (
         <RepayLoanModal
           loan={repayingLoan}
-          remaining={getLoanRemaining(repayingLoan, ledger)}
+          remaining={getLoanRemaining(repayingLoan)}
           accounts={activeAccounts}
           isMobile={isMobile}
           onSave={(accountId, amount) => addLoanRepayment(repayingLoan, accountId, amount)}

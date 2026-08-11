@@ -1822,7 +1822,7 @@ export default function OrdersPage() {
           id: uid(), ts, customerId, tradeId: baseTrade.id,
           principal, currency: baseFiat as CashCurrency,
           note: `${t('loanFromOrder')} ${fmtU(baseTrade.amountUSDT)} USDT @ ${fmtP(sell)}`,
-          status: 'open', createdAt: Date.now(),
+          repayments: [], status: 'open', createdAt: Date.now(),
         };
         next = { ...next, customerLoans: [...(next.customerLoans || []), loan] };
       }
