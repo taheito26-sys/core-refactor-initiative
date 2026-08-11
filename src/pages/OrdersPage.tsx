@@ -605,11 +605,12 @@ export default function OrdersPage() {
   }), [allTrades, effectiveRange, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, isCreatorInMyMerchant]);
   const loanedTradeIds = useMemo(() => {
     const s = new Set<string>();
+    const deletedIds = new Set(state.deletedLoanIds || []);
     for (const loan of state.customerLoans || []) {
-      if (loan.tradeId) s.add(loan.tradeId);
+      if (loan.tradeId && !deletedIds.has(loan.id)) s.add(loan.tradeId);
     }
     return s;
-  }, [state.customerLoans]);
+  }, [state.customerLoans, state.deletedLoanIds]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {

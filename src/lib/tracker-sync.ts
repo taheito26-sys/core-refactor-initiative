@@ -129,7 +129,17 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
       cashLedger: mergeArrayById(merged.cashLedger, Array.isArray(state.cashLedger) ? state.cashLedger : []),
       cashHistory: mergeArrayById(merged.cashHistory, Array.isArray(state.cashHistory) ? state.cashHistory : []),
       customerLoans: mergeArrayById(merged.customerLoans, Array.isArray(state.customerLoans) ? state.customerLoans : []),
+      // Union tombstones across every member's row too — a delete recorded
+      // by any team member must stick for everyone, not just the deleter.
+      deletedLoanIds: Array.from(new Set([
+        ...(merged.deletedLoanIds || []),
+        ...(Array.isArray(state.deletedLoanIds) ? state.deletedLoanIds : []),
+      ])).slice(-500),
     };
+  }
+  if (merged.customerLoans && merged.deletedLoanIds?.length) {
+    const deleted = new Set(merged.deletedLoanIds);
+    merged.customerLoans = merged.customerLoans.filter(l => !deleted.has(l.id));
   }
   return merged;
 }
@@ -195,6 +205,12 @@ async function persistToCloud(state: TrackerState): Promise<void> {
     const existingState = (existingRow as any)?.state as Partial<TrackerState> | null;
 
     if (existingState && typeof existingState === 'object') {
+      const deletedLoanIds = Array.from(new Set([
+        ...(existingState.deletedLoanIds || []),
+        ...(stripped.deletedLoanIds || []),
+      ])).slice(-500);
+      const mergedLoans = mergeArrayById(existingState.customerLoans, stripped.customerLoans)
+        .filter(l => !deletedLoanIds.includes(l.id));
       merged = {
         ...existingState,
         ...stripped,
@@ -205,7 +221,8 @@ async function persistToCloud(state: TrackerState): Promise<void> {
           (existingState as Partial<TrackerState>).suppliers,
           stripped.suppliers,
         ),
-        customerLoans: mergeArrayById(existingState.customerLoans, stripped.customerLoans),
+        customerLoans: mergedLoans,
+        deletedLoanIds,
         cashAccounts: [],
         cashLedger: [],
         cashHistory: [],

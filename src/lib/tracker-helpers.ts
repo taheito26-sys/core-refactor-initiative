@@ -482,6 +482,16 @@ export interface TrackerState {
   cashLedger: CashLedgerEntry[];
   /** Customer loans/credit sales — principal tracked against repayments in cashLedger */
   customerLoans?: CustomerLoan[];
+  /**
+   * Ids of loans deleted locally. Every sync path that combines this
+   * device's state with another copy (another tab, another team member,
+   * or a stale in-flight save) unions collections by id rather than
+   * diffing — a union can never express "this was deleted," so a loan
+   * removed here would silently come back the next time a stale copy
+   * saves. Tombstoning the id and filtering it out of every merge is
+   * what makes the deletion stick.
+   */
+  deletedLoanIds?: string[];
   settings: { lowStockThreshold: number; priceAlertThreshold: number };
   cal: { year: number; month: number; selectedDay: number | null };
 }
