@@ -888,6 +888,72 @@ function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile =
   );
 }
 
+interface EditLoanModalProps {
+  loan: CustomerLoan;
+  customers: Customer[];
+  onSave: (loanId: string, updates: { customerId: string; principal: number; note?: string }) => void;
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function EditLoanModal({ loan, customers, onSave, onClose, isMobile = false }: EditLoanModalProps) {
+  const t = useT();
+  const [customerId, setCustomerId] = useState(loan.customerId);
+  const [principal, setPrincipal] = useState(String(loan.principal));
+  const [note, setNote] = useState(loan.note || '');
+  const [err, setErr] = useState('');
+
+  const principalNum = num(principal, 0);
+  const alreadyRepaid = getLoanRepaid(loan);
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
+    border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none',
+  };
+  const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
+
+  const handle = () => {
+    if (!customerId) { setErr(t('loanSelectCustomer')); return; }
+    if (!(principalNum > 0)) { setErr(t('enterValidAmount')); return; }
+    if (principalNum < alreadyRepaid) { setErr(`${t('loanPrincipal')} < ${t('loanReceived')} (${fmtTotal(alreadyRepaid)})`); return; }
+    onSave(loan.id, { customerId, principal: principalNum, note: note.trim() || undefined });
+  };
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{t('edit')} — {t('loans')}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('loanCustomer')}</div>
+          <select value={customerId} onChange={e => setCustomerId(e.target.value)} style={selectStyle}>
+            {customers.map(c => <option key={c.id} value={c.id} style={optionStyle}>{c.name}</option>)}
+          </select>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('loanPrincipal')} ({loan.currency})</div>
+          <div className="inputBox"><input inputMode="decimal" value={principal} onChange={e => setPrincipal(e.target.value)} placeholder="0.00" autoFocus /></div>
+        </div>
+
+        <div className="field2" style={{ marginBottom: 14 }}>
+          <div className="lbl">{t('loanNoteLabel')}</div>
+          <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder="..." /></div>
+        </div>
+
+        {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+        <div className="formActions">
+          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+          <button className="btn" onClick={handle}>{t('save') || t('edit')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main CashManagement Component ─────────────────────────────────
 interface CashManagementProps {
   state: TrackerState;
@@ -937,6 +1003,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights' | 'loans'>('accounts');
   const [showNewLoan, setShowNewLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
+  const [editingLoan, setEditingLoan] = useState<CustomerLoan | null>(null);
+  const [deleteLoanConfirmId, setDeleteLoanConfirmId] = useState<string | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CashAccount | undefined>();
   const [showTransfer, setShowTransfer] = useState(false);
@@ -1107,6 +1175,33 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
     if (ok) setRepayingLoan(null);
+  };
+
+  const updateLoan = async (loanId: string, updates: { customerId: string; principal: number; note?: string }) => {
+    const newLoans = loans.map(l => {
+      if (l.id !== loanId) return l;
+      const updated = { ...l, customerId: updates.customerId, principal: updates.principal, note: updates.note };
+      const remaining = getLoanRemaining(updated);
+      return { ...updated, status: remaining <= 0 ? 'closed' as const : 'open' as const };
+    });
+    const ok = await commit({ ...state, customerLoans: newLoans });
+    if (ok) setEditingLoan(null);
+  };
+
+  const deleteLoan = async (loanId: string) => {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) { setDeleteLoanConfirmId(null); return; }
+    // Reverse every cash-side effect this loan produced (disbursement +
+    // repayments) so account balances stay correct after it's gone.
+    const linkedLedgerIds = new Set([
+      loan.disbursementLedgerEntryId,
+      ...(loan.repayments || []).map(r => r.ledgerEntryId),
+    ].filter(Boolean));
+    const newLedger = ledger.filter(e => !linkedLedgerIds.has(e.id));
+    const newLoans = loans.filter(l => l.id !== loanId);
+    const newCashQAR = deriveCashQAR(accounts, newLedger);
+    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
+    if (ok) setDeleteLoanConfirmId(null);
   };
 
   const clearLedgerEntries = async (id: string) => {
@@ -1606,9 +1701,13 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   <div key={loan.id} className="panel" style={{ padding: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <div style={{ fontSize: 12, fontWeight: 700 }}>{customer?.name || loan.customerId}</div>
-                      <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                        {loan.status === 'closed' ? t('loanStatusClosed') : t('loanStatusOpen')}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                          {loan.status === 'closed' ? t('loanStatusClosed') : t('loanStatusOpen')}
+                        </span>
+                        <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingLoan(loan)}>{t('edit')}</button>
+                        <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeleteLoanConfirmId(loan.id)}>{t('delete')}</button>
+                      </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11, marginBottom: loan.status === 'open' ? 8 : 0 }}>
                       <div>
@@ -1855,6 +1954,30 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           onSave={(accountId, amount) => addLoanRepayment(repayingLoan, accountId, amount)}
           onClose={() => setRepayingLoan(null)}
         />
+      )}
+
+      {editingLoan && (
+        <EditLoanModal
+          loan={editingLoan}
+          customers={state.customers || []}
+          isMobile={isMobile}
+          onSave={updateLoan}
+          onClose={() => setEditingLoan(null)}
+        />
+      )}
+
+      {deleteLoanConfirmId && (
+        <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setDeleteLoanConfirmId(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, color: 'var(--bad)' }}>⚠️ {t('delete')} — {t('loans')}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('deleteLoanConfirm')}</div>
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setDeleteLoanConfirmId(null)}>{t('cancel')}</button>
+              <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }} onClick={() => deleteLoan(deleteLoanConfirmId)}>{t('delete')}</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
