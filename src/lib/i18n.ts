@@ -1662,6 +1662,10 @@ const translations = {
   loanFundingSourceHint: { en: 'Leave empty if USDT was already sold on this order — no cash is disbursed, only the amount owed is tracked.', ar: 'اتركه فارغاً إذا كان USDT قد بيع بالفعل في هذا الطلب — لن يتم صرف نقد، فقط تتبع المبلغ المستحق.' },
   loanPrincipalAdjustHint: { en: 'Auto-filled from the order total — adjust if only part of it is loaned.', ar: 'تم التعبئة تلقائياً من إجمالي الطلب — عدّله إذا كان جزء منه فقط بالدين.' },
   deleteLoanConfirm: { en: 'This will permanently delete the loan and reverse any recorded repayments from the cash ledger. This cannot be undone.', ar: 'سيؤدي هذا إلى حذف القرض نهائياً وعكس أي دفعات مسجلة من السجل النقدي. لا يمكن التراجع عن هذا الإجراء.' },
+  loanRepaymentDate: { en: 'Payment Date', ar: 'تاريخ الدفعة' },
+  loanRepaymentNotePh: { en: 'e.g. cash handover, bank transfer ref…', ar: 'مثال: تسليم نقدي، مرجع تحويل بنكي…' },
+  loanRepaymentHistory: { en: 'Repayment History', ar: 'سجل الدفعات' },
+  loanLinkedOrderBadge: { en: 'Loaned', ar: 'بالدين' },
 
   // Account types
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },

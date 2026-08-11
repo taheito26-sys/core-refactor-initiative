@@ -603,6 +603,13 @@ export default function OrdersPage() {
     }
     return true;
   }), [allTrades, effectiveRange, cancelledDealIds, cancelledLocalTradeIds, allMerchantDeals, isCreatorInMyMerchant]);
+  const loanedTradeIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const loan of state.customerLoans || []) {
+      if (loan.tradeId) s.add(loan.tradeId);
+    }
+    return s;
+  }, [state.customerLoans]);
   const filtered = useMemo(() => {
     if (!query) return list;
     return list.filter(t => {
@@ -2531,13 +2538,16 @@ export default function OrdersPage() {
     const isExpanded = !!expandedCards[tr.id];
     const qty = linkedRow?.quantity ?? tr.amountUSDT;
     const rate = linkedRow?.sellPrice ?? tr.sellPriceQAR;
+    const isLoaned = loanedTradeIds.has(tr.id);
 
     return (
-      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden' }}>
+      <div key={`mobile-trade-${tr.id}`} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden', ...(isLoaned ? { borderLeft: '3px solid var(--warn)', background: 'color-mix(in srgb, var(--warn) 6%, var(--panel))' } : {}) }}>
         {/* ── Header: buyer name + edit/details + date ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1 }}>
-            {isMerchantLinked && <span style={{ fontSize: 10, marginRight: 4, verticalAlign: 'middle' }}>🤝</span>}{cn}
+          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {isMerchantLinked && <span style={{ fontSize: 10, verticalAlign: 'middle' }}>🤝</span>}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
+            {isLoaned && <span className="pill warn" style={{ fontSize: 8, flexShrink: 0 }}>🤝 {t('loanLinkedOrderBadge')}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
@@ -2927,12 +2937,14 @@ export default function OrdersPage() {
                         const pct = Number.isFinite(margin) ? Math.min(1, Math.abs(margin) / 0.05) : 0;
                         const cn = state.customers.find(x => x.id === tr.customerId)?.name || '';
                         const linkedRel = isMerchantLinked ? relationships.find(r => r.id === tr.linkedRelId) : null;
+                        const isLoaned = loanedTradeIds.has(tr.id);
                         return (
                           <React.Fragment key={tr.id}>
-                            <tr id={`order-${tr.id}`} data-order-id={tr.id} style={isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
+                            <tr id={`order-${tr.id}`} data-order-id={tr.id} style={isLoaned ? { background: 'color-mix(in srgb, var(--warn) 8%, transparent)', borderLeft: '3px solid var(--warn)' } : isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                             <td>
                               <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
                               {!ok && <span className="pill bad" style={{ fontSize: 9, marginLeft: 4 }}>!</span>}
+                              {isLoaned && <span className="pill warn" style={{ fontSize: 9, marginLeft: 4 }}>🤝 {t('loanLinkedOrderBadge')}</span>}
                             </td>
                             <td style={{ textAlign: 'center', fontSize: 16 }}>
                               {isMerchantLinked ? '🤝' : '👤'}
