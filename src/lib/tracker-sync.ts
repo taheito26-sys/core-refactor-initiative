@@ -128,6 +128,7 @@ export function mergeTrackerStatesForMerchant(rows: TrackerSnapshotRow[]): Parti
       cashAccounts: mergeArrayById(merged.cashAccounts, Array.isArray(state.cashAccounts) ? state.cashAccounts : []),
       cashLedger: mergeArrayById(merged.cashLedger, Array.isArray(state.cashLedger) ? state.cashLedger : []),
       cashHistory: mergeArrayById(merged.cashHistory, Array.isArray(state.cashHistory) ? state.cashHistory : []),
+      customerLoans: mergeArrayById(merged.customerLoans, Array.isArray(state.customerLoans) ? state.customerLoans : []),
     };
   }
   return merged;
@@ -204,6 +205,7 @@ async function persistToCloud(state: TrackerState): Promise<void> {
           (existingState as Partial<TrackerState>).suppliers,
           stripped.suppliers,
         ),
+        customerLoans: mergeArrayById(existingState.customerLoans, stripped.customerLoans),
         cashAccounts: [],
         cashLedger: [],
         cashHistory: [],

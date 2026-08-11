@@ -32,7 +32,27 @@ const LEGACY_LEDGER_TYPE_MAP: Record<CashLedgerEntry['type'], string> = {
   merchant_settlement_out: 'transfer_out',
   merchant_fee: 'withdrawal',
   merchant_adjustment: 'reconcile',
+  loan_disbursement: 'withdrawal',
+  loan_repayment: 'deposit',
 };
+
+/**
+ * Values accepted by the cash_ledger_type_check constraint. Anything outside
+ * this set makes Postgres reject the row — and because we upsert the ledger
+ * as a single batch, one bad row fails EVERY entry in that save, silently
+ * (the error is only console.warn'd). Coercing unknown types to a safe,
+ * direction-appropriate value keeps a new client-side type from wiping out
+ * an entire cash save.
+ */
+const DB_ALLOWED_LEDGER_TYPES = new Set([
+  'opening', 'deposit', 'withdrawal',
+  'transfer_in', 'transfer_out',
+  'stock_purchase', 'stock_refund', 'stock_edit_adjust',
+  'reconcile', 'order_receipt',
+]);
+
+/** Values accepted by the cash_ledger_linked_entity_type_check constraint. */
+const DB_ALLOWED_LINKED_ENTITY_TYPES = new Set(['batch', 'trade', 'customer_order']);
 
 function normalizeLegacyAccountType(type: CashAccount['type']): 'hand' | 'bank' | 'vault' {
   return type === 'merchant_custody' ? 'vault' : type;
@@ -80,9 +100,16 @@ function rowToAccount(row: Record<string, unknown>): CashAccount {
 }
 
 function entryToRow(e: CashLedgerEntry, userId: string) {
-  const normalizedType = LEGACY_LEDGER_TYPE_MAP[e.type] ?? e.type;
+  const mappedType = LEGACY_LEDGER_TYPE_MAP[e.type] ?? e.type;
+  // Never send a value the CHECK constraint would reject — a single rejected
+  // row fails the whole batch upsert and the entry is lost without a trace.
+  const normalizedType = DB_ALLOWED_LEDGER_TYPES.has(mappedType)
+    ? mappedType
+    : (e.direction === 'in' ? 'deposit' : 'withdrawal');
   const linkedEntityType =
-    e.linkedEntityType === 'batch' || e.linkedEntityType === 'trade' ? e.linkedEntityType : null;
+    e.linkedEntityType && DB_ALLOWED_LINKED_ENTITY_TYPES.has(e.linkedEntityType)
+      ? e.linkedEntityType
+      : null;
   return {
     id: e.id,
     user_id: userId,
@@ -147,12 +174,25 @@ export async function saveCashToCloud(
   }
 
   if (ledger.length > 0) {
+    const rows = ledger.map((e) => entryToRow(e, uid));
     const { error: ledErr } = await (supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .from('cash_ledger') as any)
-      .upsert(ledger.map((e) => entryToRow(e, uid)), { onConflict: 'id' });
+      .upsert(rows, { onConflict: 'id' });
     if (ledErr) {
-      console.warn('[cash-sync] ledger upsert failed:', ledErr.message);
+      // The batch is all-or-nothing: one rejected row loses every entry in
+      // this save. Fall back to per-row upserts so the rest still persist,
+      // and log exactly which row is bad instead of failing silently.
+      console.warn('[cash-sync] ledger batch upsert failed, retrying per row:', ledErr.message);
+      for (const row of rows) {
+        const { error: rowErr } = await (supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .from('cash_ledger') as any)
+          .upsert([row], { onConflict: 'id' });
+        if (rowErr) {
+          console.error('[cash-sync] ledger row rejected:', row.id, row.type, rowErr.message);
+        }
+      }
     }
   }
 

@@ -408,7 +408,27 @@ export interface CashTransaction {
   note: string;
 }
 
-/** A customer loan/credit sale: USDT (or fiat) given now, repaid over time via cash ledger entries. */
+/** One repayment against a customer loan. */
+export interface LoanRepayment {
+  id: string;
+  ts: number;
+  amount: number;
+  /** Cash account the money was received into (if any) */
+  accountId?: string;
+  /** ID of the companion CashLedgerEntry that credited the account */
+  ledgerEntryId?: string;
+  note?: string;
+}
+
+/**
+ * A customer loan/credit sale: value handed over now, repaid over time.
+ *
+ * Repayments are stored ON the loan (not derived by scanning cashLedger)
+ * because the cash_ledger table constrains `type` and `linked_entity_type`
+ * to a fixed allow-list — a 'loan'-linked row is rejected outright and its
+ * link column is stripped, so ledger-derived totals silently reset to zero.
+ * The loan lives in the tracker snapshot JSON, which has no such constraints.
+ */
 export interface CustomerLoan {
   id: string;
   ts: number;
@@ -418,24 +438,24 @@ export interface CustomerLoan {
   /** Principal amount owed, in `currency` */
   principal: number;
   currency: CashCurrency;
-  /** Account the principal was disbursed from (for the loan_disbursement ledger entry) */
+  /** Account the principal was disbursed from (for the disbursement ledger entry) */
   fundingAccountId?: string;
   /** ID of the CashLedgerEntry recording the disbursement */
   disbursementLedgerEntryId?: string;
+  /** Repayments received against this loan */
+  repayments?: LoanRepayment[];
   note?: string;
   status: 'open' | 'closed';
   createdAt: number;
 }
 
-export function getLoanRepaid(loanId: string, ledger: CashLedgerEntry[]): number {
-  const raw = (ledger || [])
-    .filter(e => e.linkedEntityType === 'loan' && e.linkedEntityId === loanId && e.type === 'loan_repayment')
-    .reduce((sum, e) => sum + e.amount, 0);
+export function getLoanRepaid(loan: CustomerLoan): number {
+  const raw = (loan.repayments || []).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   return Math.round(raw * 100) / 100;
 }
 
-export function getLoanRemaining(loan: CustomerLoan, ledger: CashLedgerEntry[]): number {
-  return Math.max(0, Math.round((loan.principal - getLoanRepaid(loan.id, ledger)) * 100) / 100);
+export function getLoanRemaining(loan: CustomerLoan): number {
+  return Math.max(0, Math.round((loan.principal - getLoanRepaid(loan)) * 100) / 100);
 }
 
 export interface Supplier {
