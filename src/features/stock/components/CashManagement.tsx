@@ -715,7 +715,7 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
   const [tradeId, setTradeId] = useState('');
   const [principal, setPrincipal] = useState('');
   const [currency, setCurrency] = useState<CashCurrency>('QAR');
-  const [fundingAccountId, setFundingAccountId] = useState(accounts.find(a => a.currency === 'QAR')?.id || '');
+  const [fundingAccountId, setFundingAccountId] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
 
@@ -785,6 +785,7 @@ function NewLoanModal({ customers, trades, accounts, balances, onSave, onClose, 
             <option value="" style={optionStyle}>—</option>
             {accounts.map(a => <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({fmtTotal(balances.get(a.id) || 0)} {a.currency})</option>)}
           </select>
+          <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>{t('loanFundingSourceHint')}</div>
         </div>
 
         <div className="field2" style={{ marginBottom: 14 }}>

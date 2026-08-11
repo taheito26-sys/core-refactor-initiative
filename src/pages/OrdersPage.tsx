@@ -6,6 +6,7 @@ import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
   fmtPrice, fmtTotal, deriveCashQAR,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
+  type CustomerLoan, type CashCurrency,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
@@ -104,6 +105,7 @@ export default function OrdersPage() {
   const [saleAmount, setSaleAmount] = useState('');
   const [saleSell, setSaleSell] = useState('');
   const [buyerName, setBuyerName] = useState('');
+  const [isLoanSale, setIsLoanSale] = useState(false);
   const [buyerId, setBuyerId] = useState('');
   const [useStock, setUseStock] = useState(true);
   const [priceMode, setPriceMode] = useState<'fifo' | 'manual'>('fifo');
@@ -1807,13 +1809,24 @@ export default function OrdersPage() {
         toast.error(err.message || t('failedCreateDeal'));
       }
     } else {
-      const next: TrackerState = {
+      let next: TrackerState = {
         ...state,
         customers: nextCustomers,
         trades: [...state.trades, baseTrade],
         range: inRange(ts, state.range) ? state.range : 'all'
       };
-      applyState(applyCashDeposit(next, sell, baseTrade.amountUSDT, baseTrade.id));
+      next = applyCashDeposit(next, sell, baseTrade.amountUSDT, baseTrade.id);
+      if (isLoanSale && customerId) {
+        const principal = Math.max(0, sell * baseTrade.amountUSDT - feeQar);
+        const loan: CustomerLoan = {
+          id: uid(), ts, customerId, tradeId: baseTrade.id,
+          principal, currency: baseFiat as CashCurrency,
+          note: `${t('loanFromOrder')} ${fmtU(baseTrade.amountUSDT)} USDT @ ${fmtP(sell)}`,
+          status: 'open', createdAt: Date.now(),
+        };
+        next = { ...next, customerLoans: [...(next.customerLoans || []), loan] };
+      }
+      applyState(next);
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
     }
 
@@ -1825,6 +1838,7 @@ export default function OrdersPage() {
 
     // Reset form
     setSaleAmount('');
+    setIsLoanSale(false);
     setMerchantOrderEnabled(false);
     setLinkedRelId('');
     setSelectedTemplateId(null);
@@ -3740,6 +3754,11 @@ export default function OrdersPage() {
                     )}
                   </div>
                 </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, cursor: 'pointer', color: isLoanSale ? 'var(--warn)' : 'var(--muted)', marginTop: 6, fontWeight: isLoanSale ? 700 : 400 }}>
+                  <input type="checkbox" checked={isLoanSale} onChange={e => setIsLoanSale(e.target.checked)} />
+                  🤝 {t('loanSaleCheckbox')}
+                </label>
 
                 {addBuyerOpen && (
                   <div className="previewBox" style={{ marginTop: 2 }}>

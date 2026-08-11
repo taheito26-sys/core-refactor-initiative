@@ -1657,6 +1657,9 @@ const translations = {
   loanNoteLabel:         { en: 'Note',                          ar: 'ملاحظة' },
   loanCreated:           { en: 'Loan created',                  ar: 'تم إنشاء القرض' },
   loanSelectCustomer:    { en: 'Select a customer',             ar: 'اختر عميلاً' },
+  loanSaleCheckbox:      { en: 'This is a loaned order — customer pays later', ar: 'هذا طلب بالدين — سيدفع العميل لاحقاً' },
+  loanFromOrder:         { en: 'Loan from order —',              ar: 'قرض من طلب —' },
+  loanFundingSourceHint: { en: 'Leave empty if USDT was already sold on this order — no cash is disbursed, only the amount owed is tracked.', ar: 'اتركه فارغاً إذا كان USDT قد بيع بالفعل في هذا الطلب — لن يتم صرف نقد، فقط تتبع المبلغ المستحق.' },
 
   // Account types
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },
