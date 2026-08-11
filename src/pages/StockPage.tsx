@@ -237,55 +237,6 @@ export default function StockPage() {
     })
     .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
 
-  const stockInsights = useMemo(() => {
-    const allBatches = [...state.batches].filter(b => b.initialUSDT > 0 && b.buyPriceQAR > 0).sort((a, b) => a.ts - b.ts);
-
-    // Price trend: weighted avg buy price of the most recent batches vs the batch of batches before them.
-    let priceTrend: { pct: number; recentAvg: number; priorAvg: number } | null = null;
-    if (allBatches.length >= 4) {
-      const windowSize = Math.max(2, Math.floor(allBatches.length / 2));
-      const recent = allBatches.slice(-windowSize);
-      const prior = allBatches.slice(-windowSize * 2, -windowSize);
-      const weightedAvg = (rows: typeof allBatches) => {
-        const qty = rows.reduce((s, b) => s + b.initialUSDT, 0);
-        return qty > 0 ? rows.reduce((s, b) => s + b.initialUSDT * b.buyPriceQAR, 0) / qty : 0;
-      };
-      const recentAvg = weightedAvg(recent);
-      const priorAvg = weightedAvg(prior);
-      if (priorAvg > 0 && recentAvg > 0) {
-        priceTrend = { pct: ((recentAvg - priorAvg) / priorAvg) * 100, recentAvg, priorAvg };
-      }
-    }
-
-    // Low stock: remaining batches below the configured low-stock threshold.
-    const lowStock = allBatches
-      .map(b => {
-        const db = derived.batches.find(x => x.id === b.id);
-        const rem = db ? Math.max(0, db.remainingUSDT) : b.initialUSDT;
-        return { ...b, remaining: rem };
-      })
-      .filter(b => b.remaining > 0 && b.remaining < state.settings.lowStockThreshold)
-      .sort((a, b) => a.remaining - b.remaining);
-
-    // Fastest-turnover supplier: among depleted batches, whose source cycles through stock quickest on average.
-    const cycleBySupplier = new Map<string, number[]>();
-    for (const b of allBatches) {
-      const ct = batchCycleTime(state, derived, b.id);
-      if (ct === null) continue;
-      const key = b.source || '—';
-      if (!cycleBySupplier.has(key)) cycleBySupplier.set(key, []);
-      cycleBySupplier.get(key)!.push(ct);
-    }
-    let fastestSupplier: { name: string; avgMs: number } | null = null;
-    for (const [name, times] of cycleBySupplier) {
-      if (times.length < 2) continue;
-      const avgMs = times.reduce((s, v) => s + v, 0) / times.length;
-      if (!fastestSupplier || avgMs < fastestSupplier.avgMs) fastestSupplier = { name, avgMs };
-    }
-
-    return { priceTrend, lowStock, fastestSupplier };
-  }, [state, derived]);
-
   const suppliersForPanel = supplierOptions;
 
   const addSupplier = () => {
@@ -678,50 +629,6 @@ export default function StockPage() {
               </div>
             )}
           </div>
-
-          {(stockInsights.priceTrend || stockInsights.lowStock.length > 0 || stockInsights.fastestSupplier) && (
-            <div className="panel" style={{ marginBottom: 9, padding: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>
-                💡 {t('smartInsights')}
-              </div>
-              <div style={{ display: 'grid', gap: 8 }}>
-                {stockInsights.priceTrend && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-                    <span style={{ fontSize: 14 }}>{stockInsights.priceTrend.pct >= 0 ? '📈' : '📉'}</span>
-                    <span style={{ flex: 1, color: 'var(--muted)' }}>
-                      {stockInsights.priceTrend.pct >= 0 ? t('priceTrendUp') : t('priceTrendDown')}
-                    </span>
-                    <strong className="mono" style={{ color: stockInsights.priceTrend.pct >= 0 ? 'var(--bad)' : 'var(--good)' }}>
-                      {stockInsights.priceTrend.pct >= 0 ? '+' : ''}{stockInsights.priceTrend.pct.toFixed(1)}%
-                    </strong>
-                  </div>
-                )}
-                {stockInsights.fastestSupplier && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-                    <span style={{ fontSize: 14 }}>⚡</span>
-                    <span style={{ flex: 1, color: 'var(--muted)' }}>{t('fastestSupplierLbl')}</span>
-                    <strong className="mono">{stockInsights.fastestSupplier.name} · {fmtDur(stockInsights.fastestSupplier.avgMs)}</strong>
-                  </div>
-                )}
-                {stockInsights.lowStock.length > 0 && (
-                  <div style={{ fontSize: 11 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 14 }}>⚠️</span>
-                      <span style={{ flex: 1, color: 'var(--warn)', fontWeight: 700 }}>{t('lowStockAlertLbl')}</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingLeft: 22 }}>
-                      {stockInsights.lowStock.slice(0, 3).map(b => (
-                        <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                          <span style={{ color: 'var(--muted)' }}>{b.source || '—'}</span>
-                          <strong className="mono" style={{ color: 'var(--warn)' }}>{fmtU(b.remaining)} USDT</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {perf.length === 0 ? (
             <div className="empty">
