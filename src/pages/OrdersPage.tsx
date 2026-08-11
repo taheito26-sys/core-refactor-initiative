@@ -2805,16 +2805,12 @@ export default function OrdersPage() {
   }, [filteredIncomingMerchantDeals, resolveDealAvgBuy, t.isRTL]);
 
   const renderKpiBar = (kpi: { count: number; qty?: number; vol: number; net: number }) => {
-    const avgMargin = kpi.vol > 0 ? (kpi.net / kpi.vol) * 100 : 0;
-    const avgTrade = kpi.qty != null && kpi.count > 0 ? kpi.qty / kpi.count : null;
     const avgDeal = kpi.qty == null && kpi.count > 0 ? kpi.vol / kpi.count : null;
     const kpis = [
       { label: 'COUNT', value: String(kpi.count) },
       ...(kpi.qty != null ? [{ label: 'USDT QTY', value: fmtU(kpi.qty) }] : []),
       { label: 'VOLUME', value: fmtC(kpi.vol) },
       { label: 'NET P&L', value: `${kpi.net >= 0 ? '+' : ''}${fmtC(kpi.net)}`, color: kpi.net >= 0 ? 'var(--good)' : 'var(--bad)' },
-      { label: 'AVG MARGIN', value: `${avgMargin >= 0 ? '+' : ''}${avgMargin.toFixed(2)}%`, color: avgMargin >= 0 ? 'var(--good)' : 'var(--bad)' },
-      ...(avgTrade != null ? [{ label: 'AVG TRADE', value: `${fmtU(avgTrade)} USDT` }] : []),
       ...(avgDeal != null ? [{ label: 'AVG DEAL', value: fmtC(avgDeal) }] : []),
     ];
     return (
