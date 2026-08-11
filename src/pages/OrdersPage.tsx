@@ -2900,7 +2900,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {!isMobile && renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
+              {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
 
 
               {filtered.length === 0 ? (
@@ -3166,7 +3166,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {!isMobile && renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
+              {renderKpiBar({ count: inKpi.count, vol: inKpi.vol, net: inKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
@@ -3338,7 +3338,7 @@ export default function OrdersPage() {
                 })}
               </div>
 
-              {!isMobile && renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
+              {renderKpiBar({ count: outKpi.count, vol: outKpi.vol, net: outKpi.net })}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <div>
