@@ -532,6 +532,8 @@ const translations = {
   addBatch: { en: '+ Add Batch', ar: '+ إضافة دفعة' },
   stockBatches: { en: 'Stock Batches', ar: 'دفعات المخزون' },
   fifoProgress: { en: 'FIFO layers · progress = remaining', ar: 'طبقات FIFO · التقدم = المتبقي' },
+  availableUsdtForSale: { en: 'Available USDT for Sale', ar: 'USDT المتاح للبيع' },
+  estValue: { en: 'Est. Value', ar: 'القيمة التقديرية' },
   source: { en: 'Source', ar: 'المصدر' },
   price: { en: 'Price', ar: 'السعر' },
   remaining: { en: 'Remaining', ar: 'المتبقي' },
