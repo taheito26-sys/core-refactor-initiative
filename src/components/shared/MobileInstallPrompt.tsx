@@ -7,7 +7,6 @@ import {
   PlusSquare,
   CheckCircle2,
   Copy,
-  RefreshCw,
   Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -74,8 +73,6 @@ export default function MobileInstallPrompt() {
   const [skipped, setSkipped] = useState(() => Boolean(safeLocalStorageGet(SKIP_INSTALL_KEY)));
   const [installing, setInstalling] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [rechecking, setRechecking] = useState(false);
-  const [recheckFoundNothing, setRecheckFoundNothing] = useState(false);
   // Kept in a ref so the `beforeinstallprompt` listener (registered once) can
   // read the latest value without being torn down and re-registered.
   const relatedAppInstalledRef = useRef(false);
@@ -199,17 +196,6 @@ export default function MobileInstallPrompt() {
       setInstalling(false);
     }
   }, [deferredPrompt]);
-
-  const handleRecheck = useCallback(async () => {
-    setRechecking(true);
-    setRecheckFoundNothing(false);
-    try {
-      const found = await syncInstallState();
-      setRecheckFoundNothing(!found);
-    } finally {
-      setRechecking(false);
-    }
-  }, [syncInstallState]);
 
   const handleCopyLink = useCallback(async () => {
     try {
@@ -429,34 +415,7 @@ export default function MobileInstallPrompt() {
               </Button>
             )}
 
-            {mandatory ? (
-              <div className="space-y-1.5">
-                <Button
-                  variant="ghost"
-                  className="w-full gap-2 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={handleRecheck}
-                  disabled={rechecking}
-                >
-                  <RefreshCw className={cn("h-3.5 w-3.5", rechecking && "animate-spin")} />
-                  {rechecking ? "Checking..." : "I've installed it — recheck"}
-                </Button>
-                {recheckFoundNothing && (
-                  <p className="text-center text-[11px] text-muted-foreground">
-                    Still not detected. A home-screen <strong>shortcut</strong> is not an install —{" "}
-                    {isIOS ? (
-                      <>
-                        use <strong>Share</strong> &rarr; <strong>Add to Home Screen</strong> in
-                        Safari, then open The Tracker from your home screen.
-                      </>
-                    ) : (
-                      <>
-                        use <strong>Install app</strong> in Chrome, then tap recheck again.
-                      </>
-                    )}
-                  </p>
-                )}
-              </div>
-            ) : (
+            {!mandatory && (
               <Button
                 variant="ghost"
                 className="w-full text-xs text-muted-foreground hover:text-foreground"
