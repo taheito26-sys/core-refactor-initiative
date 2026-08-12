@@ -7,12 +7,14 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Check, Save, RotateCcw, Download, Trash2, Cloud, Camera, Upload, RefreshCw, Loader2, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { Check, Save, RotateCcw, Download, Trash2, Cloud, Camera, Upload, RefreshCw, Loader2, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Fingerprint, ShieldCheck } from 'lucide-react';
 import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
 import { useAuth } from '@/features/auth/auth-context';
+import { BiometricsService } from '@/platform/biometrics';
+import { triggerHapticSelection } from '@/platform/haptics';
 import { buildStateFrom } from '@/lib/tracker-state';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -36,7 +38,6 @@ import {
 import { saveTrackerStateNow, loadTrackerStateFromCloud } from '@/lib/tracker-sync';
 import type { TrackerState } from '@/lib/tracker-helpers';
 import { mergeLocalAndCloud } from '@/lib/tracker-state';
-import { useT } from '@/lib/i18n';
 import {
   useTheme,
   LAYOUTS,
@@ -88,6 +89,33 @@ export default function SettingsPage() {
   const cloudImportRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [exportStatus, setExportStatus] = useState<'idle' | 'success'>('idle');
+
+  // ── Biometrics & Security state ──
+  const [biometricsEnabled, setBiometricsEnabledState] = useState(() => BiometricsService.isBiometricsEnabled());
+  const [bioThreshold, setBioThresholdState] = useState(() => BiometricsService.getHighValueThreshold());
+  const [bioSupported, setBioSupported] = useState(false);
+
+  useEffect(() => {
+    void BiometricsService.isHardwareSupported().then(setBioSupported);
+  }, []);
+
+  const handleToggleBiometrics = async (checked: boolean) => {
+    triggerHapticSelection();
+    if (checked) {
+      const res = await BiometricsService.authenticate("Enable Biometric Security for App Approvals");
+      if (res.success) {
+        BiometricsService.setBiometricsEnabled(true);
+        setBiometricsEnabledState(true);
+        toast.success("Biometric security enabled for order approvals");
+      } else {
+        toast.error(res.error || "Biometric verification failed");
+      }
+    } else {
+      BiometricsService.setBiometricsEnabled(false);
+      setBiometricsEnabledState(false);
+      toast.info("Biometric security disabled");
+    }
+  };
 
   function getCurrentState(): Record<string, unknown> { return getCurrentTrackerState(localStorage); }
   async function resolveVaultState(): Promise<Record<string, unknown>> {
@@ -295,24 +323,6 @@ export default function SettingsPage() {
                 <Label className="text-xs">{t('priceAlertThreshold')}</Label>
                 <Input
                   type="number" step={0.5} min={0}
-                  value={draft.priceAlertThreshold}
-                  onChange={e => update({ priceAlertThreshold: Number(e.target.value) || 0 })}
-                  className="max-w-[180px]"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">{t('allowInvalidTrades')}</Label>
-                <Switch checked={draft.allowInvalidTrades} onCheckedChange={v => update({ allowInvalidTrades: v })} />
-              </div>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
-                {t('allowInvalidTradesDesc')}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* ── Fonts & Accessibility ── */}
-          <Card className="glass">
-            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-display">{t('fontsAccessibility')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

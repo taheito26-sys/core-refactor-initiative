@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Loader2, Plus, X, Check, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,6 +27,9 @@ import { MobileInstallBanner } from '@/features/parent-order-fulfillment/compone
 import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
 import { useOrderExecutions } from '@/features/parent-order-fulfillment/hooks/useOrderExecutions';
 import { triggerVaultBackup } from '@/lib/vault-auto-trigger';
+import { BiometricsService } from '@/platform/biometrics';
+import { triggerHapticSuccess, triggerHapticError, triggerHapticWarning } from '@/platform/haptics';
+import { offlineSyncQueue } from '@/services/offlineSyncQueue';
 
 // ── LinkCashModal — assign received EGP to a cash account ────────
 
@@ -571,6 +574,20 @@ export default function CustomerOrdersPage() {
 
   const approveMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
+      if (BiometricsService.shouldRequireBiometrics(order.amount)) {
+        const bioResult = await BiometricsService.authenticate(
+          `Authorize Order Approval (#${order.id.substring(0, 8)}) for ${order.amount} ${order.send_currency}`
+        );
+        if (!bioResult.success) {
+          throw new Error(bioResult.error || 'Biometric security check required for order approval');
+        }
+      }
+
+      if (!offlineSyncQueue.isOnline()) {
+        offlineSyncQueue.enqueue('respond_order', { orderId: order.id, decision: 'approve' });
+        return { offlineQueued: true };
+      }
+
       const result = await respondSharedOrder({
         orderId: order.id,
         actorRole: 'customer',
@@ -578,12 +595,18 @@ export default function CustomerOrdersPage() {
       });
       return result;
     },
-    onSuccess: () => {
-      toast.success(L('Order approved', 'تمت الموافقة على الطلب'));
-      qc.invalidateQueries({ queryKey: ['c-orders', userId] });
-      triggerVaultBackup('order approved');
+    onSuccess: (data: any) => {
+      triggerHapticSuccess();
+      if (data?.offlineQueued) {
+        toast.warning(L('Order approval queued offline', 'تمت إضافة الموافقة إلى قائمة انتظار دون اتصال'));
+      } else {
+        toast.success(L('Order approved', 'تمت الموافقة على الطلب'));
+        qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+        triggerVaultBackup('order approved');
+      }
     },
     onError: (error: any) => {
+      triggerHapticError();
       toast.error(error?.message ?? L('Failed to approve', 'فشل في الموافقة'));
     },
     onSettled: () => setActioningId(null),
@@ -591,6 +614,11 @@ export default function CustomerOrdersPage() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ order, reason }: { order: WorkflowOrder; reason?: string }) => {
+      if (!offlineSyncQueue.isOnline()) {
+        offlineSyncQueue.enqueue('respond_order', { orderId: order.id, decision: 'reject', rejectionReason: reason });
+        return { offlineQueued: true };
+      }
+
       const result = await respondSharedOrder({
         orderId: order.id,
         actorRole: 'customer',
@@ -599,12 +627,18 @@ export default function CustomerOrdersPage() {
       });
       return result;
     },
-    onSuccess: () => {
-      toast.success(L('Order rejected', 'تم رفض الطلب'));
-      qc.invalidateQueries({ queryKey: ['c-orders', userId] });
-      triggerVaultBackup('order rejected');
+    onSuccess: (data: any) => {
+      triggerHapticSuccess();
+      if (data?.offlineQueued) {
+        toast.warning(L('Order rejection queued offline', 'تمت إضافة الرفض إلى قائمة انتظار دون اتصال'));
+      } else {
+        toast.success(L('Order rejected', 'تم رفض الطلب'));
+        qc.invalidateQueries({ queryKey: ['c-orders', userId] });
+        triggerVaultBackup('order rejected');
+      }
     },
     onError: (error: any) => {
+      triggerHapticError();
       toast.error(error?.message ?? L('Failed to reject', 'فشل في الرفض'));
     },
     onSettled: () => setActioningId(null),

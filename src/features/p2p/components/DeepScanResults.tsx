@@ -2,6 +2,7 @@ import { P2POffer } from '../types';
 import { fmtPrice, fmtTotal } from '@/lib/tracker-helpers';
 import { MessageSquare, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { triggerHapticSelection } from '@/platform/haptics';
 
 interface Props {
   results: P2POffer[];
@@ -51,7 +52,8 @@ export function DeepScanResults({ results, amount, currency = 'LOCAL' }: Props) 
       {results.map((m, i) => (
         <div
           key={`scan-${i}-${m.nick}`}
-          className="hover:bg-muted/10 transition-colors"
+          onClick={() => triggerHapticSelection()}
+          className="hover:bg-muted/10 transition-colors cursor-pointer"
         >
           {/* ── Primary row: rank / nick / methods / price / available / max ── */}
           <div className="flex flex-wrap items-start gap-x-5 gap-y-2 px-4 py-3">

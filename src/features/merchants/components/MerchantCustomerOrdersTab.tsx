@@ -32,6 +32,9 @@ import { MerchantAddExecutionForm } from '@/features/parent-order-fulfillment/co
 import { MerchantExecutionList } from '@/features/parent-order-fulfillment/components/MerchantExecutionList';
 import { useParentOrderSummary } from '@/features/parent-order-fulfillment/hooks/useParentOrderSummary';
 import { triggerVaultBackup } from '@/lib/vault-auto-trigger';
+import { BiometricsService } from '@/platform/biometrics';
+import { triggerHapticSuccess, triggerHapticError, triggerHapticWarning } from '@/platform/haptics';
+import { offlineSyncQueue } from '@/services/offlineSyncQueue';
 // -- Place Order for Client Modal --
 function PlaceOrderForClientModal({ merchantId, userId, onClose }: {
   merchantId: string; userId: string; onClose: () => void;
@@ -521,16 +524,37 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   const approveMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
       if (!resolvedMerchantId) throw new Error('Merchant not found');
+
+      if (BiometricsService.shouldRequireBiometrics(order.amount)) {
+        const bioResult = await BiometricsService.authenticate(
+          `Authorize Order Approval (#${order.id.substring(0, 8)}) for ${order.amount} ${order.send_currency}`
+        );
+        if (!bioResult.success) {
+          throw new Error(bioResult.error || 'Biometric security check required for order approval');
+        }
+      }
+
+      if (!offlineSyncQueue.isOnline()) {
+        offlineSyncQueue.enqueue('respond_order', { orderId: order.id, decision: 'approve' });
+        return { offlineQueued: true };
+      }
+
       return respondSharedOrder({ orderId: order.id, actorRole: 'merchant', action: 'approve' });
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       setActioningId(null);
-      toast.success('Order approved');
-      triggerVaultBackup('merchant order approved');
+      triggerHapticSuccess();
+      if (data?.offlineQueued) {
+        toast.warning('Order approval queued offline. Will sync when reconnected.');
+      } else {
+        toast.success('Order approved');
+        triggerVaultBackup('merchant order approved');
+      }
     },
     onError: (e: any) => {
       setActioningId(null);
+      triggerHapticError();
       toast.error(e?.message || 'Failed to approve');
     },
   });
@@ -538,16 +562,28 @@ export default function MerchantCustomerOrdersTab({ merchantId, isAdminView }: P
   const rejectMutation = useMutation({
     mutationFn: async ({ order }: { order: WorkflowOrder }) => {
       if (!resolvedMerchantId) throw new Error('Merchant not found');
+
+      if (!offlineSyncQueue.isOnline()) {
+        offlineSyncQueue.enqueue('respond_order', { orderId: order.id, decision: 'reject' });
+        return { offlineQueued: true };
+      }
+
       return respondSharedOrder({ orderId: order.id, actorRole: 'merchant', action: 'reject' });
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['merchant-customer-orders', resolvedMerchantId] });
       setActioningId(null);
-      toast.success('Order rejected');
-      triggerVaultBackup('merchant order rejected');
+      triggerHapticSuccess();
+      if (data?.offlineQueued) {
+        toast.warning('Order rejection queued offline. Will sync when reconnected.');
+      } else {
+        toast.success('Order rejected');
+        triggerVaultBackup('merchant order rejected');
+      }
     },
     onError: (e: any) => {
       setActioningId(null);
+      triggerHapticError();
       toast.error(e?.message || 'Failed to reject');
     },
   });

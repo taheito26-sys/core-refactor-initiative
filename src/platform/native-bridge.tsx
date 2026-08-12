@@ -135,3 +135,4 @@ export function NativePlatformBootstrap() {
 
   return null;
 }
+

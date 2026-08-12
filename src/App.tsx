@@ -15,6 +15,7 @@ import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
 import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
 import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
+import { OfflineStatusBanner } from "@/components/shared/OfflineStatusBanner";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
 
 function PwaDebugBadge() {
@@ -339,6 +340,7 @@ const App = () => (
         <Sonner richColors position="bottom-right" />
          <BrowserRouter>
           <NativePlatformBootstrap />
+          <OfflineStatusBanner />
           <AuthProvider>
             <PwaDebugBadge />
             <MobileInstallPrompt />
