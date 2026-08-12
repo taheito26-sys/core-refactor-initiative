@@ -99,6 +99,62 @@ export function isInAppBrowser(userAgent: string): boolean {
   return IN_APP_BROWSER_PATTERNS.some((pattern) => pattern.test(userAgent));
 }
 
+/** Chromium-based Edge on any platform (`Edg/`, `EdgA/`, `EdgiOS/`). */
+export function isEdgeBrowser(userAgent: string): boolean {
+  return /Edg(A|iOS)?\//.test(userAgent);
+}
+
+/**
+ * Edge on Android. Its "Add to phone" path can produce a plain home-screen
+ * shortcut rather than a real installed app (no WebAPK), which still opens in
+ * a browser tab and therefore never satisfies the gate. When Edge does not
+ * offer a real install prompt we hand the user off to Chrome.
+ */
+export function isEdgeAndroid(userAgent: string): boolean {
+  return /EdgA\//.test(userAgent);
+}
+
+/**
+ * Builds an Android intent URL that reopens the current page in Chrome, which
+ * mints a real WebAPK install instead of a shortcut.
+ */
+export function buildChromeIntentUrl(href: string): string | null {
+  try {
+    const parsed = new URL(href);
+    if (parsed.protocol !== "https:") return null;
+    return `intent://${parsed.host}${parsed.pathname}${parsed.search}#Intent;scheme=https;package=com.android.chrome;end`;
+  } catch {
+    return null;
+  }
+}
+
+type RelatedApplication = { platform?: string; id?: string; url?: string };
+
+type NavigatorWithRelatedApps = Navigator & {
+  getInstalledRelatedApps?: () => Promise<RelatedApplication[]>;
+};
+
+/**
+ * Asks the browser whether this PWA (or the companion Android app) is already
+ * installed on the device. This is the only reliable signal from inside a
+ * normal browser tab — `display-mode: standalone` is false there even when the
+ * app *is* installed, which is why a plain re-check kept reporting "not
+ * installed". Requires `related_applications` in the manifest; resolves false
+ * where the API is unavailable (notably iOS Safari).
+ */
+export async function detectRelatedAppInstalled(): Promise<boolean> {
+  if (typeof navigator === "undefined") return false;
+  const nav = navigator as NavigatorWithRelatedApps;
+  if (typeof nav.getInstalledRelatedApps !== "function") return false;
+
+  try {
+    const apps = await nav.getInstalledRelatedApps();
+    return Array.isArray(apps) && apps.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Reads the build-time kill switch; mobile enforcement is on by default. */
 export function isMobileInstallEnforced(): boolean {
   const raw = import.meta.env?.VITE_FORCE_MOBILE_INSTALL;

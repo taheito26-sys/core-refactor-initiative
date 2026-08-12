@@ -90,6 +90,25 @@ policy lives in `src/platform/install-gate.ts` and is rendered by
   from the home screen.
 - In-app browsers (Facebook, Instagram, Android WebView, …) cannot install a PWA, so the
   gate tells the user to reopen the link in Chrome/Safari and offers a copy-link button.
+- **Edge on Android** only adds a home-screen *shortcut* when it cannot offer a real
+  install prompt. That shortcut opens in a browser tab and never satisfies the gate, so
+  the gate hands off to Chrome via an `intent://…;package=com.android.chrome` link, which
+  installs a real WebAPK. Desktop Edge installs a proper app window and is unaffected.
+
+### How "already installed" is detected
+
+Inside a normal browser tab `display-mode` is always `browser`, even when the app *is*
+installed — so standalone detection alone reports "not installed" forever. The gate also
+calls `navigator.getInstalledRelatedApps()`, which needs `related_applications` in the
+manifest (declared in `vite.config.ts`, pointing at the production origin). Override the
+origin per environment with `PWA_ORIGIN=https://your-domain` at build time, otherwise the
+call cannot match and detection silently falls back to standalone-only.
+
+Detection runs on mount, on tab focus, and on the "I've installed it — recheck" button.
+`isInstalledPwa()` accepts `standalone`, `minimal-ui`, `fullscreen` and
+`window-controls-overlay` display modes, iOS `navigator.standalone`, and the
+`android-app://` referrer set by WebAPK launches — a plain shortcut matches none of these,
+which is exactly the distinction that keeps shortcuts from passing as installs.
 - Desktop browser → soft prompt, unchanged: install is offered but the user may continue
   in the browser.
 

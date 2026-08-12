@@ -8,6 +8,17 @@ import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig(({ mode }) => {
   const disablePwaBuild = process.env.DISABLE_PWA_BUILD === "1";
 
+  // Absolute origin used by `related_applications` so the browser can answer
+  // `navigator.getInstalledRelatedApps()` — that call is what lets a plain
+  // browser tab know the app is already installed. Override per environment
+  // with PWA_ORIGIN when the deployment is served from another domain.
+  const pwaOrigin = (
+    process.env.PWA_ORIGIN ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "https://qtrp2ptracker.vercel.app")
+  ).replace(/\/$/, "");
+
   return {
     define: {
       __APP_BUILD_ID__: JSON.stringify(
@@ -62,6 +73,9 @@ export default defineConfig(({ mode }) => {
             ],
           },
           manifest: {
+            // Identity pinned to the existing start_url so already-installed
+            // copies keep the same app id instead of being seen as new apps.
+            id: "/?icon_v=2",
             name: "The Tracker",
             short_name: "The Tracker",
             description:
@@ -69,6 +83,23 @@ export default defineConfig(({ mode }) => {
             theme_color: "#0f172a",
             background_color: "#0f172a",
             display: "standalone",
+            // Chromium (Chrome and Edge alike) needs an unambiguous app display
+            // intent to offer a real install instead of a bookmark/shortcut.
+            display_override: ["standalone", "minimal-ui"],
+            orientation: "portrait-primary",
+            scope: "/",
+            launch_handler: { client_mode: "navigate-existing" },
+            categories: ["finance", "business", "productivity"],
+            // Lets `getInstalledRelatedApps()` report this PWA as installed from
+            // inside a normal browser tab. Both manifest URLs are listed because
+            // the page has historically been served with a `?v=2` query on the
+            // manifest link, and installs are keyed by the URL used at the time.
+            related_applications: [
+              { platform: "webapp", url: `${pwaOrigin}/manifest.webmanifest` },
+              { platform: "webapp", url: `${pwaOrigin}/manifest.webmanifest?v=2` },
+              { platform: "play", id: "com.taheito26sys.corerefactorinitiative" },
+            ],
+            prefer_related_applications: false,
             start_url: "/?icon_v=2",
             icons: [
               {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   Smartphone,
@@ -16,8 +16,11 @@ import { cn } from "@/lib/utils";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
 import { useAuth } from "@/features/auth/auth-context";
 import {
+  buildChromeIntentUrl,
   detectDeviceKind,
+  detectRelatedAppInstalled,
   evaluateInstallGate,
+  isEdgeAndroid,
   isInAppBrowser,
   isMobileDevice,
   isMobileInstallEnforced,
@@ -71,10 +74,20 @@ export default function MobileInstallPrompt() {
   const [skipped, setSkipped] = useState(() => Boolean(safeLocalStorageGet(SKIP_INSTALL_KEY)));
   const [installing, setInstalling] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
+  const [recheckFoundNothing, setRecheckFoundNothing] = useState(false);
+  // Kept in a ref so the `beforeinstallprompt` listener (registered once) can
+  // read the latest value without being torn down and re-registered.
+  const relatedAppInstalledRef = useRef(false);
 
   const userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent;
   const deviceKind = useMemo(() => detectDeviceKind(userAgent), [userAgent]);
   const embeddedBrowser = useMemo(() => isInAppBrowser(userAgent), [userAgent]);
+  const edgeAndroid = useMemo(() => isEdgeAndroid(userAgent), [userAgent]);
+  const chromeIntentUrl = useMemo(
+    () => (typeof window === "undefined" ? null : buildChromeIntentUrl(window.location.href)),
+    [],
+  );
 
   const isIOS = deviceKind === "ios";
   const isAndroid = deviceKind === "android";
@@ -91,22 +104,43 @@ export default function MobileInstallPrompt() {
     enforceMobile: isMobileInstallEnforced(),
   });
 
+  // Asks the browser whether the app is installed. `display-mode` is always
+  // `browser` inside a normal tab, so an installed app can only be recognised
+  // via `getInstalledRelatedApps()` — without it a re-check kept answering
+  // "not installed" for users who had already installed the app.
+  const syncInstallState = useCallback(async () => {
+    const nowStandalone = isInstalledPwa();
+    if (nowStandalone) {
+      setStandalone(true);
+      stampVerifiedInstall();
+      setVerifiedInstall(true);
+      return true;
+    }
+
+    const related = await detectRelatedAppInstalled();
+    relatedAppInstalledRef.current = related;
+    if (related) {
+      stampVerifiedInstall();
+      setVerifiedInstall(true);
+    }
+    return related;
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    if (isInstalledPwa()) {
-      stampVerifiedInstall();
-      setStandalone(true);
-      setVerifiedInstall(true);
-    }
+    void syncInstallState();
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEventLike);
-      // Chrome only fires this while the app is NOT installed, so a stored
-      // "verified install" stamp is stale (app was uninstalled).
-      safeLocalStorageRemove(VERIFIED_INSTALL_KEY);
-      setVerifiedInstall(false);
+      // Chrome/Edge only fire this while the app is NOT installed, so a stored
+      // stamp is stale (the app was uninstalled) — unless the browser itself
+      // still reports the app as installed, which wins.
+      if (!relatedAppInstalledRef.current) {
+        safeLocalStorageRemove(VERIFIED_INSTALL_KEY);
+        setVerifiedInstall(false);
+      }
     };
 
     const handleInstalled = () => {
@@ -117,12 +151,7 @@ export default function MobileInstallPrompt() {
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        const nowStandalone = isInstalledPwa();
-        if (nowStandalone) {
-          stampVerifiedInstall();
-          setVerifiedInstall(true);
-        }
-        setStandalone(nowStandalone);
+        void syncInstallState();
       }
     };
 
@@ -143,7 +172,7 @@ export default function MobileInstallPrompt() {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("storage", handleStorage);
     };
-  }, []);
+  }, [syncInstallState]);
 
   // A stored "continue in browser" choice must never weaken the mobile gate.
   useEffect(() => {
@@ -170,6 +199,17 @@ export default function MobileInstallPrompt() {
       setInstalling(false);
     }
   }, [deferredPrompt]);
+
+  const handleRecheck = useCallback(async () => {
+    setRechecking(true);
+    setRecheckFoundNothing(false);
+    try {
+      const found = await syncInstallState();
+      setRecheckFoundNothing(!found);
+    } finally {
+      setRechecking(false);
+    }
+  }, [syncInstallState]);
 
   const handleCopyLink = useCallback(async () => {
     try {
@@ -215,6 +255,8 @@ export default function MobileInstallPrompt() {
                 <div>verifiedInstall: {String(verifiedInstall)}</div>
                 <div>skipped: {String(skipped)}</div>
                 <div>hasDeferredPrompt: {String(Boolean(deferredPrompt))}</div>
+                <div>relatedAppInstalled: {String(relatedAppInstalledRef.current)}</div>
+                <div>edgeAndroid: {String(edgeAndroid)}</div>
               </div>
             </div>
           )}
@@ -298,6 +340,22 @@ export default function MobileInstallPrompt() {
                 </li>
               </ol>
             </div>
+          ) : edgeAndroid && !deferredPrompt ? (
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
+              <div className="font-semibold text-foreground flex items-center gap-1.5">
+                <Compass className="h-4 w-4 text-primary" />
+                Edge can only add a shortcut here
+              </div>
+              <p className="font-medium">
+                Edge&rsquo;s <strong>Add to phone</strong> creates a home-screen shortcut that still
+                opens in the browser — it is not an installed app. Open this page in{" "}
+                <strong>Chrome</strong> and install from there to get the real app.
+              </p>
+              <p className="font-medium">
+                In Edge you can also use menu (<strong>⋯</strong>) &rarr;{" "}
+                <strong>Open in another app</strong> &rarr; <strong>Chrome</strong>.
+              </p>
+            </div>
           ) : isAndroid ? (
             <div className="rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
               <div className="font-semibold text-foreground flex items-center gap-1.5">
@@ -355,6 +413,15 @@ export default function MobileInstallPrompt() {
               </Button>
             )}
 
+            {((embeddedBrowser && mobile) || edgeAndroid) && !awaitingLaunch && chromeIntentUrl && (
+              <Button asChild variant="outline" className="w-full gap-2">
+                <a href={chromeIntentUrl}>
+                  <Compass className="h-4 w-4" />
+                  Open in Chrome to install
+                </a>
+              </Button>
+            )}
+
             {embeddedBrowser && mobile && !awaitingLaunch && (
               <Button variant="outline" className="w-full gap-2" onClick={handleCopyLink}>
                 <Copy className="h-4 w-4" />
@@ -363,14 +430,32 @@ export default function MobileInstallPrompt() {
             )}
 
             {mandatory ? (
-              <Button
-                variant="ghost"
-                className="w-full gap-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => window.location.reload()}
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                I've installed it — recheck
-              </Button>
+              <div className="space-y-1.5">
+                <Button
+                  variant="ghost"
+                  className="w-full gap-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={handleRecheck}
+                  disabled={rechecking}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", rechecking && "animate-spin")} />
+                  {rechecking ? "Checking..." : "I've installed it — recheck"}
+                </Button>
+                {recheckFoundNothing && (
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    Still not detected. A home-screen <strong>shortcut</strong> is not an install —{" "}
+                    {isIOS ? (
+                      <>
+                        use <strong>Share</strong> &rarr; <strong>Add to Home Screen</strong> in
+                        Safari, then open The Tracker from your home screen.
+                      </>
+                    ) : (
+                      <>
+                        use <strong>Install app</strong> in Chrome, then tap recheck again.
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
             ) : (
               <Button
                 variant="ghost"

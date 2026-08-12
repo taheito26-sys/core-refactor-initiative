@@ -49,16 +49,35 @@ export function isIOS(): boolean {
   return isNativeApp() && getRuntimePlatform() === "ios";
 }
 
+// An installed app can be launched in any of these display modes depending on
+// the manifest's `display` / `display_override` and the launching browser.
+// A plain home-screen *shortcut* opens in `browser` mode and matches none of
+// them — which is exactly the distinction the install gate relies on.
+const APP_DISPLAY_MODES = [
+  "standalone",
+  "minimal-ui",
+  "fullscreen",
+  "window-controls-overlay",
+] as const;
+
 export function isInstalledPwa(): boolean {
   if (typeof window === "undefined") return false;
 
-  const media = window.matchMedia?.("(display-mode: standalone)").matches ?? false;
+  const media = APP_DISPLAY_MODES.some(
+    (mode) => window.matchMedia?.(`(display-mode: ${mode})`).matches ?? false
+  );
+
+  // iOS Safari home-screen apps.
   const navigatorStandalone =
     typeof navigator !== "undefined" && "standalone" in navigator
       ? Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
       : false;
 
-  return media || navigatorStandalone;
+  // Android WebAPK launches set an `android-app://` referrer.
+  const webApkReferrer =
+    typeof document !== "undefined" && document.referrer.startsWith("android-app://");
+
+  return media || navigatorStandalone || webApkReferrer;
 }
 
 export function isWebBrowser(): boolean {

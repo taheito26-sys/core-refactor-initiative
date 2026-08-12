@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
+  buildChromeIntentUrl,
   detectDeviceKind,
+  detectRelatedAppInstalled,
   evaluateInstallGate,
+  isEdgeAndroid,
+  isEdgeBrowser,
   isInAppBrowser,
   isMobileDevice,
   type InstallGateInput,
@@ -131,5 +135,73 @@ describe("install gate — desktop stays optional", () => {
   it("stops prompting once skipped or installed", () => {
     expect(gate({ deviceKind: "desktop", skipped: true }).blocked).toBe(false);
     expect(gate({ deviceKind: "desktop", verifiedInstall: true }).blocked).toBe(false);
+  });
+});
+
+const EDGE_ANDROID_UA = `${ANDROID_UA.replace("Chrome/126.0.0.0", "Chrome/126.0.0.0")} EdgA/126.0.0.0`;
+const EDGE_DESKTOP_UA = `${DESKTOP_UA} Edg/126.0.0.0`;
+
+describe("install gate — Edge handling", () => {
+  it("recognises Edge on Android and on the desktop", () => {
+    expect(isEdgeAndroid(EDGE_ANDROID_UA)).toBe(true);
+    expect(isEdgeBrowser(EDGE_ANDROID_UA)).toBe(true);
+    expect(isEdgeBrowser(EDGE_DESKTOP_UA)).toBe(true);
+
+    // Desktop Edge installs a real app, so it must not take the Android path.
+    expect(isEdgeAndroid(EDGE_DESKTOP_UA)).toBe(false);
+    expect(isEdgeAndroid(ANDROID_UA)).toBe(false);
+    expect(isEdgeBrowser(ANDROID_UA)).toBe(false);
+  });
+
+  it("still classifies Edge on Android as an Android device", () => {
+    expect(detectDeviceKind(EDGE_ANDROID_UA)).toBe("android");
+  });
+
+  it("builds a Chrome intent URL that preserves path and query", () => {
+    expect(buildChromeIntentUrl("https://qtrp2ptracker.vercel.app/trading/cash?tab=1")).toBe(
+      "intent://qtrp2ptracker.vercel.app/trading/cash?tab=1#Intent;scheme=https;package=com.android.chrome;end",
+    );
+  });
+
+  it("refuses to build an intent URL for non-https or malformed input", () => {
+    expect(buildChromeIntentUrl("http://insecure.example.com/")).toBeNull();
+    expect(buildChromeIntentUrl("not a url")).toBeNull();
+  });
+});
+
+describe("install gate — installed-app detection from a browser tab", () => {
+  const nav = navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> };
+
+  afterEach(() => {
+    delete nav.getInstalledRelatedApps;
+  });
+
+  it("reports false when the browser does not support the API", async () => {
+    delete nav.getInstalledRelatedApps;
+    await expect(detectRelatedAppInstalled()).resolves.toBe(false);
+  });
+
+  it("reports true when the browser knows the app is installed", async () => {
+    nav.getInstalledRelatedApps = async () => [
+      { platform: "webapp", url: "https://qtrp2ptracker.vercel.app/manifest.webmanifest" },
+    ];
+    await expect(detectRelatedAppInstalled()).resolves.toBe(true);
+  });
+
+  it("reports false for an empty result and swallows API errors", async () => {
+    nav.getInstalledRelatedApps = async () => [];
+    await expect(detectRelatedAppInstalled()).resolves.toBe(false);
+
+    nav.getInstalledRelatedApps = async () => {
+      throw new Error("NotAllowedError");
+    };
+    await expect(detectRelatedAppInstalled()).resolves.toBe(false);
+  });
+
+  it("unblocks the gate once detection has stamped a verified install", () => {
+    // Detection feeds `verifiedInstall`, which moves the user off the
+    // "install me" screen and onto "open the app you already installed".
+    expect(gate({ deviceKind: "android", verifiedInstall: false }).stage).toBe("install");
+    expect(gate({ deviceKind: "android", verifiedInstall: true }).stage).toBe("awaiting-launch");
   });
 });
