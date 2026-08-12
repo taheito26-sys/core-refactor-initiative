@@ -76,6 +76,26 @@ Use `src/platform/runtime.ts` utilities for guarded checks:
 
 Keep native-only behavior behind these checks so browser desktop remains unaffected.
 
+## Mandatory mobile app installation
+
+Opening The Tracker in a **mobile browser** (iOS or Android) shows a blocking install
+gate — the app must be installed before it can be used on a phone or tablet. The policy
+lives in `src/platform/install-gate.ts` and is rendered by
+`src/components/shared/MobileInstallPrompt.tsx`:
+
+- Capacitor native shell or an installed PWA launched from the home screen → no gate.
+- Mobile browser → hard gate: no "continue in browser", and any previously stored skip is
+  cleared. After installing, the browser tab stays blocked and asks the user to relaunch
+  from the home screen.
+- In-app browsers (Facebook, Instagram, Android WebView, …) cannot install a PWA, so the
+  gate tells the user to reopen the link in Chrome/Safari and offers a copy-link button.
+- Desktop browser → soft prompt, unchanged: install is offered but the user may continue
+  in the browser.
+
+Set `VITE_FORCE_MOBILE_INSTALL=false` at build time to fall back to the soft prompt on
+mobile (kill switch for fleets on browsers that cannot install a PWA). Append
+`?pwa_debug=1` to any URL to see the resolved gate state.
+
 ## Native pipeline validation checklist
 
 Run these commands in order to validate native pipeline readiness:
