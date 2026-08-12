@@ -142,33 +142,23 @@ export function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
   const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
   const ts = normalizeSnapshotTimestamp(pickSnapshotValue(source, ['ts', 'timestamp']), fetchedAt);
 
-  const rawSellAvg = toFiniteNumber(pickSnapshotValue(source, ['sellAvg', 'sell_avg']));
-  const rawBuyAvg = toFiniteNumber(pickSnapshotValue(source, ['buyAvg', 'buy_avg']));
-  const isSwapped = rawSellAvg != null && rawBuyAvg != null && rawSellAvg < rawBuyAvg;
-
+  // sellAvg/buyAvg and sellOffers/buyOffers are always computed together from
+  // the same arrays by the p2p-scraper edge function, so they can never
+  // disagree within one snapshot. A `sellAvg < buyAvg` heuristic used to swap
+  // both pairs here on the theory that a lower "sell" average meant the
+  // fields had been mislabeled — but some markets (Egypt's bank-transfer
+  // methods pricing below its mobile-wallet methods, for example) genuinely
+  // and persistently have sellAvg below buyAvg. That heuristic was flipping
+  // real data on every poll where the spread happened to be negative,
+  // silently swapping sellOffers/buyOffers — which broke method-specific
+  // lookups like the Banque Misr KPI (it reads snapshot.sellOffers).
   const sellOffersRaw = toOfferList(source, ['sellOffers', 'sell_offers']).map(toOffer).filter((o): o is P2POffer => o !== null);
   const buyOffersRaw = toOfferList(source, ['buyOffers', 'buy_offers']).map(toOffer).filter((o): o is P2POffer => o !== null);
 
-  if (isSwapped) {
-    return {
-      ts,
-      sellAvg: rawBuyAvg,
-      buyAvg: rawSellAvg,
-      bestSell: toFiniteNumber(pickSnapshotValue(source, ['bestBuy', 'best_buy'])),
-      bestBuy: toFiniteNumber(pickSnapshotValue(source, ['bestSell', 'best_sell'])),
-      spread: rawBuyAvg != null && rawSellAvg != null ? rawBuyAvg - rawSellAvg : null,
-      spreadPct: rawBuyAvg != null && rawSellAvg != null && rawSellAvg > 0 ? ((rawBuyAvg - rawSellAvg) / rawSellAvg) * 100 : null,
-      sellDepth: toFiniteNumber(pickSnapshotValue(source, ['buyDepth', 'buy_depth'])) ?? 0,
-      buyDepth: toFiniteNumber(pickSnapshotValue(source, ['sellDepth', 'sell_depth'])) ?? 0,
-      sellOffers: buyOffersRaw.sort((a, b) => b.price - a.price),
-      buyOffers: sellOffersRaw.sort((a, b) => a.price - b.price),
-    };
-  }
-
   return {
     ts,
-    sellAvg: rawSellAvg,
-    buyAvg: rawBuyAvg,
+    sellAvg: toFiniteNumber(pickSnapshotValue(source, ['sellAvg', 'sell_avg'])),
+    buyAvg: toFiniteNumber(pickSnapshotValue(source, ['buyAvg', 'buy_avg'])),
     bestSell: toFiniteNumber(pickSnapshotValue(source, ['bestSell', 'best_sell'])),
     bestBuy: toFiniteNumber(pickSnapshotValue(source, ['bestBuy', 'best_buy'])),
     spread: toFiniteNumber(pickSnapshotValue(source, ['spread', 'spread_val'])),
