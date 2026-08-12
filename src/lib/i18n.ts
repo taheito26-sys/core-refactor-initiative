@@ -1676,6 +1676,11 @@ const translations = {
   loanAlreadyLinked: { en: 'already has a loan', ar: 'لديه قرض بالفعل' },
   loanDuplicateOrderWarning: { en: 'This order already has a loan. Creating another will loan it twice — confirm this is intentional.', ar: 'هذا الطلب لديه قرض بالفعل. إنشاء قرض آخر سيجعله مقرضاً مرتين — تأكد أن هذا مقصود.' },
   loanDuplicateOrderConfirm: { en: 'Yes, I want a second loan on this order', ar: 'نعم، أريد قرضاً ثانياً على هذا الطلب' },
+  loanCustomerCount: { en: 'loans', ar: 'قروض' },
+  loanCustomerOpenCount: { en: 'open', ar: 'مفتوح' },
+  loanViewDetails: { en: 'View details', ar: 'عرض التفاصيل' },
+  loanHideDetails: { en: 'Hide details', ar: 'إخفاء التفاصيل' },
+  loanCustomerAllClosed: { en: 'All settled', ar: 'تمت التسوية بالكامل' },
 
   // Account types
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },

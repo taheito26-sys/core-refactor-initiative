@@ -1012,6 +1012,45 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     return s;
   }, [loans]);
 
+  // One entry per customer, newest activity first — each entry carries the
+  // customer's own loans (newest first) plus per-currency totals so the
+  // summary card doesn't have to sum QAR and USDT loans together.
+  const loanGroups = useMemo(() => {
+    const byCustomer = new Map<string, CustomerLoan[]>();
+    for (const l of loans) {
+      const arr = byCustomer.get(l.customerId);
+      if (arr) arr.push(l); else byCustomer.set(l.customerId, [l]);
+    }
+    return Array.from(byCustomer.entries()).map(([customerId, customerLoans]) => {
+      const sorted = [...customerLoans].sort((a, b) => b.ts - a.ts);
+      const totalsByCurrency = new Map<CashCurrency, { given: number; received: number; remaining: number }>();
+      for (const l of sorted) {
+        const t = totalsByCurrency.get(l.currency) || { given: 0, received: 0, remaining: 0 };
+        t.given += l.principal;
+        t.received += getLoanRepaid(l);
+        t.remaining += getLoanRemaining(l);
+        totalsByCurrency.set(l.currency, t);
+      }
+      return {
+        customerId,
+        customer: (state.customers || []).find(c => c.id === customerId),
+        loans: sorted,
+        latestTs: sorted[0].ts,
+        openCount: sorted.filter(l => l.status === 'open').length,
+        totalsByCurrency: Array.from(totalsByCurrency.entries()),
+      };
+    }).sort((a, b) => b.latestTs - a.latestTs);
+  }, [loans, state.customers]);
+
+  const [expandedLoanCustomerIds, setExpandedLoanCustomerIds] = useState<Set<string>>(new Set());
+  const toggleLoanCustomer = (customerId: string) => {
+    setExpandedLoanCustomerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(customerId)) next.delete(customerId); else next.add(customerId);
+      return next;
+    });
+  };
+
   // ── Localized label maps (recomputed when language changes) ────
   const ACCOUNT_TYPE_LABELS: Record<CashAccountType, string> = useMemo(() => ({
     hand: t('accTypeHand'), 
@@ -1730,73 +1769,131 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
           </div>
 
-          {loans.length === 0 ? (
+          {loanGroups.length === 0 ? (
             <div className="empty" style={{ padding: '24px 0' }}>
               <div className="empty-t">{t('noLoansYet')}</div>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
-              {[...loans].sort((a, b) => b.ts - a.ts).map(loan => {
-                const customer = (state.customers || []).find(c => c.id === loan.customerId);
-                const received = getLoanRepaid(loan);
-                const remaining = getLoanRemaining(loan);
-                const repayments = [...(loan.repayments || [])].sort((a, b) => b.ts - a.ts);
+              {loanGroups.map(group => {
+                const expanded = expandedLoanCustomerIds.has(group.customerId);
                 return (
-                  <div key={loan.id} className="panel" style={{ padding: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700 }}>{customer?.name || loan.customerId}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                          {loan.status === 'closed' ? t('loanStatusClosed') : t('loanStatusOpen')}
-                        </span>
-                        <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingLoan(loan)}>{t('edit')}</button>
-                        <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeleteLoanConfirmId(loan.id)}>{t('delete')}</button>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 10, color: 'var(--muted)' }}>
-                      <span className="mono">{fmtDate(loan.ts)}</span>
-                      {loan.tradeId && <span className="pill" style={{ fontSize: 9 }}>🔗 {t('loanLinkedOrder')}</span>}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11, marginBottom: loan.status === 'open' ? 8 : 0 }}>
-                      <div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanGiven')}</div>
-                        <div className="mono" style={{ fontWeight: 800 }}>{fmtAmt(loan.principal, loan.currency)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanReceived')}</div>
-                        <div className="mono" style={{ fontWeight: 800, color: 'var(--good)' }}>{fmtAmt(received, loan.currency)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanRemaining')}</div>
-                        <div className="mono" style={{ fontWeight: 800, color: remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>{fmtAmt(remaining, loan.currency)}</div>
-                      </div>
-                    </div>
-                    {loan.note && <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>{loan.note}</div>}
-
-                    {repayments.length > 0 && (
-                      <div style={{ marginBottom: 8, borderTop: '1px solid var(--line2)', paddingTop: 8 }}>
-                        <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>
-                          {t('loanRepaymentHistory')}
+                  <div key={group.customerId} className="panel" style={{ padding: 12 }}>
+                    <button
+                      onClick={() => toggleLoanCustomer(group.customerId)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', gap: 8, width: '100%',
+                        background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{group.customer?.name || group.customerId}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className={`pill ${group.openCount > 0 ? 'warn' : 'good'}`} style={{ fontSize: 9 }}>
+                            {group.openCount > 0
+                              ? `${group.openCount} ${t('loanCustomerOpenCount')}`
+                              : t('loanCustomerAllClosed')}
+                          </span>
+                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>
+                            {group.loans.length} {t('loanCustomerCount')}
+                          </span>
+                          <span
+                            className="mono"
+                            style={{ fontSize: 11, color: 'var(--muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
+                          >
+                            ▾
+                          </span>
                         </div>
-                        <div style={{ display: 'grid', gap: 4 }}>
-                          {repayments.map(r => {
-                            const acc = accounts.find(a => a.id === r.accountId);
-                            return (
-                              <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10 }}>
-                                <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(r.ts)}</span>
-                                <span className="mono" style={{ color: 'var(--good)', fontWeight: 700 }}>+{fmtTotal(r.amount)}</span>
-                                <span style={{ color: 'var(--muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {acc?.name || ''}{r.note ? ` · ${r.note}` : ''}
+                      </div>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        {group.totalsByCurrency.map(([currency, totals]) => (
+                          <div key={currency} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11 }}>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanGiven')}</div>
+                              <div className="mono" style={{ fontWeight: 800 }}>{fmtAmt(totals.given, currency)}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanReceived')}</div>
+                              <div className="mono" style={{ fontWeight: 800, color: 'var(--good)' }}>{fmtAmt(totals.received, currency)}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanRemaining')}</div>
+                              <div className="mono" style={{ fontWeight: 800, color: totals.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>{fmtAmt(totals.remaining, currency)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600 }}>
+                        {expanded ? t('loanHideDetails') : t('loanViewDetails')}
+                      </div>
+                    </button>
+
+                    {expanded && (
+                      <div style={{ display: 'grid', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line2)' }}>
+                        {group.loans.map(loan => {
+                          const received = getLoanRepaid(loan);
+                          const remaining = getLoanRemaining(loan);
+                          const repayments = [...(loan.repayments || [])].sort((a, b) => b.ts - a.ts);
+                          return (
+                            <div key={loan.id} className="panel" style={{ padding: 12, background: 'var(--panel2)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                                  {loan.status === 'closed' ? t('loanStatusClosed') : t('loanStatusOpen')}
                                 </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingLoan(loan)}>{t('edit')}</button>
+                                  <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeleteLoanConfirmId(loan.id)}>{t('delete')}</button>
+                                </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 10, color: 'var(--muted)' }}>
+                                <span className="mono">{fmtDate(loan.ts)}</span>
+                                {loan.tradeId && <span className="pill" style={{ fontSize: 9 }}>🔗 {t('loanLinkedOrder')}</span>}
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11, marginBottom: loan.status === 'open' ? 8 : 0 }}>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanGiven')}</div>
+                                  <div className="mono" style={{ fontWeight: 800 }}>{fmtAmt(loan.principal, loan.currency)}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanReceived')}</div>
+                                  <div className="mono" style={{ fontWeight: 800, color: 'var(--good)' }}>{fmtAmt(received, loan.currency)}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanRemaining')}</div>
+                                  <div className="mono" style={{ fontWeight: 800, color: remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>{fmtAmt(remaining, loan.currency)}</div>
+                                </div>
+                              </div>
+                              {loan.note && <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>{loan.note}</div>}
 
-                    {loan.status === 'open' && (
-                      <button className="rowBtn" onClick={() => setRepayingLoan(loan)}>{t('loanAddRepayment')}</button>
+                              {repayments.length > 0 && (
+                                <div style={{ marginBottom: 8, borderTop: '1px solid var(--line2)', paddingTop: 8 }}>
+                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>
+                                    {t('loanRepaymentHistory')}
+                                  </div>
+                                  <div style={{ display: 'grid', gap: 4 }}>
+                                    {repayments.map(r => {
+                                      const acc = accounts.find(a => a.id === r.accountId);
+                                      return (
+                                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10 }}>
+                                          <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(r.ts)}</span>
+                                          <span className="mono" style={{ color: 'var(--good)', fontWeight: 700 }}>+{fmtTotal(r.amount)}</span>
+                                          <span style={{ color: 'var(--muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {acc?.name || ''}{r.note ? ` · ${r.note}` : ''}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {loan.status === 'open' && (
+                                <button className="rowBtn" onClick={() => setRepayingLoan(loan)}>{t('loanAddRepayment')}</button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 );
