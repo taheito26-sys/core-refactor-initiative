@@ -20,6 +20,7 @@ import { useP2PRates } from '@/features/dashboard/hooks/useP2PRates';
 import { buildDealRowModel } from '@/features/orders/utils/dealRowModel';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TopClientsKPI } from '@/components/dashboard/TopClientsKPI';
+import { BanqueMisrInstaPayKPI } from '@/components/dashboard/BanqueMisrInstaPayKPI';
 import {
   AreaChart, Area, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid,
@@ -811,6 +812,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="prev-row"><span className="muted">{t('trades')}</span><strong className="mono">{dR.count}</strong></div>
           </div>
         </div>
+        <BanqueMisrInstaPayKPI />
       </div>
 
       {showCashBox && !isAdminView && (
