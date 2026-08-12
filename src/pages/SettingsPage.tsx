@@ -323,6 +323,98 @@ export default function SettingsPage() {
                 <Label className="text-xs">{t('priceAlertThreshold')}</Label>
                 <Input
                   type="number" step={0.5} min={0}
+                  value={draft.priceAlertThreshold}
+                  onChange={e => update({ priceAlertThreshold: Number(e.target.value) || 0 })}
+                  className="max-w-[180px]"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">{t('allowInvalidTrades')}</Label>
+                <Switch checked={draft.allowInvalidTrades} onCheckedChange={v => update({ allowInvalidTrades: v })} />
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                {t('allowInvalidTradesDesc')}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* ── Biometrics & Security ── */}
+          <Card className="glass">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-display flex items-center gap-2">
+                <Fingerprint className="h-4 w-4 text-primary" />
+                Biometric & Native Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-semibold">Require Biometrics / Face ID</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Prompt for Face ID / Fingerprint / WebAuthn on order approvals
+                  </p>
+                </div>
+                <Switch
+                  checked={biometricsEnabled}
+                  onCheckedChange={(checked) => {
+                    triggerHapticSelection();
+                    if (checked) {
+                      void BiometricsService.authenticate("Enable Biometric Security for App Approvals").then(res => {
+                        if (res.success) {
+                          BiometricsService.setBiometricsEnabled(true);
+                          setBiometricsEnabledState(true);
+                          toast.success("Biometric security enabled for order approvals");
+                        } else {
+                          toast.error(res.error || "Biometric verification failed");
+                        }
+                      });
+                    } else {
+                      BiometricsService.setBiometricsEnabled(false);
+                      setBiometricsEnabledState(false);
+                      toast.info("Biometric security disabled");
+                    }
+                  }}
+                />
+              </div>
+
+              {biometricsEnabled && (
+                <div className="space-y-2 pt-2 border-t border-border/40">
+                  <Label className="text-xs">High-Value Approval Threshold</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      step={100}
+                      min={0}
+                      value={bioThreshold}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        setBioThresholdState(val);
+                        BiometricsService.setHighValueThreshold(val);
+                      }}
+                      className="max-w-[140px]"
+                    />
+                    <span className="text-xs text-muted-foreground">{draft.currency}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Orders at or above this amount require biometric authorization
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 rounded-lg bg-muted/20 p-2 text-[11px] text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span>
+                  {bioSupported
+                    ? "Device hardware biometrics / WebAuthn supported"
+                    : "Standard security confirmation active"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Fonts & Accessibility ── */}
+          <Card className="glass">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-display">{t('fontsAccessibility')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
