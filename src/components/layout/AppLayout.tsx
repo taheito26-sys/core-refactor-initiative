@@ -7,8 +7,6 @@ import { useTheme } from '@/lib/theme-context';
 import { cn } from '@/lib/utils';
 import { RequiredFieldsModal } from '@/features/auth/components/RequiredFieldsModal';
 import { useAuth } from '@/features/auth/auth-context';
-import { useWelcomeMessage } from '@/hooks/useWelcomeMessage';
-import { WelcomeOverlay } from '@/components/WelcomeOverlay';
 import { usePushRegistration } from '@/hooks/usePushRegistration';
 import { useReadReceiptSync } from '@/hooks/useReadReceiptSync';
 import { useAutoVaultBackup } from '@/hooks/useAutoVaultBackup';
@@ -17,18 +15,12 @@ export function AppLayout() {
   const isMobile = useIsMobile();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { settings } = useTheme();
-  const { merchantProfile } = useAuth();
   const isRTL = settings.language === 'ar';
 
   // App-level hooks: push registration + cross-device read sync
   usePushRegistration();
   useReadReceiptSync();
   useAutoVaultBackup();
-
-  const { msg: welcomeMsg, dismiss: dismissWelcome } = useWelcomeMessage(
-    merchantProfile?.display_name,
-    settings.language as 'en' | 'ar',
-  );
 
   const location = useLocation();
   const isChat = location.pathname.startsWith('/chat');
@@ -76,10 +68,6 @@ export function AppLayout() {
 
       {/* Blocks the app if display_name or merchant_id are missing */}
       <RequiredFieldsModal />
-
-      {/* Welcome message overlay */}
-      {welcomeMsg && <WelcomeOverlay msg={welcomeMsg} onDismiss={dismissWelcome} />}
-
     </div>
   );
 }
