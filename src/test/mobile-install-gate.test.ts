@@ -16,6 +16,7 @@ const DESKTOP_UA =
 
 function gate(overrides: Partial<InstallGateInput> = {}) {
   return evaluateInstallGate({
+    isAuthenticated: true,
     deviceKind: "android",
     isNative: false,
     isStandalone: false,
@@ -49,6 +50,23 @@ describe("install gate — device detection", () => {
     ).toBe(true);
     expect(isInAppBrowser(ANDROID_UA)).toBe(false);
     expect(isInAppBrowser(IPHONE_UA)).toBe(false);
+  });
+});
+
+describe("install gate — only after login", () => {
+  it.each(["ios", "android", "desktop"] as const)(
+    "never blocks a signed-out visitor on %s",
+    (deviceKind) => {
+      const decision = gate({ deviceKind, isAuthenticated: false });
+
+      expect(decision.blocked).toBe(false);
+      expect(decision.enforcement).toBe("none");
+    },
+  );
+
+  it("blocks a mobile browser as soon as the user is signed in", () => {
+    expect(gate({ deviceKind: "android", isAuthenticated: false }).blocked).toBe(false);
+    expect(gate({ deviceKind: "android", isAuthenticated: true }).blocked).toBe(true);
   });
 });
 

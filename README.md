@@ -78,11 +78,12 @@ Keep native-only behavior behind these checks so browser desktop remains unaffec
 
 ## Mandatory mobile app installation
 
-Opening The Tracker in a **mobile browser** (iOS or Android) shows a blocking install
-gate — the app must be installed before it can be used on a phone or tablet. The policy
-lives in `src/platform/install-gate.ts` and is rendered by
+Once a user is **signed in** on a **mobile browser** (iOS or Android), a blocking install
+gate appears — the app must be installed before it can be used on a phone or tablet. The
+policy lives in `src/platform/install-gate.ts` and is rendered by
 `src/components/shared/MobileInstallPrompt.tsx`:
 
+- Signed out → no gate, so the login flow always works in the browser.
 - Capacitor native shell or an installed PWA launched from the home screen → no gate.
 - Mobile browser → hard gate: no "continue in browser", and any previously stored skip is
   cleared. After installing, the browser tab stays blocked and asks the user to relaunch

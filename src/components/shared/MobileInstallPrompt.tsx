@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
+import { useAuth } from "@/features/auth/auth-context";
 import {
   detectDeviceKind,
   evaluateInstallGate,
@@ -63,6 +64,7 @@ function stampVerifiedInstall(): void {
 }
 
 export default function MobileInstallPrompt() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEventLike | null>(null);
   const [standalone, setStandalone] = useState(() => isInstalledPwa());
   const [verifiedInstall, setVerifiedInstall] = useState(() => hasVerifiedInstall());
@@ -80,6 +82,7 @@ export default function MobileInstallPrompt() {
   const mobile = isMobileDevice(deviceKind);
 
   const gate = evaluateInstallGate({
+    isAuthenticated: isAuthenticated && !authLoading,
     deviceKind,
     isNative: isNativeApp(),
     isStandalone: standalone,
@@ -201,6 +204,8 @@ export default function MobileInstallPrompt() {
               <div className="font-semibold text-foreground">PWA Installation Debug</div>
               <div className="mt-2 space-y-1 font-mono">
                 <div>blocked: {String(gate.blocked)}</div>
+                <div>isAuthenticated: {String(isAuthenticated)}</div>
+                <div>authLoading: {String(authLoading)}</div>
                 <div>enforcement: {gate.enforcement}</div>
                 <div>stage: {gate.stage}</div>
                 <div>deviceKind: {deviceKind}</div>

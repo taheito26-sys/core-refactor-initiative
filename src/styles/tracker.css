@@ -63,6 +63,10 @@
 /* ── KPI CARDS ── */
 .tracker-root .kpis { display: grid; gap: 4px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .tracker-root .kpis.kpis-p2p { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+/* Dashboard KPI band: one continuous grid with a fixed column count so the
+   tiles always pack next to each other instead of orphaning a half-empty row.
+   The tile count (10) divides evenly by both 5 (wide) and 2 (mobile). */
+.tracker-root .kpis.kpis-dashboard { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .tracker-root .kpi-card {
   background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius);
   padding: 6px; box-shadow: var(--lt-shadow2); position: relative; overflow: hidden;
@@ -444,6 +448,7 @@
 
 @media (max-width: 768px) {
   .tracker-root .kpis { grid-template-columns: 1fr 1fr; }
+  .tracker-root .kpis.kpis-dashboard { grid-template-columns: 1fr 1fr; }
   .tracker-root .kpi-band-grid { grid-template-columns: 1fr; }
   .tracker-root .twoColPage { grid-template-columns: 1fr; }
   .tracker-root .dash-bottom { grid-template-columns: 1fr; }
@@ -871,6 +876,7 @@
   .tracker-root thead th { padding: 4px 3px; font-size: 7px; }
   .tracker-root tbody td { padding: 4px 3px; font-size: 9px; max-width: 70px; }
   .tracker-root .kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .tracker-root .kpis.kpis-dashboard { grid-template-columns: 1fr 1fr; }
   .tracker-root .formPanel .inner { padding: 4px; }
   .orders-tab-btn { padding: 7px 10px; font-size: 9px; }
 }

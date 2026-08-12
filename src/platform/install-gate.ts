@@ -31,6 +31,12 @@ export type GateEnforcement = "none" | "soft" | "hard";
 export type GateStage = "install" | "awaiting-launch";
 
 export interface InstallGateInput {
+  /**
+   * Whether a user session is active. The gate only runs after login — an
+   * anonymous visitor must be able to reach the login screen, and there is
+   * nothing to protect until someone is signed in.
+   */
+  isAuthenticated: boolean;
   deviceKind: DeviceKind;
   /** Running inside the Capacitor native shell. */
   isNative: boolean;
@@ -102,10 +108,13 @@ export function isMobileInstallEnforced(): boolean {
 }
 
 export function evaluateInstallGate(input: InstallGateInput): InstallGateDecision {
-  const { deviceKind, isNative, isStandalone, verifiedInstall, skipped, enforceMobile } = input;
+  const { isAuthenticated, deviceKind, isNative, isStandalone, verifiedInstall, skipped, enforceMobile } =
+    input;
 
-  // Already running as an app — never gate.
-  if (isNative || isStandalone) {
+  // Before login the gate stays out of the way: the user has to be able to
+  // reach and complete the sign-in flow in the browser.
+  // Already running as an app — never gate either.
+  if (!isAuthenticated || isNative || isStandalone) {
     return {
       blocked: false,
       enforcement: "none",

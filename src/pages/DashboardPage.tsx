@@ -666,7 +666,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         </div>
       </div>
 
-      <div className="kpis">
+      <div className="kpis kpis-dashboard">
         <div className="kpi-card">
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
@@ -695,9 +695,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             })()}
           </div>
         </div>
-      </div>
 
-      <div className="kpis" style={{ marginTop: 0 }}>
         {(() => {
           const cashAccounts = state.cashAccounts || [];
           const cashLedger = state.cashLedger || [];
