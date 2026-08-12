@@ -43,7 +43,12 @@
       "Bash(find /c/Data/GITHUB/core-refactor-initiative/.claude/worktrees/magical-clarke -name \"types.ts\" -path \"*/chat/*\" -exec head -150 {} \\\\;)",
       "Bash(echo \"exit=$?\")",
       "Bash(python3 -m json.tool)",
-      "WebFetch(domain:app.banani.co)"
+      "WebFetch(domain:app.banani.co)",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git pull *)"
     ]
   }
 }
