@@ -6,12 +6,15 @@ import type { P2POffer } from '@/features/p2p/types';
 // Banque Misr only — bank name in English/Arabic as it appears in P2P payment method tags.
 const BANQUE_MISR_RE = /banque\s*misr|bank\s*misr|بنك\s*مصر/i;
 
+// Fixed QA sell avg per user request (overrides live Qatar market rate).
+const QA_SELL_AVG_FIXED = 3.79;
+
 export function BanqueMisrInstaPayKPI() {
   const t = useT();
-  const { snapshot, qatarRates, loading } = useP2PMarketData('egypt');
+  const { snapshot, loading } = useP2PMarketData('egypt');
 
   const kpi = useMemo(() => {
-    if (!snapshot || !qatarRates) return null;
+    if (!snapshot) return null;
 
     const deduped = new Map<string, P2POffer>();
     (snapshot.sellOffers || []).forEach(o => {
@@ -24,11 +27,11 @@ export function BanqueMisrInstaPayKPI() {
     if (top6.length === 0) return null;
 
     const egSellBanqueMisrAvg = top6.reduce((s, o) => s + o.price, 0) / top6.length;
-    const qaSellAvg = qatarRates.sellAvg;
-    const instaPayV1BanqueMisr = qaSellAvg ? egSellBanqueMisrAvg / qaSellAvg : null;
+    const qaSellAvg = QA_SELL_AVG_FIXED;
+    const instaPayV1BanqueMisr = egSellBanqueMisrAvg / qaSellAvg;
 
     return { instaPayV1BanqueMisr, egSellBanqueMisrAvg, qaSellAvg, offerCount: top6.length };
-  }, [snapshot, qatarRates]);
+  }, [snapshot]);
 
   return (
     <div className="panel">
