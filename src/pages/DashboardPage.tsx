@@ -672,6 +672,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
           <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)} · {t('incomingOrders')} {fmtDashboardAmount(segmentedProfit.range.inMyShare)} · {t('outgoingOrders')} {fmtDashboardAmount(segmentedProfit.range.outMyShare)}</div>
         </div>
+        <BanqueMisrInstaPayKPI />
         <div className="kpi-card">
           <div className="kpi-lbl">{t('avgMargin')}</div>
           <div className={`kpi-val ${avgM >= 1 ? 'good' : avgM >= 0 ? 'warn' : 'bad'}`}>{fmtPct(avgM)}</div>
@@ -812,7 +813,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             <div className="prev-row"><span className="muted">{t('trades')}</span><strong className="mono">{dR.count}</strong></div>
           </div>
         </div>
-        <BanqueMisrInstaPayKPI />
       </div>
 
       {showCashBox && !isAdminView && (
