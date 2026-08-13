@@ -90,6 +90,38 @@ function get24hMovement(accountId: string, ledger: CashLedgerEntry[]): number {
 
 // ── Sub-components ─────────────────────────────────────────────────
 
+interface KpiBoxProps {
+  icon: string;
+  label: string;
+  value: string;
+  /** Currency/unit rendered smaller next to the value. */
+  unit?: string;
+  /** Small caption under the value — counts, breakdowns, share of total. */
+  sub?: React.ReactNode;
+  tone?: 'neutral' | 'brand' | 'good' | 'bad' | 'warn';
+  /** 0–100. Renders a thin bar at the bottom of the box when set. */
+  progress?: number;
+  /** Makes the box a button — used to jump to the matching tab. */
+  onClick?: () => void;
+}
+function KpiBox({ icon, label, value, unit, sub, tone = 'neutral', progress, onClick }: KpiBoxProps) {
+  const body = (
+    <>
+      <div className="cash-kpi-label"><span className="cash-kpi-icon">{icon}</span>{label}</div>
+      <div className="cash-kpi-value mono">
+        {value}{unit && <span className="cash-kpi-unit">{unit}</span>}
+      </div>
+      <div className="cash-kpi-sub">{sub || ' '}</div>
+      {typeof progress === 'number' && (
+        <div className="cash-kpi-bar"><span style={{ width: `${Math.max(0, Math.min(100, progress)).toFixed(1)}%` }} /></div>
+      )}
+    </>
+  );
+  const cls = `cash-kpi tone-${tone}${onClick ? ' clickable' : ''}`;
+  if (onClick) return <button type="button" className={cls} onClick={onClick}>{body}</button>;
+  return <div className={cls}>{body}</div>;
+}
+
 interface AddAccountModalProps {
   existingAccount?: CashAccount;
   onSave: (account: CashAccount) => void;
@@ -1136,10 +1168,57 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       .reduce((sum, a) => sum + (balances.get(a.id) || 0), 0);
   }, [accounts, balances]);
 
+  const custodyQAR = useMemo(() => {
+    return accounts.filter(a => a.type === 'merchant_custody' && a.status === 'active' && a.currency === 'QAR')
+      .reduce((sum, a) => sum + (balances.get(a.id) || 0), 0);
+  }, [accounts, balances]);
+
+  /** Active QAR account count per type — the "3 accounts" caption on each KPI box. */
+  const accountCounts = useMemo(() => {
+    const counts: Record<CashAccountType, number> = { hand: 0, bank: 0, vault: 0, merchant_custody: 0 };
+    for (const a of accounts) {
+      if (a.status === 'active' && a.currency === 'QAR') counts[a.type]++;
+    }
+    return counts;
+  }, [accounts]);
+
   const total24hMovement = useMemo(() => {
     const since = Date.now() - 86400000;
     return ledger.filter(e => e.ts >= since).reduce((sum, e) => sum + (e.direction === 'in' ? e.amount : -e.amount), 0);
   }, [ledger]);
+
+  // Loans can be issued in several currencies, and the header must not sum
+  // them into one meaningless number. Totals stay per-currency: the currency
+  // with the most outstanding leads each KPI box, the rest ride along in the
+  // caption underneath it.
+  const loanKpi = useMemo(() => {
+    const byCurrency = new Map<CashCurrency, { given: number; received: number; remaining: number }>();
+    const debtors = new Set<string>();
+    let openCount = 0;
+    for (const l of loans) {
+      const agg = byCurrency.get(l.currency) || { given: 0, received: 0, remaining: 0 };
+      const remaining = getLoanRemaining(l);
+      agg.given += l.principal;
+      agg.received += getLoanRepaid(l);
+      agg.remaining += remaining;
+      byCurrency.set(l.currency, agg);
+      if (l.status === 'open') openCount++;
+      if (remaining > 0) debtors.add(l.customerId);
+    }
+    const rows = Array.from(byCurrency.entries())
+      .map(([currency, v]) => ({ currency, ...v }))
+      .sort((a, b) => (b.remaining - a.remaining) || (b.given - a.given));
+    const lead = rows[0];
+    return {
+      rows,
+      lead,
+      others: rows.slice(1),
+      openCount,
+      debtorCount: debtors.size,
+      hasLoans: loans.length > 0,
+      repaidPct: lead && lead.given > 0 ? (lead.received / lead.given) * 100 : 0,
+    };
+  }, [loans]);
 
   // ── Mutation helpers ───────────────────────────────────────────
   const commit = async (next: TrackerState): Promise<boolean> => {
@@ -1394,64 +1473,137 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
   return (
     <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
-      {/* ── Summary Strip ── */}
-      <div className="cash-summary-strip" style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: 8 } : undefined}>
-        <div className="cash-summary-item">
-          <div className="cash-summary-label">💰 {t('totalCashLbl')}</div>
-          <div className="cash-summary-value mono" style={isMobile ? { fontSize: 18, lineHeight: 1.15, wordBreak: 'break-word' } : undefined}>{fmtTotal(totalQAR)} <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 600 }}>QAR</span></div>
-        </div>
-        {!isMobile && <div className="cash-summary-sep" />}
-        <div className="cash-summary-item">
-          <div className="cash-summary-label">✋ {t('inHandLbl')}</div>
-          <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 15 }}>{fmtTotal(inHandQAR)}</div>
-        </div>
-        {!isMobile && <div className="cash-summary-sep" />}
-        <div className="cash-summary-item">
-          <div className="cash-summary-label">🏦 {t('banksLbl')}</div>
-          <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 15 }}>{fmtTotal(bankQAR)}</div>
-        </div>
-        {vaultQAR > 0 && <>
-          {!isMobile && <div className="cash-summary-sep" />}
-          <div className="cash-summary-item">
-            <div className="cash-summary-label">🔒 {t('vaultLbl')}</div>
-            <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 15 }}>{fmtTotal(vaultQAR)}</div>
+      {/* ── Hero: headline balance + primary actions ── */}
+      <div className="cash-hero">
+        <div className="cash-hero-main">
+          <div className="cash-hero-label">💰 {t('totalCashLbl')}</div>
+          <div className="cash-hero-value mono">
+            {fmtTotal(totalQAR)}<span className="cash-hero-unit">QAR</span>
           </div>
-        </>}
-        {!isMobile && <div className="cash-summary-sep" />}
-        <div className="cash-summary-item">
-          <div className="cash-summary-label">{t('movement24h')}</div>
-          <div className="cash-summary-value mono" style={{ fontSize: isMobile ? 16 : 14, color: total24hMovement >= 0 ? 'var(--good)' : 'var(--bad)' }}>
-            {total24hMovement >= 0 ? '+' : ''}{fmtTotal(total24hMovement)}
+          <div className="cash-hero-meta">
+            {total24hMovement === 0 ? (
+              <span className="cash-hero-sub">{t('kpiNoMovement')}</span>
+            ) : (
+              <>
+                <span className={`cash-delta ${total24hMovement > 0 ? 'up' : 'down'}`}>
+                  {total24hMovement > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(total24hMovement))} QAR
+                </span>
+                <span className="cash-hero-sub">{t('kpiLastDay')}</span>
+              </>
+            )}
           </div>
         </div>
-        {!isMobile && <div style={{ flex: 1 }} />}
-        <button
-          className="btn"
-          style={{ padding: isMobile ? '10px 14px' : '7px 14px', minHeight: isMobile ? 42 : undefined, fontSize: isMobile ? 12 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, gridColumn: isMobile ? 'span 1' : undefined }}
-          onClick={() => setShowTransfer(true)}>
-          <IconTransfer /> {t('transferLbl')}
-        </button>
-        <button
-          className="btn secondary"
-          style={{ padding: isMobile ? '10px 14px' : '7px 14px', minHeight: isMobile ? 42 : undefined, fontSize: isMobile ? 12 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, gridColumn: isMobile ? 'span 1' : undefined }}
-          onClick={() => setShowAddAccount(true)}>
-          <IconPlus /> {t('addAccountBtn')}
-        </button>
-        <button
-          className="btn secondary"
-          style={{ padding: isMobile ? '10px 14px' : '7px 14px', minHeight: isMobile ? 42 : undefined, fontSize: isMobile ? 12 : 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, gridColumn: isMobile ? 'span 1' : undefined, position: 'relative' }}
-          onClick={() => setShowMerchantCustody(true)}>
-          🤝 {t('merchantCash')}
-          {pendingIncoming.length > 0 && (
-            <span style={{ position: 'absolute', top: -4, right: -4, background: 'var(--bad)', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-              {pendingIncoming.length}
-            </span>
+        <div className="cash-hero-actions">
+          <button className="btn cash-hero-btn" onClick={() => setShowTransfer(true)}>
+            <IconTransfer /> {t('transferLbl')}
+          </button>
+          <button className="btn secondary cash-hero-btn" onClick={() => setShowAddAccount(true)}>
+            <IconPlus /> {t('addAccountBtn')}
+          </button>
+          <button className="btn secondary cash-hero-btn" onClick={() => setShowMerchantCustody(true)}>
+            🤝 {t('merchantCash')}
+            {pendingIncoming.length > 0 && (
+              <span className="cash-hero-badge">{pendingIncoming.length}</span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ── KPI boxes ── */}
+      <div className="cash-kpi-grid">
+        <KpiBox
+          icon="✋"
+          label={t('inHandLbl')}
+          value={fmtTotal(inHandQAR)}
+          unit="QAR"
+          tone="brand"
+          onClick={() => setInnerTab('accounts')}
+          sub={accountCounts.hand > 0
+            ? `${accountCounts.hand} ${accountCounts.hand === 1 ? t('kpiAccountUnit') : t('kpiAccountsUnit')}${totalQAR > 0 ? ` · ${Math.round((inHandQAR / totalQAR) * 100)}% ${t('kpiOfPortfolio')}` : ''}`
+            : t('kpiNoneYet')}
+        />
+        <KpiBox
+          icon="🏦"
+          label={t('banksLbl')}
+          value={fmtTotal(bankQAR)}
+          unit="QAR"
+          tone="brand"
+          onClick={() => setInnerTab('accounts')}
+          sub={accountCounts.bank > 0
+            ? `${accountCounts.bank} ${accountCounts.bank === 1 ? t('kpiAccountUnit') : t('kpiAccountsUnit')}${totalQAR > 0 ? ` · ${Math.round((bankQAR / totalQAR) * 100)}% ${t('kpiOfPortfolio')}` : ''}`
+            : t('kpiNoneYet')}
+        />
+        {(vaultQAR !== 0 || accountCounts.vault > 0) && (
+          <KpiBox
+            icon="🔒"
+            label={t('vaultLbl')}
+            value={fmtTotal(vaultQAR)}
+            unit="QAR"
+            tone="brand"
+            onClick={() => setInnerTab('accounts')}
+            sub={`${accountCounts.vault} ${accountCounts.vault === 1 ? t('kpiAccountUnit') : t('kpiAccountsUnit')}`}
+          />
+        )}
+        {(custodyQAR !== 0 || accountCounts.merchant_custody > 0) && (
+          <KpiBox
+            icon="🤝"
+            label={t('kpiCustody')}
+            value={fmtTotal(custodyQAR)}
+            unit="QAR"
+            tone="warn"
+            onClick={() => setShowMerchantCustody(true)}
+            sub={`${accountCounts.merchant_custody} ${accountCounts.merchant_custody === 1 ? t('kpiAccountUnit') : t('kpiAccountsUnit')}`}
+          />
+        )}
+        <KpiBox
+          icon="📤"
+          label={t('kpiLoansOut')}
+          value={loanKpi.lead ? fmtTotal(loanKpi.lead.remaining) : fmtTotal(0)}
+          unit={loanKpi.lead ? loanKpi.lead.currency : 'QAR'}
+          tone={loanKpi.lead && loanKpi.lead.remaining > 0 ? 'bad' : 'good'}
+          progress={loanKpi.hasLoans ? loanKpi.repaidPct : undefined}
+          onClick={() => setInnerTab('loans')}
+          sub={!loanKpi.hasLoans ? t('kpiNoLoans') : (
+            <>
+              {loanKpi.openCount > 0
+                ? `${loanKpi.openCount} ${t('loanCustomerOpenCount')} · ${loanKpi.debtorCount} ${loanKpi.debtorCount === 1 ? t('kpiCustomerUnit') : t('kpiCustomersUnit')}`
+                : t('loanCustomerAllClosed')}
+              {loanKpi.others.length > 0 && (
+                <span className="cash-kpi-more">
+                  {' + '}{loanKpi.others.map(o => `${fmtTotal(o.remaining)} ${o.currency}`).join(' · ')}
+                </span>
+              )}
+            </>
           )}
-        </button>
+        />
+        <KpiBox
+          icon="🤲"
+          label={t('kpiLoansGiven')}
+          value={loanKpi.lead ? fmtTotal(loanKpi.lead.given) : fmtTotal(0)}
+          unit={loanKpi.lead ? loanKpi.lead.currency : 'QAR'}
+          tone="neutral"
+          onClick={() => setInnerTab('loans')}
+          sub={loanKpi.others.length > 0
+            ? loanKpi.others.map(o => `${fmtTotal(o.given)} ${o.currency}`).join(' · ')
+            : loanKpi.hasLoans
+              ? `${loans.length} ${t('loanCustomerCount')} · ${loanKpi.debtorCount} ${loanKpi.debtorCount === 1 ? t('kpiCustomerUnit') : t('kpiCustomersUnit')}`
+              : t('kpiNoLoans')}
+        />
+        <KpiBox
+          icon="📥"
+          label={t('kpiLoansRepaid')}
+          value={loanKpi.lead ? fmtTotal(loanKpi.lead.received) : fmtTotal(0)}
+          unit={loanKpi.lead ? loanKpi.lead.currency : 'QAR'}
+          tone="good"
+          onClick={() => setInnerTab('loans')}
+          sub={loanKpi.hasLoans && loanKpi.lead && loanKpi.lead.given > 0
+            ? `${Math.round(loanKpi.repaidPct)}% ${t('kpiRepaidPct')}`
+            : t('kpiNoLoans')}
+        />
       </div>
 
       {/* ── Inner Tabs ── */}
-      <div className="cash-inner-tabs" style={{ display: 'flex', gap: 4, background: 'var(--panel)', borderRadius: 8, padding: 4, alignSelf: 'flex-start' }}>
+      <div className="cash-inner-tabs">
         {tabBtn('accounts', t('cashAccountsTab'))}
         {tabBtn('ledger', t('cashLedgerTab'))}
         {tabBtn('loans', t('cashLoansTab'))}
