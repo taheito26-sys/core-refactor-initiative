@@ -1759,6 +1759,24 @@ const translations = {
   vaultLbl:              { en: 'Vault',                        ar: 'الخزنة' },
   movement24h:           { en: '24h Movement',                 ar: 'حركة 24س' },
 
+  // KPI boxes (header)
+  kpiLastDay:            { en: 'last 24h',                     ar: 'آخر 24س' },
+  kpiNoMovement:         { en: 'no movement in 24h',           ar: 'لا حركة خلال 24س' },
+  kpiLiquidCash:         { en: 'Liquid Cash',                  ar: 'النقد السائل' },
+  kpiCustody:            { en: 'Custody',                      ar: 'العُهدة' },
+  kpiLoansOut:           { en: 'Loans Out',                    ar: 'قروض مستحقة' },
+  kpiLoansGiven:         { en: 'Total Lent',                   ar: 'إجمالي المُقرض' },
+  kpiLoansRepaid:        { en: 'Repaid',                       ar: 'المُسدد' },
+  kpiAccountsUnit:       { en: 'accounts',                     ar: 'حسابات' },
+  kpiAccountUnit:        { en: 'account',                      ar: 'حساب' },
+  kpiCustomersUnit:      { en: 'customers',                    ar: 'عملاء' },
+  kpiCustomerUnit:       { en: 'customer',                     ar: 'عميل' },
+  kpiOfPortfolio:        { en: 'of portfolio',                 ar: 'من المحفظة' },
+  kpiRepaidPct:          { en: 'repaid',                       ar: 'مُسدد' },
+  kpiNoLoans:            { en: 'no loans yet',                 ar: 'لا توجد قروض بعد' },
+  kpiNoneYet:            { en: 'none yet',                     ar: 'لا شيء بعد' },
+  kpiAcrossCurrencies:   { en: 'across currencies',            ar: 'بعملات متعددة' },
+
   // Warnings
   lowBalancePill:        { en: 'low balance',                  ar: 'رصيد منخفض' },
   holdsOfTotal:          { en: 'of total cash',                ar: 'من إجمالي النقد' },

@@ -1646,43 +1646,216 @@
    CASH MANAGEMENT SYSTEM
    ══════════════════════════════════════════════════════════════ */
 
-/* ── Summary Strip ─────────────────────────────────────────── */
-.tracker-root .cash-summary-strip {
+/* ── Hero (headline balance + primary actions) ─────────────── */
+.tracker-root .cash-hero {
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: var(--panel);
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--brand) 12%, transparent) 0%, transparent 60%),
+    var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--lt-radius);
-  padding: 10px 16px;
-  flex-wrap: wrap;
+  padding: 16px 18px;
 }
-.tracker-root .cash-summary-item {
+.tracker-root .cash-hero-main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0 10px;
+  gap: 6px;
+  min-width: 0;
 }
-.tracker-root .cash-summary-label {
-  font-size: 9px;
+.tracker-root .cash-hero-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+}
+.tracker-root .cash-hero-value {
+  font-family: var(--lt-font-mono);
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--warn);
+  letter-spacing: -0.5px;
+  word-break: break-word;
+}
+.tracker-root .cash-hero-unit {
+  font-size: 13px;
   font-weight: 700;
+  margin-inline-start: 6px;
+  opacity: 0.75;
+}
+.tracker-root .cash-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tracker-root .cash-hero-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.tracker-root .cash-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--lt-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+.tracker-root .cash-delta.up {
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 35%, transparent);
+  background: color-mix(in srgb, var(--good) 10%, transparent);
+}
+.tracker-root .cash-delta.down {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+.tracker-root .cash-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tracker-root .cash-hero-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* Inline rather than pinned to the corner — an absolute badge gets clipped by
+   the hero's rounded edge when the button sits flush against it. */
+.tracker-root .cash-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ── KPI boxes ─────────────────────────────────────────────── */
+.tracker-root .cash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+.tracker-root .cash-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--line2);
+  border-radius: var(--lt-radius);
+  padding: 11px 13px;
+  min-width: 0;
+  transition: all var(--lt-tr);
+}
+.tracker-root button.cash-kpi {
+  font: inherit;
+  width: 100%;
+}
+.tracker-root .cash-kpi.clickable {
+  cursor: pointer;
+}
+.tracker-root .cash-kpi.clickable:hover {
+  border-color: color-mix(in srgb, var(--brand) 35%, transparent);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .18);
+  transform: translateY(-1px);
+}
+.tracker-root .cash-kpi.tone-brand  { border-inline-start-color: var(--brand); }
+.tracker-root .cash-kpi.tone-good   { border-inline-start-color: var(--good); }
+.tracker-root .cash-kpi.tone-bad    { border-inline-start-color: var(--bad); }
+.tracker-root .cash-kpi.tone-warn   { border-inline-start-color: var(--warn); }
+.tracker-root .cash-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
 }
-.tracker-root .cash-summary-value {
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--warn);
+.tracker-root .cash-kpi-icon { font-size: 11px; }
+.tracker-root .cash-kpi-value {
   font-family: var(--lt-font-mono);
-  line-height: 1;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.05;
+  color: var(--text);
+  word-break: break-word;
 }
-.tracker-root .cash-summary-sep {
-  width: 1px;
-  height: 28px;
-  background: var(--line);
-  flex-shrink: 0;
+.tracker-root .cash-kpi.tone-good .cash-kpi-value { color: var(--good); }
+.tracker-root .cash-kpi.tone-bad  .cash-kpi-value { color: var(--bad); }
+.tracker-root .cash-kpi.tone-warn .cash-kpi-value { color: var(--warn); }
+.tracker-root .cash-kpi-unit {
+  font-size: 10px;
+  font-weight: 700;
+  margin-inline-start: 5px;
+  opacity: 0.7;
 }
+.tracker-root .cash-kpi-sub {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--muted);
+  min-height: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tracker-root .cash-kpi-more { opacity: 0.8; }
+.tracker-root .cash-kpi-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line2);
+  overflow: hidden;
+}
+.tracker-root .cash-kpi-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--good);
+  transition: width .3s ease;
+}
+
+/* ── Inner tabs ────────────────────────────────────────────── */
+.tracker-root .cash-inner-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tracker-root .cash-inner-tabs::-webkit-scrollbar { display: none; }
 
 /* ── Warning Pills ─────────────────────────────────────────── */
 .tracker-root .cash-warning-pill {
@@ -1770,11 +1943,19 @@
 
 /* ── Mobile responsive ─────────────────────────────────────── */
 @media (max-width: 600px) {
-  .tracker-root .cash-summary-strip { gap: 2px; padding: 8px 10px; }
-  .tracker-root .cash-summary-item { padding: 0 6px; }
-  .tracker-root .cash-summary-value { font-size: 14px; }
   .tracker-root .cash-accounts-grid { grid-template-columns: 1fr; }
-  .tracker-root .cash-summary-sep { display: none; }
+
+  /* Hero stacks: balance on top, actions as a full-width row underneath. */
+  .tracker-root .cash-hero { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
+  .tracker-root .cash-hero-value { font-size: 30px; }
+  .tracker-root .cash-hero-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  /* Transfer is the primary action — give it the full first row. */
+  .tracker-root .cash-hero-actions .cash-hero-btn:first-child { grid-column: 1 / -1; }
+  .tracker-root .cash-hero-btn { min-height: 44px; font-size: 12px; }
+
+  .tracker-root .cash-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tracker-root .cash-kpi { padding: 10px 11px; }
+  .tracker-root .cash-kpi-value { font-size: 17px; }
 }
 
 /* ── Sale sheet backdrop (Orders page mobile) ──────────────────────── */
