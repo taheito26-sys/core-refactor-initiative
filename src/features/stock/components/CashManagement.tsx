@@ -18,8 +18,10 @@ import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
+// Two sizes only: 12px for identity icons (account type), 10px for action
+// icons sitting inside buttons. Keeps the page's iconography compact.
 const IconHand = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
     <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
     <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
@@ -27,7 +29,7 @@ const IconHand = () => (
   </svg>
 );
 const IconBank = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/>
     <line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/>
     <line x1="18" y1="18" x2="18" y2="11"/>
@@ -35,30 +37,30 @@ const IconBank = () => (
   </svg>
 );
 const IconVault = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/>
     <path d="M12 8v4M12 16h.01"/>
   </svg>
 );
 const IconMerchant = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
     <polyline points="9 22 9 12 15 12 15 22"/>
   </svg>
 );
 const IconTransfer = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
     <path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
   </svg>
 );
 const IconPlus = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 );
 const IconMinus = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 );
@@ -1472,43 +1474,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
 
   return (
-    <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
-      {/* ── Hero: headline balance + primary actions ── */}
-      <div className="cash-hero">
-        <div className="cash-hero-main">
-          <div className="cash-hero-label">💰 {t('totalCashLbl')}</div>
-          <div className="cash-hero-value mono">
-            {fmtTotal(totalQAR)}<span className="cash-hero-unit">QAR</span>
-          </div>
-          <div className="cash-hero-meta">
-            {total24hMovement === 0 ? (
-              <span className="cash-hero-sub">{t('kpiNoMovement')}</span>
-            ) : (
-              <>
-                <span className={`cash-delta ${total24hMovement > 0 ? 'up' : 'down'}`}>
-                  {total24hMovement > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(total24hMovement))} QAR
-                </span>
-                <span className="cash-hero-sub">{t('kpiLastDay')}</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="cash-hero-actions">
-          <button className="btn cash-hero-btn" onClick={() => setShowTransfer(true)}>
-            <IconTransfer /> {t('transferLbl')}
-          </button>
-          <button className="btn secondary cash-hero-btn" onClick={() => setShowAddAccount(true)}>
-            <IconPlus /> {t('addAccountBtn')}
-          </button>
-          <button className="btn secondary cash-hero-btn" onClick={() => setShowMerchantCustody(true)}>
-            🤝 {t('merchantCash')}
-            {pendingIncoming.length > 0 && (
-              <span className="cash-hero-badge">{pendingIncoming.length}</span>
-            )}
-          </button>
-        </div>
-      </div>
-
+    <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
       {/* ── KPI boxes ── */}
       <div className="cash-kpi-grid">
         <KpiBox
@@ -1634,10 +1600,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 const TypeIcon = ACCOUNT_TYPE_ICON[acc.type];
 
                 return (
-                  <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '12px 12px 14px' : undefined }}>
+                  <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '10px 10px 12px' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 22, height: 22, borderRadius: 6, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
                           <TypeIcon />
                         </div>
                         <div>
@@ -1655,8 +1621,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     {/* Balance */}
                     <div style={{ marginBottom: 10 }}>
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{t('availableBalanceLbl')}</div>
-                      <div className="mono" style={{ fontSize: isMobile ? 'clamp(22px, 6vw, 30px)' : 22, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1.05 }}>
-                        {fmtTotal(bal)}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>{acc.currency}</span>
+                      <div className="mono" style={{ fontSize: isMobile ? 'clamp(18px, 5vw, 24px)' : 18, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1.05 }}>
+                        {fmtTotal(bal)}<span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>{acc.currency}</span>
                       </div>
                       {mov24h !== 0 && (
                         <div style={{ fontSize: 10, marginTop: 2, color: mov24h > 0 ? 'var(--good)' : 'var(--bad)' }}>
@@ -1683,11 +1649,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                               onClick={() => setShowDeposit({ account: acc, mode: 'proceeds' })}>
                               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                              📥 {t('recordProceeds' as any) || 'Proceeds'}
+                              <span className="cash-emoji">📥</span> {t('recordProceeds' as any) || 'Proceeds'}
                             </button>
                             <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                               onClick={() => setShowDeposit({ account: acc, mode: 'settlement' })}>
-                              📤 {t('settleBack') || 'Settle'}
+                              <span className="cash-emoji">📤</span> {t('settleBack') || 'Settle'}
                             </button>
                           </>
                         ) : (
@@ -1707,8 +1673,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                           onClick={() => { setTransferFromId(acc.id); setShowTransfer(true); }}>
                           <IconTransfer /> {t('transferLbl')}
                         </button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)', gridColumn: '1 / -1' }} onClick={() => setClearLedgerPromptId(acc.id)}>🗑️ {t('clearLedger')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}><span className="cash-emoji">✏️</span> {t('edit')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)', gridColumn: '1 / -1' }} onClick={() => setClearLedgerPromptId(acc.id)}><span className="cash-emoji">🗑️</span> {t('clearLedger')}</button>
                       </div>
                     )}
                     {isInactive && (
@@ -1721,7 +1687,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               {/* Add account card */}
               <div className="cash-account-card cash-add-account-card" onClick={() => setShowAddAccount(true)}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--muted)' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 50, border: '2px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 50, border: '1.5px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconPlus />
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700 }}>{t('addAccountBtn')}</div>
@@ -1736,7 +1702,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {/* ── PENDING CUSTODY REQUESTS (accounts tab inline) ── */}
       {innerTab === 'accounts' && (pendingIncoming.length > 0 || pendingOutgoing.length > 0) && (
         <div className="panel" style={{ marginTop: 4 }}>
-          <div className="panel-head"><h2>🤝 {t('pendingCustodyRequests')}</h2></div>
+          <div className="panel-head"><h2><span className="cash-emoji">🤝</span> {t('pendingCustodyRequests')}</h2></div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingIncoming.map(req => (
               <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
@@ -2125,6 +2091,44 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           </div>
         </div>
       )}
+
+      {/* ── Summary bar: headline balance + primary actions ──
+           Sits at the foot of the page so the working content (KPIs, tabs,
+           accounts) leads and the totals close it out. */}
+      <div className="cash-hero cash-hero-bottom">
+        <div className="cash-hero-main">
+          <div className="cash-hero-label"><span className="cash-emoji">💰</span> {t('totalCashLbl')}</div>
+          <div className="cash-hero-value mono">
+            {fmtTotal(totalQAR)}<span className="cash-hero-unit">QAR</span>
+          </div>
+          <div className="cash-hero-meta">
+            {total24hMovement === 0 ? (
+              <span className="cash-hero-sub">{t('kpiNoMovement')}</span>
+            ) : (
+              <>
+                <span className={`cash-delta ${total24hMovement > 0 ? 'up' : 'down'}`}>
+                  {total24hMovement > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(total24hMovement))} QAR
+                </span>
+                <span className="cash-hero-sub">{t('kpiLastDay')}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="cash-hero-actions">
+          <button className="btn cash-hero-btn" onClick={() => setShowTransfer(true)}>
+            <IconTransfer /> {t('transferLbl')}
+          </button>
+          <button className="btn secondary cash-hero-btn" onClick={() => setShowAddAccount(true)}>
+            <IconPlus /> {t('addAccountBtn')}
+          </button>
+          <button className="btn secondary cash-hero-btn" onClick={() => setShowMerchantCustody(true)}>
+            <span className="cash-emoji">🤝</span> {t('merchantCash')}
+            {pendingIncoming.length > 0 && (
+              <span className="cash-hero-badge">{pendingIncoming.length}</span>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* ── Modals ── */}
       {(showAddAccount || editingAccount) && (
