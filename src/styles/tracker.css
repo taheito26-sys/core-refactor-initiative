@@ -451,8 +451,16 @@
   animation: tracker-dance 1.1s ease-in-out infinite;
   will-change: transform;
 }
-.tracker-root .dance-name:first-child { color: var(--t5); }
-.tracker-root .dance-name:last-child { color: var(--t3); animation-delay: .55s; }
+/* Each name is a third of a cycle behind the last, so the row ripples
+   instead of moving in lockstep. The delays are negative so every name
+   starts already mid-cycle — a positive delay would leave the later ones
+   sitting still for up to 0.73s after the page loads. */
+.tracker-root .dance-name:nth-child(1) { color: var(--t5); }
+.tracker-root .dance-name:nth-child(2) { color: var(--t3); animation-delay: -.37s; }
+.tracker-root .dance-name:nth-child(3) { color: var(--warn); animation-delay: -.73s; }
+/* The mono display face has no Arabic glyphs — use the UI font so the
+   Arabic name renders in a real typeface rather than a browser fallback. */
+.tracker-root .dance-name-ar { font-family: var(--lt-font); font-weight: 700; }
 @keyframes tracker-dance {
   0%, 100% { transform: translateY(0) rotate(-8deg) scale(1); }
   25%      { transform: translateY(-6px) rotate(0deg) scale(1.07); }
