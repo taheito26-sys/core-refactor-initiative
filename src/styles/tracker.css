@@ -439,6 +439,30 @@
 /* ── BLINK ── */
 @keyframes tracker-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
+/* ── Dancing names KPI ──────────────────────────────────────────────
+   Purely decorative: two fixed names that bob and sway, offset from each
+   other so they alternate rather than move in lockstep. */
+/* Vertical padding leaves room for the bob so the names never crowd the
+   label above them at the top of their arc. */
+.tracker-root .dance-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding: 4px 0 2px; }
+.tracker-root .dance-name {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  animation: tracker-dance 1.1s ease-in-out infinite;
+  will-change: transform;
+}
+.tracker-root .dance-name:first-child { color: var(--t5); }
+.tracker-root .dance-name:last-child { color: var(--t3); animation-delay: .55s; }
+@keyframes tracker-dance {
+  0%, 100% { transform: translateY(0) rotate(-8deg) scale(1); }
+  25%      { transform: translateY(-6px) rotate(0deg) scale(1.07); }
+  50%      { transform: translateY(0) rotate(8deg) scale(1); }
+  75%      { transform: translateY(-4px) rotate(0deg) scale(1.03); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tracker-root .dance-name { animation: none; }
+}
+
 /* ── RESPONSIVE ── */
 @media (max-width: 1024px) {
   .tracker-topbar { align-items: flex-start; }
