@@ -316,6 +316,8 @@ const translations = {
   fees: { en: 'Fees', ar: 'الرسوم' },
   netProfitLabel: { en: 'NET PROFIT', ar: 'صافي الربح' },
   avgMargin: { en: 'AVG MARGIN', ar: 'متوسط الهامش' },
+  loansUnpaid: { en: 'LOANS UNPAID', ar: 'قروض غير مسددة' },
+  loansUnpaidNone: { en: 'All loans settled', ar: 'كل القروض مسددة' },
   availableUsdt: { en: 'AVAILABLE USDT', ar: 'USDT المتاح' },
   liquidUsdt: { en: 'Liquid USDT ready for deployment', ar: 'USDT سائل جاهز للاستخدام' },
   avPriceSpread: { en: 'Av Price + SPREAD', ar: 'متوسط السعر + الفارق' },
