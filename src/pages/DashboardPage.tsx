@@ -841,6 +841,16 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             </div>
           );
         })()}
+
+        {/* Decorative — two fixed names, dancing. No data behind it. */}
+        <div className="kpi-card">
+          <div className="kpi-lbl">{t('dancingDuo')}</div>
+          <div className="kpi-val dance-row">
+            <span className="dance-name">Manal</span>
+            <span className="dance-name">Loay</span>
+          </div>
+          <div className="kpi-sub">{t('dancingDuoSub')}</div>
+        </div>
       </div>
 
       <div className="dash-bottom">
