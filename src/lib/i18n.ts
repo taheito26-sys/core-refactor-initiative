@@ -318,8 +318,6 @@ const translations = {
   avgMargin: { en: 'AVG MARGIN', ar: 'متوسط الهامش' },
   loansUnpaid: { en: 'LOANS UNPAID', ar: 'قروض غير مسددة' },
   loansUnpaidNone: { en: 'All loans settled', ar: 'كل القروض مسددة' },
-  dancingCrew: { en: '💃 DANCING TRIO', ar: '💃 ثلاثي الرقص' },
-  dancingCrewSub: { en: 'Always on the floor', ar: 'دائمًا على حلبة الرقص' },
   availableUsdt: { en: 'AVAILABLE USDT', ar: 'USDT المتاح' },
   liquidUsdt: { en: 'Liquid USDT ready for deployment', ar: 'USDT سائل جاهز للاستخدام' },
   avPriceSpread: { en: 'Av Price + SPREAD', ar: 'متوسط السعر + الفارق' },
