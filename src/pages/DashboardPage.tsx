@@ -614,8 +614,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{curMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inVol },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outVol },
               ].map(row => (
                 <div key={row.label} style={{ padding: '2px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -633,8 +631,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{prevMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inVol },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outVol },
               ].map(row => (
                 <div key={row.label} style={{ padding: '2px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -658,8 +654,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{curMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownNet },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inMyShare },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outMyShare },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
@@ -680,8 +674,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{prevMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownNet },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inMyShare },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outMyShare },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
@@ -705,7 +697,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         <div className="kpi-card">
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
-          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)} · {t('incomingOrders')} {fmtDashboardAmount(segmentedProfit.range.inMyShare)} · {t('outgoingOrders')} {fmtDashboardAmount(segmentedProfit.range.outMyShare)}</div>
+          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
         </div>
         <BanqueMisrInstaPayKPI />
         <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
