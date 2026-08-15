@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
-  fmtQ, fmtU, fmtP, fmtPct, fmtQWithUnit,
+  fmtQ, fmtQRaw, fmtU, fmtP, fmtPct, fmtQWithUnit,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -29,10 +29,13 @@ export default function CalendarPage() {
   const daysInM = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
 
+  /** One customer payment landing on a calendar day. */
+  interface DayPayment { id: string; ts: number; amount: number; currency: string; customer: string; note?: string }
+
   // Build month data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mData: Record<number, { profit: number; trades: number; volumeQAR: number; wins: number; losses: number; marginSum: number; tradeList: any[] }> = {};
-  for (let d = 1; d <= daysInM; d++) mData[d] = { profit: 0, trades: 0, volumeQAR: 0, wins: 0, losses: 0, marginSum: 0, tradeList: [] };
+  const mData: Record<number, { profit: number; trades: number; volumeQAR: number; wins: number; losses: number; marginSum: number; tradeList: any[]; payments: number; paymentCount: number; paymentList: DayPayment[] }> = {};
+  for (let d = 1; d <= daysInM; d++) mData[d] = { profit: 0, trades: 0, volumeQAR: 0, wins: 0, losses: 0, marginSum: 0, tradeList: [], payments: 0, paymentCount: 0, paymentList: [] };
 
   const seenTradeIds = new Set<string>();
   for (const tr of state.trades.filter(tr => !tr.voided)) {
@@ -75,6 +78,30 @@ export default function CalendarPage() {
           isLinked: !!tr.linkedDealId || !!tr.linkedRelId,
         });
       }
+    }
+  }
+
+  /**
+   * Customer payments — repayments recorded against customer loans, bucketed
+   * by the day the money came in. Deleted loans are tombstoned rather than
+   * removed until sync prunes them, so they are filtered out the same way the
+   * Cash page does it.
+   */
+  const deletedLoanIds = state.deletedLoanIds || [];
+  for (const loan of (state.customerLoans || []).filter(l => !deletedLoanIds.includes(l.id))) {
+    const customer = state.customers.find(c => c.id === loan.customerId);
+    for (const r of loan.repayments || []) {
+      const dt = new Date(r.ts);
+      if (dt.getFullYear() !== year || dt.getMonth() !== month) continue;
+      const amount = Number(r.amount) || 0;
+      if (amount === 0) continue;
+      const d2 = dt.getDate();
+      mData[d2].payments += amount;
+      mData[d2].paymentCount++;
+      mData[d2].paymentList.push({
+        id: r.id, ts: r.ts, amount, currency: loan.currency,
+        customer: customer?.name || loan.customerId, note: r.note,
+      });
     }
   }
 
@@ -158,23 +185,34 @@ export default function CalendarPage() {
               const data = mData[d];
               const hasP = data.profit > 0;
               const hasL = data.profit < 0;
+              const hasPay = data.paymentCount > 0;
               const isTdy = d === curD && year === curY && month === curM;
               const isSel = d === selectedDay;
+              // A day with payments but no trades still gets a tint, so it
+              // reads as an active day rather than an empty one.
+              const tone = hasP ? ' has-profit' : hasL ? ' has-loss' : hasPay ? ' has-payment' : '';
 
               return (
                 <div
                   key={d}
-                  className={`cal-day${hasP ? ' has-profit' : hasL ? ' has-loss' : ''}${isTdy ? ' today' : ''}${isSel ? ' selected' : ''}`}
+                  className={`cal-day${tone}${isTdy ? ' today' : ''}${isSel ? ' selected' : ''}`}
                   onClick={() => selectDay(d)}
                 >
                   <div className="cal-num">{d}</div>
                   {data.trades > 0 && (
-                    <>
-                      <div className={`cal-profit ${hasP ? 'good' : 'bad'}`}>
-                        {(data.profit >= 0 ? '+' : '') + fmtQ(data.profit)}
-                      </div>
-                      <div className="cal-count">{data.trades}t</div>
-                    </>
+                    <div className={`cal-amt cal-profit ${hasP ? 'good' : 'bad'}`}>
+                      {(data.profit >= 0 ? '+' : '') + fmtQRaw(data.profit)}
+                    </div>
+                  )}
+                  {hasPay && (
+                    <div className="cal-amt cal-pay">{fmtQRaw(data.payments)}</div>
+                  )}
+                  {(data.trades > 0 || hasPay) && (
+                    <div className="cal-count">
+                      {data.trades > 0 && `${data.trades}t`}
+                      {data.trades > 0 && hasPay && ' · '}
+                      {hasPay && `${data.paymentCount}p`}
+                    </div>
                   )}
                 </div>
               );
@@ -184,11 +222,37 @@ export default function CalendarPage() {
       </div>
 
       {/* Selected day detail */}
-      {selectedDay && selData && selData.trades > 0 && (
+      {selectedDay && selData && (selData.trades > 0 || selData.paymentCount > 0) && (
         <div className="cal-detail">
           <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
-            📅 {mn[month]} {selectedDay}, {year} — {selData.trades} {t('trades')} · Vol {fmtQWithUnit(selData.volumeQAR, 'QAR', null, 'QAR', t.lang)} · {t('net')} {(selData.profit >= 0 ? '+' : '') + fmtQ(selData.profit)} · {t('winRate')} {(selData.trades ? ((selData.wins / selData.trades) * 100).toFixed(0) : '0')}%
+            📅 {mn[month]} {selectedDay}, {year}
+            {selData.trades > 0 && (
+              <> — {selData.trades} {t('trades')} · Vol {fmtQWithUnit(selData.volumeQAR, 'QAR', null, 'QAR', t.lang)} · {t('net')} {(selData.profit >= 0 ? '+' : '') + fmtQ(selData.profit)} · {t('winRate')} {((selData.wins / selData.trades) * 100).toFixed(0)}%</>
+            )}
+            {selData.paymentCount > 0 && (
+              <span style={{ color: 'var(--t2)' }}>
+                {selData.trades > 0 ? ' · ' : ' — '}{t('calPayments')} {fmtQ(selData.payments)} ({selData.paymentCount})
+              </span>
+            )}
           </div>
+
+          {selData.paymentCount > 0 && (
+            <div className="cal-pay-list">
+              {[...selData.paymentList].sort((a, b) => a.ts - b.ts).map(p => (
+                <div key={p.id} className="cal-pay-row">
+                  <span className="mono" style={{ color: 'var(--muted)' }}>
+                    {new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="cal-pay-who">{p.customer}{p.note ? ` · ${p.note}` : ''}</span>
+                  <span className="mono" style={{ color: 'var(--t2)', fontWeight: 700 }}>
+                    +{fmtQRaw(p.amount)} {p.currency}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selData.trades > 0 && (
           <div className="tableWrap">
             <table>
               <thead>
@@ -225,9 +289,10 @@ export default function CalendarPage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
-      {selectedDay && selData && selData.trades === 0 && (
+      {selectedDay && selData && selData.trades === 0 && selData.paymentCount === 0 && (
         <div className="cal-detail">
           <div className="muted" style={{ fontSize: 11, padding: '8px 0' }}>
             {t('noTradesOnDay')} {mn[month]} {selectedDay}. <button className="rowBtn">{t('logATrade')}</button>
