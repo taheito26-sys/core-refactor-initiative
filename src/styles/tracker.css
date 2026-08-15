@@ -276,6 +276,7 @@
 .tracker-root .cal-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
 .tracker-root .cal-stat { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius-sm); padding: 8px 10px; transition: all var(--lt-tr); }
 .tracker-root .cal-stat:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: 0 4px 12px var(--glow); }
+.tracker-root .cal-stat-sub { font-size: calc(8px * var(--ui-scale,1)); color: var(--muted); margin-top: 2px; }
 .tracker-root .cal-flag { font-size: 10px; }
 
 /* ── LOOKUPS / INLINE ACTIONS ── */

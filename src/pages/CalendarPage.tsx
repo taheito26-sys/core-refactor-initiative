@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtQ, fmtQRaw, fmtU, fmtP, fmtPct, fmtQWithUnit,
+  getMonthlyLoanPayments, type DayPayment,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -29,13 +30,31 @@ export default function CalendarPage() {
   const daysInM = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
 
-  /** One customer payment landing on a calendar day. */
-  interface DayPayment { id: string; ts: number; amount: number; currency: string; customer: string; note?: string }
+  /** A day's payment plus the resolved customer name for display. */
+  type DayPaymentRow = DayPayment & { customer: string };
+
+  /**
+   * Loans can be held in different currencies, so payments are totalled per
+   * currency and never added across them. QAR leads wherever a single figure
+   * has to be shown; the rest are listed beside it.
+   */
+  const leadPayment = (totals: Record<string, number>) => {
+    const currencies = Object.keys(totals);
+    if (!currencies.length) return null;
+    const lead = currencies.includes('QAR')
+      ? 'QAR'
+      : [...currencies].sort((a, b) => totals[b] - totals[a])[0];
+    return {
+      currency: lead,
+      amount: totals[lead],
+      others: currencies.filter(c => c !== lead).map(c => ({ currency: c, amount: totals[c] })),
+    };
+  };
 
   // Build month data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mData: Record<number, { profit: number; trades: number; volumeQAR: number; wins: number; losses: number; marginSum: number; tradeList: any[]; payments: number; paymentCount: number; paymentList: DayPayment[] }> = {};
-  for (let d = 1; d <= daysInM; d++) mData[d] = { profit: 0, trades: 0, volumeQAR: 0, wins: 0, losses: 0, marginSum: 0, tradeList: [], payments: 0, paymentCount: 0, paymentList: [] };
+  const mData: Record<number, { profit: number; trades: number; volumeQAR: number; wins: number; losses: number; marginSum: number; tradeList: any[]; paymentTotals: Record<string, number>; paymentCount: number; paymentList: DayPaymentRow[] }> = {};
+  for (let d = 1; d <= daysInM; d++) mData[d] = { profit: 0, trades: 0, volumeQAR: 0, wins: 0, losses: 0, marginSum: 0, tradeList: [], paymentTotals: {}, paymentCount: 0, paymentList: [] };
 
   const seenTradeIds = new Set<string>();
   for (const tr of state.trades.filter(tr => !tr.voided)) {
@@ -81,26 +100,17 @@ export default function CalendarPage() {
     }
   }
 
-  /**
-   * Customer payments — repayments recorded against customer loans, bucketed
-   * by the day the money came in. Deleted loans are tombstoned rather than
-   * removed until sync prunes them, so they are filtered out the same way the
-   * Cash page does it.
-   */
-  const deletedLoanIds = state.deletedLoanIds || [];
-  for (const loan of (state.customerLoans || []).filter(l => !deletedLoanIds.includes(l.id))) {
-    const customer = state.customers.find(c => c.id === loan.customerId);
-    for (const r of loan.repayments || []) {
-      const dt = new Date(r.ts);
-      if (dt.getFullYear() !== year || dt.getMonth() !== month) continue;
-      const amount = Number(r.amount) || 0;
-      if (amount === 0) continue;
-      const d2 = dt.getDate();
-      mData[d2].payments += amount;
+  // Customer payments — loan repayments bucketed by the day the money came in.
+  const paymentsByDay = getMonthlyLoanPayments(state.customerLoans, state.deletedLoanIds, year, month);
+  for (const [day, payments] of Object.entries(paymentsByDay)) {
+    const d2 = Number(day);
+    if (!mData[d2]) continue;
+    for (const p of payments) {
+      mData[d2].paymentTotals[p.currency] = (mData[d2].paymentTotals[p.currency] || 0) + p.amount;
       mData[d2].paymentCount++;
       mData[d2].paymentList.push({
-        id: r.id, ts: r.ts, amount, currency: loan.currency,
-        customer: customer?.name || loan.customerId, note: r.note,
+        ...p,
+        customer: state.customers.find(c => c.id === p.customerId)?.name || p.customerId,
       });
     }
   }
@@ -108,6 +118,14 @@ export default function CalendarPage() {
   const totalP = Object.values(mData).reduce((s, d) => s + d.profit, 0);
   const totalT = Object.values(mData).reduce((s, d) => s + d.trades, 0);
   const totalV = Object.values(mData).reduce((s, d) => s + d.volumeQAR, 0);
+  const monthPaymentTotals: Record<string, number> = {};
+  for (const d of Object.values(mData)) {
+    for (const [cur, amt] of Object.entries(d.paymentTotals)) {
+      monthPaymentTotals[cur] = (monthPaymentTotals[cur] || 0) + amt;
+    }
+  }
+  const monthPayLead = leadPayment(monthPaymentTotals);
+  const totalPayCount = Object.values(mData).reduce((s, d) => s + d.paymentCount, 0);
   const wins = Object.values(mData).reduce((s, d) => s + d.wins, 0);
   const tradeDays = Object.values(mData).filter(d => d.trades > 0).length;
   const bestDay = Object.entries(mData).filter(([, d]) => d.trades > 0).sort((a, b) => b[1].profit - a[1].profit)[0];
@@ -162,6 +180,16 @@ export default function CalendarPage() {
           <div className="kpi-lbl">{t('avgMargin')}</div>
           <div className="kpi-val">{fmtPct(avgMargin)}</div>
         </div>
+        <div className="cal-stat">
+          <div className="kpi-lbl">{t('calPayments')}</div>
+          <div className="kpi-val" style={{ color: 'var(--t2)' }}>
+            {monthPayLead ? `${fmtQRaw(monthPayLead.amount)} ${monthPayLead.currency}` : fmtQ(0)}
+          </div>
+          <div className="cal-stat-sub">
+            {totalPayCount} {t('calPaymentsReceived')}
+            {monthPayLead?.others.map(o => ` · ${fmtQRaw(o.amount)} ${o.currency}`).join('')}
+          </div>
+        </div>
       </div>
 
       {/* Calendar */}
@@ -204,9 +232,14 @@ export default function CalendarPage() {
                       {(data.profit >= 0 ? '+' : '') + fmtQRaw(data.profit)}
                     </div>
                   )}
-                  {hasPay && (
-                    <div className="cal-amt cal-pay">{fmtQRaw(data.payments)}</div>
-                  )}
+                  {hasPay && (() => {
+                    const lead = leadPayment(data.paymentTotals);
+                    return lead && (
+                      <div className="cal-amt cal-pay">
+                        {fmtQRaw(lead.amount)}{lead.others.length > 0 && '…'}
+                      </div>
+                    );
+                  })()}
                   {(data.trades > 0 || hasPay) && (
                     <div className="cal-count">
                       {data.trades > 0 && `${data.trades}t`}
@@ -231,7 +264,9 @@ export default function CalendarPage() {
             )}
             {selData.paymentCount > 0 && (
               <span style={{ color: 'var(--t2)' }}>
-                {selData.trades > 0 ? ' · ' : ' — '}{t('calPayments')} {fmtQ(selData.payments)} ({selData.paymentCount})
+                {selData.trades > 0 ? ' · ' : ' — '}{t('calPayments')}{' '}
+                {Object.entries(selData.paymentTotals).map(([cur, amt]) => `${fmtQRaw(amt)} ${cur}`).join(' · ')}
+                {' '}({selData.paymentCount})
               </span>
             )}
           </div>
