@@ -29,6 +29,7 @@ import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers,
 import { insertCustomerOrderWithFallback } from '@/features/customer/customer-portal';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
+import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
@@ -149,6 +150,8 @@ export default function OrdersPage() {
   const [editCashDepositAccountId, setEditCashDepositAccountId] = useState('');
   // Manual buy price for edit modal (when not using FIFO stock)
   const [editManualBuyPrice, setEditManualBuyPrice] = useState('');
+  // Loaned-order toggle for edit modal — mirrors `isLoanSale` on the new-sale form
+  const [editIsLoan, setEditIsLoan] = useState(false);
 
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
@@ -1897,6 +1900,8 @@ export default function OrdersPage() {
     setEditCustomerId(tr.customerId ?? '');
     // Initialize manual buy price from trade (used when usesStock is false)
     setEditManualBuyPrice(tr.manualBuyPrice != null ? String(tr.manualBuyPrice) : '');
+    // Reflect whether this order is already loaned
+    setEditIsLoan(loanedTradeIds.has(id));
     // Reset link-to-partner state
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
@@ -1919,6 +1924,17 @@ export default function OrdersPage() {
 
     const existingTrade = state.trades.find(t => t.id === editingTradeId);
     if (!existingTrade) return;
+
+    // ── Loaned-order guards (checked before anything is mutated) ──
+    const existingLoan = loanByTradeId.get(editingTradeId);
+    if (editIsLoan && !editCustomerId) {
+      toast.error(t('loanEditNeedsBuyer'));
+      return;
+    }
+    if (!editIsLoan && existingLoan && getLoanRepaid(existingLoan) > 0) {
+      toast.error(t('loanEditHasRepayments'));
+      return;
+    }
 
     // Build base updated fields
     let updatedFields: Partial<Trade> = {
@@ -2151,6 +2167,25 @@ export default function OrdersPage() {
       }
     }
 
+    // ── Sync the loaned-order flag with this trade's customer loan ──
+    const loanSync = syncOrderLoan({
+      nextState: finalState,
+      tradeId: editingTradeId,
+      isLoan: editIsLoan,
+      customerId: editCustomerId,
+      ts,
+      amountUSDT: qty,
+      sell,
+      fee,
+      currency: baseFiat as CashCurrency,
+      note: `${t('loanFromOrder')} ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
+    });
+    finalState = loanSync.state;
+    const loanToast = loanSync.outcome === 'created' ? t('loanEditCreated')
+      : loanSync.outcome === 'removed' ? t('loanEditRemoved')
+      : loanSync.outcome === 'updated' ? t('loanEditUpdated')
+      : null;
+
     // Propagate edits to linked server deal and trigger re-approval
     if (existingTrade.linkedDealId && !editLinkEnabled) {
       try {
@@ -2196,6 +2231,7 @@ export default function OrdersPage() {
       applyState(finalState);
     }
 
+    if (loanToast) toast.success(loanToast);
     setEditingTradeId(null);
   };
 
@@ -4964,6 +5000,54 @@ export default function OrdersPage() {
                         </div>
                       );
                     })()}
+                  </div>
+                );
+              })()}
+
+              {/* Loaned order — customer pays later */}
+              {editingTrade && !isApproved && (() => {
+                const existingLoan = loanByTradeId.get(editingTrade.id);
+                const repaid = existingLoan ? getLoanRepaid(existingLoan) : 0;
+                const locked = !!existingLoan && repaid > 0;
+                const owed = Math.max(0, (Number(editQty) || 0) * (Number(editSell) || 0) - (Number(editFee) || 0));
+                return (
+                  <div style={{
+                    marginBottom: 16, padding: 10, borderRadius: 8,
+                    border: editIsLoan ? '1px solid var(--warn)' : '1px solid var(--line)',
+                    background: editIsLoan ? 'color-mix(in srgb, var(--warn) 5%, transparent)' : 'transparent',
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, cursor: locked ? 'not-allowed' : 'pointer', color: editIsLoan ? 'var(--warn)' : 'var(--muted)', fontWeight: editIsLoan ? 700 : 400 }}>
+                      <input
+                        type="checkbox"
+                        checked={editIsLoan}
+                        disabled={locked}
+                        onChange={e => setEditIsLoan(e.target.checked)}
+                        style={{ accentColor: 'var(--warn)', flexShrink: 0 }}
+                      />
+                      🤝 {t('loanSaleCheckbox')}
+                    </label>
+
+                    {editIsLoan && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--t2)', marginTop: 8 }}>
+                        <span>{t('loanEditAmountOwed')}</span>
+                        <strong className="mono" style={{ color: 'var(--warn)' }}>{fmtC(owed)}</strong>
+                      </div>
+                    )}
+
+                    {editIsLoan && !editCustomerId && (
+                      <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 4 }}>{t('loanEditNeedsBuyer')}</div>
+                    )}
+
+                    {editIsLoan && editCashDepositMode !== 'none' && (
+                      <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 4 }}>⚠️ {t('loanEditCashConflict')}</div>
+                    )}
+
+                    {existingLoan && repaid > 0 && (
+                      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 6, lineHeight: 1.5 }}>
+                        {t('loanRepaymentHistory')}: <span className="mono">{fmtTotal(repaid)} / {fmtTotal(existingLoan.principal)} {existingLoan.currency}</span>
+                        <div style={{ color: 'var(--warn)' }}>{t('loanEditRepaymentsLocked')}</div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
