@@ -1695,6 +1695,25 @@ const translations = {
   loanEditUpdated: { en: 'Loan updated', ar: 'تم تحديث الدين' },
   loanEditCashConflict: { en: 'Proceeds are also being added to cash — a loaned order is normally unpaid.', ar: 'يتم أيضاً إضافة العائد إلى النقد — الطلب بالدين عادةً غير مدفوع.' },
 
+  // Loans page — active / closed split
+  loanTabActive: { en: 'Active', ar: 'نشط' },
+  loanTabClosed: { en: 'Closed Loans', ar: 'القروض المغلقة' },
+  loanSearchPlaceholder: { en: 'Search customer, note, or amount…', ar: 'ابحث بالعميل أو الملاحظة أو المبلغ…' },
+  loanNoActiveLoans: { en: 'No active loans — everything is settled', ar: 'لا توجد قروض نشطة — تمت تسوية كل شيء' },
+  loanNoClosedLoans: { en: 'No closed loans yet', ar: 'لا توجد قروض مغلقة بعد' },
+  loanNoSearchMatch: { en: 'Nothing matches this search', ar: 'لا توجد نتائج مطابقة لهذا البحث' },
+  loanOutstandingTotal: { en: 'Outstanding', ar: 'المستحق' },
+  loanSettledInMonth: { en: 'settled', ar: 'تمت تسويته' },
+  loanClosedOn: { en: 'Settled', ar: 'تمت التسوية' },
+  loanLastPayment: { en: 'Last payment', ar: 'آخر دفعة' },
+  loanNoPaymentsYet: { en: 'No payments yet', ar: 'لا توجد دفعات بعد' },
+  loanIssuedOn: { en: 'Issued', ar: 'صدر في' },
+  loanDaysOutstanding: { en: 'days outstanding', ar: 'يوم مستحق' },
+  loanRepaidPctLabel: { en: 'repaid', ar: 'مسدد' },
+  loanPaymentCount: { en: 'payments', ar: 'دفعات' },
+  loanReopen: { en: 'Reopen', ar: 'إعادة فتح' },
+  loanTotalPrincipal: { en: 'Total principal', ar: 'إجمالي الأصل' },
+
   // Account types
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },
   accTypeBank:           { en: 'Bank Account',                 ar: 'حساب بنكي' },
@@ -1718,6 +1737,8 @@ const translations = {
   ledgerMerchantSettlementOut:  { en: 'Settlement Out',        ar: 'تسوية صادرة' },
   ledgerMerchantFee:            { en: 'Merchant Fee',          ar: 'رسوم التاجر' },
   ledgerMerchantAdjustment:     { en: 'Merchant Adjustment',   ar: 'تعديل التاجر' },
+  ledgerLoanDisbursement:       { en: 'Loan Disbursement',     ar: 'صرف قرض' },
+  ledgerLoanRepayment:          { en: 'Loan Repayment',        ar: 'سداد قرض' },
   fundMerchant:          { en: 'Fund',                         ar: 'تمويل' },
   settleBack:            { en: 'Settle',                       ar: 'تسوية' },
 
