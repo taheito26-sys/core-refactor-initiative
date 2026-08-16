@@ -1686,6 +1686,14 @@ const translations = {
   loanViewDetails: { en: 'View details', ar: 'عرض التفاصيل' },
   loanHideDetails: { en: 'Hide details', ar: 'إخفاء التفاصيل' },
   loanCustomerAllClosed: { en: 'All settled', ar: 'تمت التسوية بالكامل' },
+  loanEditNeedsBuyer: { en: 'Pick a buyer first — a loan has to be owed by someone.', ar: 'اختر المشتري أولاً — يجب أن يكون القرض مستحقاً على شخص ما.' },
+  loanEditHasRepayments: { en: 'This loan already has repayments recorded. Remove them in Cash Management before un-marking the order.', ar: 'هذا القرض لديه دفعات سداد مسجلة. احذفها من إدارة النقد قبل إلغاء تعليم الطلب كدين.' },
+  loanEditRepaymentsLocked: { en: 'Repayments recorded — un-mark in Cash Management', ar: 'توجد دفعات مسجلة — ألغِ التعليم من إدارة النقد' },
+  loanEditAmountOwed: { en: 'Amount owed', ar: 'المبلغ المستحق' },
+  loanEditCreated: { en: 'Order marked as loaned', ar: 'تم تعليم الطلب كدين' },
+  loanEditRemoved: { en: 'Loan removed from this order', ar: 'تم حذف الدين من هذا الطلب' },
+  loanEditUpdated: { en: 'Loan updated', ar: 'تم تحديث الدين' },
+  loanEditCashConflict: { en: 'Proceeds are also being added to cash — a loaned order is normally unpaid.', ar: 'يتم أيضاً إضافة العائد إلى النقد — الطلب بالدين عادةً غير مدفوع.' },
 
   // Account types
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },
