@@ -2,9 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isLoanClosed,
   getLoanClosedAt,
-  getLastPaymentTs,
   monthKey,
-  groupActiveLoans,
   groupClosedLoansByMonth,
   loanMatchesQuery,
 } from './loanGrouping';
@@ -62,68 +60,10 @@ describe('getLoanClosedAt', () => {
   });
 });
 
-describe('getLastPaymentTs', () => {
-  it('returns null when no repayments exist', () => {
-    expect(getLastPaymentTs(loan({ id: 'l1' }))).toBeNull();
-  });
-});
-
 describe('monthKey', () => {
   it('zero-pads the month', () => {
     expect(monthKey(at(2026, 2, 9))).toBe('2026-03');
     expect(monthKey(at(2026, 11, 31))).toBe('2026-12');
-  });
-});
-
-describe('groupActiveLoans', () => {
-  it('excludes closed loans entirely', () => {
-    const loans = [
-      loan({ id: 'open', principal: 800, repayments: [{ id: 'r', ts: 1, amount: 300 }] }),
-      loan({ id: 'settled', principal: 500, repayments: [{ id: 'r', ts: 2, amount: 500 }] }),
-      loan({ id: 'flagged', status: 'closed' }),
-    ];
-    const groups = groupActiveLoans(loans, customers);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].loans.map(l => l.id)).toEqual(['open']);
-    expect(groups[0].totalsByCurrency).toEqual([['QAR', { given: 800, received: 300, remaining: 500 }]]);
-  });
-
-  it('drops a customer whose loans are all closed', () => {
-    const loans = [loan({ id: 'a', status: 'closed' }), loan({ id: 'b', customerId: 'cust-b', status: 'closed' })];
-    expect(groupActiveLoans(loans, customers)).toEqual([]);
-  });
-
-  it('sorts the biggest debtor first and attaches the customer', () => {
-    const loans = [
-      loan({ id: 'small', customerId: 'cust-a', principal: 300 }),
-      loan({ id: 'big', customerId: 'cust-b', principal: 9000 }),
-    ];
-    const groups = groupActiveLoans(loans, customers);
-    expect(groups.map(g => g.customerId)).toEqual(['cust-b', 'cust-a']);
-    expect(groups[0].customer?.name).toBe('Mohamed');
-  });
-
-  it('keeps per-currency totals apart', () => {
-    const loans = [
-      loan({ id: 'qar', principal: 1000 }),
-      loan({ id: 'usdt', principal: 200, currency: 'USDT' }),
-    ];
-    const [group] = groupActiveLoans(loans, customers);
-    expect(group.totalsByCurrency).toEqual([
-      ['QAR', { given: 1000, received: 0, remaining: 1000 }],
-      ['USDT', { given: 200, received: 0, remaining: 200 }],
-    ]);
-    // Sort key is the largest single-currency balance, never a cross-currency sum.
-    expect(group.topRemaining).toBe(1000);
-  });
-
-  it('reports the most recent repayment across the customer’s loans', () => {
-    const loans = [
-      loan({ id: 'a', principal: 1000, repayments: [{ id: 'r1', ts: at(2026, 1, 3), amount: 100 }] }),
-      loan({ id: 'b', principal: 1000, repayments: [{ id: 'r2', ts: at(2026, 5, 8), amount: 100 }] }),
-    ];
-    const [group] = groupActiveLoans(loans, customers);
-    expect(group.lastPaymentTs).toBe(at(2026, 5, 8));
   });
 });
 

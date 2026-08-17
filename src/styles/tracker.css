@@ -126,6 +126,76 @@
 .tracker-root tbody tr:last-child td { border-bottom: none; }
 .tracker-root tbody tr:hover td { background: var(--hover-card); }
 
+/* ── LOANS: receivables book ──
+   One row per buyer account, laid out as ledger columns on desktop and as a
+   two-column card on narrow screens (the column headers hide, and each figure
+   carries its own label instead). */
+.tracker-root .loan-book { display: grid; gap: 6px; }
+.tracker-root .loan-cols {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.7fr) 76px repeat(4, minmax(92px, 1fr)) 22px;
+  gap: 10px; align-items: center;
+}
+.tracker-root .loan-book-head {
+  padding: 4px 12px; font-size: 9px; font-weight: var(--lt-fw-ui,800);
+  letter-spacing: var(--lt-label-tracking,.6px); text-transform: uppercase; color: var(--muted);
+}
+.tracker-root .loan-row {
+  width: 100%; background: transparent; border: none; color: inherit;
+  padding: 12px; cursor: pointer; text-align: left; transition: background var(--lt-tr);
+}
+.tracker-root .loan-row:hover { background: var(--hover-card); }
+.tracker-root .loan-num {
+  font-family: var(--lt-font-mono); font-weight: var(--lt-fw-val,800);
+  font-size: calc(12px * var(--ui-scale,1)); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tracker-root .loan-prog { margin-inline-start: auto; margin-top: 4px; max-width: 90px; }
+.tracker-root .loan-cell-lbl { display: none; }
+.tracker-root .loan-detail {
+  border-top: 1px solid var(--line2); background: var(--panel2);
+  padding: 12px; display: grid; gap: 12px;
+}
+.tracker-root .loan-totals {
+  display: grid; grid-template-columns: minmax(120px, 1fr) repeat(3, minmax(90px, 1fr));
+  gap: 10px; align-items: center; padding: 10px 12px;
+}
+.tracker-root .loan-totals-cur { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tracker-root .loan-totals-lbl {
+  font-size: 9px; font-weight: var(--lt-fw-ui,700); letter-spacing: var(--lt-label-tracking,.5px);
+  text-transform: uppercase; color: var(--muted); margin-bottom: 2px;
+}
+.tracker-root .acct-sec {
+  font-size: 9px; font-weight: var(--lt-fw-ui,800); letter-spacing: var(--lt-label-tracking,.8px);
+  text-transform: uppercase; color: var(--muted); margin-bottom: 5px;
+}
+/* Headers follow the writing direction so they stay over their own column in
+   Arabic — the global rule pins them to the physical left. */
+.tracker-root .acct-table thead th { text-align: start; }
+.tracker-root .acct-table thead th.r { text-align: right; }
+/* Zebra striping — long payment histories are read across, not down. */
+.tracker-root .acct-table tbody tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+.tracker-root .acct-table tbody tr:hover td { background: var(--hover-card); }
+.tracker-root .acct-table tfoot td {
+  border-top: 1px solid var(--line); border-bottom: none;
+  padding: 8px 10px; font-size: 11px; background: var(--panel2);
+}
+
+@media (max-width: 900px) {
+  .tracker-root .loan-book-head { display: none; }
+  .tracker-root .loan-cols { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tracker-root .loan-cols .loan-cell-buyer { grid-column: 1 / -1; }
+  .tracker-root .loan-cols .loan-cell-chev { display: none; }
+  .tracker-root .loan-cols .r { text-align: left; }
+  .tracker-root .loan-cell-lbl {
+    display: block; font-size: 8.5px; font-weight: var(--lt-fw-ui,700);
+    letter-spacing: var(--lt-label-tracking,.5px); text-transform: uppercase;
+    color: var(--muted); margin-bottom: 2px;
+  }
+  .tracker-root .loan-prog { margin-inline-start: 0; }
+  .tracker-root .loan-totals { grid-template-columns: 1fr 1fr; }
+  .tracker-root .loan-totals-cur { grid-column: 1 / -1; }
+}
+
 /* ── PROGRESS BARS ── */
 .tracker-root .prog { width: 100%; max-width: 120px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid var(--line); overflow: hidden; position: relative; }
 .tracker-root .prog > span { position: absolute; top: 0; left: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
