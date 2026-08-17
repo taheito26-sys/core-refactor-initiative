@@ -41,6 +41,8 @@ export interface StatementEntry {
   /** Cash account a payment landed in, when one was recorded. */
   accountName?: string;
   loanId: string;
+  /** Payments only — the repayment this row came from, so it can be edited. */
+  repaymentId?: string;
 }
 
 export interface StatementLoanRow {
@@ -185,6 +187,7 @@ export function buildBuyerStatements({
       for (const r of row.loan.repayments || []) {
         unsorted.push({
           id: `payment:${r.id}`,
+          repaymentId: r.id,
           ts: r.ts,
           kind: 'payment',
           ref: row.ref,

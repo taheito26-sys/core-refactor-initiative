@@ -1779,6 +1779,17 @@ const translations = {
   },
   stmtAgeDays: { en: 'Age (days)', ar: 'العمر (أيام)' },
 
+  // Loans page — editing a recorded payment
+  loanEditPayment: { en: 'Edit payment', ar: 'تعديل الدفعة' },
+  loanDeletePayment: { en: 'Delete payment', ar: 'حذف الدفعة' },
+  loanPaymentUpdated: { en: 'Payment updated', ar: 'تم تحديث الدفعة' },
+  loanPaymentDeleted: { en: 'Payment deleted', ar: 'تم حذف الدفعة' },
+  loanDeletePaymentConfirm: {
+    en: 'This removes the payment and the cash entry it created, and reopens the loan if this payment had settled it. This cannot be undone.',
+    ar: 'سيؤدي هذا إلى حذف الدفعة والقيد النقدي الناتج عنها، وإعادة فتح القرض إذا كانت هذه الدفعة قد سوّته. لا يمكن التراجع عن هذا الإجراء.',
+  },
+  loanPaymentCap: { en: 'Available to record', ar: 'المتاح للتسجيل' },
+
   // Account types
   accTypeHand:           { en: 'Cash in Hand',                 ar: 'نقد بالجيب' },
   accTypeBank:           { en: 'Bank Account',                 ar: 'حساب بنكي' },

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import type { CustomerLoan } from '@/lib/tracker-helpers';
-import type { BuyerStatement } from '@/features/stock/utils/loanStatement';
+import type { BuyerStatement, StatementEntry } from '@/features/stock/utils/loanStatement';
 import {
   buildStatementCsv, buildStatementHtml, buildStatementText,
   downloadTextFile, formatMoney, printHtmlDocument, statementFileBase,
@@ -17,6 +17,9 @@ interface LoanStatementModalProps {
   onClose: () => void;
   /** Opens the repayment form for one of the buyer's loans. */
   onAddRepayment?: (loan: CustomerLoan) => void;
+  /** Opens a recorded payment for correction. Omit to keep the statement read-only. */
+  onEditRepayment?: (entry: StatementEntry) => void;
+  onDeleteRepayment?: (entry: StatementEntry) => void;
 }
 
 /**
@@ -28,13 +31,14 @@ interface LoanStatementModalProps {
  * is exactly what was reviewed here.
  */
 export function LoanStatementModal({
-  statement, businessName, isMobile = false, onClose, onAddRepayment,
+  statement, businessName, isMobile = false, onClose, onAddRepayment, onEditRepayment, onDeleteRepayment,
 }: LoanStatementModalProps) {
   const t = useT();
   const labels = useMemo(() => statementLabels(t), [t]);
   const docOptions = useMemo(() => ({ businessName, lang: t.lang }), [businessName, t]);
 
   const payments = useMemo(() => statement.entries.filter(e => e.kind === 'payment'), [statement]);
+  const canEditPayments = !!(onEditRepayment || onDeleteRepayment);
   const cur = statement.currency;
 
   const fmtDay = (ts: number) => new Date(ts).toLocaleDateString(t.lang === 'ar' ? 'ar' : 'en-GB', {
@@ -255,11 +259,12 @@ export function LoanStatementModal({
                   <th className="r">{labels.amount}</th>
                   <th>{labels.account}</th>
                   <th>{labels.note}</th>
+                  {canEditPayments && <th />}
                 </tr>
               </thead>
               <tbody>
                 {payments.length === 0 ? (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{labels.noPayments}</td></tr>
+                  <tr><td colSpan={canEditPayments ? 6 : 5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{labels.noPayments}</td></tr>
                 ) : payments.map(p => (
                   <tr key={p.id}>
                     <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDayTime(p.ts)}</td>
@@ -267,6 +272,30 @@ export function LoanStatementModal({
                     <td className="r">{num(p.credit, 'good')}</td>
                     <td style={{ color: 'var(--muted)' }}>{p.accountName || '—'}</td>
                     <td style={{ color: 'var(--muted)', minWidth: 140 }}>{p.description || '—'}</td>
+                    {canEditPayments && (
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                          {onEditRepayment && (
+                            <button
+                              className="rowBtn"
+                              style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                              onClick={() => onEditRepayment(p)}
+                            >
+                              {t('edit')}
+                            </button>
+                          )}
+                          {onDeleteRepayment && (
+                            <button
+                              className="rowBtn"
+                              style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                              onClick={() => onDeleteRepayment(p)}
+                            >
+                              {t('delete')}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

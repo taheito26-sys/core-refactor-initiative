@@ -19,12 +19,13 @@ import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/cust
 import { groupClosedLoansByMonth, isLoanClosed, loanMatchesQuery } from '@/features/stock/utils/loanGrouping';
 import {
   buildBuyerStatements, statementMatchesQuery, totalsByCurrency,
-  type BuyerStatement,
+  type StatementEntry,
 } from '@/features/stock/utils/loanStatement';
 import {
   buildReceivablesCsv, downloadTextFile, formatMoney,
 } from '@/features/stock/utils/loanStatementExport';
 import { statementLabels } from '@/features/stock/utils/statementLabels';
+import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
@@ -890,20 +891,33 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
   );
 }
 
+/** `datetime-local` wants local wall-clock time, not the UTC ISO string. */
+function toLocalInput(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 interface RepayLoanModalProps {
   loan: CustomerLoan;
+  /** How much this payment may cover — the loan's balance with `existing` taken back out. */
   remaining: number;
   accounts: CashAccount[];
+  /** The payment being corrected. Absent when recording a new one. */
+  existing?: LoanRepayment;
   onSave: (accountId: string, amount: number, ts: number, note?: string) => void;
   onClose: () => void;
   isMobile?: boolean;
 }
-function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile = false }: RepayLoanModalProps) {
+function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, isMobile = false }: RepayLoanModalProps) {
   const t = useT();
-  const [accountId, setAccountId] = useState(accounts.find(a => a.currency === loan.currency)?.id || accounts[0]?.id || '');
-  const [amount, setAmount] = useState(String(remaining || ''));
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 16));
-  const [note, setNote] = useState('');
+  const editing = !!existing;
+  const [accountId, setAccountId] = useState(
+    existing?.accountId || accounts.find(a => a.currency === loan.currency)?.id || accounts[0]?.id || ''
+  );
+  const [amount, setAmount] = useState(String(existing?.amount ?? (remaining || '')));
+  const [date, setDate] = useState(() => toLocalInput(existing?.ts ?? Date.now()));
+  const [note, setNote] = useState(existing?.note || '');
   const [err, setErr] = useState('');
   const amtNum = num(amount, 0);
 
@@ -926,12 +940,12 @@ function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile =
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 380, maxHeight: '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>{t('loanAddRepayment')}</div>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{editing ? t('loanEditPayment') : t('loanAddRepayment')}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-          {t('loanRemaining')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(remaining)} {loan.currency}</strong>
+          {editing ? t('loanPaymentCap') : t('loanRemaining')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(remaining)} {loan.currency}</strong>
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
@@ -959,7 +973,7 @@ function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile =
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" onClick={handle}>{t('loanAddRepayment')}</button>
+          <button className="btn" onClick={handle}>{editing ? t('saveChanges') : t('loanAddRepayment')}</button>
         </div>
       </div>
     </div>
@@ -1089,6 +1103,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     buyerStatements.filter(s => s.outstanding > 0 && statementMatchesQuery(s, loanQuery))
   ), [buyerStatements, loanQuery]);
 
+  /** The live loan and repayment behind a statement payment row, for editing it. */
+  const findRepayment = useCallback((entry: StatementEntry) => {
+    if (!entry.repaymentId) return null;
+    const loan = loans.find(l => l.id === entry.loanId);
+    const repayment = (loan?.repayments || []).find(r => r.id === entry.repaymentId);
+    return loan && repayment ? { loan, repayment } : null;
+  }, [loans]);
+
   // Tab counts ignore the search box — they describe the book, not the query.
   const activeLoanCount = useMemo(() => loans.filter(l => !isLoanClosed(l)).length, [loans]);
   const closedLoanCount = useMemo(() => loans.filter(isLoanClosed).length, [loans]);
@@ -1170,6 +1192,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights' | 'loans'>('accounts');
   const [showNewLoan, setShowNewLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
+  /** The payment being corrected, with the loan it belongs to. */
+  const [editingRepayment, setEditingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
+  const [deletingRepayment, setDeletingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
   const [editingLoan, setEditingLoan] = useState<CustomerLoan | null>(null);
   const [deleteLoanConfirmId, setDeleteLoanConfirmId] = useState<string | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -1367,37 +1392,80 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (ok) setShowNewLoan(false);
   };
 
-  const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => {
+  /** Default note on the cash-side row when the payment itself carries none. */
+  const repaymentLedgerNote = (loan: CustomerLoan, note?: string) => {
     const customerName = (state.customers || []).find(c => c.id === loan.customerId)?.name || '';
+    return note || `${t('loanAddRepayment')}${customerName ? ` — ${customerName}` : ''}`;
+  };
+
+  /** The loan list with `loan` swapped in. */
+  const replaceLoan = (loan: CustomerLoan) => loans.map(l => (l.id === loan.id ? loan : l));
+
+  const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => {
     // The repayment itself is recorded ON the loan — the cash_ledger row is
     // only the money side. Deriving repaid totals from the ledger loses them:
     // its schema rejects loan-linked rows and strips the link column.
     const entry: CashLedgerEntry = {
       id: uid(), ts, type: 'loan_repayment', accountId,
       direction: 'in', amount, currency: loan.currency,
-      note: note || `${t('loanAddRepayment')}${customerName ? ` — ${customerName}` : ''}`,
+      note: repaymentLedgerNote(loan, note),
     };
     const repayment: LoanRepayment = {
       id: uid(), ts, amount, accountId, ledgerEntryId: entry.id, note,
     };
     const newLedger = [...ledger, entry];
-    const updatedLoan: CustomerLoan = { ...loan, repayments: [...(loan.repayments || []), repayment] };
-    const remaining = getLoanRemaining(updatedLoan);
-    const newLoans = loans.map(l => l.id === loan.id
-      ? { ...updatedLoan, status: remaining <= 0 ? 'closed' as const : l.status }
-      : l);
+    const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
+    const newLoans = replaceLoan(updatedLoan);
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
     if (ok) setRepayingLoan(null);
   };
 
-  const updateLoan = async (loanId: string, updates: { customerId: string; principal: number; note?: string }) => {
-    const newLoans = loans.map(l => {
-      if (l.id !== loanId) return l;
-      const updated = { ...l, customerId: updates.customerId, principal: updates.principal, note: updates.note };
-      const remaining = getLoanRemaining(updated);
-      return { ...updated, status: remaining <= 0 ? 'closed' as const : 'open' as const };
+  /**
+   * Correct a payment that was already recorded — amount, date, account or note.
+   *
+   * The companion cash row moves with it so account balances keep matching the
+   * payments. A row that is no longer there (its account was cleared, or a sync
+   * dropped it) is not recreated: only the recorded payment changes.
+   */
+  const updateLoanRepayment = async (
+    loan: CustomerLoan, repaymentId: string, accountId: string, amount: number, ts: number, note?: string,
+  ) => {
+    // The dialog holds a snapshot; a sync may have landed another payment on
+    // this loan since it opened, so edit the loan as it stands now.
+    const live = loans.find(l => l.id === loan.id) || loan;
+    const next = editRepayment(
+      live, repaymentId, { accountId, amount, ts, note }, ledger, repaymentLedgerNote(live, note),
+    );
+    if (!next) { setEditingRepayment(null); return; }
+
+    const ok = await commit({
+      ...state,
+      cashLedger: next.ledger,
+      cashQAR: deriveCashQAR(accounts, next.ledger),
+      customerLoans: replaceLoan(next.loan),
     });
+    if (ok) { setEditingRepayment(null); toast.success(t('loanPaymentUpdated')); }
+  };
+
+  /** Drop a payment and the cash it credited — the loan reopens if this settled it. */
+  const deleteLoanRepayment = async (loan: CustomerLoan, repaymentId: string) => {
+    const next = deleteRepayment(loans.find(l => l.id === loan.id) || loan, repaymentId, ledger);
+    if (!next) { setDeletingRepayment(null); return; }
+
+    const ok = await commit({
+      ...state,
+      cashLedger: next.ledger,
+      cashQAR: deriveCashQAR(accounts, next.ledger),
+      customerLoans: replaceLoan(next.loan),
+    });
+    if (ok) { setDeletingRepayment(null); toast.success(t('loanPaymentDeleted')); }
+  };
+
+  const updateLoan = async (loanId: string, updates: { customerId: string; principal: number; note?: string }) => {
+    const newLoans = loans.map(l => (l.id === loanId
+      ? withDerivedStatus({ ...l, customerId: updates.customerId, principal: updates.principal, note: updates.note })
+      : l));
     const ok = await commit({ ...state, customerLoans: newLoans });
     if (ok) setEditingLoan(null);
   };
@@ -2208,31 +2276,55 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     <th className="r">{t('loanColAmount')}</th>
                                     <th>{t('loanColAccount')}</th>
                                     <th>{t('loanNoteLabel')}</th>
+                                    <th />
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {payments.length === 0 ? (
                                     <tr>
-                                      <td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>
+                                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>
                                         {t('loanNoPaymentsYet')}
                                       </td>
                                     </tr>
-                                  ) : [...payments].reverse().map(p => (
-                                    <tr key={p.id}>
-                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(p.ts)}</td>
-                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>{p.ref}</td>
-                                      <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(p.credit)}</td>
-                                      <td style={{ color: 'var(--muted)' }}>{p.accountName || '—'}</td>
-                                      <td style={{ color: 'var(--muted)', minWidth: 140 }}>{p.description || '—'}</td>
-                                    </tr>
-                                  ))}
+                                  ) : [...payments].reverse().map(p => {
+                                    const target = findRepayment(p);
+                                    return (
+                                      <tr key={p.id}>
+                                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(p.ts)}</td>
+                                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>{p.ref}</td>
+                                        <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(p.credit)}</td>
+                                        <td style={{ color: 'var(--muted)' }}>{p.accountName || '—'}</td>
+                                        <td style={{ color: 'var(--muted)', minWidth: 140 }}>{p.description || '—'}</td>
+                                        <td>
+                                          {target && (
+                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                              <button
+                                                className="rowBtn"
+                                                style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                                onClick={() => setEditingRepayment(target)}
+                                              >
+                                                {t('edit')}
+                                              </button>
+                                              <button
+                                                className="rowBtn"
+                                                style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                                onClick={() => setDeletingRepayment(target)}
+                                              >
+                                                {t('delete')}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                                 {payments.length > 0 && (
                                   <tfoot>
                                     <tr>
                                       <td colSpan={2} style={{ fontWeight: 700 }}>{t('loanColRepaid')}</td>
                                       <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
-                                      <td colSpan={2} />
+                                      <td colSpan={3} />
                                     </tr>
                                   </tfoot>
                                 )}
@@ -2609,6 +2701,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           isMobile={isMobile}
           onClose={() => setStatementKey(null)}
           onAddRepayment={loan => { setStatementKey(null); setRepayingLoan(loan); }}
+          onEditRepayment={entry => {
+            const target = findRepayment(entry);
+            if (target) { setStatementKey(null); setEditingRepayment(target); }
+          }}
+          onDeleteRepayment={entry => {
+            const target = findRepayment(entry);
+            if (target) { setStatementKey(null); setDeletingRepayment(target); }
+          }}
         />
       )}
 
@@ -2621,6 +2721,46 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           onSave={(accountId, amount, ts, note) => addLoanRepayment(repayingLoan, accountId, amount, ts, note)}
           onClose={() => setRepayingLoan(null)}
         />
+      )}
+
+      {editingRepayment && (
+        <RepayLoanModal
+          loan={editingRepayment.loan}
+          // The cap is the balance with this payment taken back out — editing it
+          // up to the full amount owed has to stay possible.
+          remaining={getLoanRemaining(editingRepayment.loan) + editingRepayment.repayment.amount}
+          accounts={activeAccounts}
+          existing={editingRepayment.repayment}
+          isMobile={isMobile}
+          onSave={(accountId, amount, ts, note) => updateLoanRepayment(
+            editingRepayment.loan, editingRepayment.repayment.id, accountId, amount, ts, note,
+          )}
+          onClose={() => setEditingRepayment(null)}
+        />
+      )}
+
+      {deletingRepayment && (
+        <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setDeletingRepayment(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, color: 'var(--bad)' }}>⚠️ {t('loanDeletePayment')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              {fmtAmt(deletingRepayment.repayment.amount, deletingRepayment.loan.currency)}
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {fmtTs(deletingRepayment.repayment.ts)}</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('loanDeletePaymentConfirm')}</div>
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setDeletingRepayment(null)}>{t('cancel')}</button>
+              <button
+                className="btn"
+                style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }}
+                onClick={() => deleteLoanRepayment(deletingRepayment.loan, deletingRepayment.repayment.id)}
+              >
+                {t('delete')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {editingLoan && (
