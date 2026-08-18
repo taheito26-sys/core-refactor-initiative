@@ -28,11 +28,14 @@ function ExchangeConnectForm({ exchange, onConnected }: { exchange: ExchangeId; 
     setSaving(true);
     try {
       await connectExchange({ exchange, apiKey: apiKey.trim(), apiSecret: apiSecret.trim(), passphrase: passphrase.trim() || undefined });
-      toast.success(`${EXCHANGE_LABELS[exchange]} connected`);
+      toast.success(`${EXCHANGE_LABELS[exchange]} connected — syncing now`);
       setApiKey('');
       setApiSecret('');
       setPassphrase('');
       onConnected();
+      // Best-effort: don't block on the first sync, and don't fail the
+      // connect flow if it errors -- the auto-sync loop will retry.
+      syncExchange(exchange, 'all').then(onConnected).catch(() => {});
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to connect');
     } finally {
@@ -123,16 +126,18 @@ export function ExchangeConnectionsCard() {
                 <Badge variant="secondary">Connected · {c.api_key.slice(0, 4)}…{c.api_key.slice(-4)}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                {c.last_synced_at ? `Last synced ${new Date(c.last_synced_at).toLocaleString()}` : 'Never synced'}
+                {c.last_synced_at
+                  ? <>Auto-synced · last {new Date(c.last_synced_at).toLocaleString()}</>
+                  : 'Syncing for the first time…'}
                 {c.last_sync_error && <span className="text-destructive"> · Error: {c.last_sync_error}</span>}
               </p>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleSync(c.exchange)} disabled={syncingExchange === c.exchange}>
-                  {syncingExchange === c.exchange ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <Button size="sm" variant="ghost" className="text-xs" onClick={() => handleSync(c.exchange)} disabled={syncingExchange === c.exchange}>
+                  {syncingExchange === c.exchange ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   Sync now
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleDisconnect(c.exchange)}>
-                  <Trash2 className="h-4 w-4" />
+                <Button size="sm" variant="ghost" className="text-xs" onClick={() => handleDisconnect(c.exchange)}>
+                  <Trash2 className="h-3.5 w-3.5" />
                   Disconnect
                 </Button>
               </div>

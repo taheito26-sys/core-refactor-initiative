@@ -150,6 +150,8 @@ export default function OrdersPage() {
   /** A synced P2P sell becomes a trade at the price it sold for. */
   const importExchangeOrderAsTrade = useCallback(async (o: ExchangeOrderPayload) => {
     const tradeId = uid();
+    const buyerName = o.assigneeName?.trim() || `${EXCHANGE_LABELS[o.exchange]} P2P`;
+    const ensured = ensureCustomer(buyerName);
     const trade: Trade = {
       id: tradeId,
       ts: o.ts,
@@ -161,13 +163,14 @@ export default function OrdersPage() {
       voided: false,
       usesStock: true,
       revisions: [],
-      customerId: '',
+      customerId: ensured.id,
     };
     // Imported trades carry their original exchange timestamp, so widen the
     // range filter -- otherwise the trade saves but appears to vanish.
-    applyState({ ...state, trades: [...state.trades, trade], range: 'all' });
+    applyState({ ...state, customers: ensured.customers, trades: [...state.trades, trade], range: 'all' });
     await markOrdersLinked([{ orderId: o.orderId, entityType: 'trade', entityId: tradeId }]);
-    toast.success(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]}`);
+    toast.success(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]} (${buyerName})`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applyState, state]);
   const [newSaleSheetOpen, setNewSaleSheetOpen] = useState(false);
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
@@ -3765,7 +3768,14 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="field2">
-                  <ExchangeInbox side="sell" onImportOrder={importExchangeOrderAsTrade} onEditOrder={applyExchangeOrderPrefill} fiatLabel={baseFiat} />
+                  <ExchangeInbox
+                    side="sell"
+                    onImportOrder={importExchangeOrderAsTrade}
+                    onEditOrder={applyExchangeOrderPrefill}
+                    fiatLabel={baseFiat}
+                    assigneeLabel="Buyer"
+                    assigneeOptions={allBuyerOptions.map((c) => c.name)}
+                  />
                 </div>
 
                 <div className="field2">

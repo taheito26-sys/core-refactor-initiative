@@ -296,7 +296,19 @@ export default function StockPage() {
   const commitImportedBatch = useCallback(async (batch: {
     id: string; ts: number; source: string; note: string; buyPriceQAR: number; initialUSDT: number;
   }) => {
-    await applyStateAndCommit({ ...state, batches: [...state.batches, { ...batch, revisions: [] }] });
+    const trimmedSource = batch.source.trim();
+    const existingSupplier = (state.suppliers || []).some(
+      (s) => s.name.trim().toLocaleLowerCase() === trimmedSource.toLocaleLowerCase(),
+    );
+    const nextSuppliers = existingSupplier
+      ? state.suppliers
+      : [...(state.suppliers || []), { id: uid(), name: trimmedSource, phone: '', notes: '', createdAt: Date.now() }];
+
+    await applyStateAndCommit({
+      ...state,
+      suppliers: nextSuppliers,
+      batches: [...state.batches, { ...batch, revisions: [] }],
+    });
     const key = new Date(batch.ts).toISOString().slice(0, 7);
     setSelectedMonth((cur) => (cur === 'all' || cur === key ? cur : 'all'));
   }, [applyStateAndCommit, state]);
@@ -304,32 +316,34 @@ export default function StockPage() {
   /** A synced P2P buy becomes a stock batch at the price it was bought at. */
   const importExchangeOrderAsBatch = useCallback(async (o: ExchangeOrderPayload) => {
     const batchId = uid();
+    const source = o.assigneeName?.trim() || `${EXCHANGE_LABELS[o.exchange]} P2P`;
     await commitImportedBatch({
       id: batchId,
       ts: o.ts,
-      source: `${EXCHANGE_LABELS[o.exchange]} P2P`,
+      source,
       note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
       buyPriceQAR: o.priceFiat,
       initialUSDT: o.amountUSDT,
     });
     await markOrdersLinked([{ orderId: o.orderId, entityType: 'batch', entityId: batchId }]);
-    setBatchMsg(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]}.`);
+    setBatchMsg(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]} (${source}).`);
   }, [commitImportedBatch]);
 
   /** USDT received via Pay/on-chain becomes stock at a user-supplied cost basis. */
   const importExchangeTransferAsBatch = useCallback(async (tr: ExchangeTransferPayload) => {
     const batchId = uid();
     const via = tr.kind === 'pay' ? 'Pay' : 'network';
+    const source = tr.assigneeName?.trim() || `${EXCHANGE_LABELS[tr.exchange]} ${via}`;
     await commitImportedBatch({
       id: batchId,
       ts: tr.ts,
-      source: `${EXCHANGE_LABELS[tr.exchange]} ${via}`,
+      source,
       note: `Received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (ref ${tr.reference})`,
       buyPriceQAR: tr.buyPrice,
       initialUSDT: tr.amountUSDT,
     });
     await markTransfersLinked([{ transferId: tr.transferId, entityType: 'batch', entityId: batchId }]);
-    setBatchMsg(`Added ${fmtU(tr.amountUSDT)} USDT received via ${EXCHANGE_LABELS[tr.exchange]} ${via}.`);
+    setBatchMsg(`Added ${fmtU(tr.amountUSDT)} USDT received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (${source}).`);
   }, [commitImportedBatch]);
 
   const addBatch = async () => {
@@ -916,6 +930,8 @@ export default function StockPage() {
                   onImportTransfer={importExchangeTransferAsBatch}
                   fiatLabel={activeBatchFiat}
                   defaultPrice={wacop || undefined}
+                  assigneeLabel="Supplier"
+                  assigneeOptions={supplierOptions}
                 />
               </div>
               <div className="field2">
@@ -1192,6 +1208,8 @@ export default function StockPage() {
                       onImportTransfer={importExchangeTransferAsBatch}
                       fiatLabel={activeBatchFiat}
                       defaultPrice={wacop || undefined}
+                      assigneeLabel="Supplier"
+                      assigneeOptions={supplierOptions}
                     />
                   </div>
                   <div className="field2">
