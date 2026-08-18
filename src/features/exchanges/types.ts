@@ -43,3 +43,22 @@ export interface ExchangeP2POrder {
   linked_at: string | null;
   created_at: string;
 }
+
+export interface ExchangeTransfer {
+  id: string;
+  exchange: ExchangeId;
+  /** 'pay' = Binance Pay / OKX internal transfer, 'network' = on-chain. */
+  kind: 'pay' | 'network';
+  direction: 'in' | 'out';
+  asset: string;
+  amount: number;
+  status: string;
+  reference: string;
+  counterparty: string | null;
+  network: string | null;
+  transfer_time: string | null;
+  linked_entity_type: 'batch' | 'trade' | null;
+  linked_entity_id: string | null;
+  linked_at: string | null;
+  created_at: string;
+}

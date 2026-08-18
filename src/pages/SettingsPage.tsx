@@ -12,6 +12,7 @@ import { NotificationPreferencesPanel } from '@/components/notifications/Notific
 import { ExchangeConnectionsCard } from '@/features/exchanges/components/ExchangeConnectionsCard';
 import { ExchangeBalancesCard } from '@/features/exchanges/components/ExchangeBalancesCard';
 import { ExchangeP2POrdersCard } from '@/features/exchanges/components/ExchangeP2POrdersCard';
+import { ExchangeTransfersCard } from '@/features/exchanges/components/ExchangeTransfersCard';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
@@ -489,6 +490,7 @@ export default function SettingsPage() {
           <ExchangeConnectionsCard />
           <ExchangeBalancesCard />
           <ExchangeP2POrdersCard />
+          <ExchangeTransfersCard />
 
           {/* ── Notification Preferences ── */}
           <NotificationPreferencesPanel />

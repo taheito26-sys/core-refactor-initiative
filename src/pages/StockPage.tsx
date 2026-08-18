@@ -34,9 +34,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
-import { markOrderLinked, markOrdersLinked } from '@/features/exchanges/api';
+import { markOrderLinked, markOrdersLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeImportBar, type ExchangeOrderPayload } from '@/features/exchanges/components/ExchangeImportBar';
+import { ExchangeTransferImportBar, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeTransferImportBar';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -316,6 +317,38 @@ export default function StockPage() {
     markOrdersLinked(links).catch(() => {});
     setBatchMsg(
       `${newBatches.length} ${newBatches.length === 1 ? 'batch' : 'batches'} imported from exchange.`,
+    );
+  }, [applyStateAndCommit, state]);
+
+  /** USDT received via Pay/on-chain becomes stock at a user-supplied cost basis. */
+  const importExchangeTransfersAsBatches = useCallback(async (transfers: ExchangeTransferPayload[]) => {
+    if (transfers.length === 0) return;
+    const links: { transferId: string; entityType: 'batch'; entityId: string }[] = [];
+    const newBatches = transfers.map((tr) => {
+      const batchId = uid();
+      links.push({ transferId: tr.transferId, entityType: 'batch', entityId: batchId });
+      const via = tr.kind === 'pay' ? 'Pay' : 'network';
+      return {
+        id: batchId,
+        ts: tr.ts,
+        source: `${EXCHANGE_LABELS[tr.exchange]} ${via}`,
+        note: `Received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (ref ${tr.reference})`,
+        buyPriceQAR: tr.buyPrice,
+        initialUSDT: tr.amountUSDT,
+        revisions: [],
+      };
+    });
+
+    try {
+      await applyStateAndCommit({ ...state, batches: [...state.batches, ...newBatches] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setBatchMsg(`\u26a0 Save failed: ${msg}`);
+      return;
+    }
+    markTransfersLinked(links).catch(() => {});
+    setBatchMsg(
+      `${newBatches.length} received ${newBatches.length === 1 ? 'transfer' : 'transfers'} added to stock.`,
     );
   }, [applyStateAndCommit, state]);
 
@@ -897,6 +930,7 @@ export default function StockPage() {
               )}
               <div className="field2">
                 <ExchangeImportBar side="buy" onImportMany={importExchangeOrdersAsBatches} onFillForm={applyExchangeOrderPrefill} />
+                <ExchangeTransferImportBar onImportMany={importExchangeTransfersAsBatches} fiatLabel={activeBatchFiat} defaultPrice={wacop || undefined} />
               </div>
               <div className="field2">
                 <div className="lbl">{t('dateTime')}</div>
@@ -1166,6 +1200,7 @@ export default function StockPage() {
                   )}
                   <div className="field2">
                     <ExchangeImportBar side="buy" onImportMany={importExchangeOrdersAsBatches} onFillForm={applyExchangeOrderPrefill} />
+                <ExchangeTransferImportBar onImportMany={importExchangeTransfersAsBatches} fiatLabel={activeBatchFiat} defaultPrice={wacop || undefined} />
                   </div>
                   <div className="field2">
                     <div className="lbl">{t('dateTime')}</div>
