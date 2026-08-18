@@ -86,6 +86,11 @@ export function ExchangeConnectionsCard() {
     try {
       const result = await syncExchange(exchange, 'all');
       toast.success(`${EXCHANGE_LABELS[exchange]} synced: ${result.balances ?? 0} balances, ${result.p2pOrders ?? 0} P2P orders`);
+      if (result.errors) {
+        for (const [section, msg] of Object.entries(result.errors)) {
+          toast.warning(`${EXCHANGE_LABELS[exchange]} ${section}: ${msg}`);
+        }
+      }
       invalidate();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Sync failed');
