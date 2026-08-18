@@ -148,6 +148,7 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
+  const activeBatchIds = useMemo(() => new Set(state.batches.map((b) => b.id)), [state.batches]);
   const availableUsdt = useMemo(() => totalStock(derived), [derived]);
   const wacop = getWACOP(derived);
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
@@ -932,6 +933,7 @@ export default function StockPage() {
                   defaultPrice={wacop || undefined}
                   assigneeLabel="Supplier"
                   assigneeOptions={supplierOptions}
+                  activeEntityIds={activeBatchIds}
                 />
               </div>
               <div className="field2">
@@ -1210,6 +1212,7 @@ export default function StockPage() {
                       defaultPrice={wacop || undefined}
                       assigneeLabel="Supplier"
                       assigneeOptions={supplierOptions}
+                      activeEntityIds={activeBatchIds}
                     />
                   </div>
                   <div className="field2">

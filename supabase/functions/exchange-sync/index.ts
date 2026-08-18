@@ -152,7 +152,7 @@ async function fetchBinanceP2POrders(creds: Credentials) {
  * Each source is tried independently so one unavailable permission scope
  * doesn't wipe out the others.
  */
-async function fetchBinanceTransfers(creds: Credentials): Promise<TransferRow[]> {
+async function fetchBinanceTransfers(creds: Credentials): Promise<{ rows: TransferRow[]; failures: string[] }> {
   const rows: TransferRow[] = [];
   const failures: string[] = [];
 
@@ -208,10 +208,7 @@ async function fetchBinanceTransfers(creds: Credentials): Promise<TransferRow[]>
     }
   }
 
-  if (rows.length === 0 && failures.length > 0) {
-    throw new Error(`Binance transfers failed -- ${failures.join("; ")}`);
-  }
-  return rows;
+  return { rows, failures };
 }
 
 // ── OKX ───────────────────────────────────────────────────────────────────
@@ -272,7 +269,7 @@ async function fetchOkxBalances(creds: Credentials) {
  * (its "Pay"-equivalent) via the deposit type field, so one endpoint pair
  * covers both kinds.
  */
-async function fetchOkxTransfers(creds: Credentials): Promise<TransferRow[]> {
+async function fetchOkxTransfers(creds: Credentials): Promise<{ rows: TransferRow[]; failures: string[] }> {
   const rows: TransferRow[] = [];
   const failures: string[] = [];
 
@@ -306,10 +303,7 @@ async function fetchOkxTransfers(creds: Credentials): Promise<TransferRow[]> {
     }
   }
 
-  if (rows.length === 0 && failures.length > 0) {
-    throw new Error(`OKX transfers failed -- ${failures.join("; ")}`);
-  }
-  return rows.filter((r) => r.reference);
+  return { rows: rows.filter((r) => r.reference), failures };
 }
 
 async function fetchOkxP2POrders(creds: Credentials) {
@@ -490,7 +484,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "transfers" || action === "all") {
       try {
-        const transfers = exchange === "binance"
+        const { rows: transfers, failures } = exchange === "binance"
           ? await fetchBinanceTransfers(creds)
           : await fetchOkxTransfers(creds);
 
@@ -515,6 +509,9 @@ Deno.serve(async (req: Request) => {
           if (error) throw error;
         }
         summary.transfers = transfers.length;
+        if (failures.length > 0) {
+          errors.transfers = failures.join("; ");
+        }
       } catch (err) {
         errors.transfers = err instanceof Error ? err.message : String(err);
       }
@@ -530,9 +527,11 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", userId)
       .eq("exchange", exchange);
 
-    // Only fail the whole request if every requested section failed.
+    // Only fail the whole request if every requested section failed outright
+    // (a section that returned partial data alongside a warning still counts as succeeded).
     const requestedSections = action === "all" ? 3 : 1;
-    if (Object.keys(errors).length >= requestedSections) {
+    const hardFailures = Object.keys(errors).filter((section) => !(section in summary));
+    if (hardFailures.length >= requestedSections) {
       return new Response(JSON.stringify({ error: combinedError }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
