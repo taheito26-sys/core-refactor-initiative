@@ -34,7 +34,20 @@ export async function syncExchange(exchange: ExchangeId, action: 'balances' | 'p
   const { data, error } = await supabase.functions.invoke('exchange-sync', {
     body: { exchange, action },
   });
-  if (error) throw error;
+  if (error) {
+    // supabase-js only gives a generic "non-2xx status code" message here;
+    // the actual error body is on error.context (the raw Response).
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const body = await context.clone().json();
+        if (body?.error) throw new Error(body.error);
+      } catch {
+        // fall through to the generic error below
+      }
+    }
+    throw error;
+  }
   if (data?.error) throw new Error(data.error);
   return data;
 }
