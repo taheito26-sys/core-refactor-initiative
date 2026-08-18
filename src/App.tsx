@@ -14,6 +14,7 @@ import { createPlaceholderPage } from "@/components/shared/PlaceholderPage";
 import { AuthDiagnostics } from "@/features/auth/components/AuthDiagnostics";
 import { NativePlatformBootstrap } from "@/platform/native-bridge";
 import { ChatRuntimeBootstrap } from "@/features/chat/components/ChatRuntimeBootstrap";
+import { ExchangeAutoSyncBootstrap } from "@/features/exchanges/components/ExchangeAutoSyncBootstrap";
 import MobileInstallPrompt from "@/components/shared/MobileInstallPrompt";
 import { OfflineStatusBanner } from "@/components/shared/OfflineStatusBanner";
 import { isInstalledPwa, isNativeApp } from "@/platform/runtime";
@@ -346,6 +347,7 @@ const App = () => (
             <MobileInstallPrompt />
             <AuthDiagnostics />
             <ChatRuntimeBootstrap />
+            <ExchangeAutoSyncBootstrap />
             <RouteErrorBoundary>
               <Routes>
                 {/* OAuth callback — Supabase redirects here after Google consent */}
