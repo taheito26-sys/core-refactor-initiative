@@ -36,8 +36,7 @@ import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
 import { markOrderLinked, markOrdersLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
-import { ExchangeImportBar, type ExchangeOrderPayload } from '@/features/exchanges/components/ExchangeImportBar';
-import { ExchangeTransferImportBar, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeTransferImportBar';
+import { ExchangeInbox, type ExchangeOrderPayload, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -289,68 +288,49 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** One-click path: turn synced exchange buys straight into stock batches. */
-  const importExchangeOrdersAsBatches = useCallback(async (orders: ExchangeOrderPayload[]) => {
-    if (orders.length === 0) return;
-    const links: { orderId: string; entityType: 'batch'; entityId: string }[] = [];
-    const newBatches = orders.map((o) => {
-      const batchId = uid();
-      links.push({ orderId: o.orderId, entityType: 'batch', entityId: batchId });
-      return {
-        id: batchId,
-        ts: o.ts,
-        source: `${EXCHANGE_LABELS[o.exchange]} P2P`,
-        note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
-        buyPriceQAR: o.priceFiat,
-        initialUSDT: o.amountUSDT,
-        revisions: [],
-      };
-    });
-
-    try {
-      await applyStateAndCommit({ ...state, batches: [...state.batches, ...newBatches] });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setBatchMsg(`⚠ Save failed: ${msg}`);
-      return;
-    }
-    markOrdersLinked(links).catch(() => {});
-    setBatchMsg(
-      `${newBatches.length} ${newBatches.length === 1 ? 'batch' : 'batches'} imported from exchange.`,
-    );
+  /**
+   * Commits one imported batch. Imported orders carry their original exchange
+   * timestamp, which is usually outside the month filter the list defaults to,
+   * so the filter is widened -- otherwise the batch saves but appears to vanish.
+   */
+  const commitImportedBatch = useCallback(async (batch: {
+    id: string; ts: number; source: string; note: string; buyPriceQAR: number; initialUSDT: number;
+  }) => {
+    await applyStateAndCommit({ ...state, batches: [...state.batches, { ...batch, revisions: [] }] });
+    const key = new Date(batch.ts).toISOString().slice(0, 7);
+    setSelectedMonth((cur) => (cur === 'all' || cur === key ? cur : 'all'));
   }, [applyStateAndCommit, state]);
+
+  /** A synced P2P buy becomes a stock batch at the price it was bought at. */
+  const importExchangeOrderAsBatch = useCallback(async (o: ExchangeOrderPayload) => {
+    const batchId = uid();
+    await commitImportedBatch({
+      id: batchId,
+      ts: o.ts,
+      source: `${EXCHANGE_LABELS[o.exchange]} P2P`,
+      note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
+      buyPriceQAR: o.priceFiat,
+      initialUSDT: o.amountUSDT,
+    });
+    await markOrdersLinked([{ orderId: o.orderId, entityType: 'batch', entityId: batchId }]);
+    setBatchMsg(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]}.`);
+  }, [commitImportedBatch]);
 
   /** USDT received via Pay/on-chain becomes stock at a user-supplied cost basis. */
-  const importExchangeTransfersAsBatches = useCallback(async (transfers: ExchangeTransferPayload[]) => {
-    if (transfers.length === 0) return;
-    const links: { transferId: string; entityType: 'batch'; entityId: string }[] = [];
-    const newBatches = transfers.map((tr) => {
-      const batchId = uid();
-      links.push({ transferId: tr.transferId, entityType: 'batch', entityId: batchId });
-      const via = tr.kind === 'pay' ? 'Pay' : 'network';
-      return {
-        id: batchId,
-        ts: tr.ts,
-        source: `${EXCHANGE_LABELS[tr.exchange]} ${via}`,
-        note: `Received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (ref ${tr.reference})`,
-        buyPriceQAR: tr.buyPrice,
-        initialUSDT: tr.amountUSDT,
-        revisions: [],
-      };
+  const importExchangeTransferAsBatch = useCallback(async (tr: ExchangeTransferPayload) => {
+    const batchId = uid();
+    const via = tr.kind === 'pay' ? 'Pay' : 'network';
+    await commitImportedBatch({
+      id: batchId,
+      ts: tr.ts,
+      source: `${EXCHANGE_LABELS[tr.exchange]} ${via}`,
+      note: `Received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (ref ${tr.reference})`,
+      buyPriceQAR: tr.buyPrice,
+      initialUSDT: tr.amountUSDT,
     });
-
-    try {
-      await applyStateAndCommit({ ...state, batches: [...state.batches, ...newBatches] });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setBatchMsg(`\u26a0 Save failed: ${msg}`);
-      return;
-    }
-    markTransfersLinked(links).catch(() => {});
-    setBatchMsg(
-      `${newBatches.length} received ${newBatches.length === 1 ? 'transfer' : 'transfers'} added to stock.`,
-    );
-  }, [applyStateAndCommit, state]);
+    await markTransfersLinked([{ transferId: tr.transferId, entityType: 'batch', entityId: batchId }]);
+    setBatchMsg(`Added ${fmtU(tr.amountUSDT)} USDT received via ${EXCHANGE_LABELS[tr.exchange]} ${via}.`);
+  }, [commitImportedBatch]);
 
   const addBatch = async () => {
     const ts = new Date(batchDate).getTime();
@@ -929,8 +909,14 @@ export default function StockPage() {
                 </div>
               )}
               <div className="field2">
-                <ExchangeImportBar side="buy" onImportMany={importExchangeOrdersAsBatches} onFillForm={applyExchangeOrderPrefill} />
-                <ExchangeTransferImportBar onImportMany={importExchangeTransfersAsBatches} fiatLabel={activeBatchFiat} defaultPrice={wacop || undefined} />
+                <ExchangeInbox
+                  side="buy"
+                  onImportOrder={importExchangeOrderAsBatch}
+                  onEditOrder={applyExchangeOrderPrefill}
+                  onImportTransfer={importExchangeTransferAsBatch}
+                  fiatLabel={activeBatchFiat}
+                  defaultPrice={wacop || undefined}
+                />
               </div>
               <div className="field2">
                 <div className="lbl">{t('dateTime')}</div>
@@ -1199,8 +1185,14 @@ export default function StockPage() {
                     </div>
                   )}
                   <div className="field2">
-                    <ExchangeImportBar side="buy" onImportMany={importExchangeOrdersAsBatches} onFillForm={applyExchangeOrderPrefill} />
-                <ExchangeTransferImportBar onImportMany={importExchangeTransfersAsBatches} fiatLabel={activeBatchFiat} defaultPrice={wacop || undefined} />
+                    <ExchangeInbox
+                  side="buy"
+                  onImportOrder={importExchangeOrderAsBatch}
+                  onEditOrder={applyExchangeOrderPrefill}
+                  onImportTransfer={importExchangeTransferAsBatch}
+                  fiatLabel={activeBatchFiat}
+                  defaultPrice={wacop || undefined}
+                />
                   </div>
                   <div className="field2">
                     <div className="lbl">{t('dateTime')}</div>
