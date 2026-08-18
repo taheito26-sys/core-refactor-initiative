@@ -36,6 +36,7 @@ import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
 import { markOrderLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
+import { ExchangeOrderImportPicker } from '@/features/exchanges/components/ExchangeOrderImportPicker';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -258,9 +259,15 @@ export default function StockPage() {
     setNewSupplierPhone('');
   };
 
-  useEffect(() => {
-    const prefill = consumeTrackerImportPrefill('batch');
-    if (!prefill) return;
+  const applyExchangeOrderPrefill = useCallback((prefill: {
+    exchange: 'binance' | 'okx';
+    orderId: string;
+    orderNumber: string;
+    fiat: string;
+    amountUSDT: number;
+    priceFiat: number;
+    ts: number;
+  }) => {
     setBatchDate(inputFromTs(prefill.ts));
     setBatchEntryMode('qty_price');
     setBatchUsdtQty(String(prefill.amountUSDT));
@@ -272,6 +279,12 @@ export default function StockPage() {
     setPendingImportOrderId(prefill.orderId);
     setBatchMsg(`Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`);
     setAddBatchSheetOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const prefill = consumeTrackerImportPrefill('batch');
+    if (!prefill) return;
+    applyExchangeOrderPrefill(prefill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -852,6 +865,9 @@ export default function StockPage() {
                 </div>
               )}
               <div className="field2">
+                <ExchangeOrderImportPicker side="buy" onImport={applyExchangeOrderPrefill} />
+              </div>
+              <div className="field2">
                 <div className="lbl">{t('dateTime')}</div>
                 <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
               </div>
@@ -1117,6 +1133,9 @@ export default function StockPage() {
                       <span className="bPill">{t('avg')}</span>
                     </div>
                   )}
+                  <div className="field2">
+                    <ExchangeOrderImportPicker side="buy" onImport={applyExchangeOrderPrefill} />
+                  </div>
                   <div className="field2">
                     <div className="lbl">{t('dateTime')}</div>
                     <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
