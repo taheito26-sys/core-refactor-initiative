@@ -33,6 +33,9 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
+import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
+import { markOrderLinked } from '@/features/exchanges/api';
+import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -68,6 +71,7 @@ export default function StockPage() {
   const [batchSupplier, setBatchSupplier] = useState('');
   const [batchNote, setBatchNote] = useState('');
   const [batchMsg, setBatchMsg] = useState('');
+  const [pendingImportOrderId, setPendingImportOrderId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
@@ -254,6 +258,23 @@ export default function StockPage() {
     setNewSupplierPhone('');
   };
 
+  useEffect(() => {
+    const prefill = consumeTrackerImportPrefill('batch');
+    if (!prefill) return;
+    setBatchDate(inputFromTs(prefill.ts));
+    setBatchEntryMode('qty_price');
+    setBatchUsdtQty(String(prefill.amountUSDT));
+    setBatchPrice(String(prefill.priceFiat));
+    setBatchAmount('');
+    setBatchSupplier(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    setBatchNote(`Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} (${prefill.fiat})`);
+    setFundingAccountId('none');
+    setPendingImportOrderId(prefill.orderId);
+    setBatchMsg(`Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`);
+    setAddBatchSheetOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const addBatch = async () => {
     const ts = new Date(batchDate).getTime();
     const source = batchSupplier.trim();
@@ -380,6 +401,10 @@ export default function StockPage() {
       const msg = err instanceof Error ? err.message : String(err);
       setBatchMsg(`⚠ ${t('saveFailed') || 'Save failed'}: ${msg}`);
       return;
+    }
+    if (pendingImportOrderId) {
+      markOrderLinked(pendingImportOrderId, 'batch', batchId).catch(() => {});
+      setPendingImportOrderId(null);
     }
     setBatchAmount('');
     setBatchPrice('');

@@ -24,6 +24,9 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
+import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
+import { markOrderLinked } from '@/features/exchanges/api';
+import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { insertCustomerOrderWithFallback } from '@/features/customer/customer-portal';
@@ -114,6 +117,21 @@ export default function OrdersPage() {
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
+  const [pendingImportOrderId, setPendingImportOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const prefill = consumeTrackerImportPrefill('trade');
+    if (!prefill) return;
+    setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
+    setSaleEntryMode('qty_price');
+    setSaleUsdtQty(String(prefill.amountUSDT));
+    setSaleSell(String(prefill.priceFiat));
+    setSaleAmount('');
+    setBuyerName(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    setPendingImportOrderId(prefill.orderId);
+    setSaleMessage(`Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [newSaleSheetOpen, setNewSaleSheetOpen] = useState(false);
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
@@ -1841,6 +1859,10 @@ export default function OrdersPage() {
       }
       applyState(next);
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
+      if (pendingImportOrderId) {
+        markOrderLinked(pendingImportOrderId, 'trade', baseTrade.id).catch(() => {});
+        setPendingImportOrderId(null);
+      }
     }
 
     // ─── Sync to customer_orders when buyer is a connected customer ──────────
