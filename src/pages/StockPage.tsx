@@ -1175,7 +1175,7 @@ export default function StockPage() {
                   <div style={{ fontSize: 15, fontWeight: 800 }}>{t('addBatchTitle')}</div>
                   <button onClick={() => setAddBatchSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
                 </div>
-                <div style={{ display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
                   {wacop && (
                     <div className="bannerRow">
                       <span className="bLbl">{t('currentAvPrice')}</span>
@@ -1186,13 +1186,13 @@ export default function StockPage() {
                   )}
                   <div className="field2">
                     <ExchangeInbox
-                  side="buy"
-                  onImportOrder={importExchangeOrderAsBatch}
-                  onEditOrder={applyExchangeOrderPrefill}
-                  onImportTransfer={importExchangeTransferAsBatch}
-                  fiatLabel={activeBatchFiat}
-                  defaultPrice={wacop || undefined}
-                />
+                      side="buy"
+                      onImportOrder={importExchangeOrderAsBatch}
+                      onEditOrder={applyExchangeOrderPrefill}
+                      onImportTransfer={importExchangeTransferAsBatch}
+                      fiatLabel={activeBatchFiat}
+                      defaultPrice={wacop || undefined}
+                    />
                   </div>
                   <div className="field2">
                     <div className="lbl">{t('dateTime')}</div>
