@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Check, Loader2, PencilLine, AlertCircle, Inbox } from 'lucide-react';
@@ -84,6 +85,7 @@ export function ExchangeInbox({
   defaultPrice,
   assigneeLabel = 'Name',
   assigneeOptions = [],
+  activeEntityIds,
 }: {
   side: 'buy' | 'sell';
   onImportOrder: (order: ExchangeOrderPayload) => Promise<void> | void;
@@ -97,7 +99,14 @@ export function ExchangeInbox({
   assigneeLabel?: string;
   /** Existing supplier/customer names, offered as autocomplete suggestions. */
   assigneeOptions?: string[];
+  /**
+   * IDs of batches/trades still alive in the tracker. A row marked linked to
+   * an id that's no longer in this set (because the batch/trade was deleted)
+   * is treated as pending again, so deleting an import lets it be re-imported.
+   */
+  activeEntityIds?: Set<string>;
 }) {
+  const queryClient = useQueryClient();
   const { data: orders } = useExchangeP2POrders();
   const { data: transfers } = useExchangeTransfers();
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
@@ -105,13 +114,22 @@ export function ExchangeInbox({
   const [names, setNames] = useState<Record<string, string>>({});
   const datalistId = `exchange-inbox-names-${side}`;
 
+  const isStillLinked = (linkedAt: string | null, linkedEntityId: string | null) => {
+    if (!linkedAt) return false;
+    if (!activeEntityIds || !linkedEntityId) return true;
+    return activeEntityIds.has(linkedEntityId);
+  };
+
   const pendingOrders = useMemo(
-    () => (orders ?? []).filter((o) => o.side === side && !o.linked_at),
-    [orders, side],
+    () => (orders ?? []).filter((o) => o.side === side && !isStillLinked(o.linked_at, o.linked_entity_id)),
+    [orders, side, activeEntityIds],
   );
   const pendingTransfers = useMemo(
-    () => (onImportTransfer ? (transfers ?? []).filter((tr) => tr.direction === 'in' && !tr.linked_at) : []),
-    [transfers, onImportTransfer],
+    () =>
+      onImportTransfer
+        ? (transfers ?? []).filter((tr) => tr.direction === 'in' && !isStillLinked(tr.linked_at, tr.linked_entity_id))
+        : [],
+    [transfers, onImportTransfer, activeEntityIds],
   );
 
   const total = pendingOrders.length + pendingTransfers.length;
@@ -120,11 +138,13 @@ export function ExchangeInbox({
 
   const set = (id: string, s: RowState) => setRowState((p) => ({ ...p, [id]: s }));
 
-  const run = async (id: string, fn: () => Promise<void> | void) => {
+  const run = async (id: string, fn: () => Promise<void> | void, invalidateKey: 'exchange-p2p-orders' | 'exchange-transfers') => {
+    if (rowState[id]?.status === 'saving' || rowState[id]?.status === 'done') return;
     set(id, { status: 'saving' });
     try {
       await fn();
       set(id, { status: 'done' });
+      queryClient.invalidateQueries({ queryKey: [invalidateKey] });
     } catch (err) {
       set(id, { status: 'error', message: err instanceof Error ? err.message : String(err) });
     }
@@ -227,7 +247,7 @@ export function ExchangeInbox({
                     >
                       <PencilLine className="h-3 w-3" />
                     </Button>
-                    <RowAction id={o.id} onImport={() => run(o.id, () => onImportOrder(payload))} />
+                    <RowAction id={o.id} onImport={() => run(o.id, () => onImportOrder(payload), 'exchange-p2p-orders')} />
                   </div>
                 </div>
                 <div className="mt-1 flex items-center gap-1">
@@ -287,17 +307,20 @@ export function ExchangeInbox({
                       id={tr.id}
                       disabled={!valid}
                       onImport={() =>
-                        run(tr.id, () =>
-                          onImportTransfer!({
-                            exchange: tr.exchange,
-                            transferId: tr.id,
-                            reference: tr.reference,
-                            kind: tr.kind,
-                            amountUSDT: tr.amount,
-                            buyPrice: parsed,
-                            ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : Date.now(),
-                            assigneeName: nameValue.trim() || undefined,
-                          }),
+                        run(
+                          tr.id,
+                          () =>
+                            onImportTransfer!({
+                              exchange: tr.exchange,
+                              transferId: tr.id,
+                              reference: tr.reference,
+                              kind: tr.kind,
+                              amountUSDT: tr.amount,
+                              buyPrice: parsed,
+                              ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : Date.now(),
+                              assigneeName: nameValue.trim() || undefined,
+                            }),
+                          'exchange-transfers',
                         )
                       }
                     />

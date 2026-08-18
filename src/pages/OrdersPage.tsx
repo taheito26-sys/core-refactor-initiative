@@ -314,6 +314,10 @@ export default function OrdersPage() {
   });
 
   const allBuyerOptions = useMemo<ListedCustomer[]>(() => mergeListedCustomers(state.customers ?? [], connectedCustomers), [connectedCustomers, state.customers]);
+  const activeTradeIds = useMemo(
+    () => new Set(state.trades.filter((t) => !t.voided).map((t) => t.id)),
+    [state.trades],
+  );
   const saleDraft = useMemo(() => deriveSaleDraft({
     saleEntryMode,
     saleMode,
@@ -3775,6 +3779,7 @@ export default function OrdersPage() {
                     fiatLabel={baseFiat}
                     assigneeLabel="Buyer"
                     assigneeOptions={allBuyerOptions.map((c) => c.name)}
+                    activeEntityIds={activeTradeIds}
                   />
                 </div>
 
