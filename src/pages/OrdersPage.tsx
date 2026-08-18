@@ -25,9 +25,9 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
-import { markOrderLinked } from '@/features/exchanges/api';
+import { markOrderLinked, markOrdersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
-import { ExchangeOrderImportPicker } from '@/features/exchanges/components/ExchangeOrderImportPicker';
+import { ExchangeImportBar, type ExchangeOrderPayload } from '@/features/exchanges/components/ExchangeImportBar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { insertCustomerOrderWithFallback } from '@/features/customer/customer-portal';
@@ -146,6 +146,34 @@ export default function OrdersPage() {
     applyExchangeOrderPrefill(prefill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** One-click path: turn synced exchange sells straight into trades. */
+  const importExchangeOrdersAsTrades = useCallback(async (orders: ExchangeOrderPayload[]) => {
+    if (orders.length === 0) return;
+    const links: { orderId: string; entityType: 'trade'; entityId: string }[] = [];
+    const newTrades: Trade[] = orders.map((o) => {
+      const tradeId = uid();
+      links.push({ orderId: o.orderId, entityType: 'trade', entityId: tradeId });
+      return {
+        id: tradeId,
+        ts: o.ts,
+        inputMode: 'USDT',
+        amountUSDT: o.amountUSDT,
+        sellPriceQAR: o.priceFiat,
+        feeQAR: 0,
+        note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
+        voided: false,
+        usesStock: true,
+        revisions: [],
+        customerId: '',
+      };
+    });
+
+    applyState({ ...state, trades: [...state.trades, ...newTrades], range: 'all' });
+    markOrdersLinked(links).catch(() => {});
+    toast.success(`${newTrades.length} ${newTrades.length === 1 ? 'sale' : 'sales'} imported from exchange`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyState, state]);
   const [newSaleSheetOpen, setNewSaleSheetOpen] = useState(false);
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
@@ -3742,7 +3770,7 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="field2">
-                  <ExchangeOrderImportPicker side="sell" onImport={applyExchangeOrderPrefill} />
+                  <ExchangeImportBar side="sell" onImportMany={importExchangeOrdersAsTrades} onFillForm={applyExchangeOrderPrefill} />
                 </div>
 
                 <div className="field2">

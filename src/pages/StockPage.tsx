@@ -34,9 +34,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
-import { markOrderLinked } from '@/features/exchanges/api';
+import { markOrderLinked, markOrdersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
-import { ExchangeOrderImportPicker } from '@/features/exchanges/components/ExchangeOrderImportPicker';
+import { ExchangeImportBar, type ExchangeOrderPayload } from '@/features/exchanges/components/ExchangeImportBar';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -287,6 +287,37 @@ export default function StockPage() {
     applyExchangeOrderPrefill(prefill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** One-click path: turn synced exchange buys straight into stock batches. */
+  const importExchangeOrdersAsBatches = useCallback(async (orders: ExchangeOrderPayload[]) => {
+    if (orders.length === 0) return;
+    const links: { orderId: string; entityType: 'batch'; entityId: string }[] = [];
+    const newBatches = orders.map((o) => {
+      const batchId = uid();
+      links.push({ orderId: o.orderId, entityType: 'batch', entityId: batchId });
+      return {
+        id: batchId,
+        ts: o.ts,
+        source: `${EXCHANGE_LABELS[o.exchange]} P2P`,
+        note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
+        buyPriceQAR: o.priceFiat,
+        initialUSDT: o.amountUSDT,
+        revisions: [],
+      };
+    });
+
+    try {
+      await applyStateAndCommit({ ...state, batches: [...state.batches, ...newBatches] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setBatchMsg(`⚠ Save failed: ${msg}`);
+      return;
+    }
+    markOrdersLinked(links).catch(() => {});
+    setBatchMsg(
+      `${newBatches.length} ${newBatches.length === 1 ? 'batch' : 'batches'} imported from exchange.`,
+    );
+  }, [applyStateAndCommit, state]);
 
   const addBatch = async () => {
     const ts = new Date(batchDate).getTime();
@@ -865,7 +896,7 @@ export default function StockPage() {
                 </div>
               )}
               <div className="field2">
-                <ExchangeOrderImportPicker side="buy" onImport={applyExchangeOrderPrefill} />
+                <ExchangeImportBar side="buy" onImportMany={importExchangeOrdersAsBatches} onFillForm={applyExchangeOrderPrefill} />
               </div>
               <div className="field2">
                 <div className="lbl">{t('dateTime')}</div>
@@ -1134,7 +1165,7 @@ export default function StockPage() {
                     </div>
                   )}
                   <div className="field2">
-                    <ExchangeOrderImportPicker side="buy" onImport={applyExchangeOrderPrefill} />
+                    <ExchangeImportBar side="buy" onImportMany={importExchangeOrdersAsBatches} onFillForm={applyExchangeOrderPrefill} />
                   </div>
                   <div className="field2">
                     <div className="lbl">{t('dateTime')}</div>

@@ -52,6 +52,12 @@ export async function syncExchange(exchange: ExchangeId, action: 'balances' | 'p
   return data;
 }
 
+export async function markOrdersLinked(
+  links: { orderId: string; entityType: 'batch' | 'trade'; entityId: string }[],
+) {
+  await Promise.all(links.map((l) => markOrderLinked(l.orderId, l.entityType, l.entityId)));
+}
+
 export async function markOrderLinked(orderId: string, entityType: 'batch' | 'trade', entityId: string) {
   const { error } = await supabase
     .from('exchange_p2p_orders' as any)
