@@ -72,6 +72,7 @@ async function fetchBinanceBalances(creds: Credentials) {
 
   const spot = await binanceSignedRequest(creds, "/api/v3/account");
   for (const b of spot.balances ?? []) {
+    if (b.asset !== "USDT") continue;
     const free = parseFloat(b.free);
     const locked = parseFloat(b.locked);
     if (free > 0 || locked > 0) {
@@ -162,6 +163,7 @@ async function fetchOkxBalances(creds: Credentials) {
   const trading = await okxSignedRequest(creds, "/api/v5/account/balance");
   for (const acc of trading.data ?? []) {
     for (const d of acc.details ?? []) {
+      if (d.ccy !== "USDT") continue;
       const free = parseFloat(d.availBal ?? "0");
       const locked = parseFloat(d.frozenBal ?? "0");
       if (free > 0 || locked > 0) {
