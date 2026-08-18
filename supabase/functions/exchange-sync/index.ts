@@ -8,7 +8,23 @@ const corsHeaders = {
 };
 
 type Exchange = "binance" | "okx";
-type SyncAction = "balances" | "p2p-orders" | "all";
+type SyncAction = "balances" | "p2p-orders" | "transfers" | "all";
+
+/** USDT moving in/out by means other than a P2P order (Pay / on-chain). */
+interface TransferRow {
+  kind: "pay" | "network";
+  direction: "in" | "out";
+  asset: string;
+  amount: number;
+  status: string;
+  reference: string;
+  counterparty: string | null;
+  network: string | null;
+  transfer_time: string | null;
+  raw: unknown;
+}
+
+const TRACKED_ASSET = "USDT";
 
 interface Credentials {
   api_key: string;
@@ -131,6 +147,73 @@ async function fetchBinanceP2POrders(creds: Credentials) {
   return orders;
 }
 
+/**
+ * Binance Pay transactions plus on-chain deposits/withdrawals.
+ * Each source is tried independently so one unavailable permission scope
+ * doesn't wipe out the others.
+ */
+async function fetchBinanceTransfers(creds: Credentials): Promise<TransferRow[]> {
+  const rows: TransferRow[] = [];
+  const failures: string[] = [];
+
+  try {
+    const pay = await binanceSignedRequest(creds, "/sapi/v1/pay/transactions", { limit: 100 });
+    for (const p of pay.data ?? []) {
+      if (p.currency !== TRACKED_ASSET) continue;
+      const amount = parseFloat(p.amount ?? "0");
+      rows.push({
+        kind: "pay",
+        // Binance reports the signed amount: negative means funds left the account.
+        direction: amount < 0 ? "out" : "in",
+        asset: p.currency,
+        amount: Math.abs(amount),
+        status: String(p.orderStatus ?? "SUCCESS"),
+        reference: String(p.transactionId ?? p.orderId),
+        counterparty: p.payerInfo?.name ?? p.receiverInfo?.name ?? null,
+        network: null,
+        transfer_time: p.transactionTime ? new Date(Number(p.transactionTime)).toISOString() : null,
+        raw: p,
+      });
+    }
+  } catch (err) {
+    failures.push(`pay: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const onChain: { path: string; direction: "in" | "out"; timeKey: string }[] = [
+    { path: "/sapi/v1/capital/deposit/hisrec", direction: "in", timeKey: "insertTime" },
+    { path: "/sapi/v1/capital/withdraw/history", direction: "out", timeKey: "applyTime" },
+  ];
+  for (const src of onChain) {
+    try {
+      const list = await binanceSignedRequest(creds, src.path, { limit: 100 });
+      for (const d of Array.isArray(list) ? list : []) {
+        if (d.coin !== TRACKED_ASSET) continue;
+        const raw = d[src.timeKey];
+        const ms = typeof raw === "number" ? raw : Date.parse(raw ?? "");
+        rows.push({
+          kind: "network",
+          direction: src.direction,
+          asset: d.coin,
+          amount: parseFloat(d.amount ?? "0"),
+          status: String(d.status ?? ""),
+          reference: String(d.txId ?? d.id),
+          counterparty: d.address ?? null,
+          network: d.network ?? null,
+          transfer_time: Number.isFinite(ms) ? new Date(ms).toISOString() : null,
+          raw: d,
+        });
+      }
+    } catch (err) {
+      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (rows.length === 0 && failures.length > 0) {
+    throw new Error(`Binance transfers failed -- ${failures.join("; ")}`);
+  }
+  return rows;
+}
+
 // ── OKX ───────────────────────────────────────────────────────────────────
 
 const OKX_BASE = "https://www.okx.com";
@@ -182,6 +265,51 @@ async function fetchOkxBalances(creds: Credentials) {
   }
 
   return results;
+}
+
+/**
+ * OKX deposits/withdrawals. OKX flags internal account-to-account moves
+ * (its "Pay"-equivalent) via the deposit type field, so one endpoint pair
+ * covers both kinds.
+ */
+async function fetchOkxTransfers(creds: Credentials): Promise<TransferRow[]> {
+  const rows: TransferRow[] = [];
+  const failures: string[] = [];
+
+  const sources: { path: string; direction: "in" | "out" }[] = [
+    { path: "/api/v5/asset/deposit-history?limit=100", direction: "in" },
+    { path: "/api/v5/asset/withdrawal-history?limit=100", direction: "out" },
+  ];
+
+  for (const src of sources) {
+    try {
+      const json = await okxSignedRequest(creds, src.path);
+      for (const d of json.data ?? []) {
+        if (d.ccy !== TRACKED_ASSET) continue;
+        // OKX: type "3"/"4" denote internal (account-to-account) transfers.
+        const internal = d.type === "3" || d.type === "4";
+        rows.push({
+          kind: internal ? "pay" : "network",
+          direction: src.direction,
+          asset: d.ccy,
+          amount: parseFloat(d.amt ?? "0"),
+          status: String(d.state ?? ""),
+          reference: String(d.txId ?? d.wdId ?? d.depId ?? ""),
+          counterparty: (src.direction === "in" ? d.from : d.to) ?? null,
+          network: d.chain ?? null,
+          transfer_time: d.ts ? new Date(Number(d.ts)).toISOString() : null,
+          raw: d,
+        });
+      }
+    } catch (err) {
+      failures.push(`${src.direction === "in" ? "deposits" : "withdrawals"}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (rows.length === 0 && failures.length > 0) {
+    throw new Error(`OKX transfers failed -- ${failures.join("; ")}`);
+  }
+  return rows.filter((r) => r.reference);
 }
 
 async function fetchOkxP2POrders(creds: Credentials) {
@@ -360,6 +488,38 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (action === "transfers" || action === "all") {
+      try {
+        const transfers = exchange === "binance"
+          ? await fetchBinanceTransfers(creds)
+          : await fetchOkxTransfers(creds);
+
+        if (transfers.length > 0) {
+          const { error } = await admin.from("exchange_transfers").upsert(
+            transfers.map((tr) => ({
+              user_id: userId,
+              exchange,
+              kind: tr.kind,
+              direction: tr.direction,
+              asset: tr.asset,
+              amount: tr.amount,
+              status: tr.status,
+              reference: tr.reference,
+              counterparty: tr.counterparty,
+              network: tr.network,
+              transfer_time: tr.transfer_time,
+              raw: tr.raw,
+            })),
+            { onConflict: "user_id,exchange,kind,direction,reference", ignoreDuplicates: false },
+          );
+          if (error) throw error;
+        }
+        summary.transfers = transfers.length;
+      } catch (err) {
+        errors.transfers = err instanceof Error ? err.message : String(err);
+      }
+    }
+
     const combinedError = Object.entries(errors)
       .map(([section, msg]) => `${section}: ${msg}`)
       .join(" | ") || null;
@@ -371,7 +531,7 @@ Deno.serve(async (req: Request) => {
       .eq("exchange", exchange);
 
     // Only fail the whole request if every requested section failed.
-    const requestedSections = action === "all" ? 2 : 1;
+    const requestedSections = action === "all" ? 3 : 1;
     if (Object.keys(errors).length >= requestedSections) {
       return new Response(JSON.stringify({ error: combinedError }), {
         status: 502,

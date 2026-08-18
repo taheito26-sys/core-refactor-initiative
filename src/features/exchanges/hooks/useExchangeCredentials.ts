@@ -22,5 +22,6 @@ export function useInvalidateExchangeData() {
     qc.invalidateQueries({ queryKey: ['exchange-credentials'] });
     qc.invalidateQueries({ queryKey: ['exchange-balances'] });
     qc.invalidateQueries({ queryKey: ['exchange-p2p-orders'] });
+    qc.invalidateQueries({ queryKey: ['exchange-transfers'] });
   };
 }

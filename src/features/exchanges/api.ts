@@ -52,6 +52,24 @@ export async function syncExchange(exchange: ExchangeId, action: 'balances' | 'p
   return data;
 }
 
+export async function markTransfersLinked(
+  links: { transferId: string; entityType: 'batch' | 'trade'; entityId: string }[],
+) {
+  await Promise.all(
+    links.map(async ({ transferId, entityType, entityId }) => {
+      const { error } = await supabase
+        .from('exchange_transfers' as any)
+        .update({
+          linked_entity_type: entityType,
+          linked_entity_id: entityId,
+          linked_at: new Date().toISOString(),
+        })
+        .eq('id', transferId);
+      if (error) throw error;
+    }),
+  );
+}
+
 export async function markOrdersLinked(
   links: { orderId: string; entityType: 'batch' | 'trade'; entityId: string }[],
 ) {
