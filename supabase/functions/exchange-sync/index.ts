@@ -197,7 +197,19 @@ async function fetchOkxP2POrders(creds: Credentials) {
     raw: unknown;
   }[] = [];
 
-  const json = await okxSignedRequest(creds, "/api/v5/c2c/order-mgmt/orders-list?limit=100");
+  let json;
+  try {
+    json = await okxSignedRequest(creds, "/api/v5/c2c/order-mgmt/orders-list?limit=100");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes(" 404 ")) {
+      throw new Error(
+        "OKX does not expose personal P2P order history on this API endpoint/account tier. " +
+          "Balances still sync normally; P2P order import isn't available for OKX yet.",
+      );
+    }
+    throw err;
+  }
   for (const o of json.data ?? []) {
     const side = String(o.side ?? "").toLowerCase() === "sell" ? "sell" : "buy";
     orders.push({
@@ -284,9 +296,10 @@ Deno.serve(async (req: Request) => {
     };
 
     const summary: Record<string, number> = {};
+    const errors: Record<string, string> = {};
 
-    try {
-      if (action === "balances" || action === "all") {
+    if (action === "balances" || action === "all") {
+      try {
         const balances = exchange === "binance"
           ? await fetchBinanceBalances(creds)
           : await fetchOkxBalances(creds);
@@ -307,9 +320,13 @@ Deno.serve(async (req: Request) => {
           if (error) throw error;
         }
         summary.balances = balances.length;
+      } catch (err) {
+        errors.balances = err instanceof Error ? err.message : String(err);
       }
+    }
 
-      if (action === "p2p-orders" || action === "all") {
+    if (action === "p2p-orders" || action === "all") {
+      try {
         const orders = exchange === "binance"
           ? await fetchBinanceP2POrders(creds)
           : await fetchOkxP2POrders(creds);
@@ -336,24 +353,31 @@ Deno.serve(async (req: Request) => {
           if (error) throw error;
         }
         summary.p2pOrders = orders.length;
+      } catch (err) {
+        errors.p2pOrders = err instanceof Error ? err.message : String(err);
       }
-
-      await admin
-        .from("exchange_credentials")
-        .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
-        .eq("user_id", userId)
-        .eq("exchange", exchange);
-    } catch (syncErr) {
-      const msg = syncErr instanceof Error ? syncErr.message : String(syncErr);
-      await admin
-        .from("exchange_credentials")
-        .update({ last_sync_error: msg })
-        .eq("user_id", userId)
-        .eq("exchange", exchange);
-      throw syncErr;
     }
 
-    return new Response(JSON.stringify({ ok: true, ...summary }), {
+    const combinedError = Object.entries(errors)
+      .map(([section, msg]) => `${section}: ${msg}`)
+      .join(" | ") || null;
+
+    await admin
+      .from("exchange_credentials")
+      .update({ last_synced_at: new Date().toISOString(), last_sync_error: combinedError })
+      .eq("user_id", userId)
+      .eq("exchange", exchange);
+
+    // Only fail the whole request if every requested section failed.
+    const requestedSections = action === "all" ? 2 : 1;
+    if (Object.keys(errors).length >= requestedSections) {
+      return new Response(JSON.stringify({ error: combinedError }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, ...summary, errors: Object.keys(errors).length ? errors : undefined }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
