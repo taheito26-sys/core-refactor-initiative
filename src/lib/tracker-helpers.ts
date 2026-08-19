@@ -250,6 +250,8 @@ export interface Batch {
   custodyType?: 'self' | 'merchant';
   custodyMerchantId?: string;
   custodyRelationshipId?: string;
+  /** Set when this batch was imported from a connected exchange, for a visible "already imported" marker. */
+  importedFrom?: 'binance' | 'okx';
 }
 
 export type LinkedTradeStatus = 'pending_approval' | 'approved' | 'rejected' | 'cancellation_pending' | 'cancelled';
@@ -311,6 +313,8 @@ export interface Trade {
   merchantSettlementAccountId?: string;
   /** Where inventory is held after execution */
   inventoryCustodyMerchantId?: string;
+  /** Set when this trade was imported from a connected exchange, for a visible "already imported" marker. */
+  importedFrom?: 'binance' | 'okx';
 }
 
 export interface Customer {
@@ -456,6 +460,54 @@ export function getLoanRepaid(loan: CustomerLoan): number {
 
 export function getLoanRemaining(loan: CustomerLoan): number {
   return Math.max(0, Math.round((loan.principal - getLoanRepaid(loan)) * 100) / 100);
+}
+
+/** One customer payment (a loan repayment) landing on a calendar day. */
+export interface DayPayment {
+  id: string;
+  ts: number;
+  amount: number;
+  currency: CashCurrency;
+  customerId: string;
+  note?: string;
+}
+
+/**
+ * Bucket customer payments by day-of-month for one month.
+ *
+ * Repayments live on the loan, never in the cash ledger: the cloud
+ * `cash_ledger` schema coerces a 'loan_repayment' row to a plain 'deposit',
+ * so the ledger cannot tell a repayment apart from any other cash-in. The
+ * loan's own `repayments` array is the only faithful record.
+ *
+ * Deleted loans are tombstoned rather than removed until sync prunes them,
+ * so they are filtered out here — otherwise a deleted loan's payments would
+ * keep showing on the calendar.
+ */
+export function getMonthlyLoanPayments(
+  loans: CustomerLoan[] | undefined,
+  deletedLoanIds: string[] | undefined,
+  year: number,
+  month: number,
+): Record<number, DayPayment[]> {
+  const deleted = new Set(deletedLoanIds || []);
+  const byDay: Record<number, DayPayment[]> = {};
+  for (const loan of loans || []) {
+    if (deleted.has(loan.id)) continue;
+    for (const r of loan.repayments || []) {
+      const amount = Number(r.amount) || 0;
+      if (!amount) continue;
+      const dt = new Date(r.ts);
+      if (!Number.isFinite(dt.getTime())) continue;
+      if (dt.getFullYear() !== year || dt.getMonth() !== month) continue;
+      const day = dt.getDate();
+      (byDay[day] ||= []).push({
+        id: r.id, ts: r.ts, amount,
+        currency: loan.currency, customerId: loan.customerId, note: r.note,
+      });
+    }
+  }
+  return byDay;
 }
 
 export interface Supplier {

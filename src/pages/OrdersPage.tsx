@@ -24,11 +24,17 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
+import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
+import { markOrderLinked, markOrdersLinked } from '@/features/exchanges/api';
+import { EXCHANGE_LABELS } from '@/features/exchanges/types';
+import { ExchangeInbox, type ExchangeOrderPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { insertCustomerOrderWithFallback } from '@/features/customer/customer-portal';
 import { buildDealRowModel, parseDealMeta } from '@/features/orders/utils/dealRowModel';
 import { applyOrderCashDeposit } from '@/features/orders/utils/cashDeposit';
+import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
@@ -113,6 +119,61 @@ export default function OrdersPage() {
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
+  const [pendingImportOrderId, setPendingImportOrderId] = useState<string | null>(null);
+
+  const applyExchangeOrderPrefill = useCallback((prefill: {
+    exchange: 'binance' | 'okx';
+    orderId: string;
+    orderNumber: string;
+    fiat: string;
+    amountUSDT: number;
+    priceFiat: number;
+    ts: number;
+  }) => {
+    setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
+    setSaleEntryMode('qty_price');
+    setSaleUsdtQty(String(prefill.amountUSDT));
+    setSaleSell(String(prefill.priceFiat));
+    setSaleAmount('');
+    setBuyerName(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    setPendingImportOrderId(prefill.orderId);
+    setSaleMessage(`Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`);
+    setNewSaleSheetOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const prefill = consumeTrackerImportPrefill('trade');
+    if (!prefill) return;
+    applyExchangeOrderPrefill(prefill);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** A synced P2P sell becomes a trade at the price it sold for. */
+  const importExchangeOrderAsTrade = useCallback(async (o: ExchangeOrderPayload) => {
+    const tradeId = uid();
+    const buyerName = o.assigneeName?.trim() || `${EXCHANGE_LABELS[o.exchange]} P2P`;
+    const ensured = ensureCustomer(buyerName);
+    const trade: Trade = {
+      id: tradeId,
+      ts: o.ts,
+      inputMode: 'USDT',
+      amountUSDT: o.amountUSDT,
+      sellPriceQAR: o.priceFiat,
+      feeQAR: 0,
+      note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
+      voided: false,
+      usesStock: true,
+      revisions: [],
+      customerId: ensured.id,
+      importedFrom: o.exchange,
+    };
+    // Imported trades carry their original exchange timestamp, so widen the
+    // range filter -- otherwise the trade saves but appears to vanish.
+    applyState({ ...state, customers: ensured.customers, trades: [...state.trades, trade], range: 'all' });
+    await markOrdersLinked([{ orderId: o.orderId, entityType: 'trade', entityId: tradeId }]);
+    toast.success(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]} (${buyerName})`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyState, state]);
   const [newSaleSheetOpen, setNewSaleSheetOpen] = useState(false);
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
@@ -149,6 +210,8 @@ export default function OrdersPage() {
   const [editCashDepositAccountId, setEditCashDepositAccountId] = useState('');
   // Manual buy price for edit modal (when not using FIFO stock)
   const [editManualBuyPrice, setEditManualBuyPrice] = useState('');
+  // Loaned-order toggle for edit modal — mirrors `isLoanSale` on the new-sale form
+  const [editIsLoan, setEditIsLoan] = useState(false);
 
   // Link-to-partner state (for editing self orders)
   const [editLinkEnabled, setEditLinkEnabled] = useState(false);
@@ -253,6 +316,10 @@ export default function OrdersPage() {
   });
 
   const allBuyerOptions = useMemo<ListedCustomer[]>(() => mergeListedCustomers(state.customers ?? [], connectedCustomers), [connectedCustomers, state.customers]);
+  const activeTradeIds = useMemo(
+    () => new Set(state.trades.filter((t) => !t.voided).map((t) => t.id)),
+    [state.trades],
+  );
   const saleDraft = useMemo(() => deriveSaleDraft({
     saleEntryMode,
     saleMode,
@@ -1838,6 +1905,10 @@ export default function OrdersPage() {
       }
       applyState(next);
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
+      if (pendingImportOrderId) {
+        markOrderLinked(pendingImportOrderId, 'trade', baseTrade.id).catch(() => {});
+        setPendingImportOrderId(null);
+      }
     }
 
     // ─── Sync to customer_orders when buyer is a connected customer ──────────
@@ -1897,6 +1968,8 @@ export default function OrdersPage() {
     setEditCustomerId(tr.customerId ?? '');
     // Initialize manual buy price from trade (used when usesStock is false)
     setEditManualBuyPrice(tr.manualBuyPrice != null ? String(tr.manualBuyPrice) : '');
+    // Reflect whether this order is already loaned
+    setEditIsLoan(loanedTradeIds.has(id));
     // Reset link-to-partner state
     setEditLinkEnabled(false);
     setEditLinkedRelId('');
@@ -1919,6 +1992,17 @@ export default function OrdersPage() {
 
     const existingTrade = state.trades.find(t => t.id === editingTradeId);
     if (!existingTrade) return;
+
+    // ── Loaned-order guards (checked before anything is mutated) ──
+    const existingLoan = loanByTradeId.get(editingTradeId);
+    if (editIsLoan && !editCustomerId) {
+      toast.error(t('loanEditNeedsBuyer'));
+      return;
+    }
+    if (!editIsLoan && existingLoan && getLoanRepaid(existingLoan) > 0) {
+      toast.error(t('loanEditHasRepayments'));
+      return;
+    }
 
     // Build base updated fields
     let updatedFields: Partial<Trade> = {
@@ -2151,6 +2235,25 @@ export default function OrdersPage() {
       }
     }
 
+    // ── Sync the loaned-order flag with this trade's customer loan ──
+    const loanSync = syncOrderLoan({
+      nextState: finalState,
+      tradeId: editingTradeId,
+      isLoan: editIsLoan,
+      customerId: editCustomerId,
+      ts,
+      amountUSDT: qty,
+      sell,
+      fee,
+      currency: baseFiat as CashCurrency,
+      note: `${t('loanFromOrder')} ${fmtU(qty)} USDT @ ${fmtP(sell)}`,
+    });
+    finalState = loanSync.state;
+    const loanToast = loanSync.outcome === 'created' ? t('loanEditCreated')
+      : loanSync.outcome === 'removed' ? t('loanEditRemoved')
+      : loanSync.outcome === 'updated' ? t('loanEditUpdated')
+      : null;
+
     // Propagate edits to linked server deal and trigger re-approval
     if (existingTrade.linkedDealId && !editLinkEnabled) {
       try {
@@ -2196,6 +2299,7 @@ export default function OrdersPage() {
       applyState(finalState);
     }
 
+    if (loanToast) toast.success(loanToast);
     setEditingTradeId(null);
   };
 
@@ -2552,6 +2656,7 @@ export default function OrdersPage() {
           <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
             {isMerchantLinked && <span style={{ fontSize: 10, verticalAlign: 'middle' }}>🤝</span>}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
+            {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
             {loan && (
               <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 8, flexShrink: 0 }}>
                 🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
@@ -2975,7 +3080,12 @@ export default function OrdersPage() {
                             <td style={{ textAlign: 'center', fontSize: 16 }}>
                               {isMerchantLinked ? '🤝' : '👤'}
                             </td>
-                            <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                {cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
+                                {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
+                              </span>
+                            </td>
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                             <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
@@ -3667,6 +3777,18 @@ export default function OrdersPage() {
                      <button type="button" className={priceMode === 'fifo' ? 'active' : ''} onClick={() => { setPriceMode('fifo'); setUseStock(true); }} style={mobileActionStyle}>{t('fifoLabel')}</button>
                      <button type="button" className={priceMode === 'manual' ? 'active' : ''} onClick={() => { setPriceMode('manual'); setUseStock(false); }} style={mobileActionStyle}>{t('manualLabel')}</button>
                   </div>
+                </div>
+
+                <div className="field2">
+                  <ExchangeInbox
+                    side="sell"
+                    onImportOrder={importExchangeOrderAsTrade}
+                    onEditOrder={applyExchangeOrderPrefill}
+                    fiatLabel={baseFiat}
+                    assigneeLabel="Buyer"
+                    assigneeOptions={allBuyerOptions.map((c) => c.name)}
+                    activeEntityIds={activeTradeIds}
+                  />
                 </div>
 
                 <div className="field2">
@@ -4964,6 +5086,54 @@ export default function OrdersPage() {
                         </div>
                       );
                     })()}
+                  </div>
+                );
+              })()}
+
+              {/* Loaned order — customer pays later */}
+              {editingTrade && !isApproved && (() => {
+                const existingLoan = loanByTradeId.get(editingTrade.id);
+                const repaid = existingLoan ? getLoanRepaid(existingLoan) : 0;
+                const locked = !!existingLoan && repaid > 0;
+                const owed = Math.max(0, (Number(editQty) || 0) * (Number(editSell) || 0) - (Number(editFee) || 0));
+                return (
+                  <div style={{
+                    marginBottom: 16, padding: 10, borderRadius: 8,
+                    border: editIsLoan ? '1px solid var(--warn)' : '1px solid var(--line)',
+                    background: editIsLoan ? 'color-mix(in srgb, var(--warn) 5%, transparent)' : 'transparent',
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, cursor: locked ? 'not-allowed' : 'pointer', color: editIsLoan ? 'var(--warn)' : 'var(--muted)', fontWeight: editIsLoan ? 700 : 400 }}>
+                      <input
+                        type="checkbox"
+                        checked={editIsLoan}
+                        disabled={locked}
+                        onChange={e => setEditIsLoan(e.target.checked)}
+                        style={{ accentColor: 'var(--warn)', flexShrink: 0 }}
+                      />
+                      🤝 {t('loanSaleCheckbox')}
+                    </label>
+
+                    {editIsLoan && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: 'var(--t2)', marginTop: 8 }}>
+                        <span>{t('loanEditAmountOwed')}</span>
+                        <strong className="mono" style={{ color: 'var(--warn)' }}>{fmtC(owed)}</strong>
+                      </div>
+                    )}
+
+                    {editIsLoan && !editCustomerId && (
+                      <div style={{ fontSize: 9, color: 'var(--bad)', marginTop: 4 }}>{t('loanEditNeedsBuyer')}</div>
+                    )}
+
+                    {editIsLoan && editCashDepositMode !== 'none' && (
+                      <div style={{ fontSize: 9, color: 'var(--warn)', marginTop: 4 }}>⚠️ {t('loanEditCashConflict')}</div>
+                    )}
+
+                    {existingLoan && repaid > 0 && (
+                      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 6, lineHeight: 1.5 }}>
+                        {t('loanRepaymentHistory')}: <span className="mono">{fmtTotal(repaid)} / {fmtTotal(existingLoan.principal)} {existingLoan.currency}</span>
+                        <div style={{ color: 'var(--warn)' }}>{t('loanEditRepaymentsLocked')}</div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}

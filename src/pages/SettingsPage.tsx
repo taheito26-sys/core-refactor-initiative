@@ -9,6 +9,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Check, Save, RotateCcw, Download, Trash2, Cloud, Camera, Upload, RefreshCw, Loader2, FileJson, FileSpreadsheet, FileText, AlertTriangle, CheckCircle2, XCircle, Fingerprint, ShieldCheck } from 'lucide-react';
 import { NotificationPreferencesPanel } from '@/components/notifications/NotificationPreferencesPanel';
+import { ExchangeConnectionsCard } from '@/features/exchanges/components/ExchangeConnectionsCard';
+import { ExchangeBalancesCard } from '@/features/exchanges/components/ExchangeBalancesCard';
+import { ExchangeP2POrdersCard } from '@/features/exchanges/components/ExchangeP2POrdersCard';
+import { ExchangeTransfersCard } from '@/features/exchanges/components/ExchangeTransfersCard';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
@@ -481,6 +485,12 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* ── Exchange Integrations ── */}
+          <ExchangeConnectionsCard />
+          <ExchangeBalancesCard />
+          <ExchangeP2POrdersCard />
+          <ExchangeTransfersCard />
 
           {/* ── Notification Preferences ── */}
           <NotificationPreferencesPanel />

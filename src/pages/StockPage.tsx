@@ -33,6 +33,11 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
+import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
+import { markOrderLinked, markOrdersLinked, markTransfersLinked } from '@/features/exchanges/api';
+import { EXCHANGE_LABELS } from '@/features/exchanges/types';
+import { ExchangeInbox, type ExchangeOrderPayload, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -68,6 +73,7 @@ export default function StockPage() {
   const [batchSupplier, setBatchSupplier] = useState('');
   const [batchNote, setBatchNote] = useState('');
   const [batchMsg, setBatchMsg] = useState('');
+  const [pendingImportOrderId, setPendingImportOrderId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
@@ -143,6 +149,7 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
+  const activeBatchIds = useMemo(() => new Set(state.batches.map((b) => b.id)), [state.batches]);
   const availableUsdt = useMemo(() => totalStock(derived), [derived]);
   const wacop = getWACOP(derived);
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
@@ -253,6 +260,95 @@ export default function StockPage() {
     setNewSupplierName('');
     setNewSupplierPhone('');
   };
+
+  const applyExchangeOrderPrefill = useCallback((prefill: {
+    exchange: 'binance' | 'okx';
+    orderId: string;
+    orderNumber: string;
+    fiat: string;
+    amountUSDT: number;
+    priceFiat: number;
+    ts: number;
+  }) => {
+    setBatchDate(inputFromTs(prefill.ts));
+    setBatchEntryMode('qty_price');
+    setBatchUsdtQty(String(prefill.amountUSDT));
+    setBatchPrice(String(prefill.priceFiat));
+    setBatchAmount('');
+    setBatchSupplier(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    setBatchNote(`Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} (${prefill.fiat})`);
+    setFundingAccountId('none');
+    setPendingImportOrderId(prefill.orderId);
+    setBatchMsg(`Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`);
+    setAddBatchSheetOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const prefill = consumeTrackerImportPrefill('batch');
+    if (!prefill) return;
+    applyExchangeOrderPrefill(prefill);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Commits one imported batch. Imported orders carry their original exchange
+   * timestamp, which is usually outside the month filter the list defaults to,
+   * so the filter is widened -- otherwise the batch saves but appears to vanish.
+   */
+  const commitImportedBatch = useCallback(async (batch: {
+    id: string; ts: number; source: string; note: string; buyPriceQAR: number; initialUSDT: number; importedFrom: 'binance' | 'okx';
+  }) => {
+    const trimmedSource = batch.source.trim();
+    const existingSupplier = (state.suppliers || []).some(
+      (s) => s.name.trim().toLocaleLowerCase() === trimmedSource.toLocaleLowerCase(),
+    );
+    const nextSuppliers = existingSupplier
+      ? state.suppliers
+      : [...(state.suppliers || []), { id: uid(), name: trimmedSource, phone: '', notes: '', createdAt: Date.now() }];
+
+    await applyStateAndCommit({
+      ...state,
+      suppliers: nextSuppliers,
+      batches: [...state.batches, { ...batch, revisions: [] }],
+    });
+    const key = new Date(batch.ts).toISOString().slice(0, 7);
+    setSelectedMonth((cur) => (cur === 'all' || cur === key ? cur : 'all'));
+  }, [applyStateAndCommit, state]);
+
+  /** A synced P2P buy becomes a stock batch at the price it was bought at. */
+  const importExchangeOrderAsBatch = useCallback(async (o: ExchangeOrderPayload) => {
+    const batchId = uid();
+    const source = o.assigneeName?.trim() || `${EXCHANGE_LABELS[o.exchange]} P2P`;
+    await commitImportedBatch({
+      id: batchId,
+      ts: o.ts,
+      source,
+      note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
+      buyPriceQAR: o.priceFiat,
+      initialUSDT: o.amountUSDT,
+      importedFrom: o.exchange,
+    });
+    await markOrdersLinked([{ orderId: o.orderId, entityType: 'batch', entityId: batchId }]);
+    setBatchMsg(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]} (${source}).`);
+  }, [commitImportedBatch]);
+
+  /** USDT received via Pay/on-chain becomes stock at a user-supplied cost basis. */
+  const importExchangeTransferAsBatch = useCallback(async (tr: ExchangeTransferPayload) => {
+    const batchId = uid();
+    const via = tr.kind === 'pay' ? 'Pay' : 'network';
+    const source = tr.assigneeName?.trim() || `${EXCHANGE_LABELS[tr.exchange]} ${via}`;
+    await commitImportedBatch({
+      id: batchId,
+      ts: tr.ts,
+      source,
+      note: `Received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (ref ${tr.reference})`,
+      buyPriceQAR: tr.buyPrice,
+      initialUSDT: tr.amountUSDT,
+      importedFrom: tr.exchange,
+    });
+    await markTransfersLinked([{ transferId: tr.transferId, entityType: 'batch', entityId: batchId }]);
+    setBatchMsg(`Added ${fmtU(tr.amountUSDT)} USDT received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (${source}).`);
+  }, [commitImportedBatch]);
 
   const addBatch = async () => {
     const ts = new Date(batchDate).getTime();
@@ -380,6 +476,10 @@ export default function StockPage() {
       const msg = err instanceof Error ? err.message : String(err);
       setBatchMsg(`⚠ ${t('saveFailed') || 'Save failed'}: ${msg}`);
       return;
+    }
+    if (pendingImportOrderId) {
+      markOrderLinked(pendingImportOrderId, 'batch', batchId).catch(() => {});
+      setPendingImportOrderId(null);
     }
     setBatchAmount('');
     setBatchPrice('');
@@ -590,6 +690,20 @@ export default function StockPage() {
                 {fmtU(availableUsdt)} {localCur('USDT', t.lang)}
               </div>
             </div>
+            <div style={{
+              flex: '1 1 140px', minWidth: 140,
+              padding: '5px 9px',
+              background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                {t('totalInvestedQar') || 'Total Invested'}
+              </div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                {fmtC(perf.reduce((s, b) => s + b.initialUSDT * b.buyPriceQAR, 0))}
+              </div>
+            </div>
             {wacop > 0 && (
               <div style={{
                 flex: '1 1 60px', minWidth: 60,
@@ -651,8 +765,9 @@ export default function StockPage() {
                   <div key={b.id} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden' }}>
                     {/* ── Header: source name + Details/Edit + date ── */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1 }}>
-                        {b.source || '—'}
+                      <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.source || '—'}</span>
+                        {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
@@ -672,6 +787,7 @@ export default function StockPage() {
                       <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
                         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
                         <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(b.initialUSDT)}</div>
+                        <div className="muted mono" style={{ fontSize: 9, marginTop: 1 }}>{fmtC(b.initialUSDT * b.buyPriceQAR)}</div>
                       </div>
                       <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
                         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
@@ -732,6 +848,7 @@ export default function StockPage() {
                     <th>{t('date')}</th>
                     <th>{t('source')}</th>
                     <th className="r">{t('total')}</th>
+                    <th className="r">{t('cost')}</th>
                     <th className="r">{t('buy')}</th>
                     <th className="r">{t('rem')}</th>
                     <th className="hide-mobile">{t('usage')}</th>
@@ -753,8 +870,14 @@ export default function StockPage() {
                       <React.Fragment key={b.id}>
                       <tr>
                         <td className="mono">{fmtDate(b.ts)}</td>
-                        <td>{b.source || '—'}</td>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                            {b.source || '—'}
+                            {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+                          </span>
+                        </td>
                         <td className="mono r">{fmtU(b.initialUSDT)}</td>
+                        <td className="mono r">{fmtC(b.initialUSDT * b.buyPriceQAR)}</td>
                         <td className="mono r">{fmtP(b.buyPriceQAR)}</td>
                         <td className="mono r">{fmtU(rem)}</td>
                         <td className="hide-mobile">
@@ -775,7 +898,7 @@ export default function StockPage() {
                       </tr>
                       {detailsOpen[b.id] && (
                         <tr>
-                          <td colSpan={8} style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))' }}>
+                          <td colSpan={9} style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11 }}>
                               <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
                               <div><span className="muted">{t('batchSource')}:</span> <strong>{b.source || '—'}</strong></div>
@@ -826,6 +949,19 @@ export default function StockPage() {
                   <span className="bPill">{t('avg')}</span>
                 </div>
               )}
+              <div className="field2">
+                <ExchangeInbox
+                  side="buy"
+                  onImportOrder={importExchangeOrderAsBatch}
+                  onEditOrder={applyExchangeOrderPrefill}
+                  onImportTransfer={importExchangeTransferAsBatch}
+                  fiatLabel={activeBatchFiat}
+                  defaultPrice={wacop || undefined}
+                  assigneeLabel="Supplier"
+                  assigneeOptions={supplierOptions}
+                  activeEntityIds={activeBatchIds}
+                />
+              </div>
               <div className="field2">
                 <div className="lbl">{t('dateTime')}</div>
                 <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>
@@ -1083,7 +1219,7 @@ export default function StockPage() {
                   <div style={{ fontSize: 15, fontWeight: 800 }}>{t('addBatchTitle')}</div>
                   <button onClick={() => setAddBatchSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
                 </div>
-                <div style={{ display: 'grid', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
                   {wacop && (
                     <div className="bannerRow">
                       <span className="bLbl">{t('currentAvPrice')}</span>
@@ -1092,6 +1228,19 @@ export default function StockPage() {
                       <span className="bPill">{t('avg')}</span>
                     </div>
                   )}
+                  <div className="field2">
+                    <ExchangeInbox
+                      side="buy"
+                      onImportOrder={importExchangeOrderAsBatch}
+                      onEditOrder={applyExchangeOrderPrefill}
+                      onImportTransfer={importExchangeTransferAsBatch}
+                      fiatLabel={activeBatchFiat}
+                      defaultPrice={wacop || undefined}
+                      assigneeLabel="Supplier"
+                      assigneeOptions={supplierOptions}
+                      activeEntityIds={activeBatchIds}
+                    />
+                  </div>
                   <div className="field2">
                     <div className="lbl">{t('dateTime')}</div>
                     <div className="inputBox"><input type="datetime-local" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></div>

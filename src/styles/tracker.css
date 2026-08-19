@@ -126,6 +126,76 @@
 .tracker-root tbody tr:last-child td { border-bottom: none; }
 .tracker-root tbody tr:hover td { background: var(--hover-card); }
 
+/* ── LOANS: receivables book ──
+   One row per buyer account, laid out as ledger columns on desktop and as a
+   two-column card on narrow screens (the column headers hide, and each figure
+   carries its own label instead). */
+.tracker-root .loan-book { display: grid; gap: 6px; }
+.tracker-root .loan-cols {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.7fr) 76px repeat(4, minmax(92px, 1fr)) 22px;
+  gap: 10px; align-items: center;
+}
+.tracker-root .loan-book-head {
+  padding: 4px 12px; font-size: 9px; font-weight: var(--lt-fw-ui,800);
+  letter-spacing: var(--lt-label-tracking,.6px); text-transform: uppercase; color: var(--muted);
+}
+.tracker-root .loan-row {
+  width: 100%; background: transparent; border: none; color: inherit;
+  padding: 12px; cursor: pointer; text-align: left; transition: background var(--lt-tr);
+}
+.tracker-root .loan-row:hover { background: var(--hover-card); }
+.tracker-root .loan-num {
+  font-family: var(--lt-font-mono); font-weight: var(--lt-fw-val,800);
+  font-size: calc(12px * var(--ui-scale,1)); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tracker-root .loan-prog { margin-inline-start: auto; margin-top: 4px; max-width: 90px; }
+.tracker-root .loan-cell-lbl { display: none; }
+.tracker-root .loan-detail {
+  border-top: 1px solid var(--line2); background: var(--panel2);
+  padding: 12px; display: grid; gap: 12px;
+}
+.tracker-root .loan-totals {
+  display: grid; grid-template-columns: minmax(120px, 1fr) repeat(3, minmax(90px, 1fr));
+  gap: 10px; align-items: center; padding: 10px 12px;
+}
+.tracker-root .loan-totals-cur { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tracker-root .loan-totals-lbl {
+  font-size: 9px; font-weight: var(--lt-fw-ui,700); letter-spacing: var(--lt-label-tracking,.5px);
+  text-transform: uppercase; color: var(--muted); margin-bottom: 2px;
+}
+.tracker-root .acct-sec {
+  font-size: 9px; font-weight: var(--lt-fw-ui,800); letter-spacing: var(--lt-label-tracking,.8px);
+  text-transform: uppercase; color: var(--muted); margin-bottom: 5px;
+}
+/* Headers follow the writing direction so they stay over their own column in
+   Arabic — the global rule pins them to the physical left. */
+.tracker-root .acct-table thead th { text-align: start; }
+.tracker-root .acct-table thead th.r { text-align: right; }
+/* Zebra striping — long payment histories are read across, not down. */
+.tracker-root .acct-table tbody tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+.tracker-root .acct-table tbody tr:hover td { background: var(--hover-card); }
+.tracker-root .acct-table tfoot td {
+  border-top: 1px solid var(--line); border-bottom: none;
+  padding: 8px 10px; font-size: 11px; background: var(--panel2);
+}
+
+@media (max-width: 900px) {
+  .tracker-root .loan-book-head { display: none; }
+  .tracker-root .loan-cols { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tracker-root .loan-cols .loan-cell-buyer { grid-column: 1 / -1; }
+  .tracker-root .loan-cols .loan-cell-chev { display: none; }
+  .tracker-root .loan-cols .r { text-align: left; }
+  .tracker-root .loan-cell-lbl {
+    display: block; font-size: 8.5px; font-weight: var(--lt-fw-ui,700);
+    letter-spacing: var(--lt-label-tracking,.5px); text-transform: uppercase;
+    color: var(--muted); margin-bottom: 2px;
+  }
+  .tracker-root .loan-prog { margin-inline-start: 0; }
+  .tracker-root .loan-totals { grid-template-columns: 1fr 1fr; }
+  .tracker-root .loan-totals-cur { grid-column: 1 / -1; }
+}
+
 /* ── PROGRESS BARS ── */
 .tracker-root .prog { width: 100%; max-width: 120px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid var(--line); overflow: hidden; position: relative; }
 .tracker-root .prog > span { position: absolute; top: 0; left: 0; bottom: 0; width: 0%; background: linear-gradient(90deg, var(--good), var(--t3)); transition: width .4s ease; }
@@ -232,26 +302,51 @@
 /* ── CALENDAR ── */
 .tracker-root .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
 .tracker-root .cal-hdr { text-align: center; font-size: calc(8px * var(--ui-scale,1)); font-weight: 900; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); padding: 4px 0; }
+/* Height follows content rather than a fixed aspect ratio: a cell carrying a
+   day number, an amount or two and a count needs more room than 2.5:1 gives
+   at phone widths, and the old `overflow: hidden` sliced the day number off
+   the top instead of letting the row grow. Grid rows stretch to their tallest
+   cell, so the month stays aligned. */
 .tracker-root .cal-day {
-  aspect-ratio: 2.5 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   border-radius: var(--lt-radius-sm); background: var(--panel2); border: 1px solid var(--line);
   font-size: calc(10px * var(--ui-scale,1)); cursor: pointer; position: relative;
-  transition: all var(--lt-tr); min-height: 24px; padding: 1px; overflow: hidden;
+  transition: all var(--lt-tr); min-height: 40px; padding: 4px 3px; overflow: visible;
 }
 .tracker-root .cal-day:hover { border-color: var(--brand); transform: scale(1.04); box-shadow: 0 4px 16px var(--glow); }
 .tracker-root .cal-day.has-profit { background: color-mix(in srgb,var(--good) 12%,var(--panel2)); border-color: color-mix(in srgb,var(--good) 30%,transparent); }
 .tracker-root .cal-day.has-loss { background: color-mix(in srgb,var(--bad) 12%,var(--panel2)); border-color: color-mix(in srgb,var(--bad) 30%,transparent); }
 .tracker-root .cal-day.today { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand3); background: var(--brand3); }
 .tracker-root .cal-day.selected { border-color: var(--brand) !important; box-shadow: 0 0 0 3px var(--brand3) !important; background: var(--brand3) !important; }
-.tracker-root .cal-day.empty-day { background: transparent; border: none; cursor: default; }
+/* Payments-only days: same treatment as a profit day, in the accent colour
+   that marks payments everywhere else on this page. */
+.tracker-root .cal-day.has-payment { background: color-mix(in srgb,var(--t2) 12%,var(--panel2)); border-color: color-mix(in srgb,var(--t2) 30%,transparent); }
+.tracker-root .cal-day.empty-day { background: transparent; border: none; cursor: default; min-height: 0; }
 .tracker-root .cal-day.empty-day:hover { transform: none; box-shadow: none; }
 .tracker-root .cal-num { font-weight: 700; font-size: calc(10px * var(--ui-scale,1)); line-height: 1; }
-.tracker-root .cal-profit { font-family: var(--lt-font-mono); font-size: calc(8px * var(--ui-scale,1)); font-weight: 700; margin-top: 1px; }
-.tracker-root .cal-count { font-size: calc(7px * var(--ui-scale,1)); color: var(--muted); margin-top: 0; }
+/* The unit is dropped inside the cell (the page header carries the currency),
+   so the amount fits the column instead of being cut mid-word. */
+.tracker-root .cal-amt {
+  font-family: var(--lt-font-mono); font-size: calc(8px * var(--ui-scale,1)); font-weight: 700;
+  line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tracker-root .cal-pay { color: var(--t2); }
+.tracker-root .cal-count { font-size: calc(7px * var(--ui-scale,1)); color: var(--muted); line-height: 1; }
+
+/* Payment rows in the selected-day detail */
+.tracker-root .cal-pay-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.tracker-root .cal-pay-row {
+  display: flex; align-items: center; gap: 8px; font-size: 11px;
+  padding: 5px 8px; border-radius: var(--lt-radius-sm);
+  border: 1px solid color-mix(in srgb,var(--t2) 25%,transparent);
+  background: color-mix(in srgb,var(--t2) 6%,transparent);
+}
+.tracker-root .cal-pay-who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tracker-root .cal-detail { margin-top: 8px; }
 .tracker-root .cal-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
 .tracker-root .cal-stat { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--lt-radius-sm); padding: 8px 10px; transition: all var(--lt-tr); }
 .tracker-root .cal-stat:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: 0 4px 12px var(--glow); }
+.tracker-root .cal-stat-sub { font-size: calc(8px * var(--ui-scale,1)); color: var(--muted); margin-top: 2px; }
 .tracker-root .cal-flag { font-size: 10px; }
 
 /* ── LOOKUPS / INLINE ACTIONS ── */
@@ -1646,56 +1741,74 @@
    CASH MANAGEMENT SYSTEM
    ══════════════════════════════════════════════════════════════ */
 
-/* ── Hero (headline balance + primary actions) ─────────────── */
+/* ── Shared emoji sizing ───────────────────────────────────────
+   Emoji render a notch larger than the text around them, so every emoji
+   used as an icon on this page is wrapped in .cash-emoji and pulled back
+   to match the label it sits next to. */
+.tracker-root .cash-emoji {
+  font-size: 0.9em;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+/* ── Summary bar (headline balance + primary actions) ───────────
+   Lives at the foot of the page, so it reads as a closing total rather
+   than a hero — compact type, compact buttons. */
 .tracker-root .cash-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
   background:
-    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--brand) 12%, transparent) 0%, transparent 60%),
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--brand) 10%, transparent) 0%, transparent 60%),
     var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--lt-radius);
-  padding: 16px 18px;
+  padding: 12px 14px;
+}
+.tracker-root .cash-hero-bottom {
+  margin-top: 2px;
 }
 .tracker-root .cash-hero-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 .tracker-root .cash-hero-label {
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.7px;
   color: var(--muted);
 }
 .tracker-root .cash-hero-value {
   font-family: var(--lt-font-mono);
-  font-size: 34px;
+  font-size: 22px;
   font-weight: 900;
   line-height: 1;
   color: var(--warn);
-  letter-spacing: -0.5px;
+  letter-spacing: -0.4px;
   word-break: break-word;
 }
 .tracker-root .cash-hero-unit {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
-  margin-inline-start: 6px;
+  margin-inline-start: 5px;
   opacity: 0.75;
 }
 .tracker-root .cash-hero-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .tracker-root .cash-hero-sub {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
@@ -1704,11 +1817,11 @@
 .tracker-root .cash-delta {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font-family: var(--lt-font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
   border: 1px solid;
 }
@@ -1725,7 +1838,7 @@
 .tracker-root .cash-hero-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .tracker-root .cash-hero-btn {
@@ -1733,9 +1846,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
-  font-size: 11px;
+  gap: 5px;
+  padding: 6px 11px;
+  font-size: 10px;
   white-space: nowrap;
 }
 /* Inline rather than pinned to the corner — an absolute badge gets clipped by
@@ -1744,13 +1857,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
-  height: 16px;
+  min-width: 14px;
+  height: 14px;
   padding: 0 4px;
   border-radius: 999px;
   background: var(--bad);
   color: #fff;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   line-height: 1;
 }
@@ -1758,19 +1871,19 @@
 /* ── KPI boxes ─────────────────────────────────────────────── */
 .tracker-root .cash-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 7px;
 }
 .tracker-root .cash-kpi {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   text-align: start;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-inline-start: 3px solid var(--line2);
+  border-inline-start: 2px solid var(--line2);
   border-radius: var(--lt-radius);
-  padding: 11px 13px;
+  padding: 9px 10px;
   min-width: 0;
   transition: all var(--lt-tr);
 }
@@ -1793,17 +1906,21 @@
 .tracker-root .cash-kpi-label {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 9px;
+  gap: 4px;
+  font-size: 8.5px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
 }
-.tracker-root .cash-kpi-icon { font-size: 11px; }
+.tracker-root .cash-kpi-icon {
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.9;
+}
 .tracker-root .cash-kpi-value {
   font-family: var(--lt-font-mono);
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 900;
   line-height: 1.05;
   color: var(--text);
@@ -1813,13 +1930,13 @@
 .tracker-root .cash-kpi.tone-bad  .cash-kpi-value { color: var(--bad); }
 .tracker-root .cash-kpi.tone-warn .cash-kpi-value { color: var(--warn); }
 .tracker-root .cash-kpi-unit {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  margin-inline-start: 5px;
+  margin-inline-start: 4px;
   opacity: 0.7;
 }
 .tracker-root .cash-kpi-sub {
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 600;
   color: var(--muted);
   min-height: 12px;
@@ -1870,8 +1987,8 @@
 /* ── Accounts Grid ─────────────────────────────────────────── */
 .tracker-root .cash-accounts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
 }
 
 /* ── Account Card ──────────────────────────────────────────── */
@@ -1879,7 +1996,7 @@
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--lt-radius);
-  padding: 14px 16px;
+  padding: 11px 12px;
   transition: all var(--lt-tr);
   display: flex;
   flex-direction: column;
@@ -1894,7 +2011,7 @@
 .tracker-root .cash-add-account-card {
   align-items: center;
   justify-content: center;
-  min-height: 120px;
+  min-height: 96px;
   border-style: dashed;
   cursor: pointer;
   opacity: 0.6;
@@ -1945,17 +2062,18 @@
 @media (max-width: 600px) {
   .tracker-root .cash-accounts-grid { grid-template-columns: 1fr; }
 
-  /* Hero stacks: balance on top, actions as a full-width row underneath. */
-  .tracker-root .cash-hero { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
-  .tracker-root .cash-hero-value { font-size: 30px; }
-  .tracker-root .cash-hero-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  /* Summary bar stacks: balance on top, actions as a full-width row underneath. */
+  .tracker-root .cash-hero { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
+  .tracker-root .cash-hero-value { font-size: 24px; }
+  .tracker-root .cash-hero-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   /* Transfer is the primary action — give it the full first row. */
   .tracker-root .cash-hero-actions .cash-hero-btn:first-child { grid-column: 1 / -1; }
-  .tracker-root .cash-hero-btn { min-height: 44px; font-size: 12px; }
+  /* Touch targets stay at 40px even though the type and icons shrank. */
+  .tracker-root .cash-hero-btn { min-height: 40px; font-size: 11px; }
 
-  .tracker-root .cash-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .tracker-root .cash-kpi { padding: 10px 11px; }
-  .tracker-root .cash-kpi-value { font-size: 17px; }
+  .tracker-root .cash-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .tracker-root .cash-kpi { padding: 8px 9px; }
+  .tracker-root .cash-kpi-value { font-size: 15px; }
 }
 
 /* ── Sale sheet backdrop (Orders page mobile) ──────────────────────── */

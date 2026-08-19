@@ -2,6 +2,21 @@
 
 Guidance for AI assistants working in this repository. Read this before making changes.
 
+## 0. Git workflow — commit and push to `main`
+
+**Standing instruction from the repo owner: commit and push directly to `main`.**
+
+- Do not park finished work on a feature branch waiting for a merge — the owner
+  runs the app off `main`, and anything not on `main` is invisible to them.
+- If a session is started on a designated feature branch, still land the work on
+  `main` when it's done: merge the branch (or commit straight to `main`) and push.
+- Run the checks before pushing: `npx tsc -p tsconfig.app.json --noEmit`,
+  `npx eslint <changed files>`, and `npx vitest run`. The repo has pre-existing
+  failures in unrelated suites — compare against a clean-tree baseline rather
+  than expecting zero, and never push a change that adds new ones.
+- A pull request is optional here, not the delivery mechanism. Open one only when
+  the owner asks for a review; otherwise merging it immediately is expected.
+
 ## 1. What this project is
 
 **The Tracker** (`core-refactor-initiative`) — a single Vite + React + TypeScript codebase that

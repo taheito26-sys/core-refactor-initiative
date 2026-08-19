@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, type MutableRefObject } from 'react';
+import { useState, useMemo, useEffect, useCallback, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import {
   uid, fmtTotal, fmtDate, num,
@@ -16,10 +16,23 @@ import { useAuth } from '@/features/auth/auth-context';
 import { deleteCashAccountLedgerFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
+import { groupClosedLoansByMonth, isLoanClosed, loanMatchesQuery } from '@/features/stock/utils/loanGrouping';
+import {
+  buildBuyerStatements, statementMatchesQuery, totalsByCurrency,
+  type StatementEntry,
+} from '@/features/stock/utils/loanStatement';
+import {
+  buildReceivablesCsv, downloadTextFile, formatMoney,
+} from '@/features/stock/utils/loanStatementExport';
+import { statementLabels } from '@/features/stock/utils/statementLabels';
+import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
+import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
+// Two sizes only: 12px for identity icons (account type), 10px for action
+// icons sitting inside buttons. Keeps the page's iconography compact.
 const IconHand = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
     <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
     <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
@@ -27,7 +40,7 @@ const IconHand = () => (
   </svg>
 );
 const IconBank = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/>
     <line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/>
     <line x1="18" y1="18" x2="18" y2="11"/>
@@ -35,30 +48,30 @@ const IconBank = () => (
   </svg>
 );
 const IconVault = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/>
     <path d="M12 8v4M12 16h.01"/>
   </svg>
 );
 const IconMerchant = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
     <polyline points="9 22 9 12 15 12 15 22"/>
   </svg>
 );
 const IconTransfer = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
     <path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
   </svg>
 );
 const IconPlus = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 );
 const IconMinus = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 );
@@ -878,20 +891,33 @@ function NewLoanModal({ customers, trades, accounts, balances, loanedTradeIds, o
   );
 }
 
+/** `datetime-local` wants local wall-clock time, not the UTC ISO string. */
+function toLocalInput(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 interface RepayLoanModalProps {
   loan: CustomerLoan;
+  /** How much this payment may cover — the loan's balance with `existing` taken back out. */
   remaining: number;
   accounts: CashAccount[];
+  /** The payment being corrected. Absent when recording a new one. */
+  existing?: LoanRepayment;
   onSave: (accountId: string, amount: number, ts: number, note?: string) => void;
   onClose: () => void;
   isMobile?: boolean;
 }
-function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile = false }: RepayLoanModalProps) {
+function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, isMobile = false }: RepayLoanModalProps) {
   const t = useT();
-  const [accountId, setAccountId] = useState(accounts.find(a => a.currency === loan.currency)?.id || accounts[0]?.id || '');
-  const [amount, setAmount] = useState(String(remaining || ''));
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 16));
-  const [note, setNote] = useState('');
+  const editing = !!existing;
+  const [accountId, setAccountId] = useState(
+    existing?.accountId || accounts.find(a => a.currency === loan.currency)?.id || accounts[0]?.id || ''
+  );
+  const [amount, setAmount] = useState(String(existing?.amount ?? (remaining || '')));
+  const [date, setDate] = useState(() => toLocalInput(existing?.ts ?? Date.now()));
+  const [note, setNote] = useState(existing?.note || '');
   const [err, setErr] = useState('');
   const amtNum = num(amount, 0);
 
@@ -914,12 +940,12 @@ function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile =
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
       <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 380, maxHeight: '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>{t('loanAddRepayment')}</div>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{editing ? t('loanEditPayment') : t('loanAddRepayment')}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-          {t('loanRemaining')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(remaining)} {loan.currency}</strong>
+          {editing ? t('loanPaymentCap') : t('loanRemaining')}: <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(remaining)} {loan.currency}</strong>
         </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
@@ -947,7 +973,7 @@ function RepayLoanModal({ loan, remaining, accounts, onSave, onClose, isMobile =
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
           <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" onClick={handle}>{t('loanAddRepayment')}</button>
+          <button className="btn" onClick={handle}>{editing ? t('saveChanges') : t('loanAddRepayment')}</button>
         </div>
       </div>
     </div>
@@ -1044,41 +1070,91 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     return s;
   }, [loans]);
 
-  // One entry per customer, newest activity first — each entry carries the
-  // customer's own loans (newest first) plus per-currency totals so the
-  // summary card doesn't have to sum QAR and USDT loans together.
-  const loanGroups = useMemo(() => {
-    const byCustomer = new Map<string, CustomerLoan[]>();
-    for (const l of loans) {
-      const arr = byCustomer.get(l.customerId);
-      if (arr) arr.push(l); else byCustomer.set(l.customerId, [l]);
-    }
-    return Array.from(byCustomer.entries()).map(([customerId, customerLoans]) => {
-      const sorted = [...customerLoans].sort((a, b) => b.ts - a.ts);
-      const totalsByCurrency = new Map<CashCurrency, { given: number; received: number; remaining: number }>();
-      for (const l of sorted) {
-        const t = totalsByCurrency.get(l.currency) || { given: 0, received: 0, remaining: 0 };
-        t.given += l.principal;
-        t.received += getLoanRepaid(l);
-        t.remaining += getLoanRemaining(l);
-        totalsByCurrency.set(l.currency, t);
-      }
-      return {
-        customerId,
-        customer: (state.customers || []).find(c => c.id === customerId),
-        loans: sorted,
-        latestTs: sorted[0].ts,
-        openCount: sorted.filter(l => l.status === 'open').length,
-        totalsByCurrency: Array.from(totalsByCurrency.entries()),
-      };
-    }).sort((a, b) => b.latestTs - a.latestTs);
-  }, [loans, state.customers]);
+  // ── Loans view: open loans by customer, closed loans by settlement month ──
+  // A settled loan leaves the active list entirely — it belongs to the archive,
+  // not to the "who still owes me" view.
+  const [loanView, setLoanView] = useState<'active' | 'closed'>('active');
+  const [loanQuery, setLoanQuery] = useState('');
 
-  const [expandedLoanCustomerIds, setExpandedLoanCustomerIds] = useState<Set<string>>(new Set());
-  const toggleLoanCustomer = (customerId: string) => {
-    setExpandedLoanCustomerIds(prev => {
+  const customerList = useMemo(() => state.customers || [], [state.customers]);
+  const filteredLoans = useMemo(() => {
+    if (!loanQuery.trim()) return loans;
+    return loans.filter(l => loanMatchesQuery(l, customerList.find(c => c.id === l.customerId)?.name, loanQuery));
+  }, [loans, loanQuery, customerList]);
+
+  const closedLoanMonths = useMemo(() => groupClosedLoansByMonth(filteredLoans, customerList), [filteredLoans, customerList]);
+
+  // ── Buyer accounts ──────────────────────────────────────────────
+  // One statement per buyer per currency, covering their whole history. The
+  // receivables list shows only the buyers still carrying a balance; the
+  // statement behind each row keeps the settled loans, so the document the
+  // buyer receives is the full account and not just what is overdue today.
+  const buyerStatements = useMemo(
+    () => buildBuyerStatements({
+      loans,
+      customers: customerList,
+      trades: state.trades || [],
+      accounts,
+    }),
+    [loans, customerList, state.trades, accounts],
+  );
+  const bookTotals = useMemo(() => totalsByCurrency(buyerStatements), [buyerStatements]);
+  const receivableStatements = useMemo(() => (
+    buyerStatements.filter(s => s.outstanding > 0 && statementMatchesQuery(s, loanQuery))
+  ), [buyerStatements, loanQuery]);
+
+  /** The live loan and repayment behind a statement payment row, for editing it. */
+  const findRepayment = useCallback((entry: StatementEntry) => {
+    if (!entry.repaymentId) return null;
+    const loan = loans.find(l => l.id === entry.loanId);
+    const repayment = (loan?.repayments || []).find(r => r.id === entry.repaymentId);
+    return loan && repayment ? { loan, repayment } : null;
+  }, [loans]);
+
+  // Tab counts ignore the search box — they describe the book, not the query.
+  const activeLoanCount = useMemo(() => loans.filter(l => !isLoanClosed(l)).length, [loans]);
+  const closedLoanCount = useMemo(() => loans.filter(isLoanClosed).length, [loans]);
+  const monthLabel = useCallback((year: number, month: number) => (
+    new Date(year, month, 1).toLocaleDateString(t.lang === 'ar' ? 'ar' : 'en', { month: 'long', year: 'numeric' })
+  ), [t]);
+
+  // Expanded buyer rows, keyed by `${customerId}:${currency}` — a buyer with
+  // both QAR and USDT credit has one row per currency.
+  const [expandedBuyerKeys, setExpandedBuyerKeys] = useState<Set<string>>(new Set());
+  const toggleBuyer = (key: string) => {
+    setExpandedBuyerKeys(prev => {
       const next = new Set(prev);
-      if (next.has(customerId)) next.delete(customerId); else next.add(customerId);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  /** Which buyer's statement is open, by statement key. */
+  const [statementKey, setStatementKey] = useState<string | null>(null);
+  const openStatement = useMemo(
+    () => buyerStatements.find(s => s.key === statementKey) || null,
+    [buyerStatements, statementKey],
+  );
+
+  // Closed months start collapsed except the most recent one — the archive is
+  // for looking things up, not for scrolling past.
+  const [collapsedClosedMonths, setCollapsedClosedMonths] = useState<Set<string>>(new Set());
+  const isClosedMonthOpen = (key: string) => (
+    closedLoanMonths[0]?.key === key ? !collapsedClosedMonths.has(key) : collapsedClosedMonths.has(key)
+  );
+  const toggleClosedMonth = (key: string) => {
+    setCollapsedClosedMonths(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const [expandedClosedLoanIds, setExpandedClosedLoanIds] = useState<Set<string>>(new Set());
+  const toggleClosedLoan = (loanId: string) => {
+    setExpandedClosedLoanIds(prev => {
+      const next = new Set(prev);
+      if (next.has(loanId)) next.delete(loanId); else next.add(loanId);
       return next;
     });
   };
@@ -1109,11 +1185,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     merchant_settlement_out: t('ledgerMerchantSettlementOut') || 'Settlement Out',
     merchant_fee: t('ledgerMerchantFee') || 'Merchant Fee',
     merchant_adjustment: t('ledgerMerchantAdjustment') || 'Merchant Adjustment',
+    loan_disbursement: t('ledgerLoanDisbursement'),
+    loan_repayment: t('ledgerLoanRepayment'),
   }), [t]);
 
   const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights' | 'loans'>('accounts');
   const [showNewLoan, setShowNewLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
+  /** The payment being corrected, with the loan it belongs to. */
+  const [editingRepayment, setEditingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
+  const [deletingRepayment, setDeletingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
   const [editingLoan, setEditingLoan] = useState<CustomerLoan | null>(null);
   const [deleteLoanConfirmId, setDeleteLoanConfirmId] = useState<string | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -1311,37 +1392,80 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     if (ok) setShowNewLoan(false);
   };
 
-  const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => {
+  /** Default note on the cash-side row when the payment itself carries none. */
+  const repaymentLedgerNote = (loan: CustomerLoan, note?: string) => {
     const customerName = (state.customers || []).find(c => c.id === loan.customerId)?.name || '';
+    return note || `${t('loanAddRepayment')}${customerName ? ` — ${customerName}` : ''}`;
+  };
+
+  /** The loan list with `loan` swapped in. */
+  const replaceLoan = (loan: CustomerLoan) => loans.map(l => (l.id === loan.id ? loan : l));
+
+  const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => {
     // The repayment itself is recorded ON the loan — the cash_ledger row is
     // only the money side. Deriving repaid totals from the ledger loses them:
     // its schema rejects loan-linked rows and strips the link column.
     const entry: CashLedgerEntry = {
       id: uid(), ts, type: 'loan_repayment', accountId,
       direction: 'in', amount, currency: loan.currency,
-      note: note || `${t('loanAddRepayment')}${customerName ? ` — ${customerName}` : ''}`,
+      note: repaymentLedgerNote(loan, note),
     };
     const repayment: LoanRepayment = {
       id: uid(), ts, amount, accountId, ledgerEntryId: entry.id, note,
     };
     const newLedger = [...ledger, entry];
-    const updatedLoan: CustomerLoan = { ...loan, repayments: [...(loan.repayments || []), repayment] };
-    const remaining = getLoanRemaining(updatedLoan);
-    const newLoans = loans.map(l => l.id === loan.id
-      ? { ...updatedLoan, status: remaining <= 0 ? 'closed' as const : l.status }
-      : l);
+    const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
+    const newLoans = replaceLoan(updatedLoan);
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
     if (ok) setRepayingLoan(null);
   };
 
-  const updateLoan = async (loanId: string, updates: { customerId: string; principal: number; note?: string }) => {
-    const newLoans = loans.map(l => {
-      if (l.id !== loanId) return l;
-      const updated = { ...l, customerId: updates.customerId, principal: updates.principal, note: updates.note };
-      const remaining = getLoanRemaining(updated);
-      return { ...updated, status: remaining <= 0 ? 'closed' as const : 'open' as const };
+  /**
+   * Correct a payment that was already recorded — amount, date, account or note.
+   *
+   * The companion cash row moves with it so account balances keep matching the
+   * payments. A row that is no longer there (its account was cleared, or a sync
+   * dropped it) is not recreated: only the recorded payment changes.
+   */
+  const updateLoanRepayment = async (
+    loan: CustomerLoan, repaymentId: string, accountId: string, amount: number, ts: number, note?: string,
+  ) => {
+    // The dialog holds a snapshot; a sync may have landed another payment on
+    // this loan since it opened, so edit the loan as it stands now.
+    const live = loans.find(l => l.id === loan.id) || loan;
+    const next = editRepayment(
+      live, repaymentId, { accountId, amount, ts, note }, ledger, repaymentLedgerNote(live, note),
+    );
+    if (!next) { setEditingRepayment(null); return; }
+
+    const ok = await commit({
+      ...state,
+      cashLedger: next.ledger,
+      cashQAR: deriveCashQAR(accounts, next.ledger),
+      customerLoans: replaceLoan(next.loan),
     });
+    if (ok) { setEditingRepayment(null); toast.success(t('loanPaymentUpdated')); }
+  };
+
+  /** Drop a payment and the cash it credited — the loan reopens if this settled it. */
+  const deleteLoanRepayment = async (loan: CustomerLoan, repaymentId: string) => {
+    const next = deleteRepayment(loans.find(l => l.id === loan.id) || loan, repaymentId, ledger);
+    if (!next) { setDeletingRepayment(null); return; }
+
+    const ok = await commit({
+      ...state,
+      cashLedger: next.ledger,
+      cashQAR: deriveCashQAR(accounts, next.ledger),
+      customerLoans: replaceLoan(next.loan),
+    });
+    if (ok) { setDeletingRepayment(null); toast.success(t('loanPaymentDeleted')); }
+  };
+
+  const updateLoan = async (loanId: string, updates: { customerId: string; principal: number; note?: string }) => {
+    const newLoans = loans.map(l => (l.id === loanId
+      ? withDerivedStatus({ ...l, customerId: updates.customerId, principal: updates.principal, note: updates.note })
+      : l));
     const ok = await commit({ ...state, customerLoans: newLoans });
     if (ok) setEditingLoan(null);
   };
@@ -1363,6 +1487,19 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans, deletedLoanIds: newDeletedLoanIds });
     if (ok) setDeleteLoanConfirmId(null);
+  };
+
+  // Printed as the issuer on every exported statement.
+  const businessName = merchantProfile?.display_name || merchantProfile?.nickname || '';
+  const stmtLabels = useMemo(() => statementLabels(t), [t]);
+
+  /** The receivables book as a spreadsheet — every buyer, every loaned order. */
+  const exportReceivablesBook = () => {
+    const rows = receivableStatements.length > 0 ? receivableStatements : buyerStatements;
+    if (rows.length === 0) return;
+    const csv = buildReceivablesCsv(rows, stmtLabels, { businessName, lang: t.lang });
+    downloadTextFile(`receivables-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    toast.success(t('loanExported'));
   };
 
   const clearLedgerEntries = async (id: string) => {
@@ -1472,43 +1609,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   };
 
   return (
-    <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
-      {/* ── Hero: headline balance + primary actions ── */}
-      <div className="cash-hero">
-        <div className="cash-hero-main">
-          <div className="cash-hero-label">💰 {t('totalCashLbl')}</div>
-          <div className="cash-hero-value mono">
-            {fmtTotal(totalQAR)}<span className="cash-hero-unit">QAR</span>
-          </div>
-          <div className="cash-hero-meta">
-            {total24hMovement === 0 ? (
-              <span className="cash-hero-sub">{t('kpiNoMovement')}</span>
-            ) : (
-              <>
-                <span className={`cash-delta ${total24hMovement > 0 ? 'up' : 'down'}`}>
-                  {total24hMovement > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(total24hMovement))} QAR
-                </span>
-                <span className="cash-hero-sub">{t('kpiLastDay')}</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="cash-hero-actions">
-          <button className="btn cash-hero-btn" onClick={() => setShowTransfer(true)}>
-            <IconTransfer /> {t('transferLbl')}
-          </button>
-          <button className="btn secondary cash-hero-btn" onClick={() => setShowAddAccount(true)}>
-            <IconPlus /> {t('addAccountBtn')}
-          </button>
-          <button className="btn secondary cash-hero-btn" onClick={() => setShowMerchantCustody(true)}>
-            🤝 {t('merchantCash')}
-            {pendingIncoming.length > 0 && (
-              <span className="cash-hero-badge">{pendingIncoming.length}</span>
-            )}
-          </button>
-        </div>
-      </div>
-
+    <div className="tracker-root" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: isMobile ? 'max(8px, env(safe-area-inset-bottom))' : undefined }}>
       {/* ── KPI boxes ── */}
       <div className="cash-kpi-grid">
         <KpiBox
@@ -1634,10 +1735,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 const TypeIcon = ACCOUNT_TYPE_ICON[acc.type];
 
                 return (
-                  <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '12px 12px 14px' : undefined }}>
+                  <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '10px 10px 12px' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 22, height: 22, borderRadius: 6, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
                           <TypeIcon />
                         </div>
                         <div>
@@ -1655,8 +1756,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     {/* Balance */}
                     <div style={{ marginBottom: 10 }}>
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{t('availableBalanceLbl')}</div>
-                      <div className="mono" style={{ fontSize: isMobile ? 'clamp(22px, 6vw, 30px)' : 22, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1.05 }}>
-                        {fmtTotal(bal)}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>{acc.currency}</span>
+                      <div className="mono" style={{ fontSize: isMobile ? 'clamp(18px, 5vw, 24px)' : 18, fontWeight: 900, color: bal < 0 ? 'var(--bad)' : 'var(--text)', lineHeight: 1.05 }}>
+                        {fmtTotal(bal)}<span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>{acc.currency}</span>
                       </div>
                       {mov24h !== 0 && (
                         <div style={{ fontSize: 10, marginTop: 2, color: mov24h > 0 ? 'var(--good)' : 'var(--bad)' }}>
@@ -1683,11 +1784,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                               onClick={() => setShowDeposit({ account: acc, mode: 'proceeds' })}>
                               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                              📥 {t('recordProceeds' as any) || 'Proceeds'}
+                              <span className="cash-emoji">📥</span> {t('recordProceeds' as any) || 'Proceeds'}
                             </button>
                             <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
                               onClick={() => setShowDeposit({ account: acc, mode: 'settlement' })}>
-                              📤 {t('settleBack') || 'Settle'}
+                              <span className="cash-emoji">📤</span> {t('settleBack') || 'Settle'}
                             </button>
                           </>
                         ) : (
@@ -1707,8 +1808,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                           onClick={() => { setTransferFromId(acc.id); setShowTransfer(true); }}>
                           <IconTransfer /> {t('transferLbl')}
                         </button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}>✏️ {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)', gridColumn: '1 / -1' }} onClick={() => setClearLedgerPromptId(acc.id)}>🗑️ {t('clearLedger')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}><span className="cash-emoji">✏️</span> {t('edit')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)', gridColumn: '1 / -1' }} onClick={() => setClearLedgerPromptId(acc.id)}><span className="cash-emoji">🗑️</span> {t('clearLedger')}</button>
                       </div>
                     )}
                     {isInactive && (
@@ -1721,7 +1822,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               {/* Add account card */}
               <div className="cash-account-card cash-add-account-card" onClick={() => setShowAddAccount(true)}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--muted)' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 50, border: '2px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 50, border: '1.5px dashed var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconPlus />
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700 }}>{t('addAccountBtn')}</div>
@@ -1736,7 +1837,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {/* ── PENDING CUSTODY REQUESTS (accounts tab inline) ── */}
       {innerTab === 'accounts' && (pendingIncoming.length > 0 || pendingOutgoing.length > 0) && (
         <div className="panel" style={{ marginTop: 4 }}>
-          <div className="panel-head"><h2>🤝 {t('pendingCustodyRequests')}</h2></div>
+          <div className="panel-head"><h2><span className="cash-emoji">🤝</span> {t('pendingCustodyRequests')}</h2></div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingIncoming.map(req => (
               <div key={req.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, background: 'color-mix(in srgb, var(--brand) 5%, transparent)' }}>
@@ -1916,131 +2017,420 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       {/* ── LOANS TAB ── */}
       {innerTab === 'loans' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 800 }}>{t('loans')}</div>
-            <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>{t('loanReceivables')}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {buyerStatements.length > 0 && (
+                <button className="rowBtn" onClick={exportReceivablesBook}>📊 {t('loanExportExcel')}</button>
+              )}
+              <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={() => setShowNewLoan(true)}>{t('newLoan')}</button>
+            </div>
           </div>
 
-          {loanGroups.length === 0 ? (
+          {/* The book in one line per currency: loaned, repaid, still owed */}
+          {bookTotals.length > 0 && (
+            <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+              {bookTotals.map(row => (
+                <div key={row.currency} className="panel loan-totals">
+                  <div className="loan-totals-cur">
+                    <span className="pill" style={{ fontSize: 9 }}>{row.currency}</span>
+                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>
+                      {row.buyersOwing} {t('loanBuyersOwing')}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="loan-totals-lbl">{t('loanColLoaned')}</div>
+                    <div className="loan-num">{formatMoney(row.loaned)}</div>
+                  </div>
+                  <div>
+                    <div className="loan-totals-lbl">{t('loanColRepaid')}</div>
+                    <div className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</div>
+                  </div>
+                  <div>
+                    <div className="loan-totals-lbl">{t('loanColOutstanding')}</div>
+                    <div className="loan-num" style={{ color: row.outstanding > 0 ? 'var(--bad)' : 'var(--good)', fontSize: 14 }}>
+                      {formatMoney(row.outstanding)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Active ↔ Closed */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {([
+              ['active', t('loanTabActive'), activeLoanCount],
+              ['closed', t('loanTabClosed'), closedLoanCount],
+            ] as const).map(([view, label, count]) => {
+              const on = loanView === view;
+              return (
+                <button
+                  key={view}
+                  onClick={() => setLoanView(view)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: isMobile ? '8px 12px' : '5px 12px', borderRadius: 999,
+                    fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                    minHeight: isMobile ? 38 : undefined,
+                    border: on ? '1.5px solid var(--brand)' : '1px solid var(--line)',
+                    background: on ? 'color-mix(in srgb, var(--brand) 14%, transparent)' : 'var(--panel2)',
+                    color: on ? 'var(--brand)' : 'var(--t2)',
+                  }}
+                >
+                  {label}
+                  <span className="mono" style={{ fontSize: 9, opacity: .8 }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {loans.length > 0 && (
+            <div className="inputBox" style={{ marginBottom: 10 }}>
+              <input
+                value={loanQuery}
+                onChange={e => setLoanQuery(e.target.value)}
+                placeholder={t('loanSearchPlaceholder')}
+                style={isMobile ? { fontSize: 16, minHeight: 40 } : undefined}
+              />
+            </div>
+          )}
+
+          {loans.length === 0 ? (
             <div className="empty" style={{ padding: '24px 0' }}>
               <div className="empty-t">{t('noLoansYet')}</div>
             </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 8 }}>
-              {loanGroups.map(group => {
-                const expanded = expandedLoanCustomerIds.has(group.customerId);
-                return (
-                  <div key={group.customerId} className="panel" style={{ padding: 12 }}>
-                    <button
-                      onClick={() => toggleLoanCustomer(group.customerId)}
-                      style={{
-                        display: 'flex', flexDirection: 'column', gap: 8, width: '100%',
-                        background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700 }}>{group.customer?.name || group.customerId}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className={`pill ${group.openCount > 0 ? 'warn' : 'good'}`} style={{ fontSize: 9 }}>
-                            {group.openCount > 0
-                              ? `${group.openCount} ${t('loanCustomerOpenCount')}`
-                              : t('loanCustomerAllClosed')}
-                          </span>
-                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>
-                            {group.loans.length} {t('loanCustomerCount')}
-                          </span>
-                          <span
-                            className="mono"
-                            style={{ fontSize: 11, color: 'var(--muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
-                          >
-                            ▾
+          ) : loanView === 'active' ? (
+            receivableStatements.length === 0 ? (
+              <div className="empty" style={{ padding: '24px 0' }}>
+                <div className="empty-t">{loanQuery.trim() ? t('loanNoSearchMatch') : t('loanNoOutstanding')}</div>
+              </div>
+            ) : (
+              /* One row per buyer account — the receivables ledger */
+              <div className="loan-book">
+                <div className="loan-book-head loan-cols">
+                  <span>{t('loanColBuyer')}</span>
+                  <span className="r">{t('loanColOrders')}</span>
+                  <span className="r">{t('loanColLoaned')}</span>
+                  <span className="r">{t('loanColRepaid')}</span>
+                  <span className="r">{t('loanColOutstanding')}</span>
+                  <span className="r">{t('loanColLastPayment')}</span>
+                  <span />
+                </div>
+
+                {receivableStatements.map(stmt => {
+                  const expanded = expandedBuyerKeys.has(stmt.key);
+                  const pct = stmt.totalLoaned > 0
+                    ? Math.min(100, Math.round((stmt.totalRepaid / stmt.totalLoaned) * 100))
+                    : 0;
+                  const overdue = stmt.oldestOpenDays > 30;
+                  const payments = stmt.entries.filter(e => e.kind === 'payment');
+                  return (
+                    <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+                      <button className="loan-row loan-cols" onClick={() => toggleBuyer(stmt.key)}>
+                        <div className="loan-cell-buyer">
+                          <div style={{ fontSize: 12.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {stmt.customerName}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <span className="pill" style={{ fontSize: 9 }}>{stmt.currency}</span>
+                            <span className={`pill ${overdue ? 'bad' : 'warn'}`} style={{ fontSize: 9 }}>
+                              {stmt.oldestOpenDays}{t('loanDaysShort')}{overdue ? ` · ${t('loanOverdueTag')}` : ''}
+                            </span>
+                            {stmt.phone && <span className="mono" style={{ fontSize: 9, color: 'var(--muted)' }}>{stmt.phone}</span>}
+                          </div>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColOrders')}</div>
+                          <span className="mono" style={{ fontSize: 11 }}>{stmt.openCount}/{stmt.loans.length}</span>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColLoaned')}</div>
+                          <span className="loan-num">{formatMoney(stmt.totalLoaned)}</span>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColRepaid')}</div>
+                          <span className="loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</span>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColOutstanding')}</div>
+                          <span className="loan-num" style={{ color: 'var(--bad)', fontSize: 13 }}>{formatMoney(stmt.outstanding)}</span>
+                          <div className="prog loan-prog" style={{ height: 4 }}>
+                            <span style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--good)' : 'var(--warn)' }} />
+                          </div>
+                          <div style={{ fontSize: 8.5, color: 'var(--muted)', marginTop: 2 }}>{pct}% {t('loanRepaidPctLabel')}</div>
+                        </div>
+                        <div className="r">
+                          <div className="loan-cell-lbl">{t('loanColLastPayment')}</div>
+                          <span className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>
+                            {stmt.lastPaymentTs != null ? fmtDate(stmt.lastPaymentTs) : t('loanNoPaymentsYet')}
                           </span>
                         </div>
-                      </div>
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        {group.totalsByCurrency.map(([currency, totals]) => (
-                          <div key={currency} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11 }}>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanGiven')}</div>
-                              <div className="mono" style={{ fontWeight: 800 }}>{fmtAmt(totals.given, currency)}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanReceived')}</div>
-                              <div className="mono" style={{ fontWeight: 800, color: 'var(--good)' }}>{fmtAmt(totals.received, currency)}</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanRemaining')}</div>
-                              <div className="mono" style={{ fontWeight: 800, color: totals.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>{fmtAmt(totals.remaining, currency)}</div>
+                        <span
+                          className="loan-cell-chev mono"
+                          style={{ fontSize: 11, color: 'var(--muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
+                        >
+                          ▾
+                        </span>
+                      </button>
+
+                      {expanded && (
+                        <div className="loan-detail">
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <button
+                              className="btn"
+                              style={{ padding: '6px 14px', fontSize: 11 }}
+                              onClick={() => setStatementKey(stmt.key)}
+                            >
+                              📄 {t('loanStatementOpen')}
+                            </button>
+                          </div>
+
+                          {/* Every loaned order on this account */}
+                          <div>
+                            <div className="acct-sec">{t('stmtLoanedOrders')} · {stmt.loans.length}</div>
+                            <div className="tableWrap">
+                              <table className="acct-table">
+                                <thead>
+                                  <tr>
+                                    <th>{t('loanColRef')}</th>
+                                    <th>{t('loanColDate')}</th>
+                                    <th>{t('loanColDescription')}</th>
+                                    <th className="r">{t('loanColAmount')}</th>
+                                    <th className="r">{t('loanColPaid')}</th>
+                                    <th className="r">{t('loanColRemaining')}</th>
+                                    <th>{t('loanColStatus')}</th>
+                                    <th />
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {stmt.loans.map(row => (
+                                    <tr key={row.loan.id}>
+                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                                        {row.loan.tradeId ? '🔗 ' : ''}{row.ref}
+                                      </td>
+                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(row.loan.ts)}</td>
+                                      <td style={{ color: 'var(--muted)', minWidth: 150 }}>{row.loan.note || '—'}</td>
+                                      <td className="r loan-num">{formatMoney(row.principal)}</td>
+                                      <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</td>
+                                      <td className="r loan-num" style={{ color: row.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
+                                        {formatMoney(row.remaining)}
+                                      </td>
+                                      <td>
+                                        <span className={`pill ${row.settled ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                                          {row.settled ? t('loanStatusClosed') : `${t('loanStatusOpen')} · ${row.ageDays}${t('loanDaysShort')}`}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                          {!row.settled && (
+                                            <button
+                                              className="rowBtn"
+                                              style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, whiteSpace: 'nowrap' }}
+                                              onClick={() => setRepayingLoan(row.loan)}
+                                            >
+                                              + {t('loanAddRepayment')}
+                                            </button>
+                                          )}
+                                          <button
+                                            className="rowBtn"
+                                            style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                            onClick={() => setEditingLoan(row.loan)}
+                                          >
+                                            {t('edit')}
+                                          </button>
+                                          <button
+                                            className="rowBtn"
+                                            style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                            onClick={() => setDeleteLoanConfirmId(row.loan.id)}
+                                          >
+                                            {t('delete')}
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot>
+                                  <tr>
+                                    <td colSpan={3} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
+                                    <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
+                                    <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
+                                    <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
+                                    <td colSpan={2} />
+                                  </tr>
+                                </tfoot>
+                              </table>
                             </div>
                           </div>
-                        ))}
+
+                          {/* Every payment this buyer has made, newest first */}
+                          <div>
+                            <div className="acct-sec">{t('stmtPaymentsReceived')} · {payments.length}</div>
+                            <div className="tableWrap">
+                              <table className="acct-table">
+                                <thead>
+                                  <tr>
+                                    <th>{t('loanColDate')}</th>
+                                    <th>{t('loanColRef')}</th>
+                                    <th className="r">{t('loanColAmount')}</th>
+                                    <th>{t('loanColAccount')}</th>
+                                    <th>{t('loanNoteLabel')}</th>
+                                    <th />
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {payments.length === 0 ? (
+                                    <tr>
+                                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>
+                                        {t('loanNoPaymentsYet')}
+                                      </td>
+                                    </tr>
+                                  ) : [...payments].reverse().map(p => {
+                                    const target = findRepayment(p);
+                                    return (
+                                      <tr key={p.id}>
+                                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(p.ts)}</td>
+                                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>{p.ref}</td>
+                                        <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(p.credit)}</td>
+                                        <td style={{ color: 'var(--muted)' }}>{p.accountName || '—'}</td>
+                                        <td style={{ color: 'var(--muted)', minWidth: 140 }}>{p.description || '—'}</td>
+                                        <td>
+                                          {target && (
+                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                              <button
+                                                className="rowBtn"
+                                                style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                                onClick={() => setEditingRepayment(target)}
+                                              >
+                                                {t('edit')}
+                                              </button>
+                                              <button
+                                                className="rowBtn"
+                                                style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                                onClick={() => setDeletingRepayment(target)}
+                                              >
+                                                {t('delete')}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                                {payments.length > 0 && (
+                                  <tfoot>
+                                    <tr>
+                                      <td colSpan={2} style={{ fontWeight: 700 }}>{t('loanColRepaid')}</td>
+                                      <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
+                                      <td colSpan={3} />
+                                    </tr>
+                                  </tfoot>
+                                )}
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : closedLoanMonths.length === 0 ? (
+            <div className="empty" style={{ padding: '24px 0' }}>
+              <div className="empty-t">{loanQuery.trim() ? t('loanNoSearchMatch') : t('loanNoClosedLoans')}</div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {closedLoanMonths.map(month => {
+                const open = isClosedMonthOpen(month.key);
+                return (
+                  <div key={month.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+                    <button
+                      onClick={() => toggleClosedMonth(month.key)}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, width: '100%',
+                        padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                        minHeight: isMobile ? 44 : undefined,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <span className="mono" style={{ fontSize: 11, color: 'var(--muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'capitalize' }}>{monthLabel(month.year, month.month)}</span>
+                        <span className="pill good" style={{ fontSize: 9 }}>{month.entries.length} {t('loanSettledInMonth')}</span>
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--brand)', fontWeight: 600 }}>
-                        {expanded ? t('loanHideDetails') : t('loanViewDetails')}
-                      </div>
+                      <span className="mono" style={{ fontSize: 11, color: 'var(--good)', fontWeight: 700, textAlign: 'right' }}>
+                        {month.totalsByCurrency.map(([currency, totals]) => fmtAmt(totals.received, currency)).join(' · ')}
+                      </span>
                     </button>
 
-                    {expanded && (
-                      <div style={{ display: 'grid', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line2)' }}>
-                        {group.loans.map(loan => {
-                          const received = getLoanRepaid(loan);
-                          const remaining = getLoanRemaining(loan);
+                    {open && (
+                      <div style={{ display: 'grid', gap: 6, padding: '0 12px 12px' }}>
+                        {month.entries.map(({ loan, customer, closedAt }) => {
                           const repayments = [...(loan.repayments || [])].sort((a, b) => b.ts - a.ts);
+                          const showDetail = expandedClosedLoanIds.has(loan.id);
                           return (
-                            <div key={loan.id} className="panel" style={{ padding: 12, background: 'var(--panel2)' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                  {loan.status === 'closed' ? t('loanStatusClosed') : t('loanStatusOpen')}
-                                </span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingLoan(loan)}>{t('edit')}</button>
-                                  <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeleteLoanConfirmId(loan.id)}>{t('delete')}</button>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 10, color: 'var(--muted)' }}>
-                                <span className="mono">{fmtDate(loan.ts)}</span>
-                                {loan.tradeId && <span className="pill" style={{ fontSize: 9 }}>🔗 {t('loanLinkedOrder')}</span>}
-                              </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 11, marginBottom: loan.status === 'open' ? 8 : 0 }}>
-                                <div>
-                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanGiven')}</div>
-                                  <div className="mono" style={{ fontWeight: 800 }}>{fmtAmt(loan.principal, loan.currency)}</div>
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanReceived')}</div>
-                                  <div className="mono" style={{ fontWeight: 800, color: 'var(--good)' }}>{fmtAmt(received, loan.currency)}</div>
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('loanRemaining')}</div>
-                                  <div className="mono" style={{ fontWeight: 800, color: remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>{fmtAmt(remaining, loan.currency)}</div>
-                                </div>
-                              </div>
-                              {loan.note && <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>{loan.note}</div>}
-
-                              {repayments.length > 0 && (
-                                <div style={{ marginBottom: 8, borderTop: '1px solid var(--line2)', paddingTop: 8 }}>
-                                  <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 4 }}>
-                                    {t('loanRepaymentHistory')}
+                            <div key={loan.id} className="panel" style={{ padding: 10, background: 'var(--panel2)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {customer?.name || loan.customerId}
                                   </div>
-                                  <div style={{ display: 'grid', gap: 4 }}>
-                                    {repayments.map(r => {
-                                      const acc = accounts.find(a => a.id === r.accountId);
-                                      return (
-                                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10 }}>
-                                          <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(r.ts)}</span>
-                                          <span className="mono" style={{ color: 'var(--good)', fontWeight: 700 }}>+{fmtTotal(r.amount)}</span>
-                                          <span style={{ color: 'var(--muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {acc?.name || ''}{r.note ? ` · ${r.note}` : ''}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
+                                  <div style={{ fontSize: 9, color: 'var(--muted)' }}>
+                                    <span className="mono">{t('loanClosedOn')} {fmtDate(closedAt)}</span>
+                                    {repayments.length > 0 && <span> · {repayments.length} {t('loanPaymentCount')}</span>}
+                                    {loan.tradeId && <span> · 🔗</span>}
                                   </div>
                                 </div>
-                              )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                  <span className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtAmt(loan.principal, loan.currency)}</span>
+                                  <button
+                                    className="rowBtn"
+                                    style={{ padding: '2px 6px', fontSize: 9, minHeight: 22 }}
+                                    onClick={() => toggleClosedLoan(loan.id)}
+                                  >
+                                    {showDetail ? t('loanHideDetails') : t('loanViewDetails')}
+                                  </button>
+                                </div>
+                              </div>
 
-                              {loan.status === 'open' && (
-                                <button className="rowBtn" onClick={() => setRepayingLoan(loan)}>{t('loanAddRepayment')}</button>
+                              {showDetail && (
+                                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line2)' }}>
+                                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6 }}>
+                                    <span className="mono">{t('loanIssuedOn')} {fmtDate(loan.ts)}</span>
+                                    {loan.note ? ` · ${loan.note}` : ''}
+                                  </div>
+                                  {repayments.length > 0 && (
+                                    <div style={{ display: 'grid', gap: 4, marginBottom: 8 }}>
+                                      {repayments.map(r => {
+                                        const acc = accounts.find(a => a.id === r.accountId);
+                                        return (
+                                          <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10 }}>
+                                            <span className="mono" style={{ color: 'var(--muted)' }}>{fmtTs(r.ts)}</span>
+                                            <span className="mono" style={{ color: 'var(--good)', fontWeight: 700 }}>+{fmtTotal(r.amount)}</span>
+                                            <span style={{ color: 'var(--muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {acc?.name || ''}{r.note ? ` · ${r.note}` : ''}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    {/* A settled account still gets a statement — it is the buyer's receipt. */}
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                      onClick={() => setStatementKey(`${loan.customerId}:${loan.currency}`)}
+                                    >
+                                      📄 {t('loanStatement')}
+                                    </button>
+                                    <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }} onClick={() => setEditingLoan(loan)}>{t('edit')}</button>
+                                    <button className="rowBtn" style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }} onClick={() => setDeleteLoanConfirmId(loan.id)}>{t('delete')}</button>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           );
@@ -2125,6 +2515,44 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           </div>
         </div>
       )}
+
+      {/* ── Summary bar: headline balance + primary actions ──
+           Sits at the foot of the page so the working content (KPIs, tabs,
+           accounts) leads and the totals close it out. */}
+      <div className="cash-hero cash-hero-bottom">
+        <div className="cash-hero-main">
+          <div className="cash-hero-label"><span className="cash-emoji">💰</span> {t('totalCashLbl')}</div>
+          <div className="cash-hero-value mono">
+            {fmtTotal(totalQAR)}<span className="cash-hero-unit">QAR</span>
+          </div>
+          <div className="cash-hero-meta">
+            {total24hMovement === 0 ? (
+              <span className="cash-hero-sub">{t('kpiNoMovement')}</span>
+            ) : (
+              <>
+                <span className={`cash-delta ${total24hMovement > 0 ? 'up' : 'down'}`}>
+                  {total24hMovement > 0 ? '▲' : '▼'} {fmtTotal(Math.abs(total24hMovement))} QAR
+                </span>
+                <span className="cash-hero-sub">{t('kpiLastDay')}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="cash-hero-actions">
+          <button className="btn cash-hero-btn" onClick={() => setShowTransfer(true)}>
+            <IconTransfer /> {t('transferLbl')}
+          </button>
+          <button className="btn secondary cash-hero-btn" onClick={() => setShowAddAccount(true)}>
+            <IconPlus /> {t('addAccountBtn')}
+          </button>
+          <button className="btn secondary cash-hero-btn" onClick={() => setShowMerchantCustody(true)}>
+            <span className="cash-emoji">🤝</span> {t('merchantCash')}
+            {pendingIncoming.length > 0 && (
+              <span className="cash-hero-badge">{pendingIncoming.length}</span>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* ── Modals ── */}
       {(showAddAccount || editingAccount) && (
@@ -2266,6 +2694,24 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         />
       )}
 
+      {openStatement && (
+        <LoanStatementModal
+          statement={openStatement}
+          businessName={businessName}
+          isMobile={isMobile}
+          onClose={() => setStatementKey(null)}
+          onAddRepayment={loan => { setStatementKey(null); setRepayingLoan(loan); }}
+          onEditRepayment={entry => {
+            const target = findRepayment(entry);
+            if (target) { setStatementKey(null); setEditingRepayment(target); }
+          }}
+          onDeleteRepayment={entry => {
+            const target = findRepayment(entry);
+            if (target) { setStatementKey(null); setDeletingRepayment(target); }
+          }}
+        />
+      )}
+
       {repayingLoan && (
         <RepayLoanModal
           loan={repayingLoan}
@@ -2275,6 +2721,46 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           onSave={(accountId, amount, ts, note) => addLoanRepayment(repayingLoan, accountId, amount, ts, note)}
           onClose={() => setRepayingLoan(null)}
         />
+      )}
+
+      {editingRepayment && (
+        <RepayLoanModal
+          loan={editingRepayment.loan}
+          // The cap is the balance with this payment taken back out — editing it
+          // up to the full amount owed has to stay possible.
+          remaining={getLoanRemaining(editingRepayment.loan) + editingRepayment.repayment.amount}
+          accounts={activeAccounts}
+          existing={editingRepayment.repayment}
+          isMobile={isMobile}
+          onSave={(accountId, amount, ts, note) => updateLoanRepayment(
+            editingRepayment.loan, editingRepayment.repayment.id, accountId, amount, ts, note,
+          )}
+          onClose={() => setEditingRepayment(null)}
+        />
+      )}
+
+      {deletingRepayment && (
+        <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setDeletingRepayment(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, color: 'var(--bad)' }}>⚠️ {t('loanDeletePayment')}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+              {fmtAmt(deletingRepayment.repayment.amount, deletingRepayment.loan.currency)}
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {fmtTs(deletingRepayment.repayment.ts)}</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('loanDeletePaymentConfirm')}</div>
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setDeletingRepayment(null)}>{t('cancel')}</button>
+              <button
+                className="btn"
+                style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }}
+                onClick={() => deleteLoanRepayment(deletingRepayment.loan, deletingRepayment.repayment.id)}
+              >
+                {t('delete')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {editingLoan && (

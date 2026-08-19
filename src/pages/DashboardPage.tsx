@@ -6,7 +6,7 @@ import {
   fmtTotal, fmtPrice,
   kpiFor, totalStock, stockCostQAR, getWACOP,
   rangeLabel, num, startOfDay, inRange,
-  deriveCashQAR,
+  deriveCashQAR, getLoanRemaining,
 } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
@@ -135,6 +135,41 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
     return c.margin;
   }).filter((x): x is number => x !== null);
   const avgM = allMargins.length ? allMargins.reduce((s, v) => s + v, 0) / allMargins.length : 0;
+
+  /**
+   * Customer loans still owed to us — principal minus repayments, grouped by
+   * the currency the loan was given in. Deleted loans are tombstoned rather
+   * than removed until sync prunes them, so they are filtered out here the
+   * same way the Cash page does it.
+   */
+  const loansUnpaid = useMemo(() => {
+    const deletedLoanIds = state.deletedLoanIds || [];
+    const loans = (state.customerLoans || []).filter(l => !deletedLoanIds.includes(l.id));
+    const byCurrency = new Map<string, number>();
+    const debtors = new Set<string>();
+    let openCount = 0;
+    for (const l of loans) {
+      const remaining = getLoanRemaining(l);
+      byCurrency.set(l.currency, (byCurrency.get(l.currency) || 0) + remaining);
+      if (l.status === 'open') openCount++;
+      if (remaining > 0) debtors.add(l.customerId);
+    }
+    const rows = Array.from(byCurrency.entries())
+      .map(([currency, remaining]) => ({ currency, remaining }))
+      .filter(r => r.remaining > 0)
+      .sort((a, b) => b.remaining - a.remaining);
+    // QAR leads the card when present so the headline matches the dashboard's
+    // display currency; anything else rides along in the caption.
+    const lead = rows.find(r => r.currency === 'QAR') || rows[0];
+    return {
+      lead,
+      others: rows.filter(r => r !== lead),
+      totalRemaining: rows.reduce((s, r) => s + r.remaining, 0),
+      openCount,
+      debtorCount: debtors.size,
+      hasLoans: loans.length > 0,
+    };
+  }, [state.customerLoans, state.deletedLoanIds]);
 
   const cycleHours = useMemo(() => {
     const tradesSorted = [...allTrades].sort((a, b) => a.ts - b.ts);
@@ -579,8 +614,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{curMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownRev },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inVol },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outVol },
               ].map(row => (
                 <div key={row.label} style={{ padding: '2px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -598,8 +631,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{prevMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownRev },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inVol },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outVol },
               ].map(row => (
                 <div key={row.label} style={{ padding: '2px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -623,8 +654,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{curMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.thisMonth.ownNet },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.thisMonth.inMyShare },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.thisMonth.outMyShare },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
@@ -645,8 +674,6 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
               <div className="kpi-period">{prevMo}</div>
               {[
                 { label: `🏠 ${t('ownOrdersLabel')}`, val: segmentedProfit.lastMonth.ownNet },
-                { label: `📥 ${t('incomingOrders')}`, val: segmentedProfit.lastMonth.inMyShare },
-                { label: `📤 ${t('outgoingOrders')}`, val: segmentedProfit.lastMonth.outMyShare },
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 500 }}>{row.label}</span>
@@ -670,13 +697,28 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
         <div className="kpi-card">
           <div className="kpi-lbl">{t('netProfitLabel')}</div>
           <div className={`kpi-val ${segmentedProfit.range.total >= 0 ? 'good' : 'bad'}`}>{fmtDashboardAmount(segmentedProfit.range.total)}</div>
-          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)} · {t('incomingOrders')} {fmtDashboardAmount(segmentedProfit.range.inMyShare)} · {t('outgoingOrders')} {fmtDashboardAmount(segmentedProfit.range.outMyShare)}</div>
+          <div className="kpi-sub">{t('ownOrdersLabel')} {fmtDashboardAmount(segmentedProfit.range.ownNet)}</div>
         </div>
         <BanqueMisrInstaPayKPI />
-        <div className="kpi-card">
-          <div className="kpi-lbl">{t('avgMargin')}</div>
-          <div className={`kpi-val ${avgM >= 1 ? 'good' : avgM >= 0 ? 'warn' : 'bad'}`}>{fmtPct(avgM)}</div>
-          <div className="kpi-sub">{dR.count} in range · avg {fmtPct(dR.avgMgn)}</div>
+        <div className="kpi-card" style={{ cursor: !isAdminView ? 'pointer' : 'default' }} onClick={!isAdminView ? () => navigate('/trading/cash') : undefined}>
+          <div className="kpi-lbl">{t('loansUnpaid')}</div>
+          <div className={`kpi-val ${loansUnpaid.totalRemaining > 0 ? 'bad' : 'good'}`}>
+            {!loansUnpaid.lead
+              ? fmtDashboardAmount(0)
+              : loansUnpaid.lead.currency === 'QAR'
+                ? fmtDashboardAmount(loansUnpaid.lead.remaining)
+                : `${fmtTotal(loansUnpaid.lead.remaining)} ${localCur(loansUnpaid.lead.currency, t.lang)}`}
+          </div>
+          <div className="kpi-sub">
+            {!loansUnpaid.hasLoans
+              ? t('kpiNoLoans')
+              : loansUnpaid.totalRemaining === 0
+                ? t('loansUnpaidNone')
+                : `${loansUnpaid.openCount} ${t('loanCustomerOpenCount')} · ${loansUnpaid.debtorCount} ${loansUnpaid.debtorCount === 1 ? t('kpiCustomerUnit') : t('kpiCustomersUnit')}`}
+            {loansUnpaid.others.map(r => (
+              <span key={r.currency}> · {fmtTotal(r.remaining)} {localCur(r.currency, t.lang)}</span>
+            ))}
+          </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-lbl">{t('availableUsdt')}</div>
@@ -791,6 +833,7 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
             </div>
           );
         })()}
+
       </div>
 
       <div className="dash-bottom">
