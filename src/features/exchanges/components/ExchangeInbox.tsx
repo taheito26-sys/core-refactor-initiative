@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Check, Loader2, PencilLine, AlertCircle, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
@@ -92,22 +92,28 @@ function AssigneeSelect({
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
-          <SelectLabel className="text-[10px]">Exchange</SelectLabel>
-          <SelectItem value={autoName} className="text-[11px]">{autoName}</SelectItem>
+          <SelectLabel className="py-1 pl-6 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Exchange</SelectLabel>
+          <SelectItem value={autoName} className="text-[12px] font-medium">{autoName}</SelectItem>
         </SelectGroup>
         {counterpartyName && (
-          <SelectGroup>
-            <SelectLabel className="text-[10px]">Full seller name</SelectLabel>
-            <SelectItem value={counterpartyName} className="text-[11px]">{counterpartyName}</SelectItem>
-          </SelectGroup>
+          <>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel className="py-1 pl-6 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Full seller name</SelectLabel>
+              <SelectItem value={counterpartyName} className="text-[12px] font-medium">{counterpartyName}</SelectItem>
+            </SelectGroup>
+          </>
         )}
         {dedupedExisting.length > 0 && (
-          <SelectGroup>
-            <SelectLabel className="text-[10px]">Existing</SelectLabel>
-            {dedupedExisting.map((n) => (
-              <SelectItem key={n} value={n} className="text-[11px]">{n}</SelectItem>
-            ))}
-          </SelectGroup>
+          <>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel className="py-1 pl-6 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Existing</SelectLabel>
+              {dedupedExisting.map((n) => (
+                <SelectItem key={n} value={n} className="text-[12px] font-medium">{n}</SelectItem>
+              ))}
+            </SelectGroup>
+          </>
         )}
       </SelectContent>
     </Select>
