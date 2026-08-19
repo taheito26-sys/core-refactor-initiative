@@ -129,14 +129,23 @@ async function fetchBinanceP2POrders(creds: Credentials) {
       rows: 100,
     });
     for (const o of json.data ?? []) {
+      const grossAmount = parseFloat(o.amount ?? "0");
+      const total = parseFloat(o.totalPrice ?? o.total ?? "0");
+      const commission = parseFloat(o.commission ?? "0");
+      // Binance deducts the P2P fee from the crypto side of a BUY: what actually
+      // lands in the wallet is amount - commission, not the gross traded amount.
+      // Recompute the unit price against the net amount so total (fiat paid)
+      // still reconciles, keeping the imported batch's cost basis accurate.
+      const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount;
+      const unitPrice = netAmount > 0 ? total / netAmount : parseFloat(o.unitPrice ?? o.price ?? "0");
       orders.push({
         order_number: String(o.orderNumber),
         side: tradeType === "BUY" ? "buy" : "sell",
         asset: o.asset,
         fiat: o.fiat,
-        amount: parseFloat(o.amount),
-        price: parseFloat(o.unitPrice ?? o.price ?? "0"),
-        total: parseFloat(o.totalPrice ?? o.total ?? "0"),
+        amount: netAmount,
+        price: unitPrice,
+        total,
         status: String(o.orderStatus ?? o.status ?? "UNKNOWN"),
         counterparty: o.counterPartNickName ?? null,
         order_time: o.createTime ? new Date(Number(o.createTime)).toISOString() : null,
