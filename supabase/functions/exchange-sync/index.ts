@@ -123,34 +123,47 @@ async function fetchBinanceP2POrders(creds: Credentials) {
     raw: unknown;
   }[] = [];
 
+  // Binance's C2C order history is unreliable about its "recent N days" default
+  // when no explicit window is given -- pin an explicit range and paginate so
+  // multiple same-day orders don't silently get dropped.
+  const endTimestamp = Date.now();
+  const startTimestamp = endTimestamp - 90 * 24 * 60 * 60 * 1000;
+
   for (const tradeType of ["BUY", "SELL"] as const) {
-    const json = await binanceSignedRequest(creds, "/sapi/v1/c2c/orderMatch/listUserOrderHistory", {
-      tradeType,
-      rows: 100,
-    });
-    for (const o of json.data ?? []) {
-      const grossAmount = parseFloat(o.amount ?? "0");
-      const total = parseFloat(o.totalPrice ?? o.total ?? "0");
-      const commission = parseFloat(o.commission ?? "0");
-      // Binance deducts the P2P fee from the crypto side of a BUY: what actually
-      // lands in the wallet is amount - commission, not the gross traded amount.
-      // Recompute the unit price against the net amount so total (fiat paid)
-      // still reconciles, keeping the imported batch's cost basis accurate.
-      const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount;
-      const unitPrice = netAmount > 0 ? total / netAmount : parseFloat(o.unitPrice ?? o.price ?? "0");
-      orders.push({
-        order_number: String(o.orderNumber),
-        side: tradeType === "BUY" ? "buy" : "sell",
-        asset: o.asset,
-        fiat: o.fiat,
-        amount: netAmount,
-        price: unitPrice,
-        total,
-        status: String(o.orderStatus ?? o.status ?? "UNKNOWN"),
-        counterparty: o.counterPartNickName ?? null,
-        order_time: o.createTime ? new Date(Number(o.createTime)).toISOString() : null,
-        raw: o,
+    for (let page = 1; page <= 5; page++) {
+      const json = await binanceSignedRequest(creds, "/sapi/v1/c2c/orderMatch/listUserOrderHistory", {
+        tradeType,
+        page,
+        rows: 100,
+        startTimestamp,
+        endTimestamp,
       });
+      const rows = json.data ?? [];
+      for (const o of rows) {
+        const grossAmount = parseFloat(o.amount ?? "0");
+        const total = parseFloat(o.totalPrice ?? o.total ?? "0");
+        const commission = parseFloat(o.commission ?? "0");
+        // Binance deducts the P2P fee from the crypto side of a BUY: what actually
+        // lands in the wallet is amount - commission, not the gross traded amount.
+        // Recompute the unit price against the net amount so total (fiat paid)
+        // still reconciles, keeping the imported batch's cost basis accurate.
+        const netAmount = tradeType === "BUY" ? grossAmount - commission : grossAmount;
+        const unitPrice = netAmount > 0 ? total / netAmount : parseFloat(o.unitPrice ?? o.price ?? "0");
+        orders.push({
+          order_number: String(o.orderNumber),
+          side: tradeType === "BUY" ? "buy" : "sell",
+          asset: o.asset,
+          fiat: o.fiat,
+          amount: netAmount,
+          price: unitPrice,
+          total,
+          status: String(o.orderStatus ?? o.status ?? "UNKNOWN"),
+          counterparty: o.counterPartNickName ?? null,
+          order_time: o.createTime ? new Date(Number(o.createTime)).toISOString() : null,
+          raw: o,
+        });
+      }
+      if (rows.length < 100) break;
     }
   }
   return orders;
@@ -165,24 +178,37 @@ async function fetchBinanceTransfers(creds: Credentials): Promise<{ rows: Transf
   const rows: TransferRow[] = [];
   const failures: string[] = [];
 
+  // Pin an explicit window rather than trusting each endpoint's undocumented
+  // default lookback -- same issue as P2P order history dropping older rows.
+  const endTime = Date.now();
+  const startTime = endTime - 90 * 24 * 60 * 60 * 1000;
+
   try {
-    const pay = await binanceSignedRequest(creds, "/sapi/v1/pay/transactions", { limit: 100 });
-    for (const p of pay.data ?? []) {
-      if (p.currency !== TRACKED_ASSET) continue;
-      const amount = parseFloat(p.amount ?? "0");
-      rows.push({
-        kind: "pay",
-        // Binance reports the signed amount: negative means funds left the account.
-        direction: amount < 0 ? "out" : "in",
-        asset: p.currency,
-        amount: Math.abs(amount),
-        status: String(p.orderStatus ?? "SUCCESS"),
-        reference: String(p.transactionId ?? p.orderId),
-        counterparty: p.payerInfo?.name ?? p.receiverInfo?.name ?? null,
-        network: null,
-        transfer_time: p.transactionTime ? new Date(Number(p.transactionTime)).toISOString() : null,
-        raw: p,
+    for (let page = 1; page <= 5; page++) {
+      const pay = await binanceSignedRequest(creds, "/sapi/v1/pay/transactions", {
+        startTimestamp: startTime,
+        endTimestamp: endTime,
+        limit: 100,
       });
+      const payRows = pay.data ?? [];
+      for (const p of payRows) {
+        if (p.currency !== TRACKED_ASSET) continue;
+        const amount = parseFloat(p.amount ?? "0");
+        rows.push({
+          kind: "pay",
+          // Binance reports the signed amount: negative means funds left the account.
+          direction: amount < 0 ? "out" : "in",
+          asset: p.currency,
+          amount: Math.abs(amount),
+          status: String(p.orderStatus ?? "SUCCESS"),
+          reference: String(p.transactionId ?? p.orderId),
+          counterparty: p.payerInfo?.name ?? p.receiverInfo?.name ?? null,
+          network: null,
+          transfer_time: p.transactionTime ? new Date(Number(p.transactionTime)).toISOString() : null,
+          raw: p,
+        });
+      }
+      if (payRows.length < 100) break;
     }
   } catch (err) {
     failures.push(`pay: ${err instanceof Error ? err.message : String(err)}`);
@@ -194,7 +220,7 @@ async function fetchBinanceTransfers(creds: Credentials): Promise<{ rows: Transf
   ];
   for (const src of onChain) {
     try {
-      const list = await binanceSignedRequest(creds, src.path, { limit: 100 });
+      const list = await binanceSignedRequest(creds, src.path, { startTime, endTime, limit: 100 });
       for (const d of Array.isArray(list) ? list : []) {
         if (d.coin !== TRACKED_ASSET) continue;
         const raw = d[src.timeKey];
