@@ -226,7 +226,9 @@ export function ExchangeInbox({
           const st = rowState[o.id];
           const imported = isStillLinked(o.linked_at, o.linked_entity_id);
           const accent = ACCENT[side];
-          const nameValue = names[o.id] ?? '';
+          // Pre-fill with the counterparty's name from the exchange (still editable)
+          // instead of leaving it blank -- most imports just want the real seller/buyer name.
+          const nameValue = names[o.id] ?? o.counterparty ?? '';
           const autoName = `${EXCHANGE_LABELS[o.exchange]} P2P`;
           const payload: ExchangeOrderPayload = {
             exchange: o.exchange,
@@ -296,7 +298,7 @@ export function ExchangeInbox({
           const st = rowState[tr.id];
           const imported = isStillLinked(tr.linked_at, tr.linked_entity_id);
           const kind = KIND_CHIP[tr.kind];
-          const nameValue = names[tr.id] ?? '';
+          const nameValue = names[tr.id] ?? tr.counterparty ?? '';
           const autoName = `${EXCHANGE_LABELS[tr.exchange]} ${tr.kind === 'pay' ? 'Pay' : 'Network'}`;
           const raw = prices[tr.id] ?? (defaultPrice && defaultPrice > 0 ? String(Number(defaultPrice.toFixed(4))) : '');
           const parsed = parseFloat(raw);
