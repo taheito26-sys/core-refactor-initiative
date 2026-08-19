@@ -833,6 +833,7 @@ export default function StockPage() {
                     <th>{t('date')}</th>
                     <th>{t('source')}</th>
                     <th className="r">{t('total')}</th>
+                    <th className="r">{t('cost')}</th>
                     <th className="r">{t('buy')}</th>
                     <th className="r">{t('rem')}</th>
                     <th className="hide-mobile">{t('usage')}</th>
@@ -861,6 +862,7 @@ export default function StockPage() {
                           </span>
                         </td>
                         <td className="mono r">{fmtU(b.initialUSDT)}</td>
+                        <td className="mono r">{fmtC(b.initialUSDT * b.buyPriceQAR)}</td>
                         <td className="mono r">{fmtP(b.buyPriceQAR)}</td>
                         <td className="mono r">{fmtU(rem)}</td>
                         <td className="hide-mobile">
@@ -881,7 +883,7 @@ export default function StockPage() {
                       </tr>
                       {detailsOpen[b.id] && (
                         <tr>
-                          <td colSpan={8} style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))' }}>
+                          <td colSpan={9} style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--brand) 3%, var(--bg))' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11 }}>
                               <div><span className="muted">{t('batchDate')}:</span> <strong>{new Date(b.ts).toLocaleString()}</strong></div>
                               <div><span className="muted">{t('batchSource')}:</span> <strong>{b.source || '—'}</strong></div>
