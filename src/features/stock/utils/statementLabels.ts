@@ -54,5 +54,14 @@ export function statementLabels(t: Translate): StatementDocLabels {
     generatedOn: t('stmtGeneratedOn'),
     footerNote: t('stmtFooterNote'),
     openingBalance: t('stmtOpeningBalance'),
+    settlementSummary: t('stmtSettlementSummary'),
+    settlementTotalLine: t('stmtSettlementTotalLine'),
+    settlementPaidLine: t('stmtSettlementPaidLine'),
+    settlementRemainingLine: t('stmtSettlementRemainingLine'),
+    percentPaidSuffix: t('stmtPercentPaidSuffix'),
+    against: t('stmtAgainst'),
+    paymentsLog: t('stmtPaymentsLog'),
+    allPayments: t('stmtAllPayments'),
+    electronicNote: t('stmtElectronicNote'),
   };
 }

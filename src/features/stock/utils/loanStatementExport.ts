@@ -58,6 +58,15 @@ export interface StatementDocLabels {
   generatedOn: string;
   footerNote: string;
   openingBalance: string;
+  settlementSummary: string;
+  settlementTotalLine: string;
+  settlementPaidLine: string;
+  settlementRemainingLine: string;
+  percentPaidSuffix: string;
+  against: string;
+  paymentsLog: string;
+  allPayments: string;
+  electronicNote: string;
 }
 
 export interface StatementDocOptions {
@@ -497,6 +506,176 @@ export function buildStatementHtml(
     <span>${escapeHtml(labels.footerNote)}</span>
     <span>${escapeHtml(labels.generatedOn)} ${escapeHtml(formatDateTime(now, lang))}</span>
   </footer>
+</div>
+</body>
+</html>`;
+}
+
+/**
+ * The compact "statement" layout — a navy header banner, three summary cards
+ * (total due / paid / remaining), a percent-paid line, a settlement summary,
+ * and the payments log. This mirrors the buyer-facing statement format some
+ * buyers already expect (dark banner with a gold subtitle, boxed totals),
+ * as an alternative to the fuller ledger-style {@link buildStatementHtml}.
+ */
+export function buildStatementHtmlCompact(
+  statement: BuyerStatement,
+  labels: StatementDocLabels,
+  options: StatementDocOptions = {},
+): string {
+  const { businessName = '', lang = 'en', now = Date.now() } = options;
+  const dir = lang === 'ar' ? 'rtl' : 'ltr';
+  const cur = escapeHtml(statement.currency);
+  const payments = statement.entries.filter(e => e.kind === 'payment');
+  const percentPaid = statement.totalLoaned > 0
+    ? Math.round((statement.totalRepaid / statement.totalLoaned) * 100)
+    : 0;
+  const percentLine = lang === 'ar'
+    ? `٪${percentPaid}  ${labels.percentPaidSuffix}`
+    : `${percentPaid}% ${labels.percentPaidSuffix}`;
+
+  const paymentRows = payments.length === 0
+    ? `<tr><td colspan="5" class="empty">${escapeHtml(labels.noPayments)}</td></tr>`
+    : payments.map((p, i) => `
+      <tr>
+        <td class="num">${i + 1}</td>
+        <td>${escapeHtml(formatDate(p.ts, lang))}</td>
+        <td class="num paid">${formatMoney(p.credit)}</td>
+        <td class="desc">${escapeHtml(p.description || labels.payment)}</td>
+        <td class="ref">${escapeHtml(p.ref || '—')}</td>
+      </tr>`).join('');
+
+  const line = (text: string, name: string, currency: string) => (
+    text.replace('{name}', name).replace('{currency}', currency)
+  );
+
+  return `<!doctype html>
+<html lang="${escapeHtml(lang)}" dir="${dir}">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(labels.documentTitle)} — ${escapeHtml(statement.customerName)}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #f4f5f7; color: #14161c;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 11px; line-height: 1.45;
+  }
+  .sheet { max-width: 820px; margin: 0 auto; background: #fff; padding: 0 0 30px; }
+  .banner { background: #0F2A44; color: #fff; padding: 22px 30px 16px; }
+  .banner .title { font-size: 19px; font-weight: 700; }
+  .banner .sub { margin-top: 4px; font-size: 10.5px; color: #E8D9A0; }
+  .body { padding: 22px 30px 0; }
+  .cards { display: flex; gap: 10px; margin-bottom: 10px; }
+  .card { flex: 1; background: #F7F8FA; border-radius: 6px; padding: 10px 12px; }
+  .card .k { font-size: 8.5px; letter-spacing: .6px; text-transform: uppercase; color: #6B7280; font-weight: 700; }
+  .card .v { margin-top: 4px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: #0F2A44; }
+  .card.paid .v { color: #157347; }
+  .card.due .v { color: #A6332A; }
+  .pct { font-size: 10px; color: #6B7280; margin: 4px 0 18px; }
+  h2 { font-size: 12px; font-weight: 700; color: #0F2A44; margin: 18px 0 8px; }
+  .settlement { background: #fff; border: 1px solid #dfe3ea; border-radius: 6px; overflow: hidden; }
+  .settlement .row { display: flex; justify-content: space-between; gap: 16px; padding: 9px 12px; font-size: 10.5px; color: #2B2B2B; }
+  .settlement .row + .row { border-top: 1px solid #eceef2; }
+  .settlement .row.total { background: #EFF1F4; font-weight: 700; }
+  .settlement .row.total .v { color: #A6332A; }
+  .settlement .v { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th { font-size: 8.5px; letter-spacing: .6px; text-transform: uppercase; color: #fff;
+       text-align: ${dir === 'rtl' ? 'right' : 'left'}; padding: 7px; background: #0F2A44; font-weight: 700; }
+  td { padding: 6px 7px; border-bottom: 1px solid #eceef2; vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #F1F3F6; }
+  th.num, td.num { text-align: ${dir === 'rtl' ? 'left' : 'right'}; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.ref { font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 10px; white-space: nowrap; }
+  td.desc { color: #454b57; }
+  td.paid { color: #157347; font-weight: 700; }
+  td.empty { text-align: center; color: #8b91a0; padding: 12px; }
+  tfoot td { border-top: 1.5px solid #0F2A44; font-weight: 700; background: #EFF1F4 !important; }
+  footer { margin-top: 22px; padding-top: 10px; border-top: 1px solid #dfe3ea; font-size: 9px; color: #6b7280;
+           display: flex; justify-content: space-between; gap: 16px; }
+  @media print {
+    body { background: #fff; }
+    .sheet { max-width: none; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    h2 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="banner">
+    <div class="title">${escapeHtml(labels.documentTitle)}</div>
+    <div class="sub">
+      ${escapeHtml(statement.customerName)} &nbsp;·&nbsp; ${escapeHtml(labels.currency)}: ${cur} &nbsp;·&nbsp;
+      ${escapeHtml(labels.statementDate)}: ${escapeHtml(formatDate(now, lang))}
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="cards">
+      <div class="card">
+        <div class="k">${escapeHtml(labels.totalLoaned)}</div>
+        <div class="v">${formatMoney(statement.totalLoaned)} ${cur}</div>
+      </div>
+      <div class="card paid">
+        <div class="k">${escapeHtml(labels.totalRepaid)}</div>
+        <div class="v">${formatMoney(statement.totalRepaid)} ${cur}</div>
+      </div>
+      <div class="card due">
+        <div class="k">${escapeHtml(labels.outstanding)}</div>
+        <div class="v">${formatMoney(statement.outstanding)} ${cur}</div>
+      </div>
+    </div>
+    <div class="pct">${escapeHtml(percentLine)}</div>
+
+    <h2>${escapeHtml(labels.settlementSummary)}</h2>
+    <div class="settlement">
+      <div class="row">
+        <span>${escapeHtml(line(labels.settlementTotalLine, statement.customerName, cur))}</span>
+        <span class="v">${formatMoney(statement.totalLoaned)}</span>
+      </div>
+      <div class="row">
+        <span>${escapeHtml(line(labels.settlementPaidLine, statement.customerName, cur))}</span>
+        <span class="v">${formatMoney(statement.totalRepaid)}</span>
+      </div>
+      <div class="row total">
+        <span>${escapeHtml(line(labels.settlementRemainingLine, statement.customerName, cur))}</span>
+        <span class="v">${formatMoney(statement.outstanding)}</span>
+      </div>
+    </div>
+
+    <h2>${escapeHtml(labels.paymentsLog)}</h2>
+    <div style="font-size: 10px; color: #6B7280; margin-bottom: 4px;">
+      ${escapeHtml(statement.customerName)} &nbsp;·&nbsp; ${payments.length} ${escapeHtml(labels.allPayments)}
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th class="num">#</th>
+          <th>${escapeHtml(labels.date)}</th>
+          <th class="num">${escapeHtml(labels.amount)} (${cur})</th>
+          <th>${escapeHtml(labels.against)}</th>
+          <th>${escapeHtml(labels.ref)}</th>
+        </tr>
+      </thead>
+      <tbody>${paymentRows}</tbody>
+      ${payments.length > 0 ? `<tfoot>
+        <tr>
+          <td colspan="2">${escapeHtml(labels.totalRepaid)}</td>
+          <td class="num paid">${formatMoney(statement.totalRepaid)}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>` : ''}
+    </table>
+
+    <footer>
+      <span>${escapeHtml(labels.electronicNote)}</span>
+      <span>${escapeHtml(labels.generatedOn)} ${escapeHtml(formatDateTime(now, lang))}</span>
+    </footer>
+  </div>
 </div>
 </body>
 </html>`;
