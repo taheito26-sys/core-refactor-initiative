@@ -690,6 +690,20 @@ export default function StockPage() {
                 {fmtU(availableUsdt)} {localCur('USDT', t.lang)}
               </div>
             </div>
+            <div style={{
+              flex: '1 1 140px', minWidth: 140,
+              padding: '5px 9px',
+              background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                {t('totalInvestedQar') || 'Total Invested'}
+              </div>
+              <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                {fmtC(perf.reduce((s, b) => s + b.initialUSDT * b.buyPriceQAR, 0))}
+              </div>
+            </div>
             {wacop > 0 && (
               <div style={{
                 flex: '1 1 60px', minWidth: 60,
@@ -773,6 +787,7 @@ export default function StockPage() {
                       <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)' }}>
                         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('qty')}</div>
                         <div className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{fmtU(b.initialUSDT)}</div>
+                        <div className="muted mono" style={{ fontSize: 9, marginTop: 1 }}>{fmtC(b.initialUSDT * b.buyPriceQAR)}</div>
                       </div>
                       <div style={{ padding: '8px 8px', borderRight: '1px solid var(--line2)', textAlign: 'center' }}>
                         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{t('otcRate')}</div>
