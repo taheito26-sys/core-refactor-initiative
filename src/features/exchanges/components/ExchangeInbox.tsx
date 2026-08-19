@@ -146,6 +146,16 @@ export function ExchangeInbox({
   const total = allOrders.length + allTransfers.length;
   if (total === 0) return null;
 
+  // One chronological feed -- orders and transfers interleaved by date/time,
+  // not grouped by type, so the list matches the exchange's own order history.
+  type Row =
+    | { kind: 'order'; ts: number; data: (typeof allOrders)[number] }
+    | { kind: 'transfer'; ts: number; data: (typeof allTransfers)[number] };
+  const rows: Row[] = [
+    ...allOrders.map((o): Row => ({ kind: 'order', ts: o.order_time ? new Date(o.order_time).getTime() : 0, data: o })),
+    ...allTransfers.map((tr): Row => ({ kind: 'transfer', ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : 0, data: tr })),
+  ].sort((a, b) => b.ts - a.ts);
+
   const set = (id: string, s: RowState) => setRowState((p) => ({ ...p, [id]: s }));
 
   const run = async (id: string, fn: () => Promise<void> | void, invalidateKey: 'exchange-p2p-orders' | 'exchange-transfers') => {
@@ -211,7 +221,8 @@ export function ExchangeInbox({
       )}
 
       <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
-        {allOrders.map((o) => {
+        {rows.map((row) => row.kind === 'order' ? (() => {
+          const o = row.data;
           const st = rowState[o.id];
           const imported = isStillLinked(o.linked_at, o.linked_entity_id);
           const accent = ACCENT[side];
@@ -280,9 +291,8 @@ export function ExchangeInbox({
               </div>
             </div>
           );
-        })}
-
-        {allTransfers.map((tr) => {
+        })() : (() => {
+          const tr = row.data;
           const st = rowState[tr.id];
           const imported = isStillLinked(tr.linked_at, tr.linked_entity_id);
           const kind = KIND_CHIP[tr.kind];
@@ -367,7 +377,7 @@ export function ExchangeInbox({
               </div>
             </div>
           );
-        })}
+        })())}
       </div>
     </div>
   );
