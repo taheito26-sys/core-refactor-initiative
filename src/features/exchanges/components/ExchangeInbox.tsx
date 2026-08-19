@@ -120,20 +120,30 @@ export function ExchangeInbox({
     return activeEntityIds.has(linkedEntityId);
   };
 
-  const pendingOrders = useMemo(
-    () => (orders ?? []).filter((o) => o.side === side && !isStillLinked(o.linked_at, o.linked_entity_id)),
-    [orders, side, activeEntityIds],
+  // Show every order/transfer for this side, not just unimported ones, so the
+  // list stays a complete, stable record -- already-imported rows stay put
+  // (dimmed, with an "Imported" mark) instead of disappearing on save.
+  const allOrders = useMemo(
+    () =>
+      (orders ?? [])
+        .filter((o) => o.side === side)
+        .sort((a, b) => (b.order_time ? new Date(b.order_time).getTime() : 0) - (a.order_time ? new Date(a.order_time).getTime() : 0)),
+    [orders, side],
   );
-  const pendingTransfers = useMemo(
+  const allTransfers = useMemo(
     () =>
       onImportTransfer
-        ? (transfers ?? []).filter((tr) => tr.direction === 'in' && !isStillLinked(tr.linked_at, tr.linked_entity_id))
+        ? (transfers ?? [])
+            .filter((tr) => tr.direction === 'in')
+            .sort((a, b) => (b.transfer_time ? new Date(b.transfer_time).getTime() : 0) - (a.transfer_time ? new Date(a.transfer_time).getTime() : 0))
         : [],
-    [transfers, onImportTransfer, activeEntityIds],
+    [transfers, onImportTransfer],
   );
 
-  const total = pendingOrders.length + pendingTransfers.length;
-  const settled = Object.values(rowState).filter((s) => s.status === 'done').length;
+  const pendingCount =
+    allOrders.filter((o) => !isStillLinked(o.linked_at, o.linked_entity_id)).length +
+    allTransfers.filter((tr) => !isStillLinked(tr.linked_at, tr.linked_entity_id)).length;
+  const total = allOrders.length + allTransfers.length;
   if (total === 0) return null;
 
   const set = (id: string, s: RowState) => setRowState((p) => ({ ...p, [id]: s }));
@@ -150,12 +160,12 @@ export function ExchangeInbox({
     }
   };
 
-  const RowAction = ({ id, onImport, disabled }: { id: string; onImport: () => void; disabled?: boolean }) => {
+  const RowAction = ({ id, onImport, disabled, imported }: { id: string; onImport: () => void; disabled?: boolean; imported?: boolean }) => {
     const st = rowState[id]?.status ?? 'idle';
-    if (st === 'done') {
+    if (st === 'done' || imported) {
       return (
         <span className="flex shrink-0 items-center gap-0.5 px-1 text-[11px] font-semibold text-emerald-500">
-          <Check className="h-3 w-3" /> Added
+          <Check className="h-3 w-3" /> Imported
         </span>
       );
     }
@@ -188,7 +198,7 @@ export function ExchangeInbox({
           <span className="truncate">From your exchanges</span>
         </span>
         <span className="shrink-0 rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
-          {Math.max(0, total - settled)}
+          {pendingCount}
         </span>
       </div>
 
@@ -201,8 +211,9 @@ export function ExchangeInbox({
       )}
 
       <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
-        {pendingOrders.map((o) => {
+        {allOrders.map((o) => {
           const st = rowState[o.id];
+          const imported = isStillLinked(o.linked_at, o.linked_entity_id);
           const accent = ACCENT[side];
           const nameValue = names[o.id] ?? '';
           const autoName = `${EXCHANGE_LABELS[o.exchange]} P2P`;
@@ -217,8 +228,8 @@ export function ExchangeInbox({
             assigneeName: nameValue.trim() || undefined,
           };
           return (
-            <div key={o.id} className="flex w-full max-w-full overflow-hidden rounded border bg-muted/30">
-              <div className={cn('w-0.5 shrink-0', accent.bar)} />
+            <div key={o.id} className={cn('flex w-full max-w-full overflow-hidden rounded border', imported ? 'border-dashed bg-muted/10 opacity-60' : 'bg-muted/30')}>
+              <div className={cn('w-0.5 shrink-0', imported ? 'bg-emerald-500/40' : accent.bar)} />
               <div className="min-w-0 flex-1 px-1.5 py-1">
                 <div className="flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1">
                   <div className="min-w-0 flex-1 basis-[55%]">
@@ -237,38 +248,43 @@ export function ExchangeInbox({
                     </div>
                   </div>
                   <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0"
-                      title="Load into the form to adjust before saving"
-                      onClick={() => onEditOrder(payload)}
-                      disabled={st?.status === 'saving' || st?.status === 'done'}
-                    >
-                      <PencilLine className="h-3 w-3" />
-                    </Button>
-                    <RowAction id={o.id} onImport={() => run(o.id, () => onImportOrder(payload), 'exchange-p2p-orders')} />
+                    {!imported && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        title="Load into the form to adjust before saving"
+                        onClick={() => onEditOrder(payload)}
+                        disabled={st?.status === 'saving' || st?.status === 'done'}
+                      >
+                        <PencilLine className="h-3 w-3" />
+                      </Button>
+                    )}
+                    <RowAction id={o.id} imported={imported} onImport={() => run(o.id, () => onImportOrder(payload), 'exchange-p2p-orders')} />
                   </div>
                 </div>
-                <div className="mt-1 flex items-center gap-1">
-                  <Input
-                    list={datalistId}
-                    value={nameValue}
-                    onChange={(e) => setNames((p) => ({ ...p, [o.id]: e.target.value }))}
-                    placeholder={`${assigneeLabel}: ${autoName}`}
-                    aria-label={assigneeLabel}
-                    className="h-6 min-w-0 flex-1 px-1.5 text-[11px]"
-                    disabled={st?.status === 'saving' || st?.status === 'done'}
-                  />
-                </div>
+                {!imported && (
+                  <div className="mt-1 flex items-center gap-1">
+                    <Input
+                      list={datalistId}
+                      value={nameValue}
+                      onChange={(e) => setNames((p) => ({ ...p, [o.id]: e.target.value }))}
+                      placeholder={`${assigneeLabel}: ${autoName}`}
+                      aria-label={assigneeLabel}
+                      className="h-6 min-w-0 flex-1 px-1.5 text-[11px]"
+                      disabled={st?.status === 'saving' || st?.status === 'done'}
+                    />
+                  </div>
+                )}
                 <RowError st={st} />
               </div>
             </div>
           );
         })}
 
-        {pendingTransfers.map((tr) => {
+        {allTransfers.map((tr) => {
           const st = rowState[tr.id];
+          const imported = isStillLinked(tr.linked_at, tr.linked_entity_id);
           const kind = KIND_CHIP[tr.kind];
           const nameValue = names[tr.id] ?? '';
           const autoName = `${EXCHANGE_LABELS[tr.exchange]} ${tr.kind === 'pay' ? 'Pay' : 'Network'}`;
@@ -276,8 +292,8 @@ export function ExchangeInbox({
           const parsed = parseFloat(raw);
           const valid = Number.isFinite(parsed) && parsed > 0;
           return (
-            <div key={tr.id} className="flex w-full max-w-full overflow-hidden rounded border border-dashed bg-muted/30">
-              <div className={cn('w-0.5 shrink-0', ACCENT.transfer.bar)} />
+            <div key={tr.id} className={cn('flex w-full max-w-full overflow-hidden rounded border border-dashed', imported ? 'bg-muted/10 opacity-60' : 'bg-muted/30')}>
+              <div className={cn('w-0.5 shrink-0', imported ? 'bg-emerald-500/40' : ACCENT.transfer.bar)} />
               <div className="min-w-0 flex-1 px-1.5 py-1">
                 <div className="flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1">
                   <div className="min-w-0 flex-1 basis-[45%]">
@@ -294,17 +310,20 @@ export function ExchangeInbox({
                     </div>
                   </div>
                   <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                    <Input
-                      value={raw}
-                      onChange={(e) => setPrices((p) => ({ ...p, [tr.id]: e.target.value }))}
-                      inputMode="decimal"
-                      placeholder={fiatLabel}
-                      aria-label={`Buy price in ${fiatLabel}`}
-                      className="h-6 w-16 px-1.5 text-[11px]"
-                      disabled={st?.status === 'saving' || st?.status === 'done'}
-                    />
+                    {!imported && (
+                      <Input
+                        value={raw}
+                        onChange={(e) => setPrices((p) => ({ ...p, [tr.id]: e.target.value }))}
+                        inputMode="decimal"
+                        placeholder={fiatLabel}
+                        aria-label={`Buy price in ${fiatLabel}`}
+                        className="h-6 w-16 px-1.5 text-[11px]"
+                        disabled={st?.status === 'saving' || st?.status === 'done'}
+                      />
+                    )}
                     <RowAction
                       id={tr.id}
+                      imported={imported}
                       disabled={!valid}
                       onImport={() =>
                         run(
@@ -326,18 +345,20 @@ export function ExchangeInbox({
                     />
                   </div>
                 </div>
-                <div className="mt-1 flex items-center gap-1">
-                  <Input
-                    list={datalistId}
-                    value={nameValue}
-                    onChange={(e) => setNames((p) => ({ ...p, [tr.id]: e.target.value }))}
-                    placeholder={`${assigneeLabel}: ${autoName}`}
-                    aria-label={assigneeLabel}
-                    className="h-6 min-w-0 flex-1 px-1.5 text-[11px]"
-                    disabled={st?.status === 'saving' || st?.status === 'done'}
-                  />
-                </div>
-                {!valid && st?.status !== 'done' && (
+                {!imported && (
+                  <div className="mt-1 flex items-center gap-1">
+                    <Input
+                      list={datalistId}
+                      value={nameValue}
+                      onChange={(e) => setNames((p) => ({ ...p, [tr.id]: e.target.value }))}
+                      placeholder={`${assigneeLabel}: ${autoName}`}
+                      aria-label={assigneeLabel}
+                      className="h-6 min-w-0 flex-1 px-1.5 text-[11px]"
+                      disabled={st?.status === 'saving' || st?.status === 'done'}
+                    />
+                  </div>
+                )}
+                {!imported && !valid && st?.status !== 'done' && (
                   <div className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-500">
                     Enter cost basis ({fiatLabel}/USDT) to import.
                   </div>
