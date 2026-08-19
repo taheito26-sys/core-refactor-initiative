@@ -37,6 +37,7 @@ import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import
 import { markOrderLinked, markOrdersLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeOrderPayload, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -295,7 +296,7 @@ export default function StockPage() {
    * so the filter is widened -- otherwise the batch saves but appears to vanish.
    */
   const commitImportedBatch = useCallback(async (batch: {
-    id: string; ts: number; source: string; note: string; buyPriceQAR: number; initialUSDT: number;
+    id: string; ts: number; source: string; note: string; buyPriceQAR: number; initialUSDT: number; importedFrom: 'binance' | 'okx';
   }) => {
     const trimmedSource = batch.source.trim();
     const existingSupplier = (state.suppliers || []).some(
@@ -325,6 +326,7 @@ export default function StockPage() {
       note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
       buyPriceQAR: o.priceFiat,
       initialUSDT: o.amountUSDT,
+      importedFrom: o.exchange,
     });
     await markOrdersLinked([{ orderId: o.orderId, entityType: 'batch', entityId: batchId }]);
     setBatchMsg(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]} (${source}).`);
@@ -342,6 +344,7 @@ export default function StockPage() {
       note: `Received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (ref ${tr.reference})`,
       buyPriceQAR: tr.buyPrice,
       initialUSDT: tr.amountUSDT,
+      importedFrom: tr.exchange,
     });
     await markTransfersLinked([{ transferId: tr.transferId, entityType: 'batch', entityId: batchId }]);
     setBatchMsg(`Added ${fmtU(tr.amountUSDT)} USDT received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (${source}).`);
@@ -748,8 +751,9 @@ export default function StockPage() {
                   <div key={b.id} className="panel" style={{ margin: '0 0 8px', overflow: 'hidden' }}>
                     {/* ── Header: source name + Details/Edit + date ── */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '9px 12px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1 }}>
-                        {b.source || '—'}
+                      <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.source || '—'}</span>
+                        {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <button className="rowBtn" style={{ padding: '2px 6px', fontSize: 9, minHeight: 22, lineHeight: 1 }}
@@ -850,7 +854,12 @@ export default function StockPage() {
                       <React.Fragment key={b.id}>
                       <tr>
                         <td className="mono">{fmtDate(b.ts)}</td>
-                        <td>{b.source || '—'}</td>
+                        <td>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                            {b.source || '—'}
+                            {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
+                          </span>
+                        </td>
                         <td className="mono r">{fmtU(b.initialUSDT)}</td>
                         <td className="mono r">{fmtP(b.buyPriceQAR)}</td>
                         <td className="mono r">{fmtU(rem)}</td>

@@ -28,6 +28,7 @@ import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import
 import { markOrderLinked, markOrdersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeOrderPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
 import { insertCustomerOrderWithFallback } from '@/features/customer/customer-portal';
@@ -164,6 +165,7 @@ export default function OrdersPage() {
       usesStock: true,
       revisions: [],
       customerId: ensured.id,
+      importedFrom: o.exchange,
     };
     // Imported trades carry their original exchange timestamp, so widen the
     // range filter -- otherwise the trade saves but appears to vanish.
@@ -2654,6 +2656,7 @@ export default function OrdersPage() {
           <div style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.01em', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
             {isMerchantLinked && <span style={{ fontSize: 10, verticalAlign: 'middle' }}>🤝</span>}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn}</span>
+            {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
             {loan && (
               <span className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`} style={{ fontSize: 8, flexShrink: 0 }}>
                 🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
@@ -3077,7 +3080,12 @@ export default function OrdersPage() {
                             <td style={{ textAlign: 'center', fontSize: 16 }}>
                               {isMerchantLinked ? '🤝' : '👤'}
                             </td>
-                            <td>{cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                {cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
+                                {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
+                              </span>
+                            </td>
                             <td className="mono r">{fmtU(tr.amountUSDT)}</td>
                             <td className="mono r hide-mobile">{ok ? fmtP(c!.avgBuyQAR) : '—'}</td>
                             <td className="mono r">{fmtP(tr.sellPriceQAR)}</td>
