@@ -1778,6 +1778,27 @@ const translations = {
     ar: 'يشمل هذا الكشف كل طلب بالدين وكل دفعة مسجلة حتى تاريخه.',
   },
   stmtAgeDays: { en: 'Age (days)', ar: 'العمر (أيام)' },
+  loanStatementLayout: { en: 'Layout', ar: 'التنسيق' },
+  loanStatementLayoutClassic: { en: 'Classic', ar: 'الكلاسيكي' },
+  loanStatementLayoutCompact: { en: 'Statement', ar: 'بيان الحساب' },
+  stmtSettlementSummary: { en: 'Settlement summary', ar: 'ملخص التسوية' },
+  stmtSettlementTotalLine: { en: 'Total due in {currency}', ar: 'إجمالي المستحقات بـ{currency}' },
+  stmtSettlementPaidLine: {
+    en: 'Total payments received from {name} (from payments log)',
+    ar: 'إجمالي الدفعات المستلمة من {name} (من سجل الدفعات)',
+  },
+  stmtSettlementRemainingLine: {
+    en: 'Remaining for {name} to settle in full ({currency})',
+    ar: 'المتبقي على {name} لسداد كامل المستحقات ({currency})',
+  },
+  stmtPercentPaidSuffix: { en: 'of total due has been paid', ar: 'من إجمالي المستحقات تم سدادها' },
+  stmtAgainst: { en: 'Against', ar: 'مقابل' },
+  stmtPaymentsLog: { en: 'Payments log', ar: 'سجل الدفعات' },
+  stmtAllPayments: { en: 'payments, in order', ar: 'دفعات مرتبة زمنياً' },
+  stmtElectronicNote: {
+    en: 'This statement is issued electronically and reflects the latest settlement on record as of the issue date above.',
+    ar: 'هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.',
+  },
 
   // Loans page — editing a recorded payment
   loanEditPayment: { en: 'Edit payment', ar: 'تعديل الدفعة' },

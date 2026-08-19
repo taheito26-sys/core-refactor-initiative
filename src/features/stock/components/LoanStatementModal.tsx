@@ -1,13 +1,15 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import type { CustomerLoan } from '@/lib/tracker-helpers';
 import type { BuyerStatement, StatementEntry } from '@/features/stock/utils/loanStatement';
 import {
-  buildStatementCsv, buildStatementHtml, buildStatementText,
+  buildStatementCsv, buildStatementHtml, buildStatementHtmlCompact, buildStatementText,
   downloadTextFile, formatMoney, printHtmlDocument, statementFileBase,
 } from '@/features/stock/utils/loanStatementExport';
 import { statementLabels } from '@/features/stock/utils/statementLabels';
+
+type StatementLayout = 'classic' | 'compact';
 
 interface LoanStatementModalProps {
   statement: BuyerStatement;
@@ -36,6 +38,7 @@ export function LoanStatementModal({
   const t = useT();
   const labels = useMemo(() => statementLabels(t), [t]);
   const docOptions = useMemo(() => ({ businessName, lang: t.lang }), [businessName, t]);
+  const [layout, setLayout] = useState<StatementLayout>('classic');
 
   const payments = useMemo(() => statement.entries.filter(e => e.kind === 'payment'), [statement]);
   const canEditPayments = !!(onEditRepayment || onDeleteRepayment);
@@ -53,7 +56,9 @@ export function LoanStatementModal({
   };
 
   const exportPdf = () => {
-    const html = buildStatementHtml(statement, labels, docOptions);
+    const html = layout === 'compact'
+      ? buildStatementHtmlCompact(statement, labels, docOptions)
+      : buildStatementHtml(statement, labels, docOptions);
     if (!printHtmlDocument(html)) {
       // In-app webviews have no print dialog — the spreadsheet still gets there.
       exportCsv();
@@ -139,9 +144,21 @@ export function LoanStatementModal({
 
         {/* Export bar — the whole point of the screen */}
         <div style={{
-          display: 'flex', flexWrap: 'wrap', gap: 6,
+          display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
           padding: isMobile ? '10px 12px' : '10px 20px', borderBottom: '1px solid var(--line2)',
         }}>
+          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.6px', textTransform: 'uppercase', color: 'var(--muted)' }}>
+            {t('loanStatementLayout')}
+          </span>
+          <select
+            value={layout}
+            onChange={e => setLayout(e.target.value as StatementLayout)}
+            className="rowBtn"
+            style={{ padding: '4px 8px', fontSize: 11 }}
+          >
+            <option value="classic">{t('loanStatementLayoutClassic')}</option>
+            <option value="compact">{t('loanStatementLayoutCompact')}</option>
+          </select>
           <button className="btn" style={{ padding: '6px 14px', fontSize: 11 }} onClick={exportPdf}>🖨 {t('loanExportPdf')}</button>
           <button className="rowBtn" onClick={exportCsv}>📊 {t('loanExportExcel')}</button>
           <button className="rowBtn" onClick={copySummary}>📋 {t('loanCopySummary')}</button>
