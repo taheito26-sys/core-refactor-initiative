@@ -250,6 +250,8 @@ export interface Batch {
   custodyType?: 'self' | 'merchant';
   custodyMerchantId?: string;
   custodyRelationshipId?: string;
+  /** Set when this batch was imported from a connected exchange, for a visible "already imported" marker. */
+  importedFrom?: 'binance' | 'okx';
 }
 
 export type LinkedTradeStatus = 'pending_approval' | 'approved' | 'rejected' | 'cancellation_pending' | 'cancelled';
@@ -311,6 +313,8 @@ export interface Trade {
   merchantSettlementAccountId?: string;
   /** Where inventory is held after execution */
   inventoryCustodyMerchantId?: string;
+  /** Set when this trade was imported from a connected exchange, for a visible "already imported" marker. */
+  importedFrom?: 'binance' | 'okx';
 }
 
 export interface Customer {
