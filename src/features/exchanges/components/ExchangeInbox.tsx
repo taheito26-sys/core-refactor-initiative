@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Check, Loader2, PencilLine, AlertCircle, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
@@ -60,6 +61,59 @@ function Chip({ className, children }: { className?: string; children: React.Rea
   );
 }
 
+/**
+ * Three-way name picker for an imported row: the generic exchange label, the
+ * full counterparty name the exchange reported, or an existing tracker name.
+ * Always resolves to one of those -- no freeform typing, so the recorded
+ * name always matches something real instead of a typo'd one-off.
+ */
+function AssigneeSelect({
+  value,
+  onChange,
+  autoName,
+  counterpartyName,
+  existingOptions,
+  disabled,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  autoName: string;
+  counterpartyName: string | null;
+  existingOptions: string[];
+  disabled?: boolean;
+  ariaLabel: string;
+}) {
+  const dedupedExisting = existingOptions.filter((n) => n !== autoName && n !== counterpartyName);
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger aria-label={ariaLabel} className="h-6 min-w-0 flex-1 px-1.5 text-[11px] [&>svg]:h-3 [&>svg]:w-3">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          <SelectLabel className="text-[10px]">Exchange</SelectLabel>
+          <SelectItem value={autoName} className="text-[11px]">{autoName}</SelectItem>
+        </SelectGroup>
+        {counterpartyName && (
+          <SelectGroup>
+            <SelectLabel className="text-[10px]">Full seller name</SelectLabel>
+            <SelectItem value={counterpartyName} className="text-[11px]">{counterpartyName}</SelectItem>
+          </SelectGroup>
+        )}
+        {dedupedExisting.length > 0 && (
+          <SelectGroup>
+            <SelectLabel className="text-[10px]">Existing</SelectLabel>
+            {dedupedExisting.map((n) => (
+              <SelectItem key={n} value={n} className="text-[11px]">{n}</SelectItem>
+            ))}
+          </SelectGroup>
+        )}
+      </SelectContent>
+    </Select>
+  );
+}
+
 const fmtNum = (n: number, max = 2) => n.toLocaleString(undefined, { maximumFractionDigits: max });
 
 const fmtWhen = (iso: string | null) =>
@@ -112,7 +166,6 @@ export function ExchangeInbox({
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [names, setNames] = useState<Record<string, string>>({});
-  const datalistId = `exchange-inbox-names-${side}`;
 
   const isStillLinked = (linkedAt: string | null, linkedEntityId: string | null) => {
     if (!linkedAt) return false;
@@ -212,24 +265,16 @@ export function ExchangeInbox({
         </span>
       </div>
 
-      {assigneeOptions.length > 0 && (
-        <datalist id={datalistId}>
-          {assigneeOptions.map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
-      )}
-
       <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
         {rows.map((row) => row.kind === 'order' ? (() => {
           const o = row.data;
           const st = rowState[o.id];
           const imported = isStillLinked(o.linked_at, o.linked_entity_id);
           const accent = ACCENT[side];
-          // Pre-fill with the counterparty's name from the exchange (still editable)
-          // instead of leaving it blank -- most imports just want the real seller/buyer name.
-          const nameValue = names[o.id] ?? o.counterparty ?? '';
           const autoName = `${EXCHANGE_LABELS[o.exchange]} P2P`;
+          // Defaults to the counterparty's full name from the exchange when one
+          // was reported, otherwise the generic exchange label.
+          const nameValue = names[o.id] ?? o.counterparty ?? autoName;
           const payload: ExchangeOrderPayload = {
             exchange: o.exchange,
             orderId: o.id,
@@ -278,13 +323,13 @@ export function ExchangeInbox({
                 </div>
                 {!imported && (
                   <div className="mt-1 flex items-center gap-1">
-                    <Input
-                      list={datalistId}
+                    <AssigneeSelect
                       value={nameValue}
-                      onChange={(e) => setNames((p) => ({ ...p, [o.id]: e.target.value }))}
-                      placeholder={`${assigneeLabel}: ${autoName}`}
-                      aria-label={assigneeLabel}
-                      className="h-6 min-w-0 flex-1 px-1.5 text-[11px]"
+                      onChange={(v) => setNames((p) => ({ ...p, [o.id]: v }))}
+                      autoName={autoName}
+                      counterpartyName={o.counterparty}
+                      existingOptions={assigneeOptions}
+                      ariaLabel={assigneeLabel}
                       disabled={st?.status === 'saving' || st?.status === 'done'}
                     />
                   </div>
@@ -298,8 +343,8 @@ export function ExchangeInbox({
           const st = rowState[tr.id];
           const imported = isStillLinked(tr.linked_at, tr.linked_entity_id);
           const kind = KIND_CHIP[tr.kind];
-          const nameValue = names[tr.id] ?? tr.counterparty ?? '';
           const autoName = `${EXCHANGE_LABELS[tr.exchange]} ${tr.kind === 'pay' ? 'Pay' : 'Network'}`;
+          const nameValue = names[tr.id] ?? tr.counterparty ?? autoName;
           const raw = prices[tr.id] ?? (defaultPrice && defaultPrice > 0 ? String(Number(defaultPrice.toFixed(4))) : '');
           const parsed = parseFloat(raw);
           const valid = Number.isFinite(parsed) && parsed > 0;
@@ -359,13 +404,13 @@ export function ExchangeInbox({
                 </div>
                 {!imported && (
                   <div className="mt-1 flex items-center gap-1">
-                    <Input
-                      list={datalistId}
+                    <AssigneeSelect
                       value={nameValue}
-                      onChange={(e) => setNames((p) => ({ ...p, [tr.id]: e.target.value }))}
-                      placeholder={`${assigneeLabel}: ${autoName}`}
-                      aria-label={assigneeLabel}
-                      className="h-6 min-w-0 flex-1 px-1.5 text-[11px]"
+                      onChange={(v) => setNames((p) => ({ ...p, [tr.id]: v }))}
+                      autoName={autoName}
+                      counterpartyName={tr.counterparty}
+                      existingOptions={assigneeOptions}
+                      ariaLabel={assigneeLabel}
                       disabled={st?.status === 'saving' || st?.status === 'done'}
                     />
                   </div>
