@@ -34,9 +34,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
 import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
-import { markOrderLinked, markOrdersLinked, markTransfersLinked } from '@/features/exchanges/api';
+import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
-import { ExchangeInbox, type ExchangeOrderPayload, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
@@ -73,7 +73,14 @@ export default function StockPage() {
   const [batchSupplier, setBatchSupplier] = useState('');
   const [batchNote, setBatchNote] = useState('');
   const [batchMsg, setBatchMsg] = useState('');
-  const [pendingImportOrderId, setPendingImportOrderId] = useState<string | null>(null);
+  // Set while the form holds an exchange row picked from the inbox, so the
+  // normal save path can stamp the batch as imported and mark the source row
+  // linked. There is no separate import action -- picking only prefills.
+  const [pendingImport, setPendingImport] = useState<
+    | { kind: 'order'; orderId: string; exchange: 'binance' | 'okx' }
+    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx' }
+    | null
+  >(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
@@ -265,10 +272,11 @@ export default function StockPage() {
     exchange: 'binance' | 'okx';
     orderId: string;
     orderNumber: string;
-    fiat: string;
     amountUSDT: number;
     priceFiat: number;
     ts: number;
+    assigneeName?: string;
+    needsQarRate?: boolean;
     originalFiat?: string;
     originalPriceFiat?: number;
     originalTotalFiat?: number;
@@ -276,21 +284,40 @@ export default function StockPage() {
     setBatchDate(inputFromTs(prefill.ts));
     setBatchEntryMode('qty_price');
     setBatchUsdtQty(String(prefill.amountUSDT));
-    setBatchPrice(String(prefill.priceFiat));
+    // A non-QAR order has no QAR price yet, so the price field is left empty
+    // for the user to fill in with their own rate.
+    setBatchPrice(prefill.needsQarRate ? '' : String(prefill.priceFiat));
     setBatchAmount('');
-    setBatchSupplier(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    setBatchSupplier(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
     setBatchNote(
       prefill.originalFiat
-        ? `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} — bought for ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat}/USDT (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total), converted at 1 USDT = ${fmtP(prefill.priceFiat)} QAR`
-        : `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} (${prefill.fiat})`,
+        ? `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} — bought for ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat}/USDT (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total)`
+        : `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber}`,
     );
     setFundingAccountId('none');
-    setPendingImportOrderId(prefill.orderId);
+    setPendingImport({ orderId: prefill.orderId, kind: 'order', exchange: prefill.exchange });
     setBatchMsg(
       prefill.originalFiat
-        ? `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — converted from ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat} at your entered rate. Verify the QAR price before saving.`
-        : `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`,
+        ? `${EXCHANGE_LABELS[prefill.exchange]}: ${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} — enter your ${activeBatchFiat}/USDT rate as the price.`
+        : '',
     );
+    setAddBatchSheetOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBatchFiat]);
+
+  /** USDT received via Pay/on-chain prefills a batch at the running cost basis. */
+  const applyExchangeTransferPrefill = useCallback((prefill: ExchangeTransferPayload) => {
+    const via = prefill.kind === 'pay' ? 'Pay' : 'network';
+    setBatchDate(inputFromTs(prefill.ts));
+    setBatchEntryMode('qty_price');
+    setBatchUsdtQty(String(prefill.amountUSDT));
+    setBatchPrice(prefill.buyPrice > 0 ? String(Number(prefill.buyPrice.toFixed(4))) : '');
+    setBatchAmount('');
+    setBatchSupplier(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
+    setBatchNote(`Received via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference})`);
+    setFundingAccountId('none');
+    setPendingImport({ transferId: prefill.transferId, kind: 'transfer', exchange: prefill.exchange });
+    setBatchMsg('');
     setAddBatchSheetOpen(true);
   }, []);
 
@@ -301,122 +328,7 @@ export default function StockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /**
-   * Commits one imported batch. Imported orders carry their original exchange
-   * timestamp, which is usually outside the month filter the list defaults to,
-   * so the filter is widened -- otherwise the batch saves but appears to vanish.
-   */
-  const commitImportedBatch = useCallback(async (batch: {
-    id: string; ts: number; source: string; note: string; buyPriceQAR: number; initialUSDT: number; importedFrom: 'binance' | 'okx';
-  }) => {
-    const trimmedSource = batch.source.trim();
-    const existingSupplier = (state.suppliers || []).some(
-      (s) => s.name.trim().toLocaleLowerCase() === trimmedSource.toLocaleLowerCase(),
-    );
-    const nextSuppliers = existingSupplier
-      ? state.suppliers
-      : [...(state.suppliers || []), { id: uid(), name: trimmedSource, phone: '', notes: '', createdAt: Date.now() }];
 
-    // Link to the same funding source the manual "Add Batch" form uses, so an
-    // imported purchase debits cash exactly like a hand-entered one does.
-    const batchCostQAR = Math.round(batch.initialUSDT * batch.buyPriceQAR * 100) / 100;
-    let nextCashLedger = [...(state.cashLedger || [])];
-    let fundingLedgerEntryId: string | undefined;
-    let selectedFundingAccountId: string | undefined;
-
-    if (activeAccounts.length > 0 && fundingAccountId && fundingAccountId !== 'none') {
-      const selectedAcc = activeAccounts.find((a) => a.id === fundingAccountId);
-      if (!selectedAcc) throw new Error(t('fundingAccNotFound'));
-      const availBal = accountBalances.get(fundingAccountId) || 0;
-      if (availBal < batchCostQAR) {
-        throw new Error(
-          `${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} ${selectedAcc.currency}, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} ${selectedAcc.currency}`,
-        );
-      }
-      const entryId = uid();
-      const purchaseEntry: CashLedgerEntry = {
-        id: entryId,
-        ts: Date.now(),
-        type: 'stock_purchase',
-        accountId: fundingAccountId,
-        direction: 'out',
-        amount: batchCostQAR,
-        currency: selectedAcc.currency,
-        linkedEntityType: 'batch',
-        linkedEntityId: batch.id,
-        note: `Stock purchase: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${trimmedSource}`,
-      };
-      nextCashLedger = [...nextCashLedger, purchaseEntry];
-      fundingLedgerEntryId = entryId;
-      selectedFundingAccountId = fundingAccountId;
-    }
-
-    const currentCash = num(state.cashQAR, 0);
-    const newCashFromLedger = activeAccounts.length > 0
-      ? deriveCashQAR(cashAccounts, nextCashLedger)
-      : Math.max(0, currentCash - batchCostQAR);
-    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
-      id: uid(),
-      ts: Date.now(),
-      type: 'batch_purchase',
-      amount: Math.min(batchCostQAR, currentCash),
-      balanceAfter: newCashFromLedger,
-      owner: state.cashOwner || '',
-      bankAccount: activeAccounts.find((a) => a.id === fundingAccountId)?.name || '',
-      note: `Stock purchase: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${trimmedSource}`,
-    };
-
-    await applyStateAndCommit({
-      ...state,
-      suppliers: nextSuppliers,
-      cashQAR: newCashFromLedger,
-      cashHistory: [...(state.cashHistory || []), cashTx],
-      cashLedger: nextCashLedger,
-      batches: [
-        ...state.batches,
-        { ...batch, revisions: [], fundingAccountId: selectedFundingAccountId, fundingLedgerEntryId },
-      ],
-    });
-    const key = new Date(batch.ts).toISOString().slice(0, 7);
-    setSelectedMonth((cur) => (cur === 'all' || cur === key ? cur : 'all'));
-  }, [applyStateAndCommit, state, activeAccounts, accountBalances, cashAccounts, fundingAccountId, t]);
-
-  /** A synced P2P buy becomes a stock batch at the price it was bought at. */
-  const importExchangeOrderAsBatch = useCallback(async (o: ExchangeOrderPayload) => {
-    const batchId = uid();
-    const source = o.assigneeName?.trim() || `${EXCHANGE_LABELS[o.exchange]} P2P`;
-    await commitImportedBatch({
-      id: batchId,
-      ts: o.ts,
-      source,
-      note: o.originalFiat
-        ? `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} — bought for ${fmtP(o.originalPriceFiat ?? 0)} ${o.originalFiat}/USDT (${fmtP(o.originalTotalFiat ?? 0)} ${o.originalFiat} total), converted at 1 USDT = ${fmtP(o.priceFiat)} QAR`
-        : `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
-      buyPriceQAR: o.priceFiat,
-      initialUSDT: o.amountUSDT,
-      importedFrom: o.exchange,
-    });
-    await markOrdersLinked([{ orderId: o.orderId, entityType: 'batch', entityId: batchId }]);
-    setBatchMsg(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]} (${source}).`);
-  }, [commitImportedBatch]);
-
-  /** USDT received via Pay/on-chain becomes stock at a user-supplied cost basis. */
-  const importExchangeTransferAsBatch = useCallback(async (tr: ExchangeTransferPayload) => {
-    const batchId = uid();
-    const via = tr.kind === 'pay' ? 'Pay' : 'network';
-    const source = tr.assigneeName?.trim() || `${EXCHANGE_LABELS[tr.exchange]} ${via}`;
-    await commitImportedBatch({
-      id: batchId,
-      ts: tr.ts,
-      source,
-      note: `Received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (ref ${tr.reference})`,
-      buyPriceQAR: tr.buyPrice,
-      initialUSDT: tr.amountUSDT,
-      importedFrom: tr.exchange,
-    });
-    await markTransfersLinked([{ transferId: tr.transferId, entityType: 'batch', entityId: batchId }]);
-    setBatchMsg(`Added ${fmtU(tr.amountUSDT)} USDT received via ${EXCHANGE_LABELS[tr.exchange]} ${via} (${source}).`);
-  }, [commitImportedBatch]);
 
   const addBatch = async () => {
     const ts = new Date(batchDate).getTime();
@@ -532,6 +444,7 @@ export default function StockPage() {
           revisions: [],
           fundingAccountId: selectedFundingAccountId,
           fundingLedgerEntryId,
+          importedFrom: pendingImport?.exchange,
         },
       ],
     };
@@ -545,9 +458,12 @@ export default function StockPage() {
       setBatchMsg(`⚠ ${t('saveFailed') || 'Save failed'}: ${msg}`);
       return;
     }
-    if (pendingImportOrderId) {
-      markOrderLinked(pendingImportOrderId, 'batch', batchId).catch(() => {});
-      setPendingImportOrderId(null);
+    if (pendingImport?.kind === 'order') {
+      markOrderLinked(pendingImport.orderId, 'batch', batchId).catch(() => {});
+      setPendingImport(null);
+    } else if (pendingImport?.kind === 'transfer') {
+      markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'batch', entityId: batchId }]).catch(() => {});
+      setPendingImport(null);
     }
     setBatchAmount('');
     setBatchPrice('');
@@ -1020,13 +936,9 @@ export default function StockPage() {
               <div className="field2">
                 <ExchangeInbox
                   side="buy"
-                  onImportOrder={importExchangeOrderAsBatch}
-                  onEditOrder={applyExchangeOrderPrefill}
-                  onImportTransfer={importExchangeTransferAsBatch}
-                  fiatLabel={activeBatchFiat}
+                  onPick={applyExchangeOrderPrefill}
+                  onPickTransfer={applyExchangeTransferPrefill}
                   defaultPrice={wacop || undefined}
-                  assigneeLabel="Supplier"
-                  assigneeOptions={supplierOptions}
                   activeEntityIds={activeBatchIds}
                 />
                 {activeAccounts.length > 0 && (
@@ -1306,13 +1218,9 @@ export default function StockPage() {
                   <div className="field2">
                     <ExchangeInbox
                       side="buy"
-                      onImportOrder={importExchangeOrderAsBatch}
-                      onEditOrder={applyExchangeOrderPrefill}
-                      onImportTransfer={importExchangeTransferAsBatch}
-                      fiatLabel={activeBatchFiat}
+                      onPick={applyExchangeOrderPrefill}
+                      onPickTransfer={applyExchangeTransferPrefill}
                       defaultPrice={wacop || undefined}
-                      assigneeLabel="Supplier"
-                      assigneeOptions={supplierOptions}
                       activeEntityIds={activeBatchIds}
                     />
                     {activeAccounts.length > 0 && (

@@ -7,13 +7,14 @@ export interface TrackerImportPrefill {
   exchange: ExchangeId;
   orderId: string;
   orderNumber: string;
-  /** Always 'QAR' -- the currency the tracker actually books the order in. */
-  fiat: string;
   amountUSDT: number;
-  /** QAR unit price. For a non-QAR exchange order this is the user-entered USDT->QAR rate. */
-  priceFiat: number;
   ts: number;
-  /** Set when the exchange order wasn't in QAR -- the original fiat/price/total to keep on record. */
+  assigneeName?: string;
+  /** QAR unit price, or 0 when the order was settled in another fiat. */
+  priceFiat: number;
+  /** True when the exchange order was not in QAR, so the form must ask for the rate. */
+  needsQarRate?: boolean;
+  /** Present for a non-QAR order -- the original figures, kept on the saved record. */
   originalFiat?: string;
   originalPriceFiat?: number;
   originalTotalFiat?: number;

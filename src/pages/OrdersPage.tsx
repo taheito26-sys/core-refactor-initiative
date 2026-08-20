@@ -25,9 +25,9 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
-import { markOrderLinked, markOrdersLinked } from '@/features/exchanges/api';
+import { markOrderLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
-import { ExchangeInbox, type ExchangeOrderPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { ExchangeInbox } from '@/features/exchanges/components/ExchangeInbox';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
@@ -119,16 +119,24 @@ export default function OrdersPage() {
   const [manualBuyPrice, setManualBuyPrice] = useState('');
   const [saleFee, setSaleFee] = useState('');
   const [saleMessage, setSaleMessage] = useState('');
-  const [pendingImportOrderId, setPendingImportOrderId] = useState<string | null>(null);
+  // Set while the form holds an exchange order picked from the inbox, so the
+  // normal save path can stamp the trade as imported and mark the source row
+  // linked. There is no separate import action -- picking only prefills.
+  const [pendingImport, setPendingImport] = useState<{
+    orderId: string;
+    exchange: 'binance' | 'okx';
+    note: string;
+  } | null>(null);
 
   const applyExchangeOrderPrefill = useCallback((prefill: {
     exchange: 'binance' | 'okx';
     orderId: string;
     orderNumber: string;
-    fiat: string;
     amountUSDT: number;
     priceFiat: number;
     ts: number;
+    assigneeName?: string;
+    needsQarRate?: boolean;
     originalFiat?: string;
     originalPriceFiat?: number;
     originalTotalFiat?: number;
@@ -136,17 +144,27 @@ export default function OrdersPage() {
     setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
     setSaleEntryMode('qty_price');
     setSaleUsdtQty(String(prefill.amountUSDT));
-    setSaleSell(String(prefill.priceFiat));
+    // A non-QAR order has no QAR price yet, so the sell-price field is left
+    // empty for the user to fill in with their own rate.
+    setSaleSell(prefill.needsQarRate ? '' : String(prefill.priceFiat));
     setSaleAmount('');
-    setBuyerName(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
-    setPendingImportOrderId(prefill.orderId);
+    setBuyerName(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    setBuyerId('');
+    setPendingImport({
+      orderId: prefill.orderId,
+      exchange: prefill.exchange,
+      note: prefill.originalFiat
+        ? `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} — sold for ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat}/USDT (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total)`
+        : `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber}`,
+    });
     setSaleMessage(
       prefill.originalFiat
-        ? `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — converted from ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat} (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total) at your entered rate. Verify the QAR price before saving.`
-        : `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`,
+        ? `${EXCHANGE_LABELS[prefill.exchange]}: ${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} — enter your ${baseFiat}/USDT rate as the sell price.`
+        : '',
     );
     setNewSaleSheetOpen(true);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseFiat]);
 
   useEffect(() => {
     const prefill = consumeTrackerImportPrefill('trade');
@@ -154,35 +172,6 @@ export default function OrdersPage() {
     applyExchangeOrderPrefill(prefill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  /** A synced P2P sell becomes a trade at the price it sold for. */
-  const importExchangeOrderAsTrade = useCallback(async (o: ExchangeOrderPayload) => {
-    const tradeId = uid();
-    const buyerName = o.assigneeName?.trim() || `${EXCHANGE_LABELS[o.exchange]} P2P`;
-    const ensured = ensureCustomer(buyerName);
-    const trade: Trade = {
-      id: tradeId,
-      ts: o.ts,
-      inputMode: 'USDT',
-      amountUSDT: o.amountUSDT,
-      sellPriceQAR: o.priceFiat,
-      feeQAR: 0,
-      note: o.originalFiat
-        ? `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} — sold for ${fmtP(o.originalPriceFiat ?? 0)} ${o.originalFiat}/USDT (${fmtP(o.originalTotalFiat ?? 0)} ${o.originalFiat} total), converted at 1 USDT = ${fmtP(o.priceFiat)} QAR`
-        : `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
-      voided: false,
-      usesStock: true,
-      revisions: [],
-      customerId: ensured.id,
-      importedFrom: o.exchange,
-    };
-    // Imported trades carry their original exchange timestamp, so widen the
-    // range filter -- otherwise the trade saves but appears to vanish.
-    applyState({ ...state, customers: ensured.customers, trades: [...state.trades, trade], range: 'all' });
-    await markOrdersLinked([{ orderId: o.orderId, entityType: 'trade', entityId: tradeId }]);
-    toast.success(`Imported ${fmtU(o.amountUSDT)} USDT @ ${fmtP(o.priceFiat)} from ${EXCHANGE_LABELS[o.exchange]} (${buyerName})`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applyState, state]);
   const [newSaleSheetOpen, setNewSaleSheetOpen] = useState(false);
   const [cashDepositMode, setCashDepositMode] = useState<'none' | 'full' | 'partial'>('none');
   const [cashDepositAmount, setCashDepositAmount] = useState('');
@@ -1562,9 +1551,13 @@ export default function OrdersPage() {
 
     const baseTrade: Trade = {
       id: uid(), ts, inputMode: saleEntryMode === 'price_vol' ? saleMode : 'USDT', amountUSDT, sellPriceQAR: sell, feeQAR: feeQar,
-      note: isInsufficientStock && canSubmitSale
-        ? `manual_cost_basis: true | fifo_uncovered_qty: ${stockCoverage.stockShortfall} | stock_shortfall_override: true`
-        : '',
+      note: [
+        isInsufficientStock && canSubmitSale
+          ? `manual_cost_basis: true | fifo_uncovered_qty: ${stockCoverage.stockShortfall} | stock_shortfall_override: true`
+          : '',
+        pendingImport?.note || '',
+      ].filter(Boolean).join(' | '),
+      importedFrom: pendingImport?.exchange,
       voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
@@ -1914,9 +1907,9 @@ export default function OrdersPage() {
       }
       applyState(next);
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
-      if (pendingImportOrderId) {
-        markOrderLinked(pendingImportOrderId, 'trade', baseTrade.id).catch(() => {});
-        setPendingImportOrderId(null);
+      if (pendingImport) {
+        markOrderLinked(pendingImport.orderId, 'trade', baseTrade.id).catch(() => {});
+        setPendingImport(null);
       }
     }
 
@@ -3791,11 +3784,7 @@ export default function OrdersPage() {
                 <div className="field2">
                   <ExchangeInbox
                     side="sell"
-                    onImportOrder={importExchangeOrderAsTrade}
-                    onEditOrder={applyExchangeOrderPrefill}
-                    fiatLabel={baseFiat}
-                    assigneeLabel="Buyer"
-                    assigneeOptions={allBuyerOptions.map((c) => c.name)}
+                    onPick={applyExchangeOrderPrefill}
                     activeEntityIds={activeTradeIds}
                   />
                 </div>
