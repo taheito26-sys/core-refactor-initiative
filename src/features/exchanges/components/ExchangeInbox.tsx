@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Check, Loader2, PencilLine, AlertCircle, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
@@ -68,10 +67,11 @@ function Chip({ className, children }: { className?: string; children: React.Rea
 }
 
 /**
- * Three-way name picker for an imported row: the generic exchange label, the
- * full counterparty name the exchange reported, or an existing tracker name.
- * Always resolves to one of those -- no freeform typing, so the recorded
- * name always matches something real instead of a typo'd one-off.
+ * Search-or-type name picker for an imported row, matching the same lookup
+ * UX as the manual trade/batch entry form's buyer/supplier field: typing
+ * filters a dropdown of the generic exchange label, the exchange-reported
+ * counterparty name, and every existing tracker name, but any typed text is
+ * also accepted as-is (e.g. to hand-correct a masked exchange name).
  */
 function AssigneeSelect({
   value,
@@ -90,39 +90,42 @@ function AssigneeSelect({
   disabled?: boolean;
   ariaLabel: string;
 }) {
-  const dedupedExisting = existingOptions.filter((n) => n !== autoName && n !== counterpartyName);
+  const [open, setOpen] = useState(false);
+  const q = value.trim().toLowerCase();
+  const candidates = [autoName, ...(counterpartyName ? [counterpartyName] : []), ...existingOptions];
+  const deduped = Array.from(new Set(candidates));
+  const filtered = q ? deduped.filter((n) => n.toLowerCase().includes(q)) : deduped;
+
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger aria-label={ariaLabel} className="h-6 min-w-0 flex-1 px-1.5 text-[11px] [&>svg]:h-3 [&>svg]:w-3">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          <SelectLabel className="py-1 pl-6 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Exchange</SelectLabel>
-          <SelectItem value={autoName} className="text-[12px] font-medium">{autoName}</SelectItem>
-        </SelectGroup>
-        {counterpartyName && (
-          <>
-            <SelectSeparator />
-            <SelectGroup>
-              <SelectLabel className="py-1 pl-6 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Full seller name</SelectLabel>
-              <SelectItem value={counterpartyName} className="text-[12px] font-medium">{counterpartyName}</SelectItem>
-            </SelectGroup>
-          </>
-        )}
-        {dedupedExisting.length > 0 && (
-          <>
-            <SelectSeparator />
-            <SelectGroup>
-              <SelectLabel className="py-1 pl-6 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Existing</SelectLabel>
-              {dedupedExisting.map((n) => (
-                <SelectItem key={n} value={n} className="text-[12px] font-medium">{n}</SelectItem>
-              ))}
-            </SelectGroup>
-          </>
-        )}
-      </SelectContent>
-    </Select>
+    <div className="relative min-w-0 flex-1">
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        aria-label={ariaLabel}
+        autoComplete="off"
+        disabled={disabled}
+        className="h-6 min-w-0 px-1.5 text-[11px]"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-10 mt-0.5 max-h-32 overflow-y-auto rounded border bg-popover shadow-md">
+          {filtered.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className="block w-full truncate px-1.5 py-1 text-left text-[11px] hover:bg-accent"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onChange(n); setOpen(false); }}
+            >
+              {n}
+              {n === autoName && <span className="ml-1 text-[9px] text-muted-foreground">Exchange</span>}
+              {n === counterpartyName && <span className="ml-1 text-[9px] text-muted-foreground">Full seller name</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
