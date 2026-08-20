@@ -306,14 +306,69 @@ export default function StockPage() {
       ? state.suppliers
       : [...(state.suppliers || []), { id: uid(), name: trimmedSource, phone: '', notes: '', createdAt: Date.now() }];
 
+    // Link to the same funding source the manual "Add Batch" form uses, so an
+    // imported purchase debits cash exactly like a hand-entered one does.
+    const batchCostQAR = Math.round(batch.initialUSDT * batch.buyPriceQAR * 100) / 100;
+    let nextCashLedger = [...(state.cashLedger || [])];
+    let fundingLedgerEntryId: string | undefined;
+    let selectedFundingAccountId: string | undefined;
+
+    if (activeAccounts.length > 0 && fundingAccountId && fundingAccountId !== 'none') {
+      const selectedAcc = activeAccounts.find((a) => a.id === fundingAccountId);
+      if (!selectedAcc) throw new Error(t('fundingAccNotFound'));
+      const availBal = accountBalances.get(fundingAccountId) || 0;
+      if (availBal < batchCostQAR) {
+        throw new Error(
+          `${t('insufficientInAcc')} "${selectedAcc.name}". ${t('availableLbl')}: ${fmtTotal(availBal)} ${selectedAcc.currency}, ${t('requiredLbl')}: ${fmtTotal(batchCostQAR)} ${selectedAcc.currency}`,
+        );
+      }
+      const entryId = uid();
+      const purchaseEntry: CashLedgerEntry = {
+        id: entryId,
+        ts: Date.now(),
+        type: 'stock_purchase',
+        accountId: fundingAccountId,
+        direction: 'out',
+        amount: batchCostQAR,
+        currency: selectedAcc.currency,
+        linkedEntityType: 'batch',
+        linkedEntityId: batch.id,
+        note: `Stock purchase: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${trimmedSource}`,
+      };
+      nextCashLedger = [...nextCashLedger, purchaseEntry];
+      fundingLedgerEntryId = entryId;
+      selectedFundingAccountId = fundingAccountId;
+    }
+
+    const currentCash = num(state.cashQAR, 0);
+    const newCashFromLedger = activeAccounts.length > 0
+      ? deriveCashQAR(cashAccounts, nextCashLedger)
+      : Math.max(0, currentCash - batchCostQAR);
+    const cashTx: import('@/lib/tracker-helpers').CashTransaction = {
+      id: uid(),
+      ts: Date.now(),
+      type: 'batch_purchase',
+      amount: Math.min(batchCostQAR, currentCash),
+      balanceAfter: newCashFromLedger,
+      owner: state.cashOwner || '',
+      bankAccount: activeAccounts.find((a) => a.id === fundingAccountId)?.name || '',
+      note: `Stock purchase: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${trimmedSource}`,
+    };
+
     await applyStateAndCommit({
       ...state,
       suppliers: nextSuppliers,
-      batches: [...state.batches, { ...batch, revisions: [] }],
+      cashQAR: newCashFromLedger,
+      cashHistory: [...(state.cashHistory || []), cashTx],
+      cashLedger: nextCashLedger,
+      batches: [
+        ...state.batches,
+        { ...batch, revisions: [], fundingAccountId: selectedFundingAccountId, fundingLedgerEntryId },
+      ],
     });
     const key = new Date(batch.ts).toISOString().slice(0, 7);
     setSelectedMonth((cur) => (cur === 'all' || cur === key ? cur : 'all'));
-  }, [applyStateAndCommit, state]);
+  }, [applyStateAndCommit, state, activeAccounts, accountBalances, cashAccounts, fundingAccountId, t]);
 
   /** A synced P2P buy becomes a stock batch at the price it was bought at. */
   const importExchangeOrderAsBatch = useCallback(async (o: ExchangeOrderPayload) => {
@@ -961,6 +1016,13 @@ export default function StockPage() {
                   assigneeOptions={supplierOptions}
                   activeEntityIds={activeBatchIds}
                 />
+                {activeAccounts.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                    {fundingAccountId && fundingAccountId !== 'none'
+                      ? <>💳 {t('fundingSourceLbl')}: <strong>{activeAccounts.find(a => a.id === fundingAccountId)?.name}</strong> ({fmtTotal(accountBalances.get(fundingAccountId) || 0)} {activeAccounts.find(a => a.id === fundingAccountId)?.currency})</>
+                      : <>🚫 {t('noFundingSource')} — {t('fundingSourceLbl')} {t('setupCashAccHint3')}</>}
+                  </div>
+                )}
               </div>
               <div className="field2">
                 <div className="lbl">{t('dateTime')}</div>
@@ -1240,6 +1302,13 @@ export default function StockPage() {
                       assigneeOptions={supplierOptions}
                       activeEntityIds={activeBatchIds}
                     />
+                    {activeAccounts.length > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                        {fundingAccountId && fundingAccountId !== 'none'
+                          ? <>💳 {t('fundingSourceLbl')}: <strong>{activeAccounts.find(a => a.id === fundingAccountId)?.name}</strong> ({fmtTotal(accountBalances.get(fundingAccountId) || 0)} {activeAccounts.find(a => a.id === fundingAccountId)?.currency})</>
+                          : <>🚫 {t('noFundingSource')} — {t('fundingSourceLbl')} {t('setupCashAccHint3')}</>}
+                      </div>
+                    )}
                   </div>
                   <div className="field2">
                     <div className="lbl">{t('dateTime')}</div>
