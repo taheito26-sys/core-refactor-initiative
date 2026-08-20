@@ -7,10 +7,16 @@ export interface TrackerImportPrefill {
   exchange: ExchangeId;
   orderId: string;
   orderNumber: string;
+  /** Always 'QAR' -- the currency the tracker actually books the order in. */
   fiat: string;
   amountUSDT: number;
+  /** QAR unit price. For a non-QAR exchange order this is the user-entered USDT->QAR rate. */
   priceFiat: number;
   ts: number;
+  /** Set when the exchange order wasn't in QAR -- the original fiat/price/total to keep on record. */
+  originalFiat?: string;
+  originalPriceFiat?: number;
+  originalTotalFiat?: number;
 }
 
 export function stashTrackerImportPrefill(prefill: TrackerImportPrefill) {

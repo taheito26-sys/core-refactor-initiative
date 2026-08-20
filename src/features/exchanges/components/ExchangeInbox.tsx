@@ -13,12 +13,18 @@ export interface ExchangeOrderPayload {
   exchange: ExchangeId;
   orderId: string;
   orderNumber: string;
+  /** Always 'QAR' -- the currency the tracker actually books the order in. */
   fiat: string;
   amountUSDT: number;
+  /** QAR unit price. For a non-QAR exchange order this is the user-entered USDT->QAR rate. */
   priceFiat: number;
   ts: number;
   /** Existing or new supplier/buyer name; blank means "use the exchange as the name". */
   assigneeName?: string;
+  /** Set when the exchange order wasn't in QAR -- the original fiat/price/total to keep on record. */
+  originalFiat?: string;
+  originalPriceFiat?: number;
+  originalTotalFiat?: number;
 }
 
 export interface ExchangeTransferPayload {
@@ -172,6 +178,8 @@ export function ExchangeInbox({
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [names, setNames] = useState<Record<string, string>>({});
+  /** USDT->QAR conversion rate the user enters for orders sold in a non-QAR fiat (e.g. EGP). */
+  const [qarRates, setQarRates] = useState<Record<string, string>>({});
 
   const isStillLinked = (linkedAt: string | null, linkedEntityId: string | null) => {
     if (!linkedAt) return false;
@@ -281,16 +289,25 @@ export function ExchangeInbox({
           // Defaults to the counterparty's full name from the exchange when one
           // was reported, otherwise the generic exchange label.
           const nameValue = names[o.id] ?? o.counterparty ?? autoName;
+          // Orders not already in QAR (e.g. sold for EGP) need a USDT->QAR rate
+          // before they can be booked, since the tracker only holds QAR prices.
+          const needsQarConversion = o.fiat.toUpperCase() !== 'QAR';
+          const rawRate = qarRates[o.id] ?? '';
+          const parsedRate = parseFloat(rawRate);
+          const rateValid = Number.isFinite(parsedRate) && parsedRate > 0;
+          const qarPrice = needsQarConversion ? parsedRate : o.price;
           const payload: ExchangeOrderPayload = {
             exchange: o.exchange,
             orderId: o.id,
             orderNumber: o.order_number,
-            fiat: o.fiat,
+            fiat: 'QAR',
             amountUSDT: o.amount,
-            priceFiat: o.price,
+            priceFiat: qarPrice,
             ts: o.order_time ? new Date(o.order_time).getTime() : Date.now(),
             assigneeName: nameValue.trim() || undefined,
+            ...(needsQarConversion ? { originalFiat: o.fiat, originalPriceFiat: o.price, originalTotalFiat: o.amount * o.price } : {}),
           };
+          const importDisabled = needsQarConversion && !rateValid;
           return (
             <div key={o.id} className={cn('flex w-full max-w-full overflow-hidden rounded border', imported ? 'border-dashed bg-muted/10 opacity-60' : 'bg-muted/30')}>
               <div className={cn('w-0.5 shrink-0', imported ? 'bg-emerald-500/40' : accent.bar)} />
@@ -319,14 +336,34 @@ export function ExchangeInbox({
                         className="h-6 w-6 p-0"
                         title="Load into the form to adjust before saving"
                         onClick={() => onEditOrder(payload)}
-                        disabled={st?.status === 'saving' || st?.status === 'done'}
+                        disabled={st?.status === 'saving' || st?.status === 'done' || importDisabled}
                       >
                         <PencilLine className="h-3 w-3" />
                       </Button>
                     )}
-                    <RowAction id={o.id} imported={imported} onImport={() => run(o.id, () => onImportOrder(payload), 'exchange-p2p-orders')} />
+                    <RowAction id={o.id} imported={imported} disabled={importDisabled} onImport={() => run(o.id, () => onImportOrder(payload), 'exchange-p2p-orders')} />
                   </div>
                 </div>
+                {!imported && needsQarConversion && (
+                  <div className="mt-1 flex items-center gap-1 text-[10px]">
+                    <span className="text-muted-foreground">1 USDT =</span>
+                    <Input
+                      value={rawRate}
+                      onChange={(e) => setQarRates((p) => ({ ...p, [o.id]: e.target.value }))}
+                      inputMode="decimal"
+                      placeholder="e.g. 3.8"
+                      aria-label="USDT to QAR conversion rate"
+                      className="h-6 w-16 px-1.5 text-[11px]"
+                      disabled={st?.status === 'saving' || st?.status === 'done'}
+                    />
+                    <span className="text-muted-foreground">QAR</span>
+                    {rateValid && (
+                      <span className="font-semibold text-foreground/80">
+                        &rarr; {fmtNum(o.amount * parsedRate)} QAR
+                      </span>
+                    )}
+                  </div>
+                )}
                 {!imported && (
                   <div className="mt-1 flex items-center gap-1">
                     <AssigneeSelect
@@ -338,6 +375,11 @@ export function ExchangeInbox({
                       ariaLabel={assigneeLabel}
                       disabled={st?.status === 'saving' || st?.status === 'done'}
                     />
+                  </div>
+                )}
+                {!imported && needsQarConversion && !rateValid && (
+                  <div className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-500">
+                    Enter the USDT-&gt;QAR rate to convert this {o.fiat} order before importing.
                   </div>
                 )}
                 <RowError st={st} />

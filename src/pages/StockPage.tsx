@@ -269,6 +269,9 @@ export default function StockPage() {
     amountUSDT: number;
     priceFiat: number;
     ts: number;
+    originalFiat?: string;
+    originalPriceFiat?: number;
+    originalTotalFiat?: number;
   }) => {
     setBatchDate(inputFromTs(prefill.ts));
     setBatchEntryMode('qty_price');
@@ -276,10 +279,18 @@ export default function StockPage() {
     setBatchPrice(String(prefill.priceFiat));
     setBatchAmount('');
     setBatchSupplier(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
-    setBatchNote(`Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} (${prefill.fiat})`);
+    setBatchNote(
+      prefill.originalFiat
+        ? `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} — bought for ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat}/USDT (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total), converted at 1 USDT = ${fmtP(prefill.priceFiat)} QAR`
+        : `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} (${prefill.fiat})`,
+    );
     setFundingAccountId('none');
     setPendingImportOrderId(prefill.orderId);
-    setBatchMsg(`Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`);
+    setBatchMsg(
+      prefill.originalFiat
+        ? `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — converted from ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat} at your entered rate. Verify the QAR price before saving.`
+        : `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`,
+    );
     setAddBatchSheetOpen(true);
   }, []);
 
@@ -378,7 +389,9 @@ export default function StockPage() {
       id: batchId,
       ts: o.ts,
       source,
-      note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
+      note: o.originalFiat
+        ? `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} — bought for ${fmtP(o.originalPriceFiat ?? 0)} ${o.originalFiat}/USDT (${fmtP(o.originalTotalFiat ?? 0)} ${o.originalFiat} total), converted at 1 USDT = ${fmtP(o.priceFiat)} QAR`
+        : `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
       buyPriceQAR: o.priceFiat,
       initialUSDT: o.amountUSDT,
       importedFrom: o.exchange,

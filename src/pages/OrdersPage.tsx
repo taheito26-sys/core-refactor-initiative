@@ -129,6 +129,9 @@ export default function OrdersPage() {
     amountUSDT: number;
     priceFiat: number;
     ts: number;
+    originalFiat?: string;
+    originalPriceFiat?: number;
+    originalTotalFiat?: number;
   }) => {
     setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
     setSaleEntryMode('qty_price');
@@ -137,7 +140,11 @@ export default function OrdersPage() {
     setSaleAmount('');
     setBuyerName(`${EXCHANGE_LABELS[prefill.exchange]} P2P`);
     setPendingImportOrderId(prefill.orderId);
-    setSaleMessage(`Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`);
+    setSaleMessage(
+      prefill.originalFiat
+        ? `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — converted from ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat} (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total) at your entered rate. Verify the QAR price before saving.`
+        : `Prefilled from ${EXCHANGE_LABELS[prefill.exchange]} P2P order — verify the price is in ${prefill.fiat} before saving.`,
+    );
     setNewSaleSheetOpen(true);
   }, []);
 
@@ -160,7 +167,9 @@ export default function OrdersPage() {
       amountUSDT: o.amountUSDT,
       sellPriceQAR: o.priceFiat,
       feeQAR: 0,
-      note: `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
+      note: o.originalFiat
+        ? `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} — sold for ${fmtP(o.originalPriceFiat ?? 0)} ${o.originalFiat}/USDT (${fmtP(o.originalTotalFiat ?? 0)} ${o.originalFiat} total), converted at 1 USDT = ${fmtP(o.priceFiat)} QAR`
+        : `Imported from ${EXCHANGE_LABELS[o.exchange]} P2P order ${o.orderNumber} (${o.fiat})`,
       voided: false,
       usesStock: true,
       revisions: [],
