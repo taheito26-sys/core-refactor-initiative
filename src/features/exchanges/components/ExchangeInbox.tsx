@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, Download } from 'lucide-react';
+import { Check, ChevronDown, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useExchangeP2POrders } from '../hooks/useExchangeP2POrders';
 import { useExchangeTransfers } from '../hooks/useExchangeTransfers';
@@ -37,22 +37,51 @@ export interface ExchangeTransferPayload {
   assigneeName?: string;
 }
 
+/** Each row type gets its own accent so the list is scannable at a glance. */
+const ACCENT = {
+  buy: { bar: 'bg-emerald-500', amount: 'text-emerald-500 dark:text-emerald-400' },
+  sell: { bar: 'bg-orange-500', amount: 'text-orange-500 dark:text-orange-400' },
+  transfer: { bar: 'bg-cyan-500', amount: 'text-cyan-600 dark:text-cyan-400' },
+} as const;
+
+const EXCHANGE_CHIP: Record<ExchangeId, string> = {
+  binance: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-amber-500/30',
+  okx: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 ring-sky-500/30',
+};
+
+/** Where the record came from on the exchange, which decides how it is read. */
+const KIND_CHIP = {
+  p2p: { label: 'P2P', cls: 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400 ring-fuchsia-500/30' },
+  pay: { label: 'Pay', cls: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 ring-violet-500/30' },
+  network: { label: 'Network', cls: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 ring-teal-500/30' },
+} as const;
+
+function Chip({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <span className={cn('shrink-0 rounded px-1 py-px text-[9px] font-semibold leading-tight ring-1 ring-inset', className)}>
+      {children}
+    </span>
+  );
+}
+
 const fmtNum = (n: number, max = 2) => n.toLocaleString(undefined, { maximumFractionDigits: max });
 
 const fmtWhen = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-    : '';
+    : '—';
 
 /**
- * Everything synced from a connected exchange that isn't in the tracker yet,
- * offered purely as a prefill source for the form it sits in.
+ * Everything synced from a connected exchange, as one compact feed that stays
+ * a complete record: already-imported rows stay in place, dimmed and marked,
+ * so the list matches the exchange's own order history rather than emptying
+ * out as things are imported.
  *
- * Picking a row fills the normal entry form and nothing else happens -- the
- * user reviews it and saves with the same button as a hand-entered order, so
- * there is exactly one way to record a sale or a batch. When nothing is
- * waiting (no exchange connected, or everything already imported) this renders
- * nothing at all, leaving the form exactly as it was before exchanges existed.
+ * Each row is a single tap that prefills the normal entry form and nothing
+ * else -- the user reviews and saves with the same button as a hand-entered
+ * order, so there is exactly one way to record a sale or a batch. When no
+ * exchange is connected this renders nothing at all, leaving the form exactly
+ * as it was before exchanges existed.
  */
 export function ExchangeInbox({
   side,
@@ -76,105 +105,148 @@ export function ExchangeInbox({
 }) {
   const { data: orders } = useExchangeP2POrders();
   const { data: transfers } = useExchangeTransfers();
-  const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
-  // Only what still needs importing. Already-imported rows are trades/batches
-  // in the table below now, so repeating them here would just be noise.
-  const pendingOrders = useMemo(() => {
-    const pending = (linkedAt: string | null, linkedEntityId: string | null) => {
-      if (!linkedAt) return true;
-      if (!activeEntityIds || !linkedEntityId) return false;
-      return !activeEntityIds.has(linkedEntityId);
+  const isImported = useMemo(() => {
+    return (linkedAt: string | null, linkedEntityId: string | null) => {
+      if (!linkedAt) return false;
+      if (!activeEntityIds || !linkedEntityId) return true;
+      return activeEntityIds.has(linkedEntityId);
     };
-    return (orders ?? [])
-      .filter((o) => o.side === side && pending(o.linked_at, o.linked_entity_id))
-      .sort((a, b) => (b.order_time ? new Date(b.order_time).getTime() : 0) - (a.order_time ? new Date(a.order_time).getTime() : 0));
-  }, [orders, side, activeEntityIds]);
+  }, [activeEntityIds]);
 
-  const pendingTransfers = useMemo(() => {
-    if (!onPickTransfer) return [];
-    const pending = (linkedAt: string | null, linkedEntityId: string | null) => {
-      if (!linkedAt) return true;
-      if (!activeEntityIds || !linkedEntityId) return false;
-      return !activeEntityIds.has(linkedEntityId);
-    };
-    return (transfers ?? [])
-      .filter((tr) => tr.direction === 'in' && pending(tr.linked_at, tr.linked_entity_id))
-      .sort((a, b) => (b.transfer_time ? new Date(b.transfer_time).getTime() : 0) - (a.transfer_time ? new Date(a.transfer_time).getTime() : 0));
-  }, [transfers, onPickTransfer, activeEntityIds]);
+  const allOrders = useMemo(
+    () =>
+      (orders ?? [])
+        .filter((o) => o.side === side)
+        .sort((a, b) => (b.order_time ? new Date(b.order_time).getTime() : 0) - (a.order_time ? new Date(a.order_time).getTime() : 0)),
+    [orders, side],
+  );
+  const allTransfers = useMemo(
+    () =>
+      onPickTransfer
+        ? (transfers ?? [])
+            .filter((tr) => tr.direction === 'in')
+            .sort((a, b) => (b.transfer_time ? new Date(b.transfer_time).getTime() : 0) - (a.transfer_time ? new Date(a.transfer_time).getTime() : 0))
+        : [],
+    [transfers, onPickTransfer],
+  );
 
-  const count = pendingOrders.length + pendingTransfers.length;
-  if (count === 0) return null;
+  const total = allOrders.length + allTransfers.length;
+  if (total === 0) return null;
 
-  const exchangeNames = Array.from(
-    new Set([...pendingOrders.map((o) => o.exchange), ...pendingTransfers.map((tr) => tr.exchange)]),
-  ).map((id) => EXCHANGE_LABELS[id]);
+  const pendingCount =
+    allOrders.filter((o) => !isImported(o.linked_at, o.linked_entity_id)).length +
+    allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id)).length;
 
-  const pick = (fn: () => void) => {
-    fn();
-    setOpen(false);
-  };
+  // One chronological feed -- orders and transfers interleaved by date/time,
+  // not grouped by type, so the list matches the exchange's own history.
+  type Row =
+    | { kind: 'order'; ts: number; data: (typeof allOrders)[number] }
+    | { kind: 'transfer'; ts: number; data: (typeof allTransfers)[number] };
+  const rows: Row[] = [
+    ...allOrders.map((o): Row => ({ kind: 'order', ts: o.order_time ? new Date(o.order_time).getTime() : 0, data: o })),
+    ...allTransfers.map((tr): Row => ({ kind: 'transfer', ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : 0, data: tr })),
+  ].sort((a, b) => b.ts - a.ts);
+
+  const ImportedMark = () => (
+    <span className="flex shrink-0 items-center gap-0.5 pl-1 text-[10px] font-semibold text-emerald-500">
+      <Check className="h-3 w-3" /> Imported
+    </span>
+  );
 
   return (
-    <div className="w-full max-w-full overflow-hidden rounded-lg border border-primary/30 bg-primary/5">
+    <div className="w-full max-w-full overflow-hidden rounded-lg border border-primary/25 bg-card">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[11px] font-semibold"
+        onClick={() => setCollapsed((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 border-b border-primary/20 bg-gradient-to-r from-primary/15 via-primary/5 to-transparent px-2 py-1 text-left"
       >
-        <Download className="h-3 w-3 shrink-0 text-primary" />
-        <span className="min-w-0 flex-1 truncate">
-          {count} new from {exchangeNames.join(' & ')}
+        <span className="flex min-w-0 items-center gap-1 text-[11px] font-bold">
+          <Inbox className="h-3 w-3 shrink-0 text-primary" />
+          <span className="truncate">From your exchanges</span>
         </span>
-        <ChevronDown className={cn('h-3 w-3 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        <span className="flex shrink-0 items-center gap-1">
+          {pendingCount > 0 ? (
+            <span className="rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
+              {pendingCount} new
+            </span>
+          ) : (
+            <span className="text-[10px] font-semibold text-emerald-500">all imported</span>
+          )}
+          <ChevronDown className={cn('h-3 w-3 text-muted-foreground transition-transform', collapsed && '-rotate-90')} />
+        </span>
       </button>
 
-      {open && (
-        <div className="max-h-[168px] space-y-1 overflow-y-auto overflow-x-hidden border-t border-primary/20 p-1">
-          {pendingOrders.map((o) => {
+      {!collapsed && (
+        <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
+          {rows.map((row) => row.kind === 'order' ? (() => {
+            const o = row.data;
+            const imported = isImported(o.linked_at, o.linked_entity_id);
+            const accent = ACCENT[side];
             const needsQarRate = o.fiat.toUpperCase() !== 'QAR';
             return (
               <button
                 key={o.id}
                 type="button"
-                className="block w-full rounded border bg-card px-1.5 py-1 text-left hover:border-primary/50"
+                disabled={imported}
+                title={imported ? 'Already in the tracker' : 'Fill the form with this order'}
                 onClick={() =>
-                  pick(() =>
-                    onPick({
-                      exchange: o.exchange,
-                      orderId: o.id,
-                      orderNumber: o.order_number,
-                      amountUSDT: o.amount,
-                      ts: o.order_time ? new Date(o.order_time).getTime() : Date.now(),
-                      assigneeName: o.counterparty ?? undefined,
-                      priceFiat: needsQarRate ? 0 : o.price,
-                      needsQarRate,
-                      ...(needsQarRate
-                        ? { originalFiat: o.fiat, originalPriceFiat: o.price, originalTotalFiat: o.amount * o.price }
-                        : {}),
-                    }),
-                  )
+                  onPick({
+                    exchange: o.exchange,
+                    orderId: o.id,
+                    orderNumber: o.order_number,
+                    amountUSDT: o.amount,
+                    ts: o.order_time ? new Date(o.order_time).getTime() : Date.now(),
+                    assigneeName: o.counterparty ?? undefined,
+                    priceFiat: needsQarRate ? 0 : o.price,
+                    needsQarRate,
+                    ...(needsQarRate
+                      ? { originalFiat: o.fiat, originalPriceFiat: o.price, originalTotalFiat: o.amount * o.price }
+                      : {}),
+                  })
                 }
+                className={cn(
+                  'flex w-full max-w-full overflow-hidden rounded border text-left',
+                  imported ? 'cursor-default border-dashed bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',
+                )}
               >
-                <div className="truncate text-[12px] font-bold leading-tight">
-                  {fmtNum(o.amount)} USDT @ {fmtNum(o.price, 4)} {o.fiat}
-                </div>
-                <div className="truncate text-[10px] text-muted-foreground">
-                  {fmtNum(o.amount * o.price)} {o.fiat} · {EXCHANGE_LABELS[o.exchange]}
-                  {o.counterparty ? ` · ${o.counterparty}` : ''}
-                  {o.order_time ? ` · ${fmtWhen(o.order_time)}` : ''}
+                <div className={cn('w-0.5 shrink-0 self-stretch', imported ? 'bg-emerald-500/40' : accent.bar)} />
+                <div className="min-w-0 flex-1 px-1.5 py-1">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-1 text-[12px] font-bold leading-tight">
+                      <span className={accent.amount}>{fmtNum(o.amount)} {o.asset}</span>
+                      <span className="text-[10px] font-normal text-muted-foreground">@</span>
+                      <span>{fmtNum(o.price, 4)} {o.fiat}</span>
+                    </div>
+                    {imported && <ImportedMark />}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="font-semibold text-foreground/80">
+                      {fmtNum(o.amount * o.price)} {o.fiat}
+                    </span>
+                    <Chip className={EXCHANGE_CHIP[o.exchange]}>{EXCHANGE_LABELS[o.exchange]}</Chip>
+                    <Chip className={KIND_CHIP.p2p.cls}>{KIND_CHIP.p2p.label}</Chip>
+                    {!imported && needsQarRate && (
+                      <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">needs QAR rate</Chip>
+                    )}
+                    {o.counterparty && <span className="truncate">{o.counterparty}</span>}
+                    <span className="truncate">{fmtWhen(o.order_time)}</span>
+                  </div>
                 </div>
               </button>
             );
-          })}
-
-          {pendingTransfers.map((tr) => (
-            <button
-              key={tr.id}
-              type="button"
-              className="block w-full rounded border border-dashed bg-card px-1.5 py-1 text-left hover:border-primary/50"
-              onClick={() =>
-                pick(() =>
+          })() : (() => {
+            const tr = row.data;
+            const imported = isImported(tr.linked_at, tr.linked_entity_id);
+            const kind = KIND_CHIP[tr.kind];
+            return (
+              <button
+                key={tr.id}
+                type="button"
+                disabled={imported}
+                title={imported ? 'Already in the tracker' : 'Fill the form with this transfer'}
+                onClick={() =>
                   onPickTransfer!({
                     exchange: tr.exchange,
                     transferId: tr.id,
@@ -184,20 +256,33 @@ export function ExchangeInbox({
                     buyPrice: defaultPrice && defaultPrice > 0 ? defaultPrice : 0,
                     ts: tr.transfer_time ? new Date(tr.transfer_time).getTime() : Date.now(),
                     assigneeName: tr.counterparty ?? undefined,
-                  }),
-                )
-              }
-            >
-              <div className="truncate text-[12px] font-bold leading-tight">
-                {fmtNum(tr.amount, 8)} USDT received
-              </div>
-              <div className="truncate text-[10px] text-muted-foreground">
-                {EXCHANGE_LABELS[tr.exchange]} {tr.kind === 'pay' ? 'Pay' : 'network'}
-                {tr.counterparty ? ` · ${tr.counterparty}` : ''}
-                {tr.transfer_time ? ` · ${fmtWhen(tr.transfer_time)}` : ''}
-              </div>
-            </button>
-          ))}
+                  })
+                }
+                className={cn(
+                  'flex w-full max-w-full overflow-hidden rounded border border-dashed text-left',
+                  imported ? 'cursor-default bg-muted/10 opacity-60' : 'bg-muted/30 hover:border-primary/60 hover:bg-muted/50',
+                )}
+              >
+                <div className={cn('w-0.5 shrink-0 self-stretch', imported ? 'bg-emerald-500/40' : ACCENT.transfer.bar)} />
+                <div className="min-w-0 flex-1 px-1.5 py-1">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className={cn('truncate text-[12px] font-bold leading-tight', ACCENT.transfer.amount)}>
+                      {fmtNum(tr.amount, 8)} {tr.asset}
+                    </span>
+                    {imported && <ImportedMark />}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                    <span>received</span>
+                    <Chip className={EXCHANGE_CHIP[tr.exchange]}>{EXCHANGE_LABELS[tr.exchange]}</Chip>
+                    <Chip className={kind.cls}>{kind.label}</Chip>
+                    {!imported && <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">needs cost basis</Chip>}
+                    {tr.counterparty && <span className="truncate">{tr.counterparty}</span>}
+                    <span className="truncate">{fmtWhen(tr.transfer_time)}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })())}
         </div>
       )}
     </div>
