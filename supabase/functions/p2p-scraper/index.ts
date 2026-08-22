@@ -43,9 +43,11 @@ async function fetchBinanceP2P(
   fiat: string,
   tradeType: "BUY" | "SELL",
   asset = "USDT",
-  rows = 10
+  rows = 10,
+  payTypes: string[] = [],
+  classifies: string[] | null = ["mass"],
 ): Promise<BinanceP2POffer[]> {
-  const body = {
+  const body: Record<string, unknown> = {
     fiat,
     page: 1,
     rows,
@@ -55,10 +57,12 @@ async function fetchBinanceP2P(
     proMerchantAds: false,
     shieldMerchantAds: false,
     publisherType: null,
-    payTypes: [],
-    // Relaxed classifies to ensure results in smaller markets
-    classifies: ["mass"], 
+    payTypes,
   };
+
+  // Relaxed classifies to ensure results in smaller markets. Passing null skips
+  // the filter entirely, which a narrow payTypes query needs to find enough ads.
+  if (classifies) body.classifies = classifies;
 
   const res = await fetch(
     "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search",
@@ -95,6 +99,7 @@ function buildSnapshot(
   sellRaw: BinanceP2POffer[],
   buyRaw: BinanceP2POffer[],
   marketId: string,
+  banqueMisrRaw: BinanceP2POffer[] = [],
 ) {
   const sellOffers = parseOffers(buyRaw).sort((a, b) => b.price - a.price);
   const buyOffers = parseOffers(sellRaw).sort((a, b) => a.price - b.price);
@@ -125,8 +130,16 @@ function buildSnapshot(
   const sellDepth = sellOffers.reduce((s, o) => s + o.available, 0);
   const buyDepth = buyOffers.reduce((s, o) => s + o.available, 0);
 
+  // Dedicated Banque Misr sell book. The unfiltered top-20 above almost never
+  // contains enough Banque Misr ads to average, so these come from a separate
+  // payTypes-filtered query. Cheapest first, same direction as sellOffers.
+  const banqueMisrSellOffers = parseOffers(banqueMisrRaw).sort(
+    (a, b) => a.price - b.price,
+  );
+
   return {
     ts: Date.now(),
+    banqueMisrSellOffers,
     sellAvg,
     buyAvg,
     bestSell,
@@ -169,12 +182,15 @@ Deno.serve(async (req: Request) => {
     for (const market of marketsToScrape) {
       try {
         const apiRows = market.id === "qatar" ? 10 : 20;
-        const [sellRaw, buyRaw] = await Promise.all([
+        const [sellRaw, buyRaw, banqueMisrRaw] = await Promise.all([
           fetchBinanceP2P(market.fiat, "SELL", market.asset, apiRows),
           fetchBinanceP2P(market.fiat, "BUY", market.asset, apiRows),
+          market.id === "egypt"
+            ? fetchBinanceP2P(market.fiat, "BUY", market.asset, 20, ["BanqueMisr"], null)
+            : Promise.resolve([]),
         ]);
 
-        const snapshot = buildSnapshot(sellRaw, buyRaw, market.id);
+        const snapshot = buildSnapshot(sellRaw, buyRaw, market.id, banqueMisrRaw);
 
         const { error } = await supabase.from("p2p_snapshots").insert({
           market: market.id,

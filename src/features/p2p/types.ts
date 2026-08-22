@@ -37,6 +37,7 @@ export interface P2PSnapshot {
   buyDepth: number;
   sellOffers: P2POffer[];
   buyOffers: P2POffer[];
+  banqueMisrSellOffers?: P2POffer[];
 }
 
 export interface P2PHistoryPoint {
@@ -89,4 +90,5 @@ export const EMPTY_SNAPSHOT: P2PSnapshot = {
   buyDepth: 0,
   sellOffers: [],
   buyOffers: [],
+  banqueMisrSellOffers: [],
 };

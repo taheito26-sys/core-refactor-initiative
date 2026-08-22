@@ -7,7 +7,9 @@ type MarketSnapshotRow = {
   data: Record<string, unknown> | null;
 };
 
-const LIVE_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
+// Matches the hourly p2p-scraper cron, so a page load does not force an extra
+// scrape while the current snapshot is still the newest the schedule produces.
+const LIVE_SNAPSHOT_MAX_AGE_MS = 60 * 60 * 1000;
 let liveRefreshPromise: Promise<void> | null = null;
 export type CustomerMarketCard = {
   market: 'qatar' | 'egypt';

@@ -167,6 +167,9 @@ export function toSnapshot(value: unknown, fetchedAt?: string): P2PSnapshot {
     buyDepth: toFiniteNumber(pickSnapshotValue(source, ['buyDepth', 'buy_depth'])) ?? 0,
     sellOffers: sellOffersRaw,
     buyOffers: buyOffersRaw,
+    banqueMisrSellOffers: toOfferList(source, ['banqueMisrSellOffers', 'banque_misr_sell_offers'])
+      .map(toOffer)
+      .filter((o): o is P2POffer => o !== null),
   };
 }
 

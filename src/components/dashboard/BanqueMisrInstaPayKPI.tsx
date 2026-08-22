@@ -14,11 +14,15 @@ export function BanqueMisrInstaPayKPI() {
   const kpi = useMemo(() => {
     if (!snapshot) return null;
 
-    // Every Banque Misr sell offer counts, including repeat merchants — deduping
-    // by nick was shrinking the pool below the intended top 5.
-    const matching = (snapshot.sellOffers || []).filter(
-      (o: P2POffer) => o.methods.some(m => BANQUE_MISR_RE.test(m)),
-    );
+    // Prefer the dedicated Banque Misr book the scraper now fetches with a
+    // payTypes-filtered query. Snapshots written before that change lack the
+    // field, so fall back to filtering the general sell book by method name.
+    const dedicated = snapshot.banqueMisrSellOffers || [];
+    const matching = dedicated.length > 0
+      ? dedicated
+      : (snapshot.sellOffers || []).filter(
+          (o: P2POffer) => o.methods.some(m => BANQUE_MISR_RE.test(m)),
+        );
 
     const top5 = matching.slice().sort((a, b) => a.price - b.price).slice(0, 5);
     if (top5.length === 0) return null;
