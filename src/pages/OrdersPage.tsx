@@ -24,7 +24,7 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
-import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
+import { consumeTrackerImportPrefill, extractImportedReference } from '@/features/exchanges/tracker-import';
 import { markOrderLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox } from '@/features/exchanges/components/ExchangeInbox';
@@ -316,6 +316,10 @@ export default function OrdersPage() {
   const allBuyerOptions = useMemo<ListedCustomer[]>(() => mergeListedCustomers(state.customers ?? [], connectedCustomers), [connectedCustomers, state.customers]);
   const activeTradeIds = useMemo(
     () => new Set(state.trades.filter((t) => !t.voided).map((t) => t.id)),
+    [state.trades],
+  );
+  const importedExchangeRefs = useMemo(
+    () => new Set(state.trades.filter((t) => !t.voided).map((t) => extractImportedReference(t.note)).filter((r): r is string => !!r)),
     [state.trades],
   );
   const saleDraft = useMemo(() => deriveSaleDraft({
@@ -1908,7 +1912,10 @@ export default function OrdersPage() {
       applyState(next);
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
       if (pendingImport) {
-        markOrderLinked(pendingImport.orderId, 'trade', baseTrade.id).catch(() => {});
+        // Best-effort: the trade note embeds the order number, so the inbox
+        // recognizes this row as imported (via importedReferences) even if this
+        // update fails -- don't let a flaky network call block or duplicate the save.
+        markOrderLinked(pendingImport.orderId, 'trade', baseTrade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
         setPendingImport(null);
       }
     }
@@ -3786,6 +3793,7 @@ export default function OrdersPage() {
                     side="sell"
                     onPick={applyExchangeOrderPrefill}
                     activeEntityIds={activeTradeIds}
+                    importedReferences={importedExchangeRefs}
                   />
                 </div>
 
