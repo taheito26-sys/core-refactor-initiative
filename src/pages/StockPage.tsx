@@ -33,7 +33,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
-import { consumeTrackerImportPrefill } from '@/features/exchanges/tracker-import';
+import { consumeTrackerImportPrefill, extractImportedReference } from '@/features/exchanges/tracker-import';
 import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
@@ -157,6 +157,10 @@ export default function StockPage() {
   }, [settings.range, settings.currency, settings.lowStockThreshold, settings.priceAlertThreshold]);
 
   const activeBatchIds = useMemo(() => new Set(state.batches.map((b) => b.id)), [state.batches]);
+  const importedExchangeRefs = useMemo(
+    () => new Set(state.batches.map((b) => extractImportedReference(b.note)).filter((r): r is string => !!r)),
+    [state.batches],
+  );
   const availableUsdt = useMemo(() => totalStock(derived), [derived]);
   const wacop = getWACOP(derived);
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
@@ -459,10 +463,13 @@ export default function StockPage() {
       return;
     }
     if (pendingImport?.kind === 'order') {
-      markOrderLinked(pendingImport.orderId, 'batch', batchId).catch(() => {});
+      // Best-effort: the batch note embeds the order number, so the inbox
+      // recognizes this row as imported (via importedReferences) even if this
+      // update fails -- don't let a flaky network call block or duplicate the save.
+      markOrderLinked(pendingImport.orderId, 'batch', batchId).catch((err) => console.warn('Failed to mark exchange order as linked', err));
       setPendingImport(null);
     } else if (pendingImport?.kind === 'transfer') {
-      markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'batch', entityId: batchId }]).catch(() => {});
+      markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'batch', entityId: batchId }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
       setPendingImport(null);
     }
     setBatchAmount('');
@@ -940,6 +947,7 @@ export default function StockPage() {
                   onPickTransfer={applyExchangeTransferPrefill}
                   defaultPrice={wacop || undefined}
                   activeEntityIds={activeBatchIds}
+                  importedReferences={importedExchangeRefs}
                 />
                 {activeAccounts.length > 0 && (
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
@@ -1222,6 +1230,7 @@ export default function StockPage() {
                       onPickTransfer={applyExchangeTransferPrefill}
                       defaultPrice={wacop || undefined}
                       activeEntityIds={activeBatchIds}
+                      importedReferences={importedExchangeRefs}
                     />
                     {activeAccounts.length > 0 && (
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>

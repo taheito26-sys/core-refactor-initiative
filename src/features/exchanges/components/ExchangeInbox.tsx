@@ -89,6 +89,7 @@ export function ExchangeInbox({
   onPickTransfer,
   defaultPrice,
   activeEntityIds,
+  importedReferences,
 }: {
   side: 'buy' | 'sell';
   onPick: (order: ExchangeOrderPayload) => void;
@@ -102,18 +103,27 @@ export function ExchangeInbox({
    * is treated as pending again, so deleting an import lets it be re-imported.
    */
   activeEntityIds?: Set<string>;
+  /**
+   * Order numbers / transfer references already found in a live batch/trade's
+   * note. Fallback "already imported" signal for when the batch/trade save
+   * succeeded but the follow-up call marking the exchange row itself as
+   * linked failed (that call is fire-and-forget) -- without this, that row
+   * looks pending forever even though it's already in the tracker.
+   */
+  importedReferences?: Set<string>;
 }) {
   const { data: orders } = useExchangeP2POrders();
   const { data: transfers } = useExchangeTransfers();
   const [collapsed, setCollapsed] = useState(false);
 
   const isImported = useMemo(() => {
-    return (linkedAt: string | null, linkedEntityId: string | null) => {
+    return (linkedAt: string | null, linkedEntityId: string | null, referenceKey: string) => {
+      if (importedReferences?.has(referenceKey)) return true;
       if (!linkedAt) return false;
       if (!activeEntityIds || !linkedEntityId) return true;
       return activeEntityIds.has(linkedEntityId);
     };
-  }, [activeEntityIds]);
+  }, [activeEntityIds, importedReferences]);
 
   const allOrders = useMemo(
     () =>
@@ -136,8 +146,8 @@ export function ExchangeInbox({
   if (total === 0) return null;
 
   const pendingCount =
-    allOrders.filter((o) => !isImported(o.linked_at, o.linked_entity_id)).length +
-    allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id)).length;
+    allOrders.filter((o) => !isImported(o.linked_at, o.linked_entity_id, o.order_number)).length +
+    allTransfers.filter((tr) => !isImported(tr.linked_at, tr.linked_entity_id, tr.reference)).length;
 
   // One chronological feed -- orders and transfers interleaved by date/time,
   // not grouped by type, so the list matches the exchange's own history.
@@ -182,7 +192,7 @@ export function ExchangeInbox({
         <div className="max-h-[196px] space-y-1 overflow-y-auto overflow-x-hidden p-1">
           {rows.map((row) => row.kind === 'order' ? (() => {
             const o = row.data;
-            const imported = isImported(o.linked_at, o.linked_entity_id);
+            const imported = isImported(o.linked_at, o.linked_entity_id, o.order_number);
             const accent = ACCENT[side];
             const needsQarRate = o.fiat.toUpperCase() !== 'QAR';
             return (
@@ -238,7 +248,7 @@ export function ExchangeInbox({
             );
           })() : (() => {
             const tr = row.data;
-            const imported = isImported(tr.linked_at, tr.linked_entity_id);
+            const imported = isImported(tr.linked_at, tr.linked_entity_id, tr.reference);
             const kind = KIND_CHIP[tr.kind];
             return (
               <button
