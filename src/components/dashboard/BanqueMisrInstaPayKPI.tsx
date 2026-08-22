@@ -14,21 +14,20 @@ export function BanqueMisrInstaPayKPI() {
   const kpi = useMemo(() => {
     if (!snapshot) return null;
 
-    const deduped = new Map<string, P2POffer>();
-    (snapshot.sellOffers || []).forEach(o => {
-      if (o.methods.some(m => BANQUE_MISR_RE.test(m)) && !deduped.has(o.nick)) {
-        deduped.set(o.nick, o);
-      }
-    });
+    // Every Banque Misr sell offer counts, including repeat merchants — deduping
+    // by nick was shrinking the pool below the intended top 5.
+    const matching = (snapshot.sellOffers || []).filter(
+      (o: P2POffer) => o.methods.some(m => BANQUE_MISR_RE.test(m)),
+    );
 
-    const top6 = Array.from(deduped.values()).sort((a, b) => a.price - b.price).slice(0, 6);
-    if (top6.length === 0) return null;
+    const top5 = matching.slice().sort((a, b) => a.price - b.price).slice(0, 5);
+    if (top5.length === 0) return null;
 
-    const egSellBanqueMisrAvg = top6.reduce((s, o) => s + o.price, 0) / top6.length;
+    const egSellBanqueMisrAvg = top5.reduce((s, o) => s + o.price, 0) / top5.length;
     const qaSellAvg = QA_SELL_AVG_FIXED;
     const instaPayV1BanqueMisr = egSellBanqueMisrAvg / qaSellAvg;
 
-    return { instaPayV1BanqueMisr, egSellBanqueMisrAvg, qaSellAvg, offerCount: top6.length };
+    return { instaPayV1BanqueMisr, egSellBanqueMisrAvg, qaSellAvg, offerCount: top5.length };
   }, [snapshot]);
 
   return (
