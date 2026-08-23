@@ -2381,83 +2381,120 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             )}
                           </div>
 
-                          {/* Every loaned order on this account */}
-                          <div>
-                            <div className="acct-sec">{t('stmtLoanedOrders')} · {stmt.loans.length}</div>
-                            <div className="tableWrap">
-                              <table className="acct-table">
-                                <thead>
-                                  <tr>
-                                    <th>{t('loanColRef')}</th>
-                                    <th>{t('loanColDate')}</th>
-                                    <th>{t('loanColDescription')}</th>
-                                    <th className="r">{t('loanColAmount')}</th>
-                                    <th className="r">{t('loanColPaid')}</th>
-                                    <th className="r">{t('loanColRemaining')}</th>
-                                    <th>{t('loanColStatus')}</th>
-                                    <th />
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {stmt.loans.map(row => (
-                                    <tr key={row.loan.id}>
-                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                                        {row.loan.tradeId ? '🔗 ' : ''}{row.ref}
-                                      </td>
-                                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(row.loan.ts)}</td>
-                                      <td style={{ color: 'var(--muted)', minWidth: 150 }}>{row.loan.note || '—'}</td>
-                                      <td className="r loan-num">{formatMoney(row.principal)}</td>
-                                      <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</td>
-                                      <td className="r loan-num" style={{ color: row.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
-                                        {formatMoney(row.remaining)}
-                                      </td>
-                                      <td>
-                                        <span className={`pill ${row.settled ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
-                                          {row.settled ? t('loanStatusClosed') : `${t('loanStatusOpen')} · ${row.ageDays}${t('loanDaysShort')}`}
-                                        </span>
-                                      </td>
-                                      <td>
-                                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                                          {!row.settled && (
-                                            <button
-                                              className="rowBtn"
-                                              style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, whiteSpace: 'nowrap' }}
-                                              onClick={() => setRepayingLoan(row.loan)}
-                                            >
-                                              + {t('loanAddRepayment')}
-                                            </button>
-                                          )}
-                                          <button
-                                            className="rowBtn"
-                                            style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
-                                            onClick={() => setEditingLoan(row.loan)}
-                                          >
-                                            {t('edit')}
-                                          </button>
-                                          <button
-                                            className="rowBtn"
-                                            style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
-                                            onClick={() => setDeleteLoanConfirmId(row.loan.id)}
-                                          >
-                                            {t('delete')}
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot>
-                                  <tr>
-                                    <td colSpan={3} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
-                                    <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
-                                    <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
-                                    <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
-                                    <td colSpan={2} />
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                          </div>
+                          {/* Every loaned order on this account — open and closed kept apart so a
+                              settled order doesn't sit mixed in among the ones still owed. */}
+                          {(() => {
+                            const openLoanRows = stmt.loans.filter(row => !row.settled);
+                            const closedLoanRows = stmt.loans.filter(row => row.settled);
+                            const loanRow = (row: typeof stmt.loans[number]) => (
+                              <tr key={row.loan.id}>
+                                <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                                  {row.loan.tradeId ? '🔗 ' : ''}{row.ref}
+                                </td>
+                                <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(row.loan.ts)}</td>
+                                <td style={{ color: 'var(--muted)', minWidth: 150 }}>{row.loan.note || '—'}</td>
+                                <td className="r loan-num">{formatMoney(row.principal)}</td>
+                                <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(row.repaid)}</td>
+                                <td className="r loan-num" style={{ color: row.remaining > 0 ? 'var(--bad)' : 'var(--good)' }}>
+                                  {formatMoney(row.remaining)}
+                                </td>
+                                <td>
+                                  <span className={`pill ${row.settled ? 'good' : 'warn'}`} style={{ fontSize: 9 }}>
+                                    {row.settled ? t('loanStatusClosed') : `${t('loanStatusOpen')} · ${row.ageDays}${t('loanDaysShort')}`}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                    {!row.settled && (
+                                      <button
+                                        className="rowBtn"
+                                        style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, whiteSpace: 'nowrap' }}
+                                        onClick={() => setRepayingLoan(row.loan)}
+                                      >
+                                        + {t('loanAddRepayment')}
+                                      </button>
+                                    )}
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                      onClick={() => setEditingLoan(row.loan)}
+                                    >
+                                      {t('edit')}
+                                    </button>
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                      onClick={() => setDeleteLoanConfirmId(row.loan.id)}
+                                    >
+                                      {t('delete')}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                            return (
+                              <>
+                                <div>
+                                  <div className="acct-sec">{t('stmtLoanedOrders')} · {openLoanRows.length}</div>
+                                  <div className="tableWrap">
+                                    <table className="acct-table">
+                                      <thead>
+                                        <tr>
+                                          <th>{t('loanColRef')}</th>
+                                          <th>{t('loanColDate')}</th>
+                                          <th>{t('loanColDescription')}</th>
+                                          <th className="r">{t('loanColAmount')}</th>
+                                          <th className="r">{t('loanColPaid')}</th>
+                                          <th className="r">{t('loanColRemaining')}</th>
+                                          <th>{t('loanColStatus')}</th>
+                                          <th />
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {openLoanRows.length === 0 ? (
+                                          <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
+                                        ) : openLoanRows.map(loanRow)}
+                                      </tbody>
+                                      <tfoot>
+                                        <tr>
+                                          <td colSpan={3} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
+                                          <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
+                                          <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
+                                          <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
+                                          <td colSpan={2} />
+                                        </tr>
+                                      </tfoot>
+                                    </table>
+                                  </div>
+                                </div>
+
+                                {closedLoanRows.length > 0 && (
+                                  <div>
+                                    <div className="acct-sec">{t('stmtClosedOrders')} · {closedLoanRows.length}</div>
+                                    <div className="tableWrap">
+                                      <table className="acct-table">
+                                        <thead>
+                                          <tr>
+                                            <th>{t('loanColRef')}</th>
+                                            <th>{t('loanColDate')}</th>
+                                            <th>{t('loanColDescription')}</th>
+                                            <th className="r">{t('loanColAmount')}</th>
+                                            <th className="r">{t('loanColPaid')}</th>
+                                            <th className="r">{t('loanColRemaining')}</th>
+                                            <th>{t('loanColStatus')}</th>
+                                            <th />
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {closedLoanRows.map(loanRow)}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
 
                           {/* Every payment this buyer has made, newest first — payments split
                               across several orders in one physical transaction are shown as
