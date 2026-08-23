@@ -43,6 +43,47 @@ export interface StatementEntry {
   loanId: string;
   /** Payments only — the repayment this row came from, so it can be edited. */
   repaymentId?: string;
+  /** Payments only — set when this payment was part of a split-across-orders batch. */
+  batchId?: string;
+}
+
+/** One or more payment entries shown as a single line — grouped when they share a `batchId`. */
+export interface PaymentGroup {
+  /** The batchId when grouped, otherwise the single member's entry id. */
+  id: string;
+  ts: number;
+  refs: string[];
+  credit: number;
+  accountName?: string;
+  description: string;
+  members: StatementEntry[];
+}
+
+/**
+ * Group payment entries that came from one physical payment split across
+ * several orders/loans (shared `batchId`) into a single line, so a merchant
+ * who applied one repayment to five orders sees one payment, not five.
+ *
+ * Entries without a `batchId` are left as their own single-member group.
+ */
+export function groupPayments(payments: StatementEntry[]): PaymentGroup[] {
+  const groups = new Map<string, PaymentGroup>();
+  const order: string[] = [];
+  for (const p of payments) {
+    const key = p.batchId || p.id;
+    let group = groups.get(key);
+    if (!group) {
+      group = { id: key, ts: p.ts, refs: [], credit: 0, accountName: p.accountName, description: p.description, members: [] };
+      groups.set(key, group);
+      order.push(key);
+    }
+    group.members.push(p);
+    group.refs.push(p.ref);
+    group.credit = round2(group.credit + p.credit);
+    group.ts = Math.min(group.ts, p.ts);
+    if (!group.description && p.description) group.description = p.description;
+  }
+  return order.map(key => groups.get(key)!);
 }
 
 export interface StatementLoanRow {
@@ -196,6 +237,7 @@ export function buildBuyerStatements({
           credit: Number(r.amount) || 0,
           accountName: accountName(r.accountId),
           loanId: row.loan.id,
+          batchId: r.batchId,
         });
       }
     }
