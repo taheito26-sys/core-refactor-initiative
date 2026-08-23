@@ -422,6 +422,12 @@ export interface LoanRepayment {
   /** ID of the companion CashLedgerEntry that credited the account */
   ledgerEntryId?: string;
   note?: string;
+  /**
+   * Shared id across the repayments created by one physical payment that was
+   * split to close several orders/loans at once — lets the statement show
+   * them as a single payment instead of one row per order.
+   */
+  batchId?: string;
 }
 
 /**

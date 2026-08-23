@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useT } from '@/lib/i18n';
 import type { CustomerLoan } from '@/lib/tracker-helpers';
-import type { BuyerStatement, StatementEntry } from '@/features/stock/utils/loanStatement';
+import { groupPayments, type BuyerStatement, type StatementEntry } from '@/features/stock/utils/loanStatement';
 import {
   buildStatementCsv, buildStatementHtml, buildStatementHtmlCompact, buildStatementText,
   downloadTextFile, formatMoney, printHtmlDocument, statementFileBase,
@@ -39,8 +39,15 @@ export function LoanStatementModal({
   const labels = useMemo(() => statementLabels(t), [t]);
   const docOptions = useMemo(() => ({ businessName, lang: t.lang }), [businessName, t]);
   const [layout, setLayout] = useState<StatementLayout>('classic');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (id: string) => setExpandedGroups(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const payments = useMemo(() => statement.entries.filter(e => e.kind === 'payment'), [statement]);
+  const paymentGroups = useMemo(() => groupPayments(payments), [payments]);
   const canEditPayments = !!(onEditRepayment || onDeleteRepayment);
   const cur = statement.currency;
 
@@ -280,41 +287,89 @@ export function LoanStatementModal({
                 </tr>
               </thead>
               <tbody>
-                {payments.length === 0 ? (
+                {paymentGroups.length === 0 ? (
                   <tr><td colSpan={canEditPayments ? 6 : 5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{labels.noPayments}</td></tr>
-                ) : payments.map(p => (
-                  <tr key={p.id}>
-                    <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDayTime(p.ts)}</td>
-                    <td className="mono" style={{ whiteSpace: 'nowrap' }}>{p.ref}</td>
-                    <td className="r">{num(p.credit, 'good')}</td>
-                    <td style={{ color: 'var(--muted)' }}>{p.accountName || '—'}</td>
-                    <td style={{ color: 'var(--muted)', minWidth: 140 }}>{p.description || '—'}</td>
-                    {canEditPayments && (
-                      <td>
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                          {onEditRepayment && (
-                            <button
-                              className="rowBtn"
-                              style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
-                              onClick={() => onEditRepayment(p)}
-                            >
-                              {t('edit')}
+                ) : paymentGroups.map(group => {
+                  const isBatch = group.members.length > 1;
+                  const isExpanded = expandedGroups.has(group.id);
+                  const rows = isBatch && isExpanded ? group.members : (isBatch ? [] : group.members);
+                  return (
+                    <Fragment key={group.id}>
+                      <tr>
+                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDayTime(group.ts)}</td>
+                        <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                          {isBatch ? (
+                            <button className="rowBtn" style={{ padding: '1px 6px', fontSize: 9, minHeight: 18 }} onClick={() => toggleGroup(group.id)}>
+                              {isExpanded ? '▾' : '▸'} {group.members.length} {labels.payment}
                             </button>
+                          ) : group.refs[0]}
+                        </td>
+                        <td className="r">{num(group.credit, 'good')}</td>
+                        <td style={{ color: 'var(--muted)' }}>{group.accountName || '—'}</td>
+                        <td style={{ color: 'var(--muted)', minWidth: 140 }}>{group.description || '—'}</td>
+                        {canEditPayments && (
+                          <td>
+                            {!isBatch && (
+                              <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                {onEditRepayment && (
+                                  <button
+                                    className="rowBtn"
+                                    style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                    onClick={() => onEditRepayment(group.members[0])}
+                                  >
+                                    {t('edit')}
+                                  </button>
+                                )}
+                                {onDeleteRepayment && (
+                                  <button
+                                    className="rowBtn"
+                                    style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                    onClick={() => onDeleteRepayment(group.members[0])}
+                                  >
+                                    {t('delete')}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                      {rows.map(p => (
+                        <tr key={p.id} style={{ background: 'var(--panel2)' }}>
+                          <td className="mono" style={{ whiteSpace: 'nowrap', paddingInlineStart: 20, color: 'var(--muted)' }}>{fmtDayTime(p.ts)}</td>
+                          <td className="mono" style={{ whiteSpace: 'nowrap' }}>{p.ref}</td>
+                          <td className="r">{num(p.credit, 'good')}</td>
+                          <td style={{ color: 'var(--muted)' }}>{p.accountName || '—'}</td>
+                          <td style={{ color: 'var(--muted)', minWidth: 140 }}>{p.description || '—'}</td>
+                          {canEditPayments && (
+                            <td>
+                              <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                                {onEditRepayment && (
+                                  <button
+                                    className="rowBtn"
+                                    style={{ padding: '2px 8px', fontSize: 9, minHeight: 22 }}
+                                    onClick={() => onEditRepayment(p)}
+                                  >
+                                    {t('edit')}
+                                  </button>
+                                )}
+                                {onDeleteRepayment && (
+                                  <button
+                                    className="rowBtn"
+                                    style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
+                                    onClick={() => onDeleteRepayment(p)}
+                                  >
+                                    {t('delete')}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           )}
-                          {onDeleteRepayment && (
-                            <button
-                              className="rowBtn"
-                              style={{ padding: '2px 8px', fontSize: 9, minHeight: 22, color: 'var(--bad)' }}
-                              onClick={() => onDeleteRepayment(p)}
-                            >
-                              {t('delete')}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
