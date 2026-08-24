@@ -35,3 +35,6 @@ ios/DerivedData
 
 # Environment files with secrets
 .env.local
+
+# Generated buyer statements (scripts/generate-buyer-statement.ts output)
+/out/
