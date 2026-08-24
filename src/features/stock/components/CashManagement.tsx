@@ -989,9 +989,10 @@ interface SplitRepaymentModalProps {
 }
 /**
  * Records one physical payment that the buyer used to close several orders
- * at once. The merchant enters the total, checks off which open orders it
- * covers, and adjusts each order's share — the total across checked orders
- * must add up to the amount actually received.
+ * at once. The merchant types the amount actually received, checks off
+ * which open orders it covers, and the amount auto-fills into each order
+ * as it's checked (capped at what that order still owes) — any leftover
+ * is easy to see and nudge by hand before saving.
  */
 function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = false }: SplitRepaymentModalProps) {
   const t = useT();
@@ -999,6 +1000,7 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
   const [accountId, setAccountId] = useState(
     accounts.find(a => a.currency === statement.currency)?.id || accounts[0]?.id || ''
   );
+  const [amountReceived, setAmountReceived] = useState('');
   const [date, setDate] = useState(() => toLocalInput(Date.now()));
   const [note, setNote] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1011,6 +1013,12 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
   };
   const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
 
+  const receivedNum = num(amountReceived, 0) || 0;
+  const allocatedTotal = useMemo(() => (
+    Array.from(selected).reduce((sum, id) => sum + (num(amounts[id], 0) || 0), 0)
+  ), [selected, amounts]);
+  const unallocated = Math.round((receivedNum - allocatedTotal) * 100) / 100;
+
   const toggle = (loanId: string, remaining: number) => {
     setSelected(prev => {
       const next = new Set(prev);
@@ -1018,19 +1026,23 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
         next.delete(loanId);
       } else {
         next.add(loanId);
-        setAmounts(a => (a[loanId] ? a : { ...a, [loanId]: String(remaining) }));
+        // Auto-fill with whatever of the entered amount is still unallocated
+        // (capped at what this order owes) — falls back to the full balance
+        // when no amount has been typed in yet.
+        const fill = receivedNum > 0
+          ? Math.max(0, Math.min(remaining, Math.round((receivedNum - allocatedTotal) * 100) / 100))
+          : remaining;
+        setAmounts(a => (a[loanId] ? a : { ...a, [loanId]: String(fill || remaining) }));
       }
       return next;
     });
   };
 
-  const total = useMemo(() => (
-    Array.from(selected).reduce((sum, id) => sum + (num(amounts[id], 0) || 0), 0)
-  ), [selected, amounts]);
-
   const handle = () => {
     if (!accountId) { setErr(t('loanRepaymentAccount')); return; }
-    if (selected.size < 2) { setErr(t('loanSplitPaymentPickTwo')); return; }
+    if (!(receivedNum > 0)) { setErr(t('loanSplitPaymentEnterAmount')); return; }
+    if (selected.size === 0) { setErr(t('loanSplitPaymentPickOne')); return; }
+    if (Math.abs(unallocated) > 0.01) { setErr(t('loanSplitPaymentMustMatch')); return; }
     const ts = new Date(date).getTime();
     if (!Number.isFinite(ts)) { setErr(t('date')); return; }
     const allocations: Array<{ loan: CustomerLoan; amount: number }> = [];
@@ -1053,6 +1065,19 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('loanSplitPaymentHint')}</div>
+
+        <div className="field2" style={{ marginBottom: 10 }}>
+          <div className="lbl">{t('loanSplitPaymentAmountReceived')}</div>
+          <div className="inputBox">
+            <input
+              inputMode="decimal"
+              value={amountReceived}
+              onChange={e => setAmountReceived(e.target.value)}
+              placeholder="50000"
+              autoFocus
+            />
+          </div>
+        </div>
 
         <div className="field2" style={{ marginBottom: 10 }}>
           <div className="lbl">{t('loanRepaymentAccount')}</div>
@@ -1104,9 +1129,21 @@ function SplitRepaymentModal({ statement, accounts, onSave, onClose, isMobile = 
           })}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 10 }}>
-          <span style={{ color: 'var(--muted)' }}>{t('loanSplitPaymentTotal')}</span>
-          <strong className="mono">{fmtTotal(total)} {statement.currency}</strong>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: 'var(--muted)' }}>{t('loanSplitPaymentAmountReceived')}</span>
+            <strong className="mono">{fmtTotal(receivedNum)} {statement.currency}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: 'var(--muted)' }}>{t('loanSplitPaymentAllocated')}</span>
+            <strong className="mono">{fmtTotal(allocatedTotal)} {statement.currency}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: 'var(--muted)' }}>{t('loanSplitPaymentUnallocated')}</span>
+            <strong className="mono" style={{ color: Math.abs(unallocated) > 0.01 ? 'var(--bad)' : 'var(--good)' }}>
+              {fmtTotal(unallocated)} {statement.currency}
+            </strong>
+          </div>
         </div>
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
@@ -2381,11 +2418,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                             )}
                           </div>
 
-                          {/* Every loaned order on this account — open and closed kept apart so a
-                              settled order doesn't sit mixed in among the ones still owed. */}
+                          {/* Every open loaned order on this account. Once an order is closed it
+                              belongs on the dedicated Closed tab, not mixed in here — this list
+                              stays scoped to what the buyer still owes. */}
                           {(() => {
                             const openLoanRows = stmt.loans.filter(row => !row.settled);
-                            const closedLoanRows = stmt.loans.filter(row => row.settled);
                             const loanRow = (row: typeof stmt.loans[number]) => (
                               <tr key={row.loan.id}>
                                 <td className="mono" style={{ whiteSpace: 'nowrap' }}>
@@ -2433,66 +2470,39 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               </tr>
                             );
                             return (
-                              <>
-                                <div>
-                                  <div className="acct-sec">{t('stmtLoanedOrders')} · {openLoanRows.length}</div>
-                                  <div className="tableWrap">
-                                    <table className="acct-table">
-                                      <thead>
-                                        <tr>
-                                          <th>{t('loanColRef')}</th>
-                                          <th>{t('loanColDate')}</th>
-                                          <th>{t('loanColDescription')}</th>
-                                          <th className="r">{t('loanColAmount')}</th>
-                                          <th className="r">{t('loanColPaid')}</th>
-                                          <th className="r">{t('loanColRemaining')}</th>
-                                          <th>{t('loanColStatus')}</th>
-                                          <th />
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {openLoanRows.length === 0 ? (
-                                          <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
-                                        ) : openLoanRows.map(loanRow)}
-                                      </tbody>
-                                      <tfoot>
-                                        <tr>
-                                          <td colSpan={3} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
-                                          <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
-                                          <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
-                                          <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
-                                          <td colSpan={2} />
-                                        </tr>
-                                      </tfoot>
-                                    </table>
-                                  </div>
+                              <div>
+                                <div className="acct-sec">{t('stmtLoanedOrders')} · {openLoanRows.length}</div>
+                                <div className="tableWrap">
+                                  <table className="acct-table">
+                                    <thead>
+                                      <tr>
+                                        <th>{t('loanColRef')}</th>
+                                        <th>{t('loanColDate')}</th>
+                                        <th>{t('loanColDescription')}</th>
+                                        <th className="r">{t('loanColAmount')}</th>
+                                        <th className="r">{t('loanColPaid')}</th>
+                                        <th className="r">{t('loanColRemaining')}</th>
+                                        <th>{t('loanColStatus')}</th>
+                                        <th />
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {openLoanRows.length === 0 ? (
+                                        <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>{t('loanNoOpenOrders')}</td></tr>
+                                      ) : openLoanRows.map(loanRow)}
+                                    </tbody>
+                                    <tfoot>
+                                      <tr>
+                                        <td colSpan={3} style={{ fontWeight: 700 }}>{t('stmtSummary')}</td>
+                                        <td className="r loan-num">{formatMoney(stmt.totalLoaned)}</td>
+                                        <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
+                                        <td className="r loan-num" style={{ color: 'var(--bad)' }}>{formatMoney(stmt.outstanding)}</td>
+                                        <td colSpan={2} />
+                                      </tr>
+                                    </tfoot>
+                                  </table>
                                 </div>
-
-                                {closedLoanRows.length > 0 && (
-                                  <div>
-                                    <div className="acct-sec">{t('stmtClosedOrders')} · {closedLoanRows.length}</div>
-                                    <div className="tableWrap">
-                                      <table className="acct-table">
-                                        <thead>
-                                          <tr>
-                                            <th>{t('loanColRef')}</th>
-                                            <th>{t('loanColDate')}</th>
-                                            <th>{t('loanColDescription')}</th>
-                                            <th className="r">{t('loanColAmount')}</th>
-                                            <th className="r">{t('loanColPaid')}</th>
-                                            <th className="r">{t('loanColRemaining')}</th>
-                                            <th>{t('loanColStatus')}</th>
-                                            <th />
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {closedLoanRows.map(loanRow)}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </div>
-                                )}
-                              </>
+                              </div>
                             );
                           })()}
 
