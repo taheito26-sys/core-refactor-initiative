@@ -1379,6 +1379,16 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       return next;
     });
   };
+  /** Buyer statement key currently picking payments to merge into one, and which rows are checked. */
+  const [mergePaymentsKey, setMergePaymentsKey] = useState<string | null>(null);
+  const [mergePaymentSelection, setMergePaymentSelection] = useState<Set<string>>(new Set());
+  const toggleMergeSelection = (groupId: string) => {
+    setMergePaymentSelection(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      return next;
+    });
+  };
   /** The payment being corrected, with the loan it belongs to. */
   const [editingRepayment, setEditingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
   const [deletingRepayment, setDeletingRepayment] = useState<{ loan: CustomerLoan; repayment: LoanRepayment } | null>(null);
@@ -1640,6 +1650,27 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     const newCashQAR = deriveCashQAR(accounts, newLedger);
     const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
     if (ok) setSplitPaymentStatement(null);
+    return ok;
+  };
+
+  /**
+   * Retroactively link payments that were already recorded as separate rows
+   * — because one physical payment was applied to several orders one at a
+   * time, before there was a way to record that in one step — into a single
+   * grouped payment. Only the `batchId` on each repayment changes; amounts,
+   * accounts and dates are left exactly as recorded.
+   */
+  const mergeExistingPayments = async (targets: Array<{ loan: CustomerLoan; repayment: LoanRepayment }>) => {
+    if (targets.length < 2) return false;
+    const batchId = uid();
+    let newLoans = loans;
+    for (const { loan, repayment } of targets) {
+      const live = newLoans.find(l => l.id === loan.id) || loan;
+      const updatedRepayments = (live.repayments || []).map(r => (r.id === repayment.id ? { ...r, batchId } : r));
+      newLoans = newLoans.map(l => (l.id === live.id ? { ...live, repayments: updatedRepayments } : l));
+    }
+    const ok = await commit({ ...state, customerLoans: newLoans });
+    if (ok) { setMergePaymentsKey(null); setMergePaymentSelection(new Set()); }
     return ok;
   };
 
@@ -2348,6 +2379,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                   const overdue = stmt.oldestOpenDays > 30;
                   const payments = stmt.entries.filter(e => e.kind === 'payment');
                   const paymentGroups = groupPayments(payments);
+                  const isMergingHere = mergePaymentsKey === stmt.key;
                   return (
                     <div key={stmt.key} className="panel" style={{ padding: 0, overflow: 'hidden' }}>
                       <button className="loan-row loan-cols" onClick={() => toggleBuyer(stmt.key)}>
@@ -2510,11 +2542,53 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                               across several orders in one physical transaction are shown as
                               a single grouped row, expandable to the per-order breakdown. */}
                           <div>
-                            <div className="acct-sec">{t('stmtPaymentsReceived')} · {payments.length}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                              <div className="acct-sec">{t('stmtPaymentsReceived')} · {payments.length}</div>
+                              {paymentGroups.length > 1 && (
+                                isMergingHere ? (
+                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>
+                                      {t('loanMergeSelectedCount').replace('{n}', String(mergePaymentSelection.size))}
+                                    </span>
+                                    <button
+                                      className="rowBtn"
+                                      style={{ padding: '4px 10px', fontSize: 10 }}
+                                      onClick={() => { setMergePaymentsKey(null); setMergePaymentSelection(new Set()); }}
+                                    >
+                                      {t('cancel')}
+                                    </button>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: '4px 10px', fontSize: 10 }}
+                                      disabled={mergePaymentSelection.size < 2}
+                                      onClick={() => {
+                                        const targets = paymentGroups
+                                          .filter(g => mergePaymentSelection.has(g.id))
+                                          .flatMap(g => g.members)
+                                          .map(findRepayment)
+                                          .filter((x): x is { loan: CustomerLoan; repayment: LoanRepayment } => !!x);
+                                        mergeExistingPayments(targets);
+                                      }}
+                                    >
+                                      {t('loanMergeConfirm').replace('{n}', String(mergePaymentSelection.size))}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="rowBtn"
+                                    style={{ padding: '4px 10px', fontSize: 10 }}
+                                    onClick={() => { setMergePaymentsKey(stmt.key); setMergePaymentSelection(new Set()); }}
+                                  >
+                                    🔗 {t('loanMergePayments')}
+                                  </button>
+                                )
+                              )}
+                            </div>
                             <div className="tableWrap">
                               <table className="acct-table">
                                 <thead>
                                   <tr>
+                                    {isMergingHere && <th />}
                                     <th>{t('loanColDate')}</th>
                                     <th>{t('loanColRef')}</th>
                                     <th className="r">{t('loanColAmount')}</th>
@@ -2526,7 +2600,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 <tbody>
                                   {payments.length === 0 ? (
                                     <tr>
-                                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>
+                                      <td colSpan={isMergingHere ? 7 : 6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>
                                         {t('loanNoPaymentsYet')}
                                       </td>
                                     </tr>
@@ -2538,6 +2612,15 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                     return (
                                       <Fragment key={group.id}>
                                         <tr>
+                                          {isMergingHere && (
+                                            <td>
+                                              <input
+                                                type="checkbox"
+                                                checked={mergePaymentSelection.has(group.id)}
+                                                onChange={() => toggleMergeSelection(group.id)}
+                                              />
+                                            </td>
+                                          )}
                                           <td className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtTs(group.ts)}</td>
                                           <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                                             {isBatch ? (
@@ -2554,7 +2637,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                           <td style={{ color: 'var(--muted)' }}>{group.accountName || '—'}</td>
                                           <td style={{ color: 'var(--muted)', minWidth: 140 }}>{group.description || '—'}</td>
                                           <td>
-                                            {target && (
+                                            {!isMergingHere && target && (
                                               <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                                                 <button
                                                   className="rowBtn"
@@ -2578,13 +2661,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                           const memberTarget = findRepayment(m);
                                           return (
                                             <tr key={m.id} style={{ background: 'var(--panel2)' }}>
+                                              {isMergingHere && <td />}
                                               <td className="mono" style={{ whiteSpace: 'nowrap', paddingInlineStart: 20, color: 'var(--muted)' }}>{fmtTs(m.ts)}</td>
                                               <td className="mono" style={{ whiteSpace: 'nowrap' }}>{m.ref}</td>
                                               <td className="r loan-num" style={{ color: 'var(--good)' }}>+{formatMoney(m.credit)}</td>
                                               <td style={{ color: 'var(--muted)' }}>{m.accountName || '—'}</td>
                                               <td style={{ color: 'var(--muted)', minWidth: 140 }}>{m.description || '—'}</td>
                                               <td>
-                                                {memberTarget && (
+                                                {!isMergingHere && memberTarget && (
                                                   <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                                                     <button
                                                       className="rowBtn"
@@ -2613,7 +2697,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                 {payments.length > 0 && (
                                   <tfoot>
                                     <tr>
-                                      <td colSpan={2} style={{ fontWeight: 700 }}>{t('loanColRepaid')}</td>
+                                      <td colSpan={isMergingHere ? 3 : 2} style={{ fontWeight: 700 }}>{t('loanColRepaid')}</td>
                                       <td className="r loan-num" style={{ color: 'var(--good)' }}>{formatMoney(stmt.totalRepaid)}</td>
                                       <td colSpan={3} />
                                     </tr>
