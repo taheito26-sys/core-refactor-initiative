@@ -104,9 +104,16 @@ export function useTrackerState(options: UseTrackerOptions = {}) {
     // "clear all cash" propagates the deletes (full reconcile) to the cloud.
     if (cashSaveTimer.current) clearTimeout(cashSaveTimer.current);
     cashSaveTimer.current = setTimeout(() => {
+      // Deliberately NOT clearing cashCommitInFlightUntilRef here on
+      // completion: the debounced snapshot write above (saveTrackerState,
+      // ~2s) is a separate timer that can still be pending when this
+      // (usually faster) cash write finishes. Clearing the guard early let
+      // a realtime-triggered refreshFromCloud race ahead of the snapshot
+      // write and revert an edit that hadn't landed yet (e.g. a corrected
+      // loaned order's amount reverting back to its old value). The guard
+      // set above already expires on its own after 3s, which covers both writes.
       saveCashToCloud(next.cashAccounts ?? [], next.cashLedger ?? [], options.isCashAuthority ?? false)
-        .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err))
-        .finally(() => { cashCommitInFlightUntilRef.current = 0; });
+        .catch(err => console.error('[useTrackerState] saveCashToCloud failed:', err));
     }, 500);
   }, [adminMode, options.preloadedState, options.isCashAuthority]);
 
