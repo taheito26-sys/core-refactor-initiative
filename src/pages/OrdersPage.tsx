@@ -25,9 +25,9 @@ import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProf
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
 import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
-import { markOrderLinked } from '@/features/exchanges/api';
+import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
-import { ExchangeInbox } from '@/features/exchanges/components/ExchangeInbox';
+import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
@@ -122,11 +122,11 @@ export default function OrdersPage() {
   // Set while the form holds an exchange order picked from the inbox, so the
   // normal save path can stamp the trade as imported and mark the source row
   // linked. There is no separate import action -- picking only prefills.
-  const [pendingImport, setPendingImport] = useState<{
-    orderId: string;
-    exchange: 'binance' | 'okx';
-    note: string;
-  } | null>(null);
+  const [pendingImport, setPendingImport] = useState<
+    | { kind: 'order'; orderId: string; exchange: 'binance' | 'okx'; note: string }
+    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string }
+    | null
+  >(null);
 
   const applyExchangeOrderPrefill = useCallback((prefill: {
     exchange: 'binance' | 'okx';
@@ -151,6 +151,7 @@ export default function OrdersPage() {
     setBuyerName(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
     setBuyerId('');
     setPendingImport({
+      kind: 'order',
       orderId: prefill.orderId,
       exchange: prefill.exchange,
       note: buildImportNote({
@@ -175,6 +176,31 @@ export default function OrdersPage() {
     );
     setNewSaleSheetOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseFiat]);
+
+  /**
+   * USDT sent out via Binance Pay / on-chain -- unlike a P2P order, the
+   * exchange has no fiat side for this, so it prefills as a sale with the
+   * sell price left for the user to fill in (or defaultPrice as a starting
+   * guess) rather than trying to infer one.
+   */
+  const applyExchangeTransferPrefill = useCallback((prefill: ExchangeTransferPayload) => {
+    const via = prefill.kind === 'pay' ? 'Pay' : 'network';
+    setSaleDate(new Date(prefill.ts).toISOString().slice(0, 16));
+    setSaleEntryMode('qty_price');
+    setSaleUsdtQty(String(prefill.amountUSDT));
+    setSaleSell(prefill.buyPrice > 0 ? String(Number(prefill.buyPrice.toFixed(4))) : '');
+    setSaleAmount('');
+    setBuyerName(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
+    setBuyerId('');
+    setPendingImport({
+      kind: 'transfer',
+      transferId: prefill.transferId,
+      exchange: prefill.exchange,
+      note: `Sent via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference}) — counterparty ${prefill.assigneeName?.trim() || 'unknown counterparty'} — ${new Date(prefill.ts).toLocaleString()}`,
+    });
+    setSaleMessage(prefill.buyPrice > 0 ? '' : `Enter your ${baseFiat}/USDT sell rate -- ${EXCHANGE_LABELS[prefill.exchange]} ${via} transfers don't carry a fiat price.`);
+    setNewSaleSheetOpen(true);
   }, [baseFiat]);
 
   useEffect(() => {
@@ -1922,11 +1948,14 @@ export default function OrdersPage() {
       }
       applyState(next);
       showSaleToast({ amountUSDT: baseTrade.amountUSDT, sell, net: salePreview?.net });
-      if (pendingImport) {
+      if (pendingImport?.kind === 'order') {
         // Best-effort: the trade note embeds the order number, so the inbox
         // recognizes this row as imported (via importedReferences) even if this
         // update fails -- don't let a flaky network call block or duplicate the save.
         markOrderLinked(pendingImport.orderId, 'trade', baseTrade.id).catch((err) => console.warn('Failed to mark exchange order as linked', err));
+        setPendingImport(null);
+      } else if (pendingImport?.kind === 'transfer') {
+        markTransfersLinked([{ transferId: pendingImport.transferId, entityType: 'trade', entityId: baseTrade.id }]).catch((err) => console.warn('Failed to mark exchange transfer as linked', err));
         setPendingImport(null);
       }
     }
@@ -3803,6 +3832,7 @@ export default function OrdersPage() {
                   <ExchangeInbox
                     side="sell"
                     onPick={applyExchangeOrderPrefill}
+                    onPickTransfer={applyExchangeTransferPrefill}
                     activeEntityIds={activeTradeIds}
                     importedReferences={importedExchangeRefs}
                   />

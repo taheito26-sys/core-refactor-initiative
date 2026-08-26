@@ -93,7 +93,11 @@ export function ExchangeInbox({
 }: {
   side: 'buy' | 'sell';
   onPick: (order: ExchangeOrderPayload) => void;
-  /** Only meaningful for the buy side -- received USDT becomes stock. */
+  /**
+   * On the buy side this surfaces incoming Pay/on-chain transfers (received
+   * USDT becomes stock); on the sell side it surfaces outgoing ones (USDT
+   * sent out via Pay is a sale settled off-exchange in fiat).
+   */
   onPickTransfer?: (transfer: ExchangeTransferPayload) => void;
   /** Cost basis used to prefill a transfer, typically the weighted-average cost. */
   defaultPrice?: number;
@@ -132,14 +136,15 @@ export function ExchangeInbox({
         .sort((a, b) => (b.order_time ? new Date(b.order_time).getTime() : 0) - (a.order_time ? new Date(a.order_time).getTime() : 0)),
     [orders, side],
   );
+  const transferDirection = side === 'buy' ? 'in' : 'out';
   const allTransfers = useMemo(
     () =>
       onPickTransfer
         ? (transfers ?? [])
-            .filter((tr) => tr.direction === 'in')
+            .filter((tr) => tr.direction === transferDirection)
             .sort((a, b) => (b.transfer_time ? new Date(b.transfer_time).getTime() : 0) - (a.transfer_time ? new Date(a.transfer_time).getTime() : 0))
         : [],
-    [transfers, onPickTransfer],
+    [transfers, onPickTransfer, transferDirection],
   );
 
   const total = allOrders.length + allTransfers.length;
@@ -282,10 +287,14 @@ export function ExchangeInbox({
                     {imported && <ImportedMark />}
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
-                    <span>received</span>
+                    <span>{tr.direction === 'in' ? 'received' : 'sent'}</span>
                     <Chip className={EXCHANGE_CHIP[tr.exchange]}>{EXCHANGE_LABELS[tr.exchange]}</Chip>
                     <Chip className={kind.cls}>{kind.label}</Chip>
-                    {!imported && <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">needs cost basis</Chip>}
+                    {!imported && (
+                      <Chip className="bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400">
+                        {tr.direction === 'in' ? 'needs cost basis' : 'needs sell rate'}
+                      </Chip>
+                    )}
                     {tr.counterparty && <span className="truncate">{tr.counterparty}</span>}
                     <span className="truncate">{fmtWhen(tr.transfer_time)}</span>
                   </div>
