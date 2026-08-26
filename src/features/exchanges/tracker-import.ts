@@ -1,4 +1,5 @@
-import type { ExchangeId } from './types';
+import { fmtP } from '@/lib/tracker-helpers';
+import { EXCHANGE_LABELS, type ExchangeId } from './types';
 
 const STORAGE_KEY = 'exchangeImportPrefill';
 
@@ -37,6 +38,40 @@ export function extractImportedReference(note: string): string | null {
   const refMatch = note.match(/\(ref ([^)]+)\)/);
   if (refMatch) return refMatch[1];
   return null;
+}
+
+/**
+ * Builds the note stored on the imported batch/trade so the full exchange
+ * record — counterparty, order number, fiat amount, and exact date/time —
+ * stays readable from the order/stock page without going back to the
+ * exchange inbox. Kept in one place so both OrdersPage and StockPage produce
+ * the same shape, and extractImportedReference above keeps matching it.
+ */
+export function buildImportNote(params: {
+  exchange: ExchangeId;
+  orderNumber: string;
+  ts: number;
+  assigneeName?: string;
+  /** 'sold' for an outgoing trade note, 'bought' for an incoming batch note. */
+  side: 'bought' | 'sold';
+  /** Currency the current priceFiat/amountUSDT figures are quoted in (e.g. EGP or QAR). */
+  quoteFiat: string;
+  priceFiat: number;
+  amountUSDT: number;
+  needsQarRate?: boolean;
+  originalFiat?: string;
+  originalPriceFiat?: number;
+  originalTotalFiat?: number;
+}): string {
+  const when = new Date(params.ts).toLocaleString();
+  const who = params.assigneeName?.trim() || 'unknown counterparty';
+  const head = `Imported from ${EXCHANGE_LABELS[params.exchange]} P2P order ${params.orderNumber} — counterparty ${who} — ${when}`;
+
+  if (params.originalFiat) {
+    return `${head} — ${params.side} for ${fmtP(params.originalPriceFiat ?? 0)} ${params.originalFiat}/USDT (${fmtP(params.originalTotalFiat ?? 0)} ${params.originalFiat} total)`;
+  }
+  const total = params.priceFiat * params.amountUSDT;
+  return `${head} — ${params.side} ${fmtP(params.amountUSDT)} USDT for ${fmtP(total)} ${params.quoteFiat} (${fmtP(params.priceFiat)} ${params.quoteFiat}/USDT)`;
 }
 
 export function consumeTrackerImportPrefill(kind: 'batch' | 'trade'): TrackerImportPrefill | null {

@@ -33,7 +33,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
-import { consumeTrackerImportPrefill, extractImportedReference } from '@/features/exchanges/tracker-import';
+import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
 import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
@@ -294,9 +294,20 @@ export default function StockPage() {
     setBatchAmount('');
     setBatchSupplier(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
     setBatchNote(
-      prefill.originalFiat
-        ? `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} — bought for ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat}/USDT (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total)`
-        : `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber}`,
+      buildImportNote({
+        exchange: prefill.exchange,
+        orderNumber: prefill.orderNumber,
+        ts: prefill.ts,
+        assigneeName: prefill.assigneeName,
+        side: 'bought',
+        quoteFiat: activeBatchFiat,
+        priceFiat: prefill.priceFiat,
+        amountUSDT: prefill.amountUSDT,
+        needsQarRate: prefill.needsQarRate,
+        originalFiat: prefill.originalFiat,
+        originalPriceFiat: prefill.originalPriceFiat,
+        originalTotalFiat: prefill.originalTotalFiat,
+      }),
     );
     setFundingAccountId('none');
     setPendingImport({ orderId: prefill.orderId, kind: 'order', exchange: prefill.exchange });

@@ -24,7 +24,7 @@ import { useSubmitCapitalTransfer } from '@/hooks/useCapitalTransfers';
 import { useProfitShareAgreements, useApprovedAgreements } from '@/hooks/useProfitShareAgreements';
 import { useCreateAllocations, calculateAllocationEconomics, calculateOperatorPriorityAllocationEconomics, type CreateAllocationInput } from '@/hooks/useOrderAllocations';
 import { calculateOperatorPriorityProfit } from '@/lib/trading/operator-priority';
-import { consumeTrackerImportPrefill, extractImportedReference } from '@/features/exchanges/tracker-import';
+import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote } from '@/features/exchanges/tracker-import';
 import { markOrderLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox } from '@/features/exchanges/components/ExchangeInbox';
@@ -153,9 +153,20 @@ export default function OrdersPage() {
     setPendingImport({
       orderId: prefill.orderId,
       exchange: prefill.exchange,
-      note: prefill.originalFiat
-        ? `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber} — sold for ${fmtP(prefill.originalPriceFiat ?? 0)} ${prefill.originalFiat}/USDT (${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} total)`
-        : `Imported from ${EXCHANGE_LABELS[prefill.exchange]} P2P order ${prefill.orderNumber}`,
+      note: buildImportNote({
+        exchange: prefill.exchange,
+        orderNumber: prefill.orderNumber,
+        ts: prefill.ts,
+        assigneeName: prefill.assigneeName,
+        side: 'sold',
+        quoteFiat: baseFiat,
+        priceFiat: prefill.priceFiat,
+        amountUSDT: prefill.amountUSDT,
+        needsQarRate: prefill.needsQarRate,
+        originalFiat: prefill.originalFiat,
+        originalPriceFiat: prefill.originalPriceFiat,
+        originalTotalFiat: prefill.originalTotalFiat,
+      }),
     });
     setSaleMessage(
       prefill.originalFiat
