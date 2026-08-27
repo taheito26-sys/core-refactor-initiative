@@ -37,6 +37,7 @@ import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote 
 import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
@@ -163,6 +164,16 @@ export default function StockPage() {
   );
   const availableUsdt = useMemo(() => totalStock(derived), [derived]);
   const wacop = getWACOP(derived);
+  const { data: exchangeBalances } = useExchangeBalances();
+  /** Spot + funding USDT per exchange, synced from exchange-sync -- not part of the local FIFO stock. */
+  const exchangeUsdtTotals = useMemo(() => {
+    const totals: Record<'binance' | 'okx', number> = { binance: 0, okx: 0 };
+    for (const b of exchangeBalances ?? []) {
+      if (b.asset !== 'USDT') continue;
+      totals[b.exchange] += b.free + b.locked;
+    }
+    return totals;
+  }, [exchangeBalances]);
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
   const activeFifoBatch = useMemo(() => {
     const sorted = [...state.batches].filter(b => b.initialUSDT > 0).sort((a, b) => a.ts - b.ts);
@@ -744,6 +755,22 @@ export default function StockPage() {
                 <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtP(monthAvgBuyPrice)} {localCur(baseFiat, t.lang)}/{localCur('USDT', t.lang)}</div>
               </div>
             )}
+            {(['binance', 'okx'] as const).map((ex) => (
+              <div key={ex} style={{
+                flex: '1 1 140px', minWidth: 140,
+                padding: '5px 9px',
+                background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
+                borderRadius: 8,
+              }}>
+                <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                  {EXCHANGE_LABELS[ex]} USDT (Spot + Funding)
+                </div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                  {fmtU(exchangeUsdtTotals[ex])} {localCur('USDT', t.lang)}
+                </div>
+              </div>
+            ))}
           </div>
 
           {perf.length === 0 ? (
