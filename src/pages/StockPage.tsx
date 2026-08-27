@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useIsMobile } from '@/hooks/use-mobile';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
@@ -83,6 +84,7 @@ export default function StockPage() {
     | null
   >(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [reconcileExchangesEnabled, setReconcileExchangesEnabled] = useState(false);
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
   const [supplierAddOpen, setSupplierAddOpen] = useState(false);
@@ -174,6 +176,11 @@ export default function StockPage() {
     }
     return totals;
   }, [exchangeBalances]);
+  const exchangeUsdtTotal = exchangeUsdtTotals.binance + exchangeUsdtTotals.okx;
+  /** Anything under a hundredth of a USDT is rounding noise, not a real reconciliation gap. */
+  const RECONCILIATION_TOLERANCE_USDT = 0.01;
+  const reconciliationDelta = availableUsdt - exchangeUsdtTotal;
+  const reconciliationMismatch = Math.abs(reconciliationDelta) > RECONCILIATION_TOLERANCE_USDT;
   /** The oldest batch with remaining stock — the FIFO layer currently being drawn from on the next sale. */
   const activeFifoBatch = useMemo(() => {
     const sorted = [...state.batches].filter(b => b.initialUSDT > 0).sort((a, b) => a.ts - b.ts);
@@ -771,6 +778,35 @@ export default function StockPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div style={{ marginBottom: 9 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+              <Checkbox checked={reconcileExchangesEnabled} onCheckedChange={(v) => setReconcileExchangesEnabled(v === true)} />
+              {t('checkExchangeReconciliation') || 'Check tracker vs. exchange balances'}
+            </label>
+            {reconcileExchangesEnabled && (
+              <div style={{
+                marginTop: 6,
+                padding: '7px 9px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '4px 14px',
+                alignItems: 'center',
+                background: reconciliationMismatch ? 'color-mix(in srgb, var(--bad) 8%, transparent)' : 'color-mix(in srgb, var(--good) 8%, transparent)',
+                border: `1px solid color-mix(in srgb, ${reconciliationMismatch ? 'var(--bad)' : 'var(--good)'} 25%, transparent)`,
+                borderRadius: 8,
+                fontSize: 11,
+              }}>
+                <span>{t('reconciliationTrackerQty') || 'Tracker (available stock)'}: <strong className="mono">{fmtU(availableUsdt)} USDT</strong></span>
+                <span>{t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)'}: <strong className="mono">{fmtU(exchangeUsdtTotal)} USDT</strong></span>
+                <span style={{ fontWeight: 800, color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
+                  {t('reconciliationDelta') || 'Delta'}: <span className="mono">{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} USDT</span>
+                  {' — '}
+                  {reconciliationMismatch ? `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}` : `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`}
+                </span>
+              </div>
+            )}
           </div>
 
           {perf.length === 0 ? (
