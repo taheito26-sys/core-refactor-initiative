@@ -545,6 +545,14 @@ const translations = {
   reconciliationDelta: { en: 'Delta', ar: 'الفرق' },
   reconciliationMatch: { en: 'Matches within tolerance', ar: 'متطابق ضمن الهامش المسموح' },
   reconciliationMismatch: { en: 'Mismatch flagged', ar: 'تم رصد فرق' },
+  reconciliationFixAddBatch: {
+    en: 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.',
+    ar: 'تحتفظ بينانس + OKX بـ {amount} USDT أكثر من المتتبع. المنصات هي المرجع الرسمي — أضف دفعة مخزون بالأسفل (أو استوردها من صندوق المنصة) بقيمة {amount} USDT للمطابقة.',
+  },
+  reconciliationFixReduceBatch: {
+    en: 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.',
+    ar: 'يُظهر المتتبع {amount} USDT أكثر من مجموع بينانس + OKX. المنصات هي المرجع الرسمي — عدّل أو احذف دفعة مخزون بالأسفل لتقليل المتتبع بمقدار {amount} USDT.',
+  },
   smartInsights: { en: 'Smart Insights', ar: 'رؤى ذكية' },
   priceTrendUp: { en: 'Your recent buy price is trending higher', ar: 'سعر الشراء الأخير في اتجاه صاعد' },
   priceTrendDown: { en: 'Your recent buy price is trending lower', ar: 'سعر الشراء الأخير في اتجاه هابط' },

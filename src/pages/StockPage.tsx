@@ -790,21 +790,30 @@ export default function StockPage() {
                 marginTop: 6,
                 padding: '7px 9px',
                 display: 'flex',
-                flexWrap: 'wrap',
-                gap: '4px 14px',
-                alignItems: 'center',
+                flexDirection: 'column',
+                gap: 5,
                 background: reconciliationMismatch ? 'color-mix(in srgb, var(--bad) 8%, transparent)' : 'color-mix(in srgb, var(--good) 8%, transparent)',
                 border: `1px solid color-mix(in srgb, ${reconciliationMismatch ? 'var(--bad)' : 'var(--good)'} 25%, transparent)`,
                 borderRadius: 8,
                 fontSize: 11,
               }}>
-                <span>{t('reconciliationTrackerQty') || 'Tracker (available stock)'}: <strong className="mono">{fmtU(availableUsdt)} USDT</strong></span>
-                <span>{t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)'}: <strong className="mono">{fmtU(exchangeUsdtTotal)} USDT</strong></span>
-                <span style={{ fontWeight: 800, color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
-                  {t('reconciliationDelta') || 'Delta'}: <span className="mono">{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} USDT</span>
-                  {' — '}
-                  {reconciliationMismatch ? `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}` : `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`}
-                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', alignItems: 'center' }}>
+                  <span>{t('reconciliationTrackerQty') || 'Tracker (available stock)'}: <strong className="mono">{fmtU(availableUsdt)} USDT</strong></span>
+                  <span>{t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)'}: <strong className="mono">{fmtU(exchangeUsdtTotal)} USDT</strong></span>
+                  <span style={{ fontWeight: 800, color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
+                    {t('reconciliationDelta') || 'Delta'}: <span className="mono">{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} USDT</span>
+                    {' — '}
+                    {reconciliationMismatch ? `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}` : `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`}
+                  </span>
+                </div>
+                {reconciliationMismatch && (
+                  <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)' }}>
+                    {(reconciliationDelta < 0
+                      ? (t('reconciliationFixAddBatch') || 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.')
+                      : (t('reconciliationFixReduceBatch') || 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.')
+                    ).split('{amount}').join(fmtU(Math.abs(reconciliationDelta)))}
+                  </div>
+                )}
               </div>
             )}
           </div>
