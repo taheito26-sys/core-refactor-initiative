@@ -543,6 +543,7 @@ const translations = {
   reconciliationTrackerQty: { en: 'Tracker (available stock)', ar: 'المتتبع (المخزون المتاح)' },
   reconciliationExchangeQty: { en: 'Binance + OKX (Spot + Funding)', ar: 'بينانس + OKX (سبوت + تمويل)' },
   reconciliationDelta: { en: 'Delta', ar: 'الفرق' },
+  reconciliationStatus: { en: 'Status', ar: 'الحالة' },
   reconciliationMatch: { en: 'Matches within tolerance', ar: 'متطابق ضمن الهامش المسموح' },
   reconciliationMismatch: { en: 'Mismatch flagged', ar: 'تم رصد فرق' },
   reconciliationFixAddBatch: {

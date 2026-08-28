@@ -695,9 +695,8 @@ export default function StockPage() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 9, flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6, marginBottom: 9 }}>
             <div style={{
-              flex: '1 1 140px', minWidth: 140,
               padding: '5px 9px',
               background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
               border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -711,7 +710,6 @@ export default function StockPage() {
               </div>
             </div>
             <div style={{
-              flex: '1 1 140px', minWidth: 140,
               padding: '5px 9px',
               background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
               border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -726,7 +724,6 @@ export default function StockPage() {
             </div>
             {wacop > 0 && (
               <div style={{
-                flex: '1 1 60px', minWidth: 60,
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -738,7 +735,6 @@ export default function StockPage() {
             )}
             {activeFifoBatch && (
               <div style={{
-                flex: '1 1 140px', minWidth: 140,
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -752,7 +748,6 @@ export default function StockPage() {
             )}
             {monthAvgBuyPrice != null && (
               <div style={{
-                flex: '1 1 140px', minWidth: 140,
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -764,7 +759,6 @@ export default function StockPage() {
             )}
             {(['binance', 'okx'] as const).map((ex) => (
               <div key={ex} style={{
-                flex: '1 1 140px', minWidth: 140,
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -788,26 +782,47 @@ export default function StockPage() {
             {reconcileExchangesEnabled && (
               <div style={{
                 marginTop: 6,
-                padding: '7px 9px',
+                padding: 9,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 5,
+                gap: 7,
                 background: reconciliationMismatch ? 'color-mix(in srgb, var(--bad) 8%, transparent)' : 'color-mix(in srgb, var(--good) 8%, transparent)',
                 border: `1px solid color-mix(in srgb, ${reconciliationMismatch ? 'var(--bad)' : 'var(--good)'} 25%, transparent)`,
                 borderRadius: 8,
                 fontSize: 11,
               }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', alignItems: 'center' }}>
-                  <span>{t('reconciliationTrackerQty') || 'Tracker (available stock)'}: <strong className="mono">{fmtU(availableUsdt)} USDT</strong></span>
-                  <span>{t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)'}: <strong className="mono">{fmtU(exchangeUsdtTotal)} USDT</strong></span>
-                  <span style={{ fontWeight: 800, color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
-                    {t('reconciliationDelta') || 'Delta'}: <span className="mono">{reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} USDT</span>
-                    {' — '}
-                    {reconciliationMismatch ? `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}` : `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`}
-                  </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 7 }}>
+                  <div>
+                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                      {t('reconciliationTrackerQty') || 'Tracker (available stock)'}
+                    </div>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtU(availableUsdt)} USDT</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                      {t('reconciliationExchangeQty') || 'Binance + OKX (Spot + Funding)'}
+                    </div>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{fmtU(exchangeUsdtTotal)} USDT</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                      {t('reconciliationDelta') || 'Delta'}
+                    </div>
+                    <div className="mono" style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
+                      {reconciliationDelta >= 0 ? '+' : ''}{fmtU(reconciliationDelta)} USDT
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                      {t('reconciliationStatus') || 'Status'}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', color: reconciliationMismatch ? 'var(--bad)' : 'var(--good)' }}>
+                      {reconciliationMismatch ? `⚠ ${t('reconciliationMismatch') || 'Mismatch flagged'}` : `✓ ${t('reconciliationMatch') || 'Matches within tolerance'}`}
+                    </div>
+                  </div>
                 </div>
                 {reconciliationMismatch && (
-                  <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)' }}>
+                  <div style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--bad)', borderTop: '1px solid color-mix(in srgb, var(--bad) 20%, transparent)', paddingTop: 6 }}>
                     {(reconciliationDelta < 0
                       ? (t('reconciliationFixAddBatch') || 'Binance + OKX hold {amount} USDT more than the tracker. Exchanges are the source of truth — add a stock batch below (or import it from the exchange inbox) for {amount} USDT to match.')
                       : (t('reconciliationFixReduceBatch') || 'The tracker shows {amount} USDT more than Binance + OKX combined. Exchanges are the source of truth — edit or remove a stock batch below to bring the tracker down by {amount} USDT.')
