@@ -695,8 +695,9 @@ export default function StockPage() {
               );
             })}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6, marginBottom: 9 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}>
             <div style={{
+              flex: '0 1 auto',
               padding: '5px 9px',
               background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
               border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -710,6 +711,7 @@ export default function StockPage() {
               </div>
             </div>
             <div style={{
+              flex: '0 1 auto',
               padding: '5px 9px',
               background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
               border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -724,6 +726,7 @@ export default function StockPage() {
             </div>
             {wacop > 0 && (
               <div style={{
+                flex: '0 1 auto',
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -735,6 +738,7 @@ export default function StockPage() {
             )}
             {activeFifoBatch && (
               <div style={{
+                flex: '0 1 auto',
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -748,6 +752,7 @@ export default function StockPage() {
             )}
             {monthAvgBuyPrice != null && (
               <div style={{
+                flex: '0 1 auto',
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
@@ -759,6 +764,7 @@ export default function StockPage() {
             )}
             {(['binance', 'okx'] as const).map((ex) => (
               <div key={ex} style={{
+                flex: '0 1 auto',
                 padding: '5px 9px',
                 background: 'color-mix(in srgb, var(--brand) 5%, transparent)',
                 border: '1px solid color-mix(in srgb, var(--brand) 14%, transparent)',
