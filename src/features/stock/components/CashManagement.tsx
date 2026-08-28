@@ -905,7 +905,13 @@ interface RepayLoanModalProps {
   accounts: CashAccount[];
   /** The payment being corrected. Absent when recording a new one. */
   existing?: LoanRepayment;
-  onSave: (accountId: string, amount: number, ts: number, note?: string) => void;
+  /**
+   * Returns (or throws) so the modal can show a spinner while it's in flight
+   * and surface a failure inline instead of leaving the click looking like
+   * it did nothing — the caller's own commit() already toasts on failure,
+   * but a synchronous error thrown before that point had nowhere to land.
+   */
+  onSave: (accountId: string, amount: number, ts: number, note?: string) => void | Promise<void>;
   onClose: () => void;
   isMobile?: boolean;
 }
@@ -919,6 +925,7 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
   const [date, setDate] = useState(() => toLocalInput(existing?.ts ?? Date.now()));
   const [note, setNote] = useState(existing?.note || '');
   const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
   const amtNum = num(amount, 0);
 
   const selectStyle: React.CSSProperties = {
@@ -927,12 +934,25 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
   };
   const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
 
-  const handle = () => {
+  const handle = async () => {
+    if (saving) return;
+    setErr('');
     if (!accountId) { setErr(t('loanRepaymentAccount')); return; }
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
     const ts = new Date(date).getTime();
     if (!Number.isFinite(ts)) { setErr(t('date')); return; }
-    onSave(accountId, amtNum, ts, note.trim() || undefined);
+    setSaving(true);
+    try {
+      await onSave(accountId, amtNum, ts, note.trim() || undefined);
+    } catch (error) {
+      // A failure here is unexpected -- commit() itself already toasts on a
+      // save failure and returns without throwing, so reaching this catch
+      // means something threw before that point. Surface it instead of
+      // leaving the click looking like it silently did nothing.
+      setErr(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -972,8 +992,10 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
 
         {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
         <div className="formActions">
-          <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
-          <button className="btn" onClick={handle}>{editing ? t('saveChanges') : t('loanAddRepayment')}</button>
+          <button className="btn secondary" onClick={onClose} disabled={saving}>{t('cancel')}</button>
+          <button className="btn" onClick={handle} disabled={saving}>
+            {saving ? `${t('saving') || 'Saving…'}` : (editing ? t('saveChanges') : t('loanAddRepayment'))}
+          </button>
         </div>
       </div>
     </div>
@@ -1599,23 +1621,39 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const replaceLoan = (loan: CustomerLoan) => loans.map(l => (l.id === loan.id ? loan : l));
 
   const addLoanRepayment = async (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => {
-    // The repayment itself is recorded ON the loan — the cash_ledger row is
-    // only the money side. Deriving repaid totals from the ledger loses them:
-    // its schema rejects loan-linked rows and strips the link column.
-    const entry: CashLedgerEntry = {
-      id: uid(), ts, type: 'loan_repayment', accountId,
-      direction: 'in', amount, currency: loan.currency,
-      note: repaymentLedgerNote(loan, note),
-    };
-    const repayment: LoanRepayment = {
-      id: uid(), ts, amount, accountId, ledgerEntryId: entry.id, note,
-    };
-    const newLedger = [...ledger, entry];
-    const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
-    const newLoans = replaceLoan(updatedLoan);
-    const newCashQAR = deriveCashQAR(accounts, newLedger);
-    const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
-    if (ok) setRepayingLoan(null);
+    // Wrapped end-to-end: a throw anywhere in here used to reject silently
+    // (this runs from the modal's fire-and-forget onSave), leaving the click
+    // looking like it did nothing. Now the modal awaits this and shows
+    // whatever the error was instead.
+    try {
+      // The repayment itself is recorded ON the loan — the cash_ledger row is
+      // only the money side. Deriving repaid totals from the ledger loses them:
+      // its schema rejects loan-linked rows and strips the link column.
+      const entry: CashLedgerEntry = {
+        id: uid(), ts, type: 'loan_repayment', accountId,
+        direction: 'in', amount, currency: loan.currency,
+        note: repaymentLedgerNote(loan, note),
+      };
+      const repayment: LoanRepayment = {
+        id: uid(), ts, amount, accountId, ledgerEntryId: entry.id, note,
+      };
+      const newLedger = [...ledger, entry];
+      const updatedLoan = withDerivedStatus({ ...loan, repayments: [...(loan.repayments || []), repayment] });
+      const newLoans = replaceLoan(updatedLoan);
+      const newCashQAR = deriveCashQAR(accounts, newLedger);
+      const ok = await commit({ ...state, cashLedger: newLedger, cashQAR: newCashQAR, customerLoans: newLoans });
+      if (ok) {
+        setRepayingLoan(null);
+        toast.success(t('loanRepaymentAdded') || t('loanAddRepayment'));
+      } else {
+        // commit() already toasted the specific reason; still reject so the
+        // modal's button stops showing "Saving…" instead of hanging on it.
+        throw new Error('Save failed');
+      }
+    } catch (err) {
+      console.error('[CashManagement] addLoanRepayment failed:', err);
+      throw err;
+    }
   };
 
   /**

@@ -1837,6 +1837,7 @@ const translations = {
   // Loans page — editing a recorded payment
   loanEditPayment: { en: 'Edit payment', ar: 'تعديل الدفعة' },
   loanDeletePayment: { en: 'Delete payment', ar: 'حذف الدفعة' },
+  loanRepaymentAdded: { en: 'Payment recorded', ar: 'تم تسجيل الدفعة' },
   loanPaymentUpdated: { en: 'Payment updated', ar: 'تم تحديث الدفعة' },
   loanPaymentDeleted: { en: 'Payment deleted', ar: 'تم حذف الدفعة' },
   loanDeletePaymentConfirm: {
