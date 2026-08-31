@@ -267,6 +267,9 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<'my' | 'incoming' | 'outgoing' | 'transfers'>('my');
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [ordersPage, setOrdersPage] = useState(1);
+  const [buyerFilter, setBuyerFilter] = useState('');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
   const currentMonthKey = new Date().toISOString().slice(0, 7);
 
   // ── Dynamic rows per page: fit table to available viewport height ──
@@ -719,13 +722,38 @@ export default function OrdersPage() {
     return m;
   }, [state.customerLoans, state.deletedLoanIds]);
   const loanedTradeIds = useMemo(() => new Set(loanByTradeId.keys()), [loanByTradeId]);
+  const minPriceNum = priceMin.trim() === '' ? null : Number(priceMin);
+  const maxPriceNum = priceMax.trim() === '' ? null : Number(priceMax);
+
   const filtered = useMemo(() => {
-    if (!query) return list;
     return list.filter(t => {
-      const c = state.customers.find(x => x.id === t.customerId);
-      return [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase().includes(query);
+      if (query) {
+        const c = state.customers.find(x => x.id === t.customerId);
+        const haystack = [fmtDate(t.ts), String(t.amountUSDT), String(t.sellPriceQAR), c?.name || ''].join(' ').toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      if (buyerFilter && t.customerId !== buyerFilter) return false;
+      if (minPriceNum != null && !Number.isNaN(minPriceNum) && t.sellPriceQAR < minPriceNum) return false;
+      if (maxPriceNum != null && !Number.isNaN(maxPriceNum) && t.sellPriceQAR > maxPriceNum) return false;
+      return true;
     });
-  }, [list, query, state.customers]);
+  }, [list, query, state.customers, buyerFilter, minPriceNum, maxPriceNum]);
+
+  // Buyers who actually have orders in the current range — keeps the filter dropdown relevant.
+  const buyerFilterOptions = useMemo(() => {
+    const ids = new Set(list.map(t => t.customerId).filter(Boolean));
+    return state.customers
+      .filter(c => ids.has(c.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [list, state.customers]);
+
+  const clearOrderFilters = useCallback(() => {
+    setBuyerFilter('');
+    setPriceMin('');
+    setPriceMax('');
+  }, []);
+
+  const hasActiveOrderFilters = Boolean(buyerFilter || priceMin.trim() || priceMax.trim());
 
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
@@ -3048,6 +3076,38 @@ export default function OrdersPage() {
                     </button>
                   );
                 })}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0' }}>
+                <select
+                  value={buyerFilter}
+                  onChange={e => setBuyerFilter(e.target.value)}
+                  style={{ padding: '6px 10px', background: 'var(--surface)', color: 'var(--fg)', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12 }}
+                >
+                  <option value="">{t('allBuyers')}</option>
+                  {buyerFilterOptions.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <div className="inputBox" style={{ width: 110, padding: '4px 10px' }}>
+                  <input
+                    type="number"
+                    placeholder={t('minPrice')}
+                    value={priceMin}
+                    onChange={e => setPriceMin(e.target.value)}
+                  />
+                </div>
+                <div className="inputBox" style={{ width: 110, padding: '4px 10px' }}>
+                  <input
+                    type="number"
+                    placeholder={t('maxPrice')}
+                    value={priceMax}
+                    onChange={e => setPriceMax(e.target.value)}
+                  />
+                </div>
+                {hasActiveOrderFilters && (
+                  <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
+                )}
               </div>
 
               {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
