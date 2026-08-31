@@ -445,6 +445,7 @@ const translations = {
   date: { en: 'Date', ar: 'التاريخ' },
   qty: { en: 'Qty', ar: 'الكمية' },
   avgBuy: { en: 'Avg Buy', ar: 'متوسط الشراء' },
+  originalExchangeOrder: { en: 'Original exchange order', ar: 'طلب المنصة الأصلي' },
   sell: { en: 'Sell', ar: 'البيع' },
   margin: { en: 'Margin', ar: 'الهامش' },
   buyer: { en: 'Buyer', ar: 'المشتري' },

@@ -64,14 +64,14 @@ Deno.serve(async (req) => {
     const statement = statements.find((s) => s.customerId === link.customer_id && s.currency === link.currency);
     if (!statement) return json({ error: "Not found" }, 404);
 
-    // Binance/OKX P2P sell orders (already pulled by the existing exchange-sync
-    // integration into exchange_p2p_orders) that were imported into this
-    // buyer's trades — the same orders shown internally, now surfaced on the
-    // buyer's own statement with the EGP→USDT→QAR conversion the merchant used.
+    // Binance/OKX P2P sell orders for this buyer's trades. Trades imported
+    // after the originalFiat* fields were added carry their own snapshot of
+    // the exchange order (captured once, at import time, so the statement
+    // doesn't silently change if exchange_p2p_orders gets re-synced later);
+    // older trades fall back to a join against exchange_p2p_orders below.
     const buyerTrades = (state.trades ?? []).filter((tr) => tr && tr.customerId === link.customer_id);
-    const tradeById = new Map(buyerTrades.map((tr) => [tr.id, tr]));
 
-    let binanceOrders: Array<{
+    type BinanceOrderRow = {
       orderNumber: string;
       date: string | number | null;
       counterparty: string | null;
@@ -82,38 +82,63 @@ Deno.serve(async (req) => {
       usdtAmount: number;
       qarRate: number;
       qarAmount: number;
-    }> = [];
+    };
 
-    if (tradeById.size > 0) {
+    const binanceOrders: BinanceOrderRow[] = [];
+    const tradesNeedingFallback: AnyTrade[] = [];
+
+    for (const trade of buyerTrades) {
+      if (trade.originalFiat && trade.originalFiatAmount != null) {
+        const usdtAmount = Number(trade.amountUSDT) || 0;
+        const qarRate = Number(trade.sellPriceQAR) || 0;
+        binanceOrders.push({
+          orderNumber: trade.exchangeOrderNumber ?? "",
+          date: trade.ts ?? null,
+          counterparty: trade.exchangeCounterparty ?? null,
+          exchange: trade.importedFrom ?? "",
+          fiat: trade.originalFiat,
+          fiatAmount: Math.round(Number(trade.originalFiatAmount) || 0),
+          fiatPrice: Number(trade.originalFiatPriceUSDT) || 0,
+          usdtAmount,
+          qarRate,
+          qarAmount: Math.round(usdtAmount * qarRate),
+        });
+      } else if (trade.importedFrom) {
+        tradesNeedingFallback.push(trade);
+      }
+    }
+
+    if (tradesNeedingFallback.length > 0) {
+      const tradeById = new Map(tradesNeedingFallback.map((tr) => [tr.id, tr]));
       const { data: exchangeOrders } = await supabase
         .from("exchange_p2p_orders")
-        .select("exchange, order_number, amount, price, total, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
+        .select("exchange, order_number, price, total, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
         .eq("user_id", link.user_id)
         .eq("linked_entity_type", "trade");
 
-      binanceOrders = (exchangeOrders ?? [])
-        .filter((o) => tradeById.has(o.linked_entity_id))
-        .map((o) => {
-          const trade = tradeById.get(o.linked_entity_id)!;
-          const usdtAmount = Number(trade.amountUSDT) || 0;
-          const qarRate = Number(trade.sellPriceQAR) || 0;
-          return {
-            orderNumber: o.order_number,
-            date: o.order_time ?? trade.ts ?? null,
-            counterparty: o.counterparty,
-            exchange: o.exchange,
-            fiat: o.fiat,
-            // exchange_p2p_orders.amount is the crypto (USDT) leg, not fiat —
-            // .total is the actual EGP Binance reported for this order.
-            fiatAmount: Math.round(Number(o.total) || 0),
-            fiatPrice: Number(o.price) || 0,
-            usdtAmount,
-            qarRate,
-            qarAmount: Math.round(usdtAmount * qarRate),
-          };
-        })
-        .sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
+      for (const o of exchangeOrders ?? []) {
+        const trade = tradeById.get(o.linked_entity_id);
+        if (!trade) continue;
+        const usdtAmount = Number(trade.amountUSDT) || 0;
+        const qarRate = Number(trade.sellPriceQAR) || 0;
+        binanceOrders.push({
+          orderNumber: o.order_number,
+          date: o.order_time ?? trade.ts ?? null,
+          counterparty: o.counterparty,
+          exchange: o.exchange,
+          fiat: o.fiat,
+          // exchange_p2p_orders.amount is the crypto (USDT) leg, not fiat —
+          // .total is the actual EGP Binance reported for this order.
+          fiatAmount: Math.round(Number(o.total) || 0),
+          fiatPrice: Number(o.price) || 0,
+          usdtAmount,
+          qarRate,
+          qarAmount: Math.round(usdtAmount * qarRate),
+        });
+      }
     }
+
+    binanceOrders.sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
 
     const response = {
       customerName: statement.customerName,

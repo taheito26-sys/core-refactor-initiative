@@ -123,7 +123,11 @@ export default function OrdersPage() {
   // normal save path can stamp the trade as imported and mark the source row
   // linked. There is no separate import action -- picking only prefills.
   const [pendingImport, setPendingImport] = useState<
-    | { kind: 'order'; orderId: string; exchange: 'binance' | 'okx'; note: string }
+    | {
+        kind: 'order'; orderId: string; exchange: 'binance' | 'okx'; note: string;
+        originalFiat?: string; originalFiatAmount?: number; originalFiatPriceUSDT?: number;
+        exchangeOrderNumber?: string; exchangeCounterparty?: string;
+      }
     | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string }
     | null
   >(null);
@@ -154,6 +158,11 @@ export default function OrdersPage() {
       kind: 'order',
       orderId: prefill.orderId,
       exchange: prefill.exchange,
+      exchangeOrderNumber: prefill.orderNumber,
+      exchangeCounterparty: prefill.assigneeName,
+      originalFiat: prefill.originalFiat,
+      originalFiatAmount: prefill.originalTotalFiat,
+      originalFiatPriceUSDT: prefill.originalPriceFiat,
       note: buildImportNote({
         exchange: prefill.exchange,
         orderNumber: prefill.orderNumber,
@@ -1627,6 +1636,11 @@ export default function OrdersPage() {
         pendingImport?.note || '',
       ].filter(Boolean).join(' | '),
       importedFrom: pendingImport?.exchange,
+      originalFiat: pendingImport?.kind === 'order' ? pendingImport.originalFiat : undefined,
+      originalFiatAmount: pendingImport?.kind === 'order' ? pendingImport.originalFiatAmount : undefined,
+      originalFiatPriceUSDT: pendingImport?.kind === 'order' ? pendingImport.originalFiatPriceUSDT : undefined,
+      exchangeOrderNumber: pendingImport?.kind === 'order' ? pendingImport.exchangeOrderNumber : undefined,
+      exchangeCounterparty: pendingImport?.kind === 'order' ? pendingImport.exchangeCounterparty : undefined,
       voided: false, usesStock: useStock, revisions: [], customerId,
       manualBuyPrice: priceMode === 'manual' ? (parseFloat(manualBuyPrice) || 0) : undefined,
       linkedRelId: merchantOrderEnabled ? (isNewAllocFlowActive ? allocations[0]?.relationshipId : linkedRelId) || undefined : undefined,
@@ -2567,6 +2581,19 @@ export default function OrdersPage() {
           <span className={`pill ${Number.isFinite(net) ? (net >= 0 ? 'good' : 'bad') : ''}`}>{t('net')} {Number.isFinite(net) ? `${net >= 0 ? '+' : ''}${fmtC(net)}` : '—'}</span>
           {cycleMs !== null && <span className="cycle-badge">{t('cycle')} {fmtDur(cycleMs)}</span>}
         </div>
+        {tr.originalFiat && tr.originalFiatAmount != null && (
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            <span>{t('originalExchangeOrder')}:</span>
+            <span className="mono" style={{ fontWeight: 700, color: 'var(--text)' }}>
+              {fmtP(tr.originalFiatAmount)} {tr.originalFiat}
+            </span>
+            {tr.originalFiatPriceUSDT != null && (
+              <span className="mono">@ {fmtP(tr.originalFiatPriceUSDT)} {tr.originalFiat}/USDT</span>
+            )}
+            {tr.exchangeOrderNumber && <span className="mono" style={{ opacity: 0.7 }}>#{tr.exchangeOrderNumber}</span>}
+            {tr.exchangeCounterparty && <span style={{ opacity: 0.7 }}>· {tr.exchangeCounterparty}</span>}
+          </div>
+        )}
         {/* Show partner allocation for all linked trades */}
         {tr.linkedRelId && ok && (() => {
           const linkedRel = relationships.find(r => r.id === tr.linkedRelId);

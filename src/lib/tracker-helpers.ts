@@ -322,6 +322,22 @@ export interface Trade {
   inventoryCustodyMerchantId?: string;
   /** Set when this trade was imported from a connected exchange, for a visible "already imported" marker. */
   importedFrom?: 'binance' | 'okx';
+  /**
+   * The P2P order's own fiat leg, captured at import time, for a trade that was
+   * booked here in a different currency (e.g. sold on Binance for EGP, then
+   * this trade records the QAR the merchant converted it to). Absent for a
+   * trade whose exchange order already settled in the trade's own currency,
+   * and for any trade not imported from an exchange at all.
+   */
+  originalFiat?: string;
+  /** Total amount in `originalFiat` the exchange order actually settled for. */
+  originalFiatAmount?: number;
+  /** Unit price in `originalFiat` per USDT, as reported by the exchange. */
+  originalFiatPriceUSDT?: number;
+  /** The exchange's own order number, for tracing this trade back to its source order. */
+  exchangeOrderNumber?: string;
+  /** The exchange counterparty's nickname, as reported by the exchange (may differ from the saved buyer name). */
+  exchangeCounterparty?: string;
 }
 
 export interface Customer {
