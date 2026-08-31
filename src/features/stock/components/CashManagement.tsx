@@ -27,6 +27,7 @@ import {
 import { statementLabels } from '@/features/stock/utils/statementLabels';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
+import { PublicStatementReport, type PublicStatement } from '@/features/stock/components/PublicStatementReport';
 
 interface PublicStatementLink {
   id: string;
@@ -1348,6 +1349,9 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [statementLinksLoaded, setStatementLinksLoaded] = useState(false);
   const [creatingLinkKey, setCreatingLinkKey] = useState<string | null>(null);
   const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+  /** Buyer statement key currently expanded inline, and its fetched report (not a link — the report itself, rendered on this page). */
+  const [viewingReportKey, setViewingReportKey] = useState<string | null>(null);
+  const [reportByKey, setReportByKey] = useState<Record<string, PublicStatement | 'loading' | 'error'>>({});
 
   const loadStatementLinks = useCallback(async () => {
     if (!user?.id) return;
@@ -1368,27 +1372,40 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     [statementLinks],
   );
 
-  const createStatementLink = async (stmt: BuyerStatement) => {
-    if (!user?.id) return;
+  /** Creates the token record (needed for the edge function's service-role lookup) without surfacing a URL. */
+  const ensureStatementLink = async (stmt: BuyerStatement): Promise<PublicStatementLink | null> => {
+    const existing = activeLinkFor(stmt.customerId, stmt.currency);
+    if (existing) return existing;
+    if (!user?.id) return null;
+    const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '');
+    const { data, error } = await supabase
+      .from('buyer_statement_links')
+      .insert({ user_id: user.id, customer_id: stmt.customerId, token, currency: stmt.currency })
+      .select('id, customer_id, token, currency, created_at, revoked_at')
+      .single();
+    if (error || !data) return null;
+    setStatementLinks(prev => [data as PublicStatementLink, ...prev]);
+    return data as PublicStatementLink;
+  };
+
+  /** Fetches the report body itself (same shape the public page renders) so it can show inline, on this page — not just a link. */
+  const viewStatementReport = async (stmt: BuyerStatement) => {
+    if (viewingReportKey === stmt.key) { setViewingReportKey(null); return; }
+    setViewingReportKey(stmt.key);
+    if (reportByKey[stmt.key] && reportByKey[stmt.key] !== 'error') return;
+    setReportByKey(prev => ({ ...prev, [stmt.key]: 'loading' }));
     setCreatingLinkKey(stmt.key);
     try {
-      const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '');
-      const { error } = await supabase.from('buyer_statement_links').insert({
-        user_id: user.id,
-        customer_id: stmt.customerId,
-        token,
-        currency: stmt.currency,
-      });
-      if (error) throw error;
-      await loadStatementLinks();
-      const url = `${window.location.origin}/statements/${token}`;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success(t('statementLinkCreatedCopied'));
-      } catch {
-        toast.success(t('statementLinkCreated'));
-      }
+      const link = await ensureStatementLink(stmt);
+      if (!link) throw new Error('no link');
+      const { data, error } = await supabase.functions.invoke(
+        `public-buyer-statement?token=${encodeURIComponent(link.token)}`,
+        { method: 'GET' },
+      );
+      if (error || !data || (data as { error?: string }).error) throw new Error('fetch failed');
+      setReportByKey(prev => ({ ...prev, [stmt.key]: data as PublicStatement }));
     } catch {
+      setReportByKey(prev => ({ ...prev, [stmt.key]: 'error' }));
       toast.error(t('statementLinkCreateFailed'));
     } finally {
       setCreatingLinkKey(null);
@@ -1414,6 +1431,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         .eq('id', link.id);
       if (error) throw error;
       await loadStatementLinks();
+      const stmt = buyerStatements.find(s => s.customerId === link.customer_id && s.currency === link.currency);
+      if (stmt) {
+        setReportByKey(prev => { const next = { ...prev }; delete next[stmt.key]; return next; });
+        if (viewingReportKey === stmt.key) setViewingReportKey(null);
+      }
       toast.success(t('statementLinkRevoked'));
     } catch {
       toast.error(t('statementLinkRevokeFailed'));
@@ -3040,51 +3062,61 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                     <th>{t('name')}</th>
                     <th>Currency</th>
                     <th className="r">{t('stmtTotalDue')}</th>
-                    <th>{t('statementLinkStatus')}</th>
                     <th>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {buyerStatements.map(stmt => {
                     const link = activeLinkFor(stmt.customerId, stmt.currency);
+                    const isOpen = viewingReportKey === stmt.key;
+                    const report = reportByKey[stmt.key];
                     return (
-                      <tr key={stmt.key}>
-                        <td style={{ fontWeight: 700 }}>{stmt.customerName}</td>
-                        <td className="mono">{stmt.currency}</td>
-                        <td className="mono r">{fmtTotal(stmt.outstanding)}</td>
-                        <td>
-                          {link ? (
-                            <span className="pill good" style={{ fontSize: 10 }}>{t('statementLinkActive')}</span>
-                          ) : (
-                            <span className="pill" style={{ fontSize: 10 }}>{t('statementLinkNone')}</span>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                            {link ? (
-                              <>
-                                <button className="rowBtn" onClick={() => copyStatementLink(link)}>{t('statementLinkCopy')}</button>
-                                <button
-                                  className="rowBtn"
-                                  style={{ color: 'var(--bad)' }}
-                                  disabled={revokingLinkId === link.id}
-                                  onClick={() => revokeStatementLink(link)}
-                                >
-                                  {revokingLinkId === link.id ? '…' : t('statementLinkRevoke')}
-                                </button>
-                              </>
-                            ) : (
+                      <Fragment key={stmt.key}>
+                        <tr>
+                          <td style={{ fontWeight: 700 }}>{stmt.customerName}</td>
+                          <td className="mono">{stmt.currency}</td>
+                          <td className="mono r">{fmtTotal(stmt.outstanding)}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                               <button
                                 className="rowBtn"
                                 disabled={creatingLinkKey === stmt.key}
-                                onClick={() => createStatementLink(stmt)}
+                                onClick={() => viewStatementReport(stmt)}
                               >
-                                {creatingLinkKey === stmt.key ? '…' : t('statementLinkGetLink')}
+                                {creatingLinkKey === stmt.key ? '…' : isOpen ? t('statementReportHide') : t('statementReportView')}
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                              {link && (
+                                <>
+                                  <button className="rowBtn" style={{ fontSize: 10, color: 'var(--muted)' }} onClick={() => copyStatementLink(link)}>
+                                    {t('statementLinkCopy')}
+                                  </button>
+                                  <button
+                                    className="rowBtn"
+                                    style={{ fontSize: 10, color: 'var(--bad)' }}
+                                    disabled={revokingLinkId === link.id}
+                                    onClick={() => revokeStatementLink(link)}
+                                  >
+                                    {revokingLinkId === link.id ? '…' : t('statementLinkRevoke')}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr>
+                            <td colSpan={4} style={{ background: 'var(--panel2)', padding: 16 }}>
+                              {report === 'loading' || !report ? (
+                                <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>…</div>
+                              ) : report === 'error' ? (
+                                <div style={{ fontSize: 12, color: 'var(--bad)', textAlign: 'center', padding: 20 }}>{t('statementLinkCreateFailed')}</div>
+                              ) : (
+                                <PublicStatementReport data={report} />
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
