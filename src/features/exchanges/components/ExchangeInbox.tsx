@@ -217,7 +217,11 @@ export function ExchangeInbox({
                     priceFiat: needsQarRate ? 0 : o.price,
                     needsQarRate,
                     ...(needsQarRate
-                      ? { originalFiat: o.fiat, originalPriceFiat: o.price, originalTotalFiat: o.amount * o.price }
+                      // o.total is the fiat amount the exchange itself reported for this
+                      // order -- o.amount is the crypto (USDT) leg, not fiat, so don't
+                      // recompute the total from amount * price (that drifts from the
+                      // real total once price has already been rounded once on sync).
+                      ? { originalFiat: o.fiat, originalPriceFiat: o.price, originalTotalFiat: o.total }
                       : {}),
                   })
                 }
@@ -238,7 +242,7 @@ export function ExchangeInbox({
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
                     <span className="font-semibold text-foreground/80">
-                      {fmtNum(o.amount * o.price)} {o.fiat}
+                      {fmtNum(o.total)} {o.fiat}
                     </span>
                     <Chip className={EXCHANGE_CHIP[o.exchange]}>{EXCHANGE_LABELS[o.exchange]}</Chip>
                     <Chip className={KIND_CHIP.p2p.cls}>{KIND_CHIP.p2p.label}</Chip>
