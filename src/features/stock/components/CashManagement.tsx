@@ -13,7 +13,7 @@ import { useT } from '@/lib/i18n';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/features/auth/auth-context';
-import { deleteCashAccountLedgerFromCloud } from '@/lib/cash-sync';
+import { deleteCashAccountLedgerFromCloud, deleteCashAccountFromCloud } from '@/lib/cash-sync';
 import { useCashCustodyRequests } from '@/hooks/useCashCustodyRequests';
 import { normalizeCounterparties, type NormalizedCounterparty } from '@/lib/custody-relationships';
 import { groupClosedLoansByMonth, isLoanClosed, loanMatchesQuery } from '@/features/stock/utils/loanGrouping';
@@ -1536,6 +1536,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' | 'funding' | 'proceeds' | 'settlement' } | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: '', type: '' });
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
+  const [deleteAccountPromptId, setDeleteAccountPromptId] = useState<string | null>(null);
   const [showMerchantCustody, setShowMerchantCustody] = useState(false);
 
   const [counterparties, setCounterparties] = useState<NormalizedCounterparty[]>([]);
@@ -1940,6 +1941,44 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     setTimeout(() => { clearedAccountIds?.current.delete(id); }, 5000);
   };
 
+  const deleteAccount = async (id: string) => {
+    // 1. Register this account as "cleared" so refreshFromCloud won't re-merge
+    //    the account or its local-only ledger entries during the sync window.
+    clearedAccountIds?.current.add(id);
+
+    // 2. Delete from cloud FIRST — ledger rows before the account row (no FK
+    //    ordering requirement, but this mirrors clearLedgerEntries) — so the
+    //    realtime postgres_changes event finds the cloud already empty and
+    //    doesn't restore anything into local state.
+    try {
+      await deleteCashAccountLedgerFromCloud(id);
+      await deleteCashAccountFromCloud(id);
+    } catch (err) {
+      console.error('[CashManagement] deleteAccount cloud delete failed:', err);
+    }
+
+    // 3. Commit the account and its ledger entries removed from local state,
+    //    with reconcile so this device's cloud copy matches (not debounced,
+    //    so refreshFromCloud sees the deletion and doesn't re-merge it back).
+    const newAccounts = accounts.filter(a => a.id !== id);
+    const newLedger = ledger.filter(e => e.accountId !== id && e.contraAccountId !== id);
+    const newCashQAR = deriveCashQAR(newAccounts, newLedger);
+    const nextState = { ...state, cashAccounts: newAccounts, cashLedger: newLedger, cashQAR: newCashQAR };
+    if (applyStateAndCommit) {
+      try {
+        await applyStateAndCommit(nextState);
+      } catch (err) {
+        console.error('[CashManagement] applyStateAndCommit after delete failed:', err);
+        applyState(nextState);
+      }
+    } else {
+      applyState(nextState);
+    }
+
+    // 4. Keep the account suppressed for 5s to cover any delayed realtime events.
+    setTimeout(() => { clearedAccountIds?.current.delete(id); }, 5000);
+  };
+
   // ── Ledger filtered rows with running balance ─────────────────
   const filteredLedger = useMemo(() => {
     let rows = [...ledger].sort((a, b) => b.ts - a.ts);
@@ -2214,7 +2253,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                           <IconTransfer /> {t('transferLbl')}
                         </button>
                         <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined }} onClick={() => setEditingAccount(acc)}><span className="cash-emoji">✏️</span> {t('edit')}</button>
-                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)', gridColumn: '1 / -1' }} onClick={() => setClearLedgerPromptId(acc.id)}><span className="cash-emoji">🗑️</span> {t('clearLedger')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)' }} onClick={() => setClearLedgerPromptId(acc.id)}><span className="cash-emoji">🗑️</span> {t('clearLedger')}</button>
+                        <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, color: 'var(--bad)', borderColor: 'color-mix(in srgb, var(--bad) 30%, transparent)' }} onClick={() => setDeleteAccountPromptId(acc.id)}><span className="cash-emoji">❌</span> {t('deleteAccountBtn')}</button>
                       </div>
                     )}
                     {isInactive && (
@@ -3239,6 +3279,19 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               <button className="btn secondary" onClick={() => setClearLedgerPromptId(null)}>{t('cancel')}</button>
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }} onClick={() => { clearLedgerEntries(clearLedgerPromptId); setClearLedgerPromptId(null); }}>{t('clearBtn' as any)}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteAccountPromptId && (
+        <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={() => setDeleteAccountPromptId(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+          <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8, color: 'var(--bad)' }}>⚠️ {t('deleteAccountBtn')}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>{t('confirmDeleteAccount')}</div>
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setDeleteAccountPromptId(null)}>{t('cancel')}</button>
+              <button className="btn" style={{ minHeight: isMobile ? 42 : undefined, background: 'var(--bad)', color: '#fff' }} onClick={() => { deleteAccount(deleteAccountPromptId); setDeleteAccountPromptId(null); }}>{t('deleteBtn')}</button>
             </div>
           </div>
         </div>

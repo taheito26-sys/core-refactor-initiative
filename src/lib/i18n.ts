@@ -1983,6 +1983,9 @@ const translations = {
   clearLedger:           { en: 'Clear Ledger',                 ar: 'حذف السجل' },
   confirmClearLedger:    { en: 'Are you sure you want to clear the ledger for this account? This will remove ALL entries and reset the balance to zero. This action cannot be undone.', ar: 'هل أنت متأكد من حذف سجل العمليات لهذا الحساب؟ سيتم حذف جميع الحركات المالية وتصفير الرصيد. لا يمكن التراجع عن هذا الإجراء.' },
   clearBtn:              { en: 'Clear',                        ar: 'تصفير' },
+  deleteAccountBtn:      { en: 'Delete Account',                ar: 'حذف الحساب' },
+  confirmDeleteAccount:  { en: 'Are you sure you want to permanently delete this account? This will remove the account and ALL of its ledger entries everywhere, on every device. This action cannot be undone.', ar: 'هل أنت متأكد من حذف هذا الحساب نهائيًا؟ سيتم حذف الحساب وجميع حركاته المالية من كل مكان وعلى كل الأجهزة. لا يمكن التراجع عن هذا الإجراء.' },
+  deleteBtn:             { en: 'Delete',                        ar: 'حذف' },
 
   // Ledger tab
   allAccountsOpt:        { en: 'All Accounts',                 ar: 'جميع الحسابات' },
