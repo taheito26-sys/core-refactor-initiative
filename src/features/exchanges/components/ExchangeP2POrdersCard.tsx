@@ -40,7 +40,10 @@ export function ExchangeP2POrdersCard() {
       priceFiat: needsQarRate ? 0 : order.price,
       needsQarRate,
       ...(needsQarRate
-        ? { originalFiat: order.fiat, originalPriceFiat: order.price, originalTotalFiat: order.amount * order.price }
+        // order.total is the fiat amount Binance itself reported for this order —
+        // use it directly rather than recomputing amount * price, which drifts
+        // from the real total once price has already been rounded once.
+        ? { originalFiat: order.fiat, originalPriceFiat: order.price, originalTotalFiat: order.total }
         : {}),
     });
     navigate(kind === 'batch' ? '/trading/stock' : '/trading/orders');

@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     if (tradeById.size > 0) {
       const { data: exchangeOrders } = await supabase
         .from("exchange_p2p_orders")
-        .select("exchange, order_number, amount, price, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
+        .select("exchange, order_number, amount, price, total, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
         .eq("user_id", link.user_id)
         .eq("linked_entity_type", "trade");
 
@@ -103,7 +103,9 @@ Deno.serve(async (req) => {
             counterparty: o.counterparty,
             exchange: o.exchange,
             fiat: o.fiat,
-            fiatAmount: Math.round(Number(o.amount) || 0),
+            // exchange_p2p_orders.amount is the crypto (USDT) leg, not fiat —
+            // .total is the actual EGP Binance reported for this order.
+            fiatAmount: Math.round(Number(o.total) || 0),
             fiatPrice: Number(o.price) || 0,
             usdtAmount,
             qarRate,
