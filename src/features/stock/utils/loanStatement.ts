@@ -1,6 +1,7 @@
 import {
   getLoanRepaid,
   getLoanRemaining,
+  shortRef,
   type CashAccount,
   type CashCurrency,
   type Customer,
@@ -145,11 +146,7 @@ export interface BuildStatementsInput {
 
 const DAY_MS = 86400000;
 
-/** Short human reference for a record, e.g. `LN-4F2A9C`. */
-export function shortRef(prefix: string, id: string): string {
-  const tail = (id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-6).toUpperCase();
-  return `${prefix}-${tail || '000000'}`;
-}
+export { shortRef };
 
 /** Whole days between `ts` and `now`, never negative. */
 function daysSince(ts: number, now: number): number {

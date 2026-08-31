@@ -135,6 +135,13 @@ export function uid(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+// Stable short reference derived from a record's own id — same id used as the
+// foreign key across trades, loans, and statements, just formatted for display.
+export function shortRef(prefix: string, id: string): string {
+  const tail = (id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-6).toUpperCase();
+  return `${prefix}-${tail || '000000'}`;
+}
+
 // ── Types matching the repo state model ──
 
 // ── Cash Management System Types ──────────────────────────────

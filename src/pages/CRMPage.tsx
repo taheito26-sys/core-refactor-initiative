@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTrackerState } from '@/lib/useTrackerState';
-import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, type Customer, type Supplier } from '@/lib/tracker-helpers';
+import { fmtU, fmtDate, fmtTotal, fmtPrice, uid, shortRef, type Customer, type Supplier } from '@/lib/tracker-helpers';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
@@ -86,7 +86,7 @@ function KpiCard({ label, value, color }: { label: string; value: string | numbe
 
 // ── Supplier Detail Card ────────────────────────────────────────────
 function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
-  supplier: { name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number };
+  supplier: { id: string; name: string; batchCount: number; totalUSDT: number; avgCost: number; spentQAR: number; lastDate: number; volumePct: number };
   maxUSDT: number;
   onEdit: () => void;
   onDelete: () => void;
@@ -99,10 +99,13 @@ function SupplierCard({ supplier, maxUSDT, onEdit, onDelete, lang }: {
       background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 8,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 800 }}>{supplier.name}</div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{supplier.name}</div>
+          <div className="mono" style={{ fontSize: 9, color: 'var(--muted)' }} title={supplier.id}>{shortRef('SUP', supplier.id)}</div>
+        </div>
         <span className="pill" style={{ fontSize: 10 }}>{supplier.batchCount} {supplier.batchCount === 1 ? 'batch' : 'batches'}</span>
       </div>
-      
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         <div style={{ textAlign: 'center', padding: '6px 4px', background: 'color-mix(in srgb, var(--fg) 5%, transparent)', borderRadius: 6 }}>
           <div style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.06em' }}>USDT</div>
@@ -480,6 +483,7 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                 <table>
                   <thead>
                     <tr>
+                      <th>ID</th>
                       <th>{t('name')}</th>
                       <th>Tier</th>
                       <th className="r">{t('trades')}</th>
@@ -494,6 +498,9 @@ export default function CRMPage({ adminTrackerState, isAdminView }: CRMPageProps
                       const s = customerStats(c.id);
                       return (
                         <tr key={c.id}>
+                          <td className="mono" style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }} title={c.id}>
+                            {shortRef('CUS', c.id)}
+                          </td>
                           <td style={{ fontWeight: 700 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span>{c.name}</span>
