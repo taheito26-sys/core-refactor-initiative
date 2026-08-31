@@ -181,6 +181,16 @@ export async function saveCashToCloud(
 
   const uid = user.id;
 
+  // GATED on _cashCloudLoadedThisSession: before this device's session has
+  // loaded fresh cash data from the cloud at least once, its in-memory
+  // accounts/ledger may still be whatever was cached in localStorage from a
+  // previous session — which can be stale relative to edits/deletes made on
+  // another device since. Upserting those stale rows by id would resurrect
+  // a row another device just deleted, or clobber an edit it just made, even
+  // though this call isn't a reconcile delete. Wait for the first
+  // loadCashFromCloud() to land before writing anything.
+  if (!_cashCloudLoadedThisSession) return;
+
   if (accounts.length > 0) {
     const { error: accErr } = await (supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -220,12 +230,6 @@ export async function saveCashToCloud(
   // are the authoritative cash-management surface — see the `reconcile`
   // parameter doc above.
   if (!reconcile) return;
-
-  // GATED on _cashCloudLoadedThisSession: an empty local state before cloud
-  // has loaded means "we haven't observed cloud yet" — running the reconcile
-  // delete in that window wipes every cash row for this user. We only know
-  // the local set is intentional once loadCashFromCloud has succeeded once.
-  if (!_cashCloudLoadedThisSession) return;
 
   // Additional safety: if BOTH accounts and ledger are empty, skip the
   // reconcile-delete entirely. A legitimate "clear all" goes through
