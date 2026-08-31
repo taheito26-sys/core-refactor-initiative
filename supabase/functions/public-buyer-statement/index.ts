@@ -14,6 +14,14 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// A charge's note is the one field that can carry "USDT @ <rate>" — strip it
+// rather than forward it as-is. Payment notes (e.g. "Hassan 4") are fine.
+const RATE_LIKE = /USDT\s*@/i;
+function publicDescription(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  return RATE_LIKE.test(raw) ? null : raw;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -68,6 +76,15 @@ Deno.serve(async (req) => {
       totalRepaid: Math.round(statement.totalRepaid),
       outstanding: Math.round(statement.outstanding),
       issueDate: new Date().toISOString().slice(0, 10),
+      orders: statement.loans.map((row) => ({
+        ref: row.ref,
+        date: row.loan.ts,
+        amount: Math.round(row.principal),
+        paid: Math.round(row.repaid),
+        remaining: Math.round(row.remaining),
+        settled: row.settled,
+        note: publicDescription(row.loan.note),
+      })),
       payments: statement.entries
         .filter((e) => e.kind === "payment")
         .map((e) => ({

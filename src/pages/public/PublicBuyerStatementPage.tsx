@@ -9,6 +9,16 @@ interface PublicPayment {
   ref: string | null;
 }
 
+interface PublicOrder {
+  ref: string;
+  date: number;
+  amount: number;
+  paid: number;
+  remaining: number;
+  settled: boolean;
+  note: string | null;
+}
+
 interface PublicStatement {
   customerName: string;
   currency: string;
@@ -16,6 +26,7 @@ interface PublicStatement {
   totalRepaid: number;
   outstanding: number;
   issueDate: string;
+  orders: PublicOrder[];
   payments: PublicPayment[];
 }
 
@@ -123,7 +134,46 @@ export default function PublicBuyerStatementPage() {
           <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{repaidPct}% من المستحقات تم سدادها</div>
         </div>
 
-        {/* ── SECTION B ── */}
+        {/* ── SECTION B (orders) ── */}
+        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>
+          سجل الطلبات ({data.orders.length} طلب)
+        </div>
+        <div style={{ overflowX: 'auto', marginBottom: 24 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #ddd' }}>
+                <th style={thStyle}>المرجع</th>
+                <th style={thStyle}>التاريخ</th>
+                <th style={{ ...thStyle, textAlign: 'left' }}>{`المبلغ (${cur})`}</th>
+                <th style={{ ...thStyle, textAlign: 'left' }}>{`المسدد (${cur})`}</th>
+                <th style={{ ...thStyle, textAlign: 'left' }}>{`المتبقي (${cur})`}</th>
+                <th style={thStyle}>الحالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.orders.map((o, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={tdStyle}>{o.ref}</td>
+                  <td style={tdStyle}>{fmtDate(o.date)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700 }}>{fmtAmount(o.amount)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.paid)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.remaining)}</td>
+                  <td style={tdStyle}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                      background: o.settled ? '#e6f4ea' : '#fdeaea',
+                      color: o.settled ? '#1a7a3c' : '#b3261e',
+                    }}>
+                      {o.settled ? 'مسدد' : 'مفتوح'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── SECTION C (payments) ── */}
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>
           سجل الدفعات المستلمة ({data.payments.length} دفعة)
         </div>
