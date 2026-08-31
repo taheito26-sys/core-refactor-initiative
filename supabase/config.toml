@@ -10,3 +10,8 @@ verify_jwt = false
 
 [functions.push-send]
 verify_jwt = false
+
+# Public, token-authenticated statement page — no Supabase session exists
+# when this is called, so gateway JWT verification must stay off.
+[functions.public-buyer-statement]
+verify_jwt = false

@@ -83,6 +83,36 @@ export type Database = {
         }
         Relationships: []
       }
+      buyer_statement_links: {
+        Row: {
+          created_at: string
+          currency: string
+          customer_id: string
+          id: string
+          revoked_at: string | null
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          customer_id: string
+          id?: string
+          revoked_at?: string | null
+          token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          customer_id?: string
+          id?: string
+          revoked_at?: string | null
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       capital_transfers: {
         Row: {
           amount: number

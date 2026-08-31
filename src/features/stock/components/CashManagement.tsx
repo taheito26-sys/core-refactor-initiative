@@ -28,6 +28,15 @@ import { statementLabels } from '@/features/stock/utils/statementLabels';
 import { deleteRepayment, editRepayment, withDerivedStatus } from '@/features/stock/utils/loanRepayments';
 import { LoanStatementModal } from '@/features/stock/components/LoanStatementModal';
 
+interface PublicStatementLink {
+  id: string;
+  customer_id: string;
+  token: string;
+  currency: string;
+  created_at: string;
+  revoked_at: string | null;
+}
+
 // ── Icons (inline SVG helpers) ─────────────────────────────────────
 // Two sizes only: 12px for identity icons (account type), 10px for action
 // icons sitting inside buttons. Keeps the page's iconography compact.
@@ -1334,6 +1343,85 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     [buyerStatements, statementKey],
   );
 
+  // ── Public statement links ───────────────────────────────────────
+  const [statementLinks, setStatementLinks] = useState<PublicStatementLink[]>([]);
+  const [statementLinksLoaded, setStatementLinksLoaded] = useState(false);
+  const [creatingLinkKey, setCreatingLinkKey] = useState<string | null>(null);
+  const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+
+  const loadStatementLinks = useCallback(async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('buyer_statement_links')
+      .select('id, customer_id, token, currency, created_at, revoked_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) { toast.error(t('statementLinkLoadFailed')); return; }
+    setStatementLinks((data || []) as PublicStatementLink[]);
+    setStatementLinksLoaded(true);
+  }, [user?.id, t]);
+
+  const activeLinkFor = useCallback(
+    (customerId: string, currency: string) => statementLinks.find(
+      l => l.customer_id === customerId && l.currency === currency && !l.revoked_at,
+    ) || null,
+    [statementLinks],
+  );
+
+  const createStatementLink = async (stmt: BuyerStatement) => {
+    if (!user?.id) return;
+    setCreatingLinkKey(stmt.key);
+    try {
+      const token = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '');
+      const { error } = await supabase.from('buyer_statement_links').insert({
+        user_id: user.id,
+        customer_id: stmt.customerId,
+        token,
+        currency: stmt.currency,
+      });
+      if (error) throw error;
+      await loadStatementLinks();
+      const url = `${window.location.origin}/statements/${token}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success(t('statementLinkCreatedCopied'));
+      } catch {
+        toast.success(t('statementLinkCreated'));
+      }
+    } catch {
+      toast.error(t('statementLinkCreateFailed'));
+    } finally {
+      setCreatingLinkKey(null);
+    }
+  };
+
+  const copyStatementLink = async (link: PublicStatementLink) => {
+    const url = `${window.location.origin}/statements/${link.token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(t('statementLinkCopied'));
+    } catch {
+      toast.error(t('statementLinkCopyFailed'));
+    }
+  };
+
+  const revokeStatementLink = async (link: PublicStatementLink) => {
+    setRevokingLinkId(link.id);
+    try {
+      const { error } = await supabase
+        .from('buyer_statement_links')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('id', link.id);
+      if (error) throw error;
+      await loadStatementLinks();
+      toast.success(t('statementLinkRevoked'));
+    } catch {
+      toast.error(t('statementLinkRevokeFailed'));
+    } finally {
+      setRevokingLinkId(null);
+    }
+  };
+
   // Closed months start collapsed except the most recent one — the archive is
   // for looking things up, not for scrolling past.
   const [collapsedClosedMonths, setCollapsedClosedMonths] = useState<Set<string>>(new Set());
@@ -1387,7 +1475,10 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     loan_repayment: t('ledgerLoanRepayment'),
   }), [t]);
 
-  const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights' | 'loans'>('accounts');
+  const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights' | 'loans' | 'statements'>('accounts');
+  useEffect(() => {
+    if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
+  }, [innerTab, statementLinksLoaded, loadStatementLinks]);
   const [showNewLoan, setShowNewLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
   /** Buyer statement whose open orders can be closed with one split payment. */
@@ -2000,6 +2091,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         {tabBtn('ledger', t('cashLedgerTab'))}
         {tabBtn('loans', t('cashLoansTab'))}
         {tabBtn('insights', t('cashInsightsTab'))}
+        {tabBtn('statements', t('cashStatementsTab'))}
       </div>
 
       {/* ── ACCOUNTS TAB ── */}
@@ -2926,6 +3018,79 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── PUBLIC STATEMENTS TAB ── */}
+      {innerTab === 'statements' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 8, padding: '8px 12px' }}>
+            💡 {t('statementsTabDesc')}
+          </div>
+
+          {buyerStatements.length === 0 ? (
+            <div className="empty" style={{ padding: '32px 0' }}>
+              <div className="empty-t">{t('noLoansYet')}</div>
+            </div>
+          ) : (
+            <div className="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t('name')}</th>
+                    <th>Currency</th>
+                    <th className="r">{t('stmtTotalDue')}</th>
+                    <th>{t('statementLinkStatus')}</th>
+                    <th>{t('actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buyerStatements.map(stmt => {
+                    const link = activeLinkFor(stmt.customerId, stmt.currency);
+                    return (
+                      <tr key={stmt.key}>
+                        <td style={{ fontWeight: 700 }}>{stmt.customerName}</td>
+                        <td className="mono">{stmt.currency}</td>
+                        <td className="mono r">{fmtTotal(stmt.outstanding)}</td>
+                        <td>
+                          {link ? (
+                            <span className="pill good" style={{ fontSize: 10 }}>{t('statementLinkActive')}</span>
+                          ) : (
+                            <span className="pill" style={{ fontSize: 10 }}>{t('statementLinkNone')}</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {link ? (
+                              <>
+                                <button className="rowBtn" onClick={() => copyStatementLink(link)}>{t('statementLinkCopy')}</button>
+                                <button
+                                  className="rowBtn"
+                                  style={{ color: 'var(--bad)' }}
+                                  disabled={revokingLinkId === link.id}
+                                  onClick={() => revokeStatementLink(link)}
+                                >
+                                  {revokingLinkId === link.id ? '…' : t('statementLinkRevoke')}
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                className="rowBtn"
+                                disabled={creatingLinkKey === stmt.key}
+                                onClick={() => createStatementLink(stmt)}
+                              >
+                                {creatingLinkKey === stmt.key ? '…' : t('statementLinkGetLink')}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

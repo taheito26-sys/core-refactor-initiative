@@ -1,3 +1,6 @@
+// Relative + explicit extension (not the usual `@/` alias) so this module can
+// be imported as-is, with zero bundler config, from the public-buyer-statement
+// edge function (Deno resolves local imports by relative path only).
 import {
   getLoanRepaid,
   getLoanRemaining,
@@ -7,7 +10,7 @@ import {
   type Customer,
   type CustomerLoan,
   type Trade,
-} from '@/lib/tracker-helpers';
+} from '../../../lib/tracker-helpers.ts';
 
 /**
  * Statement of account for a loaned buyer.

@@ -202,6 +202,7 @@ import RelationshipPage from './pages/RelationshipPage';
 import ChatPage from './pages/ChatPage';
 import ChatPreview from './pages/ChatPreview';
 import MarketplacePage from './features/marketplace/pages/MarketplacePage';
+import PublicBuyerStatementPage from './pages/public/PublicBuyerStatementPage';
 
 
 import NotificationsPage from './pages/NotificationsPage';
@@ -359,6 +360,7 @@ const App = () => (
                 <Route path="/verify-email" element={<VerifyEmailPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/chat-preview" element={<ChatPreview />} />
+                <Route path="/statements/:token" element={<PublicBuyerStatementPage />} />
 
                 {/* Pending approval — requires auth but not profile */}
                 <Route path="/pending-approval" element={
