@@ -17,6 +17,19 @@ export interface PublicOrder {
   note: string | null;
 }
 
+export interface PublicBinanceOrder {
+  orderNumber: string;
+  date: string | number | null;
+  counterparty: string | null;
+  exchange: string;
+  fiat: string;
+  fiatAmount: number;
+  fiatPrice: number;
+  usdtAmount: number;
+  qarRate: number;
+  qarAmount: number;
+}
+
 export interface PublicStatement {
   customerName: string;
   currency: string;
@@ -26,6 +39,7 @@ export interface PublicStatement {
   issueDate: string;
   orders: PublicOrder[];
   payments: PublicPayment[];
+  binanceOrders?: PublicBinanceOrder[];
 }
 
 // en → code as-is, ar → the abbreviation used on printed statements.
@@ -160,6 +174,63 @@ export function PublicStatementReport({ data, framed = true }: { data: PublicSta
           </tfoot>
         </table>
       </div>
+
+      {/* ── SECTION D (Binance P2P sell orders) ── */}
+      {data.binanceOrders && data.binanceOrders.length > 0 && (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 800, marginTop: 24, marginBottom: 8 }}>
+            سجل معاملات البيع مقابل الجنيه المصري ({data.binanceOrders.length} معاملة)
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #ddd' }}>
+                  <th style={thStyle}>#</th>
+                  <th style={thStyle}>رقم الطلب</th>
+                  <th style={thStyle}>الطرف الآخر</th>
+                  <th style={thStyle}>التاريخ</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>{`المبلغ (${data.binanceOrders[0].fiat})`}</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>{`السعر (${data.binanceOrders[0].fiat}/USDT)`}</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>USDT</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>{`سعر التحويل (${cur}/USDT)`}</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>{`المعادل (${cur})`}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.binanceOrders.map((o, i) => (
+                  <tr key={o.orderNumber} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={tdStyle}>{i + 1}</td>
+                    <td style={{ ...tdStyle, fontSize: 10, color: '#888' }}>{o.orderNumber}</td>
+                    <td style={tdStyle}>{o.counterparty || '—'}</td>
+                    <td style={tdStyle}>{fmtDate(o.date ?? '')}</td>
+                    <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.fiatAmount)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'left' }}>{o.fiatPrice.toFixed(2)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'left' }}>{fmtAmount(o.usdtAmount)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'left' }}>{o.qarRate.toFixed(2)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 700 }}>{fmtAmount(o.qarAmount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td style={tdStyle} colSpan={4}>الإجمالي</td>
+                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 800 }}>
+                    {fmtAmount(data.binanceOrders.reduce((s, o) => s + o.fiatAmount, 0))}
+                  </td>
+                  <td style={tdStyle} />
+                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 800 }}>
+                    {fmtAmount(data.binanceOrders.reduce((s, o) => s + o.usdtAmount, 0))}
+                  </td>
+                  <td style={tdStyle} />
+                  <td style={{ ...tdStyle, textAlign: 'left', fontWeight: 800 }}>
+                    {fmtAmount(data.binanceOrders.reduce((s, o) => s + o.qarAmount, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
 
       <div style={{ fontSize: 10, color: '#aaa', marginTop: 24, textAlign: 'center' }}>
         هذا البيان صادر إلكترونياً ويعكس آخر تسوية معتمدة على النظام بتاريخ الإصدار أعلاه.

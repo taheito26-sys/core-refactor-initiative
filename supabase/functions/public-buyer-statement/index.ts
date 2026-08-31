@@ -14,13 +14,8 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// A charge's note is the one field that can carry "USDT @ <rate>" — strip it
-// rather than forward it as-is. Payment notes (e.g. "Hassan 4") are fine.
-const RATE_LIKE = /USDT\s*@/i;
-function publicDescription(raw: string | undefined | null): string | null {
-  if (!raw) return null;
-  return RATE_LIKE.test(raw) ? null : raw;
-}
+// deno-lint-ignore no-explicit-any
+type AnyTrade = any;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -55,7 +50,7 @@ Deno.serve(async (req) => {
     if (snapshotError) throw snapshotError;
     if (!snapshot?.state) return json({ error: "Not found" }, 404);
 
-    const state = snapshot.state as { customers?: unknown; customerLoans?: unknown };
+    const state = snapshot.state as { customers?: unknown; customerLoans?: unknown; trades?: AnyTrade[] };
     const statements = buildBuyerStatements({
       // deno-lint-ignore no-explicit-any
       loans: (state.customerLoans ?? []) as any,
@@ -68,6 +63,55 @@ Deno.serve(async (req) => {
     // the link is scoped to one, so match both fields, not customerId alone.
     const statement = statements.find((s) => s.customerId === link.customer_id && s.currency === link.currency);
     if (!statement) return json({ error: "Not found" }, 404);
+
+    // Binance/OKX P2P sell orders (already pulled by the existing exchange-sync
+    // integration into exchange_p2p_orders) that were imported into this
+    // buyer's trades — the same orders shown internally, now surfaced on the
+    // buyer's own statement with the EGP→USDT→QAR conversion the merchant used.
+    const buyerTrades = (state.trades ?? []).filter((tr) => tr && tr.customerId === link.customer_id);
+    const tradeById = new Map(buyerTrades.map((tr) => [tr.id, tr]));
+
+    let binanceOrders: Array<{
+      orderNumber: string;
+      date: string | number | null;
+      counterparty: string | null;
+      exchange: string;
+      fiat: string;
+      fiatAmount: number;
+      fiatPrice: number;
+      usdtAmount: number;
+      qarRate: number;
+      qarAmount: number;
+    }> = [];
+
+    if (tradeById.size > 0) {
+      const { data: exchangeOrders } = await supabase
+        .from("exchange_p2p_orders")
+        .select("exchange, order_number, amount, price, fiat, counterparty, order_time, linked_entity_type, linked_entity_id")
+        .eq("user_id", link.user_id)
+        .eq("linked_entity_type", "trade");
+
+      binanceOrders = (exchangeOrders ?? [])
+        .filter((o) => tradeById.has(o.linked_entity_id))
+        .map((o) => {
+          const trade = tradeById.get(o.linked_entity_id)!;
+          const usdtAmount = Number(trade.amountUSDT) || 0;
+          const qarRate = Number(trade.sellPriceQAR) || 0;
+          return {
+            orderNumber: o.order_number,
+            date: o.order_time ?? trade.ts ?? null,
+            counterparty: o.counterparty,
+            exchange: o.exchange,
+            fiat: o.fiat,
+            fiatAmount: Math.round(Number(o.amount) || 0),
+            fiatPrice: Number(o.price) || 0,
+            usdtAmount,
+            qarRate,
+            qarAmount: Math.round(usdtAmount * qarRate),
+          };
+        })
+        .sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime());
+    }
 
     const response = {
       customerName: statement.customerName,
@@ -83,7 +127,7 @@ Deno.serve(async (req) => {
         paid: Math.round(row.repaid),
         remaining: Math.round(row.remaining),
         settled: row.settled,
-        note: publicDescription(row.loan.note),
+        note: row.loan.note || null,
       })),
       payments: statement.entries
         .filter((e) => e.kind === "payment")
@@ -93,6 +137,7 @@ Deno.serve(async (req) => {
           note: e.description || null,
           ref: e.ref || null,
         })),
+      binanceOrders,
     };
 
     return json(response);
