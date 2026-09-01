@@ -38,6 +38,7 @@ import { consumeTrackerImportPrefill, extractImportedReference, buildImportNote 
 import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 
@@ -84,6 +85,9 @@ export default function StockPage() {
     | null
   >(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  // Backfills a connected exchange's P2P history for exactly the clicked
+  // month, so months outside the auto-sync's rolling window still show up.
+  useExchangeMonthSync(selectedMonth);
   const [reconcileExchangesEnabled, setReconcileExchangesEnabled] = useState(false);
 
   const [supplierMenuOpen, setSupplierMenuOpen] = useState(false);
@@ -1052,6 +1056,7 @@ export default function StockPage() {
                   defaultPrice={wacop || undefined}
                   activeEntityIds={activeBatchIds}
                   importedReferences={importedExchangeRefs}
+                  monthKey={selectedMonth}
                 />
                 {activeAccounts.length > 0 && (
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
@@ -1335,6 +1340,7 @@ export default function StockPage() {
                       defaultPrice={wacop || undefined}
                       activeEntityIds={activeBatchIds}
                       importedReferences={importedExchangeRefs}
+                      monthKey={selectedMonth}
                     />
                     {activeAccounts.length > 0 && (
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
