@@ -32,6 +32,7 @@ import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
+import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { mapConnectedCustomers, materializeListedCustomer, mergeListedCustomers, type ListedCustomer } from '@/features/merchants/lib/customer-listing';
@@ -132,9 +133,12 @@ export default function OrdersPage() {
         originalFiat?: string; originalFiatAmount?: number; originalFiatPriceUSDT?: number;
         exchangeOrderNumber?: string; exchangeCounterparty?: string;
       }
-    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string }
+    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; note: string; exchangeCounterparty?: string }
     | null
   >(null);
+
+  const { data: counterpartyMappings } = useCounterpartyMap();
+  const invalidateCounterpartyMap = useInvalidateCounterpartyMap();
 
   const applyExchangeOrderPrefill = useCallback((prefill: {
     exchange: 'binance' | 'okx';
@@ -156,8 +160,9 @@ export default function OrdersPage() {
     // empty for the user to fill in with their own rate.
     setSaleSell(prefill.needsQarRate ? '' : String(prefill.priceFiat));
     setSaleAmount('');
-    setBuyerName(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
-    setBuyerId('');
+    const mappedBuyer = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'customer');
+    setBuyerName(mappedBuyer?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    setBuyerId(mappedBuyer?.entityId || '');
     setPendingImport({
       kind: 'order',
       orderId: prefill.orderId,
@@ -189,7 +194,7 @@ export default function OrdersPage() {
     );
     setNewSaleSheetOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseFiat]);
+  }, [baseFiat, counterpartyMappings]);
 
   /**
    * USDT sent out via Binance Pay / on-chain -- unlike a P2P order, the
@@ -204,17 +209,19 @@ export default function OrdersPage() {
     setSaleUsdtQty(String(prefill.amountUSDT));
     setSaleSell(prefill.buyPrice > 0 ? String(Number(prefill.buyPrice.toFixed(4))) : '');
     setSaleAmount('');
-    setBuyerName(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
-    setBuyerId('');
+    const mappedBuyer = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'customer');
+    setBuyerName(mappedBuyer?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
+    setBuyerId(mappedBuyer?.entityId || '');
     setPendingImport({
       kind: 'transfer',
       transferId: prefill.transferId,
       exchange: prefill.exchange,
+      exchangeCounterparty: prefill.assigneeName,
       note: `Sent via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference}) — counterparty ${prefill.assigneeName?.trim() || 'unknown counterparty'} — ${new Date(prefill.ts).toLocaleString()}`,
     });
     setSaleMessage(prefill.buyPrice > 0 ? '' : `Enter your ${baseFiat}/USDT sell rate -- ${EXCHANGE_LABELS[prefill.exchange]} ${via} transfers don't carry a fiat price.`);
     setNewSaleSheetOpen(true);
-  }, [baseFiat]);
+  }, [baseFiat, counterpartyMappings]);
 
   useEffect(() => {
     const prefill = consumeTrackerImportPrefill('trade');
@@ -1628,6 +1635,20 @@ export default function OrdersPage() {
       const ensured = ensureCustomer(buyerName);
       customerId = ensured.id;
       nextCustomers = ensured.customers;
+    }
+
+    // Remember which customer this exchange counterparty resolved to, so the
+    // next import from the same person prefills correctly on its own --
+    // whatever name the sale actually got saved under (auto-matched,
+    // hand-edited, or picked from the list) is what gets remembered.
+    if (pendingImport?.exchangeCounterparty && customerId && buyerName.trim()) {
+      saveCounterpartyMapping({
+        exchange: pendingImport.exchange,
+        counterpartyName: pendingImport.exchangeCounterparty,
+        entityType: 'customer',
+        entityId: customerId,
+        entityName: buyerName.trim(),
+      }).then(invalidateCounterpartyMap);
     }
 
     // Build trade with agreement fields if merchant-linked

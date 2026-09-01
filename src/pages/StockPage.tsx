@@ -39,6 +39,7 @@ import { markOrderLinked, markTransfersLinked } from '@/features/exchanges/api';
 import { EXCHANGE_LABELS } from '@/features/exchanges/types';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
 import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMonthSync';
+import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
 
@@ -80,10 +81,12 @@ export default function StockPage() {
   // normal save path can stamp the batch as imported and mark the source row
   // linked. There is no separate import action -- picking only prefills.
   const [pendingImport, setPendingImport] = useState<
-    | { kind: 'order'; orderId: string; exchange: 'binance' | 'okx' }
-    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx' }
+    | { kind: 'order'; orderId: string; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
+    | { kind: 'transfer'; transferId: string; exchange: 'binance' | 'okx'; exchangeCounterparty?: string }
     | null
   >(null);
+  const { data: counterpartyMappings } = useCounterpartyMap();
+  const invalidateCounterpartyMap = useInvalidateCounterpartyMap();
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   // Backfills a connected exchange's P2P history for exactly the clicked
   // month, so months outside the auto-sync's rolling window still show up.
@@ -314,7 +317,8 @@ export default function StockPage() {
     // for the user to fill in with their own rate.
     setBatchPrice(prefill.needsQarRate ? '' : String(prefill.priceFiat));
     setBatchAmount('');
-    setBatchSupplier(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
+    const mappedSupplier = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'supplier');
+    setBatchSupplier(mappedSupplier?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} P2P`);
     setBatchNote(
       buildImportNote({
         exchange: prefill.exchange,
@@ -332,7 +336,7 @@ export default function StockPage() {
       }),
     );
     setFundingAccountId('none');
-    setPendingImport({ orderId: prefill.orderId, kind: 'order', exchange: prefill.exchange });
+    setPendingImport({ orderId: prefill.orderId, kind: 'order', exchange: prefill.exchange, exchangeCounterparty: prefill.assigneeName });
     setBatchMsg(
       prefill.originalFiat
         ? `${EXCHANGE_LABELS[prefill.exchange]}: ${fmtP(prefill.originalTotalFiat ?? 0)} ${prefill.originalFiat} — enter your ${activeBatchFiat}/USDT rate as the price.`
@@ -340,7 +344,7 @@ export default function StockPage() {
     );
     setAddBatchSheetOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBatchFiat]);
+  }, [activeBatchFiat, counterpartyMappings]);
 
   /** USDT received via Pay/on-chain prefills a batch at the running cost basis. */
   const applyExchangeTransferPrefill = useCallback((prefill: ExchangeTransferPayload) => {
@@ -350,13 +354,14 @@ export default function StockPage() {
     setBatchUsdtQty(String(prefill.amountUSDT));
     setBatchPrice(prefill.buyPrice > 0 ? String(Number(prefill.buyPrice.toFixed(4))) : '');
     setBatchAmount('');
-    setBatchSupplier(prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
+    const mappedSupplier = findCounterpartyMapping(counterpartyMappings, prefill.exchange, prefill.assigneeName, 'supplier');
+    setBatchSupplier(mappedSupplier?.entityName || prefill.assigneeName?.trim() || `${EXCHANGE_LABELS[prefill.exchange]} ${via}`);
     setBatchNote(`Received via ${EXCHANGE_LABELS[prefill.exchange]} ${via} (ref ${prefill.reference})`);
     setFundingAccountId('none');
-    setPendingImport({ transferId: prefill.transferId, kind: 'transfer', exchange: prefill.exchange });
+    setPendingImport({ transferId: prefill.transferId, kind: 'transfer', exchange: prefill.exchange, exchangeCounterparty: prefill.assigneeName });
     setBatchMsg('');
     setAddBatchSheetOpen(true);
-  }, []);
+  }, [counterpartyMappings]);
 
   useEffect(() => {
     const prefill = consumeTrackerImportPrefill('batch');
@@ -494,6 +499,18 @@ export default function StockPage() {
       const msg = err instanceof Error ? err.message : String(err);
       setBatchMsg(`⚠ ${t('saveFailed') || 'Save failed'}: ${msg}`);
       return;
+    }
+    // Remember which supplier this exchange counterparty resolved to, so the
+    // next import from the same person prefills correctly on its own --
+    // suppliers have no id (batches store a name string), so the canonical
+    // name itself is what gets remembered.
+    if (pendingImport?.exchangeCounterparty && source) {
+      saveCounterpartyMapping({
+        exchange: pendingImport.exchange,
+        counterpartyName: pendingImport.exchangeCounterparty,
+        entityType: 'supplier',
+        entityName: source,
+      }).then(invalidateCounterpartyMap);
     }
     if (pendingImport?.kind === 'order') {
       // Best-effort: the batch note embeds the order number, so the inbox
