@@ -12,7 +12,9 @@ import {
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
-import { localCur } from '@/lib/currency-locale';import * as api from '@/lib/api';
+import { localCur } from '@/lib/currency-locale';
+import { exportOrdersToXlsx, exportOrdersToPdf } from '@/features/orders/orders-export';
+import * as api from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { DEAL_TYPE_CONFIGS, calculateAllocation, calculateAgreementAllocation, isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
 import { AGREEMENT_TEMPLATES, getTemplateRatioLabel, getDealShares, type AgreementTemplate } from '@/lib/deal-templates';
@@ -2043,6 +2045,35 @@ export default function OrdersPage() {
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
   };
 
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportXlsx = async () => {
+    if (exportingXlsx || filtered.length === 0) return;
+    setExportingXlsx(true);
+    try {
+      await exportOrdersToXlsx(filtered, state.customers, derived, baseFiat, t.lang);
+    } catch (err) {
+      console.error('[OrdersPage] xlsx export failed:', err);
+      toast.error(t('exportFailed'));
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (exportingPdf || filtered.length === 0) return;
+    setExportingPdf(true);
+    try {
+      await exportOrdersToPdf(filtered, state.customers, derived, baseFiat, t.lang);
+    } catch (err) {
+      console.error('[OrdersPage] pdf export failed:', err);
+      toast.error(t('exportFailed'));
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const openEdit = (id: string) => {
     const tr = state.trades.find(x => x.id === id);
     if (!tr) return;
@@ -3135,6 +3166,12 @@ export default function OrdersPage() {
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
                 )}
+                <button className="rowBtn" onClick={handleExportXlsx} disabled={exportingXlsx || filtered.length === 0}>
+                  {exportingXlsx ? t('exporting') : t('exportXlsx')}
+                </button>
+                <button className="rowBtn" onClick={handleExportPdf} disabled={exportingPdf || filtered.length === 0}>
+                  {exportingPdf ? t('exporting') : t('exportPdf')}
+                </button>
               </div>
 
               {renderKpiBar({ count: myKpi.count, qty: myKpi.qty, vol: myKpi.vol, net: myKpi.net })}
