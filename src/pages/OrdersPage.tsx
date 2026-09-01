@@ -13,7 +13,8 @@ import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
-import { exportOrdersToXlsx, exportOrdersToPdf } from '@/features/orders/orders-export';
+import { exportOrdersToXlsx, buildOrdersReportHtml, printOrdersReport } from '@/features/orders/orders-export';
+import { ordersReportLabels } from '@/features/orders/orders-report-labels';
 import * as api from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
 import { DEAL_TYPE_CONFIGS, calculateAllocation, calculateAgreementAllocation, isAgreementActive, getAgreementLabel } from '@/lib/deal-engine';
@@ -2046,13 +2047,20 @@ export default function OrdersPage() {
   };
 
   const [exportingXlsx, setExportingXlsx] = useState(false);
-  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const reportLabels = useMemo(() => ordersReportLabels(t), [t]);
+  const reportPeriodLabel = useMemo(() => {
+    if (selectedMonth === 'all') return reportLabels.allPeriod;
+    const [y, mm] = selectedMonth.split('-');
+    return new Date(parseInt(y), parseInt(mm) - 1).toLocaleString(t.lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
+  }, [selectedMonth, reportLabels, t.lang]);
+  const reportBusinessName = merchantProfile?.display_name || merchantProfile?.nickname || '';
 
   const handleExportXlsx = async () => {
-    if (exportingXlsx || filtered.length === 0) return;
+    if (exportingXlsx || subFilteredMy.length === 0) return;
     setExportingXlsx(true);
     try {
-      await exportOrdersToXlsx(filtered, state.customers, derived, baseFiat, t.lang);
+      await exportOrdersToXlsx(subFilteredMy, state.customers, derived, baseFiat, t.lang, reportLabels, reportPeriodLabel);
     } catch (err) {
       console.error('[OrdersPage] xlsx export failed:', err);
       toast.error(t('exportFailed'));
@@ -2061,16 +2069,13 @@ export default function OrdersPage() {
     }
   };
 
-  const handleExportPdf = async () => {
-    if (exportingPdf || filtered.length === 0) return;
-    setExportingPdf(true);
-    try {
-      await exportOrdersToPdf(filtered, state.customers, derived, baseFiat, t.lang);
-    } catch (err) {
-      console.error('[OrdersPage] pdf export failed:', err);
-      toast.error(t('exportFailed'));
-    } finally {
-      setExportingPdf(false);
+  const handleExportPdf = () => {
+    if (subFilteredMy.length === 0) return;
+    const html = buildOrdersReportHtml(subFilteredMy, state.customers, derived, baseFiat, t.lang, reportLabels, reportPeriodLabel, reportBusinessName);
+    if (!printOrdersReport(html)) {
+      // In-app webviews have no print dialog — fall back to the spreadsheet.
+      handleExportXlsx();
+      toast.info(t('exportPrintUnavailable'));
     }
   };
 
@@ -3166,11 +3171,11 @@ export default function OrdersPage() {
                 {hasActiveOrderFilters && (
                   <button className="rowBtn" onClick={clearOrderFilters}>{t('clearFilters')}</button>
                 )}
-                <button className="rowBtn" onClick={handleExportXlsx} disabled={exportingXlsx || filtered.length === 0}>
+                <button className="rowBtn" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}>
                   {exportingXlsx ? t('exporting') : t('exportXlsx')}
                 </button>
-                <button className="rowBtn" onClick={handleExportPdf} disabled={exportingPdf || filtered.length === 0}>
-                  {exportingPdf ? t('exporting') : t('exportPdf')}
+                <button className="rowBtn" onClick={handleExportPdf} disabled={subFilteredMy.length === 0}>
+                  {t('exportPdf')}
                 </button>
               </div>
 
