@@ -377,57 +377,42 @@ export function buildOrdersReportHtml(
 </html>`;
 }
 
-/** Pulls the `<style>` rules and the `.sheet` card back out of a full report document. */
-function extractReportFragment(html: string): { styles: string; sheetHtml: string } {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const styleEl = doc.querySelector('style');
-  const sheetEl = doc.querySelector('.sheet');
-  return {
-    styles: styleEl?.textContent || '',
-    sheetHtml: sheetEl?.outerHTML || '',
-  };
-}
-
-const REPORT_RENDER_WIDTH = 1050;
-
 /**
- * Renders the report to an actual PDF file and downloads it directly — no
- * print dialog. Renders the `.sheet` card off-screen (not the full document,
- * so the page's gray backdrop doesn't bleed into the PDF), rasterizes it with
- * jsPDF's `html()` (which pulls in html2canvas internally), and saves.
+ * Opens the print dialog on the report so the user can "Save as PDF".
+ *
+ * Rasterizing the report to an image (html2canvas → jsPDF) was tried first
+ * for a one-click download, but html2canvas draws text itself instead of
+ * using the browser's text-shaping engine, and it breaks Arabic letter
+ * joining/ordering — every Arabic label came out garbled. The browser's own
+ * print pipeline renders the exact same DOM correctly (this app defaults to
+ * Arabic), so real rendering fidelity wins over saving the one extra click.
+ * A hidden iframe is used (matching the buyer-statement export) because
+ * pop-up blockers kill `window.open` on some browsers. Returns false when
+ * printing isn't available (in-app webviews), so the caller can fall back
+ * to XLSX.
  */
-export async function exportOrdersReportPdf(reportHtml: string, filename: string): Promise<void> {
-  if (typeof document === 'undefined') return;
-  const { styles, sheetHtml } = extractReportFragment(reportHtml);
+export function printOrdersReport(html: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(frame);
 
-  const container = document.createElement('div');
-  container.style.cssText = `position:fixed;left:-10000px;top:0;width:${REPORT_RENDER_WIDTH}px;background:#fff;`;
-  container.innerHTML = `<style>${styles}</style>${sheetHtml}`;
-  document.body.appendChild(container);
-
+  const cleanup = () => { setTimeout(() => frame.remove(), 1000); };
   try {
-    // Dynamically imported (pulls in html2canvas) so it only loads into a
-    // device's bundle when a PDF export is actually triggered.
-    const { jsPDF } = await import('jspdf');
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const margin = 20;
-    const pageWidth = doc.internal.pageSize.getWidth() - margin * 2;
-
-    await new Promise<void>((resolve) => {
-      doc.html(container, {
-        x: margin,
-        y: margin,
-        width: pageWidth,
-        windowWidth: REPORT_RENDER_WIDTH,
-        autoPaging: 'text',
-        html2canvas: { scale: 0.75, useCORS: true, backgroundColor: '#ffffff' },
-        callback: () => resolve(),
-      });
-    });
-
-    doc.save(filename);
-  } finally {
-    container.remove();
+    const doc = frame.contentDocument;
+    const win = frame.contentWindow;
+    if (!doc || !win || typeof win.print !== 'function') { frame.remove(); return false; }
+    doc.open();
+    doc.write(html);
+    doc.close();
+    win.setTimeout(() => {
+      try { win.focus(); win.print(); } catch { /* dialog unavailable */ }
+      cleanup();
+    }, 120);
+    return true;
+  } catch {
+    frame.remove();
+    return false;
   }
 }

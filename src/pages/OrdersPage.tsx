@@ -13,7 +13,7 @@ import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/features/auth/auth-context';
 import { useT, getCurrencyLabel } from '@/lib/i18n';
 import { localCur } from '@/lib/currency-locale';
-import { exportOrdersToXlsx, buildOrdersReportHtml, exportOrdersReportPdf } from '@/features/orders/orders-export';
+import { exportOrdersToXlsx, buildOrdersReportHtml, printOrdersReport } from '@/features/orders/orders-export';
 import { ordersReportLabels } from '@/features/orders/orders-report-labels';
 import * as api from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
@@ -2069,19 +2069,13 @@ export default function OrdersPage() {
     }
   };
 
-  const [exportingPdf, setExportingPdf] = useState(false);
-
-  const handleExportPdf = async () => {
-    if (exportingPdf || subFilteredMy.length === 0) return;
-    setExportingPdf(true);
-    try {
-      const html = buildOrdersReportHtml(subFilteredMy, state.customers, derived, baseFiat, t.lang, reportLabels, reportPeriodLabel, reportBusinessName);
-      await exportOrdersReportPdf(html, `orders-report-${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (err) {
-      console.error('[OrdersPage] pdf export failed:', err);
-      toast.error(t('exportFailed'));
-    } finally {
-      setExportingPdf(false);
+  const handleExportPdf = () => {
+    if (subFilteredMy.length === 0) return;
+    const html = buildOrdersReportHtml(subFilteredMy, state.customers, derived, baseFiat, t.lang, reportLabels, reportPeriodLabel, reportBusinessName);
+    if (!printOrdersReport(html)) {
+      // In-app webviews have no print dialog — fall back to the spreadsheet.
+      handleExportXlsx();
+      toast.info(t('exportPrintUnavailable'));
     }
   };
 
@@ -3180,8 +3174,8 @@ export default function OrdersPage() {
                 <button className="rowBtn" onClick={handleExportXlsx} disabled={exportingXlsx || subFilteredMy.length === 0}>
                   {exportingXlsx ? t('exporting') : t('exportXlsx')}
                 </button>
-                <button className="rowBtn" onClick={handleExportPdf} disabled={exportingPdf || subFilteredMy.length === 0}>
-                  {exportingPdf ? t('exporting') : t('exportPdf')}
+                <button className="rowBtn" onClick={handleExportPdf} disabled={subFilteredMy.length === 0}>
+                  {t('exportPdf')}
                 </button>
               </div>
 
