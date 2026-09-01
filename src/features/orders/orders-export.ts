@@ -1,6 +1,6 @@
 import type ExcelJS from 'exceljs';
 import type { Trade, Customer, DerivedState } from '@/lib/tracker-helpers';
-import { fmtDate } from '@/lib/tracker-helpers';
+import { fmtDate, fmtPrice } from '@/lib/tracker-helpers';
 import { localCur } from '@/lib/currency-locale';
 
 export interface OrdersReportLabels {
@@ -85,8 +85,9 @@ function triggerDownload(blob: Blob, filename: string): void {
   URL.revokeObjectURL(a.href);
 }
 
+/** Whole-number totals/amounts — the report's rule is "no decimals except on prices". */
 function formatMoney(n: number): string {
-  return (Number.isFinite(n) ? n : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Math.round(Number.isFinite(n) ? n : 0).toLocaleString('en-US');
 }
 
 // ── XLSX ──────────────────────────────────────────────────────────
@@ -147,7 +148,7 @@ export async function exportOrdersToXlsx(
     cell.font = { bold: true, size: 13 };
     cell.fill = i === summaryValues.length - 1 ? netFill : summaryFill;
     cell.alignment = { horizontal: 'center' };
-    cell.numFmt = i === 0 ? '0' : '#,##0.00';
+    cell.numFmt = '#,##0';
   });
   valueRow.commit();
 
@@ -188,10 +189,15 @@ export async function exportOrdersToXlsx(
     r.getCell(1).value = row.date;
     r.getCell(2).value = row.buyer;
     r.getCell(3).value = row.qtyUsdt;
+    r.getCell(3).numFmt = '#,##0';
     r.getCell(4).value = row.sellPrice;
+    r.getCell(4).numFmt = '#,##0.###';
     r.getCell(5).value = row.totalQar;
+    r.getCell(5).numFmt = '#,##0';
     r.getCell(6).value = row.cost ?? '';
+    r.getCell(6).numFmt = '#,##0';
     r.getCell(7).value = row.net ?? '';
+    r.getCell(7).numFmt = '#,##0';
     if (i % 2 === 1) {
       for (let col = 1; col <= 7; col++) {
         r.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F8FA' } };
@@ -243,7 +249,7 @@ export function buildOrdersReportHtml(
         <td>${escapeHtml(row.date)}</td>
         <td class="desc">${escapeHtml(row.buyer)}</td>
         <td class="num">${formatMoney(row.qtyUsdt)}</td>
-        <td class="num">${formatMoney(row.sellPrice)}</td>
+        <td class="num">${fmtPrice(row.sellPrice)}</td>
         <td class="num strong">${formatMoney(row.totalQar)}</td>
         <td class="num">${row.cost != null ? formatMoney(row.cost) : '—'}</td>
         <td class="num ${row.net != null && row.net >= 0 ? 'good' : row.net != null ? 'bad' : ''}">${row.net != null ? formatMoney(row.net) : '—'}</td>
@@ -371,34 +377,57 @@ export function buildOrdersReportHtml(
 </html>`;
 }
 
-/**
- * Opens the print dialog on the report so the user can "Save as PDF". A hidden
- * iframe is used (matching the buyer-statement export) because pop-up
- * blockers kill `window.open` on some browsers. Returns false when printing
- * isn't available (in-app webviews), so the caller can fall back to XLSX.
- */
-export function printOrdersReport(html: string): boolean {
-  if (typeof document === 'undefined') return false;
-  const frame = document.createElement('iframe');
-  frame.setAttribute('aria-hidden', 'true');
-  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
-  document.body.appendChild(frame);
+/** Pulls the `<style>` rules and the `.sheet` card back out of a full report document. */
+function extractReportFragment(html: string): { styles: string; sheetHtml: string } {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const styleEl = doc.querySelector('style');
+  const sheetEl = doc.querySelector('.sheet');
+  return {
+    styles: styleEl?.textContent || '',
+    sheetHtml: sheetEl?.outerHTML || '',
+  };
+}
 
-  const cleanup = () => { setTimeout(() => frame.remove(), 1000); };
+const REPORT_RENDER_WIDTH = 1050;
+
+/**
+ * Renders the report to an actual PDF file and downloads it directly — no
+ * print dialog. Renders the `.sheet` card off-screen (not the full document,
+ * so the page's gray backdrop doesn't bleed into the PDF), rasterizes it with
+ * jsPDF's `html()` (which pulls in html2canvas internally), and saves.
+ */
+export async function exportOrdersReportPdf(reportHtml: string, filename: string): Promise<void> {
+  if (typeof document === 'undefined') return;
+  const { styles, sheetHtml } = extractReportFragment(reportHtml);
+
+  const container = document.createElement('div');
+  container.style.cssText = `position:fixed;left:-10000px;top:0;width:${REPORT_RENDER_WIDTH}px;background:#fff;`;
+  container.innerHTML = `<style>${styles}</style>${sheetHtml}`;
+  document.body.appendChild(container);
+
   try {
-    const doc = frame.contentDocument;
-    const win = frame.contentWindow;
-    if (!doc || !win || typeof win.print !== 'function') { frame.remove(); return false; }
-    doc.open();
-    doc.write(html);
-    doc.close();
-    win.setTimeout(() => {
-      try { win.focus(); win.print(); } catch { /* dialog unavailable */ }
-      cleanup();
-    }, 120);
-    return true;
-  } catch {
-    frame.remove();
-    return false;
+    // Dynamically imported (pulls in html2canvas) so it only loads into a
+    // device's bundle when a PDF export is actually triggered.
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth() - margin * 2;
+
+    await new Promise<void>((resolve) => {
+      doc.html(container, {
+        x: margin,
+        y: margin,
+        width: pageWidth,
+        windowWidth: REPORT_RENDER_WIDTH,
+        autoPaging: 'text',
+        html2canvas: { scale: 0.75, useCORS: true, backgroundColor: '#ffffff' },
+        callback: () => resolve(),
+      });
+    });
+
+    doc.save(filename);
+  } finally {
+    container.remove();
   }
 }
