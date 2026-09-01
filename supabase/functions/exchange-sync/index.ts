@@ -108,7 +108,7 @@ async function fetchBinanceBalances(creds: Credentials) {
   return results;
 }
 
-async function fetchBinanceP2POrders(creds: Credentials) {
+async function fetchBinanceP2POrders(creds: Credentials, range?: { startTimestamp: number; endTimestamp: number }) {
   const orders: {
     order_number: string;
     side: "buy" | "sell";
@@ -125,9 +125,11 @@ async function fetchBinanceP2POrders(creds: Credentials) {
 
   // Binance's C2C order history is unreliable about its "recent N days" default
   // when no explicit window is given -- pin an explicit range and paginate so
-  // multiple same-day orders don't silently get dropped.
-  const endTimestamp = Date.now();
-  const startTimestamp = endTimestamp - 90 * 24 * 60 * 60 * 1000;
+  // multiple same-day orders don't silently get dropped. Default to the
+  // trailing 90 days (the auto-sync's rolling window); a caller asking for a
+  // specific month (older than 90 days) passes its own start/end instead.
+  const endTimestamp = range?.endTimestamp ?? Date.now();
+  const startTimestamp = range?.startTimestamp ?? endTimestamp - 90 * 24 * 60 * 60 * 1000;
 
   for (const tradeType of ["BUY", "SELL"] as const) {
     for (let page = 1; page <= 5; page++) {
@@ -422,6 +424,11 @@ Deno.serve(async (req: Request) => {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const exchange = body.exchange as Exchange;
     const action = (body.action as SyncAction) ?? "all";
+    // Optional explicit window for a single month's P2P history -- see
+    // fetchBinanceP2POrders's doc for why this exists (older-than-90-days months).
+    const startTimestamp = typeof body.startTimestamp === "number" ? body.startTimestamp : undefined;
+    const endTimestamp = typeof body.endTimestamp === "number" ? body.endTimestamp : undefined;
+    const p2pRange = startTimestamp != null && endTimestamp != null ? { startTimestamp, endTimestamp } : undefined;
 
     if (exchange !== "binance" && exchange !== "okx") {
       return new Response(JSON.stringify({ error: `Unknown exchange: ${exchange}` }), {
@@ -487,7 +494,7 @@ Deno.serve(async (req: Request) => {
     if (action === "p2p-orders" || action === "all") {
       try {
         const orders = exchange === "binance"
-          ? await fetchBinanceP2POrders(creds)
+          ? await fetchBinanceP2POrders(creds, p2pRange)
           : await fetchOkxP2POrders(creds);
 
         if (orders.length > 0) {

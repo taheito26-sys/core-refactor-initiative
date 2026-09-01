@@ -90,6 +90,7 @@ export function ExchangeInbox({
   defaultPrice,
   activeEntityIds,
   importedReferences,
+  monthKey,
 }: {
   side: 'buy' | 'sell';
   onPick: (order: ExchangeOrderPayload) => void;
@@ -115,10 +116,27 @@ export function ExchangeInbox({
    * looks pending forever even though it's already in the tracker.
    */
   importedReferences?: Set<string>;
+  /**
+   * "YYYY-MM" (local calendar, matching OrdersPage's month pills) or "all".
+   * When a specific month, only that month's orders/transfers are listed --
+   * mirrors the same month filter the rest of the Orders page uses, so this
+   * feed shows exactly what the selected pill implies.
+   */
+  monthKey?: string;
 }) {
   const { data: orders } = useExchangeP2POrders();
   const { data: transfers } = useExchangeTransfers();
   const [collapsed, setCollapsed] = useState(false);
+
+  const inSelectedMonth = useMemo(() => {
+    if (!monthKey || monthKey === 'all') return () => true;
+    return (iso: string | null) => {
+      if (!iso) return false;
+      const d = new Date(iso);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === monthKey;
+    };
+  }, [monthKey]);
 
   const isImported = useMemo(() => {
     return (linkedAt: string | null, linkedEntityId: string | null, referenceKey: string) => {
@@ -132,19 +150,19 @@ export function ExchangeInbox({
   const allOrders = useMemo(
     () =>
       (orders ?? [])
-        .filter((o) => o.side === side)
+        .filter((o) => o.side === side && inSelectedMonth(o.order_time))
         .sort((a, b) => (b.order_time ? new Date(b.order_time).getTime() : 0) - (a.order_time ? new Date(a.order_time).getTime() : 0)),
-    [orders, side],
+    [orders, side, inSelectedMonth],
   );
   const transferDirection = side === 'buy' ? 'in' : 'out';
   const allTransfers = useMemo(
     () =>
       onPickTransfer
         ? (transfers ?? [])
-            .filter((tr) => tr.direction === transferDirection)
+            .filter((tr) => tr.direction === transferDirection && inSelectedMonth(tr.transfer_time))
             .sort((a, b) => (b.transfer_time ? new Date(b.transfer_time).getTime() : 0) - (a.transfer_time ? new Date(a.transfer_time).getTime() : 0))
         : [],
-    [transfers, onPickTransfer, transferDirection],
+    [transfers, onPickTransfer, transferDirection, inSelectedMonth],
   );
 
   const total = allOrders.length + allTransfers.length;

@@ -30,9 +30,18 @@ export async function disconnectExchange(exchange: ExchangeId) {
   if (error) throw error;
 }
 
-export async function syncExchange(exchange: ExchangeId, action: 'balances' | 'p2p-orders' | 'all' = 'all') {
+export async function syncExchange(
+  exchange: ExchangeId,
+  action: 'balances' | 'p2p-orders' | 'all' = 'all',
+  /**
+   * Explicit P2P history window (Binance only). Omit for the normal rolling
+   * trailing-90-days sync; pass a specific month's bounds to pull orders
+   * older than that window in on demand -- see useExchangeMonthSync.
+   */
+  range?: { startTimestamp: number; endTimestamp: number },
+) {
   const { data, error } = await supabase.functions.invoke('exchange-sync', {
-    body: { exchange, action },
+    body: { exchange, action, ...range },
   });
   if (error) {
     // supabase-js only gives a generic "non-2xx status code" message here;
