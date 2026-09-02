@@ -26,6 +26,7 @@ import {
   Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import '@/styles/tracker.css';
+import { ModernDashboardView } from '@/pages/dashboard/ModernDashboardView';
 
 interface DashboardPageProps {
   adminUserId?: string;
@@ -601,6 +602,49 @@ export default function DashboardPage({ adminUserId, adminMerchantId, adminTrack
           </div>
         </div>
       </div>
+    );
+  }
+
+  // ── Render Modern 2.0 UX/UI Dashboard View when enabled ──
+  if (settings.uiDesignVersion !== 'classic') {
+    const cashAccounts = state.cashAccounts || [];
+    const cashLedger = state.cashLedger || [];
+    const activeAccounts = cashAccounts.filter(a => a.status === 'active');
+    const accountBalances = new Map<string, number>();
+    for (const acc of activeAccounts) {
+      let bal = 0;
+      for (const entry of cashLedger) {
+        if (entry.accountId === acc.id) {
+          if (entry.direction === 'in') bal += entry.amount;
+          else if (entry.direction === 'out') bal -= entry.amount;
+        }
+      }
+      accountBalances.set(acc.id, bal);
+    }
+
+    return (
+      <ModernDashboardView
+        state={state}
+        derived={derived}
+        dR={dR}
+        dM={dM}
+        d30={d30}
+        d7={d7}
+        stk={stk}
+        stCost={stCost}
+        liveCashQAR={liveCashQAR}
+        averageStockPrice={averageStockPrice}
+        rLabel={rLabel}
+        baseFiat={baseFiat as 'QAR' | 'EGP'}
+        currency={settings.currency}
+        qatarP2PRate={qatarP2PRate}
+        egyptP2PRate={egyptP2PRate}
+        loansUnpaid={loansUnpaid}
+        avgM={avgM}
+        activeAccounts={activeAccounts}
+        accountBalances={accountBalances}
+        t={t}
+      />
     );
   }
 

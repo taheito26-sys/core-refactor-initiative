@@ -43,6 +43,7 @@ import { syncOrderLoan } from '@/features/orders/utils/orderLoan';
 import { canSubmitWithStockCoverage, computeStockCoverage, deriveSaleDraft } from '@/features/orders/utils/sale-draft';
 import '@/styles/tracker.css';
 import { focusElementBySelectors } from '@/lib/focus-target';
+import { ModernOrdersView } from '@/pages/orders/ModernOrdersView';
 
 // ─── Multi-Merchant Allocation Row Type ──────────────────────────────
 interface AllocationRow {
@@ -3106,6 +3107,72 @@ export default function OrdersPage() {
       </div>
     );
   };
+
+  // ── Render Modern 2.0 UX/UI Orders View when enabled ──
+  if (settings.uiDesignVersion !== 'classic') {
+    return (
+      <ModernOrdersView
+        state={state}
+        derived={derived}
+        trades={filtered}
+        availableStock={totalStock(derived)}
+        wacop={getWACOP(derived)}
+        baseFiat={baseFiat as 'QAR' | 'EGP'}
+        activeSaleFiat={activeSaleFiat as 'QAR' | 'EGP'}
+        currency={settings.currency}
+        customers={state.customers || []}
+        activeAccounts={activeAccounts}
+        accountBalances={accountBalances}
+        saleDate={saleDate}
+        setSaleDate={setSaleDate}
+        saleEntryMode={saleEntryMode}
+        setSaleEntryMode={setSaleEntryMode}
+        saleMode={saleMode}
+        setSaleMode={setSaleMode}
+        saleSell={saleSell}
+        setSaleSell={setSaleSell}
+        saleAmount={saleAmount}
+        setSaleAmount={setSaleAmount}
+        saleUsdtQty={saleUsdtQty}
+        setSaleUsdtQty={setSaleUsdtQty}
+        buyerName={buyerName}
+        setBuyerName={setBuyerName}
+        buyerId={buyerId}
+        setBuyerId={setBuyerId}
+        isLoanSale={isLoanSale}
+        setIsLoanSale={setIsLoanSale}
+        saleFee={saleFee}
+        setSaleFee={setSaleFee}
+        saleMessage={saleMessage}
+        setSaleMessage={setSaleMessage}
+        newSaleSheetOpen={newSaleSheetOpen}
+        setNewSaleSheetOpen={setNewSaleSheetOpen}
+        addBuyerOpen={addBuyerOpen}
+        setAddBuyerOpen={setAddBuyerOpen}
+        newBuyerName={newBuyerName}
+        setNewBuyerName={setNewBuyerName}
+        newBuyerPhone={newBuyerPhone}
+        setNewBuyerPhone={setNewBuyerPhone}
+        newBuyerTier={newBuyerTier}
+        setNewBuyerTier={setNewBuyerTier}
+        addCustomer={addCustomer}
+        addTrade={addTrade}
+        applyExchangeOrderPrefill={applyExchangeOrderPrefill}
+        applyExchangeTransferPrefill={applyExchangeTransferPrefill}
+        setEditingTradeId={(id) => {
+          if (id) openEdit(id);
+          else setEditingTradeId(null);
+        }}
+        onDeleteTrade={(id) => {
+          setEditingTradeId(id);
+          deleteTrade();
+        }}
+        onExportExcel={handleExportXlsx}
+        onExportPdf={handleExportPdf}
+        t={t}
+      />
+    );
+  }
 
   return (
     <div className={`tracker-root${isMobile ? ' orders-mobile-root' : ''}${isMobile && newSaleSheetOpen ? ' sale-sheet-open' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '6px 0' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
