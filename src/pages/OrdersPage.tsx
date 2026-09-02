@@ -3347,22 +3347,24 @@ export default function OrdersPage() {
                           <React.Fragment key={tr.id}>
                             <tr id={`order-${tr.id}`} data-order-id={tr.id} style={isLoaned ? { background: 'color-mix(in srgb, var(--warn) 8%, transparent)', borderLeft: '3px solid var(--warn)' } : isMerchantLinked ? { background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } : undefined}>
                             <td>
-                              <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
-                              {!ok && <span className="pill bad" style={{ fontSize: 9, marginLeft: 4 }}>!</span>}
-                              {loan && (
-                                <span
-                                  className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
-                                  style={{ fontSize: 9, marginLeft: 4 }}
-                                  title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
-                                >
-                                  🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
-                                </span>
-                              )}
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'nowrap' }}>
+                                <span className="mono" style={{ whiteSpace: 'nowrap' }}>{fmtDate(tr.ts)}</span>
+                                {!ok && <span className="pill bad" style={{ fontSize: 9 }}>!</span>}
+                                {loan && (
+                                  <span
+                                    className={`pill ${loan.status === 'closed' ? 'good' : 'warn'}`}
+                                    style={{ fontSize: 9, whiteSpace: 'nowrap' }}
+                                    title={`${t('loanRepaymentHistory')}: ${fmtTotal(getLoanRepaid(loan))} / ${fmtTotal(loan.principal)} ${loan.currency}`}
+                                  >
+                                    🤝 {t('loanLinkedOrderBadge')} · {loan.status === 'closed' ? t('loanStatusClosed') : `${loanPct}%`}
+                                  </span>
+                                )}
+                              </span>
                             </td>
                             <td>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                 {isMerchantLinked && <span title={t('type')} style={{ fontSize: 12 }}>🤝</span>}
-                                {cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
+                                {cn ? <span className="tradeBuyerChip" title={cn} style={{ width: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
                                 {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
                               </span>
                             </td>
@@ -3434,7 +3436,7 @@ export default function OrdersPage() {
                                 <td>
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                     <span title={t('type')} style={{ fontSize: 12 }}>🤝</span>
-                                    {row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : merchantName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
+                                    {row.buyer ? <span className="tradeBuyerChip" style={{ width: 130 }}>{row.buyer}</span> : merchantName ? <span className="tradeBuyerChip" style={{ width: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
                                   </span>
                                 </td>
                                 <td className="mono r">{fmtU(row.quantity)}</td>
@@ -3614,9 +3616,9 @@ export default function OrdersPage() {
                               </div>
                             </td>
                             {/* MERCHANT — counterparty who created the deal */}
-                            <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ width: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             {/* BUYER — same customer field stored in deal notes */}
-                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ width: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
@@ -3782,8 +3784,8 @@ export default function OrdersPage() {
                                 {row.splitLabel && <span className="pill" style={{ fontSize: 8, color: 'var(--brand)' }}>{row.splitLabel}</span>}
                               </div>
                             </td>
-                            <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
-                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td>{merchantName !== '—' ? <span className="tradeBuyerChip" style={{ width: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                            <td className="hide-mobile">{row.buyer ? <span className="tradeBuyerChip" style={{ width: 130 }}>{row.buyer}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
                             <td className="mono r">{fmtU(row.quantity)}</td>
                             <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                             <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
