@@ -1013,16 +1013,16 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
 }
 
 // ── CashCounterModal ─────────────────────────────────────────────
-// Physical banknote tally → total → what to do with it (add to a cash
-// account, or apply as a repayment against one of the merchant's open
-// customer loans). Denominations are per-currency since QAR and EGP notes
-// don't match.
-const NOTE_DENOMINATIONS: Record<CashCurrency, number[]> = {
-  QAR: [500, 100, 50, 10, 5, 1],
-  EGP: [200, 100, 50, 20, 10, 5, 1],
-  USD: [100, 50, 20, 10, 5, 1],
-  USDT: [],
-};
+// Physical banknote tally → total → what to do with it: add it onto a
+// cash account, apply it against one open customer loan, or split it
+// across several loans at once (mirrors SplitRepaymentModal's per-order
+// split, just driven by a note count instead of a buyer statement).
+// The merchant only ever handles 500/200/100/50 notes, so that's the
+// fixed denomination set — no per-currency variation.
+const NOTE_DENOMINATIONS = [500, 200, 100, 50];
+
+const COUNTER_STEPS = ['count', 'action', 'confirm'] as const;
+type CounterStep = typeof COUNTER_STEPS[number];
 
 interface CashCounterModalProps {
   accounts: CashAccount[];
@@ -1032,39 +1032,43 @@ interface CashCounterModalProps {
   getLoanRemaining: (loan: CustomerLoan) => number;
   onAddToCash: (entry: CashLedgerEntry) => void;
   onRepayLoan: (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => void | Promise<void>;
+  onSplitRepay: (allocations: Array<{ loan: CustomerLoan; amount: number }>, accountId: string, ts: number, note?: string) => Promise<boolean> | void;
   onClose: () => void;
   isMobile?: boolean;
 }
 function CashCounterModal({
-  accounts, balances, loans, customers, getLoanRemaining, onAddToCash, onRepayLoan, onClose, isMobile = false,
+  accounts, balances, loans, customers, getLoanRemaining, onAddToCash, onRepayLoan, onSplitRepay, onClose, isMobile = false,
 }: CashCounterModalProps) {
   const t = useT();
   const countableAccounts = useMemo(
-    () => accounts.filter(a => a.status === 'active' && NOTE_DENOMINATIONS[a.currency].length > 0),
+    () => accounts.filter(a => a.status === 'active' && a.currency !== 'USDT'),
     [accounts]
   );
   const [accountId, setAccountId] = useState(countableAccounts[0]?.id || '');
   const account = countableAccounts.find(a => a.id === accountId) || countableAccounts[0];
-  const denominations = account ? NOTE_DENOMINATIONS[account.currency] : [];
 
   const [counts, setCounts] = useState<Record<number, string>>({});
-  const [step, setStep] = useState<'count' | 'action' | 'add' | 'repay'>('count');
+  const [step, setStep] = useState<CounterStep>('count');
+  const [action, setAction] = useState<'add' | 'repay' | 'split' | null>(null);
   const [repayLoanId, setRepayLoanId] = useState('');
   const [repayAmount, setRepayAmount] = useState('');
+  const [splitSelected, setSplitSelected] = useState<Set<string>>(new Set());
+  const [splitAmounts, setSplitAmounts] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
 
   const total = useMemo(
-    () => denominations.reduce((sum, d) => sum + d * num(counts[d], 0), 0),
-    [denominations, counts]
+    () => NOTE_DENOMINATIONS.reduce((sum, d) => sum + d * num(counts[d], 0), 0),
+    [counts]
+  );
+  const noteCountEntries = useMemo(
+    () => NOTE_DENOMINATIONS.filter(d => num(counts[d], 0) > 0).map(d => ({ d, n: num(counts[d], 0) })),
+    [counts]
   );
   const noteCountSummary = useMemo(
-    () => denominations
-      .filter(d => num(counts[d], 0) > 0)
-      .map(d => `${num(counts[d], 0)}×${d}`)
-      .join(' + '),
-    [denominations, counts]
+    () => noteCountEntries.map(({ d, n }) => `${n}×${d}`).join(' + '),
+    [noteCountEntries]
   );
 
   const relevantLoans = useMemo(
@@ -1074,19 +1078,49 @@ function CashCounterModal({
   const repayLoan = relevantLoans.find(l => l.id === repayLoanId);
   const customerName = (id: string) => customers.find(c => c.id === id)?.name || id;
 
+  const splitAllocated = useMemo(
+    () => Array.from(splitSelected).reduce((sum, id) => sum + num(splitAmounts[id], 0), 0),
+    [splitSelected, splitAmounts]
+  );
+  const splitLeftover = total - splitAllocated;
+
   const setCount = (denom: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     setCounts(prev => ({ ...prev, [denom]: value }));
   };
+  const bumpCount = (denom: number, delta: number) => setCount(denom, String(Math.max(0, num(counts[denom], 0) + delta)));
 
   const selectStyle: React.CSSProperties = {
-    width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
+    width: '100%', padding: '9px 10px', fontSize: 12, borderRadius: 8,
     border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none',
   };
   const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
 
   const resetForClose = () => {
-    setCounts({}); setStep('count'); setRepayLoanId(''); setRepayAmount(''); setNote(''); setErr('');
+    setCounts({}); setStep('count'); setAction(null); setRepayLoanId(''); setRepayAmount('');
+    setSplitSelected(new Set()); setSplitAmounts({}); setNote(''); setErr('');
+  };
+  const closeAndReset = () => { resetForClose(); onClose(); };
+
+  const defaultNote = () => note.trim() || `${t('noteCountLbl') || 'Note count'}: ${noteCountSummary}`;
+
+  const toggleSplitLoan = (loan: CustomerLoan) => {
+    setSplitSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(loan.id)) {
+        next.delete(loan.id);
+      } else {
+        next.add(loan.id);
+        const already = Array.from(next).reduce((sum, id) => sum + (id === loan.id ? 0 : num(splitAmounts[id], 0)), 0);
+        const room = Math.max(0, total - already);
+        setSplitAmounts(a => ({ ...a, [loan.id]: String(Math.min(getLoanRemaining(loan), room)) }));
+      }
+      return next;
+    });
+  };
+  const setSplitAmount = (loanId: string, value: string) => {
+    if (!/^\d*\.?\d*$/.test(value)) return;
+    setSplitAmounts(prev => ({ ...prev, [loanId]: value }));
   };
 
   const handleAddToCash = () => {
@@ -1094,11 +1128,10 @@ function CashCounterModal({
     const entry: CashLedgerEntry = {
       id: uid(), ts: Date.now(), type: 'deposit', accountId: account.id,
       direction: 'in', amount: total, currency: account.currency,
-      note: note.trim() || `${t('noteCountLbl') || 'Note count'}: ${noteCountSummary}`,
+      note: defaultNote(),
     };
     onAddToCash(entry);
-    resetForClose();
-    onClose();
+    closeAndReset();
   };
 
   const handleRepay = async () => {
@@ -1109,14 +1142,43 @@ function CashCounterModal({
     if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
     setSaving(true);
     try {
-      await onRepayLoan(repayLoan, account!.id, amtNum, Date.now(), note.trim() || `${t('noteCountLbl') || 'Note count'}: ${noteCountSummary}`);
-      resetForClose();
-      onClose();
+      await onRepayLoan(repayLoan, account!.id, amtNum, Date.now(), defaultNote());
+      closeAndReset();
     } catch (error) {
       setErr(error instanceof Error ? error.message : String(error));
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSplitRepay = async () => {
+    if (saving || !account) return;
+    setErr('');
+    const allocations = Array.from(splitSelected)
+      .map(id => ({ loan: relevantLoans.find(l => l.id === id)!, amount: num(splitAmounts[id], 0) }))
+      .filter(a => a.loan && a.amount > 0);
+    if (allocations.length < 2) { setErr(t('cashCounterSplitMinTwo') || 'Select at least two loans to split across.'); return; }
+    if (splitAllocated > total + 0.005) { setErr(t('cashCounterSplitOverAllocated') || 'Allocated amount exceeds what you counted.'); return; }
+    for (const a of allocations) {
+      if (a.amount > getLoanRemaining(a.loan) + 0.005) { setErr(`${customerName(a.loan.customerId)}: ${t('loanPaymentCap') || 'amount exceeds what is owed'}`); return; }
+    }
+    setSaving(true);
+    try {
+      const ok = await onSplitRepay(allocations, account.id, Date.now(), defaultNote());
+      if (ok === false) { setErr(t('saveFailed') || 'Save failed'); return; }
+      closeAndReset();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const stepIndex = COUNTER_STEPS.indexOf(step);
+  const stepLabel: Record<CounterStep, string> = {
+    count: t('cashCounterStepCount') || 'Count',
+    action: t('cashCounterStepChoose') || 'Choose',
+    confirm: t('cashCounterStepConfirm') || 'Confirm',
   };
 
   if (!account) {
@@ -1135,49 +1197,88 @@ function CashCounterModal({
   return (
     <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
-      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? '92vh' : '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? '92vh' : '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🧮 {t('countCashBtn') || 'Count Cash'}</div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
 
+        {/* Step indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+          {COUNTER_STEPS.map((s, i) => (
+            <Fragment key={s}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{
+                  width: 18, height: 18, borderRadius: 999, fontSize: 9, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: i <= stepIndex ? 'var(--brand)' : 'var(--panel)',
+                  color: i <= stepIndex ? '#fff' : 'var(--muted)',
+                  border: i <= stepIndex ? 'none' : '1px solid var(--line)',
+                }}>{i + 1}</div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: i <= stepIndex ? 'var(--text)' : 'var(--muted)' }}>{stepLabel[s]}</span>
+              </div>
+              {i < COUNTER_STEPS.length - 1 && <div style={{ flex: 1, height: 1, background: i < stepIndex ? 'var(--brand)' : 'var(--line)' }} />}
+            </Fragment>
+          ))}
+        </div>
+
         {step === 'count' && (
           <>
-            <div className="field2" style={{ marginBottom: 12 }}>
+            <div className="field2" style={{ marginBottom: 14 }}>
               <div className="lbl">{t('cashAccountsTab')}</div>
               <select value={accountId || account.id} onChange={e => { setAccountId(e.target.value); setCounts({}); }} style={selectStyle}>
                 {countableAccounts.map(a => (
-                  <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>
+                  <option key={a.id} value={a.id} style={optionStyle}>{a.name} — {fmtTotal(balances.get(a.id) || 0)} {a.currency}</option>
                 ))}
               </select>
             </div>
 
-            <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
-              {denominations.map(d => (
-                <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 64, fontSize: 12, fontWeight: 800, color: 'var(--text)' }} className="mono">{d}</div>
-                  <button
-                    className="rowBtn" style={{ width: 30, height: 30, padding: 0, fontSize: 14, fontWeight: 800 }}
-                    onClick={() => setCount(d, String(Math.max(0, num(counts[d], 0) - 1)))}
-                  >−</button>
-                  <input
-                    inputMode="numeric" value={counts[d] ?? ''} onChange={e => setCount(d, e.target.value)}
-                    placeholder="0" style={{ width: 60, textAlign: 'center', padding: '6px 4px', fontSize: 13, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)' }}
-                  />
-                  <button
-                    className="rowBtn" style={{ width: 30, height: 30, padding: 0, fontSize: 14, fontWeight: 800 }}
-                    onClick={() => setCount(d, String(num(counts[d], 0) + 1))}
-                  >+</button>
-                  <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }} className="mono">
-                    {num(counts[d], 0) > 0 ? fmtAmt(d * num(counts[d], 0), account.currency) : ''}
+            <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+              {NOTE_DENOMINATIONS.map(d => {
+                const n = num(counts[d], 0);
+                return (
+                  <div key={d} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10,
+                    border: '1px solid ' + (n > 0 ? 'color-mix(in srgb, var(--brand) 35%, transparent)' : 'var(--line)'),
+                    background: n > 0 ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'var(--panel)',
+                  }}>
+                    <div style={{
+                      width: 46, height: 30, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 900, flexShrink: 0, background: 'color-mix(in srgb, var(--brand) 14%, transparent)', color: 'var(--brand)',
+                    }} className="mono">{d}</div>
+                    <button
+                      className="rowBtn" style={{ width: 32, height: 32, padding: 0, fontSize: 16, fontWeight: 800, flexShrink: 0 }}
+                      onClick={() => bumpCount(d, -1)}
+                      disabled={n === 0}
+                    >−</button>
+                    <input
+                      inputMode="numeric" value={counts[d] ?? ''} onChange={e => setCount(d, e.target.value)}
+                      placeholder="0" style={{ width: 48, textAlign: 'center', padding: '6px 4px', fontSize: 14, fontWeight: 700, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)' }}
+                    />
+                    <button
+                      className="rowBtn" style={{ width: 32, height: 32, padding: 0, fontSize: 16, fontWeight: 800, flexShrink: 0 }}
+                      onClick={() => bumpCount(d, 1)}
+                    >+</button>
+                    <div style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: n > 0 ? 'var(--text)' : 'var(--muted)' }} className="mono">
+                      {n > 0 ? fmtAmt(d * n, account.currency) : '—'}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('cashCounterTotalLbl') || 'Total counted'}</span>
-              <span className="mono" style={{ fontWeight: 900, fontSize: 16, color: 'var(--brand)' }}>{fmtTotal(total)} {account.currency}</span>
+            <div style={{
+              background: total > 0 ? 'color-mix(in srgb, var(--good) 10%, transparent)' : 'color-mix(in srgb, var(--brand) 8%, transparent)',
+              border: '1px solid ' + (total > 0 ? 'color-mix(in srgb, var(--good) 30%, transparent)' : 'color-mix(in srgb, var(--brand) 20%, transparent)'),
+              borderRadius: 10, padding: '12px 14px', marginBottom: 14,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('cashCounterTotalLbl') || 'Total counted'}</span>
+                <span className="mono" style={{ fontWeight: 900, fontSize: 20, color: total > 0 ? 'var(--good)' : 'var(--brand)' }}>{fmtTotal(total)} {account.currency}</span>
+              </div>
+              {noteCountEntries.length > 0 && (
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{noteCountSummary}</div>
+              )}
             </div>
 
             <div className="formActions">
@@ -1191,29 +1292,58 @@ function CashCounterModal({
 
         {step === 'action' && (
           <>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{t('cashCounterCountedLbl') || 'You counted'}</div>
-            <div className="mono" style={{ fontSize: 20, fontWeight: 900, marginBottom: 4 }}>{fmtTotal(total)} {account.currency}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 16 }}>{noteCountSummary}</div>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16,
+              background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 25%, transparent)', borderRadius: 10, padding: '10px 14px',
+            }}>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{t('cashCounterCountedLbl') || 'You counted'}</div>
+                <div className="mono" style={{ fontSize: 18, fontWeight: 900 }}>{fmtTotal(total)} {account.currency}</div>
+              </div>
+              <button className="rowBtn" style={{ fontSize: 10 }} onClick={() => setStep('count')}>{t('cashCounterRecount') || '✏️ Recount'}</button>
+            </div>
 
             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{t('cashCounterActionPrompt') || 'What do you want to do with this cash?'}</div>
             <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
               <button
-                className="rowBtn" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700 }}
-                onClick={() => { setStep('add'); }}
+                className="rowBtn" style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
+                onClick={() => { setAction('add'); setStep('confirm'); }}
               >
-                <span className="cash-emoji">➕</span> {t('cashCounterAddToCash') || 'Add to cash balance'}
+                <span style={{ fontSize: 18 }}>➕</span>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span>{t('cashCounterAddToCash') || 'Add to cash balance'}</span>
+                  <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>{t('cashCounterAddToCashDesc') || `Deposit into ${account.name}`}</span>
+                </span>
               </button>
               <button
-                className="rowBtn" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700 }}
+                className="rowBtn" style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
                 disabled={relevantLoans.length === 0}
                 onClick={() => {
-                  setStep('repay');
+                  setAction('repay'); setStep('confirm');
                   const first = relevantLoans[0];
                   if (first) { setRepayLoanId(first.id); setRepayAmount(String(Math.min(total, getLoanRemaining(first)))); }
                 }}
               >
-                <span className="cash-emoji">💳</span> {t('cashCounterRepayLoan') || 'This is a loan repayment'}
-                {relevantLoans.length === 0 && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)' }}>{t('kpiNoLoans')}</span>}
+                <span style={{ fontSize: 18 }}>💳</span>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                  <span>{t('cashCounterRepayLoan') || 'Repay one loan'}</span>
+                  <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>
+                    {relevantLoans.length === 0 ? t('kpiNoLoans') : (t('cashCounterRepayLoanDesc') || 'Apply the full amount to a single customer')}
+                  </span>
+                </span>
+              </button>
+              <button
+                className="rowBtn" style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
+                disabled={relevantLoans.length < 2}
+                onClick={() => { setAction('split'); setStep('confirm'); setSplitSelected(new Set()); setSplitAmounts({}); }}
+              >
+                <span style={{ fontSize: 18 }}>🔀</span>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                  <span>{t('cashCounterSplitLoans') || 'Split across several loans'}</span>
+                  <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>
+                    {relevantLoans.length < 2 ? (t('cashCounterSplitNeedTwo') || 'Needs at least 2 open loans') : (t('cashCounterSplitLoansDesc') || 'Divide this cash across multiple customers')}
+                  </span>
+                </span>
               </button>
             </div>
 
@@ -1223,10 +1353,10 @@ function CashCounterModal({
           </>
         )}
 
-        {step === 'add' && (
+        {step === 'confirm' && action === 'add' && (
           <>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-              {t('cashCounterAddToCash') || 'Add to cash balance'} — <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(total)} {account.currency}</strong> → {account.name}
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+              {t('cashCounterAddToCash') || 'Add to cash balance'} — <strong className="mono" style={{ color: 'var(--good)' }}>{fmtTotal(total)} {account.currency}</strong> → <strong>{account.name}</strong>
             </div>
             <div className="field2" style={{ marginBottom: 14 }}>
               <div className="lbl">{t('noteOptional')}</div>
@@ -1242,7 +1372,7 @@ function CashCounterModal({
           </>
         )}
 
-        {step === 'repay' && (
+        {step === 'confirm' && action === 'repay' && (
           <>
             <div className="field2" style={{ marginBottom: 10 }}>
               <div className="lbl">{t('loanReceivables')}</div>
@@ -1263,6 +1393,12 @@ function CashCounterModal({
               <div className="inputBox"><input inputMode="decimal" value={repayAmount} onChange={e => setRepayAmount(e.target.value)} placeholder="0.00" /></div>
               <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('cashCounterCountedLbl') || 'You counted'}: {fmtTotal(total)} {account.currency}</div>
             </div>
+            {num(repayAmount, 0) < total && num(repayAmount, 0) > 0 && (
+              <div style={{ fontSize: 10, color: 'var(--warn)', marginBottom: 10 }}>
+                ⚠ {t('cashCounterLeftoverHint') || 'Leftover'}: {fmtTotal(total - num(repayAmount, 0))} {account.currency}
+                {' — '}<button style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', textDecoration: 'underline', fontSize: 10, padding: 0 }} onClick={() => { setAction('split'); setSplitSelected(new Set()); setSplitAmounts({}); }}>{t('cashCounterSplitInstead') || 'split across loans instead?'}</button>
+              </div>
+            )}
             <div className="field2" style={{ marginBottom: 14 }}>
               <div className="lbl">{t('noteOptional')}</div>
               <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={noteCountSummary} /></div>
@@ -1275,6 +1411,234 @@ function CashCounterModal({
               </button>
             </div>
           </>
+        )}
+
+        {step === 'confirm' && action === 'split' && (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+              {t('cashCounterSplitHint') || 'Check off which customers this payment covers — the amount auto-fills up to what each owes.'}
+            </div>
+            <div style={{ display: 'grid', gap: 6, marginBottom: 12, maxHeight: 260, overflowY: 'auto' }}>
+              {relevantLoans.map(l => {
+                const checked = splitSelected.has(l.id);
+                const remaining = getLoanRemaining(l);
+                return (
+                  <div key={l.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8,
+                    border: '1px solid ' + (checked ? 'color-mix(in srgb, var(--brand) 35%, transparent)' : 'var(--line)'),
+                    background: checked ? 'color-mix(in srgb, var(--brand) 6%, transparent)' : 'var(--panel)',
+                  }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleSplitLoan(l)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customerName(l.customerId)}</div>
+                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('loanRemaining')}: {fmtTotal(remaining)} {l.currency}</div>
+                    </div>
+                    {checked && (
+                      <input
+                        inputMode="decimal" value={splitAmounts[l.id] ?? ''} onChange={e => setSplitAmount(l.id, e.target.value)}
+                        style={{ width: 72, textAlign: 'right', padding: '5px 6px', fontSize: 12, fontWeight: 700, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel2)', color: 'var(--text)' }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, marginBottom: 14,
+              background: Math.abs(splitLeftover) < 0.005 ? 'color-mix(in srgb, var(--good) 10%, transparent)' : 'color-mix(in srgb, var(--warn) 10%, transparent)',
+              border: '1px solid ' + (Math.abs(splitLeftover) < 0.005 ? 'color-mix(in srgb, var(--good) 30%, transparent)' : 'color-mix(in srgb, var(--warn) 30%, transparent)'),
+            }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                {splitLeftover > 0.005 ? (t('cashCounterLeftToAllocate') || 'Left to allocate') : splitLeftover < -0.005 ? (t('cashCounterOverAllocated') || 'Over-allocated') : (t('cashCounterFullyAllocated') || 'Fully allocated')}
+              </span>
+              <span className="mono" style={{ fontWeight: 900, fontSize: 14, color: Math.abs(splitLeftover) < 0.005 ? 'var(--good)' : 'var(--warn)' }}>
+                {fmtTotal(Math.abs(splitLeftover))} {account.currency}
+              </span>
+            </div>
+
+            <div className="field2" style={{ marginBottom: 14 }}>
+              <div className="lbl">{t('noteOptional')}</div>
+              <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={noteCountSummary} /></div>
+            </div>
+            {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setStep('action')} disabled={saving}>{t('back') || 'Back'}</button>
+              <button className="btn" onClick={handleSplitRepay} disabled={saving || splitSelected.size < 2}>
+                {saving ? `${t('saving') || 'Saving…'}` : (t('cashCounterConfirmSplit') || 'Apply Split Repayment')}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── AccountLedgerModal ────────────────────────────────────────────
+// Per-account drill-down: everything added to or withdrawn from one
+// specific cash account, newest first, with a running balance. Opened
+// by tapping an account card in the Accounts tab — this is the detail
+// view that used to live behind the standalone Ledger tab.
+interface AccountLedgerModalProps {
+  account: CashAccount;
+  entries: CashLedgerEntry[];
+  accounts: CashAccount[];
+  balance: number;
+  typeLabels: Record<LedgerEntryType, string>;
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function AccountLedgerModal({ account, entries, accounts, balance, typeLabels, onClose, isMobile = false }: AccountLedgerModalProps) {
+  const t = useT();
+  const [typeFilter, setTypeFilter] = useState('');
+
+  const sorted = useMemo(() => [...entries].sort((a, b) => a.ts - b.ts), [entries]);
+  const runningBalances = useMemo(() => {
+    const map = new Map<string, number>();
+    let running = 0;
+    for (const e of sorted) {
+      running += e.direction === 'in' ? e.amount : -e.amount;
+      map.set(e.id, running);
+    }
+    return map;
+  }, [sorted]);
+
+  const rows = useMemo(() => {
+    let list = [...sorted].reverse();
+    if (typeFilter) list = list.filter(e => e.type === typeFilter);
+    return list;
+  }, [sorted, typeFilter]);
+
+  const totalsIn = useMemo(() => entries.filter(e => e.direction === 'in').reduce((s, e) => s + e.amount, 0), [entries]);
+  const totalsOut = useMemo(() => entries.filter(e => e.direction === 'out').reduce((s, e) => s + e.amount, 0), [entries]);
+
+  const usedTypes = useMemo(() => Array.from(new Set(entries.map(e => e.type))), [entries]);
+
+  const selectStyle: React.CSSProperties = {
+    padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)',
+    background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none',
+  };
+  const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 12 }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '20px 22px', width: '100%', maxWidth: 640, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? '92vh' : '86vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{account.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+              {account.bankName ? `${account.bankName}${account.branch ? ` · ${account.branch}` : ''} · ` : ''}{account.currency}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 14 }}>
+          <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('availableBalanceLbl')}</div>
+            <div className="mono" style={{ fontSize: 14, fontWeight: 900, color: balance < 0 ? 'var(--bad)' : 'var(--text)' }}>{fmtTotal(balance)}</div>
+          </div>
+          <div style={{ background: 'color-mix(in srgb, var(--good) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--good) 20%, transparent)', borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('ledgerTransferIn')}</div>
+            <div className="mono" style={{ fontSize: 14, fontWeight: 900, color: 'var(--good)' }}>+{fmtTotal(totalsIn)}</div>
+          </div>
+          <div style={{ background: 'color-mix(in srgb, var(--bad) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--bad) 20%, transparent)', borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('ledgerTransferOut')}</div>
+            <div className="mono" style={{ fontSize: 14, fontWeight: 900, color: 'var(--bad)' }}>−{fmtTotal(totalsOut)}</div>
+          </div>
+        </div>
+
+        {usedTypes.length > 1 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={selectStyle}>
+              <option value="" style={optionStyle}>{t('allTypesOpt')}</option>
+              {usedTypes.map(lType => (
+                <option key={lType} value={lType} style={optionStyle}>{typeLabels[lType]}</option>
+              ))}
+            </select>
+            {typeFilter && <button className="rowBtn" onClick={() => setTypeFilter('')}>✕ {t('clearAll')}</button>}
+            <span className="muted" style={{ fontSize: 10 }}>{rows.length} {t('entriesCount')}</span>
+          </div>
+        )}
+
+        {rows.length === 0 ? (
+          <div className="empty" style={{ padding: '24px 0' }}>
+            <div className="empty-t">{t('noLedgerEntries')}</div>
+            <div className="empty-s">{t('cashMovementsAppear')}</div>
+          </div>
+        ) : isMobile ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {rows.map(entry => {
+              const contraAcc = entry.contraAccountId ? accounts.find(a => a.id === entry.contraAccountId) : null;
+              const runBal = runningBalances.get(entry.id);
+              const isIn = entry.direction === 'in';
+              const isStockType = entry.type === 'stock_purchase' || entry.type === 'stock_refund' || entry.type === 'stock_edit_adjust';
+              return (
+                <div key={entry.id} className="panel" style={{ padding: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                    <span className={`pill ${isStockType ? 'warn' : isIn ? 'good' : 'bad'}`} style={{ fontSize: 10 }}>{typeLabels[entry.type]}</span>
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDate(entry.ts)}</div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
+                    <div><span className="muted">{t('ledgerColAmount')}:</span> <strong className="mono" style={{ color: isIn ? 'var(--good)' : 'var(--bad)' }}>{isIn ? '+' : '−'}{fmtAmt(entry.amount, entry.currency)}</strong></div>
+                    <div><span className="muted">{t('ledgerColBalance')}:</span> <strong className="mono">{runBal !== undefined ? fmtTotal(runBal) : '—'}</strong></div>
+                    {contraAcc && <div style={{ gridColumn: 'span 2' }}><span className="muted">{t('transferLbl')}:</span> <strong>↔ {contraAcc.name}</strong></div>}
+                    {entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t('ledgerColTime')}</th>
+                  <th>{t('ledgerColType')}</th>
+                  <th className="r">{t('ledgerColAmount')}</th>
+                  <th className="r">{t('ledgerColBalance')}</th>
+                  <th>{t('ledgerColLinked')}</th>
+                  <th>{t('note')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(entry => {
+                  const contraAcc = entry.contraAccountId ? accounts.find(a => a.id === entry.contraAccountId) : null;
+                  const runBal = runningBalances.get(entry.id);
+                  const isIn = entry.direction === 'in';
+                  const isStockType = entry.type === 'stock_purchase' || entry.type === 'stock_refund' || entry.type === 'stock_edit_adjust';
+                  return (
+                    <tr key={entry.id}>
+                      <td className="mono" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{fmtTs(entry.ts)}</td>
+                      <td>
+                        <span className={`pill ${isStockType ? 'warn' : isIn ? 'good' : 'bad'}`} style={{ fontSize: 9 }}>
+                          {typeLabels[entry.type]}
+                        </span>
+                        {contraAcc && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>↔ {contraAcc.name}</span>}
+                      </td>
+                      <td className="mono r" style={{ color: isIn ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
+                        {isIn ? '+' : '−'}{fmtAmt(entry.amount, entry.currency)}
+                      </td>
+                      <td className="mono r" style={{ color: 'var(--muted)', fontSize: 11 }}>
+                        {runBal !== undefined ? fmtTotal(runBal) : '—'}
+                      </td>
+                      <td style={{ fontSize: 10 }}>
+                        {entry.linkedEntityType === 'batch' && (
+                          <span className="pill" style={{ fontSize: 9 }}>📦 Batch</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {entry.note || '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
@@ -1744,10 +2108,34 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     merchant_custody: t('accTypeMerchant') || 'Merchant Custody',
   }), [t]);
 
+  const LEDGER_TYPE_LABELS: Record<LedgerEntryType, string> = useMemo(() => ({
+    opening: t('ledgerOpening'),
+    deposit: t('ledgerDeposit'),
+    sale_deposit: 'Sale deposit',
+    withdrawal: t('ledgerWithdrawal'),
+    transfer_in: t('ledgerTransferIn'),
+    transfer_out: t('ledgerTransferOut'),
+    stock_purchase: t('ledgerStockPurchase'),
+    stock_refund: t('ledgerStockRefund'),
+    stock_edit_adjust: t('ledgerEditAdjust'),
+    reconcile: t('ledgerReconcile'),
+    merchant_funding_out: t('ledgerMerchantFundingOut') || 'Funding Merchant',
+    merchant_funding_return: t('ledgerMerchantFundingReturn') || 'Funding Return',
+    merchant_sale_proceeds: t('ledgerMerchantSaleProceeds') || 'Sale Proceeds',
+    merchant_settlement_in: t('ledgerMerchantSettlementIn') || 'Settlement In',
+    merchant_settlement_out: t('ledgerMerchantSettlementOut') || 'Settlement Out',
+    merchant_fee: t('ledgerMerchantFee') || 'Merchant Fee',
+    merchant_adjustment: t('ledgerMerchantAdjustment') || 'Merchant Adjustment',
+    loan_disbursement: t('ledgerLoanDisbursement'),
+    loan_repayment: t('ledgerLoanRepayment'),
+  }), [t]);
+
   const [innerTab, setInnerTab] = useState<'accounts' | 'loans' | 'statements'>('accounts');
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
   }, [innerTab, statementLinksLoaded, loadStatementLinks]);
+  /** Account whose own ledger is currently open in the drill-down panel. */
+  const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
   const [showNewLoan, setShowNewLoan] = useState(false);
   const [repayingLoan, setRepayingLoan] = useState<CustomerLoan | null>(null);
   /** Buyer statement whose open orders can be closed with one split payment. */
@@ -2402,7 +2790,11 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                 const TypeIcon = ACCOUNT_TYPE_ICON[acc.type];
 
                 return (
-                  <div key={acc.id} className="cash-account-card" style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '10px 10px 12px' : undefined }}>
+                  <div
+                    key={acc.id} className="cash-account-card"
+                    style={{ opacity: isInactive ? 0.5 : 1, padding: isMobile ? '10px 10px 12px' : undefined, cursor: 'pointer' }}
+                    onClick={() => setAccountDetailId(acc.id)}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <div style={{ width: 22, height: 22, borderRadius: 6, background: `color-mix(in srgb, var(--brand) 12%, transparent)`, border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand)', flexShrink: 0 }}>
@@ -2441,7 +2833,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
 
                     {/* Actions */}
                     {!isInactive && (
-                      <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                      <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(2, 1fr)' }} onClick={e => e.stopPropagation()}>
                         {acc.type === 'merchant_custody' ? (
                           <>
                             <button className="rowBtn" style={{ fontSize: 10, minHeight: isMobile ? 38 : undefined, display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}
@@ -3427,6 +3819,22 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         />
       )}
 
+      {accountDetailId && (() => {
+        const acc = accounts.find(a => a.id === accountDetailId);
+        if (!acc) return null;
+        return (
+          <AccountLedgerModal
+            account={acc}
+            entries={ledger.filter(e => e.accountId === acc.id)}
+            accounts={accounts}
+            balance={balances.get(acc.id) || 0}
+            typeLabels={LEDGER_TYPE_LABELS}
+            isMobile={isMobile}
+            onClose={() => setAccountDetailId(null)}
+          />
+        );
+      })()}
+
       {showCashCounter && (
         <CashCounterModal
           accounts={activeAccounts}
@@ -3437,6 +3845,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
           isMobile={isMobile}
           onAddToCash={addLedgerEntry}
           onRepayLoan={(loan, accountId, amount, ts, note) => addLoanRepayment(loan, accountId, amount, ts, note)}
+          onSplitRepay={(allocations, accountId, ts, note) => addSplitLoanRepayment(allocations, accountId, ts, note)}
           onClose={() => setShowCashCounter(false)}
         />
       )}
