@@ -3252,7 +3252,7 @@ export default function OrdersPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>{t('date')}</th><th>{t('type')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
+                        <th>{t('date')}</th><th>{t('buyer')}</th><th className="r">{t('qty')}</th><th className="r hide-mobile">{t('avgBuy')}</th><th className="r">{t('sell')}</th><th className="r hide-mobile">{t('volume')}</th><th className="r">{t('net')}</th><th className="hide-mobile">{t('margin')}</th><th>{t('actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3286,11 +3286,9 @@ export default function OrdersPage() {
                                 </span>
                               )}
                             </td>
-                            <td style={{ textAlign: 'center', fontSize: 16 }}>
-                              {isMerchantLinked ? '🤝' : '👤'}
-                            </td>
                             <td>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                {isMerchantLinked && <span title={t('type')} style={{ fontSize: 12 }}>🤝</span>}
                                 {cn ? <span className="tradeBuyerChip" title={cn} style={{ maxWidth: 130 }}>{cn}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
                                 {tr.importedFrom && <ImportedBadge exchange={tr.importedFrom} />}
                               </span>
@@ -3323,7 +3321,7 @@ export default function OrdersPage() {
                           </tr>
                           {detailsOpen[tr.id] && (
                             <tr>
-                              <td colSpan={10} style={{ padding: 0 }}>
+                              <td colSpan={9} style={{ padding: 0 }}>
                                 {renderDetail(tr, c)}
                               </td>
                             </tr>
@@ -3360,8 +3358,12 @@ export default function OrdersPage() {
                             <React.Fragment key={`md-${deal.id}`}>
                               <tr id={`deal-${deal.id}`} data-deal-id={deal.id} style={{ background: 'color-mix(in srgb, var(--brand) 4%, transparent)' }}>
                                 <td><span className="mono" style={{ whiteSpace: 'nowrap' }}>{row.dateLabel}</span></td>
-                                <td style={{ textAlign: 'center', fontSize: 16 }}>🤝</td>
-                                <td>{row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : merchantName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}</td>
+                                <td>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <span title={t('type')} style={{ fontSize: 12 }}>🤝</span>
+                                    {row.buyer ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{row.buyer}</span> : merchantName ? <span className="tradeBuyerChip" style={{ maxWidth: 130 }}>{merchantName}</span> : <span style={{ color: 'var(--muted)', fontSize: 9 }}>—</span>}
+                                  </span>
+                                </td>
                                 <td className="mono r">{fmtU(row.quantity)}</td>
                                 <td className="mono r hide-mobile">{row.hasAvgBuy ? fmtP(row.avgBuy) : '—'}</td>
                                 <td className="mono r">{row.sellPrice > 0 ? fmtP(row.sellPrice) : '—'}</td>
@@ -3392,7 +3394,7 @@ export default function OrdersPage() {
                                 </td>
                               </tr>
                               {detailsOpen[`deal-${deal.id}`] && (
-                                <tr><td colSpan={10} style={{ padding: 8 }}>
+                                <tr><td colSpan={9} style={{ padding: 8 }}>
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                     {row.hasAvgBuy && <span className="pill">{t('avgBuy')} {fmtP(row.avgBuy)}</span>}
                                     <span className="pill">{t('revenue')} {fmtC(row.volume)}</span>

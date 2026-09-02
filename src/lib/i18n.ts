@@ -1715,6 +1715,8 @@ const translations = {
   loanAddRepayment:      { en: 'Add Repayment',                 ar: 'إضافة دفعة سداد' },
   loanSplitPayment:      { en: 'Split payment across orders',   ar: 'تقسيم دفعة على عدة طلبات' },
   loanSplitPaymentBadge: { en: 'Split payment · {n} orders',    ar: 'دفعة مقسمة · {n} طلبات' },
+  loanSplitEditHint:         { en: 'Expand ▸ to edit',            ar: 'افتح ▸ للتعديل' },
+  loanSplitEditHintExpanded: { en: 'Edit below',                  ar: 'التعديل بالأسفل' },
   loanSplitPaymentHint:  { en: 'Record one payment the buyer used to close several orders at once — it will show as a single payment, not one per order.', ar: 'سجّل دفعة واحدة استخدمها المشتري لإغلاق عدة طلبات دفعة واحدة — ستظهر كدفعة واحدة وليس دفعة لكل طلب.' },
   loanSplitPaymentPickTwo: { en: 'Select at least two orders',  ar: 'اختر طلبين على الأقل' },
   loanSplitPaymentOrders: { en: 'Orders this payment covers',   ar: 'الطلبات التي تغطيها هذه الدفعة' },

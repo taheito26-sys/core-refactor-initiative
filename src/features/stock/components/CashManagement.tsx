@@ -2847,6 +2847,14 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
                                                 </button>
                                               </div>
                                             )}
+                                            {/* A split payment is several separate repayment records, not one --
+                                                there's nothing here to edit as a single row. Point at the expand
+                                                toggle instead of leaving this cell looking broken/empty. */}
+                                            {!isMergingHere && !target && isBatch && (
+                                              <span style={{ fontSize: 9, color: 'var(--muted)', fontStyle: 'italic' }}>
+                                                {isExpanded ? t('loanSplitEditHintExpanded') : t('loanSplitEditHint')}
+                                              </span>
+                                            )}
                                           </td>
                                         </tr>
                                         {isBatch && isExpanded && group.members.map(m => {
