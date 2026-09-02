@@ -1073,8 +1073,8 @@ export default function StockPage() {
                       <tr>
                         <td className="mono">{fmtDate(b.ts)}</td>
                         <td>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                            {b.source || '—'}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
+                            <span style={{ width: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.source || '—'}>{b.source || '—'}</span>
                             {b.importedFrom && <ImportedBadge exchange={b.importedFrom} />}
                           </span>
                         </td>
