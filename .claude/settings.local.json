@@ -49,7 +49,23 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(git pull *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(npx vitest *)",
+      "Bash(git stash *)",
+      "Bash(git reset *)",
+      "Bash(npm run *)",
+      "Bash(npm ls *)",
+      "Bash(npm install *)",
+      "Bash(pnpm --version)",
+      "Bash(pnpm install *)",
+      "Bash(npm uninstall *)",
+      "Bash(git checkout *)",
+      "Bash(rm -f src/pages/DevExportTestPage.tsx .claude/launch.json)",
+      "Bash(supabase --version)",
+      "Bash(supabase projects *)",
+      "Bash(supabase db *)",
+      "Bash(supabase migration *)",
+      "Bash(awk 'NR==3251,NR==3420{print NR\": \"$0}' src/pages/OrdersPage.tsx)"
     ]
   }
 }
