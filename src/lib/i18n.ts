@@ -615,6 +615,7 @@ const translations = {
   addBatchTitle: { en: 'Add Batch', ar: 'إضافة دفعة' },
   currentAvPrice: { en: 'Current Av Price', ar: 'متوسط السعر الحالي' },
   avg: { en: 'Avg', ar: 'متوسط' },
+  useRateBtn: { en: 'Use Rate', ar: 'استخدام السعر' },
   currencyMode: { en: 'Currency Mode', ar: 'وضع العملة' },
   buyPriceQar: { en: 'Buy Price (QAR)', ar: 'سعر الشراء (ر.ق)' },
   buyPriceEgp: { en: 'Buy Price (EGP)', ar: 'سعر الشراء (ج.م)' },

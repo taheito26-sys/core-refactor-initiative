@@ -1137,6 +1137,9 @@ export default function StockPage() {
                   <span className="bVal">{fmtP(wacop)}</span>
                   <span className="bSpacer" />
                   <span className="bPill">{t('avg')}</span>
+                  <button type="button" className="bPill" style={{ cursor: 'pointer', color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 40%, transparent)' }} onClick={() => setBatchPrice(String(wacop))}>
+                    {t('useRateBtn')}
+                  </button>
                 </div>
               )}
               <div className="field2">
@@ -1421,6 +1424,9 @@ export default function StockPage() {
                       <span className="bVal">{fmtP(wacop)}</span>
                       <span className="bSpacer" />
                       <span className="bPill">{t('avg')}</span>
+                      <button type="button" className="bPill" style={{ cursor: 'pointer', color: 'var(--good)', borderColor: 'color-mix(in srgb, var(--good) 40%, transparent)' }} onClick={() => setBatchPrice(String(wacop))}>
+                        {t('useRateBtn')}
+                      </button>
                     </div>
                   )}
                   <div className="field2">
