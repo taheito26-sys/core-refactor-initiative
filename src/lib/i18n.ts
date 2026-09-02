@@ -2070,6 +2070,8 @@ const translations = {
   failedCreateAllocations: { en: 'Failed to create merchant allocations', ar: 'فشل إنشاء تخصيصات التاجر' },
   invalidTemplate:         { en: 'Invalid template',                    ar: 'قالب غير صالح' },
   dealUpdatedReapproval:   { en: 'Deal updated — sent for re-approval', ar: 'تم تحديث الصفقة — أُرسلت لإعادة الموافقة' },
+  dealUpdateFailed:        { en: 'Failed to update linked deal',       ar: 'فشل تحديث الصفقة المرتبطة' },
+  dealUpdatedReapprovalFailed: { en: 'Deal updated, but re-approval failed', ar: 'تم تحديث الصفقة، لكن إعادة الموافقة فشلت' },
   addAtLeastOneAlloc:      { en: 'Add at least one merchant allocation', ar: 'أضف تخصيص تاجر واحد على الأقل' },
   allocMismatch:           { en: 'Allocation mismatch',                 ar: 'عدم تطابق التخصيص' },
   allocMismatchDetail:     { en: 'allocated {0} USDT but sale is {1} USDT', ar: 'تم تخصيص {0} USDT لكن البيع {1} USDT' },

@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTrackerState } from '@/lib/useTrackerState';
 import {
   fmtU, fmtP, fmtQ, fmtQWithUnit, fmtDate, getWACOP, inRange, rangeLabel, fmtDur, computeFIFO, uid,
-  fmtPrice, fmtTotal, deriveCashQAR,
+  fmtPrice, fmtTotal, deriveCashQAR, totalStock, getAllAccountBalances,
   type TrackerState, type Trade, type Customer, type TradeCalcResult, type LinkedTradeStatus,
   type CustomerLoan, type CashCurrency,
   getLoanRepaid, getLoanRemaining,
@@ -248,6 +248,12 @@ export default function OrdersPage() {
   const [newBuyerName, setNewBuyerName] = useState('');
   const [newBuyerPhone, setNewBuyerPhone] = useState('');
   const [newBuyerTier, setNewBuyerTier] = useState('C');
+  const addCustomer = useCallback(() => setAddBuyerOpen(true), []);
+  const activeAccounts = useMemo(() => (state.cashAccounts || []).filter(a => a.status === 'active'), [state.cashAccounts]);
+  const accountBalances = useMemo(
+    () => getAllAccountBalances(state.cashAccounts || [], state.cashLedger || []),
+    [state.cashAccounts, state.cashLedger],
+  );
 
   const [detailsOpen, setDetailsOpen] = useState<Record<string, boolean>>({});
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
@@ -1355,7 +1361,7 @@ export default function OrdersPage() {
         .in('status', ['active', 'pending'])
         .maybeSingle();
 
-      connectionId = connRow?.id ?? null;
+      const connectionId: string | null = connRow?.id ?? null;
       if (!connectionId) {
         console.log('Mirror skipped: no active or pending customer connection exists', {
           merchantId: merchantProfile.merchant_id,
@@ -1537,7 +1543,7 @@ export default function OrdersPage() {
       });
 
       if (insertErr) throw insertErr;
-      toast.success(`Order pushed to ${connectedBuyer.name}'s portal`);
+      toast.success(`Order pushed to ${resolvedBuyer.displayName}'s portal`);
     } catch (err: any) {
       toast.error(err.message || 'Failed to push order');
     }
