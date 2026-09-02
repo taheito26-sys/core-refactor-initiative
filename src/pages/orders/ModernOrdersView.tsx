@@ -257,9 +257,11 @@ export function ModernOrdersView({
       {/* ── 1. HEADER & CONTROLS STRIP ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-border/70">
         <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-          <h1 className="text-base font-bold tracking-tight text-foreground">Orders & Trade Fills Register</h1>
-          <span className="px-1.5 py-0.2 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 rounded">
+          <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 text-white shadow-sm shadow-violet-500/30 flex-shrink-0">
+            <FileText className="h-3.5 w-3.5" />
+          </div>
+          <h1 className="text-base font-bold tracking-tight bg-gradient-to-r from-violet-500 via-blue-500 to-emerald-500 bg-clip-text text-transparent">Orders & Trade Fills Register</h1>
+          <span className="px-1.5 py-0.2 text-[10px] font-bold bg-gradient-to-r from-violet-500/15 to-blue-500/15 text-violet-500 border border-violet-500/25 rounded-full">
             {filteredTrades.length} Fills
           </span>
         </div>
@@ -268,7 +270,7 @@ export function ModernOrdersView({
           {/* Export Dropdown */}
           <button
             onClick={onExportExcel}
-            className="px-2.5 py-1 rounded-lg bg-background hover:bg-muted border border-border text-[11px] font-semibold text-foreground transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-background hover:bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 transition-colors flex items-center gap-1.5 cursor-pointer"
             title="Export Excel"
           >
             <Download className="h-3 w-3" />
@@ -276,7 +278,7 @@ export function ModernOrdersView({
           </button>
           <button
             onClick={onExportPdf}
-            className="px-2.5 py-1 rounded-lg bg-background hover:bg-muted border border-border text-[11px] font-semibold text-foreground transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-background hover:bg-rose-500/10 border border-rose-500/30 text-[11px] font-semibold text-rose-600 dark:text-rose-400 transition-colors flex items-center gap-1.5 cursor-pointer"
             title="Export PDF"
           >
             <FileText className="h-3 w-3" />
@@ -286,7 +288,7 @@ export function ModernOrdersView({
           {/* Primary Action: New Trade */}
           <button
             onClick={() => setNewSaleSheetOpen(true)}
-            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-xs transition-all cursor-pointer"
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-gradient-to-r from-violet-500 to-blue-500 hover:from-violet-600 hover:to-blue-600 text-white text-xs font-bold shadow-sm shadow-violet-500/30 transition-all cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>New Trade</span>
@@ -296,16 +298,16 @@ export function ModernOrdersView({
       </div>
 
       {/* ── 2. ULTRA-SLIM PRO METRIC RIBBON (Zero Vertical Space) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 bg-muted/30 p-1 rounded-xl border border-border/70 text-xs">
-        
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 bg-gradient-to-r from-violet-500/5 via-blue-500/5 to-emerald-500/5 p-1 rounded-xl border border-border/70 text-xs">
+
         {/* Metric 1: Total Volume Sold */}
-        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50">
+        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border border-blue-500/20">
           <div className="flex items-center gap-2">
-            <div className="p-1 rounded bg-blue-500/10 text-blue-500 flex-shrink-0">
+            <div className="p-1 rounded-md bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-sm shadow-blue-500/30 flex-shrink-0">
               <DollarSign className="h-3.5 w-3.5" />
             </div>
             <div>
-              <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
+              <div className="text-[9px] font-bold text-blue-600/80 dark:text-blue-400/80 uppercase tracking-wider leading-none">
                 Volume Sold
               </div>
               <div className="flex items-baseline gap-1 mt-0.5">
@@ -314,19 +316,19 @@ export function ModernOrdersView({
               </div>
             </div>
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground hidden xl:inline">
+          <span className="text-[10px] font-mono text-blue-500 font-semibold hidden xl:inline">
             {metrics.totalTradesCount} Fills
           </span>
         </div>
 
         {/* Metric 2: Realized Net Profit */}
-        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50">
+        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20">
           <div className="flex items-center gap-2">
-            <div className="p-1 rounded bg-emerald-500/10 text-emerald-500 flex-shrink-0">
+            <div className="p-1 rounded-md bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30 flex-shrink-0">
               <TrendingUp className="h-3.5 w-3.5" />
             </div>
             <div>
-              <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
+              <div className="text-[9px] font-bold text-emerald-600/80 dark:text-emerald-400/80 uppercase tracking-wider leading-none">
                 Realized Profit
               </div>
               <div className="flex items-baseline gap-1 mt-0.5">
@@ -341,13 +343,13 @@ export function ModernOrdersView({
         </div>
 
         {/* Metric 3: Active Available Stock */}
-        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50">
+        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/5 border border-indigo-500/20">
           <div className="flex items-center gap-2">
-            <div className="p-1 rounded bg-indigo-500/10 text-indigo-500 flex-shrink-0">
+            <div className="p-1 rounded-md bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-sm shadow-indigo-500/30 flex-shrink-0">
               <Wallet className="h-3.5 w-3.5" />
             </div>
             <div>
-              <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
+              <div className="text-[9px] font-bold text-indigo-600/80 dark:text-indigo-400/80 uppercase tracking-wider leading-none">
                 Available Stock
               </div>
               <div className="flex items-baseline gap-1 mt-0.5">
@@ -356,19 +358,19 @@ export function ModernOrdersView({
               </div>
             </div>
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground hidden xl:inline">
+          <span className="text-[10px] font-mono text-indigo-500 font-semibold hidden xl:inline">
             @ {wacop > 0 ? fmtP(wacop) : '—'}
           </span>
         </div>
 
         {/* Metric 4: Customer Receivables / Loans */}
-        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-card/80 border border-border/50">
+        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/5 border border-amber-500/20">
           <div className="flex items-center gap-2">
-            <div className="p-1 rounded bg-amber-500/10 text-amber-500 flex-shrink-0">
+            <div className="p-1 rounded-md bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm shadow-amber-500/30 flex-shrink-0">
               <CreditCard className="h-3.5 w-3.5" />
             </div>
             <div>
-              <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
+              <div className="text-[9px] font-bold text-amber-600/80 dark:text-amber-400/80 uppercase tracking-wider leading-none">
                 Open Receivables
               </div>
               <div className="flex items-baseline gap-1 mt-0.5">
@@ -377,7 +379,7 @@ export function ModernOrdersView({
               </div>
             </div>
           </div>
-          <span className="text-[10px] font-mono text-muted-foreground hidden xl:inline">
+          <span className="text-[10px] font-mono text-amber-500 font-semibold hidden xl:inline">
             Active Loans
           </span>
         </div>
@@ -385,16 +387,16 @@ export function ModernOrdersView({
       </div>
 
       {/* ── 3. FILTER & SEARCH STRIP ── */}
-      <div className="rounded-xl border border-border/80 bg-card/60 p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="rounded-xl border border-violet-500/20 bg-gradient-to-r from-violet-500/5 to-transparent p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 max-w-md">
           <div className="relative flex-1">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-violet-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search trade ID, customer, note..."
-              className="w-full bg-background border border-border rounded-lg pl-8 pr-3 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full bg-background border border-border rounded-lg pl-8 pr-3 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
             {searchQuery && (
               <button
@@ -409,7 +411,7 @@ export function ModernOrdersView({
           <select
             value={selectedCustomerFilter}
             onChange={(e) => setSelectedCustomerFilter(e.target.value)}
-            className="bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary max-w-[160px]"
+            className="bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-violet-500 max-w-[160px]"
           >
             <option value="all">All Customers</option>
             {customers.map((c) => (
@@ -427,7 +429,7 @@ export function ModernOrdersView({
       <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-xs flex-1 flex flex-col">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left text-xs">
-            <thead className="bg-muted/60 text-muted-foreground uppercase text-[9px] font-bold tracking-wider border-b border-border">
+            <thead className="bg-gradient-to-r from-violet-500 via-blue-500 to-emerald-500 text-white uppercase text-[9px] font-bold tracking-wider border-b border-border">
               <tr>
                 <th className="py-2 px-3 w-10 text-center">#</th>
                 <th className="py-2 px-3">Date</th>
@@ -455,10 +457,13 @@ export function ModernOrdersView({
                   return (
                     <tr
                       key={tr.id}
-                      className="hover:bg-muted/40 transition-colors group text-xs"
+                      className={cn(
+                        'hover:bg-violet-500/5 transition-colors group text-xs',
+                        idx % 2 === 1 && 'bg-muted/20',
+                      )}
                     >
                       <td className="py-2.5 px-3 text-center font-mono">
-                        <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-muted text-muted-foreground">
+                        <span className="px-1 py-0.2 rounded-full text-[9px] font-bold bg-gradient-to-r from-violet-500/15 to-blue-500/15 text-violet-500 border border-violet-500/20">
                           #{idx + 1}
                         </span>
                       </td>
@@ -503,11 +508,11 @@ export function ModernOrdersView({
 
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         {tr.isLoan ? (
-                          <span className="px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[9px] font-bold">
+                          <span className="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-amber-500/15 to-orange-500/10 text-amber-500 border border-amber-500/25 text-[9px] font-bold">
                             Loan / Unsettled
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[9px] font-bold">
+                          <span className="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-emerald-500/15 to-teal-500/10 text-emerald-500 border border-emerald-500/25 text-[9px] font-bold">
                             Settled Cash
                           </span>
                         )}
@@ -517,21 +522,21 @@ export function ModernOrdersView({
                         <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => setSelectedTradeDetails(tr)}
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                            className="p-1 rounded hover:bg-blue-500/10 text-muted-foreground hover:text-blue-500 cursor-pointer"
                             title="Details"
                           >
                             <Eye className="h-3 w-3" />
                           </button>
                           <button
                             onClick={() => setEditingTradeId(tr.id)}
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                            className="p-1 rounded hover:bg-violet-500/10 text-muted-foreground hover:text-violet-500 cursor-pointer"
                             title="Edit"
                           >
                             <Edit2 className="h-3 w-3" />
                           </button>
                           <button
                             onClick={() => onDeleteTrade(tr.id)}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive cursor-pointer"
+                            className="p-1 rounded hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -546,7 +551,7 @@ export function ModernOrdersView({
           </table>
         </div>
 
-        <div className="px-3 py-2 bg-muted/40 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="px-3 py-2 bg-gradient-to-r from-violet-500/5 to-emerald-500/5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
           <span>{filteredTrades.length} trades recorded</span>
           <span>Total Realized Profit: <strong className="text-emerald-500 font-mono">+{fmtTotal(metrics.totalRealizedProfit)} {baseFiat}</strong></span>
         </div>
@@ -559,9 +564,9 @@ export function ModernOrdersView({
             className="w-full sm:max-w-md bg-background border-l border-border shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-3.5 border-b border-border flex items-center justify-between bg-muted/30">
+            <div className="p-3.5 border-b border-border flex items-center justify-between bg-gradient-to-r from-violet-500/10 via-blue-500/5 to-transparent">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 text-white shadow-sm shadow-violet-500/30 flex items-center justify-center">
                   <Plus className="h-4 w-4" />
                 </div>
                 <div>
@@ -681,15 +686,15 @@ export function ModernOrdersView({
               </div>
 
               {/* Live Gross & Profit Preview */}
-              <div className="p-2.5 rounded-lg bg-muted/60 border border-border flex items-center justify-between text-xs">
+              <div className="p-2.5 rounded-lg bg-gradient-to-r from-blue-500/10 to-emerald-500/10 border border-border flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-[10px] text-muted-foreground">Gross ({baseFiat}):</span>
+                  <span className="text-[10px] text-blue-500 font-semibold">Gross ({baseFiat}):</span>
                   <div className="font-mono font-bold text-foreground">
                     {fmtTotal(calculatedTotalFiat)}
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-muted-foreground">Est. Profit:</span>
+                  <span className="text-[10px] text-emerald-500 font-semibold">Est. Profit:</span>
                   <div className="font-mono font-bold text-emerald-500">
                     +{fmtTotal(estimatedProfit)} {baseFiat}
                   </div>

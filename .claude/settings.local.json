@@ -65,7 +65,8 @@
       "Bash(supabase projects *)",
       "Bash(supabase db *)",
       "Bash(supabase migration *)",
-      "Bash(awk 'NR==3251,NR==3420{print NR\": \"$0}' src/pages/OrdersPage.tsx)"
+      "Bash(awk 'NR==3251,NR==3420{print NR\": \"$0}' src/pages/OrdersPage.tsx)",
+      "Bash(supabase gen *)"
     ]
   }
 }
