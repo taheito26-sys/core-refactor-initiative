@@ -67,6 +67,8 @@ export interface AppSettings {
   autoBackup: boolean;
   logsEnabled: boolean;
   logLevel: 'error' | 'warn' | 'info';
+  /** UI Design experience version ('classic' = legacy terminal, 'modern' = v2.0 pro desk) */
+  uiDesignVersion?: 'classic' | 'modern';
 }
 
 export interface LogEntry {

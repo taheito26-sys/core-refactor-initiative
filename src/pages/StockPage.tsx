@@ -42,6 +42,7 @@ import { useExchangeMonthSync } from '@/features/exchanges/hooks/useExchangeMont
 import { useCounterpartyMap, findCounterpartyMapping, saveCounterpartyMapping, useInvalidateCounterpartyMap } from '@/features/exchanges/hooks/useCounterpartyMap';
 import { useExchangeBalances } from '@/features/exchanges/hooks/useExchangeBalances';
 import { ImportedBadge } from '@/features/exchanges/components/ImportedBadge';
+import { ModernStockView } from '@/pages/stock/ModernStockView';
 
 const nowInput = () => new Date().toISOString().slice(0, 16);
 const norm = (v: string) => v.trim().toLowerCase();
@@ -613,20 +614,21 @@ export default function StockPage() {
     setEditingBatchId(null);
   };
 
-  const deleteBatch = () => {
-    if (!editingBatchId) return;
-    const batch = state.batches.find(b => b.id === editingBatchId);
+  const deleteBatch = (targetId?: string) => {
+    const idToDelete = targetId || editingBatchId;
+    if (!idToDelete) return;
+    const batch = state.batches.find(b => b.id === idToDelete);
     if (!batch) return;
 
     const batchCostQAR = batch.initialUSDT * batch.buyPriceQAR;
 
     // ── Double-refund guard ───────────────────────────────────────
     const alreadyRefunded = (state.cashLedger || []).some(
-      e => e.type === 'stock_refund' && e.linkedEntityId === editingBatchId
+      e => e.type === 'stock_refund' && e.linkedEntityId === idToDelete
     );
     if (alreadyRefunded) {
       // Batch already refunded — just remove from list
-      applyState({ ...state, batches: state.batches.filter(b => b.id !== editingBatchId) });
+      applyState({ ...state, batches: state.batches.filter(b => b.id !== idToDelete) });
       setEditingBatchId(null);
       return;
     }
@@ -644,7 +646,7 @@ export default function StockPage() {
         amount: batchCostQAR,
         currency: fundingAcc?.currency || baseFiat,
         linkedEntityType: 'batch',
-        linkedEntityId: editingBatchId,
+        linkedEntityId: idToDelete,
         note: `Batch refund: ${fmtU(batch.initialUSDT)} USDT @ ${fmtP(batch.buyPriceQAR)} from ${batch.source || 'unknown'}`,
       };
       nextCashLedger = [...nextCashLedger, refundEntry];
@@ -669,13 +671,85 @@ export default function StockPage() {
 
     applyState({
       ...state,
-      batches: state.batches.filter(b => b.id !== editingBatchId),
+      batches: state.batches.filter(b => b.id !== idToDelete),
       cashQAR: newCashQAR,
       cashHistory: [...(state.cashHistory || []), cashTx],
       cashLedger: nextCashLedger,
     });
     setEditingBatchId(null);
   };
+
+  // ── Render Modern 2.0 UX/UI View when enabled ──
+  if (settings.uiDesignVersion !== 'classic') {
+    return (
+      <ModernStockView
+        state={state}
+        derived={derived}
+        perf={perf}
+        availableUsdt={availableUsdt}
+        wacop={wacop}
+        monthAvgBuyPrice={monthAvgBuyPrice}
+        activeFifoBatch={activeFifoBatch}
+        exchangeUsdtTotals={exchangeUsdtTotals}
+        exchangeUsdtTotal={exchangeUsdtTotal}
+        reconciliationDelta={reconciliationDelta}
+        reconciliationMismatch={reconciliationMismatch}
+        selectedMonth={selectedMonth}
+        setSelectedMonth={setSelectedMonth}
+        availableMonths={availableMonths}
+        baseFiat={baseFiat as 'QAR' | 'EGP'}
+        activeBatchFiat={activeBatchFiat as 'QAR' | 'EGP'}
+        currency={settings.currency}
+        supplierOptions={supplierOptions}
+        activeAccounts={activeAccounts}
+        accountBalances={accountBalances}
+        fundingAccountId={fundingAccountId}
+        setFundingAccountId={setFundingAccountId}
+        batchDate={batchDate}
+        setBatchDate={setBatchDate}
+        batchEntryMode={batchEntryMode}
+        setBatchEntryMode={setBatchEntryMode}
+        batchMode={batchMode}
+        setBatchMode={setBatchMode}
+        batchPrice={batchPrice}
+        setBatchPrice={setBatchPrice}
+        batchAmount={batchAmount}
+        setBatchAmount={setBatchAmount}
+        batchUsdtQty={batchUsdtQty}
+        setBatchUsdtQty={setBatchUsdtQty}
+        batchSupplier={batchSupplier}
+        setBatchSupplier={setBatchSupplier}
+        batchNote={batchNote}
+        setBatchNote={setBatchNote}
+        batchMsg={batchMsg}
+        setBatchMsg={setBatchMsg}
+        addBatchSheetOpen={addBatchSheetOpen}
+        setAddBatchSheetOpen={setAddBatchSheetOpen}
+        supplierAddOpen={supplierAddOpen}
+        setSupplierAddOpen={setSupplierAddOpen}
+        newSupplierName={newSupplierName}
+        setNewSupplierName={setNewSupplierName}
+        newSupplierPhone={newSupplierPhone}
+        setNewSupplierPhone={setNewSupplierPhone}
+        addSupplier={addSupplier}
+        addBatch={addBatch}
+        applyExchangeOrderPrefill={applyExchangeOrderPrefill}
+        applyExchangeTransferPrefill={applyExchangeTransferPrefill}
+        setEditingBatchId={setEditingBatchId}
+        setEditDate={setEditDate}
+        setEditSource={setEditSource}
+        setEditSupplierCustom={setEditSupplierCustom}
+        setEditQty={setEditQty}
+        setEditPrice={setEditPrice}
+        setEditNote={setEditNote}
+        onDeleteBatch={(id) => deleteBatch(id)}
+        onSplitBatch={(id) => {
+          setEditingBatchId(id);
+        }}
+        t={t}
+      />
+    );
+  }
 
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>

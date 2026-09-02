@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useMemo, useState } from 'react';
-import { Menu, Bell, Users, TrendingUp, User } from 'lucide-react';
+import { Menu, Bell, Users, TrendingUp, User, Sparkles } from 'lucide-react';
 import ActivityCenter from '@/components/notifications/ActivityCenter';
 import { useTheme } from '@/lib/theme-context';
 import { useT } from '@/lib/i18n';
@@ -129,6 +129,35 @@ export function TopBar({ isMobile = false, onMenuClick }: TopBarProps) {
 
       {/* ── Spacer ── */}
       <div className="flex-1" />
+
+      {/* ── UI Design Switcher (Classic vs Modern 2.0) ── */}
+      <div className="flex items-center gap-0.5 bg-muted/80 rounded-lg p-0.5 border border-border/60 shadow-xs">
+        <button
+          onClick={() => update({ uiDesignVersion: 'classic' })}
+          title="Switch to Classic Terminal Layout"
+          className={cn(
+            'px-2 py-0.5 rounded text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer',
+            settings.uiDesignVersion === 'classic'
+              ? 'bg-background text-foreground shadow-xs font-bold'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <span>Classic</span>
+        </button>
+        <button
+          onClick={() => update({ uiDesignVersion: 'modern' })}
+          title="Switch to Modern 2.0 Pro Desk Layout"
+          className={cn(
+            'px-2 py-0.5 rounded text-[10px] font-semibold transition-all flex items-center gap-1 cursor-pointer',
+            settings.uiDesignVersion !== 'classic'
+              ? 'bg-primary text-primary-foreground shadow-xs font-bold'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Sparkles className="h-2.5 w-2.5" />
+          <span>Modern 2.0</span>
+        </button>
+      </div>
 
       {/* ── Sync indicator ── */}
       <div className="hidden md:flex items-center gap-1">

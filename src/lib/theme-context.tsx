@@ -13,13 +13,24 @@ export const FONT_SIZES = [9,10,11,12,13,14];
 export const VISION_PROFILES = ['standard','large','xlarge','compact'] as const;
 
 const DEFAULT_SETTINGS: AppSettings = {
-  layout: 'quantum_ledger', theme: 't1',
-  range: '7d', currency: 'QAR', baseFiatCurrency: 'QAR', language: 'ar', searchQuery: '',
-  lowStockThreshold: 5000, priceAlertThreshold: 2,
+  layout: 'quantum_ledger',
+  theme: 't1',
+  range: '7d',
+  currency: 'QAR',
+  baseFiatCurrency: 'QAR',
+  language: 'ar',
+  searchQuery: '',
+  lowStockThreshold: 5000,
+  priceAlertThreshold: 2,
   allowInvalidTrades: true,
-  ledgerFont: 'Inter', ledgerFontSize: 11,
-  fontVisionProfile: 'standard', autoFontDisable: false,
-  autoBackup: false, logsEnabled: true, logLevel: 'info',
+  ledgerFont: 'Inter',
+  ledgerFontSize: 11,
+  fontVisionProfile: 'standard',
+  autoFontDisable: false,
+  autoBackup: false,
+  logsEnabled: true,
+  logLevel: 'info',
+  uiDesignVersion: 'modern',
 };
 
 interface ThemeContextValue {
@@ -66,7 +77,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const pushLog = useCallback((level: LogEntry['level'], message: string, detail?: string) => {
     const settingsNow = settingsRef.current;
-    if (!settingsNow.logsEnabled) return;
     const entry: LogEntry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ts: Date.now(), level, message, detail };
     setLogs(prev => {
       const next = [entry, ...prev].slice(0, 500);
