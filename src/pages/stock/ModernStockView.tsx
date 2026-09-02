@@ -18,6 +18,7 @@ import {
   Users,
   Split,
   Info,
+  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -35,6 +36,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ExchangeInbox, type ExchangeTransferPayload } from '@/features/exchanges/components/ExchangeInbox';
+import { useExchangeP2POrders } from '@/features/exchanges/hooks/useExchangeP2POrders';
+import { useExchangeTransfers } from '@/features/exchanges/hooks/useExchangeTransfers';
 
 export interface ModernStockViewProps {
   state: TrackerState;
@@ -184,6 +187,17 @@ export function ModernStockView({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [addBatchSheetOpen, setAddBatchSheetOpen]);
+
+  // Unassigned exchange deposits (buy-side P2P orders / incoming Pay-transfers
+  // not yet linked to a batch) -- surfaced as a banner so nothing sits unlogged.
+  const { data: exchangeOrdersForBanner } = useExchangeP2POrders();
+  const { data: exchangeTransfersForBanner } = useExchangeTransfers();
+  const pendingExchangeDeposits = useMemo(() => {
+    const orders = (exchangeOrdersForBanner ?? []).filter((o) => o.side === 'buy' && !o.linked_at);
+    const transfers = (exchangeTransfersForBanner ?? []).filter((t) => t.direction === 'in' && !t.linked_at);
+    const volume = orders.reduce((s, o) => s + o.amount, 0) + transfers.reduce((s, t) => s + t.amount, 0);
+    return { count: orders.length + transfers.length, volume };
+  }, [exchangeOrdersForBanner, exchangeTransfersForBanner]);
 
   // Filtered rows for the full-width table
   const filteredBatches = useMemo(() => {
@@ -436,6 +450,44 @@ export function ModernStockView({
           </button>
         </div>
       </div>
+
+      {/* ── 3b. UNASSIGNED EXCHANGE DEPOSITS BANNER ── */}
+      {pendingExchangeDeposits.count > 0 && (
+        <div className="rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/8 to-card/60 border border-blue-500/30 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg shadow-blue-500/10">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/40 flex items-center justify-center text-blue-500 flex-shrink-0">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-foreground">
+                  {pendingExchangeDeposits.count} Unassigned Exchange Deposit{pendingExchangeDeposits.count === 1 ? '' : 's'} Detected
+                </h3>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-500/20 text-blue-500 rounded font-mono">
+                  {fmtU(pendingExchangeDeposits.volume)} USDT TOTAL
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Exchange P2P buys / Pay deposits awaiting batch cost basis assignment.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-end lg:self-center">
+            <button
+              onClick={() => setAddBatchSheetOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Quick-Log All {pendingExchangeDeposits.count} Batch{pendingExchangeDeposits.count === 1 ? '' : 'es'}</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setAddBatchSheetOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-medium border border-border transition cursor-pointer"
+            >
+              Review Details
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── 4. FILTER & SEARCH STRIP ── */}
       <div className="rounded-xl border border-border/80 bg-card/60 p-2 flex flex-col gap-2">
@@ -710,34 +762,54 @@ export function ModernStockView({
             className="w-full sm:max-w-md bg-background border-l border-border shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            
-            <div className="p-3.5 border-b border-border flex items-center justify-between bg-muted/30">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
+
+            <div className="p-3.5 border-b border-border flex items-center justify-between bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-transparent">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-600/30 flex items-center justify-center">
                   <Plus className="h-4 w-4" />
                 </div>
                 <div>
-                  <h2 className="text-xs font-bold text-foreground">Record New Stock Batch</h2>
-                  <p className="text-[10px] text-muted-foreground">FIFO Queue Injection</p>
+                  <h2 className="text-sm font-bold text-foreground">Record New Stock Batch</h2>
+                  <p className="text-[11px] text-muted-foreground">Add to FIFO queue with real-time cost basis</p>
                 </div>
               </div>
               <button
                 onClick={() => setAddBatchSheetOpen(false)}
-                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
-              
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
               {batchMsg && (
                 <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
                   {batchMsg}
                 </div>
               )}
 
-              <div className="border border-border rounded-lg overflow-hidden bg-card/60">
+              {/* Reference Rate Banner -- current weighted-avg cost basis as a one-tap starting rate */}
+              {wacop > 0 && (
+                <div className="p-3 rounded-xl bg-muted/60 border border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-xs text-foreground font-medium">Reference Rate (Avg Cost):</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono">
+                    <span className="text-sm font-bold text-foreground">{fmtP(wacop)} {baseFiat}</span>
+                    <button
+                      type="button"
+                      onClick={() => setBatchPrice(String(wacop))}
+                      className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-500 border border-blue-500/30 text-[10px] font-semibold hover:bg-blue-500/25 transition cursor-pointer"
+                    >
+                      Use Rate
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="border border-border rounded-xl overflow-hidden bg-card/60">
                 <ExchangeInbox
                   onPickOrder={applyExchangeOrderPrefill}
                   onPickTransfer={applyExchangeTransferPrefill}
@@ -745,25 +817,25 @@ export function ModernStockView({
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">Entry Mode</label>
-                <div className="grid grid-cols-3 gap-1 bg-muted p-0.5 rounded-lg text-center text-xs">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Entry Mode</label>
+                <div className="grid grid-cols-3 gap-1.5 bg-muted p-1 rounded-xl border border-border text-center text-xs">
                   <button
                     type="button"
                     onClick={() => setBatchEntryMode('price_vol')}
                     className={cn(
-                      'py-1 rounded font-semibold transition-all cursor-pointer text-[11px]',
-                      batchEntryMode === 'price_vol' ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                      'py-1.5 rounded-lg font-semibold transition-all cursor-pointer text-[11px]',
+                      batchEntryMode === 'price_vol' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    Rate + Vol
+                    ⚡ Rate + Vol
                   </button>
                   <button
                     type="button"
                     onClick={() => setBatchEntryMode('qty_total')}
                     className={cn(
-                      'py-1 rounded font-semibold transition-all cursor-pointer text-[11px]',
-                      batchEntryMode === 'qty_total' ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                      'py-1.5 rounded-lg font-semibold transition-all cursor-pointer text-[11px]',
+                      batchEntryMode === 'qty_total' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     USDT + Total
@@ -772,8 +844,8 @@ export function ModernStockView({
                     type="button"
                     onClick={() => setBatchEntryMode('qty_price')}
                     className={cn(
-                      'py-1 rounded font-semibold transition-all cursor-pointer text-[11px]',
-                      batchEntryMode === 'qty_price' ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'
+                      'py-1.5 rounded-lg font-semibold transition-all cursor-pointer text-[11px]',
+                      batchEntryMode === 'qty_price' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     USDT + Rate
@@ -781,31 +853,31 @@ export function ModernStockView({
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">Date & Time</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Transaction Date & Time</label>
                 <input
                   type="datetime-local"
                   value={batchDate}
                   onChange={(e) => setBatchDate(e.target.value)}
-                  className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Buy Rate ({baseFiat})</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Buy Rate ({baseFiat})</label>
                   <input
                     type="number"
                     step="0.001"
                     placeholder="3.639"
                     value={batchPrice}
                     onChange={(e) => setBatchPrice(e.target.value)}
-                    className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs font-mono font-bold text-foreground focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">
                     {batchEntryMode === 'price_vol' ? `Volume (${batchMode})` : 'USDT Volume'}
                   </label>
                   <input
@@ -817,33 +889,33 @@ export function ModernStockView({
                       if (batchEntryMode === 'price_vol') setBatchAmount(e.target.value);
                       else setBatchUsdtQty(e.target.value);
                     }}
-                    className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs font-mono font-bold text-foreground focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   />
                 </div>
               </div>
 
-              <div className="p-2.5 rounded-lg bg-muted/60 border border-border flex items-center justify-between text-xs">
+              <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500/10 to-emerald-500/10 border border-border flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-[10px] text-muted-foreground">Est. Volume:</span>
+                  <span className="text-[10px] text-blue-500 font-semibold">Est. Volume:</span>
                   <div className="font-mono font-bold text-foreground">
                     {fmtU(calculatedUsdtVolume)} USDT
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-muted-foreground">Total Cost ({baseFiat}):</span>
-                  <div className="font-mono font-bold text-emerald-500">
+                  <span className="text-[10px] text-emerald-500 font-semibold">Total Cost ({baseFiat}):</span>
+                  <div className="font-mono font-bold text-base text-emerald-500">
                     {fmtTotal(calculatedTotalCost)} {baseFiat}
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold text-muted-foreground">Supplier / Channel</label>
+                  <label className="text-xs font-semibold text-foreground">Supplier / Source</label>
                   <button
                     type="button"
                     onClick={() => setSupplierAddOpen(true)}
-                    className="text-[10px] text-primary hover:underline cursor-pointer"
+                    className="text-[11px] text-blue-500 hover:underline cursor-pointer"
                   >
                     + New Supplier
                   </button>
@@ -854,7 +926,7 @@ export function ModernStockView({
                   value={batchSupplier}
                   onChange={(e) => setBatchSupplier(e.target.value)}
                   placeholder="Select or type supplier..."
-                  className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                 />
                 <datalist id="supplier-options-list">
                   {supplierOptions.map((s) => (
@@ -864,9 +936,9 @@ export function ModernStockView({
               </div>
 
               {activeAccounts.length > 0 && (
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold text-muted-foreground">Funding Account</label>
+                    <label className="text-xs font-semibold text-foreground">Funding Bank Account</label>
                     {fundingAccountId && fundingAccountId !== 'none' && (
                       <span className="text-[10px] text-emerald-500 font-mono">
                         Avl: {fmtTotal(accountBalances.get(fundingAccountId) || 0)}
@@ -876,7 +948,7 @@ export function ModernStockView({
                   <select
                     value={fundingAccountId}
                     onChange={(e) => setFundingAccountId(e.target.value)}
-                    className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   >
                     <option value="none">No auto cash deduction</option>
                     {activeAccounts.map((acc) => (
@@ -888,33 +960,33 @@ export function ModernStockView({
                 </div>
               )}
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground">Note / Reference</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Order Note / Reference ID</label>
                 <input
                   type="text"
                   value={batchNote}
                   onChange={(e) => setBatchNote(e.target.value)}
-                  placeholder="Optional note..."
-                  className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Optional notes, counterparty WhatsApp, etc."
+                  className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                 />
               </div>
 
             </div>
 
-            <div className="p-3 border-t border-border bg-muted/40 flex items-center gap-2">
+            <div className="p-4 border-t border-border bg-muted/40 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setAddBatchSheetOpen(false)}
-                className="flex-1 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground font-semibold text-xs transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={addBatch}
-                className="flex-1 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-xs cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition cursor-pointer"
               >
-                Confirm & Queue
+                Confirm & Queue FIFO
               </button>
             </div>
 
