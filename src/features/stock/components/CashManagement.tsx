@@ -1012,6 +1012,275 @@ function RepayLoanModal({ loan, remaining, accounts, existing, onSave, onClose, 
   );
 }
 
+// ── CashCounterModal ─────────────────────────────────────────────
+// Physical banknote tally → total → what to do with it (add to a cash
+// account, or apply as a repayment against one of the merchant's open
+// customer loans). Denominations are per-currency since QAR and EGP notes
+// don't match.
+const NOTE_DENOMINATIONS: Record<CashCurrency, number[]> = {
+  QAR: [500, 100, 50, 10, 5, 1],
+  EGP: [200, 100, 50, 20, 10, 5, 1],
+  USD: [100, 50, 20, 10, 5, 1],
+  USDT: [],
+};
+
+interface CashCounterModalProps {
+  accounts: CashAccount[];
+  balances: Map<string, number>;
+  loans: CustomerLoan[];
+  customers: Customer[];
+  getLoanRemaining: (loan: CustomerLoan) => number;
+  onAddToCash: (entry: CashLedgerEntry) => void;
+  onRepayLoan: (loan: CustomerLoan, accountId: string, amount: number, ts: number, note?: string) => void | Promise<void>;
+  onClose: () => void;
+  isMobile?: boolean;
+}
+function CashCounterModal({
+  accounts, balances, loans, customers, getLoanRemaining, onAddToCash, onRepayLoan, onClose, isMobile = false,
+}: CashCounterModalProps) {
+  const t = useT();
+  const countableAccounts = useMemo(
+    () => accounts.filter(a => a.status === 'active' && NOTE_DENOMINATIONS[a.currency].length > 0),
+    [accounts]
+  );
+  const [accountId, setAccountId] = useState(countableAccounts[0]?.id || '');
+  const account = countableAccounts.find(a => a.id === accountId) || countableAccounts[0];
+  const denominations = account ? NOTE_DENOMINATIONS[account.currency] : [];
+
+  const [counts, setCounts] = useState<Record<number, string>>({});
+  const [step, setStep] = useState<'count' | 'action' | 'add' | 'repay'>('count');
+  const [repayLoanId, setRepayLoanId] = useState('');
+  const [repayAmount, setRepayAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const total = useMemo(
+    () => denominations.reduce((sum, d) => sum + d * num(counts[d], 0), 0),
+    [denominations, counts]
+  );
+  const noteCountSummary = useMemo(
+    () => denominations
+      .filter(d => num(counts[d], 0) > 0)
+      .map(d => `${num(counts[d], 0)}×${d}`)
+      .join(' + '),
+    [denominations, counts]
+  );
+
+  const relevantLoans = useMemo(
+    () => account ? loans.filter(l => l.currency === account.currency && getLoanRemaining(l) > 0) : [],
+    [loans, account, getLoanRemaining]
+  );
+  const repayLoan = relevantLoans.find(l => l.id === repayLoanId);
+  const customerName = (id: string) => customers.find(c => c.id === id)?.name || id;
+
+  const setCount = (denom: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    setCounts(prev => ({ ...prev, [denom]: value }));
+  };
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 10px', fontSize: 12, borderRadius: 6,
+    border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none',
+  };
+  const optionStyle: React.CSSProperties = { background: 'var(--panel)', color: 'var(--text)' };
+
+  const resetForClose = () => {
+    setCounts({}); setStep('count'); setRepayLoanId(''); setRepayAmount(''); setNote(''); setErr('');
+  };
+
+  const handleAddToCash = () => {
+    if (!account) return;
+    const entry: CashLedgerEntry = {
+      id: uid(), ts: Date.now(), type: 'deposit', accountId: account.id,
+      direction: 'in', amount: total, currency: account.currency,
+      note: note.trim() || `${t('noteCountLbl') || 'Note count'}: ${noteCountSummary}`,
+    };
+    onAddToCash(entry);
+    resetForClose();
+    onClose();
+  };
+
+  const handleRepay = async () => {
+    if (saving) return;
+    setErr('');
+    if (!repayLoan) { setErr(t('loanRepaymentAccount')); return; }
+    const amtNum = num(repayAmount, 0);
+    if (!(amtNum > 0)) { setErr(t('enterValidAmount')); return; }
+    setSaving(true);
+    try {
+      await onRepayLoan(repayLoan, account!.id, amtNum, Date.now(), note.trim() || `${t('noteCountLbl') || 'Note count'}: ${noteCountSummary}`);
+      resetForClose();
+      onClose();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!account) {
+    return (
+      <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }} onClick={onClose}>
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+        <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: 12, padding: 24, width: '100%', maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>🧮 {t('countCashBtn') || 'Count Cash'}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16 }}>{t('noCashAccountsTitle')}</div>
+          <div className="formActions"><button className="btn secondary" onClick={onClose}>{t('cancel')}</button></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tracker-root" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 'max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left))' : 0 }} onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }} />
+      <div style={{ position: 'relative', zIndex: 1, background: 'var(--panel2)', border: '1px solid var(--line)', borderRadius: isMobile ? 14 : 12, padding: isMobile ? '14px 12px calc(12px + env(safe-area-inset-bottom))' : '22px 24px', width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,.5)', maxHeight: isMobile ? '92vh' : '88vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>🧮 {t('countCashBtn') || 'Count Cash'}</div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+
+        {step === 'count' && (
+          <>
+            <div className="field2" style={{ marginBottom: 12 }}>
+              <div className="lbl">{t('cashAccountsTab')}</div>
+              <select value={accountId || account.id} onChange={e => { setAccountId(e.target.value); setCounts({}); }} style={selectStyle}>
+                {countableAccounts.map(a => (
+                  <option key={a.id} value={a.id} style={optionStyle}>{a.name} ({a.currency})</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+              {denominations.map(d => (
+                <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 64, fontSize: 12, fontWeight: 800, color: 'var(--text)' }} className="mono">{d}</div>
+                  <button
+                    className="rowBtn" style={{ width: 30, height: 30, padding: 0, fontSize: 14, fontWeight: 800 }}
+                    onClick={() => setCount(d, String(Math.max(0, num(counts[d], 0) - 1)))}
+                  >−</button>
+                  <input
+                    inputMode="numeric" value={counts[d] ?? ''} onChange={e => setCount(d, e.target.value)}
+                    placeholder="0" style={{ width: 60, textAlign: 'center', padding: '6px 4px', fontSize: 13, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)' }}
+                  />
+                  <button
+                    className="rowBtn" style={{ width: 30, height: 30, padding: 0, fontSize: 14, fontWeight: 800 }}
+                    onClick={() => setCount(d, String(num(counts[d], 0) + 1))}
+                  >+</button>
+                  <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }} className="mono">
+                    {num(counts[d], 0) > 0 ? fmtAmt(d * num(counts[d], 0), account.currency) : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('cashCounterTotalLbl') || 'Total counted'}</span>
+              <span className="mono" style={{ fontWeight: 900, fontSize: 16, color: 'var(--brand)' }}>{fmtTotal(total)} {account.currency}</span>
+            </div>
+
+            <div className="formActions">
+              <button className="btn secondary" onClick={onClose}>{t('cancel')}</button>
+              <button className="btn" disabled={!(total > 0)} onClick={() => setStep('action')}>
+                {t('continueBtn') || 'Continue'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'action' && (
+          <>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{t('cashCounterCountedLbl') || 'You counted'}</div>
+            <div className="mono" style={{ fontSize: 20, fontWeight: 900, marginBottom: 4 }}>{fmtTotal(total)} {account.currency}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 16 }}>{noteCountSummary}</div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{t('cashCounterActionPrompt') || 'What do you want to do with this cash?'}</div>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+              <button
+                className="rowBtn" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700 }}
+                onClick={() => { setStep('add'); }}
+              >
+                <span className="cash-emoji">➕</span> {t('cashCounterAddToCash') || 'Add to cash balance'}
+              </button>
+              <button
+                className="rowBtn" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-start', fontSize: 12, fontWeight: 700 }}
+                disabled={relevantLoans.length === 0}
+                onClick={() => {
+                  setStep('repay');
+                  const first = relevantLoans[0];
+                  if (first) { setRepayLoanId(first.id); setRepayAmount(String(Math.min(total, getLoanRemaining(first)))); }
+                }}
+              >
+                <span className="cash-emoji">💳</span> {t('cashCounterRepayLoan') || 'This is a loan repayment'}
+                {relevantLoans.length === 0 && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)' }}>{t('kpiNoLoans')}</span>}
+              </button>
+            </div>
+
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setStep('count')}>{t('back') || 'Back'}</button>
+            </div>
+          </>
+        )}
+
+        {step === 'add' && (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+              {t('cashCounterAddToCash') || 'Add to cash balance'} — <strong className="mono" style={{ color: 'var(--text)' }}>{fmtTotal(total)} {account.currency}</strong> → {account.name}
+            </div>
+            <div className="field2" style={{ marginBottom: 14 }}>
+              <div className="lbl">{t('noteOptional')}</div>
+              <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={noteCountSummary} /></div>
+            </div>
+            {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setStep('action')}>{t('back') || 'Back'}</button>
+              <button className="btn" style={{ background: 'var(--good)', color: '#000' }} onClick={handleAddToCash}>
+                {t('cashCounterConfirmAdd') || 'Add to Cash'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'repay' && (
+          <>
+            <div className="field2" style={{ marginBottom: 10 }}>
+              <div className="lbl">{t('loanReceivables')}</div>
+              <select value={repayLoanId} onChange={e => {
+                setRepayLoanId(e.target.value);
+                const l = relevantLoans.find(x => x.id === e.target.value);
+                if (l) setRepayAmount(String(Math.min(total, getLoanRemaining(l))));
+              }} style={selectStyle}>
+                {relevantLoans.map(l => (
+                  <option key={l.id} value={l.id} style={optionStyle}>
+                    {customerName(l.customerId)} — {fmtTotal(getLoanRemaining(l))} {l.currency} {t('loanRemaining')}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field2" style={{ marginBottom: 10 }}>
+              <div className="lbl">{t('loanRepaymentAmount')}</div>
+              <div className="inputBox"><input inputMode="decimal" value={repayAmount} onChange={e => setRepayAmount(e.target.value)} placeholder="0.00" /></div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{t('cashCounterCountedLbl') || 'You counted'}: {fmtTotal(total)} {account.currency}</div>
+            </div>
+            <div className="field2" style={{ marginBottom: 14 }}>
+              <div className="lbl">{t('noteOptional')}</div>
+              <div className="inputBox"><input value={note} onChange={e => setNote(e.target.value)} placeholder={noteCountSummary} /></div>
+            </div>
+            {err && <div style={{ color: 'var(--bad)', fontSize: 11, marginBottom: 10 }}>⚠ {err}</div>}
+            <div className="formActions">
+              <button className="btn secondary" onClick={() => setStep('action')} disabled={saving}>{t('back') || 'Back'}</button>
+              <button className="btn" onClick={handleRepay} disabled={saving}>
+                {saving ? `${t('saving') || 'Saving…'}` : (t('loanAddRepayment'))}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface SplitRepaymentModalProps {
   statement: BuyerStatement;
   accounts: CashAccount[];
@@ -1475,29 +1744,7 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     merchant_custody: t('accTypeMerchant') || 'Merchant Custody',
   }), [t]);
 
-  const LEDGER_TYPE_LABELS: Record<LedgerEntryType, string> = useMemo(() => ({
-    opening: t('ledgerOpening'),
-    deposit: t('ledgerDeposit'),
-    sale_deposit: 'Sale deposit',
-    withdrawal: t('ledgerWithdrawal'),
-    transfer_in: t('ledgerTransferIn'),
-    transfer_out: t('ledgerTransferOut'),
-    stock_purchase: t('ledgerStockPurchase'),
-    stock_refund: t('ledgerStockRefund'),
-    stock_edit_adjust: t('ledgerEditAdjust'),
-    reconcile: t('ledgerReconcile'),
-    merchant_funding_out: t('ledgerMerchantFundingOut') || 'Funding Merchant',
-    merchant_funding_return: t('ledgerMerchantFundingReturn') || 'Funding Return',
-    merchant_sale_proceeds: t('ledgerMerchantSaleProceeds') || 'Sale Proceeds',
-    merchant_settlement_in: t('ledgerMerchantSettlementIn') || 'Settlement In',
-    merchant_settlement_out: t('ledgerMerchantSettlementOut') || 'Settlement Out',
-    merchant_fee: t('ledgerMerchantFee') || 'Merchant Fee',
-    merchant_adjustment: t('ledgerMerchantAdjustment') || 'Merchant Adjustment',
-    loan_disbursement: t('ledgerLoanDisbursement'),
-    loan_repayment: t('ledgerLoanRepayment'),
-  }), [t]);
-
-  const [innerTab, setInnerTab] = useState<'accounts' | 'ledger' | 'insights' | 'loans' | 'statements'>('accounts');
+  const [innerTab, setInnerTab] = useState<'accounts' | 'loans' | 'statements'>('accounts');
   useEffect(() => {
     if (innerTab === 'statements' && !statementLinksLoaded) loadStatementLinks();
   }, [innerTab, statementLinksLoaded, loadStatementLinks]);
@@ -1534,8 +1781,8 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferFromId, setTransferFromId] = useState<string | undefined>();
   const [showDeposit, setShowDeposit] = useState<{ account: CashAccount; mode: 'deposit' | 'withdrawal' | 'funding' | 'proceeds' | 'settlement' } | null>(null);
-  const [ledgerFilter, setLedgerFilter] = useState<{ accountId: string; type: string }>({ accountId: '', type: '' });
   const [clearLedgerPromptId, setClearLedgerPromptId] = useState<string | null>(null);
+  const [showCashCounter, setShowCashCounter] = useState(false);
   const [deleteAccountPromptId, setDeleteAccountPromptId] = useState<string | null>(null);
   const [showMerchantCustody, setShowMerchantCustody] = useState(false);
 
@@ -1979,37 +2226,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
     setTimeout(() => { clearedAccountIds?.current.delete(id); }, 5000);
   };
 
-  // ── Ledger filtered rows with running balance ─────────────────
-  const filteredLedger = useMemo(() => {
-    let rows = [...ledger].sort((a, b) => b.ts - a.ts);
-    if (ledgerFilter.accountId) rows = rows.filter(e => e.accountId === ledgerFilter.accountId);
-    if (ledgerFilter.type) rows = rows.filter(e => e.type === ledgerFilter.type);
-    return rows;
-  }, [ledger, ledgerFilter]);
-
-  // Compute running balance per account for ledger rows (sorted asc for running calc)
-  const runningBalances = useMemo(() => {
-    const map = new Map<string, number>(); // ledgerEntryId → runningBalance
-    // per-account running balance computed ascending
-    for (const acc of accounts) {
-      const accEntries = [...ledger].filter(e => e.accountId === acc.id).sort((a, b) => a.ts - b.ts);
-      let running = 0;
-      for (const e of accEntries) {
-        running += e.direction === 'in' ? e.amount : -e.amount;
-        map.set(e.id, running);
-      }
-    }
-    return map;
-  }, [accounts, ledger]);
-
-  // ── Insights ──────────────────────────────────────────────────
-  const lowBalanceAccounts = useMemo(() => {
-    return activeAccounts.filter(a => {
-      const bal = balances.get(a.id) || 0;
-      return bal < 1000 && a.currency === 'QAR';
-    });
-  }, [activeAccounts, balances]);
-
   const batchFundingSources = useMemo(() => {
     const counts = new Map<string, number>();
     for (const b of state.batches || []) {
@@ -2147,12 +2363,19 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
       </div>
 
       {/* ── Inner Tabs ── */}
-      <div className="cash-inner-tabs">
-        {tabBtn('accounts', t('cashAccountsTab'))}
-        {tabBtn('ledger', t('cashLedgerTab'))}
-        {tabBtn('loans', t('cashLoansTab'))}
-        {tabBtn('insights', t('cashInsightsTab'))}
-        {tabBtn('statements', t('cashStatementsTab'))}
+      <div className="cash-inner-tabs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {tabBtn('accounts', t('cashAccountsTab'))}
+          {tabBtn('loans', t('cashLoansTab'))}
+          {tabBtn('statements', t('cashStatementsTab'))}
+        </div>
+        <button
+          className="btn"
+          style={{ padding: '6px 14px', fontSize: 11, display: 'flex', gap: 6, alignItems: 'center', minHeight: isMobile ? 38 : undefined }}
+          onClick={() => setShowCashCounter(true)}
+        >
+          <span className="cash-emoji">🧮</span> {t('countCashBtn') || 'Count Cash'}
+        </button>
       </div>
 
       {/* ── ACCOUNTS TAB ── */}
@@ -2348,114 +2571,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ── LEDGER TAB ── */}
-      {innerTab === 'ledger' && (
-        <div>
-          {/* Filters */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-            <select value={ledgerFilter.accountId} onChange={e => setLedgerFilter(f => ({ ...f, accountId: e.target.value }))}
-              style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="" style={{ background: 'var(--panel)', color: 'var(--text)' }}>{t('allAccountsOpt')}</option>
-              {accounts.map(a => <option key={a.id} value={a.id} style={{ background: 'var(--panel)', color: 'var(--text)' }}>{a.name}</option>)}
-            </select>
-            <select value={ledgerFilter.type} onChange={e => setLedgerFilter(f => ({ ...f, type: e.target.value }))}
-              style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--text)', cursor: 'pointer', outline: 'none' }}>
-              <option value="" style={{ background: 'var(--panel)', color: 'var(--text)' }}>{t('allTypesOpt')}</option>
-              {(Object.keys(LEDGER_TYPE_LABELS) as LedgerEntryType[]).map(lType => (
-                <option key={lType} value={lType} style={{ background: 'var(--panel)', color: 'var(--text)' }}>{LEDGER_TYPE_LABELS[lType]}</option>
-              ))}
-            </select>
-            {(ledgerFilter.accountId || ledgerFilter.type) && (
-              <button className="rowBtn" onClick={() => setLedgerFilter({ accountId: '', type: '' })}>✕ {t('clearAll')}</button>
-            )}
-            <span className="muted" style={{ fontSize: 10, alignSelf: 'center' }}>{filteredLedger.length} {t('entriesCount')}</span>
-          </div>
-
-          {filteredLedger.length === 0 ? (
-            <div className="empty" style={{ padding: '24px 0' }}>
-              <div className="empty-t">{t('noLedgerEntries')}</div>
-              <div className="empty-s">{t('cashMovementsAppear')}</div>
-            </div>
-          ) : isMobile ? (
-            <div style={{ display: 'grid', gap: 8 }}>
-              {filteredLedger.map(entry => {
-                const acc = accounts.find(a => a.id === entry.accountId);
-                const contraAcc = entry.contraAccountId ? accounts.find(a => a.id === entry.contraAccountId) : null;
-                const runBal = runningBalances.get(entry.id);
-                const isIn = entry.direction === 'in';
-                const isStockType = entry.type === 'stock_purchase' || entry.type === 'stock_refund' || entry.type === 'stock_edit_adjust';
-                return (
-                  <div key={entry.id} className="panel" style={{ padding: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700 }}>{acc?.name || '—'}</div>
-                      <span className={`pill ${isStockType ? 'warn' : isIn ? 'good' : 'bad'}`} style={{ fontSize: 10 }}>{LEDGER_TYPE_LABELS[entry.type]}</span>
-                    </div>
-                    <div className="mono" style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 5 }}>{fmtTs(entry.ts)}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
-                      <div><span className="muted">{t('ledgerColAmount')}:</span> <strong className="mono" style={{ color: isIn ? 'var(--good)' : 'var(--bad)' }}>{isIn ? '+' : '−'}{fmtAmt(entry.amount, entry.currency)}</strong></div>
-                      <div><span className="muted">{t('ledgerColBalance')}:</span> <strong className="mono">{runBal !== undefined ? fmtTotal(runBal) : '—'}</strong></div>
-                      {contraAcc && <div style={{ gridColumn: 'span 2' }}><span className="muted">{t('transferLbl')}:</span> <strong>↔ {contraAcc.name}</strong></div>}
-                      {entry.note && <div style={{ gridColumn: 'span 2', color: 'var(--muted)' }}>{entry.note}</div>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t('ledgerColTime')}</th>
-                    <th>{t('ledgerColAccount')}</th>
-                    <th>{t('ledgerColType')}</th>
-                    <th className="r">{t('ledgerColAmount')}</th>
-                    <th className="r">{t('ledgerColBalance')}</th>
-                    <th>{t('ledgerColLinked')}</th>
-                    <th>{t('note')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLedger.map(entry => {
-                    const acc = accounts.find(a => a.id === entry.accountId);
-                    const contraAcc = entry.contraAccountId ? accounts.find(a => a.id === entry.contraAccountId) : null;
-                    const runBal = runningBalances.get(entry.id);
-                    const isIn = entry.direction === 'in';
-                    const isStockType = entry.type === 'stock_purchase' || entry.type === 'stock_refund' || entry.type === 'stock_edit_adjust';
-                    return (
-                      <tr key={entry.id}>
-                        <td className="mono" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{fmtTs(entry.ts)}</td>
-                        <td style={{ fontSize: 11 }}>{acc?.name || '—'}</td>
-                        <td>
-                          <span className={`pill ${isStockType ? 'warn' : isIn ? 'good' : 'bad'}`} style={{ fontSize: 9 }}>
-                            {LEDGER_TYPE_LABELS[entry.type]}
-                          </span>
-                          {contraAcc && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>↔ {contraAcc.name}</span>}
-                        </td>
-                        <td className="mono r" style={{ color: isIn ? 'var(--good)' : 'var(--bad)', fontWeight: 700 }}>
-                          {isIn ? '+' : '−'}{fmtAmt(entry.amount, entry.currency)}
-                        </td>
-                        <td className="mono r" style={{ color: 'var(--muted)', fontSize: 11 }}>
-                          {runBal !== undefined ? fmtTotal(runBal) : '—'}
-                        </td>
-                        <td style={{ fontSize: 10 }}>
-                          {entry.linkedEntityType === 'batch' && (
-                            <span className="pill" style={{ fontSize: 9 }}>📦 Batch</span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {entry.note || '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
 
@@ -3020,77 +3135,6 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
         </div>
       )}
 
-      {/* ── INSIGHTS TAB ── */}
-      {innerTab === 'insights' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Account breakdown */}
-          <div className="panel">
-            <div className="panel-head"><h2>{t('portfolioBreakdown')}</h2></div>
-            <div className="panel-body">
-              {activeAccounts.length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 12 }}>{t('noActiveAccountsMsg')}</div>
-              ) : (
-                activeAccounts.filter(a => a.currency === 'QAR').map(acc => {
-                  const bal = balances.get(acc.id) || 0;
-                  const pct = totalQAR > 0 ? (bal / totalQAR) * 100 : 0;
-                  return (
-                    <div key={acc.id} style={{ marginBottom: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                        <span style={{ fontWeight: 700 }}>{acc.name}</span>
-                        <span className="mono">{fmtTotal(bal)} QAR ({pct.toFixed(0)}%)</span>
-                      </div>
-                      <div className="prog" style={{ height: 6 }}>
-                        <span style={{ width: `${Math.min(100, pct).toFixed(1)}%`, background: pct > 70 ? 'var(--warn)' : 'var(--brand)' }} />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Batch funding sources */}
-          {batchFundingSources.size > 0 && (
-            <div className="panel">
-              <div className="panel-head"><h2>{t('stockFundingSources')}</h2></div>
-              <div className="panel-body">
-                {Array.from(batchFundingSources.entries()).map(([accId, count]) => {
-                  const acc = accounts.find(a => a.id === accId);
-                  const batchTotal = (state.batches || [])
-                    .filter(b => b.fundingAccountId === accId)
-                    .reduce((sum, b) => sum + b.initialUSDT * b.buyPriceQAR, 0);
-                  return (
-                    <div key={accId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                      <span style={{ fontSize: 11, fontWeight: 700 }}>{acc?.name || accId}</span>
-                      <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
-                        {count} {t('batchesLabel')} · {fmtTotal(batchTotal)} {t('qarSpent')}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Health indicators */}
-          <div className="panel">
-            <div className="panel-head"><h2>{t('balanceHealth')}</h2></div>
-            <div className="panel-body">
-              {accounts.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12 }}>{t('noAccountsConfigured')}</div>}
-              {lowBalanceAccounts.map(a => (
-                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11 }}>
-                  <span style={{ color: 'var(--warn)' }}>⚠ {a.name}</span>
-                  <span className="mono">{fmtTotal(balances.get(a.id) || 0)} QAR — {t('lowBalancePill')}</span>
-                </div>
-              ))}
-              {lowBalanceAccounts.length === 0 && (
-                <div style={{ color: 'var(--good)', fontSize: 12 }}>{t('allAccountsHealthy')}</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── PUBLIC STATEMENTS TAB ── */}
       {innerTab === 'statements' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -3380,6 +3424,20 @@ export function CashManagement({ state, applyState, applyStateAndCommit, cleared
             const target = findRepayment(entry);
             if (target) { setStatementKey(null); setDeletingRepayment(target); }
           }}
+        />
+      )}
+
+      {showCashCounter && (
+        <CashCounterModal
+          accounts={activeAccounts}
+          balances={balances}
+          loans={loans}
+          customers={state.customers || []}
+          getLoanRemaining={getLoanRemaining}
+          isMobile={isMobile}
+          onAddToCash={addLedgerEntry}
+          onRepayLoan={(loan, accountId, amount, ts, note) => addLoanRepayment(loan, accountId, amount, ts, note)}
+          onClose={() => setShowCashCounter(false)}
         />
       )}
 
