@@ -281,8 +281,6 @@ export default function StockPage() {
     })
     .sort((a, b) => b.ts - a.ts), [derived, query, state.batches, selectedMonth]);
 
-  const suppliersForPanel = supplierOptions;
-
   const addSupplier = () => {
     if (!newSupplierName.trim()) return;
     const cleanedName = newSupplierName.trim();
@@ -1126,19 +1124,6 @@ export default function StockPage() {
             </div>
           )}
 
-          {suppliersForPanel.length > 0 && (
-            <div className="panel" style={{ marginTop: 9 }}>
-              <div className="panel-head">
-                <h2>📦 {t('suppliers')}</h2>
-                <span className="pill">{t('autoTracked')}</span>
-              </div>
-              <div className="panel-body" style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                {suppliersForPanel.map((s) => (
-                  <span key={s} className="pill" style={{ cursor: 'pointer' }} onClick={() => update({ searchQuery: s })}>{s}</span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {!isMobile && (<div>
