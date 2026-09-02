@@ -751,6 +751,20 @@ export default function StockPage() {
     );
   }
 
+  // Scoped colorful accents for the Add Batch panel/sheet only -- inline
+  // styles on individual elements, never touching the shared .field2 /
+  // .inputBox / .modeToggle / .btn class definitions used across the rest
+  // of the classic UI, so nothing outside this drawer changes look.
+  const addBatchAccent = {
+    header: { display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'linear-gradient(90deg, color-mix(in srgb, var(--brand) 14%, transparent), transparent)', borderBottom: '1px solid var(--line)' } as React.CSSProperties,
+    headerIcon: { width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #6366f1))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0, boxShadow: '0 2px 8px -2px color-mix(in srgb, var(--brand) 60%, transparent)' } as React.CSSProperties,
+    banner: { background: 'linear-gradient(90deg, color-mix(in srgb, var(--brand) 12%, transparent), color-mix(in srgb, var(--good) 8%, transparent))', border: '1px solid color-mix(in srgb, var(--brand) 30%, transparent)' } as React.CSSProperties,
+    exchangeBox: { border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)', borderRadius: 10, overflow: 'hidden', background: 'color-mix(in srgb, var(--brand) 4%, transparent)' } as React.CSSProperties,
+    modeActive: { background: 'linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #6366f1))', color: '#fff', boxShadow: '0 2px 6px -2px color-mix(in srgb, var(--brand) 60%, transparent)' } as React.CSSProperties,
+    previewBox: { background: 'linear-gradient(90deg, color-mix(in srgb, var(--brand) 10%, transparent), color-mix(in srgb, var(--good) 10%, transparent))' } as React.CSSProperties,
+    submitBtn: { background: 'linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #6366f1))', border: 'none', color: '#fff', boxShadow: '0 4px 14px -4px color-mix(in srgb, var(--brand) 60%, transparent)' } as React.CSSProperties,
+  };
+
   return (
     <div className={`tracker-root${isMobile ? ' stock-mobile-root' : ''}`} dir={t.isRTL ? 'rtl' : 'ltr'} style={{ padding: isMobile ? '0' : '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: isMobile ? 'calc(100dvh - env(safe-area-inset-top))' : '100%' }}>
 
@@ -1129,10 +1143,13 @@ export default function StockPage() {
 
         {!isMobile && (<div>
           <div className="formPanel salePanel">
-            <div className="hdr">{t('addBatchTitle')}</div>
+            <div className="hdr" style={addBatchAccent.header}>
+              <span style={addBatchAccent.headerIcon}>➕</span>
+              {t('addBatchTitle')}
+            </div>
             <div className="inner">
               {wacop && (
-                <div className="bannerRow">
+                <div className="bannerRow" style={addBatchAccent.banner}>
                   <span className="bLbl">{t('currentAvPrice')}</span>
                   <span className="bVal">{fmtP(wacop)}</span>
                   <span className="bSpacer" />
@@ -1142,7 +1159,7 @@ export default function StockPage() {
                   </button>
                 </div>
               )}
-              <div className="field2">
+              <div className="field2" style={addBatchAccent.exchangeBox}>
                 <ExchangeInbox
                   side="buy"
                   onPick={applyExchangeOrderPrefill}
@@ -1167,13 +1184,13 @@ export default function StockPage() {
               <div className="field2">
                 <div className="lbl">{t('entryModeLabel')}</div>
                 <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
-                  <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined }}>
-                    {t('entryModePriceVol')}
+                  <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined, ...(batchEntryMode === 'price_vol' ? addBatchAccent.modeActive : {}) }}>
+                    ⚡ {t('entryModePriceVol')}
                   </button>
-                  <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined }}>
+                  <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined, ...(batchEntryMode === 'qty_total' ? addBatchAccent.modeActive : {}) }}>
                     {batchEntryModeLabel}
                   </button>
-                  <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined }}>
+                  <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: isMobile ? 10 : 9, padding: isMobile ? '8px 6px' : '6px 4px', minHeight: isMobile ? 34 : undefined, ...(batchEntryMode === 'qty_price' ? addBatchAccent.modeActive : {}) }}>
                     {t('entryModeUsdtPrice')}
                   </button>
                 </div>
@@ -1184,8 +1201,8 @@ export default function StockPage() {
                   <div className="field2">
                     <div className="lbl">{t('currencyMode')}</div>
                     <div className="modeToggle">
-                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {localCur(baseFiat, t.lang)}</button>
-                      <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 {localCur('USDT', t.lang)}</button>
+                      <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)} style={batchMode !== 'USDT' ? addBatchAccent.modeActive : undefined}>📦 {localCur(baseFiat, t.lang)}</button>
+                      <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')} style={batchMode === 'USDT' ? addBatchAccent.modeActive : undefined}>💲 {localCur('USDT', t.lang)}</button>
                     </div>
                   </div>
                   <div className="g2tight" style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr', gap: 8 } : undefined}>
@@ -1214,7 +1231,7 @@ export default function StockPage() {
                     </div>
                   </div>
                   {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
-                    <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
+                    <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11, ...addBatchAccent.previewBox }}>
                       <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
                         {fmtP(Number(batchAmount) / Number(batchUsdtQty))} {localCur(baseFiat, t.lang)}/{localCur('USDT', t.lang)}
@@ -1237,7 +1254,7 @@ export default function StockPage() {
                     </div>
                   </div>
                   {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
-                    <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11 }}>
+                    <div className="previewBox" style={{ marginTop: 4, padding: '6px 10px', fontSize: 11, ...addBatchAccent.previewBox }}>
                       <span style={{ color: 'var(--t2)' }}>{totalCalcLabel} </span>
                       <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>
                         {fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} {activeBatchFiat}
@@ -1357,7 +1374,7 @@ export default function StockPage() {
                 </div>
               )}
 
-              <div className="formActions"><button className="btn" onClick={addBatch}>{t('addBatchTitle')}</button></div>
+              <div className="formActions"><button className="btn" style={addBatchAccent.submitBtn} onClick={addBatch}>🚀 {t('addBatchTitle')}</button></div>
               <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
             </div>
           </div>
@@ -1413,13 +1430,16 @@ export default function StockPage() {
               </div>
             ) : (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800 }}>{t('addBatchTitle')}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...addBatchAccent.header, margin: '-12px -14px 14px', borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={addBatchAccent.headerIcon}>➕</span>
+                    {t('addBatchTitle')}
+                  </div>
                   <button onClick={() => setAddBatchSheetOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>×</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
                   {wacop && (
-                    <div className="bannerRow">
+                    <div className="bannerRow" style={addBatchAccent.banner}>
                       <span className="bLbl">{t('currentAvPrice')}</span>
                       <span className="bVal">{fmtP(wacop)}</span>
                       <span className="bSpacer" />
@@ -1429,7 +1449,7 @@ export default function StockPage() {
                       </button>
                     </div>
                   )}
-                  <div className="field2">
+                  <div className="field2" style={addBatchAccent.exchangeBox}>
                     <ExchangeInbox
                       side="buy"
                       onPick={applyExchangeOrderPrefill}
@@ -1454,17 +1474,17 @@ export default function StockPage() {
                   <div className="field2">
                     <div className="lbl">{t('entryModeLabel')}</div>
                     <div className="modeToggle" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
-                      <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModePriceVol')}</button>
-                      <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{batchEntryModeLabel}</button>
-                      <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34 }}>{t('entryModeUsdtPrice')}</button>
+                      <button className={batchEntryMode === 'price_vol' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('price_vol'); setBatchUsdtQty(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34, ...(batchEntryMode === 'price_vol' ? addBatchAccent.modeActive : {}) }}>⚡ {t('entryModePriceVol')}</button>
+                      <button className={batchEntryMode === 'qty_total' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_total'); setBatchPrice(''); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34, ...(batchEntryMode === 'qty_total' ? addBatchAccent.modeActive : {}) }}>{batchEntryModeLabel}</button>
+                      <button className={batchEntryMode === 'qty_price' ? 'active' : ''} type="button" onClick={() => { setBatchEntryMode('qty_price'); setBatchAmount(''); }} style={{ fontSize: 10, padding: '8px 6px', minHeight: 34, ...(batchEntryMode === 'qty_price' ? addBatchAccent.modeActive : {}) }}>{t('entryModeUsdtPrice')}</button>
                     </div>
                   </div>
                   {batchEntryMode === 'price_vol' && (<>
                     <div className="field2">
                       <div className="lbl">{t('currencyMode')}</div>
                       <div className="modeToggle">
-                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)}>📦 {localCur(baseFiat, t.lang)}</button>
-                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')}>💲 {localCur('USDT', t.lang)}</button>
+                        <button className={batchMode !== 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode(baseFiat)} style={batchMode !== 'USDT' ? addBatchAccent.modeActive : undefined}>📦 {localCur(baseFiat, t.lang)}</button>
+                        <button className={batchMode === 'USDT' ? 'active' : ''} type="button" onClick={() => setBatchMode('USDT')} style={batchMode === 'USDT' ? addBatchAccent.modeActive : undefined}>💲 {localCur('USDT', t.lang)}</button>
                       </div>
                     </div>
                     <div className="field2">
@@ -1486,7 +1506,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="93,500" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} /></div>
                     </div>
                     {Number(batchUsdtQty) > 0 && Number(batchAmount) > 0 && (
-                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11, ...addBatchAccent.previewBox }}>
                         <span style={{ color: 'var(--t2)' }}>{t('avgPriceCalc')} </span>
                         <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtP(Number(batchAmount) / Number(batchUsdtQty))} {localCur(baseFiat, t.lang)}/{localCur('USDT', t.lang)}</span>
                       </div>
@@ -1502,7 +1522,7 @@ export default function StockPage() {
                       <div className="inputBox"><input inputMode="decimal" placeholder="3.74" value={batchPrice} onChange={(e) => setBatchPrice(e.target.value)} /></div>
                     </div>
                     {Number(batchUsdtQty) > 0 && Number(batchPrice) > 0 && (
-                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11 }}>
+                      <div className="previewBox" style={{ padding: '6px 10px', fontSize: 11, ...addBatchAccent.previewBox }}>
                         <span style={{ color: 'var(--t2)' }}>{totalCalcLabel} </span>
                         <span className="mono" style={{ fontWeight: 700, color: 'var(--brand)' }}>{fmtTotal(Number(batchUsdtQty) * Number(batchPrice))} {activeBatchFiat}</span>
                       </div>
@@ -1570,7 +1590,7 @@ export default function StockPage() {
                     </div>
                   )}
                   <div className="formActions">
-                    <button className="btn" style={{ minHeight: 44, width: '100%', fontSize: 13 }} onClick={addBatch}>{t('addBatchTitle')}</button>
+                    <button className="btn" style={{ minHeight: 44, width: '100%', fontSize: 13, ...addBatchAccent.submitBtn }} onClick={addBatch}>🚀 {t('addBatchTitle')}</button>
                   </div>
                   {batchMsg && (
                     <div className={`msg ${batchMsg.includes(t('fixFields')) || batchMsg.includes('⚠') ? 'bad' : ''}`}>{batchMsg}</div>
